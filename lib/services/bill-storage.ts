@@ -1,5 +1,5 @@
-import { supabase } from '../supabase.js';
-import { Bill } from '../types.js';
+import { supabase } from '../supabase';
+import { Bill } from '../types';
 
 export class BillStorageService {
   async storeBills(bills: Bill[]): Promise<void> {

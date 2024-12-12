@@ -1,4 +1,4 @@
-import { Bill } from '../types.js';
+import { Bill } from '../types';
 
 const CONGRESS_API_BASE_URL = 'https://api.congress.gov/v3';
 

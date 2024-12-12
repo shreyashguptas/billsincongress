@@ -1,5 +1,5 @@
-import { CongressApiService } from '../lib/services/congress-api.js';
-import { BillStorageService } from '../lib/services/bill-storage.js';
+import { CongressApiService } from '../lib/services/congress-api';
+import { BillStorageService } from '../lib/services/bill-storage';
 import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';

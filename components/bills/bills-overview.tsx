@@ -14,6 +14,7 @@ export function BillsOverview() {
 
   const fetchBills = async () => {
     try {
+      setLoading(true);
       const storage = new BillStorageService();
       const fetchedBills = await storage.getBills(10);
       setBills(fetchedBills);
@@ -49,7 +50,11 @@ export function BillsOverview() {
   }, []);
 
   if (loading) {
-    return <div className="text-center py-8">Loading bills...</div>;
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
   }
 
   if (error) {
@@ -67,21 +72,6 @@ export function BillsOverview() {
     );
   }
 
-  if (bills.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p>No bills found. Please sync bills first.</p>
-        <button
-          onClick={syncBills}
-          disabled={syncing}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-        >
-          {syncing ? 'Syncing...' : 'Sync Bills'}
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -91,14 +81,28 @@ export function BillsOverview() {
           disabled={syncing}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
         >
-          {syncing ? 'Syncing...' : 'Refresh Bills'}
+          {syncing ? 'Syncing...' : 'Sync Bills'}
         </button>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {bills.map((bill) => (
-          <BillCard key={bill.id} bill={bill} />
-        ))}
-      </div>
+      
+      {bills.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-gray-500 mb-4">No bills found</p>
+          <button
+            onClick={syncBills}
+            disabled={syncing}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {syncing ? 'Syncing...' : 'Sync Bills'}
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {bills.map((bill) => (
+            <BillCard key={bill.id} bill={bill} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
