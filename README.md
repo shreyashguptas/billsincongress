@@ -12,9 +12,7 @@ Welcome to the Congressional Bill Tracker documentation. This documentation prov
 6. [Best Practices](./best-practices.md)
 7. [Project Structure](./project-structure.md)
 
-## Quick Start
-
-```bash
+## Quick Start```bash
 # Install dependencies
 npm install
 
@@ -54,3 +52,5 @@ npm install -g pnpm
 # Install dependencies
 pnpm install
 ```
+
+The data is retrieved from the [Congress.gov API](https://api.congress.gov/#/) (I love that they provide an API for this data!)
