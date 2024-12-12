@@ -1,3 +1,4 @@
+import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { mockBills } from '@/lib/mock-data';
 import { BillHeader } from '@/components/bills/bill-header';
@@ -7,10 +8,8 @@ import { BillSponsors } from '@/components/bills/bill-sponsors';
 import { BillCommittees } from '@/components/bills/bill-committees';
 import { BillRelated } from '@/components/bills/bill-related';
 
-interface BillPageProps {
-  params: {
-    id: string;
-  };
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
 export function generateStaticParams() {
@@ -19,8 +18,14 @@ export function generateStaticParams() {
   }));
 }
 
-export default function BillPage({ params }: BillPageProps) {
-  const bill = mockBills.find((b) => b.id === params.id);
+export default async function BillPage({ params }: PageProps) {
+  const resolvedParams = await params;
+  
+  if (!resolvedParams?.id) {
+    notFound();
+  }
+
+  const bill = mockBills.find((b) => b.id === resolvedParams.id);
 
   if (!bill) {
     notFound();
