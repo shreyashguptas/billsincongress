@@ -1,12 +1,7 @@
 import { CongressApiService } from '../lib/services/congress-api';
 import { BillStorageService } from '../lib/services/bill-storage';
 import * as dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
-
-// Get the directory name of the current module
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { resolve } from 'path';
 
 // Load environment variables from .env.local
 dotenv.config({ path: resolve(__dirname, '../.env.local') });
