@@ -39,7 +39,7 @@ The build process generates static files in the `.next` directory.
 - Monitor performance
 
 ### Domain Setup
-1. Add custom domain (optional)
+1. Add custom domain
 2. Configure DNS settings
 3. Enable HTTPS
 
