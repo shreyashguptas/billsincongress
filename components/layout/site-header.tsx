@@ -8,26 +8,12 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, Search } from 'lucide-react';
-import { ModeToggle } from './mode-toggle';
+import { ModeToggle } from '../theme/mode-toggle';
+import { routes } from '@/lib/constants/routes';
 
-export function Navigation() {
+export function SiteHeader() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
-
-  const routes = [
-    {
-      href: '/',
-      label: 'Home',
-    },
-    {
-      href: '/bills',
-      label: 'Bills',
-    },
-    {
-      href: '/about',
-      label: 'About',
-    },
-  ];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-[#002868] via-white to-[#BF0A30]">

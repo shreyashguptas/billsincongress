@@ -11,9 +11,9 @@ import {
 
 export function BillFilters() {
   return (
-    <div className="flex flex-wrap gap-4">
+    <div className="flex flex-nowrap gap-2 md:gap-4 min-w-max">
       <Select defaultValue="latest">
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-[140px] sm:w-[180px]">
           <SelectValue placeholder="Sort by" />
         </SelectTrigger>
         <SelectContent>
@@ -24,7 +24,7 @@ export function BillFilters() {
       </Select>
 
       <Select defaultValue="all">
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-[140px] sm:w-[180px]">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
@@ -38,7 +38,7 @@ export function BillFilters() {
       </Select>
 
       <Select defaultValue="all">
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-[140px] sm:w-[180px]">
           <SelectValue placeholder="Category" />
         </SelectTrigger>
         <SelectContent>
@@ -51,7 +51,9 @@ export function BillFilters() {
         </SelectContent>
       </Select>
 
-      <Button variant="outline">Clear Filters</Button>
+      <Button variant="outline" size="sm" className="whitespace-nowrap">
+        Clear Filters
+      </Button>
     </div>
   );
 }
