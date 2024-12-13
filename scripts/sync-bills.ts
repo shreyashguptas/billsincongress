@@ -24,7 +24,7 @@ async function syncBills() {
 
     // Fetch bills from Congress API
     console.log('Fetching bills from Congress API...');
-    const bills = await congressApi.fetchBills(10);
+    const bills = await congressApi.fetchBills(20);
     console.log(`Fetched ${bills.length} bills from Congress API`);
     
     if (bills.length > 0) {

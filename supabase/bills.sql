@@ -2,8 +2,17 @@
 create table if not exists bills (
   id text primary key,
   title text not null,
-  sponsor text,
-  introduced text,
+  congress_number integer,
+  bill_type text,
+  bill_number integer,
+  sponsor_name text,
+  sponsor_state text,
+  sponsor_party text,
+  sponsor_bioguide_id text,
+  committee_count integer,
+  latest_action_text text,
+  latest_action_date text,
+  update_date text,
   status text,
   progress integer,
   summary text,
@@ -17,6 +26,9 @@ create table if not exists bills (
 
 -- Create index for faster queries
 create index if not exists bills_last_updated_idx on bills(last_updated);
+create index if not exists bills_congress_number_idx on bills(congress_number);
+create index if not exists bills_bill_type_idx on bills(bill_type);
+create index if not exists bills_bill_number_idx on bills(bill_number);
 
 -- Enable Row Level Security (RLS)
 alter table bills enable row level security;

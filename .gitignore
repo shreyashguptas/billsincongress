@@ -7,3 +7,5 @@ out
 
 *.DS_Store
 .env.local
+api-testing/api-testing.ipynb
+api-testing/latest_bills.csv

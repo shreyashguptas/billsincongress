@@ -8,7 +8,7 @@ export class CongressApiService {
   constructor() {
     const apiKey = process.env.CONGRESS_API_KEY;
     if (!apiKey) {
-      throw new Error('Missing CONGRESS_API_KEY environment variable');
+      throw new Error('Congress API key is not configured');
     }
     this.apiKey = apiKey;
   }
@@ -59,40 +59,103 @@ export class CongressApiService {
         throw new Error('Bills data is not an array');
       }
 
-      return billsData.map((bill: any) => {
-        // Extract policy area name if it exists
-        const policyArea = bill.policyArea?.name || '';
-        
-        // Extract summary text, removing HTML tags if present
-        const summaryText = bill.summaries?.[0]?.text || '';
-        const cleanSummary = summaryText.replace(/<[^>]*>/g, '');
+      // For each bill, fetch additional details including summaries
+      const detailedBills = await Promise.all(
+        billsData.map(async (bill: any) => {
+          try {
+            const detailUrl = new URL(`${CONGRESS_API_BASE_URL}/bill/${bill.congress}/${bill.type.toLowerCase()}/${bill.number}`);
+            detailUrl.searchParams.append('api_key', this.apiKey);
+            detailUrl.searchParams.append('format', 'json');
 
-        // Create a unique ID combining congress and bill number
-        const id = `${bill.congress || '118'}-${bill.number || ''}`.trim();
+            const detailResponse = await fetch(detailUrl.toString());
+            const detailData = await detailResponse.json();
+            const billDetail = detailData.bill;
 
-        return {
-          id: id || 'unknown',
-          title: bill.title || 'Untitled Bill',
-          sponsor: bill.sponsors?.[0]?.fullName || 
-                  `${bill.sponsors?.[0]?.firstName || ''} ${bill.sponsors?.[0]?.lastName || ''}`.trim() || 
-                  'Unknown Sponsor',
-          introduced: bill.introducedDate || '',
-          status: bill.latestAction?.text || 'Status unknown',
-          progress: 0,
-          summary: cleanSummary || bill.title || 'No summary available',
-          tags: policyArea ? [policyArea] : [],
-          lastUpdated: bill.updateDate || bill.latestAction?.actionDate || new Date().toISOString(),
-          voteCount: {
-            yea: 0,
-            nay: 0,
-            present: 0,
-            notVoting: 0
+            // Calculate progress based on actions
+            const progress = this.calculateProgress(billDetail);
+
+            // Create a bill object that matches the Bill interface
+            const billObject: Bill = {
+              id: `${bill.congress}-${bill.number}`,
+              title: bill.title || 'Untitled Bill',
+              congressNumber: bill.congress,
+              billType: bill.type,
+              billNumber: parseInt(bill.number),
+              sponsorName: billDetail.sponsors?.[0]?.fullName || '',
+              sponsorState: billDetail.sponsors?.[0]?.state || '',
+              sponsorParty: billDetail.sponsors?.[0]?.party || '',
+              sponsorBioguideId: billDetail.sponsors?.[0]?.bioguideId || '',
+              committeeCount: billDetail.committees?.count || 0,
+              latestActionText: bill.latestAction?.text || '',
+              latestActionDate: bill.latestAction?.actionDate || '',
+              updateDate: bill.updateDate || '',
+              status: this.determineStatus(billDetail),
+              progress: progress,
+              summary: billDetail.summaries?.[0]?.text?.replace(/<[^>]*>/g, '') || '',
+              tags: billDetail.policyArea ? [billDetail.policyArea.name] : [],
+              lastUpdated: bill.updateDate || undefined,
+              voteCount: {
+                yea: 0,
+                nay: 0,
+                present: 0,
+                notVoting: 0
+              }
+            };
+
+            return billObject;
+          } catch (error) {
+            console.error(`Error fetching details for bill ${bill.number}:`, error);
+            return null;
           }
-        };
-      });
+        })
+      );
+
+      // Filter out any null values and ensure type safety
+      return detailedBills.filter((bill): bill is Bill => bill !== null);
     } catch (error) {
       console.error('Error fetching bills:', error);
       throw error;
     }
+  }
+
+  private calculateProgress(bill: any): number {
+    // Calculate progress based on bill status
+    if (!bill) return 0;
+
+    if (bill.laws?.length > 0) return 100; // Became law
+    
+    const actionText = bill.latestAction?.text?.toLowerCase() || '';
+    
+    if (actionText.includes('became public law')) return 100;
+    if (actionText.includes('passed') && actionText.includes('senate')) return 75;
+    if (actionText.includes('passed') && actionText.includes('house')) return 50;
+    if (actionText.includes('reported')) return 25;
+    if (actionText.includes('introduced')) return 10;
+    
+    return 0;
+  }
+
+  private determineStatus(bill: any): string {
+    if (!bill) return 'Unknown';
+
+    const actionText = bill.latestAction?.text?.toLowerCase() || '';
+
+    if (bill.laws?.length > 0 || actionText.includes('became public law')) {
+      return 'Became Law';
+    }
+    if (actionText.includes('passed') && actionText.includes('senate')) {
+      return 'Passed Senate';
+    }
+    if (actionText.includes('passed') && actionText.includes('house')) {
+      return 'Passed House';
+    }
+    if (actionText.includes('reported')) {
+      return 'Reported';
+    }
+    if (actionText.includes('introduced')) {
+      return 'Introduced';
+    }
+
+    return 'In Progress';
   }
 } 

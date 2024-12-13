@@ -8,12 +8,22 @@ export class BillStorageService {
       const billsToStore = bills.map(bill => ({
         id: bill.id,
         title: bill.title,
-        sponsor: bill.sponsor,
-        introduced: bill.introduced,
+        congress_number: bill.congressNumber,
+        bill_type: bill.billType,
+        bill_number: bill.billNumber,
+        sponsor_name: bill.sponsorName,
+        sponsor_state: bill.sponsorState,
+        sponsor_party: bill.sponsorParty,
+        sponsor_bioguide_id: bill.sponsorBioguideId,
+        committee_count: bill.committeeCount,
+        latest_action_text: bill.latestActionText,
+        latest_action_date: bill.latestActionDate,
+        update_date: bill.updateDate,
         status: bill.status,
         progress: bill.progress,
         summary: bill.summary,
         tags: Array.isArray(bill.tags) ? bill.tags : [],
+        ai_summary: bill.aiSummary,
         vote_count: bill.voteCount || {
           yea: 0,
           nay: 0,
@@ -54,7 +64,7 @@ export class BillStorageService {
         .from('bills')
         .select('*')
         .limit(limit)
-        .order('updated_at', { ascending: false });
+        .order('update_date', { ascending: false });
 
       if (error) {
         console.error('Supabase fetch error:', error);
@@ -70,8 +80,17 @@ export class BillStorageService {
       return data.map(bill => ({
         id: bill.id,
         title: bill.title,
-        sponsor: bill.sponsor,
-        introduced: bill.introduced,
+        congressNumber: bill.congress_number,
+        billType: bill.bill_type,
+        billNumber: bill.bill_number,
+        sponsorName: bill.sponsor_name,
+        sponsorState: bill.sponsor_state,
+        sponsorParty: bill.sponsor_party,
+        sponsorBioguideId: bill.sponsor_bioguide_id,
+        committeeCount: bill.committee_count,
+        latestActionText: bill.latest_action_text,
+        latestActionDate: bill.latest_action_date,
+        updateDate: bill.update_date,
         status: bill.status,
         progress: bill.progress || 0,
         summary: bill.summary,
