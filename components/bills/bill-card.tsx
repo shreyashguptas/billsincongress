@@ -1,8 +1,7 @@
+import { Bill } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import Link from 'next/link';
-import { Bill } from '@/lib/types';
 
 interface BillCardProps {
   bill: Bill;
@@ -10,37 +9,65 @@ interface BillCardProps {
 
 export function BillCard({ bill }: BillCardProps) {
   return (
-    <Link href={`/bills/${bill.id}`}>
-      <Card className="h-full transition-shadow hover:shadow-lg">
-        <CardHeader className="space-y-2">
-          <CardTitle className="line-clamp-2 text-base sm:text-lg">
-            {bill.title}
-          </CardTitle>
-          <div className="flex flex-wrap gap-1.5">
-            {bill.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 sm:space-y-4">
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="text-base sm:text-lg line-clamp-2">
+          {bill.title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* Bill Info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs sm:text-sm text-muted-foreground">Bill Number</p>
+              <p className="text-sm sm:text-base font-medium">{bill.billType} {bill.billNumber}</p>
+            </div>
             <div>
               <p className="text-xs sm:text-sm text-muted-foreground">Sponsor</p>
-              <p className="text-sm sm:text-base font-medium">{bill.sponsor}</p>
+              <p className="text-sm sm:text-base font-medium">{bill.sponsorName}</p>
             </div>
             <div>
               <p className="text-xs sm:text-sm text-muted-foreground">Status</p>
               <p className="text-sm sm:text-base font-medium">{bill.status}</p>
             </div>
             <div>
-              <p className="mb-1.5 text-xs sm:text-sm text-muted-foreground">Progress</p>
-              <Progress value={bill.progress} className="h-2" />
+              <p className="text-xs sm:text-sm text-muted-foreground">Last Updated</p>
+              <p className="text-sm sm:text-base font-medium">
+                {new Date(bill.lastUpdated || '').toLocaleDateString()}
+              </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+
+          {/* Progress */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs sm:text-sm">
+              <span>Progress</span>
+              <span>{bill.progress}%</span>
+            </div>
+            <Progress value={bill.progress} />
+          </div>
+
+          {/* Tags */}
+          {bill.tags && bill.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {bill.tags.map((tag, index) => (
+                <Badge key={index} variant="secondary">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {/* Summary */}
+          {bill.summary && (
+            <div>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-1">Summary</p>
+              <p className="text-sm sm:text-base line-clamp-3">{bill.summary}</p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

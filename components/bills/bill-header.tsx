@@ -1,9 +1,8 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
+import { Bill } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Share2 } from 'lucide-react';
-import { Bill } from '@/lib/types';
 
 interface BillHeaderProps {
   bill: Bill;
@@ -11,19 +10,21 @@ interface BillHeaderProps {
 
 export function BillHeader({ bill }: BillHeaderProps) {
   return (
-    <div>
-      <h1 className="text-3xl font-bold tracking-tight mb-4">{bill.title}</h1>
-      <div className="flex flex-wrap gap-2 mb-4">
-        {bill.tags.map((tag) => (
-          <Badge key={tag} variant="secondary">
-            {tag}
-          </Badge>
-        ))}
+    <div className="flex flex-col space-y-4 pb-4 pt-6 md:flex-row md:items-center md:justify-between md:space-y-0 md:py-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold tracking-tight">{bill.title}</h1>
+        <p className="text-sm text-muted-foreground">
+          {bill.billType} {bill.billNumber} • Congress {bill.congressNumber}
+        </p>
       </div>
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex items-center space-x-4">
         <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">Introduced</p>
-          <p className="font-medium">{bill.introduced}</p>
+          <p className="text-sm text-muted-foreground">Latest Action</p>
+          <p className="font-medium">{new Date(bill.latestActionDate || '').toLocaleDateString()}</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">Sponsor</p>
+          <p className="font-medium">{bill.sponsorName}</p>
         </div>
         <Button variant="outline" size="sm">
           <Share2 className="mr-2 h-4 w-4" />

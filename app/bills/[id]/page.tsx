@@ -1,51 +1,66 @@
-import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { mockBills } from '@/lib/mock-data';
+import { BillStorageService } from '@/lib/services/bill-storage';
+import { Bill } from '@/lib/types';
 import { BillHeader } from '@/components/bills/bill-header';
-import { BillProgressCard } from '@/components/bills/bill-progress-card';
-import { BillContentTabs } from '@/components/bills/bill-content-tabs';
 import { BillSponsors } from '@/components/bills/bill-sponsors';
-import { BillCommittees } from '@/components/bills/bill-committees';
-import { BillRelated } from '@/components/bills/bill-related';
+import { BillContentTabs } from '@/components/bills/bill-content-tabs';
+import { notFound } from 'next/navigation';
+import { Metadata } from 'next';
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
 }
 
-export function generateStaticParams() {
-  return mockBills.map((bill) => ({
-    id: bill.id,
-  }));
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const storage = new BillStorageService();
+  try {
+    const bills = await storage.getBillById(params.id);
+    const bill = bills[0];
+    if (!bill) {
+      return {
+        title: 'Bill Not Found',
+      };
+    }
+    return {
+      title: `${bill.billType} ${bill.billNumber} - ${bill.title}`,
+      description: bill.summary,
+    };
+  } catch (error) {
+    console.error('Error fetching bill metadata:', error);
+    return {
+      title: 'Bill Details',
+    };
+  }
 }
 
 export default async function BillPage({ params }: PageProps) {
-  const resolvedParams = await params;
-  
-  if (!resolvedParams?.id) {
-    notFound();
-  }
+  const storage = new BillStorageService();
+  let bill: Bill | null = null;
 
-  const bill = mockBills.find((b) => b.id === resolvedParams.id);
+  try {
+    const bills = await storage.getBillById(params.id);
+    if (bills && bills.length > 0) {
+      bill = bills[0];
+    }
+  } catch (error) {
+    console.error('Error fetching bill:', error);
+  }
 
   if (!bill) {
     notFound();
   }
 
   return (
-    <div className="container px-4 py-8">
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          <BillHeader bill={bill} />
-          <BillProgressCard bill={bill} />
+    <div className="container space-y-8 py-8">
+      <BillHeader bill={bill} />
+      <div className="grid gap-8 md:grid-cols-6">
+        <div className="md:col-span-4">
           <BillContentTabs bill={bill} />
         </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="md:col-span-2">
           <BillSponsors bill={bill} />
-          <BillCommittees />
-          <BillRelated />
         </div>
       </div>
     </div>

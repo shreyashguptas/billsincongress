@@ -2,6 +2,13 @@ import { Bill } from '../types';
 
 const CONGRESS_API_BASE_URL = 'https://api.congress.gov/v3';
 
+interface BatchOptions {
+  offset: number;
+  limit: number;
+  fromDateTime?: string;
+  toDateTime?: string;
+}
+
 export class CongressApiService {
   private apiKey: string;
 
@@ -13,17 +20,23 @@ export class CongressApiService {
     this.apiKey = apiKey;
   }
 
-  async fetchBills(limit: number = 10): Promise<Bill[]> {
+  async fetchBillsBatch(congress: number, billType: string, options: BatchOptions): Promise<Bill[]> {
     try {
-      // Get current congress (118) and fetch House bills
-      const url = new URL(`${CONGRESS_API_BASE_URL}/bill/118/hr`);
+      const url = new URL(`${CONGRESS_API_BASE_URL}/bill/${congress}/${billType}`);
       const params = {
         'api_key': this.apiKey,
-        'limit': limit.toString(),
+        'limit': options.limit.toString(),
+        'offset': options.offset.toString(),
         'format': 'json',
-        'sort': 'updateDate desc',
-        'offset': '0'
+        'sort': 'updateDate desc'
       };
+
+      if (options.fromDateTime) {
+        params['fromDateTime'] = options.fromDateTime;
+      }
+      if (options.toDateTime) {
+        params['toDateTime'] = options.toDateTime;
+      }
 
       // Add query parameters
       Object.entries(params).forEach(([key, value]) => {
@@ -51,7 +64,6 @@ export class CongressApiService {
         throw new Error('Invalid API response format');
       }
 
-      // The bills should be in the bills array
       const billsData = data.bills || [];
       
       if (!Array.isArray(billsData)) {
@@ -116,6 +128,11 @@ export class CongressApiService {
       console.error('Error fetching bills:', error);
       throw error;
     }
+  }
+
+  async fetchBills(limit: number = 10): Promise<Bill[]> {
+    // Use the new batch fetching method for consistency
+    return this.fetchBillsBatch(118, 'hr', { offset: 0, limit });
   }
 
   private calculateProgress(bill: any): number {

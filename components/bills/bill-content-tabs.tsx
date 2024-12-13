@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { FileText } from 'lucide-react';
@@ -19,26 +19,28 @@ export function BillContentTabs({ bill }: BillContentTabsProps) {
         <TabsTrigger value="timeline">Timeline</TabsTrigger>
         <TabsTrigger value="fulltext">Full Text</TabsTrigger>
       </TabsList>
-      <TabsContent value="summary" className="space-y-4">
+      <TabsContent value="summary">
         <Card>
-          <CardContent className="pt-6">
-            <p className="leading-7">{bill.summary}</p>
+          <CardHeader>
+            <CardTitle>Bill Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{bill.summary}</p>
           </CardContent>
         </Card>
       </TabsContent>
       <TabsContent value="timeline">
-        <BillTimeline />
+        <BillTimeline bill={bill} />
       </TabsContent>
       <TabsContent value="fulltext">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <p className="text-muted-foreground">Full text of the bill</p>
-              <Button variant="outline" size="sm">
-                <FileText className="mr-2 h-4 w-4" />
-                Download PDF
-              </Button>
-            </div>
+          <CardHeader>
+            <CardTitle>Full Text</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Full text of the bill will be displayed here when available.
+            </p>
           </CardContent>
         </Card>
       </TabsContent>
