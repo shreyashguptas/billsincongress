@@ -9,6 +9,16 @@ interface BatchOptions {
   toDateTime?: string;
 }
 
+interface ApiParams {
+  api_key: string;
+  limit: string;
+  offset: string;
+  format: string;
+  sort: string;
+  fromDateTime?: string;
+  toDateTime?: string;
+}
+
 export class CongressApiService {
   private apiKey: string;
 
@@ -23,19 +33,19 @@ export class CongressApiService {
   async fetchBillsBatch(congress: number, billType: string, options: BatchOptions): Promise<Bill[]> {
     try {
       const url = new URL(`${CONGRESS_API_BASE_URL}/bill/${congress}/${billType}`);
-      const params = {
-        'api_key': this.apiKey,
-        'limit': options.limit.toString(),
-        'offset': options.offset.toString(),
-        'format': 'json',
-        'sort': 'updateDate desc'
+      const params: ApiParams = {
+        api_key: this.apiKey,
+        limit: options.limit.toString(),
+        offset: options.offset.toString(),
+        format: 'json',
+        sort: 'updateDate desc'
       };
 
       if (options.fromDateTime) {
-        params['fromDateTime'] = options.fromDateTime;
+        params.fromDateTime = options.fromDateTime;
       }
       if (options.toDateTime) {
-        params['toDateTime'] = options.toDateTime;
+        params.toDateTime = options.toDateTime;
       }
 
       // Add query parameters

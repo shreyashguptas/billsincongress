@@ -6,17 +6,15 @@ import { BillContentTabs } from '@/components/bills/bill-content-tabs';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 
-interface PageProps {
-  params: { id: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
-}
-
 export async function generateMetadata({
   params,
-}: PageProps): Promise<Metadata> {
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
   const storage = new BillStorageService();
   try {
-    const bills = await storage.getBillById(params.id);
+    const resolvedParams = await params;
+    const bills = await storage.getBillById(resolvedParams.id);
     const bill = bills[0];
     if (!bill) {
       return {
@@ -35,12 +33,17 @@ export async function generateMetadata({
   }
 }
 
-export default async function BillPage({ params }: PageProps) {
+export default async function BillPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const storage = new BillStorageService();
   let bill: Bill | null = null;
 
   try {
-    const bills = await storage.getBillById(params.id);
+    const resolvedParams = await params;
+    const bills = await storage.getBillById(resolvedParams.id);
     if (bills && bills.length > 0) {
       bill = bills[0];
     }
