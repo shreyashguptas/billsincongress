@@ -56,15 +56,15 @@ export class BillStorageService {
     }
   }
 
-  async getBills(limit: number = 10): Promise<Bill[]> {
+  async getBills(limit: number = 10, offset: number = 0): Promise<Bill[]> {
     try {
-      console.log('Fetching bills from Supabase...');
+      console.log(`Fetching bills from Supabase with limit ${limit} and offset ${offset}...`);
       
       const { data, error } = await supabase
         .from('bills')
         .select('*')
-        .limit(limit)
-        .order('update_date', { ascending: false });
+        .order('update_date', { ascending: false })
+        .range(offset, offset + limit - 1);
 
       if (error) {
         console.error('Supabase fetch error:', error);

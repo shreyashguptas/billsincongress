@@ -2,11 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
-import { CongressApiService } from '@/lib/services/congress-api';
+import { BillStorageService } from '@/lib/services/bill-storage';
 
 async function getFeaturedBills() {
-  const congressApi = new CongressApiService();
-  return congressApi.fetchBills(5); // Fetch 5 most recent bills
+  const storage = new BillStorageService();
+  return storage.getBills(5); // Fetch 5 most recent bills from Supabase
 }
 
 export async function FeaturedBills() {

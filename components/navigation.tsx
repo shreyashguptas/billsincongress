@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, Search } from 'lucide-react';
-import { ModeToggle } from './mode-toggle';
 
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
@@ -89,7 +88,6 @@ export function Navigation() {
               <span className="sm:hidden">Search</span>
             </Button>
           </div>
-          <ModeToggle />
         </div>
       </div>
     </header>
