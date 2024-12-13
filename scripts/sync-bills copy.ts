@@ -1,3 +1,5 @@
+// This codes gets the 20 latest bills from the Congress API and stores them in Supabase
+
 // import { CongressApiService } from '../lib/services/congress-api';
 // import { BillStorageService } from '../lib/services/bill-storage';
 // import * as dotenv from 'dotenv';
