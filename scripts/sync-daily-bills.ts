@@ -75,19 +75,14 @@ async function dailySyncBills() {
 
       while (hasMoreBills) {
         try {
-          console.log(`Fetching ${billType} bills, offset: ${offset}`);
+          console.log(`Fetching ${billType} bills from Congress ${currentCongress}, offset: ${offset}`);
           
           // Fetch a batch of bills
-          const bills = await congressApi.fetchBillsBatch(currentCongress, billType, {
-            offset,
-            limit: config.batchSize,
-            fromDateTime,
-            toDateTime
-          });
+          const bills = await congressApi.fetchBills(config.batchSize, currentCongress);
 
           if (!bills || bills.length === 0) {
+            console.log(`No more ${billType} bills available for Congress ${currentCongress}`);
             hasMoreBills = false;
-            console.log(`No more ${billType} bills to update`);
             continue;
           }
 

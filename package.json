@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "sync-historical-bills": "tsx scripts/sync-historical-bills.ts"
+    "sync-historical-bills": "tsx scripts/sync-historical-bills.ts",
+    "sync-all-historical": "tsx scripts/sync-all-historical-bills.ts",
+    "sync-daily": "tsx scripts/sync-daily-bills.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -38,7 +40,7 @@
     "@radix-ui/react-toggle": "^1.1.0",
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
-    "@supabase/supabase-js": "^2.39.1",
+    "@supabase/supabase-js": "^2.47.8",
     "@vercel/analytics": "^1.4.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.0.0",
@@ -58,10 +60,10 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.7.1",
     "update": "^0.4.2",
     "vaul": "^1.1.1",
-    "vault": "^0.3.0",
-    "tsx": "^4.7.1"
+    "vault": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^20",
@@ -75,6 +77,5 @@
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5"
-  },
-  "type": "module"
+  }
 }

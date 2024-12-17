@@ -33,7 +33,17 @@ const transformBillData = (data: any): Bill => ({
     nay: 0,
     present: 0,
     notVoting: 0
-  }
+  },
+  originChamber: data.origin_chamber || '',
+  originChamberCode: data.origin_chamber_code || '',
+  congressGovUrl: data.congress_gov_url || '',
+  statusHistory: data.status_history || [],
+  lastStatusChange: data.last_status_change,
+  introducedDate: data.introduced_date || '',
+  constitutionalAuthorityText: data.constitutional_authority_text || '',
+  officialTitle: data.official_title || data.title,
+  shortTitle: data.short_title || '',
+  cosponsorsCount: data.cosponsors_count || 0
 });
 
 export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {

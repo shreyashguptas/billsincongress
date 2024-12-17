@@ -1,5 +1,5 @@
-import { supabase } from '../supabase.js';
-import { Bill } from '../types.js';
+import { supabase } from '../supabase';
+import { Bill } from '../types';
 
 export class BillStorageService {
   async storeBills(bills: Bill[]): Promise<void> {
@@ -112,7 +112,7 @@ export class BillStorageService {
       }
 
       // Transform the data back into Bill objects
-      return data.map(bill => ({
+      return data.map((bill: Record<string, any>) => ({
         id: bill.id,
         title: bill.title,
         congressNumber: bill.congress_number,
@@ -175,8 +175,8 @@ export class BillStorageService {
         return [];
       }
 
-      // Transform the data back into Bill objects using the same mapping as getBills
-      return data.map(bill => ({
+      // Transform the data back into Bill objects
+      return data.map((bill: Record<string, any>) => ({
         id: bill.id,
         title: bill.title,
         congressNumber: bill.congress_number,

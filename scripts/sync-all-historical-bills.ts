@@ -90,10 +90,7 @@ async function syncAllHistoricalBills() {
               console.log(`Fetching ${billType} bills from Congress ${congress}, offset: ${offset}`);
               
               // Fetch a batch of bills
-              const bills = await congressApi.fetchBillsBatch(congress, billType, {
-                offset,
-                limit: config.batchSize
-              });
+              const bills = await congressApi.fetchBills(config.batchSize, congress);
 
               if (!bills || bills.length === 0) {
                 console.log(`No more ${billType} bills available for Congress ${congress}`);

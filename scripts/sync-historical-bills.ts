@@ -89,11 +89,7 @@ async function historicalSyncBills() {
             const batchSize = Math.min(config.batchSize, remainingNeeded);
             
             // Fetch a batch of bills, sorted by update date descending
-            const bills = await congressApi.fetchBillsBatch(congress, billType, {
-              offset,
-              limit: batchSize,
-              sort: 'updateDate desc' // Ensure we get newest bills first
-            });
+            const bills = await congressApi.fetchBills(batchSize, congress);
 
             if (!bills || bills.length === 0) {
               console.log(`No more ${billType} bills available for Congress ${congress}`);
