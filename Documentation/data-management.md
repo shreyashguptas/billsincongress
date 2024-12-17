@@ -79,6 +79,17 @@ interface SyncConfig {
 }
 ```
 
+### Security & Authentication
+- Sync scripts require a valid `SYNC_AUTH_TOKEN` for execution
+- Token must be provided in the `x-sync-token` header
+- Prevents unauthorized data synchronization
+- Token is configured via environment variables
+
+### Build Process
+- Sync scripts are excluded from automatic execution during deployment
+- Scripts must be run manually with proper authentication
+- Environment variables must be properly configured before running scripts
+
 ## API Integration
 
 ### Congress.gov API

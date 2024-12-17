@@ -5,7 +5,11 @@ import { BillCard } from './bill-card';
 import { Bill } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const Loader2Icon = dynamic(() => import('lucide-react').then(mod => mod.Loader2), {
+  ssr: false
+});
 
 // Helper function to transform Supabase data to Bill type
 const transformBillData = (data: any): Bill => ({
@@ -54,6 +58,11 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(10);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const loadMoreBills = useCallback(async () => {
     try {
@@ -114,7 +123,7 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
               variant="outline"
               size="lg"
             >
-              {loadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isMounted && loadingMore && <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />}
               Load More Bills
             </Button>
           </div>
