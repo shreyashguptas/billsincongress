@@ -115,3 +115,44 @@ module.exports = {
    - Absolute imports
    - Organized imports
    - Clear dependencies
+
+## Assets and Icons
+
+### Favicon and PWA Icons
+The project uses an automated icon generation system that creates optimized favicons and PWA icons from a single source image:
+
+- Source image: `public/images/logo.webp`
+- Generated icons in `public/icons/`:
+  - Multiple PNG sizes (16x16 to 512x512)
+  - favicon.ico
+  - apple-touch-icon.png
+
+### Icon Generation
+- Automated during build process
+- Uses Sharp for optimized image processing
+- Generates multiple sizes for different devices
+- Creates PWA-compliant icons
+
+### PWA Configuration
+- Web app manifest (`app/manifest.ts`)
+- Full PWA support
+- Optimized for iOS and Android
+- Theme color adaptation
+- Offline capabilities
+
+### Icon Optimization
+- WebP source image for best quality/size ratio
+- Transparent background support
+- Automatic resizing with quality preservation
+- Device-specific optimizations
+
+### Usage
+Icons are automatically generated during build:
+```bash
+npm run build # Includes icon generation
+```
+
+Manual icon generation:
+```bash
+npm run generate-icons
+```
