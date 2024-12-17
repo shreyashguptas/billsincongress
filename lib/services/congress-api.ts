@@ -1,4 +1,4 @@
-import { Bill } from '../types';
+import { Bill } from '../types.js';
 
 const CONGRESS_API_BASE_URL = 'https://api.congress.gov/v3';
 
@@ -7,6 +7,7 @@ interface BatchOptions {
   limit: number;
   fromDateTime?: string;
   toDateTime?: string;
+  sort?: string;
 }
 
 interface ApiParams {
@@ -14,7 +15,7 @@ interface ApiParams {
   limit: string;
   offset: string;
   format: string;
-  sort: string;
+  sort?: string;
   fromDateTime?: string;
   toDateTime?: string;
 }
@@ -37,9 +38,12 @@ export class CongressApiService {
         api_key: this.apiKey,
         limit: options.limit.toString(),
         offset: options.offset.toString(),
-        format: 'json',
-        sort: 'updateDate desc'
+        format: 'json'
       };
+
+      if (options.sort) {
+        params.sort = options.sort;
+      }
 
       if (options.fromDateTime) {
         params.fromDateTime = options.fromDateTime;
