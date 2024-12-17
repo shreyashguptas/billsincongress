@@ -22,14 +22,6 @@
       "@/*": ["./*"]
     }
   },
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node",
-    "compilerOptions": {
-      "module": "NodeNext",
-      "moduleResolution": "NodeNext"
-    }
-  },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules"]
 }

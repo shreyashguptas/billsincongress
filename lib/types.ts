@@ -24,4 +24,19 @@ export interface Bill {
     present: number;
     notVoting: number;
   };
+  originChamber: string;
+  originChamberCode: string;
+  congressGovUrl: string;
+  statusHistory: {
+    date: string;
+    oldStatus?: string;
+    newStatus: string;
+    actionText: string;
+  }[];
+  lastStatusChange?: string;
+  introducedDate: string;
+  constitutionalAuthorityText?: string;
+  officialTitle: string;
+  shortTitle?: string;
+  cosponsorsCount: number;
 }

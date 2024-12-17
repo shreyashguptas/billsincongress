@@ -57,8 +57,10 @@ export class CongressApiService {
 
       const response = await fetch(url.toString(), {
         headers: {
-          'Accept': 'application/json'
-        }
+          'Accept': 'application/json',
+          'User-Agent': 'Congress-Tracker/1.0'
+        },
+        next: { revalidate: 3600 } // Cache for 1 hour
       });
 
       if (!response.ok) {
@@ -89,16 +91,28 @@ export class CongressApiService {
             detailUrl.searchParams.append('api_key', this.apiKey);
             detailUrl.searchParams.append('format', 'json');
 
-            const detailResponse = await fetch(detailUrl.toString());
+            const detailResponse = await fetch(detailUrl.toString(), {
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'Congress-Tracker/1.0'
+              },
+              next: { revalidate: 3600 } // Cache for 1 hour
+            });
+
+            if (!detailResponse.ok) {
+              throw new Error(`HTTP error! status: ${detailResponse.status}`);
+            }
+
             const detailData = await detailResponse.json();
             const billDetail = detailData.bill;
 
             // Calculate progress based on actions
             const progress = this.calculateProgress(billDetail);
+            const status = this.determineStatus(billDetail);
 
             // Create a bill object that matches the Bill interface
             const billObject: Bill = {
-              id: `${bill.congress}-${bill.number}`,
+              id: `${bill.congress}-${bill.type.toLowerCase()}-${bill.number}`,
               title: bill.title || 'Untitled Bill',
               congressNumber: bill.congress,
               billType: bill.type,
@@ -111,17 +125,26 @@ export class CongressApiService {
               latestActionText: bill.latestAction?.text || '',
               latestActionDate: bill.latestAction?.actionDate || '',
               updateDate: bill.updateDate || '',
-              status: this.determineStatus(billDetail),
+              status: status,
               progress: progress,
               summary: billDetail.summaries?.[0]?.text?.replace(/<[^>]*>/g, '') || '',
               tags: billDetail.policyArea ? [billDetail.policyArea.name] : [],
-              lastUpdated: bill.updateDate || undefined,
+              lastUpdated: bill.updateDateIncludingText || bill.updateDate,
               voteCount: {
                 yea: 0,
                 nay: 0,
                 present: 0,
                 notVoting: 0
-              }
+              },
+              originChamber: bill.originChamber || '',
+              originChamberCode: bill.originChamberCode || '',
+              congressGovUrl: billDetail.congressGovUrl || '',
+              statusHistory: [],
+              introducedDate: billDetail.introducedDate || '',
+              constitutionalAuthorityText: billDetail.constitutionalAuthorityText || '',
+              officialTitle: billDetail.title || bill.title || '',
+              shortTitle: billDetail.shortTitle || '',
+              cosponsorsCount: billDetail.cosponsors?.count || 0
             };
 
             return billObject;
@@ -146,18 +169,25 @@ export class CongressApiService {
   }
 
   private calculateProgress(bill: any): number {
-    // Calculate progress based on bill status
     if (!bill) return 0;
-
-    if (bill.laws?.length > 0) return 100; // Became law
     
     const actionText = bill.latestAction?.text?.toLowerCase() || '';
-    
-    if (actionText.includes('became public law')) return 100;
-    if (actionText.includes('passed') && actionText.includes('senate')) return 75;
-    if (actionText.includes('passed') && actionText.includes('house')) return 50;
-    if (actionText.includes('reported')) return 25;
-    if (actionText.includes('introduced')) return 10;
+    const status = {
+      'became public law': 100,
+      'enrolled bill': 90,
+      'passed both': 80,
+      'passed senate': 70,
+      'passed house': 60,
+      'reported favorably': 50,
+      'reported': 40,
+      'hearings': 30,
+      'referred': 20,
+      'introduced': 10
+    };
+
+    for (const [key, value] of Object.entries(status)) {
+      if (actionText.includes(key)) return value;
+    }
     
     return 0;
   }
@@ -170,14 +200,29 @@ export class CongressApiService {
     if (bill.laws?.length > 0 || actionText.includes('became public law')) {
       return 'Became Law';
     }
+    if (actionText.includes('enrolled')) {
+      return 'Enrolled';
+    }
+    if (actionText.includes('passed') && actionText.includes('both')) {
+      return 'Passed Both Chambers';
+    }
     if (actionText.includes('passed') && actionText.includes('senate')) {
       return 'Passed Senate';
     }
     if (actionText.includes('passed') && actionText.includes('house')) {
       return 'Passed House';
     }
+    if (actionText.includes('reported favorably')) {
+      return 'Reported Favorably';
+    }
     if (actionText.includes('reported')) {
       return 'Reported';
+    }
+    if (actionText.includes('hearings')) {
+      return 'In Hearings';
+    }
+    if (actionText.includes('referred')) {
+      return 'Referred';
     }
     if (actionText.includes('introduced')) {
       return 'Introduced';
