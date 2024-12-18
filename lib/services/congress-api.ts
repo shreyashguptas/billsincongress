@@ -277,13 +277,13 @@ export class CongressApiService {
       case 'Enacted':
         return 100;
       case 'Vetoed':
-        return 90;
+        return 80;
       case 'In Committee':
-        return 30;
+        return 40;
       case 'Introduced':
-        return 10;
+        return 20;
       default:
-        return 50;
+        return 60; // In Progress
     }
   }
 } 

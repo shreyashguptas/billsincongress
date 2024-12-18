@@ -9,19 +9,23 @@ interface BillTimelineProps {
 }
 
 export function BillTimeline({ bill }: BillTimelineProps) {
-  // Define the stages a bill typically goes through
+  // Define the stages a bill typically goes through with cumulative progress
   const stages = [
-    { name: 'Introduced', progress: 10 },
-    { name: 'Reported', progress: 25 },
-    { name: 'Passed House', progress: 50 },
-    { name: 'Passed Senate', progress: 75 },
+    { name: 'Introduced', progress: 20 },
+    { name: 'Reported', progress: 40 },
+    { name: 'Passed House', progress: 60 },
+    { name: 'Passed Senate', progress: 80 },
     { name: 'Became Law', progress: 100 },
   ];
 
   // Find the current stage based on bill's progress
-  const currentStage = stages.reduce((prev, curr) => {
-    return bill.progress >= curr.progress ? curr : prev;
-  }, stages[0]);
+  const currentStage = stages.find(stage => bill.progress <= stage.progress) || stages[stages.length - 1];
+  const previousStage = stages[Math.max(stages.indexOf(currentStage) - 1, 0)];
+
+  // Calculate the actual progress within the current stage
+  const stageProgress = stages.indexOf(currentStage) === 0 
+    ? bill.progress 
+    : previousStage.progress + ((bill.progress - previousStage.progress) / (currentStage.progress - previousStage.progress)) * (currentStage.progress - previousStage.progress);
 
   return (
     <Card>
@@ -34,37 +38,39 @@ export function BillTimeline({ bill }: BillTimelineProps) {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="font-medium">{currentStage.name}</span>
-              <span className="text-muted-foreground">{bill.progress}%</span>
+              <span className="text-muted-foreground">{Math.round(stageProgress)}%</span>
             </div>
-            <Progress value={bill.progress} />
+            <Progress value={stageProgress} />
           </div>
 
           {/* Timeline */}
           <div className="space-y-4 pt-4">
-            {stages.map((stage, index) => (
-              <div key={stage.name} className="flex items-center gap-4">
-                <div className={`h-2 w-2 rounded-full ${bill.progress >= stage.progress ? 'bg-primary' : 'bg-muted'}`} />
-                <div className="flex-1">
-                  <p className={`text-sm ${bill.progress >= stage.progress ? 'font-medium' : 'text-muted-foreground'}`}>
-                    {stage.name}
-                  </p>
-                </div>
-                {bill.progress >= stage.progress && (
-                  <div className="text-xs text-muted-foreground">
-                    {stage.progress}%
+            {stages.map((stage, index) => {
+              const isCompleted = bill.progress >= stage.progress;
+              const isCurrent = stage === currentStage;
+              
+              return (
+                <div key={stage.name} className="flex items-center gap-4">
+                  <div 
+                    className={`h-2 w-2 rounded-full ${
+                      isCompleted || isCurrent ? 'bg-primary' : 'bg-muted'
+                    }`} 
+                  />
+                  <div className="flex-1">
+                    <p className={`text-sm ${
+                      isCompleted || isCurrent ? 'font-medium' : 'text-muted-foreground'
+                    }`}>
+                      {stage.name}
+                    </p>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Latest Action */}
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-medium mb-2">Latest Action</h3>
-            <p className="text-sm text-muted-foreground">{bill.latestActionText}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {new Date(bill.latestActionDate || '').toLocaleDateString()}
-            </p>
+                  {(isCompleted || isCurrent) && (
+                    <div className="text-xs text-muted-foreground">
+                      {stage.progress}%
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </CardContent>

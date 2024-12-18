@@ -25,12 +25,12 @@ export function BillStatusSelect() {
   return (
     <Select value={status} onValueChange={handleStatusChange}>
       <SelectTrigger className="w-[140px] sm:w-[180px]">
-        <SelectValue placeholder="Filter by status" />
+        <SelectValue placeholder="Bill Status" />
       </SelectTrigger>
       <SelectContent>
         {uniqueStatuses.map((value) => (
           <SelectItem key={value} value={value}>
-            {value.charAt(0).toUpperCase() + value.slice(1)}
+            {value === 'all' ? 'All Statuses' : value.charAt(0).toUpperCase() + value.slice(1)}
           </SelectItem>
         ))}
       </SelectContent>

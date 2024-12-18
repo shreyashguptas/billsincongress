@@ -25,12 +25,12 @@ export function BillCategorySelect() {
   return (
     <Select value={category} onValueChange={handleCategoryChange}>
       <SelectTrigger className="w-[140px] sm:w-[180px]">
-        <SelectValue placeholder="Filter by category" />
+        <SelectValue placeholder="Bill Category" />
       </SelectTrigger>
       <SelectContent>
         {uniqueTags.map((value) => (
           <SelectItem key={value} value={value}>
-            {value.charAt(0).toUpperCase() + value.slice(1)}
+            {value === 'all' ? 'All Categories' : value.charAt(0).toUpperCase() + value.slice(1)}
           </SelectItem>
         ))}
       </SelectContent>

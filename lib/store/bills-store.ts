@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { Bill } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 
@@ -13,14 +14,18 @@ interface BillsState {
   searchQuery: string;
   uniqueStatuses: string[];
   uniqueTags: string[];
+  lastFetched: number;
+  featuredBills: Bill[];
+  featuredBillsLastFetched: number;
   setBills: (bills: Bill[]) => void;
   setSortBy: (sort: string) => void;
   setStatus: (status: string) => void;
   setCategory: (category: string) => void;
   setSearchQuery: (query: string) => void;
   clearFilters: () => void;
-  fetchBills: (reset?: boolean) => Promise<void>;
+  fetchBills: (reset?: boolean, force?: boolean) => Promise<void>;
   fetchUniqueValues: () => Promise<void>;
+  fetchFeaturedBills: (force?: boolean) => Promise<void>;
 }
 
 const transformBillData = (data: any): Bill => ({
@@ -61,114 +66,176 @@ const transformBillData = (data: any): Bill => ({
   cosponsorsCount: data.cosponsors_count || 0
 });
 
-export const useBillsStore = create<BillsState>((set, get) => ({
-  bills: [],
-  loading: false,
-  error: null,
-  offset: 0,
-  sortBy: 'latest',
-  status: 'all',
-  category: 'all',
-  searchQuery: '',
-  uniqueStatuses: [],
-  uniqueTags: [],
+// 24 hours in milliseconds
+const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
-  setBills: (bills) => set({ bills }),
-  setSortBy: (sortBy) => set({ sortBy }),
-  setStatus: (status) => set({ status }),
-  setCategory: (category) => set({ category }),
-  setSearchQuery: (searchQuery) => set({ searchQuery }),
-  
-  clearFilters: () => {
-    set({
+export const useBillsStore = create<BillsState>()(
+  persist(
+    (set, get) => ({
+      bills: [],
+      loading: false,
+      error: null,
+      offset: 0,
       sortBy: 'latest',
       status: 'all',
       category: 'all',
       searchQuery: '',
-    });
-    get().fetchBills(true);
-  },
+      uniqueStatuses: [],
+      uniqueTags: [],
+      lastFetched: 0,
+      featuredBills: [],
+      featuredBillsLastFetched: 0,
 
-  fetchUniqueValues: async () => {
-    try {
-      // Fetch unique statuses
-      const { data: statusData, error: statusError } = await supabase
-        .from('bills')
-        .select('status')
-        .not('status', 'is', null);
-
-      if (statusError) throw statusError;
-
-      const uniqueStatuses = ['all', ...new Set(statusData.map(item => item.status))];
-
-      // Fetch unique tags
-      const { data: tagData, error: tagError } = await supabase
-        .from('bills')
-        .select('tags')
-        .not('tags', 'is', null);
-
-      if (tagError) throw tagError;
-
-      const allTags = tagData.flatMap(item => item.tags || []);
-      const uniqueTags = ['all', ...new Set(allTags)];
-
-      set({ uniqueStatuses, uniqueTags });
-    } catch (error: any) {
-      console.error('Error fetching unique values:', error);
-    }
-  },
-
-  fetchBills: async (reset = false) => {
-    const state = get();
-    const offset = reset ? 0 : state.offset;
-    
-    try {
-      set({ loading: true, error: null });
+      setBills: (bills) => set({ bills }),
+      setSortBy: (sortBy) => set({ sortBy }),
+      setStatus: (status) => set({ status }),
+      setCategory: (category) => set({ category }),
+      setSearchQuery: (searchQuery) => set({ searchQuery }),
       
-      let query = supabase
-        .from('bills')
-        .select('*');
+      clearFilters: () => {
+        set({
+          sortBy: 'latest',
+          status: 'all',
+          category: 'all',
+          searchQuery: '',
+        });
+        get().fetchBills(true);
+      },
 
-      // Apply filters
-      if (state.status !== 'all') {
-        query = query.eq('status', state.status);
-      }
+      fetchUniqueValues: async () => {
+        try {
+          // Fetch unique statuses
+          const { data: statusData, error: statusError } = await supabase
+            .from('bills')
+            .select('status')
+            .not('status', 'is', null);
 
-      if (state.category !== 'all') {
-        query = query.contains('tags', [state.category]);
-      }
+          if (statusError) throw statusError;
 
-      if (state.searchQuery) {
-        query = query.ilike('title', `%${state.searchQuery}%`);
-      }
+          const uniqueStatuses = ['all', ...new Set(statusData.map(item => item.status))];
 
-      // Apply sorting
-      if (state.sortBy === 'latest') {
-        query = query.order('last_updated', { ascending: false });
-      } else if (state.sortBy === 'oldest') {
-        query = query.order('last_updated', { ascending: true });
-      }
+          // Fetch unique tags
+          const { data: tagData, error: tagError } = await supabase
+            .from('bills')
+            .select('tags')
+            .not('tags', 'is', null);
 
-      query = query.range(offset, offset + 9);
+          if (tagError) throw tagError;
 
-      const { data, error: supabaseError } = await query;
+          const allTags = tagData.flatMap(item => item.tags || []);
+          const uniqueTags = ['all', ...new Set(allTags)];
 
-      if (supabaseError) throw supabaseError;
+          set({ uniqueStatuses, uniqueTags });
+        } catch (error: any) {
+          console.error('Error fetching unique values:', error);
+        }
+      },
 
-      const transformedBills = data?.map(transformBillData) || [];
-      
-      if (reset) {
-        set({ bills: transformedBills, offset: 10 });
-      } else {
-        set(state => ({
-          bills: [...state.bills, ...transformedBills],
-          offset: state.offset + 10
-        }));
-      }
-    } catch (error: any) {
-      set({ error: error.message });
-    } finally {
-      set({ loading: false });
+      fetchBills: async (reset = false, force = false) => {
+        const state = get();
+        const now = Date.now();
+        
+        // Check if we should use cached data
+        if (!force && !reset && state.bills.length > 0 && (now - state.lastFetched) < CACHE_DURATION) {
+          return;
+        }
+
+        const offset = reset ? 0 : state.offset;
+        
+        try {
+          set({ loading: true, error: null });
+          
+          let query = supabase
+            .from('bills')
+            .select('*');
+
+          // Apply filters
+          if (state.status !== 'all') {
+            query = query.eq('status', state.status);
+          }
+
+          if (state.category !== 'all') {
+            query = query.contains('tags', [state.category]);
+          }
+
+          if (state.searchQuery) {
+            query = query.ilike('title', `%${state.searchQuery}%`);
+          }
+
+          // Apply sorting
+          if (state.sortBy === 'latest') {
+            query = query.order('last_updated', { ascending: false });
+          } else if (state.sortBy === 'oldest') {
+            query = query.order('last_updated', { ascending: true });
+          }
+
+          query = query.range(offset, offset + 9);
+
+          const { data, error: supabaseError } = await query;
+
+          if (supabaseError) throw supabaseError;
+
+          const transformedBills = data?.map(transformBillData) || [];
+          
+          if (reset) {
+            set({ 
+              bills: transformedBills, 
+              offset: 10,
+              lastFetched: now 
+            });
+          } else {
+            set(state => ({
+              bills: [...state.bills, ...transformedBills],
+              offset: state.offset + 10,
+              lastFetched: now
+            }));
+          }
+        } catch (error: any) {
+          set({ error: error.message });
+        } finally {
+          set({ loading: false });
+        }
+      },
+
+      fetchFeaturedBills: async (force = false) => {
+        const state = get();
+        const now = Date.now();
+        
+        // Check if we should use cached data
+        if (!force && state.featuredBills.length > 0 && (now - state.featuredBillsLastFetched) < CACHE_DURATION) {
+          return;
+        }
+
+        try {
+          const { data, error } = await supabase
+            .from('bills')
+            .select('*')
+            .order('update_date', { ascending: false })
+            .limit(5);
+
+          if (error) throw error;
+
+          const transformedBills = data?.map(transformBillData) || [];
+          
+          set({ 
+            featuredBills: transformedBills,
+            featuredBillsLastFetched: now
+          });
+        } catch (error: any) {
+          console.error('Error fetching featured bills:', error);
+        }
+      },
+    }),
+    {
+      name: 'bills-storage',
+      partialize: (state) => ({
+        bills: state.bills,
+        lastFetched: state.lastFetched,
+        uniqueStatuses: state.uniqueStatuses,
+        uniqueTags: state.uniqueTags,
+        featuredBills: state.featuredBills,
+        featuredBillsLastFetched: state.featuredBillsLastFetched,
+      }),
     }
-  },
-})); 
+  )
+); 

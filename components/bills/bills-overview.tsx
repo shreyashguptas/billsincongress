@@ -11,8 +11,13 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
   const { bills, loading, error, fetchBills } = useBillsStore();
 
   useEffect(() => {
-    useBillsStore.setState({ bills: initialBills });
-  }, [initialBills]);
+    // Only set initial bills if we don't have any cached bills
+    if (bills.length === 0) {
+      useBillsStore.setState({ bills: initialBills });
+    }
+    // Force fetch if it's been more than 24 hours
+    fetchBills(true, false);
+  }, [bills.length, initialBills]);
 
   if (error) {
     return (

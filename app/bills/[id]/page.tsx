@@ -56,14 +56,18 @@ export default async function BillPage({
   }
 
   return (
-    <div className="container space-y-8 py-8">
-      <BillHeader bill={bill} />
-      <div className="grid gap-8 md:grid-cols-6">
-        <div className="md:col-span-4">
-          <BillContentTabs bill={bill} />
-        </div>
-        <div className="md:col-span-2">
-          <BillSponsors bill={bill} />
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <BillHeader bill={bill} />
+        <div className="grid gap-8 py-8 lg:grid-cols-3">
+          <div className="order-2 lg:order-1 lg:col-span-2">
+            <BillContentTabs bill={bill} />
+          </div>
+          <div className="order-1 lg:order-2 lg:col-span-1">
+            <div className="sticky top-8">
+              <BillSponsors bill={bill} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
