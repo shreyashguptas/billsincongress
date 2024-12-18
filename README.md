@@ -1,56 +1,48 @@
-# Congressional Bill Tracker Documentation
+# Congressional Bill Tracker
 
-Welcome to the Congressional Bill Tracker documentation. This documentation provides comprehensive information about the project's architecture, features, and implementation details.
+## Making Congress Accessible to Everyone
 
-## Table of Contents
+The Congressional Bill Tracker is a modern, user-friendly platform designed to help everyday Americans understand and track what's happening in Congress. We believe that understanding legislative activities shouldn't require a law degree or hours of research.
 
-1. [Project Overview](./project-overview.md)
-2. [Architecture](./architecture.md)
-3. [Components](./components.md)
-4. [Data Management](./data-management.md)
-5. [Styling](./styling.md)
-6. [Best Practices](./best-practices.md)
-7. [Project Structure](./project-structure.md)
+## Why This Matters
 
-## Quick Start```bash
-# Install dependencies
-npm install
+In today's complex political landscape, it's more important than ever to stay informed about the laws and policies that affect our daily lives. However, congressional bills are often written in complex legal language that can be difficult for most people to understand. Our platform bridges this gap by:
 
-# Run development server
-npm run dev
+- **Simplifying Complex Bills**: We use AI to generate clear, concise summaries of bills in plain English
+- **Real-Time Updates**: Track bills as they move through Congress, from introduction to becoming law
+- **Easy Navigation**: Find bills by topic, status, or keyword without getting lost in legal jargon
+- **Visual Progress**: See exactly where each bill is in the legislative process
+- **Comprehensive Information**: Access sponsor details, voting records, and related bills all in one place
 
-# Build for production
-npm run build
+## Features
 
-# Start production server
-npm start
-```
+- 🔍 **Smart Search**: Easily find bills by title, topic, or keyword
+- 📊 **Interactive Timeline**: Visual representation of a bill's journey through Congress
+- 🤖 **AI-Powered Summaries**: Complex bills explained in simple terms
+- 🔔 **Real-Time Updates**: Stay informed about changes to bills you care about
+- 📱 **Mobile-Friendly**: Access information anywhere, anytime
+- 🌓 **Dark/Light Mode**: Comfortable viewing in any lighting condition
 
-## Key Features
+## Built for Everyone
 
-- Real-time bill tracking
-- AI-powered bill summaries
-- Interactive timeline visualization
-- Advanced search and filtering
-- Responsive design
-- Dark/light mode support
-- Accessibility features
+Whether you're a student, professional, activist, or just a concerned citizen, our platform helps you:
+- Understand what laws are being proposed
+- Track bills that matter to you
+- See how your representatives are voting
+- Make informed decisions about important issues
 
-## Technology Stack
+## Getting Started
 
-- Next.js 13.5 (App Router)
-- TypeScript
-- Tailwind CSS
-- shadcn/ui Components
-- Lucide Icons
+Visit our website at [URL] to start exploring congressional bills. No account needed - just search, browse, and learn about the legislation that shapes our nation.
 
-# Misc Commands
-```bash
-# Install pnpm
-npm install -g pnpm
+## For Developers
 
-# Install dependencies
-pnpm install
-```
+If you're interested in the technical details or contributing to the project, check out our [Documentation](./Documentation) folder for comprehensive technical information.
 
-The data is retrieved from the [Congress.gov API](https://api.congress.gov/#/) (I love that they provide an API for this data!)
+## Data Source
+
+All bill information is sourced directly from the official [Congress.gov API](https://api.congress.gov/), ensuring accuracy and reliability.
+
+## Questions or Feedback?
+
+We're always looking to improve! If you have questions, suggestions, or feedback, please open an issue or reach out to us.
