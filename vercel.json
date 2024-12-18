@@ -3,5 +3,9 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [{
+    "path": "/api/cron",
+    "schedule": "0 1 * * *"
+  }]
 }

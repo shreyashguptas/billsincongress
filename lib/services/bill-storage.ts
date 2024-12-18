@@ -219,4 +219,21 @@ export class BillStorageService {
       throw error;
     }
   }
+
+  async updateBillSummary(billId: string, summary: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .update({
+          summary,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', billId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error(`Error updating summary for bill ${billId}:`, error);
+      throw error;
+    }
+  }
 } 

@@ -15,17 +15,35 @@ interface SyncOptions {
   endCongress?: number;
   billTypes?: string[];
   maxRecords?: number;
+  onlyMissingSummaries?: boolean;
+  billIds?: string[];
 }
 
 async function getCurrentCongress(): Promise<number> {
   return Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
 }
 
+async function parseBillId(billId: string): Promise<{ congress: number; type: string; number: number } | null> {
+  try {
+    const [congress, type, number] = billId.split('-');
+    return {
+      congress: parseInt(congress),
+      type: type.toLowerCase(),
+      number: parseInt(number)
+    };
+  } catch (error) {
+    console.error(`Invalid bill ID format: ${billId}`);
+    return null;
+  }
+}
+
 async function syncBillsWithSummaries(options: SyncOptions = {}) {
   const {
     isHistorical = false,
     billTypes = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'],
-    maxRecords = 10000
+    maxRecords = 2000,
+    onlyMissingSummaries = false,
+    billIds = []
   } = options;
 
   const congressApi = new CongressApiService();
@@ -39,10 +57,39 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
   const startCongress = options.startCongress || (isHistorical ? currentCongress - 2 : currentCongress);
   const endCongress = options.endCongress || currentCongress;
   
-  console.log(`Starting ${isHistorical ? 'historical' : 'daily'} sync for Congresses ${startCongress} to ${endCongress}`);
-  
   let totalRecordsFetched = 0;
 
+  // If we're only fetching missing summaries for specific bills
+  if (onlyMissingSummaries && billIds.length > 0) {
+    console.log(`Fetching summaries for ${billIds.length} specific bills...`);
+    
+    for (const billId of billIds) {
+      const billInfo = await parseBillId(billId);
+      if (!billInfo) continue;
+
+      try {
+        const summary = await congressApi.fetchBillSummary(
+          billInfo.congress,
+          billInfo.type,
+          billInfo.number
+        );
+
+        if (summary) {
+          await storage.updateBillSummary(billId, summary);
+          console.log(`Updated summary for bill ${billId}`);
+        }
+
+        // Respect rate limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`Error updating summary for bill ${billId}:`, error);
+      }
+    }
+    return;
+  }
+
+  console.log(`Starting ${isHistorical ? 'historical' : 'daily'} sync for Congresses ${startCongress} to ${endCongress}`);
+  
   for (let congress = endCongress; congress >= startCongress && totalRecordsFetched < maxRecords; congress--) {
     for (const billType of billTypes) {
       let offset = 0;
@@ -100,7 +147,7 @@ if (require.main === module) {
     startCongress: args.includes('--start') ? parseInt(args[args.indexOf('--start') + 1]) : undefined,
     endCongress: args.includes('--end') ? parseInt(args[args.indexOf('--end') + 1]) : undefined,
     billTypes: args.includes('--types') ? args[args.indexOf('--types') + 1].split(',') : undefined,
-    maxRecords: args.includes('--max') ? parseInt(args[args.indexOf('--max') + 1]) : 10000
+    maxRecords: args.includes('--max') ? parseInt(args[args.indexOf('--max') + 1]) : 2000
   };
 
   syncBillsWithSummaries(options)

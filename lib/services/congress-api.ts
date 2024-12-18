@@ -34,6 +34,20 @@ export class CongressApiService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  private extractSummaryFromBillData(billData: any): string {
+    // Try to get summary from various possible locations in bill data
+    if (billData.summaries?.[0]?.text) {
+      return billData.summaries[0].text;
+    }
+    if (billData.summary?.text) {
+      return billData.summary.text;
+    }
+    if (typeof billData.summary === 'string' && billData.summary) {
+      return billData.summary;
+    }
+    return '';
+  }
+
   async fetchBillSummary(congress: number, billType: string, billNumber: number): Promise<string> {
     try {
       const url = new URL(`${this.baseUrl}/bill/${congress}/${billType}/${billNumber}/summaries`);
@@ -42,14 +56,15 @@ export class CongressApiService {
 
       const response = await fetch(url.toString());
       if (!response.ok) {
-        console.warn(`No summary found for bill ${congress}-${billType}-${billNumber}`);
+        console.warn(`No summary found in summaries endpoint for bill ${congress}-${billType}-${billNumber}`);
         return '';
       }
 
       const data = await response.json();
       const summaries = data?.summaries || [];
-      if (summaries.length > 0) {
-        return summaries[0].text || '';
+      if (summaries.length > 0 && summaries[0].text) {
+        console.log(`Found summary in summaries endpoint for bill ${congress}-${billType}-${billNumber}`);
+        return summaries[0].text;
       }
       return '';
     } catch (error) {
@@ -101,9 +116,18 @@ export class CongressApiService {
 
           const detailData = await detailResponse.json();
           
-          // Delay before fetching summary
-          await this.delay(RATE_LIMIT_DELAY);
-          const summary = await this.fetchBillSummary(bill.congress, bill.type, bill.number);
+          // First try to get summary from bill details
+          let summary = this.extractSummaryFromBillData(detailData.bill);
+          
+          // If no summary in bill details, try the summaries endpoint
+          if (!summary) {
+            await this.delay(RATE_LIMIT_DELAY);
+            summary = await this.fetchBillSummary(bill.congress, bill.type, bill.number);
+          }
+
+          if (!summary) {
+            console.log(`No summary available for bill ${bill.congress}-${bill.type}-${bill.number}`);
+          }
           
           detailedBills.push({
             ...bill,
