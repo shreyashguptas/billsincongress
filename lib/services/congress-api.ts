@@ -29,75 +29,181 @@ export class CongressApiService {
     this.baseUrl = 'https://api.congress.gov/v3';
   }
 
-  async fetchBills(limit: number = 10, congress?: number): Promise<Bill[]> {
+  async fetchBills(limit: number = 10, congress?: number, billType: string = 'hr', offset: number = 0): Promise<Bill[]> {
     try {
       const currentCongress = congress || Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
-      console.log(`Fetching bills from Congress ${currentCongress}...`);
+      console.log(`Fetching ${billType.toUpperCase()} bills from Congress ${currentCongress}, offset: ${offset}...`);
 
-      const url = new URL(`${this.baseUrl}/bill/${currentCongress}/hr`);
-      url.searchParams.append('api_key', this.apiKey);
-      url.searchParams.append('limit', limit.toString());
-      url.searchParams.append('format', 'json');
+      // Fetch bill list with detailed information
+      const listUrl = new URL(`${this.baseUrl}/bill/${currentCongress}/${billType}`);
+      listUrl.searchParams.append('api_key', this.apiKey);
+      listUrl.searchParams.append('limit', limit.toString());
+      listUrl.searchParams.append('offset', offset.toString());
+      listUrl.searchParams.append('format', 'json');
+      listUrl.searchParams.append('sort', 'updateDate desc');
 
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`);
+      const listResponse = await fetch(listUrl.toString());
+      if (!listResponse.ok) {
+        throw new Error(`API request failed: ${listResponse.statusText}`);
       }
 
-      const data = await response.json();
-      return this.transformBills(data.bills);
+      const listData = await listResponse.json();
+      if (!listData.bills || listData.bills.length === 0) {
+        console.log(`No ${billType.toUpperCase()} bills found for Congress ${currentCongress} at offset ${offset}`);
+        return [];
+      }
+
+      // Fetch detailed information for each bill
+      const detailedBills = await Promise.all(
+        listData.bills.map(async (bill: any) => {
+          try {
+            const detailUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type}/${bill.number}`);
+            detailUrl.searchParams.append('api_key', this.apiKey);
+            detailUrl.searchParams.append('format', 'json');
+
+            const detailResponse = await fetch(detailUrl.toString());
+            if (!detailResponse.ok) {
+              console.error(`Failed to fetch details for bill ${bill.congress}-${bill.type}-${bill.number}`);
+              return bill;
+            }
+
+            const detailData = await detailResponse.json();
+            return { ...bill, ...detailData.bill };
+          } catch (error) {
+            console.error(`Error fetching details for bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
+            return bill;
+          }
+        })
+      );
+
+      console.log(`Successfully fetched ${detailedBills.length} ${billType.toUpperCase()} bills`);
+      return this.transformBills(detailedBills);
     } catch (error) {
-      console.error('Error fetching bills:', error);
+      console.error(`Error fetching ${billType.toUpperCase()} bills:`, error);
       throw error;
     }
   }
 
+  private cleanSponsorName(fullName: string): string {
+    // Remove anything in square brackets and trim
+    return fullName.replace(/\s*\[.*?\]\s*$/, '').trim();
+  }
+
   private transformBills(bills: any[]): Bill[] {
-    return bills.map(bill => ({
-      id: `${bill.congress}-${bill.type.toLowerCase()}-${bill.number}`,
-      title: bill.title || '',
-      congressNumber: bill.congress,
-      billType: bill.type,
-      billNumber: bill.number,
-      sponsorName: bill.sponsor?.name || '',
-      sponsorState: bill.sponsor?.state || '',
-      sponsorParty: bill.sponsor?.party || '',
-      sponsorBioguideId: bill.sponsor?.bioguideId || '',
-      committeeCount: bill.committees?.length || 0,
-      latestActionText: bill.latestAction?.text || '',
-      latestActionDate: bill.latestAction?.actionDate || '',
-      updateDate: bill.updateDate || '',
-      status: this.determineStatus(bill),
-      progress: this.calculateProgress(bill),
-      summary: bill.summary || '',
-      tags: [],
-      aiSummary: '',
-      lastUpdated: bill.updateDateIncludingText || bill.updateDate || '',
-      voteCount: {
-        yea: 0,
-        nay: 0,
-        present: 0,
-        notVoting: 0
-      },
-      originChamber: bill.originChamber || '',
-      originChamberCode: bill.originChamberCode || '',
-      congressGovUrl: bill.url || '',
-      statusHistory: [],
-      lastStatusChange: bill.lastStatusChange || '',
-      introducedDate: bill.introducedDate || '',
-      constitutionalAuthorityText: bill.constitutionalAuthorityStatement || '',
-      officialTitle: bill.title || '',
-      shortTitle: bill.shortTitle || '',
-      cosponsorsCount: bill.cosponsors?.count || 0
-    }));
+    return bills.map(bill => {
+      // Safely extract policy areas and subjects as tags
+      let tags: string[] = [];
+      try {
+        // Handle policy area
+        if (bill.policyArea?.name) {
+          tags.push(bill.policyArea.name);
+        }
+
+        // Handle subjects in different possible formats
+        if (Array.isArray(bill.subjects)) {
+          const subjectNames = bill.subjects
+            .map((subject: any) => {
+              if (typeof subject === 'string') return subject;
+              if (subject?.name) return subject.name;
+              return null;
+            })
+            .filter((name: string | null): name is string => name !== null);
+          tags.push(...subjectNames);
+        } else if (typeof bill.subjects === 'string') {
+          tags.push(bill.subjects);
+        }
+      } catch (error) {
+        console.warn(`Warning: Error processing tags for bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
+      }
+
+      // Get committee information safely
+      const committees = Array.isArray(bill.committees) ? bill.committees : [];
+      const committeeCount = committees.length;
+
+      // Get sponsor information safely
+      const sponsor = bill.sponsors?.[0] || bill.sponsor || {};
+      const rawSponsorName = sponsor.name || sponsor.fullName || '';
+      const sponsorName = this.cleanSponsorName(rawSponsorName);
+
+      // Get summary safely from various possible locations
+      const summary = bill.summaries?.[0]?.text || 
+                     bill.summary?.text ||
+                     (typeof bill.summary === 'string' ? bill.summary : '') || '';
+
+      // Get action history safely
+      let statusHistory = [];
+      try {
+        const actions = Array.isArray(bill.actions) ? bill.actions : [];
+        statusHistory = actions.map((action: any) => ({
+          date: action.actionDate || action.date || '',
+          oldStatus: action.type || action.actionType || '',
+          newStatus: action.type || action.actionType || '',
+          actionText: action.text || action.description || ''
+        }));
+      } catch (error) {
+        console.warn(`Warning: Error processing status history for bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
+      }
+
+      // Get constitutional authority text safely
+      const constitutionalText = typeof bill.constitutionalAuthorityStatement === 'string' 
+        ? bill.constitutionalAuthorityStatement
+        : bill.constitutionalAuthorityStatement?.text || '';
+
+      // Create the bill object with safe fallbacks
+      return {
+        id: `${bill.congress}-${bill.type.toLowerCase()}-${bill.number}`,
+        title: bill.title || bill.shortTitle || '',
+        congressNumber: bill.congress,
+        billType: bill.type,
+        billNumber: bill.number,
+        sponsorName,
+        sponsorState: sponsor.state || '',
+        sponsorParty: sponsor.party || '',
+        sponsorBioguideId: sponsor.bioguideId || '',
+        committeeCount,
+        latestActionText: bill.latestAction?.text || '',
+        latestActionDate: bill.latestAction?.actionDate || '',
+        updateDate: bill.updateDate || '',
+        status: this.determineStatus(bill),
+        progress: this.calculateProgress(bill),
+        summary,
+        tags,
+        aiSummary: '',
+        lastUpdated: bill.updateDateIncludingText || bill.updateDate || '',
+        voteCount: bill.votes?.[0]?.voteCount || {
+          yea: 0,
+          nay: 0,
+          present: 0,
+          notVoting: 0
+        },
+        originChamber: bill.originChamber || bill.originChamberCode === 'H' ? 'House' : 'Senate',
+        originChamberCode: bill.originChamberCode || (bill.type.startsWith('H') ? 'H' : 'S'),
+        congressGovUrl: bill.url || '',
+        statusHistory,
+        lastStatusChange: bill.latestAction?.actionDate || '',
+        introducedDate: bill.introducedDate || '',
+        constitutionalAuthorityText: constitutionalText,
+        officialTitle: bill.title || '',
+        shortTitle: bill.shortTitle || '',
+        cosponsorsCount: bill.cosponsors?.count || bill.cosponsorCount || 0
+      };
+    });
   }
 
   private determineStatus(bill: any): string {
-    if (bill.latestAction?.text?.includes('Became Public Law')) {
+    const actionText = bill.latestAction?.text || '';
+    
+    if (actionText.includes('Became Public Law')) {
       return 'Enacted';
     }
-    if (bill.latestAction?.text?.includes('Vetoed')) {
+    if (actionText.includes('Vetoed')) {
       return 'Vetoed';
+    }
+    if (actionText.includes('Introduced')) {
+      return 'Introduced';
+    }
+    if (actionText.includes('Referred to')) {
+      return 'In Committee';
     }
     return 'In Progress';
   }
@@ -109,8 +215,12 @@ export class CongressApiService {
         return 100;
       case 'Vetoed':
         return 90;
+      case 'In Committee':
+        return 30;
+      case 'Introduced':
+        return 10;
       default:
-        return 50; // Default progress for bills in progress
+        return 50;
     }
   }
 } 

@@ -12,7 +12,7 @@ create table bills (
   congress_number integer,                                -- Congress number (e.g., 117 for 2021-2022)
   bill_type text,                                         -- Type: HR, S, HJRES, SJRES, etc.
   bill_number integer,                                    -- Bill's assigned number
-  sponsor_name text,                                      -- Primary sponsor's name
+  sponsor_name text,                                      -- Primary sponsor's name (cleaned format)
   sponsor_state text,                                     -- Sponsor's state
   sponsor_party text,                                     -- Sponsor's political party
   sponsor_bioguide_id text,                              -- Sponsor's Bioguide ID
@@ -53,42 +53,179 @@ create index bills_status_idx on bills(status);
 
 ## Data Synchronization
 
-### Historical Data Sync
-The system includes three synchronization scripts:
+### Synchronization Scripts
+The system includes three main synchronization scripts:
 
-1. `sync-historical-bills.ts`: Fetches bills from a specific Congress with a limit
-2. `sync-all-historical-bills.ts`: Comprehensive historical sync without limits
-3. `sync-daily-bills.ts`: Daily updates for recent bills
+1. `sync-historical-bills.ts`: Initial data population and backfilling
+   - Fetches a specified number of bills (configurable)
+   - Works backwards from current Congress
+   - Processes all bill types (HR, S, HJRES, etc.)
+   - Includes retry logic and error handling
+   - Configuration options:
+     ```typescript
+     {
+       totalRecordsToFetch: 3000,  // Number of bills to fetch
+       batchSize: 250,             // Bills per API call
+       delayBetweenBatches: 1000,  // Milliseconds between calls
+       maxRetries: 3,              // Failed request retry limit
+       retryDelay: 5000           // Milliseconds between retries
+     }
+     ```
 
-Key features:
-- Configurable Congress range (93rd onwards)
-- Rate limit handling
-- Error recovery
-- Progress tracking
-- Duplicate prevention via upsert
+2. `sync-daily-bills.ts`: Regular updates and maintenance
+   - Fetches only bills updated since last sync
+   - Determines date range automatically
+   - Maintains data freshness
+   - Configuration options:
+     ```typescript
+     {
+       batchSize: 250,             // Bills per API call
+       delayBetweenBatches: 1000,  // Milliseconds between calls
+       maxRetries: 3,              // Failed request retry limit
+       retryDelay: 5000           // Milliseconds between retries
+     }
+     ```
 
-### Sync Configuration
-```typescript
-interface SyncConfig {
-  startCongress: number;     // Starting Congress (e.g., 93 for 1973-1974)
-  endCongress: number;       // Current Congress
-  batchSize: number;         // Records per API call (max 250)
-  delayBetweenBatches: number; // Milliseconds between calls
-  maxRetries: number;        // Failed request retry limit
-  retryDelay: number;        // Milliseconds between retries
-}
-```
+3. `sync-all-historical-bills.ts`: Complete historical archive
+   - Fetches ALL bills from specified Congress range
+   - No record limit
+   - Comprehensive historical data
 
-### Security & Authentication
-- Sync scripts require a valid `SYNC_AUTH_TOKEN` for execution
-- Token must be provided in the `x-sync-token` header
-- Prevents unauthorized data synchronization
-- Token is configured via environment variables
+### Bill Types Processed
+All scripts handle the following bill types:
+- `hr`: House Bills
+- `s`: Senate Bills
+- `hjres`: House Joint Resolutions
+- `sjres`: Senate Joint Resolutions
+- `hconres`: House Concurrent Resolutions
+- `sconres`: Senate Concurrent Resolutions
+- `hres`: House Simple Resolutions
+- `sres`: Senate Simple Resolutions
 
-### Build Process
-- Sync scripts are excluded from automatic execution during deployment
-- Scripts must be run manually with proper authentication
-- Environment variables must be properly configured before running scripts
+### Data Transformation
+The system performs several transformations during synchronization:
+
+1. Sponsor Name Cleaning
+   - Removes bracketed information (e.g., `[D-VA-11]`)
+   - Example: `"Rep. Connolly, Gerald E. [D-VA-11]"` → `"Rep. Connolly, Gerald E."`
+
+2. Status Determination
+   - `Enacted`: Bill became law
+   - `Vetoed`: Bill was vetoed
+   - `Introduced`: Bill was introduced
+   - `In Committee`: Bill referred to committee
+   - `In Progress`: Default status
+
+3. Progress Calculation
+   - Enacted: 100%
+   - Vetoed: 90%
+   - In Committee: 30%
+   - Introduced: 10%
+   - In Progress: 50%
+
+4. Tag Generation
+   - Combines policy areas and subjects
+   - Handles multiple data formats
+   - Removes duplicates
+   - Ensures array format
+
+### Error Handling and Resilience
+
+1. Retry Logic
+   - Automatic retry on failed API calls
+   - Configurable retry attempts
+   - Exponential backoff
+   - Detailed error logging
+
+2. Data Validation
+   - Type checking
+   - Null/undefined handling
+   - Format verification
+   - Safe fallbacks
+
+3. Rate Limiting
+   - Respects API limits (5,000 requests/hour)
+   - Configurable delays between batches
+   - Automatic throttling
+
+### Best Practices for Syncing
+
+1. Initial Setup
+   ```bash
+   # 1. First-time setup
+   npm run sync-historical-bills  # Populate initial data
+   
+   # 2. Regular updates
+   npm run sync-daily            # Run daily for updates
+   ```
+
+2. Monitoring
+   - Check logs for errors
+   - Monitor sync completion
+   - Verify data integrity
+   - Track API rate limits
+
+3. Maintenance
+   - Regular backups
+   - Data cleanup
+   - Performance optimization
+   - Index maintenance
+
+### API Integration Details
+
+1. Congress.gov API
+   - Base URL: `https://api.congress.gov/v3`
+   - Authentication: API key required
+   - Rate limit: 5,000 requests/hour
+   - Response format: JSON
+
+2. Endpoints Used
+   - Bill List: `/bill/{congress}/{type}`
+   - Bill Detail: `/bill/{congress}/{type}/{number}`
+   - Parameters:
+     - `limit`: Records per page (max 250)
+     - `offset`: Pagination offset
+     - `format`: Response format (json)
+     - `api_key`: Authentication
+
+### Data Quality Assurance
+
+1. Validation Checks
+   - Required fields presence
+   - Data type consistency
+   - Format compliance
+   - Relationship integrity
+
+2. Data Cleaning
+   - Sponsor name formatting
+   - Date standardization
+   - Text field sanitization
+   - Empty field handling
+
+3. Monitoring Metrics
+   - Sync completion rate
+   - Error frequency
+   - Data freshness
+   - Coverage completeness
+
+### Security Considerations
+
+1. Authentication
+   - API key protection
+   - Sync token requirement
+   - Environment variable security
+
+2. Access Control
+   - Row Level Security (RLS)
+   - Role-based access
+   - API rate limiting
+   - Request validation
+
+3. Data Protection
+   - Sensitive data handling
+   - Audit logging
+   - Error masking
+   - Secure connections
 
 ## API Integration
 

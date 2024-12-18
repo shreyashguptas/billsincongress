@@ -1,73 +1,100 @@
-import { CongressApiService } from '../lib/services/congress-api';
-import { BillStorageService } from '../lib/services/bill-storage';
+import { CongressApiService } from '../lib/services/congress-api.js';
+import { BillStorageService } from '../lib/services/bill-storage.js';
+import { supabase } from '../lib/supabase.js';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 
 // Load environment variables from .env.local
-dotenv.config({ path: resolve(__dirname, '../.env.local') });
+dotenv.config({ path: resolve(process.cwd(), '.env.local') });
 
 interface SyncConfig {
-  requestsPerHour: number;
   batchSize: number;
-  delayBetweenBatches: number; // in milliseconds
+  delayBetweenBatches: number;
+  maxRetries: number;
+  retryDelay: number;
 }
 
 const config: SyncConfig = {
-  requestsPerHour: 4500, // Keep some buffer from the 5000 limit
-  batchSize: 250, // Maximum allowed by the API
-  delayBetweenBatches: 1000, // 1 second delay between batches
+  batchSize: 250,
+  delayBetweenBatches: 1000,
+  maxRetries: 3,
+  retryDelay: 5000
 };
+
+// Helper function to delay execution
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper function to format date for API
 function formatDateForAPI(date: Date): string {
   return date.toISOString().split('.')[0] + 'Z';
 }
 
-// Helper function to get yesterday's date
-function getYesterdayDate(): Date {
-  const date = new Date();
-  date.setDate(date.getDate() - 1);
-  date.setHours(0, 0, 0, 0);
-  return date;
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  retries: number = config.maxRetries,
+  delayMs: number = config.retryDelay
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries > 0) {
+      console.log(`Operation failed, retrying... (${retries} attempts remaining)`);
+      await delay(delayMs);
+      return retryOperation(operation, retries - 1, delayMs);
+    }
+    throw error;
+  }
 }
 
-// Helper function to get today's date
-function getTodayDate(): Date {
+async function getLastUpdateDate(): Promise<Date> {
+  try {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('update_date')
+      .order('update_date', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+
+    if (data && data.length > 0 && data[0].update_date) {
+      return new Date(data[0].update_date);
+    }
+  } catch (error) {
+    console.warn('Error getting last update date:', error);
+  }
+
+  // If no last update found, default to 2 days ago
   const date = new Date();
-  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - 2);
   return date;
 }
-
-// Helper function to delay execution
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function dailySyncBills() {
   try {
-    // Verify environment variables are loaded
-    console.log('Checking environment variables...');
+    console.log('Starting daily bill sync...');
+    
+    // Verify environment variables
     if (!process.env.CONGRESS_API_KEY) {
       throw new Error('Missing CONGRESS_API_KEY environment variable');
     }
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       throw new Error('Missing Supabase environment variables');
     }
-    console.log('Environment variables loaded successfully');
 
     const congressApi = new CongressApiService();
     const storage = new BillStorageService();
 
-    // Get yesterday's date range
-    const fromDateTime = formatDateForAPI(getYesterdayDate());
-    const toDateTime = formatDateForAPI(getTodayDate());
-
-    console.log(`Fetching bills updated between ${fromDateTime} and ${toDateTime}`);
+    // Get the last update date from our database
+    const lastUpdateDate = await getLastUpdateDate();
+    console.log(`Fetching bills updated since: ${lastUpdateDate.toISOString()}`);
 
     // Get the current Congress number
     const currentCongress = Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
+    let totalBillsUpdated = 0;
 
     // Bill types to fetch
     const billTypes = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
-    let totalBillsUpdated = 0;
+    console.log('Will fetch the following bill types:', billTypes.join(', ').toUpperCase());
 
     for (const billType of billTypes) {
       let offset = 0;
@@ -75,44 +102,55 @@ async function dailySyncBills() {
 
       while (hasMoreBills) {
         try {
-          console.log(`Fetching ${billType} bills from Congress ${currentCongress}, offset: ${offset}`);
+          console.log(`\nFetching ${billType.toUpperCase()} bills from Congress ${currentCongress}, offset: ${offset}`);
           
-          // Fetch a batch of bills
-          const bills = await congressApi.fetchBills(config.batchSize, currentCongress);
+          const bills = await retryOperation(async () => {
+            const fetchedBills = await congressApi.fetchBills(config.batchSize, currentCongress, billType, offset);
+            console.log(`Fetched ${fetchedBills.length} ${billType.toUpperCase()} bills`);
+            return fetchedBills;
+          });
 
           if (!bills || bills.length === 0) {
-            console.log(`No more ${billType} bills available for Congress ${currentCongress}`);
+            console.log(`No more ${billType.toUpperCase()} bills available`);
             hasMoreBills = false;
-            continue;
+            break;
           }
 
-          console.log(`Fetched ${bills.length} ${billType} bills`);
+          // Filter bills updated since last sync
+          const recentBills = bills.filter(bill => {
+            const updateDate = new Date(bill.updateDate);
+            return updateDate > lastUpdateDate;
+          });
 
-          // Store bills in Supabase
-          await storage.storeBills(bills);
-          console.log(`Updated ${bills.length} bills in database`);
+          if (recentBills.length > 0) {
+            await retryOperation(async () => {
+              await storage.storeBills(recentBills);
+              console.log(`Stored ${recentBills.length} updated bills in database`);
+            });
 
-          totalBillsUpdated += bills.length;
+            totalBillsUpdated += recentBills.length;
+          }
 
-          // Update offset and check if we have more bills
-          offset += bills.length;
-          hasMoreBills = bills.length === config.batchSize;
-
-          // Add delay between batches to prevent overwhelming the API
-          await delay(config.delayBetweenBatches);
+          // If we got fewer bills than the batch size or no recent bills, we're done with this type
+          if (bills.length < config.batchSize || recentBills.length === 0) {
+            hasMoreBills = false;
+          } else {
+            offset += bills.length;
+            await delay(config.delayBetweenBatches);
+          }
 
         } catch (error) {
-          console.error(`Error processing ${billType} bills:`, error);
-          // If we hit an error, wait for a bit and try again
-          await delay(5000);
+          console.error(`Error processing ${billType.toUpperCase()} bills:`, error);
+          await delay(config.retryDelay);
         }
       }
     }
 
-    console.log(`Daily bill sync completed successfully. Updated ${totalBillsUpdated} bills.`);
+    console.log('\nDaily bill sync completed successfully');
+    console.log(`Total bills updated: ${totalBillsUpdated}`);
     process.exit(0);
   } catch (error) {
-    console.error('Error in daily bill sync:', error);
+    console.error('Fatal error in daily bill sync:', error);
     process.exit(1);
   }
 }
