@@ -11,6 +11,8 @@ interface BillsState {
   status: string;
   category: string;
   searchQuery: string;
+  uniqueStatuses: string[];
+  uniqueTags: string[];
   setBills: (bills: Bill[]) => void;
   setSortBy: (sort: string) => void;
   setStatus: (status: string) => void;
@@ -18,6 +20,7 @@ interface BillsState {
   setSearchQuery: (query: string) => void;
   clearFilters: () => void;
   fetchBills: (reset?: boolean) => Promise<void>;
+  fetchUniqueValues: () => Promise<void>;
 }
 
 const transformBillData = (data: any): Bill => ({
@@ -67,6 +70,8 @@ export const useBillsStore = create<BillsState>((set, get) => ({
   status: 'all',
   category: 'all',
   searchQuery: '',
+  uniqueStatuses: [],
+  uniqueTags: [],
 
   setBills: (bills) => set({ bills }),
   setSortBy: (sortBy) => set({ sortBy }),
@@ -82,6 +87,35 @@ export const useBillsStore = create<BillsState>((set, get) => ({
       searchQuery: '',
     });
     get().fetchBills(true);
+  },
+
+  fetchUniqueValues: async () => {
+    try {
+      // Fetch unique statuses
+      const { data: statusData, error: statusError } = await supabase
+        .from('bills')
+        .select('status')
+        .not('status', 'is', null);
+
+      if (statusError) throw statusError;
+
+      const uniqueStatuses = ['all', ...new Set(statusData.map(item => item.status))];
+
+      // Fetch unique tags
+      const { data: tagData, error: tagError } = await supabase
+        .from('bills')
+        .select('tags')
+        .not('tags', 'is', null);
+
+      if (tagError) throw tagError;
+
+      const allTags = tagData.flatMap(item => item.tags || []);
+      const uniqueTags = ['all', ...new Set(allTags)];
+
+      set({ uniqueStatuses, uniqueTags });
+    } catch (error: any) {
+      console.error('Error fetching unique values:', error);
+    }
   },
 
   fetchBills: async (reset = false) => {

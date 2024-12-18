@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import {
   Select,
   SelectContent,
@@ -7,11 +8,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { categoryFilters } from '@/lib/constants/filters';
 import { useBillsStore } from '@/lib/store/bills-store';
 
 export function BillCategorySelect() {
-  const { category, setCategory } = useBillsStore();
+  const { category, setCategory, uniqueTags, fetchUniqueValues } = useBillsStore();
+
+  useEffect(() => {
+    fetchUniqueValues();
+  }, [fetchUniqueValues]);
 
   const handleCategoryChange = (value: string) => {
     setCategory(value);
@@ -24,9 +28,9 @@ export function BillCategorySelect() {
         <SelectValue placeholder="Filter by category" />
       </SelectTrigger>
       <SelectContent>
-        {categoryFilters.map(({ value, label }) => (
+        {uniqueTags.map((value) => (
           <SelectItem key={value} value={value}>
-            {label}
+            {value.charAt(0).toUpperCase() + value.slice(1)}
           </SelectItem>
         ))}
       </SelectContent>

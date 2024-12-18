@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import {
   Select,
   SelectContent,
@@ -7,11 +8,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { statusFilters } from '@/lib/constants/filters';
 import { useBillsStore } from '@/lib/store/bills-store';
 
 export function BillStatusSelect() {
-  const { status, setStatus } = useBillsStore();
+  const { status, setStatus, uniqueStatuses, fetchUniqueValues } = useBillsStore();
+
+  useEffect(() => {
+    fetchUniqueValues();
+  }, [fetchUniqueValues]);
 
   const handleStatusChange = (value: string) => {
     setStatus(value);
@@ -24,9 +28,9 @@ export function BillStatusSelect() {
         <SelectValue placeholder="Filter by status" />
       </SelectTrigger>
       <SelectContent>
-        {statusFilters.map(({ value, label }) => (
+        {uniqueStatuses.map((value) => (
           <SelectItem key={value} value={value}>
-            {label}
+            {value.charAt(0).toUpperCase() + value.slice(1)}
           </SelectItem>
         ))}
       </SelectContent>
