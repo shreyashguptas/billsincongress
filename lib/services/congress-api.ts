@@ -1,6 +1,7 @@
 import { Bill } from '../types.js';
 
 const CONGRESS_API_BASE_URL = 'https://api.congress.gov/v3';
+const RATE_LIMIT_DELAY = 1000; // 1 second delay between requests
 
 interface BatchOptions {
   offset: number;
@@ -29,6 +30,34 @@ export class CongressApiService {
     this.baseUrl = 'https://api.congress.gov/v3';
   }
 
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async fetchBillSummary(congress: number, billType: string, billNumber: number): Promise<string> {
+    try {
+      const url = new URL(`${this.baseUrl}/bill/${congress}/${billType}/${billNumber}/summaries`);
+      url.searchParams.append('api_key', this.apiKey);
+      url.searchParams.append('format', 'json');
+
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        console.warn(`No summary found for bill ${congress}-${billType}-${billNumber}`);
+        return '';
+      }
+
+      const data = await response.json();
+      const summaries = data?.summaries || [];
+      if (summaries.length > 0) {
+        return summaries[0].text || '';
+      }
+      return '';
+    } catch (error) {
+      console.error(`Error fetching summary for bill ${congress}-${billType}-${billNumber}:`, error);
+      return '';
+    }
+  }
+
   async fetchBills(limit: number = 10, congress?: number, billType: string = 'hr', offset: number = 0): Promise<Bill[]> {
     try {
       const currentCongress = congress || Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
@@ -53,30 +82,40 @@ export class CongressApiService {
         return [];
       }
 
-      // Fetch detailed information for each bill
-      const detailedBills = await Promise.all(
-        listData.bills.map(async (bill: any) => {
-          try {
-            const detailUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type}/${bill.number}`);
-            detailUrl.searchParams.append('api_key', this.apiKey);
-            detailUrl.searchParams.append('format', 'json');
+      // Fetch detailed information for each bill with rate limiting
+      const detailedBills = [];
+      for (const bill of listData.bills) {
+        try {
+          // Delay before fetching bill details
+          await this.delay(RATE_LIMIT_DELAY);
 
-            const detailResponse = await fetch(detailUrl.toString());
-            if (!detailResponse.ok) {
-              console.error(`Failed to fetch details for bill ${bill.congress}-${bill.type}-${bill.number}`);
-              return bill;
-            }
+          const detailUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type}/${bill.number}`);
+          detailUrl.searchParams.append('api_key', this.apiKey);
+          detailUrl.searchParams.append('format', 'json');
 
-            const detailData = await detailResponse.json();
-            return { ...bill, ...detailData.bill };
-          } catch (error) {
-            console.error(`Error fetching details for bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
-            return bill;
+          const detailResponse = await fetch(detailUrl.toString());
+          if (!detailResponse.ok) {
+            console.error(`Failed to fetch details for bill ${bill.congress}-${bill.type}-${bill.number}`);
+            continue;
           }
-        })
-      );
 
-      console.log(`Successfully fetched ${detailedBills.length} ${billType.toUpperCase()} bills`);
+          const detailData = await detailResponse.json();
+          
+          // Delay before fetching summary
+          await this.delay(RATE_LIMIT_DELAY);
+          const summary = await this.fetchBillSummary(bill.congress, bill.type, bill.number);
+          
+          detailedBills.push({
+            ...bill,
+            ...detailData.bill,
+            summary
+          });
+        } catch (error) {
+          console.error(`Error processing bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
+        }
+      }
+
+      console.log(`Successfully fetched ${detailedBills.length} ${billType.toUpperCase()} bills with summaries`);
       return this.transformBills(detailedBills);
     } catch (error) {
       console.error(`Error fetching ${billType.toUpperCase()} bills:`, error);
