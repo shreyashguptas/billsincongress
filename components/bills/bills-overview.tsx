@@ -16,7 +16,8 @@ const transformBillData = (data: any): Bill => ({
   id: data.id,
   title: data.title,
   congressNumber: data.congress_number,
-  billType: data.bill_type,
+  // Extract original bill type from ID for API consistency
+  billType: data.id.split('-')[1],
   billNumber: data.bill_number,
   sponsorName: data.sponsor_name,
   sponsorState: data.sponsor_state,

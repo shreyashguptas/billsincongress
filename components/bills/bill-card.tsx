@@ -2,12 +2,32 @@ import { Bill } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 interface BillCardProps {
   bill: Bill;
 }
 
 export function BillCard({ bill }: BillCardProps) {
+  // Fetch expanded bill type from database
+  const [expandedBillType, setExpandedBillType] = useState<string>('');
+
+  useEffect(() => {
+    async function fetchExpandedBillType() {
+      const { data } = await supabase
+        .from('bills')
+        .select('bill_type')
+        .eq('id', bill.id)
+        .single();
+      
+      if (data) {
+        setExpandedBillType(data.bill_type);
+      }
+    }
+    fetchExpandedBillType();
+  }, [bill.id]);
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -21,7 +41,9 @@ export function BillCard({ bill }: BillCardProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs sm:text-sm text-muted-foreground">Bill Number</p>
-              <p className="text-sm sm:text-base font-medium">{bill.billType} {bill.billNumber}</p>
+              <p className="text-sm sm:text-base font-medium">
+                {expandedBillType} {bill.billNumber}
+              </p>
             </div>
             <div>
               <p className="text-xs sm:text-sm text-muted-foreground">Sponsor</p>

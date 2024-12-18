@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { Bill } from '../types';
+import { cleanSponsorName, expandBillType } from '../utils';
 
 export class BillStorageService {
   async storeBills(bills: Bill[]): Promise<void> {
@@ -33,9 +34,9 @@ export class BillStorageService {
           id: bill.id,
           title: bill.title,
           congress_number: bill.congressNumber,
-          bill_type: bill.billType,
+          bill_type: expandBillType(bill.billType),
           bill_number: bill.billNumber,
-          sponsor_name: bill.sponsorName,
+          sponsor_name: cleanSponsorName(bill.sponsorName),
           sponsor_state: bill.sponsorState,
           sponsor_party: bill.sponsorParty,
           sponsor_bioguide_id: bill.sponsorBioguideId,

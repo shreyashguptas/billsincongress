@@ -19,7 +19,7 @@ interface SyncConfig {
 // Configuration for the sync process
 // You can adjust these values based on your needs
 const config: SyncConfig = {
-  totalRecordsToFetch: 1000, // Change this number to fetch more or fewer records
+  totalRecordsToFetch: 100, // Change this number to fetch more or fewer records
   batchSize: 250,           // Maximum allowed by the API
   delayBetweenBatches: 1000 // 1 second delay between batches
 };
