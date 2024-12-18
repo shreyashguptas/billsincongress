@@ -20,7 +20,7 @@ export function Footer() {
           </div>
           <div className="flex items-center gap-4">
             <Link
-              href="https://github.com/shreyashgupta/billsincongress"
+              href="https://github.com/shreyashguptas/billsincongress"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground"
