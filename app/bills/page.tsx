@@ -2,6 +2,10 @@ import { BillsOverview } from '@/components/bills/bills-overview';
 import { BillsHeader } from '@/components/bills/bills-header';
 import { supabase } from '@/lib/supabase';
 import { Bill } from '@/lib/types';
+import { sharedViewport } from '../shared-metadata';
+import type { Viewport } from 'next';
+
+export const viewport: Viewport = sharedViewport;
 
 // Helper function to transform Supabase data to Bill type
 const transformBillData = (data: any): Bill => ({

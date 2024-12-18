@@ -1,6 +1,10 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { GithubIcon, BookOpen, Scale, Brain } from 'lucide-react';
+import { sharedViewport } from '../shared-metadata';
+import type { Viewport } from 'next';
+
+export const viewport: Viewport = sharedViewport;
 
 export default function AboutPage() {
   return (
