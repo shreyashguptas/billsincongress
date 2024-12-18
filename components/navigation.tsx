@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Search } from 'lucide-react';
+import { Menu } from 'lucide-react';
 
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
@@ -79,15 +79,6 @@ export function Navigation() {
               </Link>
             ))}
           </nav>
-        </div>
-        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          <div className="w-full flex-1 md:w-auto">
-            <Button variant="outline" className="w-full md:w-auto" size="sm">
-              <Search className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Search Bills</span>
-              <span className="sm:hidden">Search</span>
-            </Button>
-          </div>
         </div>
       </div>
     </header>

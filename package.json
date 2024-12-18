@@ -64,7 +64,8 @@
     "tsx": "^4.19.2",
     "update": "^0.4.2",
     "vaul": "^1.1.1",
-    "vault": "^0.3.0"
+    "vault": "^0.3.0",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@types/node": "^20",
