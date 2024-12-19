@@ -136,18 +136,21 @@ export async function syncBillsWithSummaries(options: SyncOptions = {}) {
             break;
           }
 
+          // Log the first bill to understand its structure
+          console.log('First bill structure:', JSON.stringify(bills[0], null, 2));
+
           // Fetch URLs for each bill
           for (const bill of bills) {
             try {
               const { textUrl, pdfUrl } = await congressApi.fetchBillText(
-                bill.congressNumber,
-                bill.billType,
-                bill.billNumber
+                congress,
+                billType,
+                bill.number
               );
               bill.billTextUrl = textUrl;
               bill.billPdfUrl = pdfUrl;
             } catch (error) {
-              console.error(`Error fetching URLs for bill ${bill.id}:`, error);
+              console.error(`Error fetching URLs for bill ${bill.number}:`, error);
             }
           }
 

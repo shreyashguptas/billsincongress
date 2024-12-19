@@ -1,5 +1,8 @@
 export interface Bill {
-  id: string;
+  id?: string;
+  congress?: number;
+  type?: string;
+  number?: string;
   title: string;
   congressNumber: number;
   billType: string;
@@ -9,9 +12,14 @@ export interface Bill {
   sponsorParty: string;
   sponsorBioguideId: string;
   committeeCount: number;
+  latestAction?: {
+    actionDate: string;
+    text: string;
+  };
   latestActionText: string;
   latestActionDate: string;
   updateDate: string;
+  updateDateIncludingText?: string;
   status: string;
   progress: number;
   summary: string;
@@ -27,6 +35,7 @@ export interface Bill {
   originChamber: string;
   originChamberCode: string;
   congressGovUrl: string;
+  url?: string;
   statusHistory: {
     date: string;
     oldStatus?: string;
