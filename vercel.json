@@ -4,9 +4,6 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "outputDirectory": ".next",
-  "env": {
-    "SYNC_AUTH_TOKEN": "@sync_auth_token"
-  },
   "crons": [{
     "path": "/api/cron",
     "schedule": "0 1 * * *"
