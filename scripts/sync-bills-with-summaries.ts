@@ -41,7 +41,7 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
   const {
     isHistorical = false,
     billTypes = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'],
-    maxRecords = 10,
+    maxRecords = 2000,
     billIds = [],
     offset = 0
   } = options;
@@ -88,13 +88,14 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
   }
 
   // Regular sync logic for when no specific bills are provided
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = 20;
   const currentCongress = await getCurrentCongress();
   const startCongress = options.startCongress || (isHistorical ? currentCongress - 2 : currentCongress);
   const endCongress = options.endCongress || currentCongress;
   let totalRecordsFetched = 0;
 
   console.log(`Starting ${isHistorical ? 'historical' : 'daily'} sync for Congresses ${startCongress} to ${endCongress}`);
+  console.log(`Target: ${maxRecords} records total, processing in batches of ${BATCH_SIZE}`);
   
   for (let congress = endCongress; congress >= startCongress && totalRecordsFetched < maxRecords; congress--) {
     for (const billType of billTypes) {
@@ -106,6 +107,9 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
           // Calculate remaining records to fetch
           const remainingRecords = maxRecords - totalRecordsFetched;
           const batchSize = Math.min(BATCH_SIZE, remainingRecords);
+          
+          console.log(`\nFetching batch: Congress ${congress}, ${billType.toUpperCase()}, offset ${currentOffset}, size ${batchSize}`);
+          console.log(`Progress: ${totalRecordsFetched}/${maxRecords} records fetched`);
           
           // Fetch bills with summaries (rate limited internally)
           const bills = await congressApi.fetchBills(batchSize, congress, billType, currentOffset);
@@ -126,6 +130,7 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
           currentOffset += batchSize;
           
           // Add delay between batches to respect rate limits
+          // Each bill requires multiple API calls, so we need a longer delay
           await new Promise(resolve => setTimeout(resolve, 2000));
 
           if (totalRecordsFetched >= maxRecords) {
