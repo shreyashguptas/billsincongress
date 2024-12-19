@@ -1,7 +1,9 @@
 import { Bill } from '../types.js';
 
 const CONGRESS_API_BASE_URL = 'https://api.congress.gov/v3';
-const RATE_LIMIT_DELAY = 1000; // 1 second delay between requests
+const BASE_DELAY = 1100; // Slightly over 1 second to be safe
+const MAX_RETRIES = 3;
+const BATCH_SIZE = 20;
 
 interface BatchOptions {
   offset: number;
@@ -63,14 +65,59 @@ interface SummaryResponse {
 export class CongressApiService {
   private apiKey: string;
   private baseUrl: string;
+  private requestCount: number;
+  private lastRequestTime: number;
 
   constructor() {
     this.apiKey = process.env.CONGRESS_API_KEY || '';
     this.baseUrl = 'https://api.congress.gov/v3';
+    this.requestCount = 0;
+    this.lastRequestTime = 0;
   }
 
   private async delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private async handleRateLimit(retryCount: number = 0): Promise<void> {
+    const backoffDelay = BASE_DELAY * Math.pow(2, retryCount);
+    console.log(`Rate limit reached. Waiting ${backoffDelay}ms before retry ${retryCount + 1}/${MAX_RETRIES}`);
+    await this.delay(backoffDelay);
+  }
+
+  private async makeRequest(url: URL, retryCount: number = 0): Promise<Response> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < BASE_DELAY) {
+      await this.delay(BASE_DELAY - timeSinceLastRequest);
+    }
+
+    try {
+      const response = await fetch(url.toString());
+      this.lastRequestTime = Date.now();
+      this.requestCount++;
+
+      if (response.status === 429 && retryCount < MAX_RETRIES) {
+        await this.handleRateLimit(retryCount);
+        return this.makeRequest(url, retryCount + 1);
+      }
+
+      if (!response.ok && retryCount < MAX_RETRIES) {
+        console.warn(`Request failed with status ${response.status}. Retrying...`);
+        await this.handleRateLimit(retryCount);
+        return this.makeRequest(url, retryCount + 1);
+      }
+
+      return response;
+    } catch (error) {
+      if (retryCount < MAX_RETRIES) {
+        console.warn(`Request failed with error: ${error}. Retrying...`);
+        await this.handleRateLimit(retryCount);
+        return this.makeRequest(url, retryCount + 1);
+      }
+      throw error;
+    }
   }
 
   async fetchBillSummary(congress: number, billType: string, billNumber: number): Promise<string> {
@@ -79,7 +126,7 @@ export class CongressApiService {
       url.searchParams.append('api_key', this.apiKey);
       url.searchParams.append('format', 'json');
 
-      const response = await fetch(url.toString());
+      const response = await this.makeRequest(url);
       if (!response.ok) {
         console.warn(`Failed to fetch summary for bill ${congress}-${billType}-${billNumber}: ${response.statusText}`);
         return '';
@@ -105,15 +152,11 @@ export class CongressApiService {
         return '';
       }
 
-      // Clean up HTML tags and entities from the summary text
-      const cleanedText = summaryText
-        .replace(/<[^>]*>/g, '') // Remove HTML tags
-        .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
-        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      return summaryText
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
-
-      console.log(`Successfully fetched summary for bill ${congress}-${billType}-${billNumber} (length: ${cleanedText.length})`);
-      return cleanedText;
     } catch (error) {
       console.error(`Error fetching summary for bill ${congress}-${billType}-${billNumber}:`, error);
       return '';
@@ -125,7 +168,6 @@ export class CongressApiService {
       const currentCongress = congress || Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
       console.log(`Fetching ${billType.toUpperCase()} bills from Congress ${currentCongress}, offset: ${offset}...`);
 
-      // Fetch bill list with detailed information
       const listUrl = new URL(`${this.baseUrl}/bill/${currentCongress}/${billType}`);
       listUrl.searchParams.append('api_key', this.apiKey);
       listUrl.searchParams.append('limit', Math.min(limit, 250).toString());
@@ -133,7 +175,7 @@ export class CongressApiService {
       listUrl.searchParams.append('format', 'json');
       listUrl.searchParams.append('sort', 'updateDate desc');
 
-      const listResponse = await fetch(listUrl.toString());
+      const listResponse = await this.makeRequest(listUrl);
       if (!listResponse.ok) {
         throw new Error(`API request failed: ${listResponse.statusText}`);
       }
@@ -144,79 +186,72 @@ export class CongressApiService {
         return [];
       }
 
-      // Fetch detailed information for each bill with rate limiting
       const detailedBills = [];
-      for (const bill of listData.bills) {
-        try {
-          const billId = `${bill.congress}-${bill.type}-${bill.number}`;
-          console.log(`\nProcessing bill ${billId}...`);
+      // Process bills in batches
+      for (let i = 0; i < listData.bills.length; i += BATCH_SIZE) {
+        const batch = listData.bills.slice(i, i + BATCH_SIZE);
+        console.log(`Processing batch of ${batch.length} bills (${i + 1}-${i + batch.length} of ${listData.bills.length})...`);
+        
+        for (const bill of batch) {
+          try {
+            const billId = `${bill.congress}-${bill.type}-${bill.number}`;
+            console.log(`Processing bill ${billId}...`);
 
-          // Fetch bill details
-          await this.delay(RATE_LIMIT_DELAY);
-          const detailUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type}/${bill.number}`);
-          detailUrl.searchParams.append('api_key', this.apiKey);
-          detailUrl.searchParams.append('format', 'json');
-          
-          console.log(`Fetching details for bill ${billId}...`);
-          const detailResponse = await fetch(detailUrl.toString());
-          if (!detailResponse.ok) {
-            console.error(`Failed to fetch details for bill ${billId}: ${detailResponse.statusText}`);
-            continue;
-          }
-          
-          const detailData = await detailResponse.json();
-          let summary = '';
-          
-          // If the bill has summaries, fetch them
-          if (detailData.bill?.summaries?.count > 0) {
-            await this.delay(RATE_LIMIT_DELAY);
+            const detailUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type}/${bill.number}`);
+            detailUrl.searchParams.append('api_key', this.apiKey);
+            detailUrl.searchParams.append('format', 'json');
             
-            // Use the correct URL structure for summaries
-            const summaryUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type.toLowerCase()}/${bill.number}/summaries`);
-            summaryUrl.searchParams.append('api_key', this.apiKey);
-            summaryUrl.searchParams.append('format', 'json');
-            
-            console.log(`Fetching summary for bill ${billId}...`);
-            console.log(`Summary URL: ${summaryUrl.toString()}`);
-            
-            const summaryResponse = await fetch(summaryUrl.toString());
-            
-            if (summaryResponse.ok) {
-              const summaryData = await summaryResponse.json();
-              console.log(`Summary response for ${billId}:`, JSON.stringify(summaryData, null, 2));
-              
-              if (summaryData?.summaries && Array.isArray(summaryData.summaries) && summaryData.summaries.length > 0) {
-                // Sort summaries by updateDate to get the most recent one
-                const sortedSummaries = summaryData.summaries.sort((a: BillSummary, b: BillSummary) => {
-                  return new Date(b.updateDate).getTime() - new Date(a.updateDate).getTime();
-                });
-                
-                if (sortedSummaries[0].text) {
-                  summary = sortedSummaries[0].text
-                    .replace(/<[^>]*>/g, '') // Remove HTML tags
-                    .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
-                    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-                    .trim();
-                  console.log(`Found summary for bill ${billId} (length: ${summary.length})`);
-                }
-              }
-            } else {
-              console.log(`Failed to fetch summary for bill ${billId}: ${summaryResponse.statusText}`);
-              console.log(`Response status: ${summaryResponse.status}`);
-              const errorText = await summaryResponse.text();
-              console.log(`Error response: ${errorText}`);
+            const detailResponse = await this.makeRequest(detailUrl);
+            if (!detailResponse.ok) {
+              console.error(`Failed to fetch details for bill ${billId}: ${detailResponse.statusText}`);
+              continue;
             }
-          } else {
-            console.log(`No summaries available for bill ${billId}`);
+            
+            const detailData = await detailResponse.json();
+            let summary = '';
+            
+            if (detailData.bill?.summaries?.count > 0) {
+              const summaryUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type.toLowerCase()}/${bill.number}/summaries`);
+              summaryUrl.searchParams.append('api_key', this.apiKey);
+              summaryUrl.searchParams.append('format', 'json');
+              
+              const summaryResponse = await this.makeRequest(summaryUrl);
+              if (summaryResponse.ok) {
+                const summaryData = await summaryResponse.json();
+                
+                if (summaryData?.summaries && Array.isArray(summaryData.summaries) && summaryData.summaries.length > 0) {
+                  const sortedSummaries = summaryData.summaries.sort((a: BillSummary, b: BillSummary) => {
+                    return new Date(b.updateDate).getTime() - new Date(a.updateDate).getTime();
+                  });
+                  
+                  if (sortedSummaries[0].text) {
+                    summary = sortedSummaries[0].text
+                      .replace(/<[^>]*>/g, '')
+                      .replace(/&nbsp;/g, ' ')
+                      .replace(/\s+/g, ' ')
+                      .trim();
+                    console.log(`Found summary for bill ${billId} (length: ${summary.length})`);
+                  }
+                }
+              } else {
+                console.warn(`Failed to fetch summary for bill ${billId}: ${summaryResponse.statusText}`);
+              }
+            }
+            
+            detailedBills.push({
+              ...bill,
+              ...detailData.bill,
+              summary
+            });
+          } catch (error) {
+            console.error(`Error processing bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
           }
-          
-          detailedBills.push({
-            ...bill,
-            ...detailData.bill,
-            summary
-          });
-        } catch (error) {
-          console.error(`Error processing bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
+        }
+        
+        // Add a delay between batches
+        if (i + BATCH_SIZE < listData.bills.length) {
+          console.log('Waiting between batches...');
+          await this.delay(BASE_DELAY * 2);
         }
       }
 
