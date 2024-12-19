@@ -1,7 +1,9 @@
 import { Bill } from '../types.js';
 
+// Constants based on API documentation
 const CONGRESS_API_BASE_URL = 'https://api.congress.gov/v3';
-const BASE_DELAY = 1100; // Slightly over 1 second to be safe
+const HOURLY_RATE_LIMIT = 5000;
+const BASE_DELAY = Math.ceil((60 * 60 * 1000) / HOURLY_RATE_LIMIT); // ~720ms between requests
 const MAX_RETRIES = 3;
 const BATCH_SIZE = 20;
 
@@ -67,16 +69,31 @@ export class CongressApiService {
   private baseUrl: string;
   private requestCount: number;
   private lastRequestTime: number;
+  private requestsThisHour: number;
+  private hourStartTime: number;
 
   constructor() {
-    this.apiKey = process.env.CONGRESS_API_KEY || '';
-    this.baseUrl = 'https://api.congress.gov/v3';
+    if (!process.env.CONGRESS_API_KEY) {
+      throw new Error('CONGRESS_API_KEY environment variable is not set');
+    }
+    this.apiKey = process.env.CONGRESS_API_KEY;
+    this.baseUrl = CONGRESS_API_BASE_URL;
     this.requestCount = 0;
     this.lastRequestTime = 0;
+    this.requestsThisHour = 0;
+    this.hourStartTime = Date.now();
   }
 
   private async delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private resetHourlyCounterIfNeeded(): void {
+    const now = Date.now();
+    if (now - this.hourStartTime >= 60 * 60 * 1000) {
+      this.requestsThisHour = 0;
+      this.hourStartTime = now;
+    }
   }
 
   private async handleRateLimit(retryCount: number = 0): Promise<void> {
@@ -86,6 +103,15 @@ export class CongressApiService {
   }
 
   private async makeRequest(url: URL, retryCount: number = 0): Promise<Response> {
+    this.resetHourlyCounterIfNeeded();
+
+    if (this.requestsThisHour >= HOURLY_RATE_LIMIT) {
+      const waitTime = 60 * 60 * 1000 - (Date.now() - this.hourStartTime);
+      console.log(`Hourly rate limit reached. Waiting ${Math.ceil(waitTime / 1000)} seconds...`);
+      await this.delay(waitTime);
+      this.resetHourlyCounterIfNeeded();
+    }
+
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
     
@@ -94,9 +120,34 @@ export class CongressApiService {
     }
 
     try {
-      const response = await fetch(url.toString());
+      // Verify API key is present
+      if (!this.apiKey) {
+        throw new Error('API key is not configured');
+      }
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'BillsInCongress/1.0'
+        }
+      });
+
       this.lastRequestTime = Date.now();
       this.requestCount++;
+      this.requestsThisHour++;
+
+      // Log request counts periodically
+      if (this.requestCount % 100 === 0) {
+        console.log(`API Request Stats:
+          Total Requests: ${this.requestCount}
+          Requests this hour: ${this.requestsThisHour}
+          Time until hour reset: ${Math.ceil((60 * 60 * 1000 - (Date.now() - this.hourStartTime)) / 1000)}s`);
+      }
+
+      if (response.status === 403) {
+        console.error('Authentication failed. Verify your API key is correct and active.');
+        throw new Error('API Authentication failed');
+      }
 
       if (response.status === 429 && retryCount < MAX_RETRIES) {
         await this.handleRateLimit(retryCount);
