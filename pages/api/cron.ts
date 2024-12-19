@@ -4,6 +4,11 @@ import { syncBillsWithSummaries } from '../../scripts/sync-bills-with-summaries'
 // Set a reasonable timeout for the sync process
 const SYNC_TIMEOUT = 300000; // 5 minutes
 
+// Format date to YYYY-MM-DDTHH:mm:ss.sssZ format required by Congress.gov API
+function formatDateForApi(date: Date): string {
+  return date.toISOString();
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Verify request method
@@ -33,17 +38,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error('CONGRESS_API_KEY environment variable is not set');
     }
 
-    // Configure sync options for 2,000 records
+    // Get yesterday's date range in UTC
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setUTCHours(0, 0, 0, 0);
+    
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
+
+    // Format dates for API
+    const fromDateTime = formatDateForApi(yesterday);
+    const toDateTime = formatDateForApi(todayStart);
+
+    // Configure sync options for all updates from yesterday
     const syncOptions = {
-      maxRecords: 2000,
       billTypes: ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'],
       isHistorical: false,
-      batchSize: 20
+      batchSize: 20,
+      fromDateTime,
+      toDateTime,
+      maxRecords: Number.MAX_SAFE_INTEGER // No limit on records
     };
 
-    console.log('Starting bills sync...');
+    console.log('Starting daily bills sync...');
     console.log(`Trigger type: ${isVercelRequest ? 'Vercel Cron' : 'Manual'}`);
     console.log('Sync options:', JSON.stringify(syncOptions, null, 2));
+    console.log(`Fetching all bills updated between ${fromDateTime} and ${toDateTime}`);
 
     // Set up a timeout
     const timeoutPromise = new Promise((_, reject) => {
@@ -54,12 +75,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const syncPromise = syncBillsWithSummaries(syncOptions);
     await Promise.race([syncPromise, timeoutPromise]);
 
-    console.log('Sync completed successfully');
+    console.log('Daily sync completed successfully');
     return res.status(200).json({ 
       success: true, 
-      message: 'Bills sync completed',
+      message: 'Daily bills sync completed',
       trigger: isVercelRequest ? 'vercel-cron' : 'manual',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      dateRange: {
+        from: fromDateTime,
+        to: toDateTime
+      }
     });
   } catch (error) {
     console.error('Detailed error in sync process:', {

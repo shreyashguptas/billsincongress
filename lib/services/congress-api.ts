@@ -236,7 +236,16 @@ export class CongressApiService {
     }
   }
 
-  async fetchBills(limit: number = 250, congress?: number, billType: string = 'hr', offset: number = 0): Promise<Bill[]> {
+  async fetchBills(
+    limit: number = 250,
+    congress?: number,
+    billType: string = 'hr',
+    offset: number = 0,
+    options: {
+      fromDateTime?: string;
+      toDateTime?: string;
+    } = {}
+  ): Promise<Bill[]> {
     try {
       const currentCongress = congress || Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
       console.log(`Fetching ${billType.toUpperCase()} bills from Congress ${currentCongress}, offset: ${offset}...`);
@@ -248,12 +257,31 @@ export class CongressApiService {
       listUrl.searchParams.append('format', 'json');
       listUrl.searchParams.append('sort', 'updateDate desc');
 
+      // Add date filtering if provided
+      if (options.fromDateTime) {
+        listUrl.searchParams.append('fromDateTime', options.fromDateTime);
+        console.log(`Using fromDateTime filter: ${options.fromDateTime}`);
+      }
+      if (options.toDateTime) {
+        listUrl.searchParams.append('toDateTime', options.toDateTime);
+        console.log(`Using toDateTime filter: ${options.toDateTime}`);
+      }
+
       const listResponse = await this.makeRequest(listUrl);
       if (!listResponse.ok) {
+        const responseText = await listResponse.text();
+        console.error('Failed to fetch bills list. Response:', {
+          status: listResponse.status,
+          statusText: listResponse.statusText,
+          response: responseText,
+          url: listUrl.toString().replace(this.apiKey, '[REDACTED]')
+        });
         throw new Error(`API request failed: ${listResponse.statusText}`);
       }
 
       const listData = await listResponse.json();
+      console.log(`API Response: Found ${listData.bills?.length || 0} bills matching criteria`);
+      
       if (!listData.bills || listData.bills.length === 0) {
         console.log(`No ${billType.toUpperCase()} bills found for Congress ${currentCongress} at offset ${offset}`);
         return [];

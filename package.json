@@ -9,7 +9,8 @@
     "lint": "next lint",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "sync-bills": "tsx scripts/sync-bills-with-summaries.ts",
-    "sync-daily": "tsx scripts/scheduled-sync.ts"
+    "sync-daily": "tsx scripts/scheduled-sync.ts",
+    "sync-historical": "tsx scripts/initial-data-sync.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

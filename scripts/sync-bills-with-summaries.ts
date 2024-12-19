@@ -17,6 +17,9 @@ interface SyncOptions {
   maxRecords?: number;
   billIds?: string[];
   offset?: number;
+  batchSize?: number;
+  fromDateTime?: string;
+  toDateTime?: string;
 }
 
 async function getCurrentCongress(): Promise<number> {
@@ -37,13 +40,16 @@ async function parseBillId(billId: string): Promise<{ congress: number; type: st
   }
 }
 
-async function syncBillsWithSummaries(options: SyncOptions = {}) {
+export async function syncBillsWithSummaries(options: SyncOptions = {}) {
   const {
     isHistorical = false,
     billTypes = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'],
-    maxRecords = 2000,
+    maxRecords = Number.MAX_SAFE_INTEGER,
     billIds = [],
-    offset = 0
+    offset = 0,
+    batchSize = 20,
+    fromDateTime,
+    toDateTime
   } = options;
 
   const congressApi = new CongressApiService();
@@ -63,24 +69,20 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
       console.log(`\nProcessing bill ${billId}...`);
       
       try {
-        const summary = await congressApi.fetchBillSummary(
-          billInfo.congress,
-          billInfo.type,
-          billInfo.number
-        );
+        const bills = await congressApi.fetchBills(1, billInfo.congress, billInfo.type, 0, {
+          fromDateTime,
+          toDateTime
+        });
 
-        if (summary) {
-          await storage.updateBillSummary(billId, summary);
-          console.log(`✓ Successfully updated summary for bill ${billId} (length: ${summary.length} characters)`);
+        if (bills && bills.length > 0) {
+          await storage.storeBills(bills);
+          console.log(`✓ Successfully updated bill ${billId}`);
         } else {
-          console.log(`✗ No summary found for bill ${billId}`);
+          console.log(`✗ No updates found for bill ${billId}`);
         }
       } catch (error) {
         console.error(`Error processing bill ${billId}:`, error);
       }
-      
-      // Rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
     console.log('\nFinished processing specific bills');
@@ -88,63 +90,68 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
   }
 
   // Regular sync logic for when no specific bills are provided
-  const BATCH_SIZE = 20;
   const currentCongress = await getCurrentCongress();
   const startCongress = options.startCongress || (isHistorical ? currentCongress - 2 : currentCongress);
   const endCongress = options.endCongress || currentCongress;
   let totalRecordsFetched = 0;
 
-  console.log(`Starting ${isHistorical ? 'historical' : 'daily'} sync for Congresses ${startCongress} to ${endCongress}`);
-  console.log(`Target: ${maxRecords} records total, processing in batches of ${BATCH_SIZE}`);
+  const syncType = isHistorical ? 'historical' : (fromDateTime ? 'daily' : 'full');
+  console.log(`Starting ${syncType} sync for Congresses ${startCongress} to ${endCongress}`);
   
-  for (let congress = endCongress; congress >= startCongress && totalRecordsFetched < maxRecords; congress--) {
+  if (fromDateTime) {
+    console.log(`Fetching bills updated between ${fromDateTime} and ${toDateTime || 'now'}`);
+  }
+  
+  for (let congress = endCongress; congress >= startCongress; congress--) {
     for (const billType of billTypes) {
       let currentOffset = offset;
-      let hasMore = true;
-      
-      while (hasMore && totalRecordsFetched < maxRecords) {
-        try {
-          // Calculate remaining records to fetch
-          const remainingRecords = maxRecords - totalRecordsFetched;
-          const batchSize = Math.min(BATCH_SIZE, remainingRecords);
-          
-          console.log(`\nFetching batch: Congress ${congress}, ${billType.toUpperCase()}, offset ${currentOffset}, size ${batchSize}`);
-          console.log(`Progress: ${totalRecordsFetched}/${maxRecords} records fetched`);
-          
-          // Fetch bills with summaries (rate limited internally)
-          const bills = await congressApi.fetchBills(batchSize, congress, billType, currentOffset);
-          
-          if (bills.length === 0) {
-            console.log(`No more ${billType.toUpperCase()} bills found for Congress ${congress}`);
-            hasMore = false;
-            continue;
-          }
-          
-          // Store bills with their summaries
-          await storage.storeBills(bills);
-          
-          totalRecordsFetched += bills.length;
-          console.log(`Processed ${bills.length} ${billType.toUpperCase()} bills from Congress ${congress}, offset ${currentOffset}`);
-          console.log(`Total records fetched: ${totalRecordsFetched}/${maxRecords}`);
-          
-          currentOffset += batchSize;
-          
-          // Add delay between batches to respect rate limits
-          // Each bill requires multiple API calls, so we need a longer delay
-          await new Promise(resolve => setTimeout(resolve, 2000));
+      let hasMoreRecords = true;
 
-          if (totalRecordsFetched >= maxRecords) {
-            console.log(`Reached maximum record limit of ${maxRecords}`);
+      while (hasMoreRecords) {
+        console.log(`\nFetching batch: Congress ${congress}, ${billType.toUpperCase()}, offset ${currentOffset}, size ${batchSize}`);
+        console.log(`Progress: ${totalRecordsFetched} records fetched`);
+
+        try {
+          const bills = await congressApi.fetchBills(batchSize, congress, billType, currentOffset, {
+            fromDateTime,
+            toDateTime
+          });
+
+          if (!bills || bills.length === 0) {
+            console.log(`No more ${billType.toUpperCase()} bills found for Congress ${congress}`);
+            hasMoreRecords = false;
+            break;
+          }
+
+          await storage.storeBills(bills);
+          totalRecordsFetched += bills.length;
+          currentOffset += batchSize;
+
+          console.log(`Successfully stored ${bills.length} bills`);
+          console.log(`Total progress: ${totalRecordsFetched} records`);
+
+          // If this is a daily sync (has fromDateTime), continue until no more records
+          // For historical sync, respect the maxRecords limit
+          if (!fromDateTime && totalRecordsFetched >= maxRecords) {
+            console.log(`Reached target of ${maxRecords} records. Stopping sync.`);
             return;
           }
+
+          // If we got fewer records than the batch size, we've reached the end
+          if (bills.length < batchSize) {
+            hasMoreRecords = false;
+          }
+
         } catch (error) {
           console.error(`Error processing batch: Congress ${congress}, ${billType.toUpperCase()}, offset ${currentOffset}`, error);
-          // Continue with next batch even if one fails
-          currentOffset += BATCH_SIZE;
+          throw error;
         }
       }
     }
   }
+
+  console.log('\nSync completed successfully');
+  console.log(`Total records fetched: ${totalRecordsFetched}`);
 }
 
 // Export for use in different contexts
