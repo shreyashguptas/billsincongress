@@ -8,34 +8,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ error: 'Method not allowed', message: 'Only GET requests are allowed' });
     }
 
-    // Verify the cron secret
-    const cronSecret = process.env.CRON_SECRET;
-    const authHeader = req.headers.authorization;
-
-    if (!cronSecret) {
-      console.error('CRON_SECRET environment variable is not set');
-      return res.status(500).json({ 
-        error: 'Server configuration error', 
-        message: 'CRON_SECRET is not configured' 
-      });
-    }
-
-    if (!authHeader) {
-      console.error('No authorization header provided');
+    // Verify that the request is coming from Vercel Cron
+    if (process.env.VERCEL_ENV === 'production' && req.headers['x-vercel-cron'] !== 'true') {
+      console.error('Unauthorized: Not a Vercel Cron request');
       return res.status(401).json({ 
         error: 'Unauthorized', 
-        message: 'No authorization header provided' 
-      });
-    }
-
-    const expectedAuth = `Bearer ${cronSecret}`;
-    if (authHeader !== expectedAuth) {
-      console.error('Invalid authorization header');
-      console.error(`Expected format: "Bearer <secret>"`);
-      console.error(`Received: "${authHeader}"`);
-      return res.status(401).json({ 
-        error: 'Unauthorized', 
-        message: 'Invalid authorization header' 
+        message: 'This endpoint can only be called by Vercel Cron' 
       });
     }
 
