@@ -40,6 +40,26 @@ interface BillData {
   } | BillAction[];
 }
 
+interface BillSummary {
+  actionDate: string;
+  actionDesc: string;
+  text: string;
+  updateDate: string;
+  versionCode: string;
+}
+
+interface SummaryResponse {
+  summaries: BillSummary[];
+  pagination: {
+    count: number;
+  };
+  request: {
+    billNumber: string;
+    billType: string;
+    congress: string;
+  };
+}
+
 export class CongressApiService {
   private apiKey: string;
   private baseUrl: string;
@@ -53,20 +73,6 @@ export class CongressApiService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private extractSummaryFromBillData(billData: any): string {
-    // Try to get summary from various possible locations in bill data
-    if (billData.summaries?.[0]?.text) {
-      return billData.summaries[0].text;
-    }
-    if (billData.summary?.text) {
-      return billData.summary.text;
-    }
-    if (typeof billData.summary === 'string' && billData.summary) {
-      return billData.summary;
-    }
-    return '';
-  }
-
   async fetchBillSummary(congress: number, billType: string, billNumber: number): Promise<string> {
     try {
       const url = new URL(`${this.baseUrl}/bill/${congress}/${billType}/${billNumber}/summaries`);
@@ -75,24 +81,46 @@ export class CongressApiService {
 
       const response = await fetch(url.toString());
       if (!response.ok) {
-        console.warn(`No summary found in summaries endpoint for bill ${congress}-${billType}-${billNumber}`);
+        console.warn(`Failed to fetch summary for bill ${congress}-${billType}-${billNumber}: ${response.statusText}`);
         return '';
       }
 
       const data = await response.json();
-      const summaries = data?.summaries || [];
-      if (summaries.length > 0 && summaries[0].text) {
-        console.log(`Found summary in summaries endpoint for bill ${congress}-${billType}-${billNumber}`);
-        return summaries[0].text;
+      
+      // Check if we have summaries in the response
+      if (!data?.summaries || !Array.isArray(data.summaries) || data.summaries.length === 0) {
+        console.warn(`No summaries found for bill ${congress}-${billType}-${billNumber}`);
+        return '';
       }
-      return '';
+
+      // Sort summaries by updateDate to get the most recent one
+      const sortedSummaries = data.summaries.sort((a: BillSummary, b: BillSummary) => {
+        return new Date(b.updateDate).getTime() - new Date(a.updateDate).getTime();
+      });
+
+      // Get the most recent summary text
+      const summaryText = sortedSummaries[0].text;
+      if (!summaryText) {
+        console.warn(`Empty summary text for bill ${congress}-${billType}-${billNumber}`);
+        return '';
+      }
+
+      // Clean up HTML tags and entities from the summary text
+      const cleanedText = summaryText
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .trim();
+
+      console.log(`Successfully fetched summary for bill ${congress}-${billType}-${billNumber} (length: ${cleanedText.length})`);
+      return cleanedText;
     } catch (error) {
       console.error(`Error fetching summary for bill ${congress}-${billType}-${billNumber}:`, error);
       return '';
     }
   }
 
-  async fetchBills(limit: number = 10, congress?: number, billType: string = 'hr', offset: number = 0): Promise<Bill[]> {
+  async fetchBills(limit: number = 250, congress?: number, billType: string = 'hr', offset: number = 0): Promise<Bill[]> {
     try {
       const currentCongress = congress || Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
       console.log(`Fetching ${billType.toUpperCase()} bills from Congress ${currentCongress}, offset: ${offset}...`);
@@ -100,7 +128,7 @@ export class CongressApiService {
       // Fetch bill list with detailed information
       const listUrl = new URL(`${this.baseUrl}/bill/${currentCongress}/${billType}`);
       listUrl.searchParams.append('api_key', this.apiKey);
-      listUrl.searchParams.append('limit', limit.toString());
+      listUrl.searchParams.append('limit', Math.min(limit, 250).toString());
       listUrl.searchParams.append('offset', offset.toString());
       listUrl.searchParams.append('format', 'json');
       listUrl.searchParams.append('sort', 'updateDate desc');
@@ -120,39 +148,36 @@ export class CongressApiService {
       const detailedBills = [];
       for (const bill of listData.bills) {
         try {
-          // Delay before fetching bill details
           await this.delay(RATE_LIMIT_DELAY);
-
+          
+          // Fetch bill details
           const detailUrl = new URL(`${this.baseUrl}/bill/${bill.congress}/${bill.type}/${bill.number}`);
           detailUrl.searchParams.append('api_key', this.apiKey);
           detailUrl.searchParams.append('format', 'json');
-
+          
           const detailResponse = await fetch(detailUrl.toString());
           if (!detailResponse.ok) {
             console.error(`Failed to fetch details for bill ${bill.congress}-${bill.type}-${bill.number}`);
             continue;
           }
-
+          
           const detailData = await detailResponse.json();
           
-          // First try to get summary from bill details
-          let summary = this.extractSummaryFromBillData(detailData.bill);
-          
-          // If no summary in bill details, try the summaries endpoint
-          if (!summary) {
-            await this.delay(RATE_LIMIT_DELAY);
-            summary = await this.fetchBillSummary(bill.congress, bill.type, bill.number);
-          }
-
-          if (!summary) {
-            console.log(`No summary available for bill ${bill.congress}-${bill.type}-${bill.number}`);
-          }
+          // Fetch summary using the dedicated method
+          await this.delay(RATE_LIMIT_DELAY);
+          const summary = await this.fetchBillSummary(
+            bill.congress,
+            bill.type,
+            bill.number
+          );
           
           detailedBills.push({
             ...bill,
             ...detailData.bill,
             summary
           });
+
+          console.log(`Fetched summary for bill ${bill.congress}-${bill.type}-${bill.number}: ${summary ? 'Found' : 'Not found'}`);
         } catch (error) {
           console.error(`Error processing bill ${bill.congress}-${bill.type}-${bill.number}:`, error);
         }
@@ -207,10 +232,8 @@ export class CongressApiService {
       const rawSponsorName = sponsor.name || sponsor.fullName || '';
       const sponsorName = this.cleanSponsorName(rawSponsorName);
 
-      // Get summary safely from various possible locations
-      const summary = bill.summaries?.[0]?.text || 
-                     bill.summary?.text ||
-                     (typeof bill.summary === 'string' ? bill.summary : '') || '';
+      // Get the summary directly from the bill object
+      const summary = bill.summary || '';
 
       // Get action history safely
       let statusHistory = [];
