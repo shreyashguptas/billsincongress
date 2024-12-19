@@ -2,6 +2,7 @@ import { BillStorageService } from '@/lib/services/bill-storage';
 import { Bill } from '@/lib/types';
 import { BillHeader } from '@/components/bills/bill-header';
 import { BillSponsors } from '@/components/bills/bill-sponsors';
+import { BillInfo } from '@/components/bills/bill-info';
 import { BillContentTabs } from '@/components/bills/bill-content-tabs';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
@@ -64,8 +65,9 @@ export default async function BillPage({
             <BillContentTabs bill={bill} />
           </div>
           <div className="order-1 lg:order-2 lg:col-span-1">
-            <div className="sticky top-8">
+            <div className="sticky top-8 space-y-8">
               <BillSponsors bill={bill} />
+              <BillInfo bill={bill} />
             </div>
           </div>
         </div>

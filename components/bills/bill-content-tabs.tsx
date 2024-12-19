@@ -23,8 +23,11 @@ export function BillContentTabs({ bill }: BillContentTabsProps) {
 
       {/* Timeline Section */}
       <Card>
-        <CardHeader>
+        <CardHeader className="space-y-2">
           <CardTitle>Timeline</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Current Status: {bill.latestActionText}
+          </p>
         </CardHeader>
         <CardContent>
           <BillTimeline bill={bill} />
