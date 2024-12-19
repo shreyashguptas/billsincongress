@@ -81,14 +81,6 @@ export function BillCard({ bill, showSponsor = true }: BillCardProps) {
               </div>
               <Progress value={bill.progress} />
             </div>
-
-            {/* Summary */}
-            {bill.summary && (
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground mb-1">Summary</p>
-                <p className="text-sm sm:text-base line-clamp-3">{bill.summary}</p>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>

@@ -147,6 +147,26 @@ export const useBillsStore = create<BillsState>()(
           
           let query = supabase
             .from('bills')
+            .select('count');
+
+          // Apply filters for count
+          if (state.status !== 'all') {
+            query = query.eq('status', state.status);
+          }
+
+          if (state.category !== 'all') {
+            query = query.contains('tags', [state.category]);
+          }
+
+          if (state.searchQuery) {
+            query = query.ilike('title', `%${state.searchQuery}%`);
+          }
+
+          const { count } = await query.count();
+
+          // Now fetch the actual bills
+          query = supabase
+            .from('bills')
             .select('*');
 
           // Apply filters
@@ -169,7 +189,7 @@ export const useBillsStore = create<BillsState>()(
             query = query.order('last_updated', { ascending: true });
           }
 
-          query = query.range(offset, offset + 9);
+          query = query.range(offset, offset + 8);
 
           const { data, error: supabaseError } = await query;
 
@@ -180,15 +200,18 @@ export const useBillsStore = create<BillsState>()(
           if (reset) {
             set({ 
               bills: transformedBills, 
-              offset: 10,
+              offset: 9,
               lastFetched: now 
             });
           } else {
-            set(state => ({
-              bills: [...state.bills, ...transformedBills],
-              offset: state.offset + 10,
-              lastFetched: now
-            }));
+            // Only update if we have new bills
+            if (transformedBills.length > 0) {
+              set(state => ({
+                bills: [...state.bills, ...transformedBills],
+                offset: state.offset + 9,
+                lastFetched: now
+              }));
+            }
           }
         } catch (error: any) {
           set({ error: error.message });

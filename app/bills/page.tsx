@@ -51,7 +51,7 @@ async function getInitialBills() {
     .from('bills')
     .select('*')
     .order('update_date', { ascending: false })
-    .range(0, 9);
+    .range(0, 8);
 
   if (error) {
     console.error('Error fetching initial bills:', error);
