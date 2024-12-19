@@ -75,6 +75,19 @@ export async function syncBillsWithSummaries(options: SyncOptions = {}) {
         });
 
         if (bills && bills.length > 0) {
+          // Fetch URLs for the bill
+          try {
+            const { textUrl, pdfUrl } = await congressApi.fetchBillText(
+              billInfo.congress,
+              billInfo.type,
+              billInfo.number
+            );
+            bills[0].billTextUrl = textUrl;
+            bills[0].billPdfUrl = pdfUrl;
+          } catch (error) {
+            console.error(`Error fetching URLs for bill ${billId}:`, error);
+          }
+
           await storage.storeBills(bills);
           console.log(`✓ Successfully updated bill ${billId}`);
         } else {
@@ -121,6 +134,21 @@ export async function syncBillsWithSummaries(options: SyncOptions = {}) {
             console.log(`No more ${billType.toUpperCase()} bills found for Congress ${congress}`);
             hasMoreRecords = false;
             break;
+          }
+
+          // Fetch URLs for each bill
+          for (const bill of bills) {
+            try {
+              const { textUrl, pdfUrl } = await congressApi.fetchBillText(
+                bill.congressNumber,
+                bill.billType,
+                bill.billNumber
+              );
+              bill.billTextUrl = textUrl;
+              bill.billPdfUrl = pdfUrl;
+            } catch (error) {
+              console.error(`Error fetching URLs for bill ${bill.id}:`, error);
+            }
           }
 
           await storage.storeBills(bills);

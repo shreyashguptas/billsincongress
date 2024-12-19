@@ -63,7 +63,9 @@ const transformBillData = (data: any): Bill => ({
   constitutionalAuthorityText: data.constitutional_authority_text || '',
   officialTitle: data.official_title || data.title,
   shortTitle: data.short_title || '',
-  cosponsorsCount: data.cosponsors_count || 0
+  cosponsorsCount: data.cosponsors_count || 0,
+  billTextUrl: data.bill_text_url || null,
+  billPdfUrl: data.bill_pdf_url || null
 });
 
 // 24 hours in milliseconds

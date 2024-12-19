@@ -39,4 +39,6 @@ export interface Bill {
   officialTitle: string;
   shortTitle?: string;
   cosponsorsCount: number;
+  billTextUrl?: string;
+  billPdfUrl?: string;
 }

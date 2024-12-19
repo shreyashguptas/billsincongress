@@ -65,6 +65,8 @@ export class BillStorageService {
           official_title: bill.officialTitle,
           short_title: bill.shortTitle,
           cosponsors_count: bill.cosponsorsCount,
+          bill_text_url: bill.billTextUrl,
+          bill_pdf_url: bill.billPdfUrl,
           last_updated: new Date(bill.lastUpdated || now).toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -148,7 +150,9 @@ export class BillStorageService {
         constitutionalAuthorityText: bill.constitutional_authority_text || '',
         officialTitle: bill.official_title || bill.title,
         shortTitle: bill.short_title || '',
-        cosponsorsCount: bill.cosponsors_count || 0
+        cosponsorsCount: bill.cosponsors_count || 0,
+        billTextUrl: bill.bill_text_url || null,
+        billPdfUrl: bill.bill_pdf_url || null
       }));
     } catch (error) {
       console.error('Error fetching bills from storage:', error);
@@ -212,7 +216,9 @@ export class BillStorageService {
         constitutionalAuthorityText: bill.constitutional_authority_text || '',
         officialTitle: bill.official_title || bill.title,
         shortTitle: bill.short_title || '',
-        cosponsorsCount: bill.cosponsors_count || 0
+        cosponsorsCount: bill.cosponsors_count || 0,
+        billTextUrl: bill.bill_text_url || null,
+        billPdfUrl: bill.bill_pdf_url || null
       }));
     } catch (error) {
       console.error('Error fetching bill by ID from storage:', error);
