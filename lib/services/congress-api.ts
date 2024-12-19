@@ -255,13 +255,22 @@ export class CongressApiService {
 
   private determineStatus(bill: any): string {
     const actionText = (bill.latestAction?.text || '').toLowerCase();
-    const actions = (bill.actions || []).map((action: any) => 
-      (action.text || action.description || '').toLowerCase()
+    
+    // Ensure actions is always an array and handle potential undefined/null values
+    const actions = Array.isArray(bill.actions?.items) 
+      ? bill.actions.items 
+      : Array.isArray(bill.actions) 
+        ? bill.actions 
+        : [];
+
+    // Map actions to lowercase text, handling potential undefined values
+    const actionTexts = actions.map((action: any) => 
+      ((action?.text || action?.description || '').toLowerCase())
     );
     
     // Check both latest action and full action history
     const hasAction = (text: string) => 
-      actionText.includes(text) || actions.some((action: string) => action.includes(text));
+      actionText.includes(text) || actionTexts.some((action: string) => action.includes(text));
 
     if (hasAction('became public law')) {
       return 'Enacted';
@@ -292,13 +301,22 @@ export class CongressApiService {
 
   private calculateProgress(bill: any): number {
     const status = this.determineStatus(bill);
-    const actions = (bill.actions || []).map((action: any) => 
-      (action.text || action.description || '').toLowerCase()
+    
+    // Ensure actions is always an array and handle potential undefined/null values
+    const actions = Array.isArray(bill.actions?.items) 
+      ? bill.actions.items 
+      : Array.isArray(bill.actions) 
+        ? bill.actions 
+        : [];
+
+    // Map actions to lowercase text, handling potential undefined values
+    const actionTexts = actions.map((action: any) => 
+      ((action?.text || action?.description || '').toLowerCase())
     );
 
     // Helper function to check if any action includes text
     const hasAction = (text: string) => 
-      actions.some((action: string) => action.includes(text));
+      actionTexts.some((action: string) => action.includes(text));
 
     // Calculate progress based on completed stages
     switch (status.toLowerCase()) {
