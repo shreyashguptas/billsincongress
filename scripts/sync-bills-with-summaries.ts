@@ -155,7 +155,7 @@ export async function syncBillsWithSummaries(options: SyncOptions = {}) {
 }
 
 // Export for use in different contexts
-export { syncBillsWithSummaries, getCurrentCongress };
+export { getCurrentCongress };
 
 // Allow direct execution
 if (require.main === module) {
