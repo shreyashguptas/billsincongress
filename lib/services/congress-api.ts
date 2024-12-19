@@ -254,36 +254,103 @@ export class CongressApiService {
   }
 
   private determineStatus(bill: any): string {
-    const actionText = bill.latestAction?.text || '';
+    const actionText = (bill.latestAction?.text || '').toLowerCase();
+    const actions = (bill.actions || []).map((action: any) => 
+      (action.text || action.description || '').toLowerCase()
+    );
     
-    if (actionText.includes('Became Public Law')) {
+    // Check both latest action and full action history
+    const hasAction = (text: string) => 
+      actionText.includes(text) || actions.some(action => action.includes(text));
+
+    if (hasAction('became public law')) {
       return 'Enacted';
     }
-    if (actionText.includes('Vetoed')) {
+    if (hasAction('vetoed')) {
       return 'Vetoed';
     }
-    if (actionText.includes('Introduced')) {
+    if (hasAction('passed by the senate') || hasAction('passed senate')) {
+      return 'Passed Senate';
+    }
+    if (hasAction('passed by the house') || hasAction('passed house') || hasAction('passed/agreed to in house')) {
+      return 'Passed House';
+    }
+    if (hasAction('reported')) {
+      return 'Reported';
+    }
+    if (hasAction('introduced')) {
       return 'Introduced';
     }
-    if (actionText.includes('Referred to')) {
+    if (hasAction('referred to')) {
       return 'In Committee';
+    }
+    if (hasAction('failed') || hasAction('rejected')) {
+      return 'Failed';
     }
     return 'In Progress';
   }
 
   private calculateProgress(bill: any): number {
     const status = this.determineStatus(bill);
-    switch (status) {
-      case 'Enacted':
-        return 100;
-      case 'Vetoed':
-        return 80;
-      case 'In Committee':
+    const actions = (bill.actions || []).map((action: any) => 
+      (action.text || action.description || '').toLowerCase()
+    );
+
+    // Helper function to check if any action includes text
+    const hasAction = (text: string) => 
+      actions.some(action => action.includes(text));
+
+    // Calculate progress based on completed stages
+    switch (status.toLowerCase()) {
+      case 'enacted':
+      case 'became law':
+        return 100; // Completed all stages
+
+      case 'passed senate':
+        return 80;  // Completed 4 stages
+
+      case 'passed house':
+        return 60;  // Completed 3 stages
+
+      case 'reported':
+      case 'in committee':
+        return 40;  // Completed 2 stages
+
+      case 'introduced':
+        return 20;  // Completed 1 stage
+
+      case 'vetoed':
+        // If vetoed after Senate passage
+        if (hasAction('passed senate')) {
+          return 80;
+        }
+        // If vetoed after House passage
+        if (hasAction('passed house')) {
+          return 60;
+        }
+        // If vetoed earlier
         return 40;
-      case 'Introduced':
+
+      case 'failed':
+      case 'rejected':
+        // If failed in Senate
+        if (hasAction('failed') && hasAction('senate')) {
+          return 60; // Made it through House
+        }
+        // If failed in House
+        if (hasAction('failed') && hasAction('house')) {
+          return 40; // Made it through committee
+        }
+        // Failed in committee
         return 20;
+
       default:
-        return 60; // In Progress
+        // For 'In Progress' status, check the highest completed stage
+        if (hasAction('passed senate')) return 80;
+        if (hasAction('passed house')) return 60;
+        if (hasAction('reported')) return 40;
+        if (hasAction('introduced')) return 20;
+        return 0;
     }
   }
 } 

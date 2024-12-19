@@ -9,23 +9,48 @@ interface BillTimelineProps {
 }
 
 export function BillTimeline({ bill }: BillTimelineProps) {
-  // Define the stages a bill typically goes through with cumulative progress
+  // Define the stages a bill typically goes through
   const stages = [
-    { name: 'Introduced', progress: 20 },
-    { name: 'Reported', progress: 40 },
-    { name: 'Passed House', progress: 60 },
-    { name: 'Passed Senate', progress: 80 },
-    { name: 'Became Law', progress: 100 },
+    { name: 'Introduced' },
+    { name: 'Reported' },
+    { name: 'Passed House' },
+    { name: 'Passed Senate' },
+    { name: 'Became Law' },
   ];
 
-  // Find the current stage based on bill's progress
-  const currentStage = stages.find(stage => bill.progress <= stage.progress) || stages[stages.length - 1];
-  const previousStage = stages[Math.max(stages.indexOf(currentStage) - 1, 0)];
+  // Calculate the current stage index based on bill's status
+  const getCurrentStageIndex = () => {
+    switch (bill.status.toLowerCase()) {
+      case 'introduced':
+        return 0;
+      case 'reported':
+      case 'in committee':
+        return 1;
+      case 'passed house':
+        return 2;
+      case 'passed senate':
+        return 3;
+      case 'enacted':
+      case 'became law':
+        return 4;
+      case 'vetoed':
+        return 2; // Show progress up to House passage for vetoed bills
+      case 'failed':
+      case 'rejected':
+        return Math.max(stages.findIndex(stage => 
+          stage.name.toLowerCase() === bill.latestActionText.toLowerCase()
+        ) - 1, 0);
+      default:
+        return 0;
+    }
+  };
 
-  // Calculate the actual progress within the current stage
-  const stageProgress = stages.indexOf(currentStage) === 0 
-    ? bill.progress 
-    : previousStage.progress + ((bill.progress - previousStage.progress) / (currentStage.progress - previousStage.progress)) * (currentStage.progress - previousStage.progress);
+  const currentStageIndex = getCurrentStageIndex();
+  const currentStage = stages[currentStageIndex];
+  
+  // Special status handling
+  const isVetoed = bill.status.toLowerCase() === 'vetoed';
+  const isFailed = ['failed', 'rejected'].includes(bill.status.toLowerCase());
 
   return (
     <Card>
@@ -37,41 +62,53 @@ export function BillTimeline({ bill }: BillTimelineProps) {
           {/* Progress Bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="font-medium">{currentStage.name}</span>
-              <span className="text-muted-foreground">{Math.round(stageProgress)}%</span>
+              <span className="font-medium">
+                {isVetoed ? 'Vetoed' : isFailed ? 'Failed' : currentStage.name}
+              </span>
+              <span className="text-muted-foreground">{bill.progress}%</span>
             </div>
-            <Progress value={stageProgress} />
+            <Progress value={bill.progress} className={isVetoed || isFailed ? 'opacity-50' : ''} />
           </div>
 
           {/* Timeline */}
           <div className="space-y-4 pt-4">
             {stages.map((stage, index) => {
-              const isCompleted = bill.progress >= stage.progress;
-              const isCurrent = stage === currentStage;
+              const isCompleted = index <= currentStageIndex;
+              const isCurrent = index === currentStageIndex;
+              const isDisabled = (isVetoed || isFailed) && index > currentStageIndex;
               
               return (
                 <div key={stage.name} className="flex items-center gap-4">
                   <div 
                     className={`h-2 w-2 rounded-full ${
+                      isDisabled ? 'bg-muted opacity-50' :
                       isCompleted || isCurrent ? 'bg-primary' : 'bg-muted'
                     }`} 
                   />
                   <div className="flex-1">
                     <p className={`text-sm ${
+                      isDisabled ? 'text-muted-foreground opacity-50' :
                       isCompleted || isCurrent ? 'font-medium' : 'text-muted-foreground'
                     }`}>
                       {stage.name}
                     </p>
                   </div>
-                  {(isCompleted || isCurrent) && (
-                    <div className="text-xs text-muted-foreground">
-                      {stage.progress}%
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
+
+          {/* Status Message */}
+          {(isVetoed || isFailed) && (
+            <div className="pt-4 text-sm text-muted-foreground">
+              <p className="font-medium text-red-500">
+                {isVetoed ? 'This bill was vetoed' : 'This bill failed to progress'}
+              </p>
+              <p className="mt-1">
+                {bill.latestActionText}
+              </p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
