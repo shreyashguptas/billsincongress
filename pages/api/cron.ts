@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { syncBillsWithSummaries } from '../../scripts/sync-bills-with-summaries';
 
+// Set a reasonable timeout for the sync process
+const SYNC_TIMEOUT = 300000; // 5 minutes
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Verify request method
@@ -25,18 +28,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    // Verify required environment variables
+    if (!process.env.CONGRESS_API_KEY) {
+      throw new Error('CONGRESS_API_KEY environment variable is not set');
+    }
+
     // Configure sync options for 2,000 records
     const syncOptions = {
       maxRecords: 2000,
       billTypes: ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'],
-      isHistorical: false
+      isHistorical: false,
+      batchSize: 20
     };
 
     console.log('Starting bills sync...');
     console.log(`Trigger type: ${isVercelRequest ? 'Vercel Cron' : 'Manual'}`);
     console.log('Sync options:', JSON.stringify(syncOptions, null, 2));
 
-    await syncBillsWithSummaries(syncOptions);
+    // Set up a timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Sync operation timed out')), SYNC_TIMEOUT);
+    });
+
+    // Run the sync with a timeout
+    const syncPromise = syncBillsWithSummaries(syncOptions);
+    await Promise.race([syncPromise, timeoutPromise]);
 
     console.log('Sync completed successfully');
     return res.status(200).json({ 
@@ -46,7 +62,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in sync process:', error);
+    console.error('Detailed error in sync process:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
+
+    // If it's a timeout, return a specific status code
+    if (error instanceof Error && error.message === 'Sync operation timed out') {
+      return res.status(504).json({
+        error: 'Gateway Timeout',
+        message: 'The sync operation timed out. The process will continue in the background.',
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return res.status(500).json({ 
       error: 'Internal server error', 
       message: error instanceof Error ? error.message : 'Unknown error',

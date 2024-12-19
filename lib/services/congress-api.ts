@@ -125,13 +125,12 @@ export class CongressApiService {
         throw new Error('API key is not configured');
       }
 
-      const response = await fetch(url.toString(), {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'BillsInCongress/1.0'
-        }
-      });
+      // Log the request URL (without API key)
+      const sanitizedUrl = new URL(url.toString());
+      sanitizedUrl.searchParams.delete('api_key');
+      console.log(`Making request to: ${sanitizedUrl.toString()}`);
 
+      const response = await fetch(url.toString());
       this.lastRequestTime = Date.now();
       this.requestCount++;
       this.requestsThisHour++;
@@ -145,23 +144,46 @@ export class CongressApiService {
       }
 
       if (response.status === 403) {
-        console.error('Authentication failed. Verify your API key is correct and active.');
-        throw new Error('API Authentication failed');
+        const responseText = await response.text();
+        console.error('Authentication failed. Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          response: responseText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        throw new Error(`API Authentication failed: ${responseText}`);
       }
 
       if (response.status === 429 && retryCount < MAX_RETRIES) {
+        console.warn('Rate limit reached. Response details:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
         await this.handleRateLimit(retryCount);
         return this.makeRequest(url, retryCount + 1);
       }
 
       if (!response.ok && retryCount < MAX_RETRIES) {
-        console.warn(`Request failed with status ${response.status}. Retrying...`);
+        const responseText = await response.text();
+        console.warn('Request failed. Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          response: responseText,
+          headers: Object.fromEntries(response.headers.entries())
+        });
         await this.handleRateLimit(retryCount);
         return this.makeRequest(url, retryCount + 1);
       }
 
       return response;
     } catch (error) {
+      console.error('Request error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        url: url.toString().replace(this.apiKey, '[REDACTED]')
+      });
+
       if (retryCount < MAX_RETRIES) {
         console.warn(`Request failed with error: ${error}. Retrying...`);
         await this.handleRateLimit(retryCount);
