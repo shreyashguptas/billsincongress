@@ -15,8 +15,8 @@ interface SyncOptions {
   endCongress?: number;
   billTypes?: string[];
   maxRecords?: number;
-  onlyMissingSummaries?: boolean;
   billIds?: string[];
+  offset?: number;
 }
 
 async function getCurrentCongress(): Promise<number> {
@@ -41,32 +41,27 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
   const {
     isHistorical = false,
     billTypes = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'],
-    maxRecords = 20,
-    onlyMissingSummaries = false,
-    billIds = []
+    maxRecords = 10,
+    billIds = [],
+    offset = 0
   } = options;
 
   const congressApi = new CongressApiService();
   const storage = new BillStorageService();
-  
-  const BATCH_SIZE = 20;
-  const currentCongress = await getCurrentCongress();
-  
-  // For historical sync, we'll go back several congresses
-  // For daily sync, we'll just do the current congress
-  const startCongress = options.startCongress || (isHistorical ? currentCongress - 2 : currentCongress);
-  const endCongress = options.endCongress || currentCongress;
-  
-  let totalRecordsFetched = 0;
 
-  // If we're only fetching missing summaries for specific bills
-  if (onlyMissingSummaries && billIds.length > 0) {
-    console.log(`Fetching summaries for ${billIds.length} specific bills...`);
+  // Handle specific bill IDs first
+  if (billIds && billIds.length > 0) {
+    console.log(`\nFetching summaries for specific bills: ${billIds.join(', ')}`);
     
     for (const billId of billIds) {
       const billInfo = await parseBillId(billId);
-      if (!billInfo) continue;
+      if (!billInfo) {
+        console.error(`Invalid bill ID format: ${billId}`);
+        continue;
+      }
 
+      console.log(`\nProcessing bill ${billId}...`);
+      
       try {
         const summary = await congressApi.fetchBillSummary(
           billInfo.congress,
@@ -76,23 +71,34 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
 
         if (summary) {
           await storage.updateBillSummary(billId, summary);
-          console.log(`Updated summary for bill ${billId}`);
+          console.log(`✓ Successfully updated summary for bill ${billId} (length: ${summary.length} characters)`);
+        } else {
+          console.log(`✗ No summary found for bill ${billId}`);
         }
-
-        // Respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
-        console.error(`Error updating summary for bill ${billId}:`, error);
+        console.error(`Error processing bill ${billId}:`, error);
       }
+      
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
+    
+    console.log('\nFinished processing specific bills');
     return;
   }
+
+  // Regular sync logic for when no specific bills are provided
+  const BATCH_SIZE = 10;
+  const currentCongress = await getCurrentCongress();
+  const startCongress = options.startCongress || (isHistorical ? currentCongress - 2 : currentCongress);
+  const endCongress = options.endCongress || currentCongress;
+  let totalRecordsFetched = 0;
 
   console.log(`Starting ${isHistorical ? 'historical' : 'daily'} sync for Congresses ${startCongress} to ${endCongress}`);
   
   for (let congress = endCongress; congress >= startCongress && totalRecordsFetched < maxRecords; congress--) {
     for (const billType of billTypes) {
-      let offset = 0;
+      let currentOffset = offset;
       let hasMore = true;
       
       while (hasMore && totalRecordsFetched < maxRecords) {
@@ -102,7 +108,7 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
           const batchSize = Math.min(BATCH_SIZE, remainingRecords);
           
           // Fetch bills with summaries (rate limited internally)
-          const bills = await congressApi.fetchBills(batchSize, congress, billType, offset);
+          const bills = await congressApi.fetchBills(batchSize, congress, billType, currentOffset);
           
           if (bills.length === 0) {
             console.log(`No more ${billType.toUpperCase()} bills found for Congress ${congress}`);
@@ -114,10 +120,10 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
           await storage.storeBills(bills);
           
           totalRecordsFetched += bills.length;
-          console.log(`Processed ${bills.length} ${billType.toUpperCase()} bills from Congress ${congress}, offset ${offset}`);
+          console.log(`Processed ${bills.length} ${billType.toUpperCase()} bills from Congress ${congress}, offset ${currentOffset}`);
           console.log(`Total records fetched: ${totalRecordsFetched}/${maxRecords}`);
           
-          offset += batchSize;
+          currentOffset += batchSize;
           
           // Add delay between batches to respect rate limits
           await new Promise(resolve => setTimeout(resolve, 2000));
@@ -127,9 +133,9 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
             return;
           }
         } catch (error) {
-          console.error(`Error processing batch: Congress ${congress}, ${billType.toUpperCase()}, offset ${offset}`, error);
+          console.error(`Error processing batch: Congress ${congress}, ${billType.toUpperCase()}, offset ${currentOffset}`, error);
           // Continue with next batch even if one fails
-          offset += BATCH_SIZE;
+          currentOffset += BATCH_SIZE;
         }
       }
     }
@@ -147,8 +153,12 @@ if (require.main === module) {
     startCongress: args.includes('--start') ? parseInt(args[args.indexOf('--start') + 1]) : undefined,
     endCongress: args.includes('--end') ? parseInt(args[args.indexOf('--end') + 1]) : undefined,
     billTypes: args.includes('--types') ? args[args.indexOf('--types') + 1].split(',') : undefined,
-    maxRecords: args.includes('--max') ? parseInt(args[args.indexOf('--max') + 1]) : 20
+    maxRecords: args.includes('--max') ? parseInt(args[args.indexOf('--max') + 1]) : 10,
+    billIds: args.includes('--billIds') ? args[args.indexOf('--billIds') + 1].split(',') : [],
+    offset: args.includes('--offset') ? parseInt(args[args.indexOf('--offset') + 1]) : 0
   };
+
+  console.log('Running with options:', JSON.stringify(options, null, 2));
 
   syncBillsWithSummaries(options)
     .then(() => {
