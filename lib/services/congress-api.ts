@@ -21,6 +21,25 @@ interface ApiParams {
   toDateTime?: string;
 }
 
+interface BillAction {
+  text?: string;
+  type?: string;
+  sourceSystem?: {
+    code?: number;
+    name?: string;
+  };
+  actionDate?: string;
+  date?: string;
+  description?: string;
+}
+
+interface BillData {
+  latestAction?: BillAction;
+  actions?: {
+    items?: BillAction[];
+  } | BillAction[];
+}
+
 export class CongressApiService {
   private apiKey: string;
   private baseUrl: string;
@@ -196,11 +215,19 @@ export class CongressApiService {
       // Get action history safely
       let statusHistory = [];
       try {
-        const actions = Array.isArray(bill.actions) ? bill.actions : [];
+        const actions = Array.isArray(bill.actions?.items) 
+          ? bill.actions.items 
+          : Array.isArray(bill.actions) 
+            ? bill.actions 
+            : [];
+
         statusHistory = actions.map((action: any) => ({
           date: action.actionDate || action.date || '',
-          oldStatus: action.type || action.actionType || '',
-          newStatus: action.type || action.actionType || '',
+          oldStatus: action.type || '',
+          newStatus: this.determineStatus({
+            latestAction: action,
+            actions: [action]
+          }),
           actionText: action.text || action.description || ''
         }));
       } catch (error) {
@@ -253,122 +280,201 @@ export class CongressApiService {
     });
   }
 
-  private determineStatus(bill: any): string {
-    const actionText = (bill.latestAction?.text || '').toLowerCase();
-    
-    // Ensure actions is always an array and handle potential undefined/null values
-    const actions = Array.isArray(bill.actions?.items) 
-      ? bill.actions.items 
-      : Array.isArray(bill.actions) 
-        ? bill.actions 
+  private determineStatus(bill: BillData): string {
+    const latestAction = bill.latestAction || {};
+    const actionText = (latestAction.text || '').toLowerCase();
+    const actionType = (latestAction.type || '').toLowerCase();
+    const sourceSystem = latestAction.sourceSystem?.name?.toLowerCase() || '';
+
+    // Define specific action patterns
+    const patterns = {
+      becameLaw: {
+        type: ['becamelaw'],
+        text: ['became public law', 'public law no']
+      },
+      presidential: {
+        type: ['president'],
+        text: {
+          signed: ['signed by president'],
+          vetoed: ['vetoed'],
+          pending: ['presented to president']
+        }
+      },
+      housePassage: {
+        type: ['floor'],
+        source: 'house floor actions',
+        text: {
+          passed: [
+            'passed house',
+            'passed by recorded vote',
+            'passed by voice vote',
+            'passed by yeas and nays',
+            'on passage passed'
+          ],
+          excluded: [
+            'title of the measure was amended',
+            'motion to reconsider',
+            'amendments agreed to',
+            'amendment agreed to',
+            'conference report',
+            'motion to suspend'
+          ]
+        }
+      },
+      senatePassage: {
+        type: ['floor'],
+        source: 'senate',
+        text: {
+          passed: [
+            'passed senate',
+            'passed by unanimous consent',
+            'passed with amendment'
+          ],
+          excluded: [
+            'motion to proceed',
+            'cloture',
+            'amendment agreed to'
+          ]
+        }
+      }
+    };
+
+    // Check if both chambers have passed the bill
+    const actions: BillAction[] = 'items' in (bill.actions || {}) && Array.isArray((bill.actions as { items: BillAction[] }).items)
+      ? (bill.actions as { items: BillAction[] }).items
+      : Array.isArray(bill.actions)
+        ? bill.actions
         : [];
 
-    // Map actions to lowercase text, handling potential undefined values
-    const actionTexts = actions.map((action: any) => 
-      ((action?.text || action?.description || '').toLowerCase())
-    );
-    
-    // Check both latest action and full action history
-    const hasAction = (text: string) => 
-      actionText.includes(text) || actionTexts.some((action: string) => action.includes(text));
+    const hasPassedHouse = actions.some((action: BillAction) => {
+      const aText = (action.text || '').toLowerCase();
+      const aSource = action.sourceSystem?.name?.toLowerCase() || '';
+      return aSource.includes('house') &&
+        patterns.housePassage.text.passed.some(t => aText.includes(t)) &&
+        !patterns.housePassage.text.excluded.some(t => aText.includes(t));
+    });
 
-    if (hasAction('became public law')) {
-      return 'Enacted';
+    const hasPassedSenate = actions.some((action: BillAction) => {
+      const aText = (action.text || '').toLowerCase();
+      const aSource = action.sourceSystem?.name?.toLowerCase() || '';
+      return aSource.includes('senate') &&
+        patterns.senatePassage.text.passed.some(t => aText.includes(t)) &&
+        !patterns.senatePassage.text.excluded.some(t => aText.includes(t));
+    });
+
+    // Check latest action against patterns
+    if (patterns.becameLaw.type.includes(actionType) || 
+        patterns.becameLaw.text.some(t => actionText.includes(t))) {
+      return 'Became Law';
     }
-    if (hasAction('vetoed')) {
-      return 'Vetoed';
+
+    if (actionType === 'president') {
+      if (patterns.presidential.text.signed.some(t => actionText.includes(t))) 
+        return 'Signed by President';
+      if (patterns.presidential.text.vetoed.some(t => actionText.includes(t))) 
+        return 'Vetoed';
+      if (patterns.presidential.text.pending.some(t => actionText.includes(t))) 
+        return 'To President';
     }
-    if (hasAction('passed by the senate') || hasAction('passed senate')) {
-      return 'Passed Senate';
+
+    // If bill has passed both chambers but hasn't been sent to president yet
+    if (hasPassedHouse && hasPassedSenate) {
+      return 'Passed Both Chambers';
     }
-    if (hasAction('passed by the house') || hasAction('passed house') || hasAction('passed/agreed to in house')) {
-      return 'Passed House';
+
+    if (actionType === 'floor') {
+      // House passage check
+      if (sourceSystem.includes('house')) {
+        if (patterns.housePassage.text.passed.some(t => actionText.includes(t)) &&
+            !patterns.housePassage.text.excluded.some(t => actionText.includes(t))) {
+          return hasPassedSenate ? 'Passed Both Chambers' : 'Passed House';
+        }
+      }
+      
+      // Senate passage check
+      if (sourceSystem.includes('senate')) {
+        if (patterns.senatePassage.text.passed.some(t => actionText.includes(t)) &&
+            !patterns.senatePassage.text.excluded.some(t => actionText.includes(t))) {
+          return hasPassedHouse ? 'Passed Both Chambers' : 'Passed Senate';
+        }
+      }
     }
-    if (hasAction('reported')) {
+
+    // Committee and Introduction checks
+    if (actionType === 'committee' && actionText.includes('reported')) {
       return 'Reported';
     }
-    if (hasAction('introduced')) {
+
+    if (actionType === 'introreferral' || actionText.includes('introduced')) {
       return 'Introduced';
     }
-    if (hasAction('referred to')) {
+
+    if (actionType === 'committee' || actionText.includes('referred to')) {
       return 'In Committee';
     }
-    if (hasAction('failed') || hasAction('rejected')) {
-      return 'Failed';
-    }
+
     return 'In Progress';
   }
 
   private calculateProgress(bill: any): number {
     const status = this.determineStatus(bill);
     
-    // Ensure actions is always an array and handle potential undefined/null values
-    const actions = Array.isArray(bill.actions?.items) 
-      ? bill.actions.items 
-      : Array.isArray(bill.actions) 
-        ? bill.actions 
-        : [];
-
-    // Map actions to lowercase text, handling potential undefined values
-    const actionTexts = actions.map((action: any) => 
-      ((action?.text || action?.description || '').toLowerCase())
-    );
-
-    // Helper function to check if any action includes text
-    const hasAction = (text: string) => 
-      actionTexts.some((action: string) => action.includes(text));
-
-    // Calculate progress based on completed stages
-    switch (status.toLowerCase()) {
-      case 'enacted':
-      case 'became law':
-        return 100; // Completed all stages
-
-      case 'passed senate':
-        return 80;  // Completed 4 stages
-
-      case 'passed house':
-        return 60;  // Completed 3 stages
-
-      case 'reported':
-      case 'in committee':
-        return 40;  // Completed 2 stages
-
-      case 'introduced':
-        return 20;  // Completed 1 stage
-
-      case 'vetoed':
-        // If vetoed after Senate passage
-        if (hasAction('passed senate')) {
-          return 80;
-        }
-        // If vetoed after House passage
-        if (hasAction('passed house')) {
-          return 60;
-        }
-        // If vetoed earlier
+    // Map status to progress percentage
+    switch (status) {
+      case 'Became Law':
+        return 100;
+      
+      case 'Signed by President':
+        return 95;
+      
+      case 'To President':
+        return 90;
+      
+      case 'Passed Both Chambers':
+        return 85;
+      
+      case 'Passed Senate':
+        return bill.originChamberCode === 'H' ? 80 : 60;
+      
+      case 'Passed House':
+        return bill.originChamberCode === 'H' ? 60 : 80;
+      
+      case 'Reported':
         return 40;
-
-      case 'failed':
-      case 'rejected':
-        // If failed in Senate
-        if (hasAction('failed') && hasAction('senate')) {
-          return 60; // Made it through House
-        }
-        // If failed in House
-        if (hasAction('failed') && hasAction('house')) {
-          return 40; // Made it through committee
-        }
-        // Failed in committee
+      
+      case 'In Committee':
+        return 30;
+      
+      case 'Introduced':
         return 20;
+      
+      case 'Vetoed': {
+        // Calculate vetoed progress based on how far it got
+        const actions: BillAction[] = 'items' in (bill.actions || {}) && Array.isArray((bill.actions as { items: BillAction[] }).items)
+          ? (bill.actions as { items: BillAction[] }).items
+          : Array.isArray(bill.actions)
+            ? bill.actions
+            : [];
+        
+        const hasAction = (type: string, text?: string): boolean => {
+          return actions.some((action: BillAction) => {
+            const actionType = (action.type || '').toLowerCase();
+            const actionText = (action.text || '').toLowerCase();
+            return actionType.includes(type.toLowerCase()) && (!text || actionText.includes(text.toLowerCase()));
+          });
+        };
 
+        if (hasAction('floor', 'passed senate') && hasAction('floor', 'passed house')) {
+          return 85; // Vetoed after passing both chambers
+        }
+        if (hasAction('floor', 'passed senate') || hasAction('floor', 'passed house')) {
+          return 70; // Vetoed after passing one chamber
+        }
+        return 50; // Vetoed earlier
+      }
+      
       default:
-        // For 'In Progress' status, check the highest completed stage
-        if (hasAction('passed senate')) return 80;
-        if (hasAction('passed house')) return 60;
-        if (hasAction('reported')) return 40;
-        if (hasAction('introduced')) return 20;
-        return 0;
+        return 10;
     }
   }
 } 

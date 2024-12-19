@@ -41,7 +41,7 @@ async function syncBillsWithSummaries(options: SyncOptions = {}) {
   const {
     isHistorical = false,
     billTypes = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'],
-    maxRecords = 2000,
+    maxRecords = 20,
     onlyMissingSummaries = false,
     billIds = []
   } = options;
@@ -147,7 +147,7 @@ if (require.main === module) {
     startCongress: args.includes('--start') ? parseInt(args[args.indexOf('--start') + 1]) : undefined,
     endCongress: args.includes('--end') ? parseInt(args[args.indexOf('--end') + 1]) : undefined,
     billTypes: args.includes('--types') ? args[args.indexOf('--types') + 1].split(',') : undefined,
-    maxRecords: args.includes('--max') ? parseInt(args[args.indexOf('--max') + 1]) : 2000
+    maxRecords: args.includes('--max') ? parseInt(args[args.indexOf('--max') + 1]) : 20
   };
 
   syncBillsWithSummaries(options)
