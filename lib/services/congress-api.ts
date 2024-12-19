@@ -261,7 +261,7 @@ export class CongressApiService {
     
     // Check both latest action and full action history
     const hasAction = (text: string) => 
-      actionText.includes(text) || actions.some(action => action.includes(text));
+      actionText.includes(text) || actions.some((action: string) => action.includes(text));
 
     if (hasAction('became public law')) {
       return 'Enacted';
@@ -298,7 +298,7 @@ export class CongressApiService {
 
     // Helper function to check if any action includes text
     const hasAction = (text: string) => 
-      actions.some(action => action.includes(text));
+      actions.some((action: string) => action.includes(text));
 
     // Calculate progress based on completed stages
     switch (status.toLowerCase()) {
