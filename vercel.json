@@ -6,6 +6,9 @@
   "outputDirectory": ".next",
   "crons": [{
     "path": "/api/cron",
-    "schedule": "0 1 * * *"
+    "schedule": "0 1 * * *",
+    "headers": {
+      "authorization": "@cron_secret"
+    }
   }]
 }
