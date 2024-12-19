@@ -13,8 +13,14 @@ async function runDailySync() {
   console.log(`Starting daily bills and summaries sync at ${startTime.toISOString()}`);
   
   try {
+    // Verify SYNC_AUTH_TOKEN is set
+    if (!process.env.SYNC_AUTH_TOKEN) {
+      throw new Error('SYNC_AUTH_TOKEN environment variable is not set');
+    }
+
     await syncBillsWithSummaries({
       isHistorical: false,
+      maxRecords: 2000,
       billTypes: ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres']
     });
     
