@@ -140,34 +140,15 @@ export const useBillsStore = create<BillsState>()(
           return;
         }
 
-        const offset = reset ? 0 : state.offset;
+        // If reset, start from 0, otherwise use current offset
+        const currentOffset = reset ? 0 : state.offset;
         
         try {
           set({ loading: true, error: null });
           
           let query = supabase
             .from('bills')
-            .select('count');
-
-          // Apply filters for count
-          if (state.status !== 'all') {
-            query = query.eq('status', state.status);
-          }
-
-          if (state.category !== 'all') {
-            query = query.contains('tags', [state.category]);
-          }
-
-          if (state.searchQuery) {
-            query = query.ilike('title', `%${state.searchQuery}%`);
-          }
-
-          const { count } = await query.count();
-
-          // Now fetch the actual bills
-          query = supabase
-            .from('bills')
-            .select('*');
+            .select('*', { count: 'exact' });
 
           // Apply filters
           if (state.status !== 'all') {
@@ -189,26 +170,31 @@ export const useBillsStore = create<BillsState>()(
             query = query.order('last_updated', { ascending: true });
           }
 
-          query = query.range(offset, offset + 8);
+          // Get next 9 bills, add 1 to avoid overlap
+          query = query.range(currentOffset, currentOffset + 8);
 
-          const { data, error: supabaseError } = await query;
+          const { data, error: supabaseError, count } = await query;
 
           if (supabaseError) throw supabaseError;
 
           const transformedBills = data?.map(transformBillData) || [];
           
           if (reset) {
+            // Reset everything and start fresh
             set({ 
-              bills: transformedBills, 
-              offset: 9,
+              bills: transformedBills,
+              offset: transformedBills.length, // Set offset to current length
               lastFetched: now 
             });
-          } else {
-            // Only update if we have new bills
-            if (transformedBills.length > 0) {
+          } else if (transformedBills.length > 0) {
+            // Filter out any duplicates before adding new bills
+            const existingIds = new Set(state.bills.map(bill => bill.id));
+            const newBills = transformedBills.filter(bill => !existingIds.has(bill.id));
+            
+            if (newBills.length > 0) {
               set(state => ({
-                bills: [...state.bills, ...transformedBills],
-                offset: state.offset + 9,
+                bills: [...state.bills, ...newBills],
+                offset: state.offset + newBills.length, // Update offset based on actual new bills added
                 lastFetched: now
               }));
             }

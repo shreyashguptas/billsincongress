@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BillCard } from './bill-card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -9,15 +9,38 @@ import { Bill } from '@/lib/types';
 
 export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
   const { bills, loading, error, fetchBills } = useBillsStore();
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    // Only set initial bills if we don't have any cached bills
+    setIsClient(true);
+    // Only set initial bills if we don't have any bills
     if (bills.length === 0) {
-      useBillsStore.setState({ bills: initialBills });
+      useBillsStore.setState({ 
+        bills: initialBills,
+        offset: initialBills.length // Set initial offset
+      });
     }
-    // Force fetch if it's been more than 24 hours
-    fetchBills(true, false);
-  }, [bills.length, initialBills]);
+  }, [initialBills, bills.length]);
+
+  const handleLoadMore = () => {
+    fetchBills(false, true); // force=true to bypass cache
+  };
+
+  // Show initial bills during SSR and hydration
+  if (!isClient) {
+    return (
+      <div className="space-y-8">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {initialBills.map((bill: Bill) => (
+            <BillCard 
+              key={`${bill.congressNumber}-${bill.billNumber}-${bill.id}`} 
+              bill={bill} 
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -45,7 +68,7 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
           </div>
           <div className="mt-8 flex justify-center">
             <Button
-              onClick={() => fetchBills()}
+              onClick={handleLoadMore}
               disabled={loading}
               variant="outline"
               size="lg"
