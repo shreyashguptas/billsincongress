@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Congressional Bill Tracker follows a modern React architecture using Next.js 13's App Router. The application is built with a component-based architecture, emphasizing reusability and maintainability.
+The Congressional Bill Tracker follows a modern React architecture using Next.js 15's App Router. The application is built with a component-based architecture, emphasizing reusability and maintainability.
 
 ## Key Architectural Decisions
 

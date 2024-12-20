@@ -8,11 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "generate-icons": "tsx scripts/generate-icons.ts",
-    "sync-bills": "tsx scripts/sync-bills-with-summaries.ts",
-    "sync-daily": "tsx scripts/scheduled-sync.ts",
-    "sync-historical": "tsx scripts/initial-data-sync.ts",
-    "test-urls": "tsx scripts/test-text-urls.ts",
-    "update-bill-urls": "tsx scripts/update-bill-urls.ts"
+    "fetch-bill-info": "ts-node scripts/BillInfo.ts",
+    "fetch-bill-actions": "ts-node scripts/BillActions.ts",
+    "fetch-bill-subjects": "ts-node scripts/BillSubjects.ts",
+    "fetch-bill-summaries": "ts-node scripts/BillSummaries.ts",
+    "fetch-bill-text": "ts-node scripts/BillText.ts",
+    "fetch-bill-titles": "ts-node scripts/BillTitles.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
