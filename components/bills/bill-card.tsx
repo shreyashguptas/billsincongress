@@ -1,89 +1,65 @@
-import { Bill } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { BillInfo } from '@/lib/types/BillInfo';
+import { useBillsStore } from '@/lib/store/bills-store';
 import Link from 'next/link';
 
 interface BillCardProps {
-  bill: Bill;
-  showSponsor?: boolean;
+  bill: BillInfo;
 }
 
-export function BillCard({ bill, showSponsor = true }: BillCardProps) {
-  // Fetch expanded bill type from database
-  const [expandedBillType, setExpandedBillType] = useState<string>('');
-
-  useEffect(() => {
-    async function fetchExpandedBillType() {
-      const { data } = await supabase
-        .from('bills')
-        .select('bill_type')
-        .eq('id', bill.id)
-        .single();
-      
-      if (data) {
-        setExpandedBillType(data.bill_type);
-      }
-    }
-    fetchExpandedBillType();
-  }, [bill.id]);
+export default function BillCard({ bill }: BillCardProps) {
+  const { getProgressColor, getProgressLabel } = useBillsStore();
 
   return (
-    <Link href={`/bills/${bill.id}`} className="block transition-transform hover:scale-[1.02]">
-      <Card className="h-full hover:shadow-lg transition-shadow">
-        <CardHeader>
-          <CardTitle className="text-base sm:text-lg">
-            {bill.title}
-          </CardTitle>
-          <div className="flex flex-wrap gap-2">
-            {bill.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-start">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {bill.bill_type_label} {bill.bill_number}
+          </h3>
+          <div className={`px-3 py-1 rounded-full text-sm ${getProgressColor(bill.progress_stage || 0)} text-white`}>
+            {getProgressLabel(bill.progress_stage || 0)}
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Bill Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Bill Number</p>
-                <p className="text-sm sm:text-base font-medium">
-                  {expandedBillType} {bill.billNumber}
-                </p>
-              </div>
-              {showSponsor && (
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Sponsor</p>
-                  <p className="text-sm sm:text-base font-medium">{bill.sponsorName}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Status</p>
-                <p className="text-sm sm:text-base font-medium">{bill.status}</p>
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Last Updated</p>
-                <p className="text-sm sm:text-base font-medium">
-                  {new Date(bill.lastUpdated || '').toLocaleDateString()}
-                </p>
-              </div>
-            </div>
+        </div>
+        
+        <p className="text-gray-600 dark:text-gray-300 line-clamp-2">
+          {bill.title_without_number || bill.title}
+        </p>
 
-            {/* Progress */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs sm:text-sm">
-                <span>Progress</span>
-                <span>{bill.progress}%</span>
-              </div>
-              <Progress value={bill.progress} />
-            </div>
+        <div className="flex flex-col gap-2">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="font-medium">Sponsor:</span>{' '}
+            {bill.sponsor_first_name} {bill.sponsor_last_name} ({bill.sponsor_party}-{bill.sponsor_state})
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+          
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="font-medium">Introduced:</span>{' '}
+            {new Date(bill.introduced_date).toLocaleDateString()}
+          </div>
+
+          {bill.latest_action_text && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              <span className="font-medium">Latest Action:</span>{' '}
+              {new Date(bill.latest_action_date || '').toLocaleDateString()} - {bill.latest_action_text}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-2">
+          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+            <div 
+              className={`h-2.5 rounded-full ${getProgressColor(bill.progress_stage || 0)}`}
+              style={{ width: `${Math.max(0, bill.progress_stage || 0)}%` }}
+            ></div>
+          </div>
+        </div>
+
+        <Link 
+          href={`/bills/${bill.congress}/${bill.bill_type}/${bill.bill_number}`}
+          className="mt-2 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+        >
+          View Details →
+        </Link>
+      </div>
+    </div>
   );
 }
