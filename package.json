@@ -7,12 +7,7 @@
     "build": "npm run generate-icons && next build",
     "start": "next start",
     "lint": "next lint",
-    "generate-icons": "tsx scripts/generate-icons.ts",
-    "sync-bills": "tsx scripts/sync-bills-with-summaries.ts",
-    "sync-daily": "tsx scripts/scheduled-sync.ts",
-    "sync-historical": "tsx scripts/initial-data-sync.ts",
-    "test-urls": "tsx scripts/test-text-urls.ts",
-    "update-bill-urls": "tsx scripts/update-bill-urls.ts"
+    "generate-icons": "tsx scripts/generate-icons.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
