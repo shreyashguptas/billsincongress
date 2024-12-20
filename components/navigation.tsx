@@ -61,7 +61,7 @@ export function Navigation() {
         <div className="mr-4 hidden md:flex">
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <span className="hidden font-bold lg:inline-block">
-              Congressional Bill Tracker
+              Congressional Bill Tracker (BETA)
             </span>
             <span className="font-bold lg:hidden">Bill Tracker</span>
           </Link>
