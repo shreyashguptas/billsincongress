@@ -10,3 +10,4 @@
 4. For a unique ID, there can be multiple rows with the same ID and in the columns there can be null values some of the time and that is okay.
 5. If a column has a value like sponsors:bioguideId, then the value is the bioguideId of the sponsor.
 6. There can be a table called 'cosponsors where there can be multiple rows of data for a unique ID so in the cosponsors:firstName we will have multiple rows of data for a unique ID. This is okay.
+7. When writing the SQL make sure to add RLS rules to the table. We are using Supabase.
