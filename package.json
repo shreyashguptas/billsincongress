@@ -10,7 +10,8 @@
     "generate-icons": "tsx scripts/generate-icons.ts",
     "fetch-bill-info": "ts-node scripts/BillInfo.ts",
     "fetch-bill-actions": "ts-node scripts/BillActions.ts",
-    "fetch-bill-subjects": "ts-node scripts/BillSubjects.ts"
+    "fetch-bill-subjects": "ts-node scripts/BillSubjects.ts",
+    "fetch-bill-summaries": "ts-node scripts/BillSummaries.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
