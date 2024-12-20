@@ -16,7 +16,9 @@ The project is configured for deployment on Vercel using the following settings:
 ```
 
 ### Environment Variables
-No environment variables are required for the basic deployment.
+- Supabase API is already configured in the project
+- CONGRESS_API_KEY is required for the Congress.gov API
+- SYNC_AUTH_TOKEN is required for the sync scripts
 
 ### Build Output
 The build process generates static files in the `.next` directory.

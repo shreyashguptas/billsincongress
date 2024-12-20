@@ -11,22 +11,35 @@ project/
 │   └── page.tsx           # Home page
 │
 ├── components/            # React components
-│   ├── ui/               # Base UI components
-│   ├── bills/            # Bill-specific components
-│   └── shared/           # Shared components
+│   ├── ui/                # Base UI components
+│   ├── bills/             # Bill-specific components
+│   └── shared/            # Shared components
 │
 ├── lib/                   # Utilities and helpers
-│   ├── mock-data.ts      # Mock data
-│   ├── types.ts          # TypeScript types
-│   └── utils.ts          # Utility functions
+│   ├── mock-data.ts       # Mock data
+│   ├── types.ts           # TypeScript types
+│   ├── utils.ts           # Utility functions
+│   ├── supabase.ts        # Supabase client configuration
+│   └── constants/         # Constants used throughout the app
+│
+├── scripts/               # Scripts for data management and syncing
+│   ├── initial-data-sync.ts # Initial data synchronization script
+│   ├── generate-icons.ts   # Icon generation script
+│   ├── scheduled-sync.ts    # Scheduled sync script
+│   └── sync-bills-with-summaries.ts # Sync bills with summaries script
+│
+├── hooks/                 # Custom React hooks
+│   └── useCustomHook.ts    # Example of a custom hook
+│
+├── public/                # Static assets
+│
+├── styles/                # Global styles
 │
 ├── Documentation/         # Project documentation
-│   ├── README.md         # Documentation home
-│   └── ...               # Other docs
+│   ├── api-documentation/  # API documentation
+│   └── ...                # Other docs
 │
-├── public/               # Static assets
-│
-└── styles/               # Global styles
+└── README.md              # Project documentation home
 ```
 
 ## Key Directories
