@@ -299,3 +299,41 @@ Contains different titles associated with bills.
 - Batch processing
 - Incremental Static Regeneration
 - Edge caching
+
+## Status Tracking System
+
+The bill status tracking system uses several components:
+
+1. **Action Codes**: Numeric codes in `bill_actions` table that indicate specific legislative actions (see action-codes.md for full list)
+
+2. **Progress Stages**:
+   - 20: Introduced
+   - 40: In Committee
+   - 60: Passed First Chamber
+   - 80: Passed Both Chambers
+   - 90: To President
+   - 100: Became Law
+   - -1: Failed
+
+3. **Automatic Updates**: 
+   - A database trigger on `bill_actions` automatically updates the status columns in `bill_info`
+   - When a new action is added, it updates:
+     - `latest_action_code`
+     - `latest_action_date`
+     - `latest_action_text`
+     - `progress_stage`
+     - `progress_description`
+
+4. **Status Calculation Logic**:
+   - Based on action codes from Congress.gov API
+   - Considers both chamber passage for accurate progress tracking
+   - Handles special cases like vetoes and failed passages
+
+## Data Relationships
+
+All tables have a one-to-many relationship with `bill_info` through the `id` column:
+- One bill can have many actions
+- One bill can have many titles
+- One bill can have many subjects
+- One bill can have many summaries
+- One bill can have many text versions

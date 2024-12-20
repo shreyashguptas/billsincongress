@@ -47,7 +47,7 @@
     "@supabase/supabase-js": "^2.47.8",
     "@vercel/analytics": "^1.4.1",
     "class-variance-authority": "^0.7.1",
-    "clsx": "^2.0.0",
+    "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
     "dotenv": "^16.4.7",
     "embla-carousel-react": "^8.5.1",
@@ -66,7 +66,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.19.2",
-    "update": "^0.4.2",
+    "update": "^0.7.4",
     "vaul": "^1.1.1",
     "vault": "^0.3.0",
     "zustand": "^5.0.2"
