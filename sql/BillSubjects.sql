@@ -1,15 +1,22 @@
 -- Create the bill_subjects table
 CREATE TABLE IF NOT EXISTS bill_subjects (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL,
     policy_area_name TEXT NOT NULL,
     policy_area_update_date TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    -- Make id the primary key since it's a one-to-one relationship
+    PRIMARY KEY (id),
+    -- Add foreign key constraint
+    FOREIGN KEY (id) 
+    REFERENCES bill_info(id)
+    ON DELETE CASCADE
 );
 
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_bill_subjects_policy_area_name ON bill_subjects(policy_area_name);
 CREATE INDEX IF NOT EXISTS idx_bill_subjects_policy_area_update_date ON bill_subjects(policy_area_update_date);
+CREATE INDEX IF NOT EXISTS idx_bill_subjects_bill_info_id ON bill_subjects(id);
 
 -- Enable Row Level Security
 ALTER TABLE bill_subjects ENABLE ROW LEVEL SECURITY;

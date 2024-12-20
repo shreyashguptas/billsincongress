@@ -8,13 +8,18 @@ CREATE TABLE IF NOT EXISTS bill_text (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     -- Make composite primary key since one bill can have multiple text versions
-    PRIMARY KEY (id, date, type)
+    PRIMARY KEY (id, date, type),
+    -- Add foreign key constraint
+    FOREIGN KEY (id) 
+    REFERENCES bill_info(id)
+    ON DELETE CASCADE
 );
 
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_bill_text_id ON bill_text(id);
 CREATE INDEX IF NOT EXISTS idx_bill_text_date ON bill_text(date);
 CREATE INDEX IF NOT EXISTS idx_bill_text_type ON bill_text(type);
+CREATE INDEX IF NOT EXISTS idx_bill_text_bill_info_id ON bill_text(id);
 
 -- Enable Row Level Security
 ALTER TABLE bill_text ENABLE ROW LEVEL SECURITY;

@@ -12,7 +12,11 @@ CREATE TABLE IF NOT EXISTS bill_titles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     -- Make composite primary key since one bill can have multiple titles
-    PRIMARY KEY (id, title_type_code, title)
+    PRIMARY KEY (id, title_type_code, title),
+    -- Add foreign key constraint
+    FOREIGN KEY (id) 
+    REFERENCES bill_info(id)
+    ON DELETE CASCADE
 );
 
 -- Create indexes for common queries
@@ -20,6 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_bill_titles_id ON bill_titles(id);
 CREATE INDEX IF NOT EXISTS idx_bill_titles_title_type ON bill_titles(title_type);
 CREATE INDEX IF NOT EXISTS idx_bill_titles_title_type_code ON bill_titles(title_type_code);
 CREATE INDEX IF NOT EXISTS idx_bill_titles_chamber_code ON bill_titles(chamber_code);
+CREATE INDEX IF NOT EXISTS idx_bill_titles_bill_info_id ON bill_titles(id);
 
 -- Enable Row Level Security
 ALTER TABLE bill_titles ENABLE ROW LEVEL SECURITY;

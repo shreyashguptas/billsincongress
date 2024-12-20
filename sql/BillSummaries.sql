@@ -9,13 +9,18 @@ CREATE TABLE IF NOT EXISTS bill_summaries (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     -- Make composite primary key since one bill can have multiple summaries
-    PRIMARY KEY (id, version_code)
+    PRIMARY KEY (id, version_code),
+    -- Add foreign key constraint
+    FOREIGN KEY (id) 
+    REFERENCES bill_info(id)
+    ON DELETE CASCADE
 );
 
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_bill_summaries_id ON bill_summaries(id);
 CREATE INDEX IF NOT EXISTS idx_bill_summaries_action_date ON bill_summaries(action_date);
 CREATE INDEX IF NOT EXISTS idx_bill_summaries_version_code ON bill_summaries(version_code);
+CREATE INDEX IF NOT EXISTS idx_bill_summaries_bill_info_id ON bill_summaries(id);
 
 -- Enable Row Level Security
 ALTER TABLE bill_summaries ENABLE ROW LEVEL SECURITY;

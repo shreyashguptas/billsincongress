@@ -10,13 +10,18 @@ CREATE TABLE IF NOT EXISTS bill_actions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     -- Make composite primary key since one bill can have multiple actions
-    PRIMARY KEY (id, action_code, action_date)
+    PRIMARY KEY (id, action_code, action_date),
+    -- Add foreign key constraint
+    FOREIGN KEY (id) 
+    REFERENCES bill_info(id)
+    ON DELETE CASCADE
 );
 
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_bill_actions_id ON bill_actions(id);
 CREATE INDEX IF NOT EXISTS idx_bill_actions_action_date ON bill_actions(action_date);
 CREATE INDEX IF NOT EXISTS idx_bill_actions_type ON bill_actions(type);
+CREATE INDEX IF NOT EXISTS idx_bill_actions_bill_info_id ON bill_actions(id);
 
 -- Enable Row Level Security
 ALTER TABLE bill_actions ENABLE ROW LEVEL SECURITY;
