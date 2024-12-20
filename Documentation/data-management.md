@@ -11,8 +11,6 @@
    - Response format: JSON
 
 2. Endpoints Used
-   - Bill List: `/bill/{congress}/{type}`
-   - Bill Detail: `/bill/{congress}/{type}/{number}`
    - Parameters:
      - `limit`: Records per page (max 250)
      - `offset`: Pagination offset
