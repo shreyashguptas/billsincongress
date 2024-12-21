@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { formatDate } from '@/lib/utils';
 
 interface BillCardProps {
   bill: BillInfo;
@@ -11,7 +12,7 @@ interface BillCardProps {
 export function BillCard({ bill }: BillCardProps) {
   const policyArea = bill.bill_subjects?.policy_area_name;
   const progressStage = bill.progress_stage || 0;
-  const shouldShowBadge = policyArea != null && policyArea !== '' && typeof policyArea === 'string';
+  const shouldShowBadge = policyArea != null && policyArea !== '';
 
   return (
     <Link href={`/bills/${bill.id}`}>
@@ -32,11 +33,17 @@ export function BillCard({ bill }: BillCardProps) {
               )}
             </div>
             <div className="text-sm space-y-2">
-              <p className="text-primary font-medium">{bill.sponsor_first_name} {bill.sponsor_last_name}</p>
-              <p className="text-muted-foreground">Introduced: {new Date(bill.introduced_date).toLocaleDateString()}</p>
+              <p className="text-primary font-medium">
+                {bill.sponsor_first_name} {bill.sponsor_last_name}
+              </p>
+              <p className="text-muted-foreground">
+                Introduced: {formatDate(bill.introduced_date)}
+              </p>
               {bill.progress_description && (
                 <div className="space-y-1.5">
-                  <p className="text-muted-foreground">Status: {bill.progress_description}</p>
+                  <p className="text-muted-foreground">
+                    Status: {bill.progress_description}
+                  </p>
                   <Progress value={progressStage} className="h-2" />
                 </div>
               )}

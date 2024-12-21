@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 
@@ -8,7 +7,7 @@ dotenv.config({
   override: true 
 });
 
-function getSupabaseConfig() {
+export function getSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -29,12 +28,4 @@ function getSupabaseConfig() {
   }
 
   return { url, key };
-}
-
-const { url, key } = getSupabaseConfig();
-
-export const supabase = createClient(url, key, {
-  auth: {
-    persistSession: false
-  }
-}); 
+} 

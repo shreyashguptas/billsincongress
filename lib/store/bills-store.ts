@@ -207,9 +207,10 @@ export const useBillsStore = create<BillsState>((set, get) => ({
           return latest;
         }, bill.bill_titles[0]);
 
+        // Transform bill_subjects from array to single object
         const policyArea = Array.isArray(bill.bill_subjects) && bill.bill_subjects.length > 0
           ? { policy_area_name: bill.bill_subjects[0].policy_area_name }
-          : undefined;
+          : null;
 
         return {
           ...bill,

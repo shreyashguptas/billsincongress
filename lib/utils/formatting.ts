@@ -1,6 +1,3 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return 'N/A';
   
@@ -12,8 +9,4 @@ export function formatDate(dateString: string | null | undefined): string {
     day: 'numeric',
     timeZone: 'UTC'
   });
-}
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
 } 
