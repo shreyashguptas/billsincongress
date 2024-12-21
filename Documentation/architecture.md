@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Congressional Bill Tracker follows a modern React architecture using Next.js 15's App Router. The application is built with a component-based architecture, emphasizing reusability and maintainability.
+The Congressional Bill Tracker follows a modern React architecture using Next.js 15's App Router. The application is built with a component-based architecture, emphasizing reusability, maintainability, and proper handling of dynamic parameters.
 
 ## Key Architectural Decisions
 
@@ -10,6 +10,7 @@ The Congressional Bill Tracker follows a modern React architecture using Next.js
 - Utilizes the new App Router for improved routing and layouts
 - Server Components for better performance
 - Client Components when interactivity is needed
+- Proper handling of async params in dynamic routes
 
 ### 2. Component Structure
 ```
@@ -25,17 +26,19 @@ components/
 - Client Components for interactivity
 - Props for component communication
 - Types for data structure definition
+- Service layer for API calls and data transformation
 
 ### 4. State Management
-- React's built-in useState for local state
-- Server Components for remote data
-- Future consideration for global state management
+- Service layer for data fetching and transformation
+- Store layer for state management
+- Error boundaries for error handling
+- Loading states for better UX
 
 ### 5. Caching Strategy
-- Implements Next.js 15 caching mechanisms
-- Uses unstable_cache for data fetching
-- Page-level revalidation controls
-- Dynamic route caching optimization
+- Page-level revalidation with ISR
+- Static generation for frequently accessed pages
+- Dynamic params handling for bill details
+- Proper cookie handling in server components
 
 ## File Organization
 
@@ -43,7 +46,7 @@ components/
 ```
 app/
 ├── bills/
-│   ├── [id]/     # Individual bill pages
+│   ├── [id]/     # Individual bill pages with async params
 │   └── page.tsx  # Bills listing page
 ├── about/
 │   └── page.tsx
@@ -51,84 +54,126 @@ app/
 └── page.tsx
 ```
 
-### Component Organization
-- Components are grouped by feature
-- Shared components in ui directory
-- Feature-specific components in dedicated directories
+### Service Layer Structure
+```
+lib/
+├── services/    # API and data services
+├── store/       # State management
+├── types/       # TypeScript types
+└── utils/       # Utility functions
+```
 
 ## Performance Considerations
 
 ### 1. Server Components
 - Used for static content
 - Reduces client-side JavaScript
+- Proper handling of dynamic params
 
-### 2. Client Components
-- Used only when needed
-- Marked with 'use client' directive
+### 2. Static Generation
+- Pre-generates most recent bills
+- Incremental Static Regeneration (ISR)
+- Async params handling for dynamic routes
 
-### 3. Image Optimization
-- Next.js Image component
-- Responsive images
-- Lazy loading
+### 3. Error Handling
+- Proper error boundaries
+- Loading states
+- Type-safe data handling
 
 ### 4. Caching Implementation
 - Page-level caching with revalidation
-- Data caching with unstable_cache
-- Dynamic route caching optimization
-- Supabase client caching configuration
+- Static generation with ISR
+- Proper cookie handling in server components
+- Service layer caching
 
-## Caching Architecture
+## Dynamic Route Handling
 
-### 1. Page-Level Caching
+### 1. Async Params
 ```typescript
-// Example from bills/[id]/page.tsx
-export const revalidate = 3600; // Revalidate every hour
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function BillPage({ params }: PageProps) {
+  const { id } = await params;
+  // ... rest of the implementation
+}
 ```
 
-### 2. Data Fetching Cache
+### 2. Static Generation
 ```typescript
-// Example of cached data fetching
-const getCachedData = unstable_cache(
-  async () => {
-    // Data fetching logic
-  },
-  ['cache-key'],
-  { revalidate: 3600 }
-);
+export async function generateStaticParams() {
+  // Pre-generate most recent bills
+  return bills.map((bill) => ({
+    id: bill.id,
+  }));
+}
 ```
 
-### 3. Dynamic Route Caching
+### 3. Revalidation
 ```typescript
-// Configuration for dynamic routes
-export const dynamic = 'error';
-export const dynamicParams = true;
+// Enable ISR with 1-hour revalidation
+export const revalidate = 3600;
 ```
 
-### 4. Supabase Integration
+## Service Layer
+
+### 1. Data Services
 ```typescript
-// Supabase client with caching
-const customInit = {
-  cache: 'force-cache',
-  next: { 
-    revalidate: 3600,
-    tags: ['bills']
+// Example service structure
+class BillsService {
+  async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
+    // Implementation
   }
-};
+  
+  async fetchBill(id: string): Promise<BillInfo | null> {
+    // Implementation
+  }
+}
 ```
 
-## Cache Invalidation
+### 2. Error Handling
+```typescript
+try {
+  const data = await getBillData(id);
+  if (!data) {
+    notFound();
+  }
+  // ... rest of the implementation
+} catch (error) {
+  // Error handling
+}
+```
 
-### 1. Automatic Invalidation
-- Time-based revalidation (hourly)
-- Tag-based invalidation
-- Dynamic route handling
+### 3. Type Safety
+```typescript
+interface BillQueryParams {
+  // Query parameters
+}
 
-### 2. Manual Invalidation
-- API routes for cache clearing
-- Tag-based cache clearing
-- On-demand revalidation
+interface BillsResponse {
+  // Response structure
+}
+```
 
-### 3. Cache Tags
-- 'bills' for bill-related data
-- 'bill-detail' for individual bills
-- Granular cache control
+## Best Practices
+
+### 1. Server Components
+- Use server components for data fetching
+- Handle async params properly
+- Implement proper error boundaries
+
+### 2. Type Safety
+- Define clear interfaces
+- Use TypeScript strictly
+- Validate data at boundaries
+
+### 3. Performance
+- Implement ISR where appropriate
+- Pre-generate static content
+- Handle dynamic routes efficiently
+
+### 4. Error Handling
+- Implement proper error boundaries
+- Show loading states
+- Provide fallback UI

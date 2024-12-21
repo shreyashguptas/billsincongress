@@ -1,15 +1,15 @@
-import { createClient } from '@/utils/supabase/server';
+import { createAppClient } from '@/utils/supabase/server-app';
 import { BILL_INFO_TABLE_NAME, BillInfo } from '@/lib/types/BillInfo';
 import { BillCard } from '@/components/bills/bill-card';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 3600; // Revalidate the page every hour
+export const dynamic = 'force-static';
+export const revalidate = 3600;
 
 export default async function BillsPage() {
-  const supabase = createClient();
+  const supabase = await createAppClient();
 
   try {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from(BILL_INFO_TABLE_NAME)
       .select(`
         id,
@@ -33,17 +33,8 @@ export default async function BillsPage() {
         )
       `)
       .order('introduced_date', { ascending: false })
-      .limit(10);
-
-    if (error) {
-      console.error('Error fetching bills:', error.message);
-      return (
-        <div className="container mx-auto py-8">
-          <h1 className="text-2xl font-bold mb-6">Latest Bills</h1>
-          <p className="text-muted-foreground">Error loading bills.</p>
-        </div>
-      );
-    }
+      .limit(10)
+      .throwOnError();
 
     // Transform the data to match BillInfo type
     const bills: BillInfo[] = (data || []).map(bill => ({
@@ -68,11 +59,11 @@ export default async function BillsPage() {
       </div>
     );
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Error fetching bills:', error);
     return (
       <div className="container mx-auto py-8">
         <h1 className="text-2xl font-bold mb-6">Latest Bills</h1>
-        <p className="text-muted-foreground">Error loading bills.</p>
+        <p className="text-red-500">Error loading bills. Please try again later.</p>
       </div>
     );
   }

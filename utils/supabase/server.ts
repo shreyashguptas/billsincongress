@@ -1,17 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 
-export function createClient() {
-  const cookieStore = cookies();
-
+// For pages directory (API Routes and getServerSideProps)
+export function createClient(cookies?: { [key: string]: string }) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
-          const cookie = cookieStore.get(name);
-          return cookie?.value;
+          return cookies?.[name];
         },
       },
     }

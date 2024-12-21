@@ -1,5 +1,71 @@
 # Data Management
 
+## Service Layer
+
+### BillsService
+
+The `BillsService` class is responsible for handling all bill-related data operations. It provides a clean interface for fetching and transforming bill data from our Supabase database.
+
+```typescript
+class BillsService {
+  constructor(private supabase: SupabaseClient) {}
+
+  async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
+    // Implementation
+  }
+
+  async fetchBill(id: string): Promise<BillInfo | null> {
+    // Implementation
+  }
+
+  async fetchFeaturedBills(): Promise<BillInfo[]> {
+    // Implementation
+  }
+}
+```
+
+### Query Parameters
+
+```typescript
+interface BillQueryParams {
+  page?: number;
+  limit?: number;
+  congress?: number;
+  billType?: string;
+  sponsor?: string;
+  // ... other filter parameters
+}
+```
+
+### Response Types
+
+```typescript
+interface BillsResponse {
+  data: BillInfo[];
+  count: number;
+  error: Error | null;
+}
+
+interface BillInfo {
+  id: string;
+  title: string;
+  introduced_date: string;
+  bill_type_label: string;
+  bill_number: string;
+  congress: number;
+  sponsor_first_name: string;
+  sponsor_last_name: string;
+  sponsor_party: string;
+  sponsor_state: string;
+  latest_action_text?: string;
+  latest_action_date?: string;
+  progress_description?: string;
+  bill_subjects?: {
+    policy_area_name: string;
+  };
+}
+```
+
 ## Database Schema
 
 ### Core Tables Overview
@@ -462,3 +528,81 @@ const getCachedBillById = unstable_cache(
 - Monitor response times
 - Analyze query performance
 - Measure client impact
+
+## Data Fetching Strategy
+
+### 1. Static Generation
+- Pre-generates the most recent 100 bills at build time
+- Uses ISR with 1-hour revalidation
+- Optimizes performance for frequently accessed bills
+
+### 2. Dynamic Data
+- Fetches bill details on-demand for non-pre-generated bills
+- Implements proper error handling
+- Uses loading states for better UX
+
+### 3. Caching
+- Page-level caching with ISR
+- Service layer caching for repeated requests
+- Proper cookie handling in server components
+
+## Error Handling
+
+### 1. Service Layer
+```typescript
+try {
+  const data = await this.supabase
+    .from(BILL_INFO_TABLE_NAME)
+    .select(...)
+    .match({ id })
+    .single();
+
+  if (!data) {
+    return null;
+  }
+
+  return data;
+} catch (error) {
+  console.error('Error fetching bill:', error);
+  throw new Error('Failed to fetch bill data');
+}
+```
+
+### 2. Component Layer
+```typescript
+try {
+  const data = await getBillData(id);
+  if (!data) {
+    notFound();
+  }
+  // Render data
+} catch (error) {
+  // Show error UI
+}
+```
+
+## Best Practices
+
+### 1. Data Fetching
+- Use service layer for all data operations
+- Implement proper error handling
+- Use TypeScript for type safety
+- Handle loading states
+
+### 2. Performance
+- Implement ISR where appropriate
+- Pre-generate static content
+- Cache frequently accessed data
+- Handle dynamic routes efficiently
+
+### 3. Type Safety
+- Define clear interfaces
+- Use TypeScript strictly
+- Validate data at boundaries
+- Handle null and undefined cases
+
+### 4. Error Handling
+- Implement proper error boundaries
+- Show loading states
+- Provide fallback UI
+- Log errors appropriately
