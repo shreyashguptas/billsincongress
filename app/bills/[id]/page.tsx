@@ -23,8 +23,8 @@ export async function generateMetadata({
       };
     }
     return {
-      title: `${bill.bill_type} ${bill.bill_number} - ${bill.title}`,
-      description: bill.title_without_number || bill.title,
+      title: bill.title,
+      description: bill.title,
     };
   } catch (error) {
     console.error('Error fetching bill metadata:', error);

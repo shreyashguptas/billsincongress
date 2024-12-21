@@ -39,6 +39,11 @@ Primary table containing core bill information.
 | update_date_including_text | TIMESTAMP WITH TIME ZONE | Last update including text changes | "2024-06-11T15:57:35Z" |
 | created_at | TIMESTAMP WITH TIME ZONE | Record creation timestamp | Auto-generated |
 | updated_at | TIMESTAMP WITH TIME ZONE | Record update timestamp | Auto-generated |
+| latest_action_code | TEXT | The most recent action code from the bill's legislative history | "36000" |
+| latest_action_date | DATE | The date of the most recent action taken on the bill | "2024-06-11" |
+| latest_action_text | TEXT | A description of the most recent action taken on the bill | "Passed in House" |
+| progress_stage | INTEGER | The current stage of the bill in the legislative process | 60 |
+| progress_description | TEXT | A textual description of the bill's progress | "Passed First Chamber" |
 
 #### 2. Bill Actions (`bill_actions`)
 Contains all actions taken on a bill.

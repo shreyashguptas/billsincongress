@@ -21,18 +21,13 @@ export interface BillInfoResponse {
 
 export interface BillInfo {
   id: string;
-  congress: number;
-  bill_type: string;
-  bill_number: string;
-  title: string;
-  title_without_number?: string;
-  bill_type_label: string;
   introduced_date: string;
-  sponsor_first_name: string;
-  sponsor_last_name: string;
-  sponsor_party: string;
-  sponsor_state: string;
-  latest_action_code?: number;
+  title: string;
+  sponsor_first_name?: string;
+  sponsor_last_name?: string;
+  sponsor_party?: string;
+  sponsor_state?: string;
+  latest_action_code?: string;
   latest_action_date?: string;
   latest_action_text?: string;
   progress_stage?: number;

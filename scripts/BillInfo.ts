@@ -67,31 +67,22 @@ function getOfficialTitle(titles: BillTitlesResponse): { title: string; titleWit
   };
 }
 
-function transformBillInfo(data: BillInfoResponse, billId: string, titles: BillTitlesResponse): BillInfo {
-  const sponsor = data.bill.sponsors[0];
-  const billTypeLabel = getBillTypeLabel(data.bill.type);
-  const { title, titleWithoutNumber } = getOfficialTitle(titles);
-  
+export function transformBillInfo(data: BillInfoResponse): BillInfo {
+  const billId = `${data.bill.congress}-${data.bill.type}-${data.bill.number}`;
+  const title = data.bill.title || '';
+
   return {
     id: billId,
-    congress: data.bill.congress,
-    bill_type: data.bill.type,
-    bill_number: data.bill.number,
-    title: title,
-    title_without_number: titleWithoutNumber,
-    bill_type_label: billTypeLabel,
     introduced_date: data.bill.introducedDate,
-    sponsor_first_name: sponsor.firstName,
-    sponsor_last_name: sponsor.lastName,
-    sponsor_party: sponsor.party,
-    sponsor_state: sponsor.state,
-    latest_action_code: undefined,
-    latest_action_date: undefined,
-    latest_action_text: undefined,
-    progress_stage: undefined,
-    progress_description: undefined,
-    created_at: undefined,
-    updated_at: undefined
+    title: title,
+    sponsor_first_name: data.bill.sponsors[0]?.firstName,
+    sponsor_last_name: data.bill.sponsors[0]?.lastName,
+    sponsor_party: data.bill.sponsors[0]?.party,
+    sponsor_state: data.bill.sponsors[0]?.state,
+    latest_action_date: data.bill.updateDate,
+    latest_action_text: data.bill.updateDateIncludingText,
+    progress_stage: 20, // Default to "Introduced" stage
+    progress_description: 'Introduced'
   };
 }
 
@@ -139,7 +130,7 @@ async function main() {
           fetchBillTitles(congress, billType, billNumber)
         ]);
         
-        const transformedInfo = transformBillInfo(billData, billId, titlesData);
+        const transformedInfo = transformBillInfo(billData);
         await insertBillInfo(transformedInfo);
         console.log(`Successfully processed info for bill ${billNumber}`);
       } catch (error) {

@@ -9,6 +9,10 @@ interface BillSponsorsProps {
 }
 
 export function BillSponsors({ bill }: BillSponsorsProps) {
+  if (!bill.sponsor_first_name || !bill.sponsor_last_name) {
+    return null;
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -26,9 +30,11 @@ export function BillSponsors({ bill }: BillSponsorsProps) {
             <p className="font-medium">
               {bill.sponsor_first_name} {bill.sponsor_last_name}
             </p>
-            <p className="text-sm text-muted-foreground">
-              {bill.sponsor_party}-{bill.sponsor_state}
-            </p>
+            {bill.sponsor_party && bill.sponsor_state && (
+              <p className="text-sm text-muted-foreground">
+                {bill.sponsor_party}-{bill.sponsor_state}
+              </p>
+            )}
           </div>
         </div>
       </CardContent>

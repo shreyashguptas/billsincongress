@@ -12,15 +12,9 @@ export function BillInfo({ bill }: BillInfoProps) {
         <CardTitle>Bill Information</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm font-medium">Congress</p>
-            <p className="text-sm text-muted-foreground">{bill.congress}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium">Bill Type</p>
-            <p className="text-sm text-muted-foreground">{bill.bill_type_label}</p>
-          </div>
+        <div>
+          <p className="text-sm font-medium">Bill ID</p>
+          <p className="text-sm text-muted-foreground">{bill.id}</p>
         </div>
         <div>
           <p className="text-sm font-medium">Introduced Date</p>
@@ -31,6 +25,14 @@ export function BillInfo({ bill }: BillInfoProps) {
             <p className="text-sm font-medium">Latest Action</p>
             <p className="text-sm text-muted-foreground">
               {bill.latest_action_text} ({bill.latest_action_date})
+            </p>
+          </div>
+        )}
+        {bill.progress_description && (
+          <div>
+            <p className="text-sm font-medium">Progress</p>
+            <p className="text-sm text-muted-foreground">
+              {bill.progress_description}
             </p>
           </div>
         )}

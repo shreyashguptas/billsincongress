@@ -23,7 +23,7 @@ export function BillContentTabs({ bill }: BillContentTabsProps) {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              {bill.title_without_number || bill.title}
+              {bill.title}
             </p>
           </CardContent>
         </Card>

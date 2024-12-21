@@ -104,9 +104,27 @@ export const useBillsStore = create<BillsState>((set, get) => ({
       const [field, direction] = get().sortOrder.split(':');
       let query = supabase
         .from(BILL_INFO_TABLE_NAME)
-        .select('*')
+        .select(`
+          id,
+          introduced_date,
+          sponsor_first_name,
+          sponsor_last_name,
+          sponsor_party,
+          sponsor_state,
+          latest_action_code,
+          latest_action_date,
+          latest_action_text,
+          progress_stage,
+          progress_description,
+          bill_titles (
+            title,
+            title_type,
+            update_date
+          )
+        `)
         .order(field, { ascending: direction === 'asc' });
 
+      // Filter by status if not 'all'
       const status = get().status;
       if (status !== 'all') {
         const progressStage = Object.entries(get().getProgressLabel)
@@ -116,21 +134,24 @@ export const useBillsStore = create<BillsState>((set, get) => ({
         }
       }
 
+      // Filter by category if not 'all'
       const category = get().category;
       if (category !== 'all') {
-        // In a real app, you'd have a proper category field in your database
-        // For now, we'll just filter by title containing the category
-        query = query.ilike('title', `%${category}%`);
+        query = query.eq('bill_subjects.policy_area_name', category);
       }
 
+      // Apply search query if present
       const searchQuery = get().searchQuery.trim();
       if (searchQuery) {
-        query = query.or(`title.ilike.%${searchQuery}%,bill_number.ilike.%${searchQuery}%`);
+        query = query.or(`bill_titles.title.ilike.%${searchQuery}%,id.ilike.%${searchQuery}%`);
       }
 
+      // Apply pagination
       if (!force) {
-        query = query.range(get().offset, get().offset + 9);
+        query = query.range(get().offset, get().offset + 8); // Fetch 9 bills (0-8)
       }
+
+      console.log('Fetching bills with query:', query); // Debug log
 
       const { data, error } = await query;
 
@@ -138,13 +159,32 @@ export const useBillsStore = create<BillsState>((set, get) => ({
         console.error('Error fetching bills:', error);
         throw error;
       }
+
+      console.log('Fetched bills data:', data); // Debug log
+
+      // Process the data to get the latest title for each bill
+      const processedBills = (data || []).map(bill => {
+        // Get the latest title from bill_titles
+        const latestTitle = bill.bill_titles?.reduce((latest: any, current: any) => {
+          if (!latest || new Date(current.update_date) > new Date(latest.update_date)) {
+            return current;
+          }
+          return latest;
+        }, null);
+
+        return {
+          ...bill,
+          title: latestTitle?.title || 'Untitled',
+          bill_titles: undefined // Remove the bill_titles array from the final object
+        };
+      });
       
       if (force) {
-        set({ bills: data || [], offset: (data || []).length, isLoading: false });
+        set({ bills: processedBills, offset: processedBills.length, isLoading: false });
       } else {
         set({ 
-          bills: [...get().bills, ...(data || [])], 
-          offset: get().offset + (data || []).length,
+          bills: [...get().bills, ...processedBills], 
+          offset: get().offset + processedBills.length,
           isLoading: false 
         });
       }
@@ -160,7 +200,24 @@ export const useBillsStore = create<BillsState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from(BILL_INFO_TABLE_NAME)
-        .select('*')
+        .select(`
+          id,
+          introduced_date,
+          sponsor_first_name,
+          sponsor_last_name,
+          sponsor_party,
+          sponsor_state,
+          latest_action_code,
+          latest_action_date,
+          latest_action_text,
+          progress_stage,
+          progress_description,
+          bill_titles (
+            title,
+            title_type,
+            update_date
+          )
+        `)
         .order('introduced_date', { ascending: false })
         .limit(6);
 
@@ -169,7 +226,26 @@ export const useBillsStore = create<BillsState>((set, get) => ({
         throw error;
       }
 
-      set({ featuredBills: data || [], isLoading: false });
+      console.log('Fetched featured bills data:', data); // Debug log
+
+      // Process the data to get the latest title for each bill
+      const processedBills = (data || []).map(bill => {
+        // Get the latest title from bill_titles
+        const latestTitle = bill.bill_titles?.reduce((latest: any, current: any) => {
+          if (!latest || new Date(current.update_date) > new Date(latest.update_date)) {
+            return current;
+          }
+          return latest;
+        }, null);
+
+        return {
+          ...bill,
+          title: latestTitle?.title || 'Untitled',
+          bill_titles: undefined // Remove the bill_titles array from the final object
+        };
+      });
+
+      set({ featuredBills: processedBills, isLoading: false });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch featured bills';
       console.error('Error in fetchFeaturedBills:', errorMessage);
