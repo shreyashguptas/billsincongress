@@ -27,7 +27,10 @@ const getCachedBills = unstable_cache(
           latest_action_date,
           latest_action_text,
           progress_stage,
-          progress_description
+          progress_description,
+          bill_subjects (
+            policy_area_name
+          )
         `)
         .order('introduced_date', { ascending: false })
         .limit(10);
