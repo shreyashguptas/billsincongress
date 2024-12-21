@@ -2,38 +2,59 @@ import { createClient } from '@/utils/supabase/client';
 import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { notFound } from 'next/navigation';
+import { unstable_cache } from 'next/cache';
+import React from 'react';
 
-async function getBillById(id: string) {
-  const supabase = createClient();
+// Cache the bill fetching function with dynamic params
+const getCachedBillById = unstable_cache(
+  async (id: string) => {
+    'use server';
+    const supabase = createClient();
 
-  const { data, error } = await supabase
-    .from(BILL_INFO_TABLE_NAME)
-    .select(`
-      *,
-      bill_subjects (
-        policy_area_name
-      )
-    `)
-    .eq('id', id)
-    .single();
+    const { data, error } = await supabase
+      .from(BILL_INFO_TABLE_NAME)
+      .select(`
+        *,
+        bill_subjects (
+          policy_area_name
+        )
+      `)
+      .eq('id', id)
+      .single();
 
-  if (error) {
-    console.error('Error fetching bill:', error);
-    return null;
+    if (error) {
+      console.error('Error fetching bill:', error);
+      return null;
+    }
+
+    return data;
+  },
+  ['bill-detail'],
+  {
+    revalidate: 3600, // Cache for 1 hour
+    tags: ['bills']
   }
+);
 
-  return data;
-}
+// Configure page options for dynamic routes
+export const dynamic = 'error';
+export const dynamicParams = true;
+export const revalidate = 3600;
 
 type Props = {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }>;
   searchParams: { [key: string]: string | string[] | undefined };
 };
 
-export default async function BillPage({ params, searchParams }: Props) {
-  const bill = await getBillById(params.id);
+export default async function BillPage({ params }: Props) {
+  // Await the params before using them
+  const resolvedParams = await params;
+  
+  if (!resolvedParams?.id) {
+    notFound();
+  }
+
+  const bill = await getCachedBillById(resolvedParams.id);
 
   if (!bill) {
     notFound();

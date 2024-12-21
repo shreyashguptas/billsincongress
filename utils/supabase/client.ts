@@ -11,8 +11,26 @@ export const createClient = () => {
 
   return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      fetch: (url, init) => {
+        const customInit = {
+          ...init,
+          next: { 
+            revalidate: 3600,
+            tags: ['bills']
+          }
+        };
+
+        // Don't override cache setting if it's already set
+        if (!init?.cache) {
+          customInit.cache = 'force-cache';
+        }
+
+        return fetch(url, customInit);
+      }
     }
   });
 }; 
