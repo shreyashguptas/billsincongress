@@ -342,3 +342,123 @@ All tables have a one-to-many relationship with `bill_info` through the `id` col
 - One bill can have many subjects
 - One bill can have many summaries
 - One bill can have many text versions
+
+## Caching and Data Fetching
+
+### Supabase Integration
+
+#### 1. Client Configuration
+```typescript
+// utils/supabase/client.ts
+export const createClient = () => {
+  return createSupabaseClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      fetch: (url, init) => {
+        const customInit = {
+          ...init,
+          next: { 
+            revalidate: 3600,
+            tags: ['bills']
+          }
+        };
+        if (!init?.cache) {
+          customInit.cache = 'force-cache';
+        }
+        return fetch(url, customInit);
+      }
+    }
+  });
+};
+```
+
+#### 2. Caching Strategy
+- **Default Cache**: Force-cache for all requests
+- **Cache Duration**: 1 hour (3600 seconds)
+- **Cache Tags**: 'bills' for bill-related data
+- **Cache Override**: Possible through init parameters
+
+#### 3. Server Components Integration
+```typescript
+// Example of cached data fetching in a server component
+const getCachedBillById = unstable_cache(
+  async (id: string) => {
+    'use server';
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('bill_info')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return data;
+  },
+  ['bill-detail'],
+  {
+    revalidate: 3600,
+    tags: ['bills']
+  }
+);
+```
+
+### Caching Patterns
+
+#### 1. List Pages
+- Cache entire result sets
+- Revalidate hourly
+- Use pagination metadata
+- Cache by query parameters
+
+#### 2. Detail Pages
+- Cache individual records
+- Dynamic route parameters
+- Related data caching
+- Nested relationship handling
+
+#### 3. Search Results
+- Cache common searches
+- Partial cache invalidation
+- Search parameter handling
+- Result set management
+
+### Performance Optimization
+
+#### 1. Query Optimization
+- Select specific columns
+- Use appropriate indexes
+- Optimize join operations
+- Handle pagination efficiently
+
+#### 2. Cache Management
+- Granular cache invalidation
+- Cache warming strategies
+- Memory usage optimization
+- Cache hit ratio monitoring
+
+#### 3. Error Handling
+- Graceful degradation
+- Fallback strategies
+- Error boundary implementation
+- Cache miss handling
+
+### Best Practices
+
+#### 1. Data Fetching
+- Use server components
+- Implement proper caching
+- Handle loading states
+- Manage error states
+
+#### 2. Cache Configuration
+- Set appropriate TTL
+- Use meaningful tags
+- Implement cache warming
+- Monitor cache performance
+
+#### 3. Performance Monitoring
+- Track cache hit rates
+- Monitor response times
+- Analyze query performance
+- Measure client impact
