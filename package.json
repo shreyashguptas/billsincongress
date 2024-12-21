@@ -8,12 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "generate-icons": "tsx scripts/generate-icons.ts",
-    "fetch-bill-info": "ts-node scripts/BillInfo.ts",
-    "fetch-bill-actions": "ts-node scripts/BillActions.ts",
-    "fetch-bill-subjects": "ts-node scripts/BillSubjects.ts",
-    "fetch-bill-summaries": "ts-node scripts/BillSummaries.ts",
-    "fetch-bill-text": "ts-node scripts/BillText.ts",
-    "fetch-bill-titles": "ts-node scripts/BillTitles.ts",
+    "fetch-bill-info": "tsx scripts/BillInfo.ts",
+    "fetch-bill-actions": "tsx scripts/BillActions.ts",
+    "fetch-bill-subjects": "tsx scripts/BillSubjects.ts",
+    "fetch-bill-summaries": "tsx scripts/BillSummaries.ts",
+    "fetch-bill-text": "tsx scripts/BillText.ts",
+    "fetch-bill-titles": "tsx scripts/BillTitles.ts",
     "fetch-all-bills": "npm run fetch-bill-info && npm run fetch-bill-actions && npm run fetch-bill-subjects && npm run fetch-bill-summaries && npm run fetch-bill-text && npm run fetch-bill-titles"
   },
   "dependencies": {

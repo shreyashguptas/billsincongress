@@ -2,81 +2,201 @@ import { createClient } from '@supabase/supabase-js';
 import { BillSubject, BillSubjectsResponse, BILL_SUBJECTS_TABLE_NAME } from '../lib/types/BillSubjects';
 import dotenv from 'dotenv';
 import path from 'path';
+import { getSupabaseConfig } from '../lib/utils/supabase/config';
 
-// Load environment variables
+// Load environment variables from both .env and .env.local
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ 
   path: path.resolve(process.cwd(), '.env.local'),
   override: true 
 });
 
-// Create Supabase client with service role key
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    }
-  }
-);
+// Debug: Print environment variables (safely)
+console.log('Environment variables loaded:');
+console.log('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? '✓ Present' : '✗ Missing');
+console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✓ Present' : '✗ Missing');
+console.log('SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? '✓ Present' : '✗ Missing');
+console.log('CONGRESS_API_KEY:', process.env.CONGRESS_API_KEY ? '✓ Present' : '✗ Missing');
+console.log('\nEnvironment files checked:');
+console.log('.env path:', path.resolve(process.cwd(), '.env'));
+console.log('.env.local path:', path.resolve(process.cwd(), '.env.local'));
 
+// Validate required environment variables
 const CONGRESS_API_KEY = process.env.CONGRESS_API_KEY;
-const BASE_URL = 'https://api.congress.gov/v3';
+if (!CONGRESS_API_KEY) {
+  console.error('Error: Missing CONGRESS_API_KEY environment variable');
+  console.error('Please make sure this variable is set in your .env.local file');
+  process.exit(1);
+}
 
-async function fetchBillSubjects(congress: number, billType: string, billNumber: string): Promise<BillSubjectsResponse> {
-  const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/subjects?api_key=${CONGRESS_API_KEY}&format=json`;
+// Get Supabase config and create admin client
+const { url } = getSupabaseConfig();
+const serviceKey = process.env.SUPABASE_SERVICE_KEY;
+if (!serviceKey) {
+  console.error('Error: Missing SUPABASE_SERVICE_KEY environment variable');
+  console.error('Please make sure this variable is set in your .env.local file');
+  process.exit(1);
+}
+
+const supabaseAdmin = createClient(url, serviceKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  }
+});
+
+const BASE_URL = 'https://api.congress.gov/v3';
+const RATE_LIMIT_PER_HOUR = 5000;
+const DELAY_BETWEEN_REQUESTS = Math.ceil((3600 * 1000) / RATE_LIMIT_PER_HOUR); // Milliseconds between requests
+const MAX_RETRIES = 3;
+
+// All bill types in the 118th Congress
+const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
+
+async function fetchBillList(congress: number, billType: string, offset = 0): Promise<any> {
+  const url = `${BASE_URL}/bill/${congress}/${billType}?offset=${offset}&limit=250&api_key=${CONGRESS_API_KEY}&format=json`;
   
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch bill subjects: ${response.statusText}`);
+    throw new Error(`Failed to fetch bill list: ${response.statusText}`);
   }
   
   return response.json();
 }
 
-function transformBillSubjects(data: BillSubjectsResponse, billId: string): BillSubject {
-  return {
-    id: billId,
-    policy_area_name: data.subjects.policyArea.name,
-    policy_area_update_date: data.subjects.policyArea.updateDate
-  };
+async function fetchBillSubjects(congress: number, billType: string, billNumber: string, retries = 0): Promise<BillSubjectsResponse> {
+  try {
+    const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/subjects?api_key=${CONGRESS_API_KEY}&format=json`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch bill subjects: ${response.statusText}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    if (retries < MAX_RETRIES) {
+      console.log(`Retrying bill subjects fetch for ${billType}${billNumber} (attempt ${retries + 1})`);
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds before retry
+      return fetchBillSubjects(congress, billType, billNumber, retries + 1);
+    }
+    throw error;
+  }
 }
 
-async function insertBillSubject(subject: BillSubject) {
+function transformBillSubjects(data: BillSubjectsResponse, billId: string): BillSubject[] {
+  const subjects: BillSubject[] = [];
+
+  // Add policy area if it exists
+  if (data.subjects.policyArea?.name) {
+    subjects.push({
+      id: billId,
+      name: data.subjects.policyArea.name,
+      source_system_code: 'POLICY_AREA',
+      source_system_name: 'Policy Area',
+      update_date: data.subjects.policyArea.updateDate
+    });
+  }
+
+  // Add legislative subjects
+  if (data.subjects.legislativeSubjects) {
+    data.subjects.legislativeSubjects.forEach((subject: { name: string; updateDate: string }) => {
+      if (subject.name) {
+        subjects.push({
+          id: billId,
+          name: subject.name,
+          source_system_code: 'LEGISLATIVE_SUBJECT',
+          source_system_name: 'Legislative Subject',
+          update_date: subject.updateDate
+        });
+      }
+    });
+  }
+
+  return subjects;
+}
+
+async function insertBillSubjects(subjects: BillSubject[]) {
+  if (subjects.length === 0) return;
+
   const { error } = await supabaseAdmin
     .from(BILL_SUBJECTS_TABLE_NAME)
-    .upsert(subject, {
-      onConflict: 'id'
+    .upsert(subjects, {
+      onConflict: 'id,name'
     });
 
   if (error) {
-    throw new Error(`Failed to insert bill subject: ${error.message}`);
+    throw new Error(`Failed to insert bill subjects: ${error.message}`);
   }
+}
+
+async function processBillType(congress: number, billType: string) {
+  console.log(`\nProcessing ${billType.toUpperCase()} bills for Congress ${congress}...`);
+  let offset = 0;
+  let totalProcessed = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    try {
+      console.log(`\nFetching bills offset ${offset}...`);
+      const listData = await fetchBillList(congress, billType, offset);
+      const bills = listData.bills || [];
+      
+      if (bills.length === 0) {
+        hasMore = false;
+        continue;
+      }
+
+      for (const bill of bills) {
+        const billNumber = bill.number.toString();
+        try {
+          console.log(`Processing subjects for ${billType.toUpperCase()} ${billNumber}...`);
+          
+          const billId = `${billNumber}${billType}${congress}`;
+          const subjectsData = await fetchBillSubjects(congress, billType, billNumber);
+          const transformedSubjects = transformBillSubjects(subjectsData, billId);
+          
+          if (transformedSubjects.length > 0) {
+            await insertBillSubjects(transformedSubjects);
+            console.log(`Successfully processed ${transformedSubjects.length} subjects for ${billType.toUpperCase()} ${billNumber}`);
+          } else {
+            console.log(`No subjects found for ${billType.toUpperCase()} ${billNumber}`);
+          }
+          
+          totalProcessed++;
+          
+          // Respect rate limit
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+        } catch (error) {
+          console.error(`Error processing ${billType.toUpperCase()} ${billNumber}:`, error);
+        }
+      }
+
+      offset += bills.length;
+      
+      // If we got less than 250 bills, we've reached the end
+      if (bills.length < 250) {
+        hasMore = false;
+      }
+    } catch (error) {
+      console.error(`Error fetching bill list for ${billType} at offset ${offset}:`, error);
+      // Wait a bit longer on error before retrying
+      await new Promise(resolve => setTimeout(resolve, 10000));
+    }
+  }
+
+  console.log(`\nCompleted processing subjects for ${totalProcessed} ${billType.toUpperCase()} bills`);
 }
 
 async function main() {
   try {
-    // Example: Fetch subjects for 10 bills from congress 118, type HR, numbers 1-10
     const congress = 118;
-    const billType = 'hr';
-    const billNumbers = Array.from({ length: 10 }, (_, i) => (i + 1).toString());
-
-    for (const billNumber of billNumbers) {
-      try {
-        console.log(`Fetching subjects for bill ${billNumber}...`);
-        const billId = `${billNumber}${billType}${congress}`;
-        const subjectsData = await fetchBillSubjects(congress, billType, billNumber);
-        const transformedSubject = transformBillSubjects(subjectsData, billId);
-        await insertBillSubject(transformedSubject);
-        console.log(`Successfully processed subjects for bill ${billNumber}`);
-      } catch (error) {
-        console.error(`Error processing bill ${billNumber}:`, error);
-      }
-      
-      // Add a small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    for (const billType of BILL_TYPES) {
+      await processBillType(congress, billType);
     }
+    
+    console.log('\nScript completed successfully!');
   } catch (error) {
     console.error('Script failed:', error);
     process.exit(1);
