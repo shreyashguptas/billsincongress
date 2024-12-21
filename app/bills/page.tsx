@@ -1,66 +1,27 @@
 import { BillsOverview } from '@/components/bills/bills-overview';
 import { BillsHeader } from '@/components/bills/bills-header';
-import { supabase } from '@/lib/supabase';
-import { Bill } from '@/lib/types';
+import { createClient } from '@/utils/supabase/server';
+import { BillInfo, BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { sharedViewport } from '../shared-metadata';
 import type { Viewport } from 'next';
+import { Database } from '@/lib/database.types';
 
 export const viewport: Viewport = sharedViewport;
 
-// Helper function to transform Supabase data to Bill type
-const transformBillData = (data: any): Bill => ({
-  id: data.id,
-  title: data.title,
-  congressNumber: data.congress_number,
-  billType: data.bill_type,
-  billNumber: data.bill_number,
-  sponsorName: data.sponsor_name,
-  sponsorState: data.sponsor_state,
-  sponsorParty: data.sponsor_party,
-  sponsorBioguideId: data.sponsor_bioguide_id,
-  committeeCount: data.committee_count,
-  latestActionText: data.latest_action_text,
-  latestActionDate: data.latest_action_date,
-  updateDate: data.update_date,
-  status: data.status,
-  progress: data.progress || 0,
-  summary: data.summary,
-  tags: Array.isArray(data.tags) ? data.tags : [],
-  aiSummary: data.ai_summary,
-  lastUpdated: data.last_updated,
-  voteCount: data.vote_count || {
-    yea: 0,
-    nay: 0,
-    present: 0,
-    notVoting: 0
-  },
-  originChamber: data.origin_chamber || '',
-  originChamberCode: data.origin_chamber_code || '',
-  congressGovUrl: data.congress_gov_url || '',
-  statusHistory: data.status_history || [],
-  lastStatusChange: data.last_status_change,
-  introducedDate: data.introduced_date || '',
-  constitutionalAuthorityText: data.constitutional_authority_text || '',
-  officialTitle: data.official_title || data.title,
-  shortTitle: data.short_title || '',
-  cosponsorsCount: data.cosponsors_count || 0,
-  billTextUrl: data.bill_text_url || null,
-  billPdfUrl: data.bill_pdf_url || null
-});
-
-async function getInitialBills() {
+async function getInitialBills(): Promise<BillInfo[]> {
+  const supabase = createClient();
   const { data, error } = await supabase
-    .from('bills')
+    .from(BILL_INFO_TABLE_NAME)
     .select('*')
-    .order('update_date', { ascending: false })
-    .range(0, 8);
+    .order('updated_at', { ascending: false })
+    .limit(9);
 
   if (error) {
     console.error('Error fetching initial bills:', error);
     return [];
   }
 
-  return data.map(transformBillData);
+  return (data as unknown as BillInfo[]) || [];
 }
 
 export const dynamic = 'force-dynamic';

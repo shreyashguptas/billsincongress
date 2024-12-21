@@ -15,6 +15,7 @@ export interface BillInfoResponse {
     number: string;
     type: string;
     congress: number;
+    title?: string;
   };
 }
 

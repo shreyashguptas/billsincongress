@@ -1,8 +1,8 @@
 import { BillStorageService } from '@/lib/services/bill-storage';
-import { Bill } from '@/lib/types';
+import { BillInfo } from '@/lib/types/BillInfo';
 import { BillHeader } from '@/components/bills/bill-header';
 import { BillSponsors } from '@/components/bills/bill-sponsors';
-import { BillInfo } from '@/components/bills/bill-info';
+import { BillInfo as BillInfoComponent } from '@/components/bills/bill-info';
 import { BillContentTabs } from '@/components/bills/bill-content-tabs';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
@@ -23,8 +23,8 @@ export async function generateMetadata({
       };
     }
     return {
-      title: `${bill.billType} ${bill.billNumber} - ${bill.title}`,
-      description: bill.summary,
+      title: `${bill.bill_type} ${bill.bill_number} - ${bill.title}`,
+      description: bill.title_without_number || bill.title,
     };
   } catch (error) {
     console.error('Error fetching bill metadata:', error);
@@ -40,7 +40,7 @@ export default async function BillPage({
   params: Promise<{ id: string }>;
 }) {
   const storage = new BillStorageService();
-  let bill: Bill | null = null;
+  let bill: BillInfo | null = null;
 
   try {
     const resolvedParams = await params;
@@ -67,7 +67,7 @@ export default async function BillPage({
           <div className="order-1 lg:order-2 lg:col-span-1">
             <div className="sticky top-8 space-y-8">
               <BillSponsors bill={bill} />
-              <BillInfo bill={bill} />
+              <BillInfoComponent bill={bill} />
             </div>
           </div>
         </div>

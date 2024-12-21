@@ -1,14 +1,15 @@
 'use client';
 
+import React from 'react';
 import { useEffect, useState } from 'react';
 import { BillCard } from './bill-card';
-import { Button } from '@/components/ui/button';
+import { Button } from '../ui/button';
 import { Loader2 } from 'lucide-react';
 import { useBillsStore } from '@/lib/store/bills-store';
-import { Bill } from '@/lib/types';
+import { BillInfo } from '@/lib/types/BillInfo';
 
-export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
-  const { bills, loading, error, fetchBills } = useBillsStore();
+export function BillsOverview({ initialBills }: { initialBills: BillInfo[] }) {
+  const { bills, isLoading, error, fetchBills } = useBillsStore();
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -17,13 +18,13 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
     if (bills.length === 0) {
       useBillsStore.setState({ 
         bills: initialBills,
-        offset: initialBills.length // Set initial offset
+        offset: initialBills.length
       });
     }
   }, [initialBills, bills.length]);
 
   const handleLoadMore = () => {
-    fetchBills(false, true); // force=true to bypass cache
+    fetchBills(false);
   };
 
   // Show initial bills during SSR and hydration
@@ -31,9 +32,9 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
     return (
       <div className="space-y-8">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {initialBills.map((bill: Bill) => (
+          {initialBills.map((bill: BillInfo) => (
             <BillCard 
-              key={`${bill.congressNumber}-${bill.billNumber}-${bill.id}`} 
+              key={`${bill.congress}-${bill.bill_number}-${bill.id}`} 
               bill={bill} 
             />
           ))}
@@ -59,9 +60,9 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
       ) : (
         <>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {bills.map((bill: Bill) => (
+            {bills.map((bill: BillInfo) => (
               <BillCard 
-                key={`${bill.congressNumber}-${bill.billNumber}-${bill.id}`} 
+                key={`${bill.congress}-${bill.bill_number}-${bill.id}`} 
                 bill={bill} 
               />
             ))}
@@ -69,11 +70,11 @@ export function BillsOverview({ initialBills }: { initialBills: Bill[] }) {
           <div className="mt-8 flex justify-center">
             <Button
               onClick={handleLoadMore}
-              disabled={loading}
+              disabled={isLoading}
               variant="outline"
               size="lg"
             >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Load More Bills
             </Button>
           </div>
