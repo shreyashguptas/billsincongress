@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createClient } from '@/utils/supabase/client';
 import { BillInfo, BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
+import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 
 interface BillsState {
   bills: BillInfo[];
@@ -24,6 +25,33 @@ interface BillsState {
   fetchUniqueValues: () => Promise<void>;
   getProgressColor: (stage: number) => string;
   getProgressLabel: (stage: number) => string;
+}
+
+// Type for the raw bill data from Supabase
+interface RawBill {
+  id: string;
+  congress: number;
+  bill_type: string;
+  bill_number: string;
+  bill_type_label: string;
+  introduced_date: string;
+  sponsor_first_name: string;
+  sponsor_last_name: string;
+  sponsor_party: string;
+  sponsor_state: string;
+  latest_action_code?: string;
+  latest_action_date?: string;
+  latest_action_text?: string;
+  progress_stage?: number;
+  progress_description?: string;
+  bill_titles?: Array<{
+    title: string;
+    title_type: string;
+    update_date: string;
+  }>;
+  bill_subjects?: Array<{
+    policy_area_name: string;
+  }>;
 }
 
 const supabase = createClient();
@@ -162,30 +190,23 @@ export const useBillsStore = create<BillsState>((set, get) => ({
 
       // Apply pagination
       if (!force) {
-        query = query.range(get().offset, get().offset + 8); // Fetch 9 bills (0-8)
+        query = query.range(get().offset, get().offset + 8);
       }
-
-      console.log('Fetching bills with query:', query); // Debug log
 
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error fetching bills:', error);
         throw error;
       }
 
-      console.log('Fetched bills data:', data); // Debug log
-
-      // Process the data to get the latest title for each bill
-      const processedBills = (data || []).map(bill => {
-        const latestTitle = bill.bill_titles?.reduce((latest: any, current: any) => {
+      const processedBills = (data || []).map((bill: RawBill) => {
+        const latestTitle = bill.bill_titles?.reduce((latest, current) => {
           if (!latest || new Date(current.update_date) > new Date(latest.update_date)) {
             return current;
           }
           return latest;
-        }, null);
+        }, bill.bill_titles[0]);
 
-        // Extract the policy area from bill_subjects array
         const policyArea = Array.isArray(bill.bill_subjects) && bill.bill_subjects.length > 0
           ? { policy_area_name: bill.bill_subjects[0].policy_area_name }
           : undefined;
@@ -221,6 +242,9 @@ export const useBillsStore = create<BillsState>((set, get) => ({
   fetchFeaturedBills: async () => {
     set({ isLoading: true, error: null });
     try {
+      // Debug logging
+      console.log('Fetching featured bills...');
+      
       const { data, error } = await supabase
         .from(BILL_INFO_TABLE_NAME)
         .select(`
@@ -248,31 +272,38 @@ export const useBillsStore = create<BillsState>((set, get) => ({
             policy_area_name
           )
         `)
-        .order('introduced_date', { ascending: false })
-        .limit(6);
+        .order('latest_action_date', { ascending: false })
+        .limit(3);
 
       if (error) {
-        console.error('Error fetching featured bills:', error);
         throw error;
       }
 
-      console.log('Fetched featured bills data:', data); // Debug log
+      // Debug logging
+      console.log('Raw featured bills data:', data);
 
-      // Process the data to get the latest title for each bill
-      const processedBills = (data || []).map(bill => {
-        const latestTitle = bill.bill_titles?.reduce((latest: any, current: any) => {
+      const processedBills = (data || []).map((bill: RawBill) => {
+        const latestTitle = bill.bill_titles?.reduce((latest, current) => {
           if (!latest || new Date(current.update_date) > new Date(latest.update_date)) {
             return current;
           }
           return latest;
-        }, null);
+        }, bill.bill_titles?.[0]);
 
         // Extract the policy area from bill_subjects array
         const policyArea = Array.isArray(bill.bill_subjects) && bill.bill_subjects.length > 0
           ? { policy_area_name: bill.bill_subjects[0].policy_area_name }
-          : undefined;
+          : null;
 
-        return {
+        // Debug logging
+        console.log('Processing bill:', {
+          id: bill.id,
+          title: latestTitle?.title,
+          policyArea,
+          rawSubjects: bill.bill_subjects
+        });
+
+        const processedBill = {
           ...bill,
           congress: bill.congress,
           bill_type: bill.bill_type,
@@ -282,6 +313,16 @@ export const useBillsStore = create<BillsState>((set, get) => ({
           bill_titles: undefined,
           bill_subjects: policyArea
         };
+
+        // Debug logging
+        console.log('Processed bill:', {
+          id: processedBill.id,
+          title: processedBill.title,
+          policyArea: processedBill.bill_subjects?.policy_area_name,
+          rawSubjects: processedBill.bill_subjects
+        });
+
+        return processedBill;
       });
 
       set({ featuredBills: processedBills, isLoading: false });

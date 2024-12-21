@@ -13,12 +13,18 @@ export function BillCard({ bill }: BillCardProps) {
   const progressStage = bill.progress_stage || 0;
 
   // Debug logging
-  console.log('Bill data:', {
+  console.log('BillCard render:', {
     id: bill.id,
     title: bill.title,
     policyArea,
-    bill_subjects: bill.bill_subjects
+    bill_subjects: bill.bill_subjects,
+    hasSubjects: bill.bill_subjects != null,
+    hasPolicyArea: policyArea != null,
+    policyAreaType: typeof policyArea,
+    rawBill: bill
   });
+
+  const shouldShowBadge = policyArea != null && policyArea !== '' && typeof policyArea === 'string';
 
   return (
     <Link href={`/bills/${bill.id}`}>
@@ -29,7 +35,7 @@ export function BillCard({ bill }: BillCardProps) {
               <h3 className="text-xl font-semibold line-clamp-3">
                 {bill.title}
               </h3>
-              {policyArea && (
+              {shouldShowBadge && (
                 <Badge 
                   variant="secondary" 
                   className="text-xs font-medium px-3 py-1 bg-primary/10 text-primary hover:bg-primary/20"

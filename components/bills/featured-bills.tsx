@@ -11,6 +11,14 @@ export function FeaturedBills() {
     fetchFeaturedBills();
   }, [fetchFeaturedBills]);
 
+  // Debug logging
+  console.log('Featured bills data:', featuredBills.map(bill => ({
+    id: bill.id,
+    title: bill.title,
+    policyArea: bill.bill_subjects?.policy_area_name,
+    bill_subjects: bill.bill_subjects
+  })));
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
