@@ -106,6 +106,10 @@ export const useBillsStore = create<BillsState>((set, get) => ({
         .from(BILL_INFO_TABLE_NAME)
         .select(`
           id,
+          congress,
+          bill_type,
+          bill_number,
+          bill_type_label,
           introduced_date,
           sponsor_first_name,
           sponsor_last_name,
@@ -164,7 +168,6 @@ export const useBillsStore = create<BillsState>((set, get) => ({
 
       // Process the data to get the latest title for each bill
       const processedBills = (data || []).map(bill => {
-        // Get the latest title from bill_titles
         const latestTitle = bill.bill_titles?.reduce((latest: any, current: any) => {
           if (!latest || new Date(current.update_date) > new Date(latest.update_date)) {
             return current;
@@ -174,8 +177,12 @@ export const useBillsStore = create<BillsState>((set, get) => ({
 
         return {
           ...bill,
+          congress: bill.congress,
+          bill_type: bill.bill_type,
+          bill_number: bill.bill_number,
+          bill_type_label: bill.bill_type_label,
           title: latestTitle?.title || 'Untitled',
-          bill_titles: undefined // Remove the bill_titles array from the final object
+          bill_titles: undefined
         };
       });
       
@@ -202,6 +209,10 @@ export const useBillsStore = create<BillsState>((set, get) => ({
         .from(BILL_INFO_TABLE_NAME)
         .select(`
           id,
+          congress,
+          bill_type,
+          bill_number,
+          bill_type_label,
           introduced_date,
           sponsor_first_name,
           sponsor_last_name,
@@ -230,7 +241,6 @@ export const useBillsStore = create<BillsState>((set, get) => ({
 
       // Process the data to get the latest title for each bill
       const processedBills = (data || []).map(bill => {
-        // Get the latest title from bill_titles
         const latestTitle = bill.bill_titles?.reduce((latest: any, current: any) => {
           if (!latest || new Date(current.update_date) > new Date(latest.update_date)) {
             return current;
@@ -240,8 +250,12 @@ export const useBillsStore = create<BillsState>((set, get) => ({
 
         return {
           ...bill,
+          congress: bill.congress,
+          bill_type: bill.bill_type,
+          bill_number: bill.bill_number,
+          bill_type_label: bill.bill_type_label,
           title: latestTitle?.title || 'Untitled',
-          bill_titles: undefined // Remove the bill_titles array from the final object
+          bill_titles: undefined
         };
       });
 

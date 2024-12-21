@@ -17,5 +17,23 @@ export const createClient = () => {
       detectSessionInUrl: false,
       flowType: 'pkce',
     },
+    global: {
+      fetch: (url, init) => {
+        const customInit = {
+          ...init,
+          next: { 
+            revalidate: 3600,
+            tags: ['bills']
+          }
+        };
+
+        // Don't override cache setting if it's already set
+        if (!init?.cache) {
+          customInit.cache = 'force-cache';
+        }
+
+        return fetch(url, customInit);
+      }
+    }
   });
 }; 

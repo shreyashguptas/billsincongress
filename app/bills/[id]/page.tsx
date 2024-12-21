@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/utils/supabase/server';
 import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { notFound } from 'next/navigation';
@@ -8,7 +8,6 @@ import React from 'react';
 // Cache the bill fetching function with dynamic params
 const getCachedBillById = unstable_cache(
   async (id: string) => {
-    'use server';
     const supabase = createClient();
 
     const { data, error } = await supabase
@@ -37,17 +36,15 @@ const getCachedBillById = unstable_cache(
 );
 
 // Configure page options for dynamic routes
-export const dynamic = 'error';
-export const dynamicParams = true;
+export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 
-type Props = {
+interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: { [key: string]: string | string[] | undefined };
-};
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
 
-export default async function BillPage({ params }: Props) {
-  // Await the params before using them
+export default async function BillPage({ params }: PageProps) {
   const resolvedParams = await params;
   
   if (!resolvedParams?.id) {

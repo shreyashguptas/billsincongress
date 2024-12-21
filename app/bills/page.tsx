@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/utils/supabase/server';
 import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { BillCard } from '@/components/bills/bill-card';
 import { unstable_cache } from 'next/cache';
@@ -6,7 +6,6 @@ import { unstable_cache } from 'next/cache';
 // Cache the bills fetching function
 const getCachedBills = unstable_cache(
   async () => {
-    console.log('Fetching bills (this should be cached)...');
     const supabase = createClient();
 
     try {
@@ -51,6 +50,7 @@ const getCachedBills = unstable_cache(
   }
 );
 
+export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // Revalidate the page every hour
 
 export default async function BillsPage() {

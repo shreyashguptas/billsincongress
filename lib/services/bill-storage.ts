@@ -8,6 +8,10 @@ export class BillStorageService {
       .from(BILL_INFO_TABLE_NAME)
       .select(`
         id,
+        congress,
+        bill_type,
+        bill_number,
+        bill_type_label,
         introduced_date,
         sponsor_first_name,
         sponsor_last_name,
@@ -46,6 +50,10 @@ export class BillStorageService {
 
       return {
         ...bill,
+        congress: bill.congress,
+        bill_type: bill.bill_type,
+        bill_number: bill.bill_number,
+        bill_type_label: bill.bill_type_label,
         title: latestTitle?.title || 'Untitled',
         bill_titles: undefined
       };
@@ -58,6 +66,10 @@ export class BillStorageService {
 
     const billInfo: BillInfo = {
       id: `${bill.congress}-${bill.type}-${bill.number}`,
+      congress: bill.congress,
+      bill_type: bill.type,
+      bill_number: bill.number,
+      bill_type_label: this.getBillTypeLabel(bill.type),
       introduced_date: bill.introducedDate,
       title: bill.title || '',
       sponsor_first_name: bill.sponsors?.[0]?.firstName,
@@ -83,6 +95,20 @@ export class BillStorageService {
     }
 
     console.log('Successfully saved bill. Response:', JSON.stringify(data, null, 2));
+  }
+
+  private getBillTypeLabel(type: string): string {
+    const labels: { [key: string]: string } = {
+      hr: 'H.R.',
+      s: 'S.',
+      hjres: 'H.J.Res.',
+      sjres: 'S.J.Res.',
+      hconres: 'H.Con.Res.',
+      sconres: 'S.Con.Res.',
+      hres: 'H.Res.',
+      sres: 'S.Res.'
+    };
+    return labels[type.toLowerCase()] || type;
   }
 
   private calculateProgressStage(bill: any): number {
