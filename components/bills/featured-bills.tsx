@@ -1,29 +1,28 @@
 'use client';
 
 import { useEffect } from 'react';
+import { BillCard } from '@/components/bills/bill-card';
 import { useBillsStore } from '@/lib/store/bills-store';
-import { BillCard } from './bill-card';
 
 export function FeaturedBills() {
-  const { featuredBills, fetchFeaturedBills, isLoading, error } = useBillsStore();
+  const { featuredBills, fetchFeaturedBills } = useBillsStore();
 
   useEffect(() => {
     fetchFeaturedBills();
   }, [fetchFeaturedBills]);
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {featuredBills.map((bill) => (
-        <BillCard key={bill.id} bill={bill} />
-      ))}
+    <div className="space-y-8">
+      <h2 className="text-3xl font-bold">Featured Bills</h2>
+      {featuredBills.length === 0 ? (
+        <p className="text-muted-foreground">No featured bills at this time.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {featuredBills.map(bill => (
+            <BillCard key={bill.id} bill={bill} />
+          ))}
+        </div>
+      )}
     </div>
   );
 } 

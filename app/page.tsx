@@ -41,9 +41,6 @@ export default function Home() {
       <section className="w-full bg-background">
         <div className="container mx-auto px-4 py-12">
           <div className="mx-auto max-w-[1200px] space-y-8">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Featured Bills
-            </h2>
             <FeaturedBills />
             <div className="mt-12 flex justify-center">
               <Link href="/bills">

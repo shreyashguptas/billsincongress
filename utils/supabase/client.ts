@@ -1,36 +1,24 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/lib/database.types';
+import { createBrowserClient } from '@supabase/ssr';
 
-export const createClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables');
-  }
-
-  return createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-    global: {
-      fetch: (url, init) => {
-        const customInit = {
-          ...init,
-          next: { 
-            revalidate: 3600,
-            tags: ['bills']
-          }
-        };
-
-        // Don't override cache setting if it's already set
-        if (!init?.cache) {
-          customInit.cache = 'force-cache';
-        }
-
-        return fetch(url, customInit);
-      }
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          const cookie = document.cookie
+            .split('; ')
+            .find((row) => row.startsWith(`${name}=`));
+          return cookie ? cookie.split('=')[1] : undefined;
+        },
+        set(name: string, value: string, options: { path?: string; maxAge?: number }) {
+          document.cookie = `${name}=${value}; path=${options.path || '/'}; max-age=${options.maxAge || 31536000}`;
+        },
+        remove(name: string, options: { path?: string }) {
+          document.cookie = `${name}=; path=${options.path || '/'}; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        },
+      },
     }
-  });
-}; 
+  );
+} 

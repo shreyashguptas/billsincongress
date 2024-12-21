@@ -1,59 +1,54 @@
-import { createClient } from '@/utils/supabase/server';
+import { notFound } from 'next/navigation';
+import { createStaticClient } from '@/utils/supabase/server-app';
 import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { notFound } from 'next/navigation';
-import { unstable_cache } from 'next/cache';
-import React from 'react';
 
-// Cache the bill fetching function with dynamic params
-const getCachedBillById = unstable_cache(
-  async (id: string) => {
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-      .from(BILL_INFO_TABLE_NAME)
-      .select(`
-        *,
-        bill_subjects (
-          policy_area_name
-        )
-      `)
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      console.error('Error fetching bill:', error);
-      return null;
-    }
-
-    return data;
-  },
-  ['bill-detail'],
-  {
-    revalidate: 3600, // Cache for 1 hour
-    tags: ['bills']
-  }
-);
-
-// Configure page options for dynamic routes
-export const dynamic = 'force-dynamic';
+// Enable ISR with 1-hour revalidation
 export const revalidate = 3600;
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+// Pre-generate the most recent 100 bills at build time
+export async function generateStaticParams() {
+  const supabase = createStaticClient();
+  const { data } = await supabase
+    .from(BILL_INFO_TABLE_NAME)
+    .select('id')
+    .order('introduced_date', { ascending: false })
+    .limit(100);
+
+  return (data || []).map((bill) => ({
+    id: bill.id,
+  }));
+}
+
+async function getBillData(billId: string) {
+  const supabase = createStaticClient();
+  const { data } = await supabase
+    .from(BILL_INFO_TABLE_NAME)
+    .select(`
+      *,
+      bill_subjects (
+        policy_area_name
+      )
+    `)
+    .match({ id: billId })
+    .single();
+
+  if (!data) {
+    return null;
+  }
+
+  return data;
 }
 
 export default async function BillPage({ params }: PageProps) {
-  const resolvedParams = await params;
-  
-  if (!resolvedParams?.id) {
-    notFound();
-  }
+  const { id } = await params;
+  const data = await getBillData(id);
 
-  const bill = await getCachedBillById(resolvedParams.id);
-
-  if (!bill) {
+  if (!data) {
     notFound();
   }
 
@@ -61,9 +56,9 @@ export default async function BillPage({ params }: PageProps) {
     <div className="container mx-auto py-8">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">
-          {bill.bill_type_label} {bill.bill_number}
+          {data.bill_type_label} {data.bill_number}
           <span className="text-xl text-muted-foreground ml-2">
-            ({bill.congress}th Congress)
+            ({data.congress}th Congress)
           </span>
         </h1>
 
@@ -73,7 +68,7 @@ export default async function BillPage({ params }: PageProps) {
               <CardTitle>Title</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-lg">{bill.title}</p>
+              <p className="text-lg">{data.title}</p>
             </CardContent>
           </Card>
 
@@ -85,15 +80,15 @@ export default async function BillPage({ params }: PageProps) {
               <div className="space-y-2">
                 <p>
                   <span className="font-medium">Name:</span>{' '}
-                  {bill.sponsor_first_name} {bill.sponsor_last_name}
+                  {data.sponsor_first_name} {data.sponsor_last_name}
                 </p>
                 <p>
                   <span className="font-medium">Party:</span>{' '}
-                  {bill.sponsor_party}
+                  {data.sponsor_party}
                 </p>
                 <p>
                   <span className="font-medium">State:</span>{' '}
-                  {bill.sponsor_state}
+                  {data.sponsor_state}
                 </p>
               </div>
             </CardContent>
@@ -107,36 +102,36 @@ export default async function BillPage({ params }: PageProps) {
               <div className="space-y-2">
                 <p>
                   <span className="font-medium">Introduced:</span>{' '}
-                  {new Date(bill.introduced_date).toLocaleDateString()}
+                  {new Date(data.introduced_date).toLocaleDateString()}
                 </p>
-                {bill.latest_action_text && (
+                {data.latest_action_text && (
                   <p>
                     <span className="font-medium">Latest Action:</span>{' '}
-                    {bill.latest_action_text}
-                    {bill.latest_action_date && (
+                    {data.latest_action_text}
+                    {data.latest_action_date && (
                       <span className="text-muted-foreground ml-2">
-                        ({new Date(bill.latest_action_date).toLocaleDateString()})
+                        ({new Date(data.latest_action_date).toLocaleDateString()})
                       </span>
                     )}
                   </p>
                 )}
-                {bill.progress_description && (
+                {data.progress_description && (
                   <p>
                     <span className="font-medium">Current Stage:</span>{' '}
-                    {bill.progress_description}
+                    {data.progress_description}
                   </p>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {bill.bill_subjects?.policy_area_name && (
+          {data.bill_subjects?.policy_area_name && (
             <Card>
               <CardHeader>
                 <CardTitle>Policy Area</CardTitle>
               </CardHeader>
               <CardContent>
-                <p>{bill.bill_subjects.policy_area_name}</p>
+                <p>{data.bill_subjects.policy_area_name}</p>
               </CardContent>
             </Card>
           )}
