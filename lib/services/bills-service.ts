@@ -62,7 +62,7 @@ class BillsService {
           )
         `, { count: 'exact' })
         .order(field, { ascending: direction === 'asc' })
-        .filter('title', 'not.ilike', '%Reserved for the Speaker%')
+        .not('title', 'ilike', 'Reserved for the Speaker%')
         .range(offset, offset + limit - 1);
 
       // Apply filters
@@ -131,7 +131,7 @@ class BillsService {
             policy_area_name
           )
         `)
-        .filter('title', 'not.ilike', '%Reserved for the Speaker%')
+        .not('title', 'ilike', 'Reserved for the Speaker%')
         .order('latest_action_date', { ascending: false })
         .limit(3);
 
