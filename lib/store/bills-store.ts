@@ -90,9 +90,16 @@ export const useBillsStore = create<BillsState>((set, get) => ({
       const uniqueStages = ['all', ...new Set(progressData.map(bill => get().getProgressLabel(bill.progress_stage || 0)))];
       set({ uniqueStatuses: uniqueStages });
 
-      // For now, we'll use some predefined categories
-      const predefinedCategories = ['all', 'healthcare', 'education', 'environment', 'economy', 'defense'];
-      set({ uniqueTags: predefinedCategories });
+      // Fetch unique policy areas
+      const { data: policyData, error: policyError } = await supabase
+        .from('bill_subjects')
+        .select('policy_area_name')
+        .order('policy_area_name');
+
+      if (policyError) throw policyError;
+
+      const uniquePolicyAreas = ['all', ...new Set(policyData.map(subject => subject.policy_area_name))];
+      set({ uniqueTags: uniquePolicyAreas });
     } catch (error) {
       console.error('Error fetching unique values:', error);
     }
@@ -124,6 +131,9 @@ export const useBillsStore = create<BillsState>((set, get) => ({
             title,
             title_type,
             update_date
+          ),
+          bill_subjects (
+            policy_area_name
           )
         `)
         .order(field, { ascending: direction === 'asc' });
@@ -175,6 +185,11 @@ export const useBillsStore = create<BillsState>((set, get) => ({
           return latest;
         }, null);
 
+        // Extract the policy area from bill_subjects array
+        const policyArea = Array.isArray(bill.bill_subjects) && bill.bill_subjects.length > 0
+          ? { policy_area_name: bill.bill_subjects[0].policy_area_name }
+          : undefined;
+
         return {
           ...bill,
           congress: bill.congress,
@@ -182,7 +197,8 @@ export const useBillsStore = create<BillsState>((set, get) => ({
           bill_number: bill.bill_number,
           bill_type_label: bill.bill_type_label,
           title: latestTitle?.title || 'Untitled',
-          bill_titles: undefined
+          bill_titles: undefined,
+          bill_subjects: policyArea
         };
       });
       
@@ -227,6 +243,9 @@ export const useBillsStore = create<BillsState>((set, get) => ({
             title,
             title_type,
             update_date
+          ),
+          bill_subjects (
+            policy_area_name
           )
         `)
         .order('introduced_date', { ascending: false })
@@ -248,6 +267,11 @@ export const useBillsStore = create<BillsState>((set, get) => ({
           return latest;
         }, null);
 
+        // Extract the policy area from bill_subjects array
+        const policyArea = Array.isArray(bill.bill_subjects) && bill.bill_subjects.length > 0
+          ? { policy_area_name: bill.bill_subjects[0].policy_area_name }
+          : undefined;
+
         return {
           ...bill,
           congress: bill.congress,
@@ -255,7 +279,8 @@ export const useBillsStore = create<BillsState>((set, get) => ({
           bill_number: bill.bill_number,
           bill_type_label: bill.bill_type_label,
           title: latestTitle?.title || 'Untitled',
-          bill_titles: undefined
+          bill_titles: undefined,
+          bill_subjects: policyArea
         };
       });
 
