@@ -16,10 +16,15 @@ export async function GET() {
       }
     );
 
-    // Fetch all bills from the database
+    // Fetch all bills from the database with their subjects
     const { data, error } = await supabaseAdmin
       .from(BILL_INFO_TABLE_NAME)
-      .select('*')
+      .select(`
+        *,
+        bill_subjects (
+          policy_area_name
+        )
+      `)
       .order('introduced_date', { ascending: false });
 
     if (error) {
@@ -27,8 +32,10 @@ export async function GET() {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    console.log('Found bills:', data?.length || 0);
-    console.log('Sample bill:', data?.[0]);
+    // Log a sample bill to see its structure
+    if (data && data.length > 0) {
+      console.log('Sample bill with subjects:', JSON.stringify(data[0], null, 2));
+    }
 
     return NextResponse.json({ 
       success: true,

@@ -39,6 +39,9 @@ export interface BillInfo {
   progress_description?: string;
   created_at?: string;
   updated_at?: string;
+  bill_subjects?: {
+    policy_area_name: string;
+  } | null;
 }
 
 export const BILL_INFO_TABLE_NAME = 'bill_info'; 

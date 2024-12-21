@@ -16,7 +16,12 @@ async function getInitialBills() {
 
   const { data, error } = await supabaseAdmin
     .from(BILL_INFO_TABLE_NAME)
-    .select('*')
+    .select(`
+      *,
+      bill_subjects (
+        policy_area_name
+      )
+    `)
     .order('introduced_date', { ascending: false })
     .limit(10);
 

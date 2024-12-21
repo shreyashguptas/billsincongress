@@ -7,6 +7,8 @@ interface BillCardProps {
 }
 
 export function BillCard({ bill }: BillCardProps) {
+  const policyArea = bill.bill_subjects?.policy_area_name;
+
   return (
     <Link href={`/bills/${bill.id}`}>
       <Card className="w-full h-full hover:bg-accent transition-colors">
@@ -24,6 +26,9 @@ export function BillCard({ bill }: BillCardProps) {
               <p>Introduced: {new Date(bill.introduced_date).toLocaleDateString()}</p>
               {bill.latest_action_text && (
                 <p className="mt-2">Latest Action: {bill.latest_action_text}</p>
+              )}
+              {policyArea && (
+                <p className="mt-2 text-sm font-medium text-primary">Category: {policyArea}</p>
               )}
             </div>
           </div>
