@@ -1,21 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/client';
 import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { notFound } from 'next/navigation';
 
 async function getBillById(id: string) {
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      }
-    }
-  );
+  const supabase = createClient();
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from(BILL_INFO_TABLE_NAME)
     .select(`
       *,
@@ -34,11 +25,14 @@ async function getBillById(id: string) {
   return data;
 }
 
-export default async function BillPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+type Props = {
+  params: {
+    id: string;
+  };
+  searchParams: { [key: string]: string | string[] | undefined };
+};
+
+export default async function BillPage({ params, searchParams }: Props) {
   const bill = await getBillById(params.id);
 
   if (!bill) {

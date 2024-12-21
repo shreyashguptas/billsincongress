@@ -1,37 +1,69 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/utils/supabase/client';
 import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { BillCard } from '@/components/bills/bill-card';
 
 async function getInitialBills() {
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      }
+  console.log('Starting to fetch bills...');
+  console.log('Table name:', BILL_INFO_TABLE_NAME);
+  
+  const supabase = createClient();
+
+  try {
+    // First, let's check if we can count the total rows
+    const { count, error: countError } = await supabase
+      .from(BILL_INFO_TABLE_NAME)
+      .select('*', { count: 'exact', head: true });
+
+    console.log('Total rows in table:', count);
+    if (countError) {
+      console.error('Error counting rows:', countError);
     }
-  );
 
-  const { data, error } = await supabaseAdmin
-    .from(BILL_INFO_TABLE_NAME)
-    .select(`
-      *,
-      bill_subjects (
-        policy_area_name
-      )
-    `)
-    .order('introduced_date', { ascending: false })
-    .limit(10);
+    // Now try to fetch the actual data
+    const { data, error } = await supabase
+      .from(BILL_INFO_TABLE_NAME)
+      .select(`
+        id,
+        congress,
+        bill_type,
+        bill_number,
+        bill_type_label,
+        introduced_date,
+        title,
+        sponsor_first_name,
+        sponsor_last_name,
+        sponsor_party,
+        sponsor_state,
+        latest_action_code,
+        latest_action_date,
+        latest_action_text,
+        progress_stage,
+        progress_description
+      `)
+      .order('introduced_date', { ascending: false })
+      .limit(10);
 
-  if (error) {
-    console.error('Error fetching bills:', error);
+    if (error) {
+      console.error('Error fetching bills:', error.message);
+      console.error('Error details:', error);
+      return [];
+    }
+
+    console.log('Found bills:', data?.length || 0);
+    if (data?.length === 0) {
+      console.log('No bills found in the database. Please check if:');
+      console.log('1. The table exists and has the correct name');
+      console.log('2. There is data in the table');
+      console.log('3. The permissions are set correctly in Supabase');
+      console.log('4. RLS policies are configured correctly');
+    } else {
+      console.log('First bill data:', data[0]);
+    }
+    return data || [];
+  } catch (error) {
+    console.error('Unexpected error:', error);
     return [];
   }
-
-  console.log('Found bills:', data?.length || 0);
-  return data || [];
 }
 
 export default async function BillsPage() {
