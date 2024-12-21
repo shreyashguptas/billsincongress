@@ -1,85 +1,35 @@
-import { Bill } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { BillInfo } from '@/lib/types/BillInfo';
+import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 
 interface BillCardProps {
-  bill: Bill;
-  showSponsor?: boolean;
+  bill: BillInfo;
 }
 
-export function BillCard({ bill, showSponsor = true }: BillCardProps) {
-  // Fetch expanded bill type from database
-  const [expandedBillType, setExpandedBillType] = useState<string>('');
-
-  useEffect(() => {
-    async function fetchExpandedBillType() {
-      const { data } = await supabase
-        .from('bills')
-        .select('bill_type')
-        .eq('id', bill.id)
-        .single();
-      
-      if (data) {
-        setExpandedBillType(data.bill_type);
-      }
-    }
-    fetchExpandedBillType();
-  }, [bill.id]);
+export function BillCard({ bill }: BillCardProps) {
+  const policyArea = bill.bill_subjects?.policy_area_name;
 
   return (
-    <Link href={`/bills/${bill.id}`} className="block transition-transform hover:scale-[1.02]">
-      <Card className="h-full hover:shadow-lg transition-shadow">
-        <CardHeader>
-          <CardTitle className="text-base sm:text-lg">
-            {bill.title}
-          </CardTitle>
-          <div className="flex flex-wrap gap-2">
-            {bill.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Bill Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Bill Number</p>
-                <p className="text-sm sm:text-base font-medium">
-                  {expandedBillType} {bill.billNumber}
-                </p>
-              </div>
-              {showSponsor && (
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Sponsor</p>
-                  <p className="text-sm sm:text-base font-medium">{bill.sponsorName}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Status</p>
-                <p className="text-sm sm:text-base font-medium">{bill.status}</p>
-              </div>
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Last Updated</p>
-                <p className="text-sm sm:text-base font-medium">
-                  {new Date(bill.lastUpdated || '').toLocaleDateString()}
-                </p>
-              </div>
+    <Link href={`/bills/${bill.id}`}>
+      <Card className="w-full h-full hover:bg-accent transition-colors">
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{bill.bill_type_label} {bill.bill_number}</span>
+              <span className="text-sm text-muted-foreground">({bill.congress}th Congress)</span>
             </div>
-
-            {/* Progress */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs sm:text-sm">
-                <span>Progress</span>
-                <span>{bill.progress}%</span>
-              </div>
-              <Progress value={bill.progress} />
+            <h3 className="text-base font-medium line-clamp-3">
+              {bill.title}
+            </h3>
+            <div className="text-sm text-muted-foreground">
+              <p>Sponsored by: {bill.sponsor_first_name} {bill.sponsor_last_name} ({bill.sponsor_party}-{bill.sponsor_state})</p>
+              <p>Introduced: {new Date(bill.introduced_date).toLocaleDateString()}</p>
+              {bill.latest_action_text && (
+                <p className="mt-2">Latest Action: {bill.latest_action_text}</p>
+              )}
+              {policyArea && (
+                <p className="mt-2 text-sm font-medium text-primary">Category: {policyArea}</p>
+              )}
             </div>
           </div>
         </CardContent>

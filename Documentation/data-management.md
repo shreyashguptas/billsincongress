@@ -39,6 +39,11 @@ Primary table containing core bill information.
 | update_date_including_text | TIMESTAMP WITH TIME ZONE | Last update including text changes | "2024-06-11T15:57:35Z" |
 | created_at | TIMESTAMP WITH TIME ZONE | Record creation timestamp | Auto-generated |
 | updated_at | TIMESTAMP WITH TIME ZONE | Record update timestamp | Auto-generated |
+| latest_action_code | TEXT | The most recent action code from the bill's legislative history | "36000" |
+| latest_action_date | DATE | The date of the most recent action taken on the bill | "2024-06-11" |
+| latest_action_text | TEXT | A description of the most recent action taken on the bill | "Passed in House" |
+| progress_stage | INTEGER | The current stage of the bill in the legislative process | 60 |
+| progress_description | TEXT | A textual description of the bill's progress | "Passed First Chamber" |
 
 #### 2. Bill Actions (`bill_actions`)
 Contains all actions taken on a bill.
@@ -299,3 +304,161 @@ Contains different titles associated with bills.
 - Batch processing
 - Incremental Static Regeneration
 - Edge caching
+
+## Status Tracking System
+
+The bill status tracking system uses several components:
+
+1. **Action Codes**: Numeric codes in `bill_actions` table that indicate specific legislative actions (see action-codes.md for full list)
+
+2. **Progress Stages**:
+   - 20: Introduced
+   - 40: In Committee
+   - 60: Passed First Chamber
+   - 80: Passed Both Chambers
+   - 90: To President
+   - 100: Became Law
+   - -1: Failed
+
+3. **Automatic Updates**: 
+   - A database trigger on `bill_actions` automatically updates the status columns in `bill_info`
+   - When a new action is added, it updates:
+     - `latest_action_code`
+     - `latest_action_date`
+     - `latest_action_text`
+     - `progress_stage`
+     - `progress_description`
+
+4. **Status Calculation Logic**:
+   - Based on action codes from Congress.gov API
+   - Considers both chamber passage for accurate progress tracking
+   - Handles special cases like vetoes and failed passages
+
+## Data Relationships
+
+All tables have a one-to-many relationship with `bill_info` through the `id` column:
+- One bill can have many actions
+- One bill can have many titles
+- One bill can have many subjects
+- One bill can have many summaries
+- One bill can have many text versions
+
+## Caching and Data Fetching
+
+### Supabase Integration
+
+#### 1. Client Configuration
+```typescript
+// utils/supabase/client.ts
+export const createClient = () => {
+  return createSupabaseClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      fetch: (url, init) => {
+        const customInit = {
+          ...init,
+          next: { 
+            revalidate: 3600,
+            tags: ['bills']
+          }
+        };
+        if (!init?.cache) {
+          customInit.cache = 'force-cache';
+        }
+        return fetch(url, customInit);
+      }
+    }
+  });
+};
+```
+
+#### 2. Caching Strategy
+- **Default Cache**: Force-cache for all requests
+- **Cache Duration**: 1 hour (3600 seconds)
+- **Cache Tags**: 'bills' for bill-related data
+- **Cache Override**: Possible through init parameters
+
+#### 3. Server Components Integration
+```typescript
+// Example of cached data fetching in a server component
+const getCachedBillById = unstable_cache(
+  async (id: string) => {
+    'use server';
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('bill_info')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return data;
+  },
+  ['bill-detail'],
+  {
+    revalidate: 3600,
+    tags: ['bills']
+  }
+);
+```
+
+### Caching Patterns
+
+#### 1. List Pages
+- Cache entire result sets
+- Revalidate hourly
+- Use pagination metadata
+- Cache by query parameters
+
+#### 2. Detail Pages
+- Cache individual records
+- Dynamic route parameters
+- Related data caching
+- Nested relationship handling
+
+#### 3. Search Results
+- Cache common searches
+- Partial cache invalidation
+- Search parameter handling
+- Result set management
+
+### Performance Optimization
+
+#### 1. Query Optimization
+- Select specific columns
+- Use appropriate indexes
+- Optimize join operations
+- Handle pagination efficiently
+
+#### 2. Cache Management
+- Granular cache invalidation
+- Cache warming strategies
+- Memory usage optimization
+- Cache hit ratio monitoring
+
+#### 3. Error Handling
+- Graceful degradation
+- Fallback strategies
+- Error boundary implementation
+- Cache miss handling
+
+### Best Practices
+
+#### 1. Data Fetching
+- Use server components
+- Implement proper caching
+- Handle loading states
+- Manage error states
+
+#### 2. Cache Configuration
+- Set appropriate TTL
+- Use meaningful tags
+- Implement cache warming
+- Monitor cache performance
+
+#### 3. Performance Monitoring
+- Track cache hit rates
+- Monitor response times
+- Analyze query performance
+- Measure client impact

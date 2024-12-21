@@ -36,28 +36,45 @@ async function fetchBillActions(congress: number, billType: string, billNumber: 
 }
 
 function transformBillActions(data: BillActionsResponse, billId: string): BillAction[] {
-  return data.actions.map(action => ({
-    id: billId,
-    action_code: action.actionCode,
-    action_date: action.actionDate,
-    source_system_code: action.sourceSystem.code,
-    source_system_name: action.sourceSystem.name,
-    text: action.text,
-    type: action.type
-  }));
+  // Filter out actions without actionCode and deduplicate based on composite key
+  const uniqueActions = new Map<string, BillAction>();
+
+  data.actions.forEach(action => {
+    if (!action.actionCode) return; // Skip actions without actionCode
+
+    const key = `${billId}-${action.actionCode}-${action.actionDate}`;
+    if (!uniqueActions.has(key)) {
+      uniqueActions.set(key, {
+        id: billId,
+        action_code: action.actionCode,
+        action_date: action.actionDate,
+        source_system_code: action.sourceSystem.code,
+        source_system_name: action.sourceSystem.name,
+        text: action.text,
+        type: action.type
+      });
+    }
+  });
+
+  return Array.from(uniqueActions.values());
 }
 
 async function insertBillActions(actions: BillAction[]) {
   if (actions.length === 0) return;
 
-  const { error } = await supabaseAdmin
-    .from(BILL_ACTIONS_TABLE_NAME)
-    .upsert(actions, {
-      onConflict: 'id,action_code,action_date'
-    });
+  // Insert actions in batches to avoid conflicts
+  const batchSize = 50;
+  for (let i = 0; i < actions.length; i += batchSize) {
+    const batch = actions.slice(i, i + batchSize);
+    const { error } = await supabaseAdmin
+      .from(BILL_ACTIONS_TABLE_NAME)
+      .upsert(batch, {
+        onConflict: 'id,action_code,action_date'
+      });
 
-  if (error) {
-    throw new Error(`Failed to insert bill actions: ${error.message}`);
+    if (error) {
+      throw new Error(`Failed to insert bill actions: ${error.message}`);
+    }
   }
 }
 
@@ -74,6 +91,12 @@ async function main() {
         const billId = `${billNumber}${billType}${congress}`;
         const actionsData = await fetchBillActions(congress, billType, billNumber);
         const transformedActions = transformBillActions(actionsData, billId);
+        
+        if (transformedActions.length === 0) {
+          console.log(`No valid actions found for bill ${billNumber}`);
+          continue;
+        }
+
         await insertBillActions(transformedActions);
         console.log(`Successfully processed ${transformedActions.length} actions for bill ${billNumber}`);
       } catch (error) {

@@ -1,82 +1,73 @@
-import { BillsOverview } from '@/components/bills/bills-overview';
-import { BillsHeader } from '@/components/bills/bills-header';
-import { supabase } from '@/lib/supabase';
-import { Bill } from '@/lib/types';
-import { sharedViewport } from '../shared-metadata';
-import type { Viewport } from 'next';
+import { createClient } from '@/utils/supabase/server';
+import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
+import { BillCard } from '@/components/bills/bill-card';
+import { unstable_cache } from 'next/cache';
 
-export const viewport: Viewport = sharedViewport;
+// Cache the bills fetching function
+const getCachedBills = unstable_cache(
+  async () => {
+    const supabase = createClient();
 
-// Helper function to transform Supabase data to Bill type
-const transformBillData = (data: any): Bill => ({
-  id: data.id,
-  title: data.title,
-  congressNumber: data.congress_number,
-  billType: data.bill_type,
-  billNumber: data.bill_number,
-  sponsorName: data.sponsor_name,
-  sponsorState: data.sponsor_state,
-  sponsorParty: data.sponsor_party,
-  sponsorBioguideId: data.sponsor_bioguide_id,
-  committeeCount: data.committee_count,
-  latestActionText: data.latest_action_text,
-  latestActionDate: data.latest_action_date,
-  updateDate: data.update_date,
-  status: data.status,
-  progress: data.progress || 0,
-  summary: data.summary,
-  tags: Array.isArray(data.tags) ? data.tags : [],
-  aiSummary: data.ai_summary,
-  lastUpdated: data.last_updated,
-  voteCount: data.vote_count || {
-    yea: 0,
-    nay: 0,
-    present: 0,
-    notVoting: 0
+    try {
+      const { data, error } = await supabase
+        .from(BILL_INFO_TABLE_NAME)
+        .select(`
+          id,
+          congress,
+          bill_type,
+          bill_number,
+          bill_type_label,
+          introduced_date,
+          title,
+          sponsor_first_name,
+          sponsor_last_name,
+          sponsor_party,
+          sponsor_state,
+          latest_action_code,
+          latest_action_date,
+          latest_action_text,
+          progress_stage,
+          progress_description
+        `)
+        .order('introduced_date', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error fetching bills:', error.message);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      return [];
+    }
   },
-  originChamber: data.origin_chamber || '',
-  originChamberCode: data.origin_chamber_code || '',
-  congressGovUrl: data.congress_gov_url || '',
-  statusHistory: data.status_history || [],
-  lastStatusChange: data.last_status_change,
-  introducedDate: data.introduced_date || '',
-  constitutionalAuthorityText: data.constitutional_authority_text || '',
-  officialTitle: data.official_title || data.title,
-  shortTitle: data.short_title || '',
-  cosponsorsCount: data.cosponsors_count || 0,
-  billTextUrl: data.bill_text_url || null,
-  billPdfUrl: data.bill_pdf_url || null
-});
-
-async function getInitialBills() {
-  const { data, error } = await supabase
-    .from('bills')
-    .select('*')
-    .order('update_date', { ascending: false })
-    .range(0, 8);
-
-  if (error) {
-    console.error('Error fetching initial bills:', error);
-    return [];
+  ['bills-page'],
+  {
+    revalidate: 3600, // Cache for 1 hour
+    tags: ['bills']
   }
-
-  return data.map(transformBillData);
-}
+);
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 3600; // Revalidate the page every hour
 
 export default async function BillsPage() {
-  const initialBills = await getInitialBills();
+  const bills = await getCachedBills();
 
   return (
-    <div className="w-full bg-background">
-      <div className="container mx-auto px-4 py-8 md:py-12">
-        <div className="mx-auto max-w-[1200px] space-y-8">
-          <BillsHeader />
-          <BillsOverview initialBills={initialBills} />
+    <div className="container mx-auto py-8">
+      <h1 className="text-2xl font-bold mb-6">Latest Bills</h1>
+      {bills.length === 0 ? (
+        <p className="text-muted-foreground">No bills found.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {bills.map((bill) => (
+            <BillCard key={bill.id} bill={bill} />
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,23 +1,25 @@
 -- Create the bill_info table
 CREATE TABLE IF NOT EXISTS bill_info (
     id TEXT PRIMARY KEY,
-    introduced_date DATE NOT NULL,
-    sponsor_bioguide_id TEXT,
-    sponsor_district INTEGER,
-    sponsor_first_name TEXT,
-    sponsor_last_name TEXT,
-    sponsor_party TEXT,
-    sponsor_state TEXT,
-    sponsor_is_by_request TEXT,
-    update_date TIMESTAMP WITH TIME ZONE,
-    update_date_including_text TIMESTAMP WITH TIME ZONE,
+    congress INTEGER NOT NULL,
+    bill_type TEXT NOT NULL,
+    bill_number TEXT NOT NULL,
+    title TEXT NOT NULL,
+    title_without_number TEXT,
+    bill_type_label TEXT NOT NULL,
+    introduced_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    sponsor_first_name TEXT NOT NULL,
+    sponsor_last_name TEXT NOT NULL,
+    sponsor_party TEXT NOT NULL,
+    sponsor_state TEXT NOT NULL,
+    latest_action_code INTEGER,
+    latest_action_date TIMESTAMP WITH TIME ZONE,
+    latest_action_text TEXT,
+    progress_stage INTEGER,
+    progress_description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
-
--- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_bill_info_sponsor_bioguide_id ON bill_info(sponsor_bioguide_id);
-CREATE INDEX IF NOT EXISTS idx_bill_info_introduced_date ON bill_info(introduced_date);
 
 -- Enable Row Level Security
 ALTER TABLE bill_info ENABLE ROW LEVEL SECURITY;

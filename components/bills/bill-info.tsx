@@ -1,8 +1,8 @@
-import { Bill } from '@/lib/types';
+import type { BillInfo } from '@/lib/types/BillInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface BillInfoProps {
-  bill: Bill;
+  bill: BillInfo;
 }
 
 export function BillInfo({ bill }: BillInfoProps) {
@@ -11,31 +11,31 @@ export function BillInfo({ bill }: BillInfoProps) {
       <CardHeader>
         <CardTitle>Bill Information</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Bill Number</p>
-              <p className="font-medium">
-                {bill.billType} {bill.billNumber}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Congress</p>
-              <p className="font-medium">{bill.congressNumber}th Congress</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Origin Chamber</p>
-              <p className="font-medium">{bill.originChamber}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Latest Action Date</p>
-              <p className="font-medium">
-                {new Date(bill.latestActionDate || '').toLocaleDateString()}
-              </p>
-            </div>
-          </div>
+      <CardContent className="grid gap-4">
+        <div>
+          <p className="text-sm font-medium">Bill ID</p>
+          <p className="text-sm text-muted-foreground">{bill.id}</p>
         </div>
+        <div>
+          <p className="text-sm font-medium">Introduced Date</p>
+          <p className="text-sm text-muted-foreground">{bill.introduced_date}</p>
+        </div>
+        {bill.latest_action_text && (
+          <div>
+            <p className="text-sm font-medium">Latest Action</p>
+            <p className="text-sm text-muted-foreground">
+              {bill.latest_action_text} ({bill.latest_action_date})
+            </p>
+          </div>
+        )}
+        {bill.progress_description && (
+          <div>
+            <p className="text-sm font-medium">Progress</p>
+            <p className="text-sm text-muted-foreground">
+              {bill.progress_description}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

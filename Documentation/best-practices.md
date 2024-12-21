@@ -104,3 +104,72 @@ test: Add tests
 3. Keyboard navigation
 4. Color contrast
 5. Screen reader support
+
+## Caching Best Practices
+
+### 1. Server Component Caching
+- Use `unstable_cache` for data fetching operations
+- Implement appropriate cache keys and tags
+- Set reasonable revalidation periods
+- Handle cache invalidation properly
+
+Example:
+```typescript
+const getCachedData = unstable_cache(
+  async () => {
+    // Fetching logic
+  },
+  ['cache-key'],
+  { 
+    revalidate: 3600,
+    tags: ['data-tag']
+  }
+);
+```
+
+### 2. Dynamic Route Caching
+- Configure dynamic routes appropriately
+- Use proper params handling
+- Implement cache strategies for dynamic content
+- Handle cache invalidation for dynamic routes
+
+Example:
+```typescript
+// In dynamic route pages
+export const dynamic = 'error';
+export const dynamicParams = true;
+export const revalidate = 3600;
+```
+
+### 3. Supabase Integration
+- Configure Supabase client with proper caching
+- Handle authentication states
+- Implement error handling
+- Use appropriate cache settings
+
+Example:
+```typescript
+const supabaseClient = createClient({
+  global: {
+    fetch: (url, init) => {
+      const customInit = {
+        ...init,
+        next: { 
+          revalidate: 3600,
+          tags: ['bills']
+        }
+      };
+      if (!init?.cache) {
+        customInit.cache = 'force-cache';
+      }
+      return fetch(url, customInit);
+    }
+  }
+});
+```
+
+### 4. Cache Invalidation
+- Implement proper cache invalidation strategies
+- Use cache tags for granular control
+- Handle revalidation appropriately
+- Monitor cache performance

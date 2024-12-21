@@ -1,80 +1,109 @@
-import { NextResponse } from 'next/server';
-import { CongressApiService } from '@/lib/services/congress-api';
+import { NextRequest, NextResponse } from 'next/server';
 import { BillStorageService } from '@/lib/services/bill-storage';
-import { headers } from 'next/headers';
 
-// Configure the route for dynamic handling
-export const dynamic = 'force-dynamic';
+const CONGRESS_API_KEY = process.env.CONGRESS_API_KEY;
+const CONGRESS_API_URL = 'https://api.congress.gov/v3';
 
-export async function GET(request: Request) {
+async function fetchBillDetails(url: string): Promise<any> {
   try {
-    const headersList = headers();
-    const authToken = request.headers.get('x-sync-token');
-
-    // Check for sync token
-    if (!process.env.SYNC_AUTH_TOKEN || authToken !== process.env.SYNC_AUTH_TOKEN) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized: Sync token required' },
-        { status: 401 }
-      );
+    console.log('Fetching bill details from:', url);
+    const response = await fetch(`${url}&api_key=${CONGRESS_API_KEY}`);
+    if (!response.ok) {
+      console.error('Error fetching bill details:', response.status, response.statusText);
+      const text = await response.text();
+      console.error('Response body:', text);
+      throw new Error(`Failed to fetch bill details: ${response.statusText}`);
     }
 
-    // Verify environment variables
-    if (!process.env.CONGRESS_API_KEY) {
-      throw new Error('Congress API key is not configured');
-    }
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      throw new Error('Supabase configuration is missing');
+    const data = await response.json();
+    if (!data.bill) {
+      console.error('No bill data in response:', JSON.stringify(data, null, 2));
+      throw new Error('No bill data in response');
     }
 
-    console.log('Starting bill sync process...');
-    const congressApi = new CongressApiService();
-    const storage = new BillStorageService();
+    return data.bill;
+  } catch (error) {
+    console.error('Error in fetchBillDetails:', error);
+    throw error;
+  }
+}
 
-    // Get sync parameters from query
-    const url = new URL(request.url);
-    const limit = parseInt(url.searchParams.get('limit') || '10');
-    const congress = parseInt(url.searchParams.get('congress') || '0');
-
-    // Fetch bills from Congress API
-    console.log('Fetching bills from Congress API...');
-    const bills = await congressApi.fetchBills(limit, congress);
-    console.log(`Fetched ${bills.length} bills from Congress API`);
-
-    if (!bills || bills.length === 0) {
-      console.log('No bills were fetched from the API');
-      return NextResponse.json(
-        { success: false, message: 'No bills fetched from Congress API' },
-        { status: 404 }
-      );
+async function fetchBills(): Promise<any[]> {
+  try {
+    if (!CONGRESS_API_KEY) {
+      throw new Error('Congress API key not found');
     }
 
-    // Store bills in Supabase
-    console.log('Storing bills in Supabase...');
-    await storage.storeBills(bills);
-    console.log('Successfully stored bills in Supabase');
+    const url = `${CONGRESS_API_URL}/bill/118/hr?api_key=${CONGRESS_API_KEY}&limit=20&format=json`;
+    console.log('Fetching bills from:', url);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Bills synced successfully',
-      count: bills.length,
-      bills: bills
-    });
-  } catch (error: any) {
-    console.error('Detailed error:', {
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause
-    });
-    
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Failed to sync bills',
-        error: error.message,
-        details: error.stack
-      },
-      { status: 500 }
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error('Error fetching bills:', response.status, response.statusText);
+      const text = await response.text();
+      console.error('Response body:', text);
+      throw new Error(`Failed to fetch bills: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log('Fetched bills response:', JSON.stringify(data, null, 2));
+
+    if (!data.bills) {
+      throw new Error('No bills array in response');
+    }
+
+    // Fetch detailed information for each bill
+    const detailedBills = await Promise.all(
+      data.bills.map(async (bill: any) => {
+        try {
+          return await fetchBillDetails(bill.url);
+        } catch (error) {
+          console.error(`Error fetching details for bill ${bill.number}:`, error);
+          return null;
+        }
+      })
     );
+
+    const validBills = detailedBills.filter((bill): bill is any => bill !== null);
+    console.log(`Successfully fetched ${validBills.length} detailed bills`);
+    return validBills;
+  } catch (error) {
+    console.error('Error in fetchBills:', error);
+    throw error;
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    console.log('Starting bill sync...');
+    const bills = await fetchBills();
+    console.log(`Fetched ${bills.length} bills`);
+
+    const billStorage = new BillStorageService();
+    let savedCount = 0;
+
+    for (const bill of bills) {
+      try {
+        console.log('Saving bill:', bill.number);
+        await billStorage.saveBill(bill);
+        console.log('Successfully saved bill:', bill.number);
+        savedCount++;
+      } catch (error) {
+        console.error('Error saving bill:', bill.number, error);
+        // Continue with the next bill instead of throwing
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Successfully synced ${savedCount} bills out of ${bills.length} total`
+    });
+  } catch (error) {
+    console.error('Error in sync route:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      details: error instanceof Error ? error.stack : undefined
+    });
   }
 } 

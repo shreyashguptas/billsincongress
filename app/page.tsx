@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { FeaturedBills } from '@/components/featured-bills';
+import { FeaturedBills } from '@/components/bills/featured-bills';
 import { sharedViewport } from './shared-metadata';
 import type { Viewport } from 'next';
 
