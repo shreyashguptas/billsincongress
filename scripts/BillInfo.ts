@@ -68,19 +68,23 @@ function getOfficialTitle(titles: BillTitlesResponse): { title: string; titleWit
 }
 
 export function transformBillInfo(data: BillInfoResponse): BillInfo {
-  const billId = `${data.bill.congress}-${data.bill.type}-${data.bill.number}`;
-  const title = data.bill.title || '';
+  const bill = data.bill;
+  const billId = `${bill.number}${bill.type.toLowerCase()}${bill.congress}`;
 
   return {
     id: billId,
-    introduced_date: data.bill.introducedDate,
-    title: title,
-    sponsor_first_name: data.bill.sponsors[0]?.firstName,
-    sponsor_last_name: data.bill.sponsors[0]?.lastName,
-    sponsor_party: data.bill.sponsors[0]?.party,
-    sponsor_state: data.bill.sponsors[0]?.state,
-    latest_action_date: data.bill.updateDate,
-    latest_action_text: data.bill.updateDateIncludingText,
+    congress: bill.congress,
+    bill_type: bill.type.toLowerCase(),
+    bill_number: bill.number,
+    bill_type_label: getBillTypeLabel(bill.type.toLowerCase()),
+    introduced_date: bill.introducedDate,
+    title: bill.title || '',
+    sponsor_first_name: bill.sponsors[0]?.firstName || '',
+    sponsor_last_name: bill.sponsors[0]?.lastName || '',
+    sponsor_party: bill.sponsors[0]?.party || '',
+    sponsor_state: bill.sponsors[0]?.state || '',
+    latest_action_date: bill.updateDate,
+    latest_action_text: bill.updateDateIncludingText,
     progress_stage: 20, // Default to "Introduced" stage
     progress_description: 'Introduced'
   };

@@ -1,76 +1,49 @@
-import { BillsOverview } from '@/components/bills/bills-overview';
-import { BillsHeader } from '@/components/bills/bills-header';
-import { createClient } from '@/utils/supabase/server';
-import { BillInfo, BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
-import { sharedViewport } from '../shared-metadata';
-import type { Viewport } from 'next';
+import { createClient } from '@supabase/supabase-js';
+import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
+import { BillCard } from '@/components/bills/bill-card';
 
-export const viewport: Viewport = sharedViewport;
-
-async function getInitialBills(): Promise<BillInfo[]> {
-  console.log('Starting to fetch initial bills...');
-  const supabase = createClient();
-  
-  try {
-    // First, let's count how many bills we have
-    const { count, error: countError } = await supabase
-      .from(BILL_INFO_TABLE_NAME)
-      .select('*', { count: 'exact', head: true });
-
-    if (countError) {
-      console.error('Error counting bills:', countError);
-    } else {
-      console.log('Total bills in database:', count);
+async function getInitialBills() {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      }
     }
+  );
 
-    // Now fetch the actual bills
-    const { data, error } = await supabase
-      .from(BILL_INFO_TABLE_NAME)
-      .select(`
-        id,
-        introduced_date,
-        title,
-        sponsor_first_name,
-        sponsor_last_name,
-        sponsor_party,
-        sponsor_state,
-        latest_action_code,
-        latest_action_date,
-        latest_action_text,
-        progress_stage,
-        progress_description
-      `)
-      .order('introduced_date', { ascending: false })
-      .limit(9);
+  const { data, error } = await supabaseAdmin
+    .from(BILL_INFO_TABLE_NAME)
+    .select('*')
+    .order('introduced_date', { ascending: false })
+    .limit(10);
 
-    if (error) {
-      console.error('Error fetching initial bills:', error);
-      return [];
-    }
-
-    console.log('Fetched bills:', data);
-    return data || [];
-  } catch (error) {
-    console.error('Unexpected error in getInitialBills:', error);
+  if (error) {
+    console.error('Error fetching bills:', error);
     return [];
   }
+
+  console.log('Found bills:', data?.length || 0);
+  return data || [];
 }
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 export default async function BillsPage() {
-  const initialBills = await getInitialBills();
-  console.log('Initial bills:', initialBills); // Debug log
+  const bills = await getInitialBills();
 
   return (
-    <div className="w-full bg-background">
-      <div className="container mx-auto px-4 py-8 md:py-12">
-        <div className="mx-auto max-w-[1200px] space-y-8">
-          <BillsHeader />
-          <BillsOverview initialBills={initialBills} />
+    <div className="container mx-auto py-8">
+      <h1 className="text-2xl font-bold mb-6">Latest Bills</h1>
+      {bills.length === 0 ? (
+        <p className="text-muted-foreground">No bills found.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {bills.map((bill) => (
+            <BillCard key={bill.id} bill={bill} />
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }

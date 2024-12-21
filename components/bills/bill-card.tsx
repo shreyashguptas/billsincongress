@@ -11,17 +11,22 @@ export function BillCard({ bill }: BillCardProps) {
     <Link href={`/bills/${bill.id}`}>
       <Card className="w-full h-full hover:bg-accent transition-colors">
         <CardContent className="p-6">
-          <p className="text-sm text-muted-foreground mb-2">
-            {bill.id}
-          </p>
-          <p className="text-base font-medium line-clamp-3">
-            {bill.title}
-          </p>
-          {bill.latest_action_text && (
-            <p className="text-sm text-muted-foreground mt-2">
-              Latest Action: {bill.latest_action_text}
-            </p>
-          )}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{bill.bill_type_label} {bill.bill_number}</span>
+              <span className="text-sm text-muted-foreground">({bill.congress}th Congress)</span>
+            </div>
+            <h3 className="text-base font-medium line-clamp-3">
+              {bill.title}
+            </h3>
+            <div className="text-sm text-muted-foreground">
+              <p>Sponsored by: {bill.sponsor_first_name} {bill.sponsor_last_name} ({bill.sponsor_party}-{bill.sponsor_state})</p>
+              <p>Introduced: {new Date(bill.introduced_date).toLocaleDateString()}</p>
+              {bill.latest_action_text && (
+                <p className="mt-2">Latest Action: {bill.latest_action_text}</p>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
     </Link>
