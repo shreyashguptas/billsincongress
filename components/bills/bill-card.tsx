@@ -11,19 +11,6 @@ interface BillCardProps {
 export function BillCard({ bill }: BillCardProps) {
   const policyArea = bill.bill_subjects?.policy_area_name;
   const progressStage = bill.progress_stage || 0;
-
-  // Debug logging
-  console.log('BillCard render:', {
-    id: bill.id,
-    title: bill.title,
-    policyArea,
-    bill_subjects: bill.bill_subjects,
-    hasSubjects: bill.bill_subjects != null,
-    hasPolicyArea: policyArea != null,
-    policyAreaType: typeof policyArea,
-    rawBill: bill
-  });
-
   const shouldShowBadge = policyArea != null && policyArea !== '' && typeof policyArea === 'string';
 
   return (
