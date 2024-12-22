@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { BillSubject, BillSubjectsResponse, BILL_SUBJECTS_TABLE_NAME } from '../lib/types/BillSubjects';
+import { BillSubjectsResponse, BILL_SUBJECTS_TABLE_NAME } from '../lib/types/BillSubjects';
 import dotenv from 'dotenv';
 import path from 'path';
 import { getSupabaseConfig } from '../lib/utils/supabase/config';
@@ -84,49 +84,19 @@ async function fetchBillSubjects(congress: number, billType: string, billNumber:
   }
 }
 
-function transformBillSubjects(data: BillSubjectsResponse, billId: string): BillSubject[] {
-  const subjects: BillSubject[] = [];
-
-  // Add policy area if it exists
-  if (data.subjects.policyArea?.name) {
-    subjects.push({
-      id: billId,
-      name: data.subjects.policyArea.name,
-      source_system_code: 'POLICY_AREA',
-      source_system_name: 'Policy Area',
-      update_date: data.subjects.policyArea.updateDate
-    });
-  }
-
-  // Add legislative subjects
-  if (data.subjects.legislativeSubjects) {
-    data.subjects.legislativeSubjects.forEach((subject: { name: string; updateDate: string }) => {
-      if (subject.name) {
-        subjects.push({
-          id: billId,
-          name: subject.name,
-          source_system_code: 'LEGISLATIVE_SUBJECT',
-          source_system_name: 'Legislative Subject',
-          update_date: subject.updateDate
-        });
-      }
-    });
-  }
-
-  return subjects;
-}
-
-async function insertBillSubjects(subjects: BillSubject[]) {
-  if (subjects.length === 0) return;
-
+async function updateBillPolicyArea(billId: string, policyAreaName: string, updateDate: string) {
   const { error } = await supabaseAdmin
     .from(BILL_SUBJECTS_TABLE_NAME)
-    .upsert(subjects, {
-      onConflict: 'id,name'
+    .upsert({
+      id: billId,
+      policy_area_name: policyAreaName,
+      policy_area_update_date: updateDate
+    }, {
+      onConflict: 'id'
     });
 
   if (error) {
-    throw new Error(`Failed to insert bill subjects: ${error.message}`);
+    throw new Error(`Failed to update policy area: ${error.message}`);
   }
 }
 
@@ -150,17 +120,20 @@ async function processBillType(congress: number, billType: string) {
       for (const bill of bills) {
         const billNumber = bill.number.toString();
         try {
-          console.log(`Processing subjects for ${billType.toUpperCase()} ${billNumber}...`);
+          console.log(`Processing policy area for ${billType.toUpperCase()} ${billNumber}...`);
           
           const billId = `${billNumber}${billType}${congress}`;
           const subjectsData = await fetchBillSubjects(congress, billType, billNumber);
-          const transformedSubjects = transformBillSubjects(subjectsData, billId);
           
-          if (transformedSubjects.length > 0) {
-            await insertBillSubjects(transformedSubjects);
-            console.log(`Successfully processed ${transformedSubjects.length} subjects for ${billType.toUpperCase()} ${billNumber}`);
+          if (subjectsData.subjects.policyArea?.name) {
+            await updateBillPolicyArea(
+              billId, 
+              subjectsData.subjects.policyArea.name,
+              subjectsData.subjects.policyArea.updateDate
+            );
+            console.log(`Successfully updated policy area for ${billType.toUpperCase()} ${billNumber}: ${subjectsData.subjects.policyArea.name}`);
           } else {
-            console.log(`No subjects found for ${billType.toUpperCase()} ${billNumber}`);
+            console.log(`No policy area found for ${billType.toUpperCase()} ${billNumber}`);
           }
           
           totalProcessed++;
@@ -185,7 +158,7 @@ async function processBillType(congress: number, billType: string) {
     }
   }
 
-  console.log(`\nCompleted processing subjects for ${totalProcessed} ${billType.toUpperCase()} bills`);
+  console.log(`\nCompleted processing policy areas for ${totalProcessed} ${billType.toUpperCase()} bills`);
 }
 
 async function main() {
