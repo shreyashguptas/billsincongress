@@ -85,15 +85,22 @@ export const billsService = {
     }
 
     if (sponsorFilter) {
-      const names = sponsorFilter.trim().split(/\s+/);
-      if (names.length > 1) {
-        const firstName = names[0];
-        const lastNamePattern = names.slice(1).join(' ');
-        query = query
-          .eq('sponsor_first_name', firstName)
-          .ilike('sponsor_last_name', `%${lastNamePattern}%`);
-      } else {
-        query = query.or(`sponsor_first_name.ilike.%${sponsorFilter}%,sponsor_last_name.ilike.%${sponsorFilter}%`);
+      const cleanedFilter = sponsorFilter.trim().toLowerCase().replace(/\s+/g, ' ');
+      
+      if (cleanedFilter) {
+        const names = cleanedFilter.split(' ').filter(part => part.length > 0);
+        
+        if (names.length > 1) {
+          const conditions = names.map(name => 
+            `sponsor_first_name.ilike.%${name}%,sponsor_last_name.ilike.%${name}%`
+          ).join(',');
+          
+          query = query.or(conditions);
+        } else if (names.length === 1) {
+          query = query.or(
+            `sponsor_first_name.ilike.%${names[0]}%,sponsor_last_name.ilike.%${names[0]}%`
+          );
+        }
       }
     }
 
