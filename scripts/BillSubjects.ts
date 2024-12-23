@@ -85,6 +85,24 @@ async function fetchBillSubjects(congress: number, billType: string, billNumber:
 }
 
 async function updateBillPolicyArea(billId: string, policyAreaName: string, updateDate: string) {
+  // First check if we need to update
+  const { data: existingData, error: fetchError } = await supabaseAdmin
+    .from(BILL_SUBJECTS_TABLE_NAME)
+    .select('policy_area_update_date')
+    .eq('id', billId)
+    .single();
+
+  if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found" error
+    throw new Error(`Failed to check existing policy area: ${fetchError.message}`);
+  }
+
+  // If record exists and update date is not newer, skip update
+  if (existingData && existingData.policy_area_update_date >= updateDate) {
+    console.log(`Skipping update for ${billId} - existing data is current or newer`);
+    return;
+  }
+
+  // Perform upsert if data is new or newer
   const { error } = await supabaseAdmin
     .from(BILL_SUBJECTS_TABLE_NAME)
     .upsert({

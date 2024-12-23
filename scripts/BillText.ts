@@ -97,14 +97,41 @@ function transformBillText(data: BillTextResponse, billId: string): BillText[] {
 async function insertBillText(texts: BillText[]) {
   if (texts.length === 0) return;
 
-  const { error } = await supabaseAdmin
-    .from(BILL_TEXT_TABLE_NAME)
-    .upsert(texts, {
-      onConflict: 'id,date,type'
-    });
+  // Process each text version individually to check dates
+  for (const text of texts) {
+    // Check if we already have this text version
+    const { data: existingData, error: fetchError } = await supabaseAdmin
+      .from(BILL_TEXT_TABLE_NAME)
+      .select('date')
+      .eq('id', text.id)
+      .eq('date', text.date)
+      .eq('type', text.type)
+      .single();
 
-  if (error) {
-    throw new Error(`Failed to insert bill text: ${error.message}`);
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error(`Failed to check existing text version: ${fetchError.message}`);
+      continue;
+    }
+
+    // If record exists, skip update since bill text versions are immutable
+    if (existingData) {
+      console.log(`Skipping text version for ${text.id} date ${text.date} type ${text.type} - version already exists`);
+      continue;
+    }
+
+    // Insert new text version
+    const { error } = await supabaseAdmin
+      .from(BILL_TEXT_TABLE_NAME)
+      .upsert(text, {
+        onConflict: 'id,date,type'
+      });
+
+    if (error) {
+      console.error(`Failed to insert text version for ${text.id} date ${text.date} type ${text.type}: ${error.message}`);
+      continue;
+    }
+
+    console.log(`Successfully inserted text version for ${text.id} date ${text.date} type ${text.type}`);
   }
 }
 

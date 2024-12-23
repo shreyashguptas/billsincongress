@@ -111,19 +111,41 @@ function transformBillActions(data: BillActionsResponse, billId: string): BillAc
 async function insertBillActions(actions: BillAction[]) {
   if (actions.length === 0) return;
 
-  // Insert actions in batches to avoid conflicts
-  const batchSize = 50;
-  for (let i = 0; i < actions.length; i += batchSize) {
-    const batch = actions.slice(i, i + batchSize);
+  // Process each action individually to check update dates
+  for (const action of actions) {
+    // Check if we already have this action
+    const { data: existingData, error: fetchError } = await supabaseAdmin
+      .from(BILL_ACTIONS_TABLE_NAME)
+      .select('update_date')
+      .eq('id', action.id)
+      .eq('action_date', action.action_date)
+      .eq('action_code', action.action_code)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error(`Failed to check existing action: ${fetchError.message}`);
+      continue;
+    }
+
+    // If record exists and update date is not newer, skip update
+    if (existingData && existingData.update_date >= action.update_date) {
+      console.log(`Skipping update for action ${action.id} date ${action.action_date} code ${action.action_code} - existing data is current or newer`);
+      continue;
+    }
+
+    // Perform upsert if data is new or newer
     const { error } = await supabaseAdmin
       .from(BILL_ACTIONS_TABLE_NAME)
-      .upsert(batch, {
-        onConflict: 'id,action_code,action_date'
+      .upsert(action, {
+        onConflict: 'id,action_date,action_code'
       });
 
     if (error) {
-      throw new Error(`Failed to insert bill actions: ${error.message}`);
+      console.error(`Failed to update action for ${action.id} date ${action.action_date} code ${action.action_code}: ${error.message}`);
+      continue;
     }
+
+    console.log(`Successfully updated action for ${action.id} date ${action.action_date} code ${action.action_code}`);
   }
 }
 

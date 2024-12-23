@@ -98,14 +98,40 @@ function transformBillSummaries(data: BillSummariesResponse, billId: string): Bi
 async function insertBillSummaries(summaries: BillSummary[]) {
   if (summaries.length === 0) return;
 
-  const { error } = await supabaseAdmin
-    .from(BILL_SUMMARIES_TABLE_NAME)
-    .upsert(summaries, {
-      onConflict: 'id,version_code'
-    });
+  // Process each summary individually to check update dates
+  for (const summary of summaries) {
+    // Check if we already have this summary version
+    const { data: existingData, error: fetchError } = await supabaseAdmin
+      .from(BILL_SUMMARIES_TABLE_NAME)
+      .select('update_date')
+      .eq('id', summary.id)
+      .eq('version_code', summary.version_code)
+      .single();
 
-  if (error) {
-    throw new Error(`Failed to insert bill summaries: ${error.message}`);
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error(`Failed to check existing summary: ${fetchError.message}`);
+      continue;
+    }
+
+    // If record exists and update date is not newer, skip update
+    if (existingData && existingData.update_date >= summary.update_date) {
+      console.log(`Skipping update for ${summary.id} version ${summary.version_code} - existing data is current or newer`);
+      continue;
+    }
+
+    // Perform upsert if data is new or newer
+    const { error } = await supabaseAdmin
+      .from(BILL_SUMMARIES_TABLE_NAME)
+      .upsert(summary, {
+        onConflict: 'id,version_code'
+      });
+
+    if (error) {
+      console.error(`Failed to update summary for ${summary.id} version ${summary.version_code}: ${error.message}`);
+      continue;
+    }
+
+    console.log(`Successfully updated summary for ${summary.id} version ${summary.version_code}`);
   }
 }
 
@@ -129,7 +155,7 @@ async function processBillType(congress: number, billType: string) {
       for (const bill of bills) {
         const billNumber = bill.number.toString();
         try {
-          console.log(`Processing summaries for ${billType.toUpperCase()} ${billNumber}...`);
+          console.log(`\nProcessing summaries for ${billType.toUpperCase()} ${billNumber}...`);
           
           const billId = `${billNumber}${billType}${congress}`;
           const summariesData = await fetchBillSummaries(congress, billType, billNumber);
@@ -137,7 +163,7 @@ async function processBillType(congress: number, billType: string) {
           
           if (transformedSummaries.length > 0) {
             await insertBillSummaries(transformedSummaries);
-            console.log(`Successfully processed ${transformedSummaries.length} summaries for ${billType.toUpperCase()} ${billNumber}`);
+            console.log(`Finished processing ${transformedSummaries.length} summaries for ${billType.toUpperCase()} ${billNumber}`);
           } else {
             console.log(`No summaries found for ${billType.toUpperCase()} ${billNumber}`);
           }

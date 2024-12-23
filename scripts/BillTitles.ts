@@ -101,14 +101,41 @@ function transformBillTitles(data: BillTitlesResponse, billId: string): BillTitl
 async function insertBillTitles(titles: BillTitle[]) {
   if (titles.length === 0) return;
 
-  const { error } = await supabaseAdmin
-    .from(BILL_TITLES_TABLE_NAME)
-    .upsert(titles, {
-      onConflict: 'id,title_type_code,title'
-    });
+  // Process each title individually to check update dates
+  for (const title of titles) {
+    // Check if we already have this title version
+    const { data: existingData, error: fetchError } = await supabaseAdmin
+      .from(BILL_TITLES_TABLE_NAME)
+      .select('update_date')
+      .eq('id', title.id)
+      .eq('title_type_code', title.title_type_code)
+      .eq('title', title.title)
+      .single();
 
-  if (error) {
-    throw new Error(`Failed to insert bill titles: ${error.message}`);
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error(`Failed to check existing title: ${fetchError.message}`);
+      continue;
+    }
+
+    // If record exists and update date is not newer, skip update
+    if (existingData && existingData.update_date >= title.update_date) {
+      console.log(`Skipping update for ${title.id} title type ${title.title_type} - existing data is current or newer`);
+      continue;
+    }
+
+    // Perform upsert if data is new or newer
+    const { error } = await supabaseAdmin
+      .from(BILL_TITLES_TABLE_NAME)
+      .upsert(title, {
+        onConflict: 'id,title_type_code,title'
+      });
+
+    if (error) {
+      console.error(`Failed to update title for ${title.id} title type ${title.title_type}: ${error.message}`);
+      continue;
+    }
+
+    console.log(`Successfully updated title for ${title.id} title type ${title.title_type}`);
   }
 }
 

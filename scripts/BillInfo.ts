@@ -162,15 +162,42 @@ function getBillTypeLabel(type: string): string {
   return labels[type.toLowerCase()] || type;
 }
 
-async function insertBillInfo(info: BillInfo) {
-  const { error } = await supabaseAdmin
-    .from(BILL_INFO_TABLE_NAME)
-    .upsert(info, {
-      onConflict: 'id'
-    });
+async function insertBillInfo(bills: BillInfo[]) {
+  if (bills.length === 0) return;
 
-  if (error) {
-    throw new Error(`Failed to insert bill info: ${error.message}`);
+  // Process each bill individually to check update dates
+  for (const bill of bills) {
+    // Check if we already have this bill version
+    const { data: existingData, error: fetchError } = await supabaseAdmin
+      .from(BILL_INFO_TABLE_NAME)
+      .select('update_date')
+      .eq('id', bill.id)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error(`Failed to check existing bill info: ${fetchError.message}`);
+      continue;
+    }
+
+    // If record exists and update date is not newer, skip update
+    if (existingData && existingData.update_date >= bill.update_date) {
+      console.log(`Skipping update for bill ${bill.id} - existing data is current or newer`);
+      continue;
+    }
+
+    // Perform upsert if data is new or newer
+    const { error } = await supabaseAdmin
+      .from(BILL_INFO_TABLE_NAME)
+      .upsert(bill, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      console.error(`Failed to update bill info for ${bill.id}: ${error.message}`);
+      continue;
+    }
+
+    console.log(`Successfully updated bill info for ${bill.id}`);
   }
 }
 
