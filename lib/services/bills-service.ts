@@ -32,6 +32,7 @@ export interface BillQueryParams {
   lastActionDateFilter?: string;
   sponsorFilter?: string;
   stateFilter?: string;
+  policyArea?: string;
 }
 
 export interface BillsResponse {
@@ -56,26 +57,15 @@ export const billsService = {
       lastActionDateFilter = 'all',
       sponsorFilter = '',
       stateFilter = 'all',
+      policyArea = 'all',
     } = params;
 
     const supabase = this.getClient();
     let query = supabase
       .from(BILL_INFO_TABLE_NAME)
       .select(`
-        id,
-        congress,
-        bill_type,
-        bill_number,
-        bill_type_label,
-        introduced_date,
-        title,
-        sponsor_first_name,
-        sponsor_last_name,
-        sponsor_party,
-        sponsor_state,
-        progress_stage,
-        progress_description,
-        bill_subjects (
+        *,
+        bill_subjects${policyArea !== 'all' ? '!inner' : ''} (
           policy_area_name
         )
       `, { count: 'exact' });
@@ -111,6 +101,10 @@ export const billsService = {
       query = query.eq('sponsor_state', stateFilter);
     }
 
+    if (policyArea !== 'all') {
+      query = query.eq('bill_subjects.policy_area_name', policyArea);
+    }
+
     const start = (page - 1) * itemsPerPage;
     query = query
       .order('introduced_date', { ascending: false })
@@ -125,7 +119,7 @@ export const billsService = {
 
     const transformedData = (data || []).map(bill => ({
       ...bill,
-      bill_subjects: bill.bill_subjects?.[0] || undefined
+      bill_subjects: bill.bill_subjects?.[0] || { policy_area_name: '' }
     }));
 
     return {

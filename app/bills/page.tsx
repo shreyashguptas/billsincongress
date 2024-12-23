@@ -30,6 +30,7 @@ export default function BillsPage() {
   const [lastActionDateFilter, setLastActionDateFilter] = useState('all');
   const [sponsorFilter, setSponsorFilter] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
+  const [policyAreaFilter, setPolicyAreaFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +43,7 @@ export default function BillsPage() {
     setLastActionDateFilter('all');
     setSponsorFilter('');
     setStateFilter('all');
+    setPolicyAreaFilter('all');
     setCurrentPage(1);
     setBills([]);
   };
@@ -59,6 +61,7 @@ export default function BillsPage() {
         lastActionDateFilter: lastActionDateFilter,
         sponsorFilter: debouncedSponsorFilter,
         stateFilter: stateFilter,
+        policyArea: policyAreaFilter,
       });
       setBills(prevBills => [...prevBills, ...response.data]);
       setTotalBills(response.count);
@@ -85,6 +88,7 @@ export default function BillsPage() {
           lastActionDateFilter: lastActionDateFilter,
           sponsorFilter: debouncedSponsorFilter,
           stateFilter: stateFilter,
+          policyArea: policyAreaFilter,
         });
         setBills(response.data);
         setTotalBills(response.count);
@@ -99,7 +103,7 @@ export default function BillsPage() {
     };
 
     fetchBills();
-  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, stateFilter]);
+  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, stateFilter, policyAreaFilter]);
 
   const hasMoreBills = bills.length < totalBills;
 
@@ -120,11 +124,13 @@ export default function BillsPage() {
             lastActionDateFilter={lastActionDateFilter}
             sponsorFilter={sponsorFilter}
             stateFilter={stateFilter}
+            policyAreaFilter={policyAreaFilter}
             onStatusChange={setStatusFilter}
             onIntroducedDateChange={setIntroducedDateFilter}
             onLastActionDateChange={setLastActionDateFilter}
             onSponsorChange={setSponsorFilter}
             onStateChange={setStateFilter}
+            onPolicyAreaChange={setPolicyAreaFilter}
             onClearAllFilters={handleClearAllFilters}
           />
         </div>

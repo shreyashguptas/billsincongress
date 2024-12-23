@@ -11,6 +11,43 @@ import {
 import { Input } from '@/components/ui/input';
 import dynamic from 'next/dynamic';
 
+// Map of policy areas
+const POLICY_AREAS = [
+  'Agriculture and Food',
+  'Animals',
+  'Armed Forces and National Security',
+  'Arts, Culture, Religion',
+  'Civil Rights and Liberties, Minority Issues',
+  'Commerce',
+  'Congress',
+  'Crime and Law Enforcement',
+  'Economics and Public Finance',
+  'Education',
+  'Emergency Management',
+  'Energy',
+  'Environmental Protection',
+  'Families',
+  'Finance and Financial Sector',
+  'Foreign Trade and International Finance',
+  'Government Operations and Politics',
+  'Health',
+  'Housing and Community Development',
+  'Immigration',
+  'International Affairs',
+  'Labor and Employment',
+  'Law',
+  'Native Americans',
+  'Private Legislation',
+  'Public Lands and Natural Resources',
+  'Science, Technology, Communications',
+  'Social Sciences and History',
+  'Social Welfare',
+  'Sports and Recreation',
+  'Taxation',
+  'Transportation and Public Works',
+  'Water Resources Development'
+];
+
 // Map of state abbreviations to full names
 const STATE_NAMES: { [key: string]: string } = {
   'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
@@ -34,11 +71,13 @@ interface BillsFilterProps {
   lastActionDateFilter: string;
   sponsorFilter: string;
   stateFilter: string;
+  policyAreaFilter: string;
   onStatusChange: (value: string) => void;
   onIntroducedDateChange: (value: string) => void;
   onLastActionDateChange: (value: string) => void;
   onSponsorChange: (value: string) => void;
   onStateChange: (value: string) => void;
+  onPolicyAreaChange: (value: string) => void;
   onClearAllFilters: () => void;
 }
 
@@ -48,11 +87,13 @@ function BillsFilter({
   lastActionDateFilter,
   sponsorFilter,
   stateFilter,
+  policyAreaFilter,
   onStatusChange,
   onIntroducedDateChange,
   onLastActionDateChange,
   onSponsorChange,
   onStateChange,
+  onPolicyAreaChange,
   onClearAllFilters,
 }: BillsFilterProps) {
   const hasActiveFilters = 
@@ -60,10 +101,27 @@ function BillsFilter({
     introducedDateFilter !== 'all' ||
     lastActionDateFilter !== 'all' ||
     sponsorFilter !== '' ||
-    stateFilter !== 'all';
+    stateFilter !== 'all' ||
+    policyAreaFilter !== 'all';
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:flex-wrap">
+      <div className="flex items-center gap-2">
+        <Select value={policyAreaFilter} onValueChange={onPolicyAreaChange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Categories" />
+          </SelectTrigger>
+          <SelectContent className="max-h-[300px] overflow-y-auto">
+            <SelectItem value="all">All Categories</SelectItem>
+            {POLICY_AREAS.map((area) => (
+              <SelectItem key={area} value={area}>
+                {area}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex items-center gap-2">
         <Select value={statusFilter} onValueChange={onStatusChange}>
           <SelectTrigger className="w-[180px]">
