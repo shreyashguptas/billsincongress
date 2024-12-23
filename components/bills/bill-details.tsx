@@ -5,47 +5,51 @@ import type { Bill } from '@/lib/types/bill';
 import { useEffect, useState } from 'react';
 
 // Map of state abbreviations to full names
-const STATE_NAMES: { [key: string]: string } = {
-  'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
-  'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
-  'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho',
-  'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas',
-  'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
-  'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
-  'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada',
-  'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York',
-  'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma',
-  'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
-  'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah',
-  'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
-  'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'District of Columbia'
-};
+const STATE_NAMES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas',
+  CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
+  FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
+  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas',
+  KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
+  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada',
+  NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York',
+  NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma',
+  OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
+  VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia',
+  WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia'
+} as const;
 
 // Map of party abbreviations to full names
-const PARTY_NAMES: { [key: string]: string } = {
-  'R': 'Republican',
-  'D': 'Democrat',
-  'I': 'Independent'
-};
+const PARTY_NAMES: Record<string, string> = {
+  R: 'Republican',
+  D: 'Democrat',
+  I: 'Independent'
+} as const;
 
 interface BillDetailsProps {
   bill: Bill;
 }
 
 export default function BillDetails({ bill }: BillDetailsProps) {
-  const [summary, setSummary] = useState(bill.latest_summary || 'No summary available.');
+  const [summary, setSummary] = useState<string>(bill.latest_summary || 'No summary available.');
   
   useEffect(() => {
-    // Only strip HTML on the client side after initial render
-    if (bill.latest_summary) {
-      const tmp = document.createElement('div');
-      tmp.innerHTML = bill.latest_summary;
-      setSummary(tmp.textContent || tmp.innerText || 'No summary available.');
+    try {
+      if (bill.latest_summary) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = bill.latest_summary;
+        setSummary(tmp.textContent || tmp.innerText || 'No summary available.');
+      }
+    } catch (error: unknown) {
+      console.error('Error parsing bill summary:', error);
+      setSummary('Error loading summary.');
     }
   }, [bill.latest_summary]);
 
   // Calculate progress percentage based on status
-  const getProgressPercentage = (status: string) => {
+  const getProgressPercentage = (status: string): number => {
     const stages = [
       'Introduced',
       'In Committee',
@@ -54,14 +58,14 @@ export default function BillDetails({ bill }: BillDetailsProps) {
       'To President',
       'Signed by President',
       'Became Law'
-    ];
-    const currentIndex = stages.indexOf(status);
+    ] as const;
+    const currentIndex = stages.indexOf(status as typeof stages[number]);
     return currentIndex >= 0 ? ((currentIndex + 1) / stages.length) * 100 : 0;
   };
 
   const progressPercentage = getProgressPercentage(bill.progress_description);
-  const stateName = STATE_NAMES[bill.sponsor_state] || bill.sponsor_state;
-  const partyName = PARTY_NAMES[bill.sponsor_party] || bill.sponsor_party;
+  const stateName = STATE_NAMES[bill.sponsor_state as keyof typeof STATE_NAMES] || bill.sponsor_state;
+  const partyName = PARTY_NAMES[bill.sponsor_party as keyof typeof PARTY_NAMES] || bill.sponsor_party;
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-5xl">
@@ -86,7 +90,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             <span className="text-muted-foreground">{progressPercentage.toFixed(0)}%</span>
           </div>
           <div className="w-full bg-secondary rounded-full h-4 overflow-hidden">
-            <div 
+            <div
               className="h-full bg-primary transition-all duration-500 ease-in-out rounded-full"
               style={{ width: `${progressPercentage}%` }}
             />
@@ -132,8 +136,8 @@ export default function BillDetails({ bill }: BillDetailsProps) {
 
       {/* Additional Details */}
       <div className="mt-8 flex justify-end">
-        <Link 
-          href="/bills" 
+        <Link
+          href="/bills"
           className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4"
         >
           Back to Bills
