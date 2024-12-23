@@ -83,10 +83,24 @@ export const billsService = {
       console.error('Error fetching summary:', summaryError);
     }
 
+    // Fetch latest PDF URL
+    const { data: textData, error: textError } = await supabase
+      .from('bill_text')
+      .select('formats_url_pdf')
+      .eq('id', id)
+      .order('date', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (textError && textError.code !== 'PGRST116') {
+      console.error('Error fetching bill text:', textError);
+    }
+
     return {
       ...billData,
       bill_subjects: billData.bill_subjects?.[0] || { policy_area_name: '' },
-      latest_summary: summaryData?.text || ''
+      latest_summary: summaryData?.text || '',
+      pdf_url: textData?.formats_url_pdf || ''
     } as Bill;
   },
 

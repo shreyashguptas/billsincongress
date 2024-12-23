@@ -16,6 +16,7 @@ export interface Bill {
     policy_area_name: string;
   };
   latest_summary?: string;
+  pdf_url?: string;
 }
 
 export interface BillQueryParams {

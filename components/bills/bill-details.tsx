@@ -85,7 +85,37 @@ export default function BillDetails({ bill }: BillDetailsProps) {
        <main className="container mx-auto px-4 py-4 sm:py-8 max-w-5xl">
       {/* Header Section */}
       <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-        <h1 className="text-2xl sm:text-4xl font-bold mb-2 sm:mb-4 text-primary leading-tight">{bill.title}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-2 sm:mb-4 text-primary leading-tight">{bill.title}</h1>
+          {bill.pdf_url && (
+            <a
+              href={bill.pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="lucide lucide-file-text"
+              >
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" x2="8" y1="13" y2="13" />
+                <line x1="16" x2="8" y1="17" y2="17" />
+                <line x1="10" x2="8" y1="9" y2="9" />
+              </svg>
+              PDF
+            </a>
+          )}
+        </div>
         <div className="text-sm sm:text-base text-muted-foreground mb-2 sm:mb-4">
           Introduced on {formatDate(bill.introduced_date)}
         </div>
@@ -152,16 +182,6 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             <p className="text-lg sm:text-xl">{stateName}</p>
           </div>
         </div>
-      </div>
-
-      {/* Additional Details */}
-      <div className="mt-6 sm:mt-8 flex justify-end">
-        <Link
-          href="/bills"
-          className="inline-flex w-full sm:w-auto items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4"
-        >
-          Back to Bills
-        </Link>
       </div>
     </main>
   );
