@@ -17,7 +17,7 @@ export function BillProgress({ stage, description }: BillProgressProps) {
         <span className="text-sm text-muted-foreground">Status:</span>
         <span className="text-sm">{description}</span>
       </div>
-      <Progress value={normalizedProgress} className="h-1.5" />
+      <Progress value={normalizedProgress} className="h-3" />
     </div>
   );
 }
