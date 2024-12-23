@@ -104,16 +104,19 @@ export const billsService = {
       billType = 'all'
     } = params;
 
+    console.log('Fetching bills with policy area:', policyArea);
+
     const supabase = this.getClient();
     let query = supabase
       .from(BILL_INFO_TABLE_NAME)
       .select(`
         *,
-        bill_subjects${policyArea !== 'all' ? '!inner' : ''} (
+        bill_subjects!inner (
           policy_area_name
         )
       `, { count: 'exact' });
 
+    // Add filters
     if (status && status !== 'all') {
       query = query.eq('progress_description', status);
     }
@@ -168,7 +171,10 @@ export const billsService = {
     }
 
     if (policyArea && policyArea !== 'all') {
-      query = query.eq('bill_subjects.policy_area_name', policyArea);
+      console.log('Applying policy area filter:', policyArea);
+      query = query
+        .eq('bill_subjects.policy_area_name', policyArea)
+        .not('bill_subjects.policy_area_name', 'is', null);
     }
 
     if (billType && billType !== 'all') {
@@ -187,10 +193,29 @@ export const billsService = {
       throw new Error(error.message || 'Failed to fetch bills');
     }
 
-    const transformedData = (data || []).map(bill => ({
-      ...bill,
-      bill_subjects: bill.bill_subjects?.[0] || { policy_area_name: '' }
-    }));
+    // Log the raw data for debugging
+    console.log('Raw bill data example:', {
+      firstBill: data?.[0] ? {
+        id: data[0].id,
+        subjects: data[0].bill_subjects
+      } : null,
+      totalBills: data?.length || 0
+    });
+
+    const transformedData = (data || []).map(bill => {
+      // Log each bill's subjects
+      console.log(`Bill ${bill.id} subjects:`, bill.bill_subjects);
+      
+      // Handle both array and single object cases
+      const policyArea = Array.isArray(bill.bill_subjects) 
+        ? bill.bill_subjects[0]?.policy_area_name 
+        : bill.bill_subjects?.policy_area_name || '';
+      
+      return {
+        ...bill,
+        bill_subjects: { policy_area_name: policyArea }
+      };
+    });
 
     return {
       data: transformedData as Bill[],
@@ -206,7 +231,7 @@ export const billsService = {
       .from(BILL_INFO_TABLE_NAME)
       .select(`
         *,
-        bill_subjects (
+        bill_subjects!inner (
           policy_area_name
         )
       `)
@@ -228,7 +253,7 @@ export const billsService = {
         .from(BILL_INFO_TABLE_NAME)
         .select(`
           *,
-          bill_subjects (
+          bill_subjects!inner (
             policy_area_name
           )
         `)
@@ -245,11 +270,24 @@ export const billsService = {
       featuredBills = [...featuredBills, ...(toPresidentBills || [])];
     }
 
-    // Transform the data
-    const transformedData = featuredBills.map(bill => ({
-      ...bill,
-      bill_subjects: bill.bill_subjects?.[0] || { policy_area_name: '' }
-    }));
+    // Log the raw data for debugging
+    console.log('Featured bills data:', featuredBills.map(bill => ({
+      id: bill.id,
+      subjects: bill.bill_subjects
+    })));
+
+    // Transform the data using the same logic as fetchBills
+    const transformedData = featuredBills.map(bill => {
+      // Handle both array and single object cases
+      const policyArea = Array.isArray(bill.bill_subjects) 
+        ? bill.bill_subjects[0]?.policy_area_name 
+        : bill.bill_subjects?.policy_area_name || '';
+      
+      return {
+        ...bill,
+        bill_subjects: { policy_area_name: policyArea }
+      };
+    });
 
     return transformedData as Bill[];
   }

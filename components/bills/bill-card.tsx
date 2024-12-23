@@ -11,8 +11,11 @@ interface BillCardProps {
 }
 
 export default function BillCard({ bill }: BillCardProps) {
-  const policyArea = bill.bill_subjects?.policy_area_name;
-  const shouldShowBadge = policyArea !== null && policyArea !== '';
+  // Log the bill data to see what we're getting
+  console.log('Bill data in card:', {
+    id: bill.id,
+    policyArea: bill.bill_subjects?.policy_area_name
+  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -27,23 +30,25 @@ export default function BillCard({ bill }: BillCardProps) {
     <Link href={`/bills/${bill.id}`}>
       <Card className="h-full hover:bg-accent/50 transition-colors">
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-4">
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold leading-tight">
+              {bill.title}
+            </h3>
             <div className="space-y-1">
-              <h3 className="text-lg font-semibold">
-                {bill.title}
-              </h3>
               <div className="text-sm text-muted-foreground">
                 Sponsored by {bill.sponsor_first_name} {bill.sponsor_last_name}
               </div>
               <div className="text-sm text-muted-foreground">
                 Introduced on {formatDate(bill.introduced_date)}
               </div>
+              {bill.bill_subjects?.policy_area_name && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Badge variant="secondary" className="text-xs">
+                    {bill.bill_subjects.policy_area_name}
+                  </Badge>
+                </div>
+              )}
             </div>
-            {shouldShowBadge && (
-              <Badge variant="outline" className="whitespace-nowrap shrink-0">
-                {policyArea}
-              </Badge>
-            )}
           </div>
         </CardHeader>
         <CardContent>
