@@ -675,6 +675,40 @@ enum ProgressStage {
 }
 ```
 
+#### Progress Stage Calculation
+The progress stage is calculated based on the bill's latest action:
+
+1. **Stage Determination**:
+   ```sql
+   CASE
+     WHEN action_code IN ('36000', 'E40000') OR type = 'BecameLaw' THEN 100
+     WHEN action_code IN ('29000', 'E30000') OR text ILIKE '%Signed by President%' THEN 95
+     WHEN action_code IN ('28000', 'E20000') OR text ILIKE '%Presented to President%' THEN 90
+     WHEN EXISTS (SELECT 1 FROM bill_actions WHERE multiple_chamber_actions) THEN 80
+     WHEN action_code IN ('17000', '8000', 'E10000') THEN 60
+     WHEN action_code IN ('5000', '14000') THEN 40
+     ELSE 20
+   END
+   ```
+
+2. **UI Percentage Calculation**:
+   ```typescript
+   // Convert stage (20-100) to percentage (0-100)
+   const getProgressPercentage = (stage: number): number => {
+     const validStage = Math.max(20, Math.min(100, stage));
+     return ((validStage - 20) / 80) * 100;
+   };
+   ```
+
+3. **Stage to Percentage Mapping**:
+   - Introduced (20) → 0%
+   - In Committee (40) → 25%
+   - Passed One Chamber (60) → 50%
+   - Passed Both Chambers (80) → 75%
+   - To President (90) → 87.5%
+   - Signed by President (95) → 93.75%
+   - Became Law (100) → 100%
+
 ### Status Values
 
 The `progress_description` column in the `bill_info` table contains one of the following values:
