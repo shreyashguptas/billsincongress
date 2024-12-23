@@ -52,9 +52,24 @@ export default function BillsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [congressInfo, setCongressInfo] = useState<{ congress: number; startYear: number; endYear: number } | null>(null);
 
   const debouncedSponsorFilter = useDebounce(sponsorFilter, 2000);
   const debouncedTitleFilter = useDebounce(titleFilter, 2000);
+
+  // Fetch Congress info on mount
+  useEffect(() => {
+    const fetchCongressInfo = async () => {
+      try {
+        const info = await billsService.getCongressInfo();
+        setCongressInfo(info);
+      } catch (error) {
+        console.error('Error fetching Congress info:', error);
+      }
+    };
+
+    fetchCongressInfo();
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -169,7 +184,12 @@ export default function BillsPage() {
         <div>
           <h1 className="text-3xl font-bold mb-1">All Bills</h1>
           <p className="text-sm text-muted-foreground">
-            Browse the latest bills introduced in Congress
+            Browse bills introduced in Congress
+            {congressInfo && (
+              <span className="ml-1">
+                ({congressInfo.startYear}–{congressInfo.endYear})
+              </span>
+            )}
           </p>
         </div>
         <div className="text-sm text-muted-foreground">

@@ -82,22 +82,22 @@ export default function BillDetails({ bill }: BillDetailsProps) {
   };
 
   return (
-       <main className="container mx-auto px-4 py-4 sm:py-8 max-w-5xl">
+    <main className="container mx-auto px-4 py-4 sm:py-6 max-w-5xl">
       {/* Header Section */}
-      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl sm:text-4xl font-bold mb-2 sm:mb-4 text-primary leading-tight">{bill.title}</h1>
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-6 mb-3 sm:mb-4">
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <h1 className="text-xl sm:text-3xl font-semibold text-primary leading-tight">{bill.title}</h1>
           {bill.pdf_url && (
             <a
               href={bill.pdf_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
+                width="16"
+                height="16"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -116,36 +116,36 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             </a>
           )}
         </div>
-        <div className="text-sm sm:text-base text-muted-foreground mb-2 sm:mb-4">
+        <div className="text-sm text-muted-foreground">
           Introduced on {formatDate(bill.introduced_date)}
         </div>
       </div>
 
       {/* Status Section */}
-      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-        <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Current Status</h2>
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
-            <span className="text-base sm:text-lg font-medium mb-1 sm:mb-0">{bill.progress_description}</span>
-            <span className="text-sm sm:text-base text-muted-foreground">{progressPercentage.toFixed(0)}%</span>
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-6 mb-3 sm:mb-4">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4">Current Status</h2>
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-base font-medium">{bill.progress_description}</span>
+            <span className="text-sm text-muted-foreground">{progressPercentage.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-secondary rounded-full h-3 sm:h-4 overflow-hidden">
+          <div className="w-full bg-secondary rounded-full h-2.5 overflow-hidden">
             <div
               className="h-full bg-primary transition-all duration-500 ease-in-out rounded-full"
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
           {/* Mobile: Vertical stages */}
-          <div className="block sm:hidden space-y-2 text-sm text-muted-foreground mt-2">
+          <div className="block sm:hidden space-y-2 text-xs text-muted-foreground mt-2">
             {['Introduced', 'Committee', 'One Chamber', 'Both Chambers', 'To President', 'Signed', 'Law'].map((stage, index) => (
               <div key={stage} className="flex items-center">
-                <div className={`w-2 h-2 rounded-full mr-2 ${index * (100/6) <= progressPercentage ? 'bg-primary' : 'bg-secondary'}`} />
+                <div className={`w-1.5 h-1.5 rounded-full mr-2 ${index * (100/6) <= progressPercentage ? 'bg-primary' : 'bg-secondary'}`} />
                 <span>{stage}</span>
               </div>
             ))}
           </div>
           {/* Desktop: Horizontal stages */}
-          <div className="hidden sm:flex justify-between text-sm text-muted-foreground mt-2">
+          <div className="hidden sm:flex justify-between text-xs text-muted-foreground">
             <span>Introduced</span>
             <span>Committee</span>
             <span>One Chamber</span>
@@ -158,28 +158,28 @@ export default function BillDetails({ bill }: BillDetailsProps) {
       </div>
 
       {/* Summary Section */}
-      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
-        <h2 className="text-xl sm:text-2xl font-semibold mb-2 sm:mb-4">Summary</h2>
-        <div className="prose prose-sm sm:prose-base max-w-none">
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-6 mb-3 sm:mb-4">
+        <h2 className="text-lg sm:text-xl font-semibold mb-3">Summary</h2>
+        <div className="prose prose-sm max-w-none text-base leading-relaxed text-muted-foreground">
           {summary}
         </div>
       </div>
 
       {/* Sponsor Information */}
-      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8">
-        <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Sponsor Information</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          <div className="space-y-1 sm:space-y-2">
-            <h3 className="text-base sm:text-lg font-medium text-muted-foreground">Name</h3>
-            <p className="text-lg sm:text-xl">{`${bill.sponsor_first_name} ${bill.sponsor_last_name}`}</p>
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4">Sponsor Information</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">Name</h3>
+            <p className="text-base">{`${bill.sponsor_first_name} ${bill.sponsor_last_name}`}</p>
           </div>
-          <div className="space-y-1 sm:space-y-2">
-            <h3 className="text-base sm:text-lg font-medium text-muted-foreground">Party</h3>
-            <p className="text-lg sm:text-xl">{partyName}</p>
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">Party</h3>
+            <p className="text-base">{partyName}</p>
           </div>
-          <div className="space-y-1 sm:space-y-2">
-            <h3 className="text-base sm:text-lg font-medium text-muted-foreground">State</h3>
-            <p className="text-lg sm:text-xl">{stateName}</p>
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-1">State</h3>
+            <p className="text-base">{stateName}</p>
           </div>
         </div>
       </div>

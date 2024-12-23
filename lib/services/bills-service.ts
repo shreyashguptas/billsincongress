@@ -50,6 +50,36 @@ export const billsService = {
     );
   },
 
+  async getCongressInfo(): Promise<{ congress: number; startYear: number; endYear: number }> {
+    const supabase = this.getClient();
+    
+    // Get the unique congress numbers
+    const { data, error } = await supabase
+      .from(BILL_INFO_TABLE_NAME)
+      .select('congress')
+      .order('congress', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      console.error('Error fetching congress info:', error);
+      throw new Error(error.message || 'Failed to fetch congress info');
+    }
+
+    const congress = data.congress;
+    
+    // Calculate years based on Congress number
+    // Each Congress starts on January 3rd of odd-numbered years and lasts for 2 years
+    const startYear = 2023 + (congress - 118) * 2; // 118th Congress started in 2023
+    const endYear = startYear + 2;
+
+    return {
+      congress,
+      startYear,
+      endYear
+    };
+  },
+
   async fetchBillById(id: string): Promise<Bill> {
     const supabase = this.getClient();
     
