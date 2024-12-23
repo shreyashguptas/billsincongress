@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { BILL_TYPE_OPTIONS } from '@/lib/constants/filters';
+import { BILL_TYPES } from '@/lib/constants/filters';
 import dynamic from 'next/dynamic';
 
 // Map of policy areas
@@ -105,116 +105,161 @@ function BillsFilter({
   onBillTypeChange,
   onClearAllFilters,
 }: BillsFilterProps) {
-  // Helper function to convert null to "all"
-  const getSelectValue = (value: string) => value === 'all' ? undefined : value;
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
-        {/* Bill Type Filter */}
-        <Select 
-          value={getSelectValue(billTypeFilter)} 
-          onValueChange={onBillTypeChange}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All Bill Types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Bill Types</SelectItem>
-            {BILL_TYPE_OPTIONS.map(({ value, label }) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Policy Area Filter */}
-        <Select 
-          value={getSelectValue(policyAreaFilter)} 
-          onValueChange={onPolicyAreaChange}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {POLICY_AREAS.map((area) => (
-              <SelectItem key={area} value={area}>
-                {area}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         {/* Status Filter */}
-        <Select 
-          value={getSelectValue(statusFilter)} 
-          onValueChange={onStatusChange}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="Introduced">Introduced</SelectItem>
-            <SelectItem value="In Committee">In Committee</SelectItem>
-            <SelectItem value="Passed One Chamber">Passed One Chamber</SelectItem>
-            <SelectItem value="Passed Both Chambers">Passed Both Chambers</SelectItem>
-            <SelectItem value="To President">To President</SelectItem>
-            <SelectItem value="Became Law">Became Law</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="relative">
+          <Select 
+            value={statusFilter} 
+            onValueChange={onStatusChange}
+          >
+            <SelectTrigger className="w-[180px] h-10">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              className="w-[180px] min-w-[180px]"
+              align="start"
+              sideOffset={4}
+              side="bottom"
+            >
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="Introduced">Introduced</SelectItem>
+              <SelectItem value="In Committee">In Committee</SelectItem>
+              <SelectItem value="Passed One Chamber">Passed One Chamber</SelectItem>
+              <SelectItem value="Passed Both Chambers">Passed Both Chambers</SelectItem>
+              <SelectItem value="To President">To President</SelectItem>
+              <SelectItem value="Became Law">Became Law</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        {/* Introduced Date Filter */}
-        <Select 
-          value={getSelectValue(introducedDateFilter)} 
-          onValueChange={onIntroducedDateChange}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Introduced Date" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Introduced Dates</SelectItem>
-            <SelectItem value="week">Last Week</SelectItem>
-            <SelectItem value="month">Last Month</SelectItem>
-            <SelectItem value="year">Last Year</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Last Action Date Filter */}
-        <Select 
-          value={getSelectValue(lastActionDateFilter)} 
-          onValueChange={onLastActionDateChange}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Last Action Date" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Action Dates</SelectItem>
-            <SelectItem value="week">Last Week</SelectItem>
-            <SelectItem value="month">Last Month</SelectItem>
-            <SelectItem value="year">Last Year</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Bill Type Filter */}
+        <div className="relative">
+          <Select 
+            value={billTypeFilter} 
+            onValueChange={onBillTypeChange}
+          >
+            <SelectTrigger className="w-[180px] h-10">
+              <SelectValue placeholder="All Bill Types" />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              className="w-[180px] min-w-[180px]"
+              align="start"
+              sideOffset={4}
+              side="bottom"
+            >
+              <SelectItem value="all">All Bill Types</SelectItem>
+              {Object.entries(BILL_TYPES).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* State Filter */}
-        <Select 
-          value={getSelectValue(stateFilter)} 
-          onValueChange={onStateChange}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All States" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All States</SelectItem>
-            {Object.entries(STATE_NAMES).map(([abbr, name]) => (
-              <SelectItem key={abbr} value={abbr}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="relative">
+          <Select 
+            value={stateFilter} 
+            onValueChange={onStateChange}
+          >
+            <SelectTrigger className="w-[180px] h-10">
+              <SelectValue placeholder="All States" />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              className="w-[180px] min-w-[180px]"
+              align="start"
+              sideOffset={4}
+              side="bottom"
+            >
+              <SelectItem value="all">All States</SelectItem>
+              {Object.entries(STATE_NAMES).map(([abbr, name]) => (
+                <SelectItem key={abbr} value={abbr}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Policy Area Filter */}
+        <div className="relative">
+          <Select 
+            value={policyAreaFilter} 
+            onValueChange={onPolicyAreaChange}
+          >
+            <SelectTrigger className="w-[180px] h-10">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              className="w-[180px] min-w-[180px]"
+              align="start"
+              sideOffset={4}
+              side="bottom"
+            >
+              <SelectItem value="all">All Categories</SelectItem>
+              {POLICY_AREAS.map((area) => (
+                <SelectItem key={area} value={area}>
+                  {area}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Introduced Date Filter */}
+        <div className="relative">
+          <Select 
+            value={introducedDateFilter} 
+            onValueChange={onIntroducedDateChange}
+          >
+            <SelectTrigger className="w-[180px] h-10">
+              <SelectValue placeholder="Introduced Date" />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              className="w-[180px] min-w-[180px]"
+              align="start"
+              sideOffset={4}
+              side="bottom"
+            >
+              <SelectItem value="all">All Introduced Dates</SelectItem>
+              <SelectItem value="week">Last Week</SelectItem>
+              <SelectItem value="month">Last Month</SelectItem>
+              <SelectItem value="year">Last Year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Last Action Date Filter */}
+        <div className="relative">
+          <Select 
+            value={lastActionDateFilter} 
+            onValueChange={onLastActionDateChange}
+          >
+            <SelectTrigger className="w-[180px] h-10">
+              <SelectValue placeholder="Last Action Date" />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              className="w-[180px] min-w-[180px]"
+              align="start"
+              sideOffset={4}
+              side="bottom"
+            >
+              <SelectItem value="all">All Action Dates</SelectItem>
+              <SelectItem value="week">Last Week</SelectItem>
+              <SelectItem value="month">Last Month</SelectItem>
+              <SelectItem value="year">Last Year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -223,7 +268,7 @@ function BillsFilter({
           placeholder="Search bill titles..."
           value={titleFilter}
           onChange={(e) => onTitleChange(e.target.value)}
-          className="w-[300px]"
+          className="w-[300px] h-10"
         />
 
         {/* Sponsor Search */}
@@ -231,11 +276,11 @@ function BillsFilter({
           placeholder="Search by sponsor name..."
           value={sponsorFilter}
           onChange={(e) => onSponsorChange(e.target.value)}
-          className="w-[300px]"
+          className="w-[300px] h-10"
         />
 
         {/* Clear All Filters Button */}
-        <Button variant="outline" onClick={onClearAllFilters}>
+        <Button variant="outline" onClick={onClearAllFilters} className="h-10">
           Clear All Filters
         </Button>
       </div>
