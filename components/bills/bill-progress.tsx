@@ -9,7 +9,10 @@ interface BillProgressProps {
 
 export function BillProgress({ stage, description }: BillProgressProps) {
   // Convert stage (20-100) to percentage (0-100)
-  const normalizedProgress = ((stage - 20) / 80) * 100;
+  // Handle special case for stage 95 (Signed by President)
+  const normalizedProgress = stage === 95 
+    ? 93.75  // Special percentage for "Signed by President"
+    : ((stage - 20) / 80) * 100;
 
   return (
     <div className="space-y-2">

@@ -1,7 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Bill } from '@/lib/types/bill';
 import { BillProgress } from './bill-progress';
 import Link from 'next/link';
@@ -24,7 +24,7 @@ export default function BillCard({ bill }: BillCardProps) {
 
   return (
     <Link href={`/bills/${bill.id}`}>
-      <Card className="h-full hover:bg-accent/50 transition-colors overflow-hidden">
+      <Card className="h-full hover:bg-accent/50 transition-colors overflow-hidden group">
         {/* Top section with policy area and date */}
         <div className="p-4">
           <div className="flex justify-between items-baseline mb-2">
@@ -33,9 +33,12 @@ export default function BillCard({ bill }: BillCardProps) {
             </div>
           </div>
           {bill.bill_subjects?.policy_area_name && (
-            <div className="text-sm font-medium text-primary/80">
+            <Badge 
+              variant="outline" 
+              className="transition-all duration-300 group-hover:border-primary group-hover:text-primary"
+            >
               {bill.bill_subjects.policy_area_name}
-            </div>
+            </Badge>
           )}
         </div>
 

@@ -23,6 +23,9 @@ xl: 1280px /* Extra large devices */
 - Adjusted typography and spacing
 - Consistent policy area badge placement
 - Optimized title length for mobile
+- Subtle entrance animations
+- Interactive hover effects
+- Motion-based cursor following (desktop only)
 
 ### Bill Details Page
 - Compact title and spacing on mobile
@@ -91,6 +94,40 @@ max-h-[300px]          // Maximum height with scrolling
 p-2 sm:p-3            // Touch-friendly padding
 ```
 
+### Animations
+```tsx
+// Entrance animations
+.slide-up {
+  @apply opacity-0 translate-y-4 motion-safe:animate-slide-up;
+}
+
+// Hover effects
+.hover-lift {
+  @apply transition-transform duration-300 ease-out hover:-translate-y-1;
+}
+
+// Cursor following (desktop only)
+.cursor-follow {
+  @apply hidden lg:block transform-gpu transition-transform duration-200;
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+// Stagger children animations
+.stagger-children > * {
+  @apply opacity-0;
+  animation: slide-up 0.5s ease-out forwards;
+  animation-delay: calc(var(--index) * 100ms);
+}
+
+// Reduced motion
+@media (prefers-reduced-motion: reduce) {
+  .slide-up, .hover-lift, .cursor-follow {
+    @apply transform-none transition-none animate-none;
+  }
+}
+```
+
 ## Best Practices
 
 1. Mobile-First Approach
@@ -100,10 +137,14 @@ p-2 sm:p-3            // Touch-friendly padding
    - Consistent spacing system
 
 2. Performance
-   - Optimized images
-   - Efficient layouts
+   - Hardware-accelerated animations
+   - Use transform-gpu for 3D transforms
+   - Debounce cursor tracking
    - Minimal layout shifts
    - Smooth transitions
+   - Lazy load off-screen content
+   - Optimize animation frames
+   - Batch DOM updates
 
 3. Content Adaptation
    - Vertical layouts on mobile
@@ -126,10 +167,22 @@ p-2 sm:p-3            // Touch-friendly padding
    - Consistent dropdown behavior
    - Proper spacing between interactive elements
 
-6. Testing
+6. Animation Guidelines
+   - Use subtle, purposeful animations
+   - Respect reduced-motion preferences
+   - Disable complex animations on mobile
+   - Use hardware acceleration
+   - Implement staggered loading
+   - Keep durations under 400ms
+   - Use appropriate easing curves
+   - Avoid animation jank
+
+7. Testing
    - Multiple device testing
    - Browser compatibility
    - Orientation changes
    - Touch interaction testing
    - Keyboard navigation
    - Screen reader compatibility
+   - Animation performance testing
+   - Frame rate monitoring

@@ -9,24 +9,24 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu } from 'lucide-react';
 
+const routes = [
+  {
+    href: '/' as const,
+    label: 'Home',
+  },
+  {
+    href: '/bills' as const,
+    label: 'Bills',
+  },
+  {
+    href: '/about' as const,
+    label: 'About',
+  },
+] as const;
+
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
-
-  const routes = [
-    {
-      href: '/',
-      label: 'Home',
-    },
-    {
-      href: '/bills',
-      label: 'Bills',
-    },
-    {
-      href: '/about',
-      label: 'About',
-    },
-  ];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-[#002868] via-white to-[#BF0A30]">

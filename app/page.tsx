@@ -1,44 +1,42 @@
 import { Suspense } from 'react';
 import { billsService } from '@/lib/services/bills-service';
-import BillCard from '@/components/bills/bill-card';
-import Link from 'next/link';
+import { AnimatedBillCard } from '@/components/bills/animated-bill-card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
-import { sharedViewport } from './shared-metadata';
-import type { Viewport } from 'next';
+import Link from 'next/link';
 
-export const viewport: Viewport = sharedViewport;
+export const revalidate = 3600; // Revalidate every hour
 
-// Enable ISR with 1-hour revalidation
-export const revalidate = 3600;
+async function FeaturedBills() {
+  const bills = await billsService.fetchFeaturedBills();
 
-function LoadingBills() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="h-[200px] bg-accent/10 rounded-lg animate-pulse" />
-      ))}
+    <div className="space-y-8">
+      <h2 className="text-3xl font-bold tracking-tight">Featured Bills</h2>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {bills.map((bill, index) => (
+          <AnimatedBillCard key={bill.id} bill={bill} index={index} />
+        ))}
+      </div>
     </div>
   );
 }
 
-async function FeaturedBillsContent() {
-  const featuredBills = await billsService.fetchFeaturedBills();
-
-  if (featuredBills.length === 0) {
-    return <p className="text-muted-foreground">No featured bills at this time.</p>;
-  }
-
+function FeaturedBillsSkeleton() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {featuredBills.map((bill) => (
-        <BillCard key={bill.id} bill={bill} />
-      ))}
+    <div className="space-y-8">
+      <Skeleton className="h-8 w-48" />
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {[...Array(3)].map((_, i) => (
+          <Skeleton key={i} className="h-[300px]" />
+        ))}
+      </div>
     </div>
   );
 }
 
-export default function HomePage() {
+export default function Home() {
   return (
     <div className="flex flex-col">
       <section className="w-full bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
@@ -73,9 +71,8 @@ export default function HomePage() {
       <section className="w-full bg-background">
         <div className="container mx-auto px-4 py-12">
           <div className="mx-auto max-w-[1200px] space-y-8">
-            <h2 className="text-3xl font-bold">Featured Bills</h2>
-            <Suspense fallback={<LoadingBills />}>
-              <FeaturedBillsContent />
+            <Suspense fallback={<FeaturedBillsSkeleton />}>
+              <FeaturedBills />
             </Suspense>
             <div className="mt-12 flex justify-center">
               <Link href="/bills">
