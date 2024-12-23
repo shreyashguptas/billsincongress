@@ -63,17 +63,25 @@ export default function BillDetails({ bill }: BillDetailsProps) {
   const stateName = STATE_NAMES[bill.sponsor_state as keyof typeof STATE_NAMES] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party as keyof typeof PARTY_NAMES] || bill.sponsor_party;
 
+  // Format date in UTC
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString + 'T00:00:00Z');
+    
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'UTC'
+    }).format(date);
+  };
+
   return (
        <main className="container mx-auto px-4 py-4 sm:py-8 max-w-5xl">
       {/* Header Section */}
       <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
         <h1 className="text-2xl sm:text-4xl font-bold mb-2 sm:mb-4 text-primary leading-tight">{bill.title}</h1>
         <div className="text-sm sm:text-base text-muted-foreground mb-2 sm:mb-4">
-          Introduced on {new Date(bill.introduced_date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })}
+          Introduced on {formatDate(bill.introduced_date)}
         </div>
       </div>
 

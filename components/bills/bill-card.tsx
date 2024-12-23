@@ -12,12 +12,14 @@ interface BillCardProps {
 
 export default function BillCard({ bill }: BillCardProps) {
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    const date = new Date(dateString + 'T00:00:00Z');
+    
+    return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-    });
+      timeZone: 'UTC'
+    }).format(date);
   };
 
   return (
