@@ -120,7 +120,7 @@ export const billsService = {
 
     if (error) {
       console.error('Error fetching bills:', error);
-      throw error;
+      throw new Error(`Failed to fetch bills: ${error.message || 'Unknown error'}`);
     }
 
     const transformedData = (data || []).map(bill => ({

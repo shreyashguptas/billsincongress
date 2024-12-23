@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import dynamic from 'next/dynamic';
 
 // Map of state abbreviations to full names
 const STATE_NAMES: { [key: string]: string } = {
@@ -41,7 +42,7 @@ interface BillsFilterProps {
   onClearAllFilters: () => void;
 }
 
-export function BillsFilter({
+function BillsFilter({
   statusFilter,
   introducedDateFilter,
   lastActionDateFilter,
@@ -148,4 +149,7 @@ export function BillsFilter({
       )}
     </div>
   );
-} 
+}
+
+// Export as default for dynamic import
+export default BillsFilter; 

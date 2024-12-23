@@ -1,14 +1,25 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
-import { BillsFilter } from '@/components/bills/bills-filter';
-import { BillCard } from '@/components/bills/bill-card';
 import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '../../lib/types/bill';
 import { useDebounce } from '@/lib/hooks/use-debounce';
 import { Button } from '@/components/ui/button';
 
-const ITEMS_PER_PAGE = 5;
+// Dynamic imports with no SSR
+const BillsFilter = dynamic(
+  () => import('@/components/bills/bills-filter'),
+  { ssr: false }
+);
+
+const BillCard = dynamic(
+  () => import('@/components/bills/bill-card'),
+  { ssr: false }
+);
+
+const ITEMS_PER_PAGE = 9;
 
 export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([]);
@@ -21,6 +32,7 @@ export default function BillsPage() {
   const [stateFilter, setStateFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const debouncedSponsorFilter = useDebounce(sponsorFilter, 2000);
 
@@ -36,6 +48,7 @@ export default function BillsPage() {
 
   const handleLoadMore = async () => {
     setIsLoadingMore(true);
+    setError(null);
     try {
       const nextPage = currentPage + 1;
       const response = await billsService.fetchBills({
@@ -51,7 +64,9 @@ export default function BillsPage() {
       setTotalBills(response.count);
       setCurrentPage(nextPage);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load more bills';
       console.error('Error loading more bills:', error);
+      setError(message);
     } finally {
       setIsLoadingMore(false);
     }
@@ -60,6 +75,7 @@ export default function BillsPage() {
   useEffect(() => {
     const fetchBills = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         const response = await billsService.fetchBills({
           page: 1,
@@ -74,7 +90,9 @@ export default function BillsPage() {
         setTotalBills(response.count);
         setCurrentPage(1);
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch bills';
         console.error('Error fetching bills:', error);
+        setError(message);
       } finally {
         setIsLoading(false);
       }
@@ -89,25 +107,36 @@ export default function BillsPage() {
     <main className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">All Bills</h1>
       <div className="mb-8">
-        <BillsFilter
-          statusFilter={statusFilter}
-          introducedDateFilter={introducedDateFilter}
-          lastActionDateFilter={lastActionDateFilter}
-          sponsorFilter={sponsorFilter}
-          stateFilter={stateFilter}
-          onStatusChange={setStatusFilter}
-          onIntroducedDateChange={setIntroducedDateFilter}
-          onLastActionDateChange={setLastActionDateFilter}
-          onSponsorChange={setSponsorFilter}
-          onStateChange={setStateFilter}
-          onClearAllFilters={handleClearAllFilters}
-        />
+        <Suspense fallback={<div>Loading filters...</div>}>
+          <BillsFilter
+            statusFilter={statusFilter}
+            introducedDateFilter={introducedDateFilter}
+            lastActionDateFilter={lastActionDateFilter}
+            sponsorFilter={sponsorFilter}
+            stateFilter={stateFilter}
+            onStatusChange={setStatusFilter}
+            onIntroducedDateChange={setIntroducedDateFilter}
+            onLastActionDateChange={setLastActionDateFilter}
+            onSponsorChange={setSponsorFilter}
+            onStateChange={setStateFilter}
+            onClearAllFilters={handleClearAllFilters}
+          />
+        </Suspense>
       </div>
-      <div className="grid gap-6">
+      {error && (
+        <div className="text-red-500 mb-4">
+          {error}
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {isLoading ? (
           <div>Loading...</div>
         ) : bills.length > 0 ? (
-          bills.map((bill) => <BillCard key={bill.id} bill={bill} />)
+          bills.map((bill) => (
+            <Suspense key={bill.id} fallback={<div>Loading bill...</div>}>
+              <BillCard bill={bill} />
+            </Suspense>
+          ))
         ) : (
           <div>No bills found</div>
         )}

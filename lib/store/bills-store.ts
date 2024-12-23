@@ -99,12 +99,12 @@ export const useBillsStore = create<BillsState>((set, get) => ({
   },
 
   fetchFeaturedBills: async () => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, featuredBills: [] });
 
     try {
       const bills = await billsService.fetchFeaturedBills();
       set({ 
-        featuredBills: bills,
+        featuredBills: bills || [],
         isLoading: false 
       });
     } catch (error) {
