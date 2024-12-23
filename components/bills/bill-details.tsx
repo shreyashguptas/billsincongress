@@ -25,7 +25,13 @@ const STATE_NAMES: Record<string, string> = {
 const PARTY_NAMES: Record<string, string> = {
   R: 'Republican',
   D: 'Democrat',
-  I: 'Independent'
+  I: 'Independent',
+  ID: 'Independent Democrat',
+  IR: 'Independent Republican',
+  L: 'Libertarian',
+  G: 'Green Party',
+  // Fallback for unknown parties
+  '': 'No Party Affiliation'
 } as const;
 
 interface BillDetailsProps {
