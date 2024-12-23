@@ -29,11 +29,12 @@ class BillsService {
 ```typescript
 interface BillQueryParams {
   page?: number;
-  limit?: number;
-  congress?: number;
-  billType?: string;
-  sponsor?: string;
-  // ... other filter parameters
+  itemsPerPage?: number;
+  status?: string;
+  introducedDateFilter?: string;
+  lastActionDateFilter?: string;
+  sponsorFilter?: string;
+  stateFilter?: string;
 }
 ```
 
@@ -41,25 +42,24 @@ interface BillQueryParams {
 
 ```typescript
 interface BillsResponse {
-  data: BillInfo[];
+  data: Bill[];
   count: number;
-  error: Error | null;
 }
 
-interface BillInfo {
+interface Bill {
   id: string;
-  title: string;
-  introduced_date: string;
-  bill_type_label: string;
-  bill_number: string;
   congress: number;
+  bill_type: string;
+  bill_number: number;
+  bill_type_label: string;
+  introduced_date: string;
+  title: string;
   sponsor_first_name: string;
   sponsor_last_name: string;
   sponsor_party: string;
   sponsor_state: string;
-  latest_action_text?: string;
-  latest_action_date?: string;
-  progress_description?: string;
+  progress_stage: number;
+  progress_description: string;
   bill_subjects?: {
     policy_area_name: string;
   };
@@ -620,3 +620,43 @@ try {
 - Show loading states
 - Provide fallback UI
 - Log errors appropriately
+
+### Progress Stages
+
+The `progress_stage` column in the `bill_info` table uses numeric values to represent the bill's progress through the legislative process. These stages are calculated based on the latest action taken on the bill.
+
+```typescript
+enum ProgressStage {
+  Introduced = 20,
+  InCommittee = 40,
+  PassedOneChamber = 60,
+  PassedBothChambers = 80,
+  ToPresident = 90,
+  SignedByPresident = 95,
+  BecameLaw = 100
+}
+```
+
+### Status Values
+
+The `progress_description` column in the `bill_info` table contains one of the following values:
+- "Introduced"
+- "In Committee"
+- "Passed One Chamber"
+- "Passed Both Chambers"
+- "To President"
+- "Signed by President"
+- "Became Law"
+
+### Action Codes
+
+The `bill_actions` table contains specific action codes that indicate what has happened to a bill. These codes are used to determine the bill's progress stage.
+
+Key action codes include:
+- `36000`: Became Law
+- `E30000`: Signed by President
+- `E40000`: To President
+- `H32500`: Passed House
+- `S32500`: Passed Senate
+- `H11100`: Referred to Committee
+- `S11100`: Referred to Committee

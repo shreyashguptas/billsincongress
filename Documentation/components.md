@@ -1,90 +1,94 @@
 # Components Documentation
 
-## UI Components
+## Bill Components
 
-### Navigation
-```tsx
-// components/navigation.tsx
-- Primary navigation component
-- Responsive design
-- Theme toggle integration
-```
-
-### Bill Components
-
-#### BillCard
+### BillCard
 ```tsx
 // components/bills/bill-card.tsx
-- Displays individual bill information
-- Props:
-  - bill: Bill
-- Features:
-  - Progress indicator
-  - Tags display
-  - Status information
+interface BillCardProps {
+  bill: Bill;
+}
+Features:
+- Displays full bill title
+- Shows policy area badge
+- Displays bill type and number
+- Shows progress description
+- Shows sponsor information with party and state
 ```
 
-#### BillHeader
+### BillsFilter
 ```tsx
-// components/bills/bill-header.tsx
-- Header for individual bill pages
-- Props:
-  - bill: Bill
-- Features:
-  - Title display
-  - Share functionality
-  - Introduction date
+// components/bills/bills-filter.tsx
+interface BillsFilterProps {
+  statusFilter: string;
+  introducedDateFilter: string;
+  lastActionDateFilter: string;
+  sponsorFilter: string;
+  stateFilter: string;
+  onStatusChange: (value: string) => void;
+  onIntroducedDateChange: (value: string) => void;
+  onLastActionDateChange: (value: string) => void;
+  onSponsorChange: (value: string) => void;
+  onStateChange: (value: string) => void;
+  onClearAllFilters: () => void;
+}
+Features:
+- Status filter with all bill stages
+- Introduced date filter (week/month/year)
+- Last action date filter (week/month/year)
+- Sponsor name search with exact first name matching
+- State filter with full state names
+- Clear all filters button
 ```
 
-#### BillProgressCard
+## UI Components
+
+### Button
 ```tsx
-// components/bills/bill-progress-card.tsx
-- Shows bill progress
-- Props:
-  - bill: Bill
-- Features:
-  - Progress bar
-  - Status display
+// components/ui/button.tsx
+Features:
+- Multiple variants (default, outline)
+- Loading state support
+- Disabled state handling
 ```
 
-#### BillContentTabs
+### Card
 ```tsx
-// components/bills/bill-content-tabs.tsx
-- Tabbed content for bill details
-- Props:
-  - bill: Bill
-- Tabs:
-  - Summary
-  - Timeline
-  - Full Text
-```
-
-## Layout Components
-
-### ThemeProvider
-```tsx
-// components/theme-provider.tsx
-- Manages theme state
-- Provides dark/light mode
-```
-
-### Footer
-```tsx
-// components/footer.tsx
-- Site-wide footer
-- Links and information
-```
-
-## Shared Components
-
-### UI Components from shadcn/ui
-- Button
+// components/ui/card.tsx
+Components:
 - Card
-- Progress
-- Tabs
-- Badge
-- Avatar
-- etc.
+- CardHeader
+- CardContent
+- CardTitle
+Features:
+- Consistent padding and spacing
+- Hover state for interactive cards
+- Flexible content layout
+```
+
+### Select
+```tsx
+// components/ui/select.tsx
+Components:
+- Select
+- SelectTrigger
+- SelectContent
+- SelectItem
+- SelectValue
+Features:
+- Accessible dropdown
+- Custom trigger styling
+- Keyboard navigation
+```
+
+### Badge
+```tsx
+// components/ui/badge.tsx
+Features:
+- Multiple variants (default, outline)
+- Policy area display
+- Status indicators
+```
 
 ## Component Best Practices
 
@@ -97,8 +101,8 @@
    - Required vs optional props
 
 3. Error Handling
-   - Fallback UI
-   - Error boundaries
+   - Fallback UI for loading states
+   - Error messages for no results
 
 4. Accessibility
    - ARIA labels

@@ -2,13 +2,11 @@ import { notFound } from 'next/navigation';
 import { createStaticClient } from '@/utils/supabase/server-app';
 import { BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { Bill } from '../../../lib/types/bill';
+import type { Metadata } from 'next';
 
 // Enable ISR with 1-hour revalidation
 export const revalidate = 3600;
-
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
 
 // Pre-generate the most recent 100 bills at build time
 export async function generateStaticParams() {
@@ -24,7 +22,7 @@ export async function generateStaticParams() {
   }));
 }
 
-async function getBillData(billId: string) {
+async function getBillData(billId: string): Promise<Bill | null> {
   const supabase = createStaticClient();
   const { data } = await supabase
     .from(BILL_INFO_TABLE_NAME)
@@ -53,7 +51,33 @@ async function getBillData(billId: string) {
     return null;
   }
 
-  return data;
+  // Transform the data to match the Bill interface
+  return {
+    ...data,
+    bill_subjects: data.bill_subjects?.[0] || undefined
+  } as Bill;
+}
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Metadata> {
+  const { id } = await params;
+  const data = await getBillData(id);
+
+  if (!data) {
+    return {
+      title: 'Bill Not Found',
+    };
+  }
+
+  return {
+    title: `${data.bill_type_label} ${data.bill_number} - ${data.congress}th Congress`,
+    description: data.title,
+  };
+}
+
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
 export default async function BillPage({ params }: PageProps) {

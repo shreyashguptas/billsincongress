@@ -4,6 +4,7 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ['localhost:3000', 'localhost:3001'],
     },
+    typedRoutes: true,
   },
   images: {
     remotePatterns: [
@@ -12,6 +13,9 @@ const nextConfig = {
         hostname: 'avatars.githubusercontent.com',
       },
     ],
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
 }
 

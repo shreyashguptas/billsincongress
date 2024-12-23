@@ -1,96 +1,128 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BillCard } from '@/components/bills/bill-card';
 import { BillsFilter } from '@/components/bills/bills-filter';
+import { BillCard } from '@/components/bills/bill-card';
 import { billsService } from '@/lib/services/bills-service';
-import { BillInfo } from '@/lib/types/BillInfo';
+import type { Bill } from '../../lib/types/bill';
+import { useDebounce } from '@/lib/hooks/use-debounce';
+import { Button } from '@/components/ui/button';
+
+const ITEMS_PER_PAGE = 5;
 
 export default function BillsPage() {
-  const [bills, setBills] = useState<BillInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [totalBills, setTotalBills] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all');
+  const [introducedDateFilter, setIntroducedDateFilter] = useState('all');
+  const [lastActionDateFilter, setLastActionDateFilter] = useState('all');
   const [sponsorFilter, setSponsorFilter] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
-  const [debouncedSponsorFilter, setDebouncedSponsorFilter] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  // Handle sponsor filter debouncing
+  const debouncedSponsorFilter = useDebounce(sponsorFilter, 2000);
+
+  const handleClearAllFilters = () => {
+    setStatusFilter('all');
+    setIntroducedDateFilter('all');
+    setLastActionDateFilter('all');
+    setSponsorFilter('');
+    setStateFilter('all');
+    setCurrentPage(1);
+    setBills([]);
+  };
+
+  const handleLoadMore = async () => {
+    setIsLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const response = await billsService.fetchBills({
+        page: nextPage,
+        itemsPerPage: ITEMS_PER_PAGE,
+        status: statusFilter,
+        introducedDateFilter: introducedDateFilter,
+        lastActionDateFilter: lastActionDateFilter,
+        sponsorFilter: debouncedSponsorFilter,
+        stateFilter: stateFilter,
+      });
+      setBills(prevBills => [...prevBills, ...response.data]);
+      setTotalBills(response.count);
+      setCurrentPage(nextPage);
+    } catch (error) {
+      console.error('Error loading more bills:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSponsorFilter(sponsorFilter);
-    }, 2000); // 2 seconds delay
-
-    return () => clearTimeout(timer);
-  }, [sponsorFilter]);
-
-  // Fetch bills when filters change
-  useEffect(() => {
-    async function fetchBills() {
+    const fetchBills = async () => {
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        setError(null);
         const response = await billsService.fetchBills({
+          page: 1,
+          itemsPerPage: ITEMS_PER_PAGE,
           status: statusFilter,
-          dateFilter: dateFilter,
+          introducedDateFilter: introducedDateFilter,
+          lastActionDateFilter: lastActionDateFilter,
           sponsorFilter: debouncedSponsorFilter,
           stateFilter: stateFilter,
         });
-
-        if (response.error) {
-          throw response.error;
-        }
-
         setBills(response.data);
-      } catch (err) {
-        console.error('Error fetching bills:', err);
-        setError(err as Error);
+        setTotalBills(response.count);
+        setCurrentPage(1);
+      } catch (error) {
+        console.error('Error fetching bills:', error);
       } finally {
         setIsLoading(false);
       }
-    }
+    };
 
     fetchBills();
-  }, [statusFilter, dateFilter, debouncedSponsorFilter, stateFilter]);
+  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, stateFilter]);
+
+  const hasMoreBills = bills.length < totalBills;
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex flex-col gap-6">
-        <div className="space-y-6">
-          <h1 className="text-2xl font-bold">Latest Bills</h1>
-          <BillsFilter
-            statusFilter={statusFilter}
-            dateFilter={dateFilter}
-            sponsorFilter={sponsorFilter}
-            stateFilter={stateFilter}
-            onStatusChange={setStatusFilter}
-            onDateChange={setDateFilter}
-            onSponsorChange={setSponsorFilter}
-            onStateChange={setStateFilter}
-          />
-        </div>
-
+    <main className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8">All Bills</h1>
+      <div className="mb-8">
+        <BillsFilter
+          statusFilter={statusFilter}
+          introducedDateFilter={introducedDateFilter}
+          lastActionDateFilter={lastActionDateFilter}
+          sponsorFilter={sponsorFilter}
+          stateFilter={stateFilter}
+          onStatusChange={setStatusFilter}
+          onIntroducedDateChange={setIntroducedDateFilter}
+          onLastActionDateChange={setLastActionDateFilter}
+          onSponsorChange={setSponsorFilter}
+          onStateChange={setStateFilter}
+          onClearAllFilters={handleClearAllFilters}
+        />
+      </div>
+      <div className="grid gap-6">
         {isLoading ? (
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">Loading bills...</p>
-          </div>
-        ) : error ? (
-          <div className="text-center py-8">
-            <p className="text-red-500">Error loading bills. Please try again later.</p>
-          </div>
-        ) : bills.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">No bills found matching your filters.</p>
-          </div>
+          <div>Loading...</div>
+        ) : bills.length > 0 ? (
+          bills.map((bill) => <BillCard key={bill.id} bill={bill} />)
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {bills.map((bill) => (
-              <BillCard key={bill.id} bill={bill} />
-            ))}
-          </div>
+          <div>No bills found</div>
         )}
       </div>
-    </div>
+      {hasMoreBills && !isLoading && (
+        <div className="mt-8 flex justify-center">
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? 'Loading...' : 'Load More'}
+          </Button>
+        </div>
+      )}
+    </main>
   );
 }

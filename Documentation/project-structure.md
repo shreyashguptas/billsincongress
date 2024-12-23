@@ -14,12 +14,14 @@ project/
 │
 ├── components/            # React components organized by feature
 │   ├── ui/               # Reusable UI components (shadcn/ui based)
-│   │   ├── card.tsx     # Card component for consistent content display
-│   │   ├── progress.tsx # Progress indicator for bill status
+│   │   ├── button.tsx   # Button component for actions
+│   │   ├── card.tsx     # Card component for content display
+│   │   ├── select.tsx   # Select component for filters
 │   │   └── badge.tsx    # Badge component for status and tags
 │   └── bills/           # Bill-specific components
 │       ├── bill-card.tsx    # Card component for bill preview
-│       └── featured-bills.tsx# Featured bills section component
+│       ├── bills-filter.tsx # Filter component for bills page
+│       └── pagination.tsx   # Pagination component for bill lists
 │
 ├── lib/                  # Core application logic and utilities
 │   ├── services/        # Service layer for data operations

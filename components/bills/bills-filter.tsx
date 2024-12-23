@@ -29,25 +29,38 @@ const STATE_NAMES: { [key: string]: string } = {
 
 interface BillsFilterProps {
   statusFilter: string;
-  dateFilter: string;
+  introducedDateFilter: string;
+  lastActionDateFilter: string;
   sponsorFilter: string;
   stateFilter: string;
   onStatusChange: (value: string) => void;
-  onDateChange: (value: string) => void;
+  onIntroducedDateChange: (value: string) => void;
+  onLastActionDateChange: (value: string) => void;
   onSponsorChange: (value: string) => void;
   onStateChange: (value: string) => void;
+  onClearAllFilters: () => void;
 }
 
 export function BillsFilter({
   statusFilter,
-  dateFilter,
+  introducedDateFilter,
+  lastActionDateFilter,
   sponsorFilter,
   stateFilter,
   onStatusChange,
-  onDateChange,
+  onIntroducedDateChange,
+  onLastActionDateChange,
   onSponsorChange,
   onStateChange,
+  onClearAllFilters,
 }: BillsFilterProps) {
+  const hasActiveFilters = 
+    statusFilter !== 'all' ||
+    introducedDateFilter !== 'all' ||
+    lastActionDateFilter !== 'all' ||
+    sponsorFilter !== '' ||
+    stateFilter !== 'all';
+
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:flex-wrap">
       <div className="flex items-center gap-2">
@@ -58,21 +71,37 @@ export function BillsFilter({
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="Introduced">Introduced</SelectItem>
-            <SelectItem value="Reported">Reported</SelectItem>
+            <SelectItem value="In Committee">In Committee</SelectItem>
             <SelectItem value="Passed One Chamber">Passed One Chamber</SelectItem>
             <SelectItem value="Passed Both Chambers">Passed Both Chambers</SelectItem>
-            <SelectItem value="Enacted">Enacted</SelectItem>
+            <SelectItem value="To President">To President</SelectItem>
+            <SelectItem value="Signed by President">Signed by President</SelectItem>
+            <SelectItem value="Became Law">Became Law</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="flex items-center gap-2">
-        <Select value={dateFilter} onValueChange={onDateChange}>
+        <Select value={introducedDateFilter} onValueChange={onIntroducedDateChange}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select date range" />
+            <SelectValue placeholder="Filter by introduced date" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Time</SelectItem>
+            <SelectItem value="all">Introduced Date</SelectItem>
+            <SelectItem value="week">Last Week</SelectItem>
+            <SelectItem value="month">Last Month</SelectItem>
+            <SelectItem value="year">Last Year</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Select value={lastActionDateFilter} onValueChange={onLastActionDateChange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by last action" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Last Action Date</SelectItem>
             <SelectItem value="week">Last Week</SelectItem>
             <SelectItem value="month">Last Month</SelectItem>
             <SelectItem value="year">Last Year</SelectItem>
@@ -105,6 +134,18 @@ export function BillsFilter({
           </SelectContent>
         </Select>
       </div>
+
+      {hasActiveFilters && (
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={onClearAllFilters}
+            className="whitespace-nowrap"
+          >
+            Clear All Filters
+          </Button>
+        </div>
+      )}
     </div>
   );
 } 

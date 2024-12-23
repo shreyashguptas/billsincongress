@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { BillInfo } from '@/lib/types/BillInfo';
+import type { Bill } from '@/lib/types/bill';
 import { billsService } from '@/lib/services/bills-service';
 
 interface BillFilters {
@@ -11,8 +11,8 @@ interface BillFilters {
 
 interface BillsState extends BillFilters {
   // Data
-  bills: BillInfo[];
-  featuredBills: BillInfo[];
+  bills: Bill[];
+  featuredBills: Bill[];
   totalCount: number;
   
   // UI State
@@ -30,7 +30,6 @@ interface BillsState extends BillFilters {
   fetchBills: (force?: boolean) => Promise<void>;
   fetchMoreBills: () => Promise<void>;
   fetchFeaturedBills: () => Promise<void>;
-  fetchFilterOptions: () => Promise<void>;
 }
 
 const DEFAULT_FILTERS: BillFilters = {
@@ -52,50 +51,42 @@ export const useBillsStore = create<BillsState>((set, get) => ({
   availableStatuses: ['all'],
   availableCategories: ['all'],
 
-  // Filter Actions
-  setFilter: async (key, value) => {
+  // Actions
+  setFilter: (key, value) => {
     set({ [key]: value });
-    // Reset offset and refetch when filters change
-    set({ offset: 0 });
-    await get().fetchBills(true);
+    get().fetchBills(true);
   },
 
-  clearFilters: async () => {
-    set({ ...DEFAULT_FILTERS, offset: 0 });
-    await get().fetchBills(true);
+  clearFilters: () => {
+    set({ ...DEFAULT_FILTERS });
+    get().fetchBills(true);
   },
 
-  // Data Fetching Actions
-  fetchBills: async (force = false) => {
+  fetchBills: async (force = true) => {
     const state = get();
+    if (state.isLoading) return;
+
     set({ isLoading: true, error: null });
 
     try {
       const response = await billsService.fetchBills({
-        sortOrder: state.sortOrder,
-        status: state.status,
-        category: state.category,
-        searchQuery: state.searchQuery,
-        offset: force ? 0 : state.offset,
-        limit: 10
+        page: force ? 1 : Math.floor(state.offset / 10) + 1,
+        itemsPerPage: 10,
+        status: state.status === 'all' ? undefined : state.status,
+        sponsorFilter: state.searchQuery,
+        stateFilter: 'all',
+        introducedDateFilter: 'all',
+        lastActionDateFilter: 'all'
       });
-
-      if (response.error) {
-        throw response.error;
-      }
 
       set({
         bills: force ? response.data : [...state.bills, ...response.data],
         totalCount: response.count,
-        offset: force ? response.data.length : state.offset + response.data.length,
-        isLoading: false
+        offset: force ? 0 : state.offset + response.data.length,
+        isLoading: false,
       });
     } catch (error) {
-      set({ 
-        error: error as Error, 
-        isLoading: false,
-        bills: force ? [] : state.bills // Only clear bills if force=true
-      });
+      set({ error: error as Error, isLoading: false });
     }
   },
 
@@ -111,14 +102,9 @@ export const useBillsStore = create<BillsState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const response = await billsService.fetchFeaturedBills();
-      
-      if (response.error) {
-        throw response.error;
-      }
-
+      const bills = await billsService.fetchFeaturedBills();
       set({ 
-        featuredBills: response.data,
+        featuredBills: bills,
         isLoading: false 
       });
     } catch (error) {
@@ -127,24 +113,6 @@ export const useBillsStore = create<BillsState>((set, get) => ({
         isLoading: false,
         featuredBills: []
       });
-    }
-  },
-
-  fetchFilterOptions: async () => {
-    try {
-      const response = await billsService.fetchUniqueValues();
-      
-      if (response.error) {
-        throw response.error;
-      }
-
-      set({ 
-        availableStatuses: response.statuses,
-        availableCategories: response.categories
-      });
-    } catch (error) {
-      console.error('Error fetching filter options:', error);
-      // Don't update state on error to keep default values
     }
   }
 })); 
