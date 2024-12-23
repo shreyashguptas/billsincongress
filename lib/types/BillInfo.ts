@@ -32,9 +32,6 @@ export interface BillInfo {
   sponsor_last_name: string;
   sponsor_party: string;
   sponsor_state: string;
-  latest_action_code?: string;
-  latest_action_date?: string;
-  latest_action_text?: string;
   progress_stage?: number;
   progress_description?: string;
   created_at?: string;

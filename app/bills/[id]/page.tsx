@@ -29,7 +29,19 @@ async function getBillData(billId: string) {
   const { data } = await supabase
     .from(BILL_INFO_TABLE_NAME)
     .select(`
-      *,
+      id,
+      congress,
+      bill_type,
+      bill_number,
+      bill_type_label,
+      introduced_date,
+      title,
+      sponsor_first_name,
+      sponsor_last_name,
+      sponsor_party,
+      sponsor_state,
+      progress_stage,
+      progress_description,
       bill_subjects (
         policy_area_name
       )
@@ -104,17 +116,6 @@ export default async function BillPage({ params }: PageProps) {
                   <span className="font-medium">Introduced:</span>{' '}
                   {new Date(data.introduced_date).toLocaleDateString()}
                 </p>
-                {data.latest_action_text && (
-                  <p>
-                    <span className="font-medium">Latest Action:</span>{' '}
-                    {data.latest_action_text}
-                    {data.latest_action_date && (
-                      <span className="text-muted-foreground ml-2">
-                        ({new Date(data.latest_action_date).toLocaleDateString()})
-                      </span>
-                    )}
-                  </p>
-                )}
                 {data.progress_description && (
                   <p>
                     <span className="font-medium">Current Stage:</span>{' '}

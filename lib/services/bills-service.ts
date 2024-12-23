@@ -58,9 +58,6 @@ class BillsService {
           sponsor_last_name,
           sponsor_party,
           sponsor_state,
-          latest_action_code,
-          latest_action_date,
-          latest_action_text,
           progress_stage,
           progress_description,
           bill_subjects (
@@ -195,9 +192,6 @@ class BillsService {
           sponsor_last_name,
           sponsor_party,
           sponsor_state,
-          latest_action_code,
-          latest_action_date,
-          latest_action_text,
           progress_stage,
           progress_description,
           bill_subjects (
@@ -205,7 +199,7 @@ class BillsService {
           )
         `)
         .not('title', 'ilike', 'Reserved for the Speaker%')
-        .order('latest_action_date', { ascending: false })
+        .order('introduced_date', { ascending: false })
         .limit(3);
 
       if (error) throw error;

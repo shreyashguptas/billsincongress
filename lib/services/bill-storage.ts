@@ -17,9 +17,6 @@ export class BillStorageService {
         sponsor_last_name,
         sponsor_party,
         sponsor_state,
-        latest_action_code,
-        latest_action_date,
-        latest_action_text,
         progress_stage,
         progress_description,
         bill_titles (
@@ -76,10 +73,8 @@ export class BillStorageService {
       sponsor_last_name: bill.sponsors?.[0]?.lastName,
       sponsor_party: bill.sponsors?.[0]?.party,
       sponsor_state: bill.sponsors?.[0]?.state,
-      latest_action_date: bill.latestAction?.actionDate,
-      latest_action_text: bill.latestAction?.text,
-      progress_stage: this.calculateProgressStage(bill),
-      progress_description: this.getProgressDescription(bill)
+      progress_stage: 20, // Default to "Introduced" stage
+      progress_description: 'Introduced' // Default description
     };
 
     console.log('Transformed bill info:', JSON.stringify(billInfo, null, 2));
@@ -109,39 +104,5 @@ export class BillStorageService {
       sres: 'S.Res.'
     };
     return labels[type.toLowerCase()] || type;
-  }
-
-  private calculateProgressStage(bill: any): number {
-    // Default to "Introduced" stage
-    let stage = 20;
-
-    const actionText = bill.latestAction?.text?.toLowerCase() || '';
-    if (actionText.includes('signed by president') || actionText.includes('became public law')) {
-      stage = 100; // Enacted
-    } else if (actionText.includes('passed senate') && actionText.includes('passed house')) {
-      stage = 80; // Passed Both Chambers
-    } else if (actionText.includes('passed senate') || actionText.includes('passed house')) {
-      stage = 60; // Passed One Chamber
-    } else if (actionText.includes('reported')) {
-      stage = 40; // Reported
-    }
-
-    return stage;
-  }
-
-  private getProgressDescription(bill: any): string {
-    const stage = this.calculateProgressStage(bill);
-    switch (stage) {
-      case 100:
-        return 'Enacted';
-      case 80:
-        return 'Passed Both Chambers';
-      case 60:
-        return 'Passed One Chamber';
-      case 40:
-        return 'Reported';
-      default:
-        return 'Introduced';
-    }
   }
 } 
