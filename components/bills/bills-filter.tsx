@@ -70,12 +70,14 @@ interface BillsFilterProps {
   introducedDateFilter: string;
   lastActionDateFilter: string;
   sponsorFilter: string;
+  titleFilter: string;
   stateFilter: string;
   policyAreaFilter: string;
   onStatusChange: (value: string) => void;
   onIntroducedDateChange: (value: string) => void;
   onLastActionDateChange: (value: string) => void;
   onSponsorChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
   onStateChange: (value: string) => void;
   onPolicyAreaChange: (value: string) => void;
   onClearAllFilters: () => void;
@@ -86,12 +88,14 @@ function BillsFilter({
   introducedDateFilter,
   lastActionDateFilter,
   sponsorFilter,
+  titleFilter,
   stateFilter,
   policyAreaFilter,
   onStatusChange,
   onIntroducedDateChange,
   onLastActionDateChange,
   onSponsorChange,
+  onTitleChange,
   onStateChange,
   onPolicyAreaChange,
   onClearAllFilters,
@@ -101,12 +105,13 @@ function BillsFilter({
     introducedDateFilter !== 'all' ||
     lastActionDateFilter !== 'all' ||
     sponsorFilter !== '' ||
+    titleFilter !== '' ||
     stateFilter !== 'all' ||
     policyAreaFilter !== 'all';
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:flex-wrap">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <Select value={policyAreaFilter} onValueChange={onPolicyAreaChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Categories" />
@@ -120,9 +125,7 @@ function BillsFilter({
             ))}
           </SelectContent>
         </Select>
-      </div>
 
-      <div className="flex items-center gap-2">
         <Select value={statusFilter} onValueChange={onStatusChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select status" />
@@ -138,9 +141,7 @@ function BillsFilter({
             <SelectItem value="Became Law">Became Law</SelectItem>
           </SelectContent>
         </Select>
-      </div>
 
-      <div className="flex items-center gap-2">
         <Select value={introducedDateFilter} onValueChange={onIntroducedDateChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Filter by introduced date" />
@@ -152,9 +153,7 @@ function BillsFilter({
             <SelectItem value="year">Last Year</SelectItem>
           </SelectContent>
         </Select>
-      </div>
 
-      <div className="flex items-center gap-2">
         <Select value={lastActionDateFilter} onValueChange={onLastActionDateChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Filter by last action" />
@@ -166,19 +165,7 @@ function BillsFilter({
             <SelectItem value="year">Last Year</SelectItem>
           </SelectContent>
         </Select>
-      </div>
 
-      <div className="flex items-center gap-2">
-        <Input
-          type="text"
-          placeholder="Search by sponsor name"
-          value={sponsorFilter}
-          onChange={(e) => onSponsorChange(e.target.value)}
-          className="w-[180px]"
-        />
-      </div>
-
-      <div className="flex items-center gap-2">
         <Select value={stateFilter} onValueChange={onStateChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select state" />
@@ -192,10 +179,8 @@ function BillsFilter({
             ))}
           </SelectContent>
         </Select>
-      </div>
 
-      {hasActiveFilters && (
-        <div className="flex items-center gap-2">
+        {hasActiveFilters && (
           <Button 
             variant="outline" 
             onClick={onClearAllFilters}
@@ -203,8 +188,25 @@ function BillsFilter({
           >
             Clear All Filters
           </Button>
-        </div>
-      )}
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <Input
+          type="text"
+          placeholder="Search by bill title"
+          value={titleFilter}
+          onChange={(e) => onTitleChange(e.target.value)}
+          className="w-[300px]"
+        />
+        <Input
+          type="text"
+          placeholder="Search by sponsor name"
+          value={sponsorFilter}
+          onChange={(e) => onSponsorChange(e.target.value)}
+          className="w-[300px]"
+        />
+      </div>
     </div>
   );
 }

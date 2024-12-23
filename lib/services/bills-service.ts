@@ -31,6 +31,7 @@ export interface BillQueryParams {
   introducedDateFilter?: string;
   lastActionDateFilter?: string;
   sponsorFilter?: string;
+  titleFilter?: string;
   stateFilter?: string;
   policyArea?: string;
 }
@@ -56,6 +57,7 @@ export const billsService = {
       introducedDateFilter = 'all',
       lastActionDateFilter = 'all',
       sponsorFilter = '',
+      titleFilter = '',
       stateFilter = 'all',
       policyArea = 'all',
     } = params;
@@ -82,6 +84,21 @@ export const billsService = {
     if (lastActionDateFilter !== 'all') {
       const startDate = getStartDate(lastActionDateFilter);
       query = query.gte('last_action_date', startDate.toISOString());
+    }
+
+    if (titleFilter) {
+      const cleanedTitle = titleFilter.trim().toLowerCase().replace(/\s+/g, ' ');
+      
+      if (cleanedTitle) {
+        const words = cleanedTitle.split(' ').filter(word => word.length > 0);
+        if (words.length > 0) {
+          const conditions = words.map(word => 
+            `title.ilike.%${word}%`
+          ).join(',');
+          
+          query = query.or(conditions);
+        }
+      }
     }
 
     if (sponsorFilter) {
@@ -137,38 +154,55 @@ export const billsService = {
 
   async fetchFeaturedBills(): Promise<Bill[]> {
     const supabase = this.getClient();
-    const { data, error } = await supabase
+
+    // First, try to get bills signed by the president
+    const { data: signedBills, error: signedError } = await supabase
       .from(BILL_INFO_TABLE_NAME)
       .select(`
-        id,
-        congress,
-        bill_type,
-        bill_number,
-        bill_type_label,
-        introduced_date,
-        title,
-        sponsor_first_name,
-        sponsor_last_name,
-        sponsor_party,
-        sponsor_state,
-        progress_stage,
-        progress_description,
+        *,
         bill_subjects (
           policy_area_name
         )
       `)
+      .eq('progress_description', 'Signed by President')
       .not('title', 'ilike', 'Reserved for the Speaker%')
       .order('introduced_date', { ascending: false })
       .limit(3);
 
-    if (error) {
-      console.error('Error fetching featured bills:', error);
-      throw error;
+    if (signedError) {
+      console.error('Error fetching signed bills:', signedError);
+      throw signedError;
     }
 
-    const transformedData = (data || []).map(bill => ({
+    // If we don't have 3 signed bills, get bills that are to president
+    let featuredBills = signedBills || [];
+    if (featuredBills.length < 3) {
+      const remainingCount = 3 - featuredBills.length;
+      const { data: toPresidentBills, error: toPresidentError } = await supabase
+        .from(BILL_INFO_TABLE_NAME)
+        .select(`
+          *,
+          bill_subjects (
+            policy_area_name
+          )
+        `)
+        .eq('progress_description', 'To President')
+        .not('title', 'ilike', 'Reserved for the Speaker%')
+        .order('introduced_date', { ascending: false })
+        .limit(remainingCount);
+
+      if (toPresidentError) {
+        console.error('Error fetching to-president bills:', toPresidentError);
+        throw toPresidentError;
+      }
+
+      featuredBills = [...featuredBills, ...(toPresidentBills || [])];
+    }
+
+    // Transform the data
+    const transformedData = featuredBills.map(bill => ({
       ...bill,
-      bill_subjects: bill.bill_subjects?.[0] || undefined
+      bill_subjects: bill.bill_subjects?.[0] || { policy_area_name: '' }
     }));
 
     return transformedData as Bill[];

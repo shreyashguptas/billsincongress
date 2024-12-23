@@ -29,6 +29,7 @@ export default function BillsPage() {
   const [introducedDateFilter, setIntroducedDateFilter] = useState('all');
   const [lastActionDateFilter, setLastActionDateFilter] = useState('all');
   const [sponsorFilter, setSponsorFilter] = useState('');
+  const [titleFilter, setTitleFilter] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
   const [policyAreaFilter, setPolicyAreaFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -36,12 +37,14 @@ export default function BillsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const debouncedSponsorFilter = useDebounce(sponsorFilter, 2000);
+  const debouncedTitleFilter = useDebounce(titleFilter, 2000);
 
   const handleClearAllFilters = () => {
     setStatusFilter('all');
     setIntroducedDateFilter('all');
     setLastActionDateFilter('all');
     setSponsorFilter('');
+    setTitleFilter('');
     setStateFilter('all');
     setPolicyAreaFilter('all');
     setCurrentPage(1);
@@ -60,6 +63,7 @@ export default function BillsPage() {
         introducedDateFilter: introducedDateFilter,
         lastActionDateFilter: lastActionDateFilter,
         sponsorFilter: debouncedSponsorFilter,
+        titleFilter: debouncedTitleFilter,
         stateFilter: stateFilter,
         policyArea: policyAreaFilter,
       });
@@ -87,6 +91,7 @@ export default function BillsPage() {
           introducedDateFilter: introducedDateFilter,
           lastActionDateFilter: lastActionDateFilter,
           sponsorFilter: debouncedSponsorFilter,
+          titleFilter: debouncedTitleFilter,
           stateFilter: stateFilter,
           policyArea: policyAreaFilter,
         });
@@ -103,7 +108,7 @@ export default function BillsPage() {
     };
 
     fetchBills();
-  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, stateFilter, policyAreaFilter]);
+  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, debouncedTitleFilter, stateFilter, policyAreaFilter]);
 
   const hasMoreBills = bills.length < totalBills;
 
@@ -123,12 +128,14 @@ export default function BillsPage() {
             introducedDateFilter={introducedDateFilter}
             lastActionDateFilter={lastActionDateFilter}
             sponsorFilter={sponsorFilter}
+            titleFilter={titleFilter}
             stateFilter={stateFilter}
             policyAreaFilter={policyAreaFilter}
             onStatusChange={setStatusFilter}
             onIntroducedDateChange={setIntroducedDateFilter}
             onLastActionDateChange={setLastActionDateFilter}
             onSponsorChange={setSponsorFilter}
+            onTitleChange={setTitleFilter}
             onStateChange={setStateFilter}
             onPolicyAreaChange={setPolicyAreaFilter}
             onClearAllFilters={handleClearAllFilters}
