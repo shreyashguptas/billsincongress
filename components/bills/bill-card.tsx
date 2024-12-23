@@ -1,10 +1,10 @@
 'use client';
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Bill } from "@/lib/types/bill";
-import { BillProgress } from "./bill-progress";
-import Link from "next/link";
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Bill } from '@/lib/types/bill';
+import { BillProgress } from './bill-progress';
+import Link from 'next/link';
 
 interface BillCardProps {
   bill: Bill;
@@ -12,7 +12,7 @@ interface BillCardProps {
 
 export default function BillCard({ bill }: BillCardProps) {
   const policyArea = bill.bill_subjects?.policy_area_name;
-  const shouldShowBadge = policyArea != null && policyArea !== '';
+  const shouldShowBadge = policyArea !== null && policyArea !== '';
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -48,9 +48,9 @@ export default function BillCard({ bill }: BillCardProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <BillProgress 
-              stage={bill.progress_stage} 
-              description={bill.progress_description} 
+            <BillProgress
+              stage={Number(bill.progress_stage)}
+              description={bill.progress_description}
             />
           </div>
         </CardContent>

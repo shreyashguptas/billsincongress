@@ -52,10 +52,11 @@ export default function BillDetails({ bill }: BillDetailsProps) {
       'Passed One Chamber',
       'Passed Both Chambers',
       'To President',
+      'Signed by President',
       'Became Law'
     ];
     const currentIndex = stages.indexOf(status);
-    return ((currentIndex + 1) / stages.length) * 100;
+    return currentIndex >= 0 ? ((currentIndex + 1) / stages.length) * 100 : 0;
   };
 
   const progressPercentage = getProgressPercentage(bill.progress_description);
@@ -92,10 +93,11 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           </div>
           <div className="flex justify-between text-sm text-muted-foreground mt-2">
             <span>Introduced</span>
-            <span>In Committee</span>
-            <span>Passed One</span>
-            <span>Passed Both</span>
+            <span>Committee</span>
+            <span>One Chamber</span>
+            <span>Both Chambers</span>
             <span>To President</span>
+            <span>Signed</span>
             <span>Law</span>
           </div>
         </div>
