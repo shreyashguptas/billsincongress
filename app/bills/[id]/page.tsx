@@ -82,9 +82,11 @@ export async function generateStaticParams() {
   }));
 }
 
-async function getBillData(billId: string): Promise<Bill | null> {
+async function getBillData(billId: string): Promise<(Bill & { latest_summary?: string }) | null> {
   const supabase = createStaticClient();
-  const { data } = await supabase
+  
+  // Fetch bill info
+  const { data: billData } = await supabase
     .from(BILL_INFO_TABLE_NAME)
     .select(`
       id,
@@ -107,15 +109,24 @@ async function getBillData(billId: string): Promise<Bill | null> {
     .match({ id: billId })
     .single();
 
-  if (!data) {
+  if (!billData) {
     return null;
   }
 
-  // Transform the data to match the Bill interface
+  // Fetch latest summary
+  const { data: summaryData } = await supabase
+    .from('bill_summaries')
+    .select('text')
+    .eq('id', billId)
+    .order('update_date', { ascending: false })
+    .limit(1)
+    .single();
+
   return {
-    ...data,
-    bill_subjects: data.bill_subjects?.[0] || undefined
-  } as Bill;
+    ...billData,
+    bill_subjects: billData.bill_subjects?.[0] || undefined,
+    latest_summary: summaryData?.text
+  } as Bill & { latest_summary?: string };
 }
 
 export async function generateMetadata(
@@ -168,18 +179,28 @@ export default async function BillPage({ params }: PageProps) {
   return (
     <div className="container mx-auto py-8">
       <div className="max-w-3xl mx-auto space-y-6">
-        {/* Title and Bill Info */}
+        {/* Title and Summary */}
         <Card>
           <CardHeader>
             <CardTitle>{data.title}</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {data.bill_type_label} {data.bill_number} ({data.congress}th Congress)
-            </p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Introduced on {formatDate(data.introduced_date)}
             </p>
+            <div className="pt-4 border-t">
+              <h3 className="font-medium mb-2">Summary</h3>
+              {data.latest_summary ? (
+                <div 
+                  className="prose dark:prose-invert max-w-none text-sm"
+                  dangerouslySetInnerHTML={{ __html: data.latest_summary }}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No summary is available for this bill.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
