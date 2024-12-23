@@ -164,59 +164,64 @@ export default function BillsPage() {
   const hasMoreBills = bills.length < totalBills;
 
   return (
-    <main className="container mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">All Bills</h1>
-        <span className="text-sm text-muted-foreground">
-          Showing {bills.length} out of {totalBills} bills
-        </span>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <BillsFilter
-            statusFilter={statusFilter}
-            introducedDateFilter={introducedDateFilter}
-            lastActionDateFilter={lastActionDateFilter}
-            sponsorFilter={sponsorFilter}
-            titleFilter={titleFilter}
-            stateFilter={stateFilter}
-            policyAreaFilter={policyAreaFilter}
-            billTypeFilter={billTypeFilter}
-            onStatusChange={(value) => {
-              setStatusFilter(value);
-              setCurrentPage(1);
-            }}
-            onIntroducedDateChange={(value) => {
-              setIntroducedDateFilter(value);
-              setCurrentPage(1);
-            }}
-            onLastActionDateChange={(value) => {
-              setLastActionDateFilter(value);
-              setCurrentPage(1);
-            }}
-            onSponsorChange={setSponsorFilter}
-            onTitleChange={setTitleFilter}
-            onStateChange={(value) => {
-              setStateFilter(value);
-              setCurrentPage(1);
-            }}
-            onPolicyAreaChange={(value) => {
-              setPolicyAreaFilter(value);
-              setCurrentPage(1);
-            }}
-            onBillTypeChange={(value) => {
-              setBillTypeFilter(value);
-              setCurrentPage(1);
-            }}
-            onClearAllFilters={handleClearAllFilters}
-          />
+    <main className="container mx-auto px-4 py-8">
+      <div className="flex items-baseline justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">All Bills</h1>
+          <p className="text-sm text-muted-foreground">
+            Browse the latest bills introduced in Congress
+          </p>
         </div>
+        <div className="text-sm text-muted-foreground">
+          Showing {bills.length} out of {totalBills} bills
+        </div>
+      </div>
+      
+      <div className="space-y-6">
+        <BillsFilter
+          statusFilter={statusFilter}
+          introducedDateFilter={introducedDateFilter}
+          lastActionDateFilter={lastActionDateFilter}
+          sponsorFilter={sponsorFilter}
+          titleFilter={titleFilter}
+          stateFilter={stateFilter}
+          policyAreaFilter={policyAreaFilter}
+          billTypeFilter={billTypeFilter}
+          onStatusChange={(value) => {
+            setStatusFilter(value);
+            setCurrentPage(1);
+          }}
+          onIntroducedDateChange={(value) => {
+            setIntroducedDateFilter(value);
+            setCurrentPage(1);
+          }}
+          onLastActionDateChange={(value) => {
+            setLastActionDateFilter(value);
+            setCurrentPage(1);
+          }}
+          onSponsorChange={setSponsorFilter}
+          onTitleChange={setTitleFilter}
+          onStateChange={(value) => {
+            setStateFilter(value);
+            setCurrentPage(1);
+          }}
+          onPolicyAreaChange={(value) => {
+            setPolicyAreaFilter(value);
+            setCurrentPage(1);
+          }}
+          onBillTypeChange={(value) => {
+            setBillTypeFilter(value);
+            setCurrentPage(1);
+          }}
+          onClearAllFilters={handleClearAllFilters}
+        />
+        
         {error && (
-          <div className="text-red-500 mb-4">
+          <div className="text-red-500">
             {error}
           </div>
         )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
             <div>Loading...</div>
@@ -230,6 +235,7 @@ export default function BillsPage() {
             <div>No bills found</div>
           )}
         </div>
+
         {hasMoreBills && !isLoading && (
           <div className="mt-8 flex justify-center">
             <Button
