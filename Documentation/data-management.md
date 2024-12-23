@@ -14,12 +14,16 @@ class BillsService {
     // Implementation
   }
 
-  async fetchBill(id: string): Promise<BillInfo | null> {
+  async fetchBillById(id: string): Promise<Bill> {
+    // Implementation with PDF URL
+  }
+
+  async fetchFeaturedBills(): Promise<Bill[]> {
     // Implementation
   }
 
-  async fetchFeaturedBills(): Promise<BillInfo[]> {
-    // Implementation
+  async getCongressInfo(): Promise<{ congress: number; startYear: number; endYear: number }> {
+    // Implementation for Congress session years
   }
 }
 ```
@@ -37,8 +41,59 @@ interface BillQueryParams {
   titleFilter?: string;
   stateFilter?: string;
   policyArea?: string;
+  billType?: string;
 }
 ```
+
+### Congress Session Information
+
+The application dynamically calculates and displays Congress session years:
+
+1. **Data Source**
+   - Fetches latest Congress number from `bill_info` table
+   - Each Congress starts on January 3rd of odd-numbered years
+   - Each Congress lasts for 2 years
+
+2. **Calculation Logic**
+   ```typescript
+   // Example: 118th Congress
+   const startYear = 2023 + (congress - 118) * 2;
+   const endYear = startYear + 2;
+   ```
+
+3. **Display Format**
+   - Shows year range: (2023–2025)
+   - Updates automatically with data changes
+   - Handles historical and future Congress sessions
+
+### Bill Details
+
+The bill detail view includes:
+
+1. **PDF Access**
+   - Fetches latest PDF URL from `bill_text` table
+   - Opens in new tab for better user experience
+   - Maintains state between navigation
+
+2. **Party Information**
+   - Extended party mappings:
+     ```typescript
+     const PARTY_NAMES = {
+       R: 'Republican',
+       D: 'Democrat',
+       I: 'Independent',
+       ID: 'Independent Democrat',
+       IR: 'Independent Republican',
+       L: 'Libertarian',
+       G: 'Green Party',
+       '': 'No Party Affiliation'
+     };
+     ```
+
+3. **Progress Calculation**
+   - Uses normalized stages (20-100)
+   - Converts to percentage for display
+   - Visual indicators for each stage
 
 ### Featured Bills Logic
 
@@ -50,8 +105,6 @@ The featured bills section prioritizes bills based on their presidential status:
 2. Second Priority: "To President"
    - If fewer than 3 signed bills are available, fills the remaining slots with bills that have been sent to the president
    - Ordered by introduction date within each status group
-
-This prioritization ensures that the featured section highlights bills at their most significant stages of progress.
 
 ### Bill Filtering
 
@@ -73,8 +126,10 @@ The application supports multiple filtering mechanisms:
 4. **Category Filters**
    - Policy Area: Filter by specific policy categories
    - State: Filter by sponsor's state
+   - Bill Type: Filter by bill type with full descriptions
    
 All filters can be combined and cleared using the "Clear All Filters" button.
+Filter states persist across sessions using localStorage.
 
 ### Response Types
 
@@ -88,7 +143,7 @@ interface Bill {
   id: string;
   congress: number;
   bill_type: string;
-  bill_number: number;
+  bill_number: string;
   bill_type_label: string;
   introduced_date: string;
   title: string;
@@ -96,11 +151,13 @@ interface Bill {
   sponsor_last_name: string;
   sponsor_party: string;
   sponsor_state: string;
-  progress_stage: number;
+  progress_stage: string;
   progress_description: string;
   bill_subjects?: {
     policy_area_name: string;
   };
+  latest_summary?: string;
+  pdf_url?: string;
 }
 ```
 

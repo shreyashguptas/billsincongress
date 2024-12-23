@@ -14,6 +14,25 @@ Features:
 - Displays bill type and number
 - Shows progress description
 - Shows sponsor information with party and state
+- Consistent typography and spacing
+- Mobile-responsive layout
+```
+
+### BillDetails
+```tsx
+// components/bills/bill-details.tsx
+interface BillDetailsProps {
+  bill: Bill;
+}
+Features:
+- Clean, modern layout with consistent spacing
+- PDF viewer link with icon for full bill text
+- Dynamic progress bar with percentage
+- Visual stage indicators (mobile: vertical, desktop: horizontal)
+- HTML-stripped summary display
+- Comprehensive sponsor information
+- Full party name display (including Independent variations)
+- UTC-aware date formatting
 ```
 
 ### BillsFilter
@@ -27,6 +46,7 @@ interface BillsFilterProps {
   titleFilter: string;
   stateFilter: string;
   policyAreaFilter: string;
+  billTypeFilter: string;
   onStatusChange: (value: string) => void;
   onIntroducedDateChange: (value: string) => void;
   onLastActionDateChange: (value: string) => void;
@@ -34,6 +54,7 @@ interface BillsFilterProps {
   onTitleChange: (value: string) => void;
   onStateChange: (value: string) => void;
   onPolicyAreaChange: (value: string) => void;
+  onBillTypeChange: (value: string) => void;
   onClearAllFilters: () => void;
 }
 Features:
@@ -41,6 +62,7 @@ Features:
 - First row: Dropdown filters
   - Policy area categories with scrollable list
   - Status filter with all bill stages
+  - Bill type filter with full descriptions
   - Introduced date filter (week/month/year)
   - Last action date filter (week/month/year)
   - State filter with full state names
@@ -50,6 +72,19 @@ Features:
 - Clear all filters button
 - Space-aware text search handling
 - Case-insensitive search
+- Consistent dropdown alignment
+```
+
+### BillsPage
+```tsx
+// app/bills/page.tsx
+Features:
+- Dynamic Congress session display (year range)
+- Persistent filter state using localStorage
+- Responsive grid layout
+- Load more functionality
+- Error handling and loading states
+- Total bill count display
 ```
 
 ## UI Components
@@ -75,6 +110,7 @@ Features:
 - Consistent padding and spacing
 - Hover state for interactive cards
 - Flexible content layout
+- Mobile-responsive spacing
 ```
 
 ### Select
@@ -90,6 +126,7 @@ Features:
 - Accessible dropdown
 - Custom trigger styling
 - Keyboard navigation
+- Consistent alignment
 ```
 
 ### Badge
@@ -114,8 +151,19 @@ Features:
 3. Error Handling
    - Fallback UI for loading states
    - Error messages for no results
+   - Graceful degradation
 
 4. Accessibility
    - ARIA labels
    - Keyboard navigation
    - Screen reader support
+
+5. Mobile Responsiveness
+   - Flexible layouts
+   - Appropriate text sizes
+   - Touch-friendly targets
+
+6. Data Formatting
+   - UTC-aware date handling
+   - HTML content sanitization
+   - Consistent text formatting

@@ -21,6 +21,8 @@ xl: 1280px /* Extra large devices */
 - Two columns on tablet
 - Three columns on desktop
 - Adjusted typography and spacing
+- Consistent policy area badge placement
+- Optimized title length for mobile
 
 ### Bill Details Page
 - Compact title and spacing on mobile
@@ -29,11 +31,17 @@ xl: 1280px /* Extra large devices */
 - Consistent text hierarchy
 - Full-width buttons on mobile
 - Reduced padding on mobile
+- PDF button next to title
+- HTML-stripped summary for better readability
+- Optimized sponsor information layout
 
 ### Filters
 - Horizontal scrolling on mobile
 - Full width on larger screens
 - Compact selects on mobile
+- Consistent dropdown alignment
+- Touch-friendly select options
+- Clear visual feedback on selection
 
 ## Implementation Details
 
@@ -44,6 +52,10 @@ text-sm sm:text-base    // Body text
 text-base sm:text-lg    // Large text
 text-2xl sm:text-4xl    // Headings
 text-xs sm:text-sm      // Small text
+
+// Bill title handling
+line-clamp-2 sm:line-clamp-3  // Title truncation
+leading-tight sm:leading-snug // Line height
 ```
 
 ### Layout
@@ -54,6 +66,11 @@ flex-col sm:flex-row    // Stack to row
 gap-4 sm:gap-6          // Adjusted spacing
 p-4 sm:p-8              // Responsive padding
 mb-4 sm:mb-8            // Responsive margins
+
+// Bill details layout
+flex-col lg:flex-row    // Vertical to horizontal layout
+space-y-4 lg:space-x-6  // Spacing adjustments
+w-full lg:w-2/3         // Width constraints
 ```
 
 ### Components
@@ -67,6 +84,11 @@ space-y-4 sm:space-y-6 // Vertical spacing
 h-3 sm:h-4             // Smaller on mobile
 block sm:hidden        // Mobile-only elements
 hidden sm:flex         // Desktop-only elements
+
+// Dropdowns
+min-w-[200px]          // Minimum width for dropdowns
+max-h-[300px]          // Maximum height with scrolling
+p-2 sm:p-3            // Touch-friendly padding
 ```
 
 ## Best Practices
@@ -75,26 +97,39 @@ hidden sm:flex         // Desktop-only elements
    - Base styles for mobile
    - Progressive enhancement
    - Breakpoint-specific adjustments
+   - Consistent spacing system
 
 2. Performance
    - Optimized images
    - Efficient layouts
    - Minimal layout shifts
+   - Smooth transitions
 
 3. Content Adaptation
    - Vertical layouts on mobile
    - Horizontal layouts on desktop
-   - Touch-friendly tap targets
+   - Touch-friendly tap targets (minimum 44px)
    - Full-width buttons on mobile
+   - Smart text truncation
 
 4. Typography
    - Reduced font sizes on mobile
    - Consistent type scale
    - Proper line heights
    - Adequate contrast
+   - HTML content sanitization
 
-5. Testing
+5. Interactive Elements
+   - Clear hover states
+   - Focus indicators
+   - Touch-friendly targets
+   - Consistent dropdown behavior
+   - Proper spacing between interactive elements
+
+6. Testing
    - Multiple device testing
    - Browser compatibility
    - Orientation changes
    - Touch interaction testing
+   - Keyboard navigation
+   - Screen reader compatibility
