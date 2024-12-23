@@ -298,15 +298,8 @@ export const billsService = {
       featuredBills = [...featuredBills, ...(toPresidentBills || [])];
     }
 
-    // Log the raw data for debugging
-    console.log('Featured bills data:', featuredBills.map(bill => ({
-      id: bill.id,
-      subjects: bill.bill_subjects
-    })));
-
     // Transform the data using the same logic as fetchBills
     const transformedData = featuredBills.map(bill => {
-      // Handle both array and single object cases
       const policyArea = Array.isArray(bill.bill_subjects) 
         ? bill.bill_subjects[0]?.policy_area_name 
         : bill.bill_subjects?.policy_area_name || '';
