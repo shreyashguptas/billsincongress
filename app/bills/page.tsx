@@ -25,20 +25,58 @@ export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [totalBills, setTotalBills] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string | null>('all');
-  const [introducedDateFilter, setIntroducedDateFilter] = useState<string | null>('all');
-  const [lastActionDateFilter, setLastActionDateFilter] = useState<string | null>('all');
-  const [sponsorFilter, setSponsorFilter] = useState('');
-  const [titleFilter, setTitleFilter] = useState('');
-  const [stateFilter, setStateFilter] = useState<string | null>('all');
-  const [policyAreaFilter, setPolicyAreaFilter] = useState<string | null>('all');
-  const [billTypeFilter, setBillTypeFilter] = useState<string | null>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(() => 
+    typeof window !== 'undefined' ? localStorage.getItem('billsStatusFilter') || 'all' : 'all'
+  );
+  const [introducedDateFilter, setIntroducedDateFilter] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsIntroducedDateFilter') || 'all' : 'all'
+  );
+  const [lastActionDateFilter, setLastActionDateFilter] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsLastActionDateFilter') || 'all' : 'all'
+  );
+  const [sponsorFilter, setSponsorFilter] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsSponsorFilter') || '' : ''
+  );
+  const [titleFilter, setTitleFilter] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsTitleFilter') || '' : ''
+  );
+  const [stateFilter, setStateFilter] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsStateFilter') || 'all' : 'all'
+  );
+  const [policyAreaFilter, setPolicyAreaFilter] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsPolicyAreaFilter') || 'all' : 'all'
+  );
+  const [billTypeFilter, setBillTypeFilter] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsTypeFilter') || 'all' : 'all'
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const debouncedSponsorFilter = useDebounce(sponsorFilter, 2000);
   const debouncedTitleFilter = useDebounce(titleFilter, 2000);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('billsStatusFilter', statusFilter);
+      localStorage.setItem('billsIntroducedDateFilter', introducedDateFilter);
+      localStorage.setItem('billsLastActionDateFilter', lastActionDateFilter);
+      localStorage.setItem('billsSponsorFilter', sponsorFilter);
+      localStorage.setItem('billsTitleFilter', titleFilter);
+      localStorage.setItem('billsStateFilter', stateFilter);
+      localStorage.setItem('billsPolicyAreaFilter', policyAreaFilter);
+      localStorage.setItem('billsTypeFilter', billTypeFilter);
+    }
+  }, [
+    statusFilter,
+    introducedDateFilter,
+    lastActionDateFilter,
+    sponsorFilter,
+    titleFilter,
+    stateFilter,
+    policyAreaFilter,
+    billTypeFilter
+  ]);
 
   const handleClearAllFilters = () => {
     setStatusFilter('all');
@@ -49,6 +87,17 @@ export default function BillsPage() {
     setStateFilter('all');
     setPolicyAreaFilter('all');
     setBillTypeFilter('all');
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('billsStatusFilter');
+      localStorage.removeItem('billsIntroducedDateFilter');
+      localStorage.removeItem('billsLastActionDateFilter');
+      localStorage.removeItem('billsSponsorFilter');
+      localStorage.removeItem('billsTitleFilter');
+      localStorage.removeItem('billsStateFilter');
+      localStorage.removeItem('billsPolicyAreaFilter');
+      localStorage.removeItem('billsTypeFilter');
+    }
   };
 
   const handleLoadMore = async () => {
