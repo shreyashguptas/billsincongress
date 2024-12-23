@@ -34,9 +34,47 @@ interface BillQueryParams {
   introducedDateFilter?: string;
   lastActionDateFilter?: string;
   sponsorFilter?: string;
+  titleFilter?: string;
   stateFilter?: string;
+  policyArea?: string;
 }
 ```
+
+### Featured Bills Logic
+
+The featured bills section prioritizes bills based on their presidential status:
+
+1. First Priority: "Signed by President"
+   - Shows up to 3 most recently introduced bills that have been signed by the president
+   
+2. Second Priority: "To President"
+   - If fewer than 3 signed bills are available, fills the remaining slots with bills that have been sent to the president
+   - Ordered by introduction date within each status group
+
+This prioritization ensures that the featured section highlights bills at their most significant stages of progress.
+
+### Bill Filtering
+
+The application supports multiple filtering mechanisms:
+
+1. **Status Filters**
+   - Filter by bill progress (Introduced, In Committee, etc.)
+   - Uses exact matching with progress_description
+
+2. **Date Filters**
+   - Introduced Date: Filter bills by when they were introduced
+   - Last Action Date: Filter by most recent activity
+   - Options: Last Week, Last Month, Last Year
+
+3. **Text Search**
+   - Title Search: Search within bill titles (case-insensitive, handles multiple words)
+   - Sponsor Search: Search by legislator name (supports partial matches, space-aware)
+
+4. **Category Filters**
+   - Policy Area: Filter by specific policy categories
+   - State: Filter by sponsor's state
+   
+All filters can be combined and cleared using the "Clear All Filters" button.
 
 ### Response Types
 

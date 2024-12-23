@@ -24,21 +24,32 @@ interface BillsFilterProps {
   introducedDateFilter: string;
   lastActionDateFilter: string;
   sponsorFilter: string;
+  titleFilter: string;
   stateFilter: string;
+  policyAreaFilter: string;
   onStatusChange: (value: string) => void;
   onIntroducedDateChange: (value: string) => void;
   onLastActionDateChange: (value: string) => void;
   onSponsorChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
   onStateChange: (value: string) => void;
+  onPolicyAreaChange: (value: string) => void;
   onClearAllFilters: () => void;
 }
 Features:
-- Status filter with all bill stages
-- Introduced date filter (week/month/year)
-- Last action date filter (week/month/year)
-- Sponsor name search with exact first name matching
-- State filter with full state names
+- Two-row layout for better organization
+- First row: Dropdown filters
+  - Policy area categories with scrollable list
+  - Status filter with all bill stages
+  - Introduced date filter (week/month/year)
+  - Last action date filter (week/month/year)
+  - State filter with full state names
+- Second row: Search inputs
+  - Title search with multi-word support
+  - Sponsor name search with flexible matching
 - Clear all filters button
+- Space-aware text search handling
+- Case-insensitive search
 ```
 
 ## UI Components
