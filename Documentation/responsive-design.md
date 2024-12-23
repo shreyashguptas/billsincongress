@@ -22,6 +22,14 @@ xl: 1280px /* Extra large devices */
 - Three columns on desktop
 - Adjusted typography and spacing
 
+### Bill Details Page
+- Compact title and spacing on mobile
+- Vertical progress stages on mobile
+- Horizontal progress stages on desktop
+- Consistent text hierarchy
+- Full-width buttons on mobile
+- Reduced padding on mobile
+
 ### Filters
 - Horizontal scrolling on mobile
 - Full width on larger screens
@@ -32,9 +40,10 @@ xl: 1280px /* Extra large devices */
 ### Typography
 ```tsx
 // Responsive text sizes
-text-base sm:text-lg     // Base text
-text-2xl sm:text-3xl     // Headings
-text-xs sm:text-sm       // Small text
+text-sm sm:text-base    // Body text
+text-base sm:text-lg    // Large text
+text-2xl sm:text-4xl    // Headings
+text-xs sm:text-sm      // Small text
 ```
 
 ### Layout
@@ -43,6 +52,8 @@ text-xs sm:text-sm       // Small text
 container px-4           // Consistent padding
 flex-col sm:flex-row    // Stack to row
 gap-4 sm:gap-6          // Adjusted spacing
+p-4 sm:p-8              // Responsive padding
+mb-4 sm:mb-8            // Responsive margins
 ```
 
 ### Components
@@ -51,6 +62,11 @@ gap-4 sm:gap-6          // Adjusted spacing
 w-full sm:w-auto        // Full width to auto
 h-14 sm:h-16           // Adjusted heights
 space-y-4 sm:space-y-6 // Vertical spacing
+
+// Progress Bar
+h-3 sm:h-4             // Smaller on mobile
+block sm:hidden        // Mobile-only elements
+hidden sm:flex         // Desktop-only elements
 ```
 
 ## Best Practices
@@ -65,7 +81,20 @@ space-y-4 sm:space-y-6 // Vertical spacing
    - Efficient layouts
    - Minimal layout shifts
 
-3. Testing
+3. Content Adaptation
+   - Vertical layouts on mobile
+   - Horizontal layouts on desktop
+   - Touch-friendly tap targets
+   - Full-width buttons on mobile
+
+4. Typography
+   - Reduced font sizes on mobile
+   - Consistent type scale
+   - Proper line heights
+   - Adequate contrast
+
+5. Testing
    - Multiple device testing
    - Browser compatibility
    - Orientation changes
+   - Touch interaction testing

@@ -64,11 +64,11 @@ export default function BillDetails({ bill }: BillDetailsProps) {
   const partyName = PARTY_NAMES[bill.sponsor_party as keyof typeof PARTY_NAMES] || bill.sponsor_party;
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-5xl">
+       <main className="container mx-auto px-4 py-4 sm:py-8 max-w-5xl">
       {/* Header Section */}
-      <div className="bg-card rounded-lg shadow-lg p-8 mb-8">
-        <h1 className="text-4xl font-bold mb-4 text-primary">{bill.title}</h1>
-        <div className="text-muted-foreground mb-4">
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
+        <h1 className="text-2xl sm:text-4xl font-bold mb-2 sm:mb-4 text-primary leading-tight">{bill.title}</h1>
+        <div className="text-sm sm:text-base text-muted-foreground mb-2 sm:mb-4">
           Introduced on {new Date(bill.introduced_date).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',
@@ -78,20 +78,30 @@ export default function BillDetails({ bill }: BillDetailsProps) {
       </div>
 
       {/* Status Section */}
-      <div className="bg-card rounded-lg shadow-lg p-8 mb-8">
-        <h2 className="text-2xl font-semibold mb-6">Current Status</h2>
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Current Status</h2>
         <div className="space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-lg font-medium">{bill.progress_description}</span>
-            <span className="text-muted-foreground">{progressPercentage.toFixed(0)}%</span>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2">
+            <span className="text-base sm:text-lg font-medium mb-1 sm:mb-0">{bill.progress_description}</span>
+            <span className="text-sm sm:text-base text-muted-foreground">{progressPercentage.toFixed(0)}%</span>
           </div>
-          <div className="w-full bg-secondary rounded-full h-4 overflow-hidden">
+          <div className="w-full bg-secondary rounded-full h-3 sm:h-4 overflow-hidden">
             <div
               className="h-full bg-primary transition-all duration-500 ease-in-out rounded-full"
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
-          <div className="flex justify-between text-sm text-muted-foreground mt-2">
+          {/* Mobile: Vertical stages */}
+          <div className="block sm:hidden space-y-2 text-sm text-muted-foreground mt-2">
+            {['Introduced', 'Committee', 'One Chamber', 'Both Chambers', 'To President', 'Signed', 'Law'].map((stage, index) => (
+              <div key={stage} className="flex items-center">
+                <div className={`w-2 h-2 rounded-full mr-2 ${index * (100/6) <= progressPercentage ? 'bg-primary' : 'bg-secondary'}`} />
+                <span>{stage}</span>
+              </div>
+            ))}
+          </div>
+          {/* Desktop: Horizontal stages */}
+          <div className="hidden sm:flex justify-between text-sm text-muted-foreground mt-2">
             <span>Introduced</span>
             <span>Committee</span>
             <span>One Chamber</span>
@@ -104,37 +114,37 @@ export default function BillDetails({ bill }: BillDetailsProps) {
       </div>
 
       {/* Summary Section */}
-      <div className="bg-card rounded-lg shadow-lg p-8 mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Summary</h2>
-        <div className="prose prose-lg max-w-none">
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8 mb-4 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-semibold mb-2 sm:mb-4">Summary</h2>
+        <div className="prose prose-sm sm:prose-base max-w-none">
           {summary}
         </div>
       </div>
 
       {/* Sponsor Information */}
-      <div className="bg-card rounded-lg shadow-lg p-8">
-        <h2 className="text-2xl font-semibold mb-6">Sponsor Information</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-muted-foreground">Name</h3>
-            <p className="text-xl">{`${bill.sponsor_first_name} ${bill.sponsor_last_name}`}</p>
+      <div className="bg-card rounded-lg shadow-lg p-4 sm:p-8">
+        <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6">Sponsor Information</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="space-y-1 sm:space-y-2">
+            <h3 className="text-base sm:text-lg font-medium text-muted-foreground">Name</h3>
+            <p className="text-lg sm:text-xl">{`${bill.sponsor_first_name} ${bill.sponsor_last_name}`}</p>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-muted-foreground">Party</h3>
-            <p className="text-xl">{partyName}</p>
+          <div className="space-y-1 sm:space-y-2">
+            <h3 className="text-base sm:text-lg font-medium text-muted-foreground">Party</h3>
+            <p className="text-lg sm:text-xl">{partyName}</p>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-muted-foreground">State</h3>
-            <p className="text-xl">{stateName}</p>
+          <div className="space-y-1 sm:space-y-2">
+            <h3 className="text-base sm:text-lg font-medium text-muted-foreground">State</h3>
+            <p className="text-lg sm:text-xl">{stateName}</p>
           </div>
         </div>
       </div>
 
       {/* Additional Details */}
-      <div className="mt-8 flex justify-end">
+      <div className="mt-6 sm:mt-8 flex justify-end">
         <Link
           href="/bills"
-          className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4"
+          className="inline-flex w-full sm:w-auto items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4"
         >
           Back to Bills
         </Link>
