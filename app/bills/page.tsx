@@ -25,13 +25,14 @@ export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [totalBills, setTotalBills] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [introducedDateFilter, setIntroducedDateFilter] = useState('all');
-  const [lastActionDateFilter, setLastActionDateFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<string | null>('all');
+  const [introducedDateFilter, setIntroducedDateFilter] = useState<string | null>('all');
+  const [lastActionDateFilter, setLastActionDateFilter] = useState<string | null>('all');
   const [sponsorFilter, setSponsorFilter] = useState('');
   const [titleFilter, setTitleFilter] = useState('');
-  const [stateFilter, setStateFilter] = useState('all');
-  const [policyAreaFilter, setPolicyAreaFilter] = useState('all');
+  const [stateFilter, setStateFilter] = useState<string | null>('all');
+  const [policyAreaFilter, setPolicyAreaFilter] = useState<string | null>('all');
+  const [billTypeFilter, setBillTypeFilter] = useState<string | null>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,8 +48,7 @@ export default function BillsPage() {
     setTitleFilter('');
     setStateFilter('all');
     setPolicyAreaFilter('all');
-    setCurrentPage(1);
-    setBills([]);
+    setBillTypeFilter('all');
   };
 
   const handleLoadMore = async () => {
@@ -66,6 +66,7 @@ export default function BillsPage() {
         titleFilter: debouncedTitleFilter,
         stateFilter: stateFilter,
         policyArea: policyAreaFilter,
+        billType: billTypeFilter,
       });
       setBills(prevBills => [...prevBills, ...response.data]);
       setTotalBills(response.count);
@@ -94,6 +95,7 @@ export default function BillsPage() {
           titleFilter: debouncedTitleFilter,
           stateFilter: stateFilter,
           policyArea: policyAreaFilter,
+          billType: billTypeFilter,
         });
         setBills(response.data);
         setTotalBills(response.count);
@@ -108,7 +110,7 @@ export default function BillsPage() {
     };
 
     fetchBills();
-  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, debouncedTitleFilter, stateFilter, policyAreaFilter]);
+  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, debouncedTitleFilter, stateFilter, policyAreaFilter, billTypeFilter]);
 
   const hasMoreBills = bills.length < totalBills;
 
@@ -131,13 +133,33 @@ export default function BillsPage() {
             titleFilter={titleFilter}
             stateFilter={stateFilter}
             policyAreaFilter={policyAreaFilter}
-            onStatusChange={setStatusFilter}
-            onIntroducedDateChange={setIntroducedDateFilter}
-            onLastActionDateChange={setLastActionDateFilter}
+            billTypeFilter={billTypeFilter}
+            onStatusChange={(value) => {
+              setStatusFilter(value);
+              setCurrentPage(1);
+            }}
+            onIntroducedDateChange={(value) => {
+              setIntroducedDateFilter(value);
+              setCurrentPage(1);
+            }}
+            onLastActionDateChange={(value) => {
+              setLastActionDateFilter(value);
+              setCurrentPage(1);
+            }}
             onSponsorChange={setSponsorFilter}
             onTitleChange={setTitleFilter}
-            onStateChange={setStateFilter}
-            onPolicyAreaChange={setPolicyAreaFilter}
+            onStateChange={(value) => {
+              setStateFilter(value);
+              setCurrentPage(1);
+            }}
+            onPolicyAreaChange={(value) => {
+              setPolicyAreaFilter(value);
+              setCurrentPage(1);
+            }}
+            onBillTypeChange={(value) => {
+              setBillTypeFilter(value);
+              setCurrentPage(1);
+            }}
             onClearAllFilters={handleClearAllFilters}
           />
         </div>

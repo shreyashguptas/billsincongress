@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { BILL_TYPE_OPTIONS } from '@/lib/constants/filters';
 import dynamic from 'next/dynamic';
 
 // Map of policy areas
@@ -66,20 +67,22 @@ const STATE_NAMES: { [key: string]: string } = {
 };
 
 interface BillsFilterProps {
-  statusFilter: string;
-  introducedDateFilter: string;
-  lastActionDateFilter: string;
+  statusFilter: string | null;
+  introducedDateFilter: string | null;
+  lastActionDateFilter: string | null;
   sponsorFilter: string;
   titleFilter: string;
-  stateFilter: string;
-  policyAreaFilter: string;
-  onStatusChange: (value: string) => void;
-  onIntroducedDateChange: (value: string) => void;
-  onLastActionDateChange: (value: string) => void;
+  stateFilter: string | null;
+  policyAreaFilter: string | null;
+  billTypeFilter: string | null;
+  onStatusChange: (value: string | null) => void;
+  onIntroducedDateChange: (value: string | null) => void;
+  onLastActionDateChange: (value: string | null) => void;
   onSponsorChange: (value: string) => void;
   onTitleChange: (value: string) => void;
-  onStateChange: (value: string) => void;
-  onPolicyAreaChange: (value: string) => void;
+  onStateChange: (value: string | null) => void;
+  onPolicyAreaChange: (value: string | null) => void;
+  onBillTypeChange: (value: string | null) => void;
   onClearAllFilters: () => void;
 }
 
@@ -91,6 +94,7 @@ function BillsFilter({
   titleFilter,
   stateFilter,
   policyAreaFilter,
+  billTypeFilter,
   onStatusChange,
   onIntroducedDateChange,
   onLastActionDateChange,
@@ -98,25 +102,33 @@ function BillsFilter({
   onTitleChange,
   onStateChange,
   onPolicyAreaChange,
+  onBillTypeChange,
   onClearAllFilters,
 }: BillsFilterProps) {
-  const hasActiveFilters = 
-    statusFilter !== 'all' ||
-    introducedDateFilter !== 'all' ||
-    lastActionDateFilter !== 'all' ||
-    sponsorFilter !== '' ||
-    titleFilter !== '' ||
-    stateFilter !== 'all' ||
-    policyAreaFilter !== 'all';
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4">
+        {/* Bill Type Filter */}
+        <Select value={billTypeFilter} onValueChange={onBillTypeChange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Bill Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Bill Types</SelectItem>
+            {BILL_TYPE_OPTIONS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Policy Area Filter */}
         <Select value={policyAreaFilter} onValueChange={onPolicyAreaChange}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Categories" />
+            <SelectValue placeholder="All Categories" />
           </SelectTrigger>
-          <SelectContent className="max-h-[300px] overflow-y-auto">
+          <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
             {POLICY_AREAS.map((area) => (
               <SelectItem key={area} value={area}>
@@ -126,90 +138,88 @@ function BillsFilter({
           </SelectContent>
         </Select>
 
+        {/* Status Filter */}
         <Select value={statusFilter} onValueChange={onStatusChange}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select status" />
+            <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="Introduced">Introduced</SelectItem>
             <SelectItem value="In Committee">In Committee</SelectItem>
             <SelectItem value="Passed One Chamber">Passed One Chamber</SelectItem>
             <SelectItem value="Passed Both Chambers">Passed Both Chambers</SelectItem>
             <SelectItem value="To President">To President</SelectItem>
-            <SelectItem value="Signed by President">Signed by President</SelectItem>
             <SelectItem value="Became Law">Became Law</SelectItem>
           </SelectContent>
         </Select>
 
+        {/* Introduced Date Filter */}
         <Select value={introducedDateFilter} onValueChange={onIntroducedDateChange}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by introduced date" />
+            <SelectValue placeholder="Introduced Date" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Introduced Date</SelectItem>
+            <SelectItem value="all">All Introduced Dates</SelectItem>
             <SelectItem value="week">Last Week</SelectItem>
             <SelectItem value="month">Last Month</SelectItem>
             <SelectItem value="year">Last Year</SelectItem>
           </SelectContent>
         </Select>
 
+        {/* Last Action Date Filter */}
         <Select value={lastActionDateFilter} onValueChange={onLastActionDateChange}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by last action" />
+            <SelectValue placeholder="Last Action Date" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Last Action Date</SelectItem>
+            <SelectItem value="all">All Action Dates</SelectItem>
             <SelectItem value="week">Last Week</SelectItem>
             <SelectItem value="month">Last Month</SelectItem>
             <SelectItem value="year">Last Year</SelectItem>
           </SelectContent>
         </Select>
 
+        {/* State Filter */}
         <Select value={stateFilter} onValueChange={onStateChange}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select state" />
+            <SelectValue placeholder="All States" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All States</SelectItem>
-            {Object.entries(STATE_NAMES).map(([abbr, fullName]) => (
+            {Object.entries(STATE_NAMES).map(([abbr, name]) => (
               <SelectItem key={abbr} value={abbr}>
-                {fullName}
+                {name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-
-        {hasActiveFilters && (
-          <Button 
-            variant="outline" 
-            onClick={onClearAllFilters}
-            className="whitespace-nowrap"
-          >
-            Clear All Filters
-          </Button>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
+        {/* Title Search */}
         <Input
-          type="text"
-          placeholder="Search by bill title"
+          placeholder="Search bill titles..."
           value={titleFilter}
           onChange={(e) => onTitleChange(e.target.value)}
           className="w-[300px]"
         />
+
+        {/* Sponsor Search */}
         <Input
-          type="text"
-          placeholder="Search by sponsor name"
+          placeholder="Search by sponsor name..."
           value={sponsorFilter}
           onChange={(e) => onSponsorChange(e.target.value)}
           className="w-[300px]"
         />
+
+        {/* Clear All Filters Button */}
+        <Button variant="outline" onClick={onClearAllFilters}>
+          Clear All Filters
+        </Button>
       </div>
     </div>
   );
 }
 
-// Export as default for dynamic import
-export default BillsFilter; 
+export default dynamic(() => Promise.resolve(BillsFilter), { ssr: false }); 

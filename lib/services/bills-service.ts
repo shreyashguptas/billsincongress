@@ -27,13 +27,14 @@ function getStartDate(filter: string): Date {
 export interface BillQueryParams {
   page?: number;
   itemsPerPage?: number;
-  status?: string;
-  introducedDateFilter?: string;
-  lastActionDateFilter?: string;
+  status?: string | null;
+  introducedDateFilter?: string | null;
+  lastActionDateFilter?: string | null;
   sponsorFilter?: string;
   titleFilter?: string;
-  stateFilter?: string;
-  policyArea?: string;
+  stateFilter?: string | null;
+  policyArea?: string | null;
+  billType?: string | null;
 }
 
 export interface BillsResponse {
@@ -60,6 +61,7 @@ export const billsService = {
       titleFilter = '',
       stateFilter = 'all',
       policyArea = 'all',
+      billType = 'all'
     } = params;
 
     const supabase = this.getClient();
@@ -72,16 +74,16 @@ export const billsService = {
         )
       `, { count: 'exact' });
 
-    if (status !== 'all') {
+    if (status && status !== 'all') {
       query = query.eq('progress_description', status);
     }
 
-    if (introducedDateFilter !== 'all') {
+    if (introducedDateFilter && introducedDateFilter !== 'all') {
       const startDate = getStartDate(introducedDateFilter);
       query = query.gte('introduced_date', startDate.toISOString());
     }
 
-    if (lastActionDateFilter !== 'all') {
+    if (lastActionDateFilter && lastActionDateFilter !== 'all') {
       const startDate = getStartDate(lastActionDateFilter);
       query = query.gte('last_action_date', startDate.toISOString());
     }
@@ -121,12 +123,16 @@ export const billsService = {
       }
     }
 
-    if (stateFilter !== 'all') {
+    if (stateFilter && stateFilter !== 'all') {
       query = query.eq('sponsor_state', stateFilter);
     }
 
-    if (policyArea !== 'all') {
+    if (policyArea && policyArea !== 'all') {
       query = query.eq('bill_subjects.policy_area_name', policyArea);
+    }
+
+    if (billType && billType !== 'all') {
+      query = query.eq('bill_type', billType);
     }
 
     const start = (page - 1) * itemsPerPage;
@@ -138,7 +144,7 @@ export const billsService = {
 
     if (error) {
       console.error('Error fetching bills:', error);
-      throw new Error(`Failed to fetch bills: ${error.message || 'Unknown error'}`);
+      throw new Error(error.message || 'Failed to fetch bills');
     }
 
     const transformedData = (data || []).map(bill => ({

@@ -15,4 +15,17 @@ export interface Bill {
   bill_subjects?: {
     policy_area_name: string;
   };
+}
+
+export interface BillQueryParams {
+  page?: number;
+  itemsPerPage?: number;
+  status?: string;
+  introducedDateFilter?: string;
+  lastActionDateFilter?: string;
+  sponsorFilter?: string;
+  titleFilter?: string;
+  stateFilter?: string;
+  policyArea?: string;
+  billType?: string;
 } 
