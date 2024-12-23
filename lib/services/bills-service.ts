@@ -50,6 +50,46 @@ export const billsService = {
     );
   },
 
+  async fetchBillById(id: string): Promise<Bill> {
+    const supabase = this.getClient();
+    
+    // Fetch bill info
+    const { data: billData, error: billError } = await supabase
+      .from('bill_info')
+      .select(`
+        *,
+        bill_subjects (
+          policy_area_name
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (billError) {
+      console.error('Error fetching bill:', billError);
+      throw new Error(billError.message || 'Failed to fetch bill');
+    }
+
+    // Fetch latest summary
+    const { data: summaryData, error: summaryError } = await supabase
+      .from('bill_summaries')
+      .select('text')
+      .eq('id', id)
+      .order('update_date', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (summaryError && summaryError.code !== 'PGRST116') {
+      console.error('Error fetching summary:', summaryError);
+    }
+
+    return {
+      ...billData,
+      bill_subjects: billData.bill_subjects?.[0] || { policy_area_name: '' },
+      latest_summary: summaryData?.text || ''
+    } as Bill;
+  },
+
   async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
     const {
       page = 1,
