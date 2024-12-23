@@ -107,14 +107,40 @@ export const billsService = {
     console.log('Fetching bills with policy area:', policyArea);
 
     const supabase = this.getClient();
+    
+    // First, get the total count without the join
+    let countQuery = supabase
+      .from(BILL_INFO_TABLE_NAME)
+      .select('*', { count: 'exact', head: true });
+
+    // Apply filters to count query
+    if (status && status !== 'all') {
+      countQuery = countQuery.eq('progress_description', status);
+    }
+    if (stateFilter && stateFilter !== 'all') {
+      countQuery = countQuery.eq('sponsor_state', stateFilter);
+    }
+    if (billType && billType !== 'all') {
+      countQuery = countQuery.eq('bill_type', billType);
+    }
+    // Add other filters as needed...
+
+    const { count: totalCount, error: countError } = await countQuery;
+
+    if (countError) {
+      console.error('Error getting total count:', countError);
+      throw new Error(countError.message || 'Failed to get total count');
+    }
+
+    // Now get the actual data with the join
     let query = supabase
       .from(BILL_INFO_TABLE_NAME)
       .select(`
         *,
-        bill_subjects!inner (
+        bill_subjects (
           policy_area_name
         )
-      `, { count: 'exact' });
+      `);
 
     // Add filters
     if (status && status !== 'all') {
@@ -132,16 +158,16 @@ export const billsService = {
     }
 
     if (titleFilter) {
-      const cleanedTitle = titleFilter.trim().toLowerCase().replace(/\s+/g, ' ');
+      const cleanedTitle = titleFilter.trim().toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ');
       
       if (cleanedTitle) {
         const words = cleanedTitle.split(' ').filter(word => word.length > 0);
         if (words.length > 0) {
-          const conditions = words.map(word => 
-            `title.ilike.%${word}%`
-          ).join(',');
-          
-          query = query.or(conditions);
+          words.forEach(word => {
+            query = query.ilike('title', `%${word}%`);
+          });
         }
       }
     }
@@ -172,9 +198,23 @@ export const billsService = {
 
     if (policyArea && policyArea !== 'all') {
       console.log('Applying policy area filter:', policyArea);
-      query = query
-        .eq('bill_subjects.policy_area_name', policyArea)
-        .not('bill_subjects.policy_area_name', 'is', null);
+      // First get the IDs of bills with the specified policy area
+      const { data: billIds } = await supabase
+        .from(BILL_INFO_TABLE_NAME)
+        .select(`
+          id,
+          bill_subjects!inner (
+            policy_area_name
+          )
+        `)
+        .eq('bill_subjects.policy_area_name', policyArea);
+
+      if (billIds && billIds.length > 0) {
+        query = query.in('id', billIds.map(b => b.id));
+      } else {
+        // No bills found with this policy area
+        query = query.eq('id', '0'); // Will return no results
+      }
     }
 
     if (billType && billType !== 'all') {
@@ -186,27 +226,15 @@ export const billsService = {
       .order('introduced_date', { ascending: false })
       .range(start, start + itemsPerPage - 1);
 
-    const { data, error, count } = await query;
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching bills:', error);
       throw new Error(error.message || 'Failed to fetch bills');
     }
 
-    // Log the raw data for debugging
-    console.log('Raw bill data example:', {
-      firstBill: data?.[0] ? {
-        id: data[0].id,
-        subjects: data[0].bill_subjects
-      } : null,
-      totalBills: data?.length || 0
-    });
-
+    // Transform the data
     const transformedData = (data || []).map(bill => {
-      // Log each bill's subjects
-      console.log(`Bill ${bill.id} subjects:`, bill.bill_subjects);
-      
-      // Handle both array and single object cases
       const policyArea = Array.isArray(bill.bill_subjects) 
         ? bill.bill_subjects[0]?.policy_area_name 
         : bill.bill_subjects?.policy_area_name || '';
@@ -219,7 +247,7 @@ export const billsService = {
 
     return {
       data: transformedData as Bill[],
-      count: count || 0,
+      count: totalCount || 0,
     };
   },
 
