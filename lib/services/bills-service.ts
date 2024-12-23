@@ -82,13 +82,22 @@ class BillsService {
 
       if (error) throw error;
 
+      console.log('Raw data from Supabase:', JSON.stringify(data, null, 2));
+
       // Transform the data
-      const transformedData = (data || []).map(bill => ({
-        ...bill,
-        bill_subjects: bill.bill_subjects && bill.bill_subjects.length > 0
-          ? { policy_area_name: bill.bill_subjects[0].policy_area_name }
-          : null
-      }));
+      const transformedData = (data || []).map(bill => {
+        console.log('Bill subjects before transform:', bill.bill_subjects);
+        const subjects = Array.isArray(bill.bill_subjects) ? bill.bill_subjects : [];
+        console.log('Subjects array:', subjects);
+        const transformed = {
+          ...bill,
+          bill_subjects: subjects.length > 0 
+            ? { policy_area_name: subjects[0].policy_area_name }
+            : null
+        };
+        console.log('Transformed bill:', JSON.stringify(transformed, null, 2));
+        return transformed;
+      });
 
       return {
         data: transformedData,
@@ -137,12 +146,15 @@ class BillsService {
 
       if (error) throw error;
 
-      const transformedData = (data || []).map(bill => ({
-        ...bill,
-        bill_subjects: bill.bill_subjects && bill.bill_subjects.length > 0
-          ? { policy_area_name: bill.bill_subjects[0].policy_area_name }
-          : null
-      }));
+      const transformedData = (data || []).map(bill => {
+        const subjects = Array.isArray(bill.bill_subjects) ? bill.bill_subjects : [];
+        return {
+          ...bill,
+          bill_subjects: subjects.length > 0 
+            ? { policy_area_name: subjects[0].policy_area_name }
+            : null
+        };
+      });
 
       return {
         data: transformedData,
