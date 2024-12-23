@@ -67,22 +67,22 @@ const STATE_NAMES: { [key: string]: string } = {
 };
 
 interface BillsFilterProps {
-  statusFilter: string | null;
-  introducedDateFilter: string | null;
-  lastActionDateFilter: string | null;
+  statusFilter: string;
+  introducedDateFilter: string;
+  lastActionDateFilter: string;
   sponsorFilter: string;
   titleFilter: string;
-  stateFilter: string | null;
-  policyAreaFilter: string | null;
-  billTypeFilter: string | null;
-  onStatusChange: (value: string | null) => void;
-  onIntroducedDateChange: (value: string | null) => void;
-  onLastActionDateChange: (value: string | null) => void;
+  stateFilter: string;
+  policyAreaFilter: string;
+  billTypeFilter: string;
+  onStatusChange: (value: string) => void;
+  onIntroducedDateChange: (value: string) => void;
+  onLastActionDateChange: (value: string) => void;
   onSponsorChange: (value: string) => void;
   onTitleChange: (value: string) => void;
-  onStateChange: (value: string | null) => void;
-  onPolicyAreaChange: (value: string | null) => void;
-  onBillTypeChange: (value: string | null) => void;
+  onStateChange: (value: string) => void;
+  onPolicyAreaChange: (value: string) => void;
+  onBillTypeChange: (value: string) => void;
   onClearAllFilters: () => void;
 }
 
@@ -105,11 +105,17 @@ function BillsFilter({
   onBillTypeChange,
   onClearAllFilters,
 }: BillsFilterProps) {
+  // Helper function to convert null to "all"
+  const getSelectValue = (value: string) => value === 'all' ? undefined : value;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
         {/* Bill Type Filter */}
-        <Select value={billTypeFilter} onValueChange={onBillTypeChange}>
+        <Select 
+          value={getSelectValue(billTypeFilter)} 
+          onValueChange={onBillTypeChange}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Bill Types" />
           </SelectTrigger>
@@ -124,7 +130,10 @@ function BillsFilter({
         </Select>
 
         {/* Policy Area Filter */}
-        <Select value={policyAreaFilter} onValueChange={onPolicyAreaChange}>
+        <Select 
+          value={getSelectValue(policyAreaFilter)} 
+          onValueChange={onPolicyAreaChange}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
@@ -139,7 +148,10 @@ function BillsFilter({
         </Select>
 
         {/* Status Filter */}
-        <Select value={statusFilter} onValueChange={onStatusChange}>
+        <Select 
+          value={getSelectValue(statusFilter)} 
+          onValueChange={onStatusChange}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
@@ -155,7 +167,10 @@ function BillsFilter({
         </Select>
 
         {/* Introduced Date Filter */}
-        <Select value={introducedDateFilter} onValueChange={onIntroducedDateChange}>
+        <Select 
+          value={getSelectValue(introducedDateFilter)} 
+          onValueChange={onIntroducedDateChange}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Introduced Date" />
           </SelectTrigger>
@@ -168,7 +183,10 @@ function BillsFilter({
         </Select>
 
         {/* Last Action Date Filter */}
-        <Select value={lastActionDateFilter} onValueChange={onLastActionDateChange}>
+        <Select 
+          value={getSelectValue(lastActionDateFilter)} 
+          onValueChange={onLastActionDateChange}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Last Action Date" />
           </SelectTrigger>
@@ -181,7 +199,10 @@ function BillsFilter({
         </Select>
 
         {/* State Filter */}
-        <Select value={stateFilter} onValueChange={onStateChange}>
+        <Select 
+          value={getSelectValue(stateFilter)} 
+          onValueChange={onStateChange}
+        >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="All States" />
           </SelectTrigger>
