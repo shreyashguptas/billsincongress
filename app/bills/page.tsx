@@ -104,10 +104,16 @@ export default function BillsPage() {
   const hasMoreBills = bills.length < totalBills;
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">All Bills</h1>
-      <div className="mb-8">
-        <Suspense fallback={<div>Loading filters...</div>}>
+    <main className="container mx-auto px-4 py-8 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">All Bills</h1>
+        <span className="text-sm text-muted-foreground">
+          Showing {bills.length} out of {totalBills} bills
+        </span>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
           <BillsFilter
             statusFilter={statusFilter}
             introducedDateFilter={introducedDateFilter}
@@ -121,37 +127,37 @@ export default function BillsPage() {
             onStateChange={setStateFilter}
             onClearAllFilters={handleClearAllFilters}
           />
-        </Suspense>
-      </div>
-      {error && (
-        <div className="text-red-500 mb-4">
-          {error}
         </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          <div>Loading...</div>
-        ) : bills.length > 0 ? (
-          bills.map((bill) => (
-            <Suspense key={bill.id} fallback={<div>Loading bill...</div>}>
-              <BillCard bill={bill} />
-            </Suspense>
-          ))
-        ) : (
-          <div>No bills found</div>
+        {error && (
+          <div className="text-red-500 mb-4">
+            {error}
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {isLoading ? (
+            <div>Loading...</div>
+          ) : bills.length > 0 ? (
+            bills.map((bill) => (
+              <Suspense key={bill.id} fallback={<div>Loading bill...</div>}>
+                <BillCard bill={bill} />
+              </Suspense>
+            ))
+          ) : (
+            <div>No bills found</div>
+          )}
+        </div>
+        {hasMoreBills && !isLoading && (
+          <div className="mt-8 flex justify-center">
+            <Button
+              variant="outline"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+            >
+              {isLoadingMore ? 'Loading...' : 'Load More'}
+            </Button>
+          </div>
         )}
       </div>
-      {hasMoreBills && !isLoading && (
-        <div className="mt-8 flex justify-center">
-          <Button
-            variant="outline"
-            onClick={handleLoadMore}
-            disabled={isLoadingMore}
-          >
-            {isLoadingMore ? 'Loading...' : 'Load More'}
-          </Button>
-        </div>
-      )}
     </main>
   );
 }
