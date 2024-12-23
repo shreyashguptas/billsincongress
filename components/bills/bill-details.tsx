@@ -48,22 +48,18 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     }
   }, [bill.latest_summary]);
 
-  // Calculate progress percentage based on status
-  const getProgressPercentage = (status: string): number => {
-    const stages = [
-      'Introduced',
-      'In Committee',
-      'Passed One Chamber',
-      'Passed Both Chambers',
-      'To President',
-      'Signed by President',
-      'Became Law'
-    ] as const;
-    const currentIndex = stages.indexOf(status as typeof stages[number]);
-    return currentIndex >= 0 ? ((currentIndex + 1) / stages.length) * 100 : 0;
+  // Calculate progress percentage based on stage (20-100)
+  const getProgressPercentage = (stage: number): number => {
+    // Ensure stage is between 20 and 100
+    const validStage = Math.max(20, Math.min(100, stage));
+    return ((validStage - 20) / 80) * 100;
   };
 
-  const progressPercentage = getProgressPercentage(bill.progress_description);
+  // Convert progress_stage to number and calculate percentage
+  const progressStage = typeof bill.progress_stage === 'string' 
+    ? parseInt(bill.progress_stage, 10) 
+    : bill.progress_stage;
+  const progressPercentage = getProgressPercentage(progressStage || 20);
   const stateName = STATE_NAMES[bill.sponsor_state as keyof typeof STATE_NAMES] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party as keyof typeof PARTY_NAMES] || bill.sponsor_party;
 
