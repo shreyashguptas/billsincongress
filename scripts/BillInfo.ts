@@ -141,8 +141,7 @@ export function transformBillInfo(data: BillInfoResponse): BillInfo {
     sponsor_last_name: bill.sponsors[0]?.lastName || '',
     sponsor_party: bill.sponsors[0]?.party || '',
     sponsor_state: bill.sponsors[0]?.state || '',
-    latest_action_date: bill.updateDate,
-    latest_action_text: bill.updateDateIncludingText,
+    // Progress fields will be set by database trigger
     progress_stage: 20, // Default to "Introduced" stage
     progress_description: 'Introduced'
   };

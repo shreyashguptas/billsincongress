@@ -88,6 +88,8 @@ function transformBillActions(data: BillActionsResponse, billId: string): BillAc
   // Filter out actions without actionCode and deduplicate based on composite key
   const uniqueActions = new Map<string, BillAction>();
 
+  const now = new Date().toISOString();
+
   data.actions.forEach(action => {
     if (!action.actionCode) return; // Skip actions without actionCode
 
@@ -100,7 +102,9 @@ function transformBillActions(data: BillActionsResponse, billId: string): BillAc
         source_system_code: action.sourceSystem.code,
         source_system_name: action.sourceSystem.name,
         text: action.text,
-        type: action.type
+        type: action.type,
+        created_at: now,
+        updated_at: now
       });
     }
   });
@@ -111,12 +115,14 @@ function transformBillActions(data: BillActionsResponse, billId: string): BillAc
 async function insertBillActions(actions: BillAction[]) {
   if (actions.length === 0) return;
 
+  const now = new Date().toISOString();
+
   // Process each action individually to check update dates
   for (const action of actions) {
     // Check if we already have this action
     const { data: existingData, error: fetchError } = await supabaseAdmin
       .from(BILL_ACTIONS_TABLE_NAME)
-      .select('update_date')
+      .select('updated_at, created_at')
       .eq('id', action.id)
       .eq('action_date', action.action_date)
       .eq('action_code', action.action_code)
@@ -128,15 +134,22 @@ async function insertBillActions(actions: BillAction[]) {
     }
 
     // If record exists and update date is not newer, skip update
-    if (existingData && existingData.update_date >= action.update_date) {
+    if (existingData && existingData.updated_at >= now) {
       console.log(`Skipping update for action ${action.id} date ${action.action_date} code ${action.action_code} - existing data is current or newer`);
       continue;
     }
 
+    // Update the timestamps
+    const actionWithTimestamps = {
+      ...action,
+      updated_at: now,
+      created_at: existingData?.created_at || now
+    };
+
     // Perform upsert if data is new or newer
     const { error } = await supabaseAdmin
       .from(BILL_ACTIONS_TABLE_NAME)
-      .upsert(action, {
+      .upsert(actionWithTimestamps, {
         onConflict: 'id,action_date,action_code'
       });
 

@@ -20,7 +20,7 @@ export interface BillAction {
   text: string;
   type: string;
   created_at?: string;
-  updated_at?: string;
+  updated_at: string;
 }
 
 export const BILL_ACTIONS_TABLE_NAME = 'bill_actions'; 

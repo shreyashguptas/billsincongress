@@ -15,9 +15,6 @@ export interface Database {
           sponsor_last_name: string;
           sponsor_party: string;
           sponsor_state: string;
-          latest_action_code: number | null;
-          latest_action_date: string | null;
-          latest_action_text: string | null;
           progress_stage: number | null;
           progress_description: string | null;
           created_at: string;
@@ -36,9 +33,6 @@ export interface Database {
           sponsor_last_name: string;
           sponsor_party: string;
           sponsor_state: string;
-          latest_action_code?: number | null;
-          latest_action_date?: string | null;
-          latest_action_text?: string | null;
           progress_stage?: number | null;
           progress_description?: string | null;
           created_at?: string;
@@ -57,9 +51,6 @@ export interface Database {
           sponsor_last_name?: string;
           sponsor_party?: string;
           sponsor_state?: string;
-          latest_action_code?: number | null;
-          latest_action_date?: string | null;
-          latest_action_text?: string | null;
           progress_stage?: number | null;
           progress_description?: string | null;
           created_at?: string;

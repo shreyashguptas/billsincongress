@@ -375,30 +375,44 @@ Contains different titles associated with bills.
 
 The bill status tracking system uses several components:
 
-1. **Action Codes**: Numeric codes in `bill_actions` table that indicate specific legislative actions (see action-codes.md for full list)
+1. **Action Codes**: Numeric codes in `bill_actions` table that indicate specific legislative actions. We handle both Library of Congress codes (e.g., '36000') and House system codes (e.g., 'E40000').
 
 2. **Progress Stages**:
    - 20: Introduced
    - 40: In Committee
-   - 60: Passed First Chamber
+   - 60: Passed One Chamber
    - 80: Passed Both Chambers
    - 90: To President
    - 100: Became Law
-   - -1: Failed
 
-3. **Automatic Updates**: 
-   - A database trigger on `bill_actions` automatically updates the status columns in `bill_info`
-   - When a new action is added, it updates:
-     - `latest_action_code`
-     - `latest_action_date`
-     - `latest_action_text`
-     - `progress_stage`
-     - `progress_description`
+3. **Database Trigger Implementation**: 
+   - A trigger function `calculate_bill_progress()` runs after any insert or update on `bill_actions`
+   - The trigger:
+     - Finds the latest action for the bill
+     - Determines the progress stage based on action codes, types, and text
+     - Updates `progress_stage` and `progress_description` in `bill_info`
 
 4. **Status Calculation Logic**:
-   - Based on action codes from Congress.gov API
-   - Considers both chamber passage for accurate progress tracking
-   - Handles special cases like vetoes and failed passages
+   The status is determined by checking (in order of precedence):
+   - Became Law: action_code in ('36000', 'E40000') or type = 'BecameLaw'
+   - Signed by President: action_code in ('29000', 'E30000')
+   - To President: action_code in ('28000', 'E20000')
+   - Passed Both Chambers: Has actions with codes ('17000', '8000', 'E10000')
+   - Passed One Chamber: action_code in ('17000', '8000', 'E10000')
+   - In Committee: action_code in ('5000', '14000')
+   - Introduced: action_code in ('1000', '10000')
+
+5. **Data Flow**:
+   - Bill actions are stored in `bill_actions` table
+   - Status is automatically calculated by the trigger
+   - No manual status updates needed
+   - Status is always derived from actual actions
+
+This system ensures that bill status is:
+- Automatically updated
+- Consistently calculated
+- Based on authoritative action codes
+- Handles both LoC and House system codes
 
 ## Data Relationships
 
