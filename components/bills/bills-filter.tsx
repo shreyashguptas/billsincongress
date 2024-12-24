@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { BILL_TYPES } from '@/lib/constants/filters';
 import dynamic from 'next/dynamic';
 import { BillStageDescriptions, BillStageOrder } from '@/lib/utils/bill-stages';
+import { BillStages } from '@/lib/utils/bill-stages';
 
 // Map of policy areas
 const POLICY_AREAS = [
@@ -87,6 +88,22 @@ interface BillsFilterProps {
   onClearAllFilters: () => void;
 }
 
+interface StatusOption {
+  value: string;
+  label: string;
+}
+
+const statusOptions: StatusOption[] = [
+  { value: 'all', label: 'All Statuses' },
+  { value: '20', label: 'Introduced' },
+  { value: '40', label: 'In Committee' },
+  { value: '60', label: 'Passed One Chamber' },
+  { value: '80', label: 'Passed Both Chambers' },
+  { value: '90', label: 'To President' },
+  { value: '95', label: 'Signed by President' },
+  { value: '100', label: 'Became Law' },
+];
+
 function BillsFilter({
   statusFilter,
   introducedDateFilter,
@@ -111,8 +128,8 @@ function BillsFilter({
       <div className="flex flex-wrap gap-4">
         {/* Status Filter */}
         <div className="relative">
-          <Select 
-            value={statusFilter} 
+          <Select
+            value={statusFilter}
             onValueChange={onStatusChange}
           >
             <SelectTrigger className="w-[180px] h-10">
@@ -125,10 +142,9 @@ function BillsFilter({
               sideOffset={4}
               side="bottom"
             >
-              <SelectItem value="all">All Statuses</SelectItem>
-              {BillStageOrder.map(stage => (
-                <SelectItem key={stage} value={BillStageDescriptions[stage]}>
-                  {BillStageDescriptions[stage]}
+              {statusOptions.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>

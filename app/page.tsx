@@ -1,15 +1,60 @@
-import { Suspense } from 'react';
-import { billsService } from '@/lib/services/bills-service';
+'use client';
+
+import { useEffect, useState } from 'react';
 import { AnimatedBillCard } from '@/components/bills/animated-bill-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import type { Bill } from '@/lib/types/bill';
 
-export const revalidate = 3600; // Revalidate every hour
+function FeaturedBills() {
+  const [bills, setBills] = useState<Bill[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-async function FeaturedBills() {
-  const bills = await billsService.fetchFeaturedBills();
+  useEffect(() => {
+    async function loadFeaturedBills() {
+      try {
+        const response = await fetch('/api/featured-bills');
+        if (!response.ok) {
+          throw new Error('Failed to fetch featured bills');
+        }
+        const data = await response.json();
+        setBills(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error loading featured bills:', err);
+        setError('Unable to load featured bills. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadFeaturedBills();
+  }, []);
+
+  if (loading) {
+    return <FeaturedBillsSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold tracking-tight">Featured Bills</h2>
+        <p className="text-muted-foreground">{error}</p>
+      </div>
+    );
+  }
+
+  if (!bills || bills.length === 0) {
+    return (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold tracking-tight">Featured Bills</h2>
+        <p className="text-muted-foreground">No featured bills available at the moment.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -71,9 +116,7 @@ export default function Home() {
       <section className="w-full bg-background">
         <div className="container mx-auto px-4 py-12">
           <div className="mx-auto max-w-[1200px] space-y-8">
-            <Suspense fallback={<FeaturedBillsSkeleton />}>
-              <FeaturedBills />
-            </Suspense>
+            <FeaturedBills />
             <div className="mt-12 flex justify-center">
               <Link href="/bills">
                 <Button size="lg" className="w-full sm:w-auto">

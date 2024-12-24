@@ -1,7 +1,7 @@
 'use client';
 
 import { Progress } from '@/components/ui/progress';
-import { getStageDescription, getStagePercentage } from '@/lib/utils/bill-stages';
+import { getStageDescription, getStagePercentage, isValidStage, BillStages } from '@/lib/utils/bill-stages';
 
 interface BillProgressProps {
   stage: number;

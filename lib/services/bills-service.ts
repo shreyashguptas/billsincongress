@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Bill } from '@/lib/types/bill';
+import { BillStages } from '@/lib/utils/bill-stages';
 
 const BILL_INFO_TABLE_NAME = 'bill_info';
 
@@ -165,7 +166,7 @@ export const billsService = {
 
     // Apply filters to count query
     if (status && status !== 'all') {
-      countQuery = countQuery.eq('progress_description', status);
+      countQuery = countQuery.eq('progress_stage', parseInt(status, 10));
     }
     if (stateFilter && stateFilter !== 'all') {
       countQuery = countQuery.eq('sponsor_state', stateFilter);
@@ -173,7 +174,6 @@ export const billsService = {
     if (billType && billType !== 'all') {
       countQuery = countQuery.eq('bill_type', billType);
     }
-    // Add other filters as needed...
 
     const { count: totalCount, error: countError } = await countQuery;
 
@@ -187,14 +187,14 @@ export const billsService = {
       .from(BILL_INFO_TABLE_NAME)
       .select(`
         *,
-        bill_subjects (
+        bill_subjects!inner (
           policy_area_name
         )
       `);
 
     // Add filters
     if (status && status !== 'all') {
-      query = query.eq('progress_description', status);
+      query = query.eq('progress_stage', parseInt(status, 10));
     }
 
     if (introducedDateFilter && introducedDateFilter !== 'all') {
@@ -204,7 +204,7 @@ export const billsService = {
 
     if (lastActionDateFilter && lastActionDateFilter !== 'all') {
       const startDate = getStartDate(lastActionDateFilter);
-      query = query.gte('last_action_date', startDate.toISOString());
+      query = query.gte('updated_at', startDate.toISOString());
     }
 
     if (titleFilter) {
@@ -273,7 +273,7 @@ export const billsService = {
 
     const start = (page - 1) * itemsPerPage;
     query = query
-      .order('introduced_date', { ascending: false })
+      .order('updated_at', { ascending: false })
       .range(start, start + itemsPerPage - 1);
 
     const { data, error } = await query;
@@ -319,9 +319,9 @@ export const billsService = {
           policy_area_name
         )
       `)
-      .eq('progress_description', 'Signed by President')
+      .eq('progress_stage', BillStages.SIGNED_BY_PRESIDENT)
       .not('title', 'ilike', 'Reserved for the Speaker%')
-      .order('introduced_date', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(3);
 
     if (signedError) {
@@ -341,9 +341,9 @@ export const billsService = {
             policy_area_name
           )
         `)
-        .eq('progress_description', 'To President')
+        .eq('progress_stage', BillStages.TO_PRESIDENT)
         .not('title', 'ilike', 'Reserved for the Speaker%')
-        .order('introduced_date', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(remainingCount);
 
       if (toPresidentError) {
@@ -352,6 +352,30 @@ export const billsService = {
       }
 
       featuredBills = [...featuredBills, ...(toPresidentBills || [])];
+    }
+
+    // If we still don't have 3 bills, get bills that became law
+    if (featuredBills.length < 3) {
+      const remainingCount = 3 - featuredBills.length;
+      const { data: lawBills, error: lawError } = await supabase
+        .from(BILL_INFO_TABLE_NAME)
+        .select(`
+          *,
+          bill_subjects!inner (
+            policy_area_name
+          )
+        `)
+        .eq('progress_stage', BillStages.BECAME_LAW)
+        .not('title', 'ilike', 'Reserved for the Speaker%')
+        .order('updated_at', { ascending: false })
+        .limit(remainingCount);
+
+      if (lawError) {
+        console.error('Error fetching law bills:', lawError);
+        throw lawError;
+      }
+
+      featuredBills = [...featuredBills, ...(lawBills || [])];
     }
 
     // Transform the data using the same logic as fetchBills

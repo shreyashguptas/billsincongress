@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Bill } from '@/lib/types/bill';
 import { useEffect, useState } from 'react';
 import { getStageDescription, getStagePercentage, getProgressDots } from '@/lib/utils/bill-stages';
+import { isValidStage, BillStages } from '@/lib/utils/bill-stages';
 
 // Map of state abbreviations to full names
 const STATE_NAMES: Record<string, string> = {
@@ -55,7 +56,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     }
   }, [bill.latest_summary]);
 
-  // Convert progress_stage to number
+  // Convert progress_stage to number and calculate percentage
   const progressStage = typeof bill.progress_stage === 'string' 
     ? parseInt(bill.progress_stage, 10) 
     : bill.progress_stage;
@@ -63,7 +64,9 @@ export default function BillDetails({ bill }: BillDetailsProps) {
   // Get stage information using utility functions
   const progressPercentage = getStagePercentage(progressStage);
   const displayDescription = getStageDescription(progressStage);
-  const progressDots = getProgressDots(progressStage);
+  const progressDots = isValidStage(progressStage) 
+    ? getProgressDots(progressStage) 
+    : getProgressDots(BillStages.INTRODUCED);
 
   const stateName = STATE_NAMES[bill.sponsor_state as keyof typeof STATE_NAMES] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party as keyof typeof PARTY_NAMES] || bill.sponsor_party;
