@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { Bill } from '@/lib/types/bill';
 import { useEffect, useState } from 'react';
+import { getStageDescription, getStagePercentage, getProgressDots } from '@/lib/utils/bill-stages';
 
 // Map of state abbreviations to full names
 const STATE_NAMES: Record<string, string> = {
@@ -54,18 +55,16 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     }
   }, [bill.latest_summary]);
 
-  // Calculate progress percentage based on stage (20-100)
-  const getProgressPercentage = (stage: number): number => {
-    // Ensure stage is between 20 and 100
-    const validStage = Math.max(20, Math.min(100, stage));
-    return ((validStage - 20) / 80) * 100;
-  };
-
-  // Convert progress_stage to number and calculate percentage
+  // Convert progress_stage to number
   const progressStage = typeof bill.progress_stage === 'string' 
     ? parseInt(bill.progress_stage, 10) 
     : bill.progress_stage;
-  const progressPercentage = getProgressPercentage(progressStage || 20);
+
+  // Get stage information using utility functions
+  const progressPercentage = getStagePercentage(progressStage);
+  const displayDescription = getStageDescription(progressStage);
+  const progressDots = getProgressDots(progressStage);
+
   const stateName = STATE_NAMES[bill.sponsor_state as keyof typeof STATE_NAMES] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party as keyof typeof PARTY_NAMES] || bill.sponsor_party;
 
@@ -126,8 +125,8 @@ export default function BillDetails({ bill }: BillDetailsProps) {
         <h2 className="text-lg sm:text-xl font-semibold mb-4">Current Status</h2>
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-base font-medium">{bill.progress_description}</span>
-            <span className="text-sm text-muted-foreground">{progressPercentage.toFixed(0)}%</span>
+            <span className="text-base font-medium">{displayDescription}</span>
+            <span className="text-sm text-muted-foreground">{progressPercentage}%</span>
           </div>
           <div className="w-full bg-secondary rounded-full h-2.5 overflow-hidden">
             <div
@@ -137,22 +136,18 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           </div>
           {/* Mobile: Vertical stages */}
           <div className="block sm:hidden space-y-2 text-xs text-muted-foreground mt-2">
-            {['Introduced', 'Committee', 'One Chamber', 'Both Chambers', 'To President', 'Signed', 'Law'].map((stage, index) => (
+            {progressDots.map(({ stage, isComplete }) => (
               <div key={stage} className="flex items-center">
-                <div className={`w-1.5 h-1.5 rounded-full mr-2 ${index * (100/6) <= progressPercentage ? 'bg-primary' : 'bg-secondary'}`} />
+                <div className={`w-1.5 h-1.5 rounded-full mr-2 ${isComplete ? 'bg-primary' : 'bg-secondary'}`} />
                 <span>{stage}</span>
               </div>
             ))}
           </div>
           {/* Desktop: Horizontal stages */}
           <div className="hidden sm:flex justify-between text-xs text-muted-foreground">
-            <span>Introduced</span>
-            <span>Committee</span>
-            <span>One Chamber</span>
-            <span>Both Chambers</span>
-            <span>To President</span>
-            <span>Signed</span>
-            <span>Law</span>
+            {progressDots.map(({ stage }) => (
+              <span key={stage}>{stage}</span>
+            ))}
           </div>
         </div>
       </div>

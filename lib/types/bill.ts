@@ -10,7 +10,7 @@ export interface Bill {
   sponsor_last_name: string;
   sponsor_party: string;
   sponsor_state: string;
-  progress_stage: string;
+  progress_stage: number;
   progress_description: string;
   bill_subjects?: {
     policy_area_name: string;

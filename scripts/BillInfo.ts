@@ -3,6 +3,7 @@ import { BillInfo, BillInfoResponse, BILL_INFO_TABLE_NAME } from '../lib/types/B
 import dotenv from 'dotenv';
 import path from 'path';
 import { getSupabaseConfig } from '../lib/utils/supabase/config';
+import { BillStages } from '@/lib/utils/bill-stages';
 
 // Load environment variables from both .env and .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
@@ -125,25 +126,25 @@ function getOfficialTitle(titles: BillTitlesResponse): { title: string; titleWit
   };
 }
 
-export function transformBillInfo(data: BillInfoResponse): BillInfo {
-  const bill = data.bill;
-  const billId = `${bill.number}${bill.type.toLowerCase()}${bill.congress}`;
+function generateBillId(bill: any): string {
+  return `${bill.number}${bill.type.toLowerCase()}${bill.congress}`;
+}
 
+export function transformBillInfo(bill: any): BillInfo {
   return {
-    id: billId,
+    id: generateBillId(bill),
     congress: bill.congress,
     bill_type: bill.type.toLowerCase(),
     bill_number: bill.number,
-    bill_type_label: getBillTypeLabel(bill.type.toLowerCase()),
+    bill_type_label: getBillTypeLabel(bill.type),
     introduced_date: bill.introducedDate,
-    title: bill.title || '',
-    sponsor_first_name: bill.sponsors[0]?.firstName || '',
-    sponsor_last_name: bill.sponsors[0]?.lastName || '',
-    sponsor_party: bill.sponsors[0]?.party || '',
-    sponsor_state: bill.sponsors[0]?.state || '',
-    // Progress fields will be set by database trigger
-    progress_stage: 20, // Default to "Introduced" stage
-    progress_description: 'Introduced'
+    title: bill.title,
+    sponsor_first_name: bill.sponsors?.[0]?.firstName,
+    sponsor_last_name: bill.sponsors?.[0]?.lastName,
+    sponsor_party: bill.sponsors?.[0]?.party,
+    sponsor_state: bill.sponsors?.[0]?.state,
+    progress_stage: BillStages.INTRODUCED,
+    progress_description: ''
   };
 }
 

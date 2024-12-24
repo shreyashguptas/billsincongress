@@ -473,12 +473,13 @@ The bill status tracking system uses several components:
 1. **Action Codes**: Numeric codes in `bill_actions` table that indicate specific legislative actions. We handle both Library of Congress codes (e.g., '36000') and House system codes (e.g., 'E40000').
 
 2. **Progress Stages**:
-   - 20: Introduced
-   - 40: In Committee
-   - 60: Passed One Chamber
-   - 80: Passed Both Chambers
-   - 90: To President
-   - 100: Became Law
+   - 20: Introduced (0%)
+   - 40: In Committee (20%)
+   - 60: Passed One Chamber (40%)
+   - 80: Passed Both Chambers (60%)
+   - 90: To President (80%)
+   - 95: Signed by President (90%)
+   - 100: Became Law (100%)
 
 3. **Database Trigger Implementation**: 
    - A trigger function `calculate_bill_progress()` runs after any insert or update on `bill_actions`
@@ -490,14 +491,23 @@ The bill status tracking system uses several components:
 4. **Status Calculation Logic**:
    The status is determined by checking (in order of precedence):
    - Became Law: action_code in ('36000', 'E40000') or type = 'BecameLaw'
-   - Signed by President: action_code in ('29000', 'E30000')
-   - To President: action_code in ('28000', 'E20000')
-   - Passed Both Chambers: Has actions with codes ('17000', '8000', 'E10000')
-   - Passed One Chamber: action_code in ('17000', '8000', 'E10000')
-   - In Committee: action_code in ('5000', '14000')
-   - Introduced: action_code in ('1000', '10000')
+   - Signed by President: action_code in ('29000', 'E30000') → sets stage to 95
+   - To President: action_code in ('28000', 'E20000') → sets stage to 90
+   - Passed Both Chambers: Has actions with codes ('17000', '8000', 'E10000') → sets stage to 80
+   - Passed One Chamber: action_code in ('17000', '8000', 'E10000') → sets stage to 60
+   - In Committee: action_code in ('5000', '14000') → sets stage to 40
+   - Introduced: action_code in ('1000', '10000') → sets stage to 20
 
-5. **Data Flow**:
+5. **Progress Stage to Percentage Mapping**:
+   - Introduced (20) → 0%
+   - In Committee (40) → 20%
+   - Passed One Chamber (60) → 40%
+   - Passed Both Chambers (80) → 60%
+   - To President (90) → 80%
+   - Signed by President (95) → 90%
+   - Became Law (100) → 100%
+
+6. **Data Flow**:
    - Bill actions are stored in `bill_actions` table
    - Status is automatically calculated by the trigger
    - No manual status updates needed

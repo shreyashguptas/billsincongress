@@ -126,8 +126,14 @@ export const billsService = {
       console.error('Error fetching bill text:', textError);
     }
 
+    // Ensure progress_stage is a number
+    const progress_stage = typeof billData.progress_stage === 'string'
+      ? parseInt(billData.progress_stage, 10)
+      : billData.progress_stage;
+
     return {
       ...billData,
+      progress_stage,  // Use the converted number
       bill_subjects: billData.bill_subjects?.[0] || { policy_area_name: '' },
       latest_summary: summaryData?.text || '',
       pdf_url: textData?.formats_url_pdf || ''
@@ -283,8 +289,14 @@ export const billsService = {
         ? bill.bill_subjects[0]?.policy_area_name 
         : bill.bill_subjects?.policy_area_name || '';
       
+      // Ensure progress_stage is a number
+      const progress_stage = typeof bill.progress_stage === 'string'
+        ? parseInt(bill.progress_stage, 10)
+        : bill.progress_stage;
+
       return {
         ...bill,
+        progress_stage,  // Use the converted number
         bill_subjects: { policy_area_name: policyArea }
       };
     });
@@ -348,8 +360,14 @@ export const billsService = {
         ? bill.bill_subjects[0]?.policy_area_name 
         : bill.bill_subjects?.policy_area_name || '';
       
+      // Ensure progress_stage is a number
+      const progress_stage = typeof bill.progress_stage === 'string'
+        ? parseInt(bill.progress_stage, 10)
+        : bill.progress_stage;
+
       return {
         ...bill,
+        progress_stage,  // Use the converted number
         bill_subjects: { policy_area_name: policyArea }
       };
     });

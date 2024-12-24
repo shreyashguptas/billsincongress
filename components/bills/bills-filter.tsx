@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { BILL_TYPES } from '@/lib/constants/filters';
 import dynamic from 'next/dynamic';
+import { BillStageDescriptions, BillStageOrder } from '@/lib/utils/bill-stages';
 
 // Map of policy areas
 const POLICY_AREAS = [
@@ -125,12 +126,11 @@ function BillsFilter({
               side="bottom"
             >
               <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="Introduced">Introduced</SelectItem>
-              <SelectItem value="In Committee">In Committee</SelectItem>
-              <SelectItem value="Passed One Chamber">Passed One Chamber</SelectItem>
-              <SelectItem value="Passed Both Chambers">Passed Both Chambers</SelectItem>
-              <SelectItem value="To President">To President</SelectItem>
-              <SelectItem value="Became Law">Became Law</SelectItem>
+              {BillStageOrder.map(stage => (
+                <SelectItem key={stage} value={BillStageDescriptions[stage]}>
+                  {BillStageDescriptions[stage]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

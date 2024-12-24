@@ -22,6 +22,11 @@ export default function BillCard({ bill }: BillCardProps) {
     }).format(date);
   };
 
+  // Ensure progress_stage is a number
+  const stage = typeof bill.progress_stage === 'string' 
+    ? parseInt(bill.progress_stage, 10) 
+    : bill.progress_stage;
+
   return (
     <Link href={`/bills/${bill.id}`}>
       <Card className="h-full hover:bg-accent/50 transition-colors overflow-hidden group">
@@ -51,7 +56,7 @@ export default function BillCard({ bill }: BillCardProps) {
 
           {/* Progress bar */}
           <BillProgress
-            stage={Number(bill.progress_stage)}
+            stage={stage}
             description={bill.progress_description}
           />
 
