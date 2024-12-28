@@ -8,21 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu } from 'lucide-react';
-
-const routes = [
-  {
-    href: '/' as const,
-    label: 'Home',
-  },
-  {
-    href: '/bills' as const,
-    label: 'Bills',
-  },
-  {
-    href: '/about' as const,
-    label: 'About',
-  },
-] as const;
+import { routes } from '@/lib/constants/routes';
 
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
