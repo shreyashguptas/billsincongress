@@ -170,16 +170,9 @@ export function CongressSection() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="mt-16 p-8 bg-card rounded-xl"
+          className="mt-16"
         >
-          <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold mb-4">How many Representatives and Senators are there?</h3>
-            <p className="text-lg text-muted-foreground">
-              Each state has a number of representatives based on its population, while every state has exactly two senators, regardless of population.
-            </p>
-          </div>
-
-          <div className="relative aspect-[16/9] bg-muted rounded-lg overflow-hidden">
+          <div className="relative">
             <USMap onStateHover={setActiveState} />
           </div>
         </motion.div>

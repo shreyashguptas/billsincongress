@@ -64,17 +64,13 @@ interface USMapProps {
 
 export default function USMap({ onStateHover }: USMapProps) {
   const [hoveredState, setHoveredState] = useState<string | null>(null);
-  const [statePosition, setStatePosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  const [tooltipPosition, setTooltipPosition] = useState<'top' | 'bottom'>('top');
+  const [statePosition, setStatePosition] = useState({ x: 0, y: 0 });
   const objectRef = useRef<HTMLObjectElement>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
 
-  // Calculate totals
+  // Calculate totals - using actual data from statesData
   const totalRepresentatives = Object.values(statesData).reduce((sum, state) => sum + state.representatives, 0);
   const totalSenators = Object.keys(statesData).length * 2; // 2 senators per state
-
-  // Calculate max representatives once
-  const maxRepresentatives = Math.max(...Object.values(statesData).map(s => s.representatives));
 
   const getStateColor = useCallback((stateAbbr: string) => {
     if (!statesData[stateAbbr]) {
@@ -82,19 +78,13 @@ export default function USMap({ onStateHover }: USMapProps) {
       return '#d3d3d3';
     }
 
-    // Calculate opacity based on representatives
     const reps = statesData[stateAbbr].representatives;
-    // Adjust the scale to make the differences more visible
-    const opacity = (reps / maxRepresentatives) * 0.9 + 0.1;
+    const maxReps = Math.max(...Object.values(statesData).map(s => s.representatives));
+    const opacity = (reps / maxReps) * 0.9 + 0.1;
     
-    // Use a darker base purple color for better visibility
-    const baseColor = hoveredState === stateAbbr
-      ? [147, 51, 234]  // Brighter purple when hovered
-      : [124, 58, 237]; // Base purple
-
     return hoveredState === stateAbbr
-      ? `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${opacity})`
-      : `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, ${opacity * 0.8})`; // Less transparent for better visibility
+      ? `rgba(124, 58, 237, ${opacity})`
+      : `rgba(124, 58, 237, ${opacity * 0.7})`;
   }, [hoveredState]);
 
   const handleStateHover = useCallback((stateAbbr: string | null, pathElement?: SVGPathElement) => {
@@ -103,21 +93,13 @@ export default function USMap({ onStateHover }: USMapProps) {
       const bbox = pathElement.getBBox();
       const svg = pathElement.ownerSVGElement;
       if (svg) {
-        const point = svg.createSVGPoint();
-        point.x = bbox.x + bbox.width / 2;
-        point.y = bbox.y;
-        const screenPoint = point.matrixTransform(svg.getScreenCTM() || new DOMMatrix());
-        const rect = svg.getBoundingClientRect();
-        
-        // Calculate if tooltip should appear above or below the state
-        const yPosition = bbox.y / svg.viewBox.baseVal.height * 100;
-        setTooltipPosition(yPosition < 30 ? 'bottom' : 'top');
+        const svgRect = svg.getBoundingClientRect();
+        const stateX = bbox.x + bbox.width / 2;
+        const stateY = bbox.y + bbox.height / 2;
         
         setStatePosition({
-          x: (bbox.x + bbox.width / 2) / svg.viewBox.baseVal.width * 100,
-          y: bbox.y / svg.viewBox.baseVal.height * 100,
-          width: bbox.width / svg.viewBox.baseVal.width * 100,
-          height: bbox.height / svg.viewBox.baseVal.height * 100
+          x: (stateX / svg.viewBox.baseVal.width) * 100,
+          y: (stateY / svg.viewBox.baseVal.height) * 100
         });
       }
       onStateHover(statesData[stateAbbr]);
@@ -137,61 +119,59 @@ export default function USMap({ onStateHover }: USMapProps) {
         return;
       }
 
+      // Set SVG to fill container while maintaining aspect ratio
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
       if (!svg.getAttribute('viewBox')) {
         const width = svg.getAttribute('width') || '959';
         const height = svg.getAttribute('height') || '593';
         svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
       }
 
+      svg.style.backgroundColor = 'transparent';
+      
       const style = document.createElement('style');
       style.textContent = `
         path { 
-          fill: #d3d3d3; 
-          stroke: #ffffff; 
-          stroke-width: 0.75;
-          stroke-miterlimit: 4;
-          stroke-dasharray: none;
+          fill: #1f2937;
+          stroke: rgba(139, 92, 246, 0.3);
+          stroke-width: 1;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           transform-origin: center;
-          mix-blend-mode: multiply;
+          opacity: 0.8;
         }
         path:hover { 
           cursor: pointer;
-          transform: scale(1.02) translateY(-4px);
-          filter: brightness(1.1);
-          z-index: 10;
-          mix-blend-mode: normal;
-        }
-        .state-label { 
-          font-family: ui-sans-serif, system-ui, sans-serif; 
-          font-size: 12px; 
-          fill: #4b5563;
-          pointer-events: none;
-          text-anchor: middle;
+          transform: scale(1.02);
+          filter: brightness(1.3);
+          stroke: rgb(167, 139, 250);
+          stroke-width: 2;
+          opacity: 1;
         }
       `;
       svg.appendChild(style);
 
-      // Debug: Log all states and their colors
-      console.log('Initializing state colors:');
-      
       const paths = svg.querySelectorAll('path');
       paths.forEach(path => {
         const stateId = path.getAttribute('id');
         if (stateId) {
           if (statesData[stateId]) {
-            const color = getStateColor(stateId);
-            path.style.fill = color;
-            console.log(`State ${stateId}: ${statesData[stateId].representatives} reps, color: ${color}`);
+            path.style.fill = getStateColor(stateId);
             
-            path.addEventListener('mouseenter', () => handleStateHover(stateId, path));
-            path.addEventListener('mouseleave', () => handleStateHover(null));
+            const handleEnter = () => handleStateHover(stateId, path);
+            const handleLeave = () => handleStateHover(null);
+            
+            path.addEventListener('mouseenter', handleEnter);
+            path.addEventListener('mouseleave', handleLeave);
             path.addEventListener('touchstart', (e) => {
               e.preventDefault();
-              handleStateHover(stateId, path);
+              handleEnter();
             });
           } else {
             console.warn(`Missing data for state: ${stateId}`);
+            path.style.fill = '#1f2937';
           }
         }
       });
@@ -213,71 +193,71 @@ export default function USMap({ onStateHover }: USMapProps) {
     };
   }, [getStateColor, handleStateHover]);
 
-  useEffect(() => {
-    if (!isMapLoaded || !objectRef.current) return;
-
-    const svg = objectRef.current.contentDocument?.querySelector('svg');
-    if (!svg) return;
-
-    const paths = svg.querySelectorAll('path');
-    paths.forEach(path => {
-      const stateId = path.getAttribute('id');
-      if (stateId && statesData[stateId]) {
-        path.style.fill = getStateColor(stateId);
-      }
-    });
-  }, [isMapLoaded, getStateColor]);
-
   return (
-    <div className="relative w-full max-w-4xl mx-auto">
-      {/* Total counts display */}
-      <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-sm border border-gray-200 p-3 text-sm">
-        <div className="font-medium text-gray-900 mb-2">Congress Totals</div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-gray-500 mb-1">House</div>
-            <div className="font-bold text-lg">{totalRepresentatives}</div>
+    <div className="w-full py-12">
+      {/* Title and Description */}
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-white mb-4">
+          How many Representatives and Senators are there?
+        </h1>
+        <p className="text-lg text-gray-400 max-w-3xl mx-auto">
+          Each state has a number of representatives based on its population, while every state has exactly two senators,
+          regardless of population.
+        </p>
+      </div>
+
+      {/* Congress Totals */}
+      <div className="max-w-2xl mx-auto mb-16">
+        <div className="grid grid-cols-2">
+          <div className="text-center">
+            <div className="text-purple-300 text-xl font-medium mb-2">House</div>
+            <div className="font-bold text-7xl text-purple-400 mb-2">{totalRepresentatives}</div>
+            <div className="text-purple-300">Representatives</div>
           </div>
-          <div>
-            <div className="text-gray-500 mb-1">Senate</div>
-            <div className="font-bold text-lg">{totalSenators}</div>
+          <div className="text-center">
+            <div className="text-purple-300 text-xl font-medium mb-2">Senate</div>
+            <div className="font-bold text-7xl text-purple-400 mb-2">{totalSenators}</div>
+            <div className="text-purple-300">Senators</div>
           </div>
         </div>
       </div>
 
-      <div className="aspect-[16/10] relative bg-gray-50 rounded-lg shadow-inner p-4">
+      {/* Map Container */}
+      <div className="max-w-6xl mx-auto relative">
         <object
           ref={objectRef}
           data="/images/us-map.svg"
           type="image/svg+xml"
-          className="w-full h-full"
+          className="w-full"
+          style={{ minHeight: '500px' }}
+          aria-label="US Map showing congressional representation"
         />
         
-        {/* State info overlay */}
+        {/* State info tooltip */}
         {hoveredState && statesData[hoveredState] && (
           <div 
             className="absolute pointer-events-none"
             style={{
               left: `${statePosition.x}%`,
               top: `${statePosition.y}%`,
-              transform: tooltipPosition === 'top' 
-                ? 'translate(-50%, -120%)' 
-                : 'translate(-50%, 20%)',
+              transform: 'translate(-50%, -130%)',
               zIndex: 50,
             }}
           >
-            <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 p-3 min-w-[180px]">
-              <h3 className="font-bold text-gray-900 text-lg border-b border-gray-100 pb-2 mb-2">
+            <div className="bg-gray-900/90 backdrop-blur-sm rounded-xl shadow-xl border border-purple-800/50 p-4 min-w-[220px]">
+              <h3 className="font-bold text-white text-xl mb-3 text-center">
                 {statesData[hoveredState].name}
               </h3>
-              <div className="grid gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">House Representatives</span>
-                  <span className="font-semibold text-lg ml-4">{statesData[hoveredState].representatives}</span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center bg-gray-800/50 p-2 rounded-lg">
+                  <span className="text-purple-300">Representatives</span>
+                  <span className="font-bold text-2xl text-purple-400 ml-3">
+                    {statesData[hoveredState].representatives}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Senators</span>
-                  <span className="font-semibold text-lg ml-4">2</span>
+                <div className="flex justify-between items-center bg-gray-800/50 p-2 rounded-lg">
+                  <span className="text-purple-300">Senators</span>
+                  <span className="font-bold text-2xl text-purple-400 ml-3">2</span>
                 </div>
               </div>
             </div>
