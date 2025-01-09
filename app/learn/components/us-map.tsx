@@ -217,42 +217,42 @@ export default function USMap({ onStateHover }: USMapProps) {
   }, [getStateColor, handleStateHover, isMapLoaded]);
 
   return (
-    <div className="w-full py-12">
+    <div className="w-full py-8 md:py-12">
       {/* Title and Description */}
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-white mb-4">
+      <div className="text-center px-4 mb-8 md:mb-12">
+        <h1 className="text-3xl md:text-4xl font-bold mb-4 text-foreground">
           How many Representatives and Senators are there?
         </h1>
-        <p className="text-lg text-gray-400 max-w-3xl mx-auto">
+        <p className="text-base md:text-lg text-muted-foreground max-w-3xl mx-auto">
           Each state has a number of representatives based on its population, while every state has exactly two senators,
           regardless of population.
         </p>
       </div>
 
       {/* Congress Totals */}
-      <div className="max-w-2xl mx-auto mb-16">
-        <div className="grid grid-cols-2">
-          <div className="text-center">
-            <div className="text-purple-300 text-xl font-medium mb-2">House</div>
-            <div className="font-bold text-7xl text-purple-400 mb-2">{totalRepresentatives}</div>
-            <div className="text-purple-300">Representatives</div>
+      <div className="max-w-2xl mx-auto mb-8 md:mb-16 px-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="text-center p-4 rounded-lg bg-card border">
+            <div className="text-lg md:text-xl font-medium mb-2 text-foreground">House</div>
+            <div className="font-bold text-4xl md:text-7xl text-primary mb-2">{totalRepresentatives}</div>
+            <div className="text-muted-foreground">Representatives</div>
           </div>
-          <div className="text-center">
-            <div className="text-purple-300 text-xl font-medium mb-2">Senate</div>
-            <div className="font-bold text-7xl text-purple-400 mb-2">{totalSenators}</div>
-            <div className="text-purple-300">Senators</div>
+          <div className="text-center p-4 rounded-lg bg-card border">
+            <div className="text-lg md:text-xl font-medium mb-2 text-foreground">Senate</div>
+            <div className="font-bold text-4xl md:text-7xl text-primary mb-2">{totalSenators}</div>
+            <div className="text-muted-foreground">Senators</div>
           </div>
         </div>
       </div>
 
       {/* Map Container */}
-      <div className="max-w-6xl mx-auto relative">
+      <div className="max-w-6xl mx-auto relative px-4">
         <object
           ref={objectRef}
           data="/images/us-map.svg"
           type="image/svg+xml"
           className="w-full h-auto"
-          style={{ minHeight: '500px' }}
+          style={{ minHeight: '300px', maxHeight: '600px' }}
           aria-label="US Map showing congressional representation"
         >
           {/* Fallback for production */}
@@ -274,20 +274,20 @@ export default function USMap({ onStateHover }: USMapProps) {
               zIndex: 50,
             }}
           >
-            <div className="bg-gray-900/90 backdrop-blur-sm rounded-xl shadow-xl border border-purple-800/50 p-4 min-w-[220px]">
-              <h3 className="font-bold text-white text-xl mb-3 text-center">
+            <div className="bg-popover/95 backdrop-blur-sm rounded-xl shadow-xl border border-border p-4 min-w-[220px]">
+              <h3 className="font-bold text-foreground text-xl mb-3 text-center">
                 {statesData[hoveredState].name}
               </h3>
               <div className="space-y-2">
-                <div className="flex justify-between items-center bg-gray-800/50 p-2 rounded-lg">
-                  <span className="text-purple-300">Representatives</span>
-                  <span className="font-bold text-2xl text-purple-400 ml-3">
+                <div className="flex justify-between items-center bg-muted/50 p-2 rounded-lg">
+                  <span className="text-muted-foreground">Representatives</span>
+                  <span className="font-bold text-2xl text-primary ml-3">
                     {statesData[hoveredState].representatives}
                   </span>
                 </div>
-                <div className="flex justify-between items-center bg-gray-800/50 p-2 rounded-lg">
-                  <span className="text-purple-300">Senators</span>
-                  <span className="font-bold text-2xl text-purple-400 ml-3">2</span>
+                <div className="flex justify-between items-center bg-muted/50 p-2 rounded-lg">
+                  <span className="text-muted-foreground">Senators</span>
+                  <span className="font-bold text-2xl text-primary ml-3">2</span>
                 </div>
               </div>
             </div>
