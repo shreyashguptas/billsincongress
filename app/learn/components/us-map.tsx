@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import Image from 'next/image';
 
 interface StateData {
   name: string;
@@ -116,7 +117,13 @@ export default function USMap({ onStateHover }: USMapProps) {
       const obj = objectRef.current;
       if (!obj) return;
 
-      const svg = obj.contentDocument?.querySelector('svg');
+      const doc = obj.contentDocument;
+      if (!doc) {
+        console.warn('SVG document not loaded');
+        return;
+      }
+
+      const svg = doc.querySelector('svg');
       if (!svg) {
         console.error('SVG element not found in the object');
         return;
@@ -127,15 +134,15 @@ export default function USMap({ onStateHover }: USMapProps) {
       svg.setAttribute('height', '100%');
       svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
+      // Ensure viewBox is set
       if (!svg.getAttribute('viewBox')) {
-        const width = svg.getAttribute('width') || '959';
-        const height = svg.getAttribute('height') || '593';
-        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.setAttribute('viewBox', '0 0 959 593');
       }
 
       svg.style.backgroundColor = 'transparent';
       
-      const style = document.createElement('style');
+      // Add styles directly to SVG document
+      const style = doc.createElement('style');
       style.textContent = `
         path { 
           fill: #1f2937;
@@ -144,9 +151,9 @@ export default function USMap({ onStateHover }: USMapProps) {
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           transform-origin: center;
           opacity: 0.8;
+          cursor: pointer;
         }
         path:hover { 
-          cursor: pointer;
           transform: scale(1.02);
           filter: brightness(1.3);
           stroke: rgb(167, 139, 250);
@@ -157,25 +164,23 @@ export default function USMap({ onStateHover }: USMapProps) {
       svg.appendChild(style);
 
       const paths = svg.querySelectorAll('path');
-      paths.forEach(path => {
+      paths.forEach((path: SVGPathElement) => {
         const stateId = path.getAttribute('id');
-        if (stateId) {
-          if (statesData[stateId]) {
-            path.style.fill = getStateColor(stateId);
-            
-            const handleEnter = () => handleStateHover(stateId, path);
-            const handleLeave = () => handleStateHover(null);
-            
-            path.addEventListener('mouseenter', handleEnter);
-            path.addEventListener('mouseleave', handleLeave);
-            path.addEventListener('touchstart', (e) => {
-              e.preventDefault();
-              handleEnter();
-            });
-          } else {
-            console.warn(`Missing data for state: ${stateId}`);
-            path.style.fill = '#1f2937';
-          }
+        if (stateId && statesData[stateId]) {
+          path.style.fill = getStateColor(stateId);
+          
+          const handleEnter = () => handleStateHover(stateId, path);
+          const handleLeave = () => handleStateHover(null);
+          
+          path.addEventListener('mouseenter', handleEnter);
+          path.addEventListener('mouseleave', handleLeave);
+          path.addEventListener('touchstart', (e: Event) => {
+            e.preventDefault();
+            handleEnter();
+          });
+        } else if (stateId) {
+          console.warn(`Missing data for state: ${stateId}`);
+          path.style.fill = '#1f2937';
         }
       });
 
@@ -189,12 +194,27 @@ export default function USMap({ onStateHover }: USMapProps) {
       } else {
         obj.addEventListener('load', initializeMap);
       }
-    }
 
-    return () => {
-      obj?.removeEventListener('load', initializeMap);
-    };
-  }, [getStateColor, handleStateHover]);
+      // Retry mechanism for production
+      let retryCount = 0;
+      const maxRetries = 3;
+      const retryInterval = setInterval(() => {
+        if (isMapLoaded || retryCount >= maxRetries) {
+          clearInterval(retryInterval);
+          return;
+        }
+        if (obj.contentDocument?.readyState === 'complete') {
+          initializeMap();
+        }
+        retryCount++;
+      }, 1000);
+
+      return () => {
+        clearInterval(retryInterval);
+        obj.removeEventListener('load', initializeMap);
+      };
+    }
+  }, [getStateColor, handleStateHover, isMapLoaded]);
 
   return (
     <div className="w-full py-12">
@@ -231,10 +251,17 @@ export default function USMap({ onStateHover }: USMapProps) {
           ref={objectRef}
           data="/images/us-map.svg"
           type="image/svg+xml"
-          className="w-full"
+          className="w-full h-auto"
           style={{ minHeight: '500px' }}
           aria-label="US Map showing congressional representation"
-        />
+        >
+          {/* Fallback for production */}
+          <img 
+            src="/images/us-map.svg" 
+            alt="US Map showing congressional representation"
+            className="w-full h-auto"
+          />
+        </object>
         
         {/* State info tooltip */}
         {hoveredState && statesData[hoveredState] && (
