@@ -194,24 +194,6 @@ export function BillJourneySection() {
             ))}
           </div>
 
-          {/* Success Rate Visualization */}
-          <div className="mt-12 p-6 bg-muted rounded-lg">
-            <h3 className="text-xl font-semibold mb-6">Bill Success Rates by Stage</h3>
-            <div className="space-y-6">
-              {journeySteps.map((step) => (
-                <div key={step.id} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{step.icon}</span>
-                      <span>{step.title}</span>
-                    </div>
-                    <span className="text-sm font-medium">{step.successRate}%</span>
-                  </div>
-                  <Progress value={step.successRate} className="h-2" />
-                </div>
-              ))}
-            </div>
-          </div>
         </motion.div>
       </div>
     </div>
