@@ -55,7 +55,10 @@ const statesData: { [key: string]: StateData } = {
   AK: { name: 'Alaska', representatives: 1, abbreviation: 'AK' },
   VT: { name: 'Vermont', representatives: 1, abbreviation: 'VT' },
   WY: { name: 'Wyoming', representatives: 1, abbreviation: 'WY' },
-  WV: { name: 'West Virginia', representatives: 2, abbreviation: 'WV' }
+  WV: { name: 'West Virginia', representatives: 2, abbreviation: 'WV' },
+  MN: { name: 'Minnesota', representatives: 8, abbreviation: 'MN' },
+  IA: { name: 'Iowa', representatives: 4, abbreviation: 'IA' },
+  MS: { name: 'Mississippi', representatives: 4, abbreviation: 'MS' }
 };
 
 interface USMapProps {
