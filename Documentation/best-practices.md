@@ -173,3 +173,86 @@ const supabaseClient = createClient({
 - Use cache tags for granular control
 - Handle revalidation appropriately
 - Monitor cache performance
+
+## SVG and Interactive Maps
+
+### SVG Best Practices
+1. Performance
+   ```typescript
+   // Optimize SVG loading
+   const initializeMap = () => {
+     // Use contentDocument for SVG manipulation
+     const doc = obj.contentDocument;
+     if (!doc) return;
+     
+     // Batch SVG updates
+     const svg = doc.querySelector('svg');
+     if (!svg) return;
+     
+     // Set attributes efficiently
+     svg.setAttribute('width', '100%');
+     svg.setAttribute('height', '100%');
+   };
+   ```
+
+2. Accessibility
+   ```typescript
+   // Make SVGs accessible
+   <object
+     aria-label="Interactive map"
+     role="img"
+     tabIndex={0}
+   >
+     <img alt="Fallback map image" />
+   </object>
+   ```
+
+3. Event Handling
+   ```typescript
+   // Efficient event delegation
+   svg.addEventListener('mouseover', (e) => {
+     const path = e.target.closest('path');
+     if (!path) return;
+     // Handle interaction
+   });
+   ```
+
+4. Production Readiness
+   ```typescript
+   // Implement retry mechanism
+   let retryCount = 0;
+   const maxRetries = 3;
+   const retryInterval = setInterval(() => {
+     if (isLoaded || retryCount >= maxRetries) {
+       clearInterval(retryInterval);
+       return;
+     }
+     initializeMap();
+     retryCount++;
+   }, 1000);
+   ```
+
+### Interactive Map Guidelines
+1. User Experience
+   - Provide clear hover states
+   - Implement touch support
+   - Show loading states
+   - Handle errors gracefully
+
+2. Performance
+   - Optimize SVG assets
+   - Use efficient event handlers
+   - Implement proper cleanup
+   - Batch DOM updates
+
+3. Accessibility
+   - Keyboard navigation
+   - Screen reader support
+   - Touch device support
+   - Clear visual feedback
+
+4. Responsive Design
+   - Proper scaling
+   - Touch-friendly targets
+   - Responsive tooltips
+   - Appropriate text sizing

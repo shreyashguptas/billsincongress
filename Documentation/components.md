@@ -167,3 +167,90 @@ Features:
    - UTC-aware date handling
    - HTML content sanitization
    - Consistent text formatting
+
+## Learning Center Components
+
+### USMap
+```tsx
+// app/learn/components/us-map.tsx
+interface USMapProps {
+  onStateHover: (state: StateData | null) => void;
+}
+
+interface StateData {
+  name: string;
+  representatives: number;
+  abbreviation: string;
+}
+
+Features:
+- Interactive SVG map of United States
+- Dynamic color shading based on number of representatives
+- Hover effects with state information tooltip
+- Responsive design (mobile and desktop)
+- Automatic calculation of total representatives and senators
+- Accessible SVG with ARIA labels
+- Production-ready with fallback image
+- Light/dark mode support
+- Touch device support
+
+Technical Details:
+- SVG manipulation using contentDocument
+- Dynamic style injection for SVG elements
+- Retry mechanism for production environments
+- Event delegation for performance
+- Viewport-relative positioning for tooltips
+- Semantic color tokens for theme support
+```
+
+### CongressSection
+```tsx
+// app/learn/components/congress-section.tsx
+interface CongressInfo {
+  title: string;
+  description: string;
+  totalMembers: number;
+  color: string;
+  details: string[];
+}
+
+Features:
+- Comprehensive overview of Congress structure
+- Animated Capitol Building image with parallax effect
+- Interactive chamber cards (House and Senate)
+- Responsive layout with grid system
+- Motion animations for enhanced UX
+- Semantic HTML structure
+- Optimized images with multiple formats
+- Consistent typography and spacing
+```
+
+Best Practices:
+1. SVG Handling
+   - Proper viewBox setup
+   - Responsive scaling
+   - Performance optimization
+   - Touch event handling
+
+2. State Management
+   - Efficient hover state tracking
+   - Centralized data management
+   - Type-safe interfaces
+
+3. Accessibility
+   - ARIA labels for interactive elements
+   - Keyboard navigation support
+   - Screen reader friendly content
+   - Color contrast compliance
+
+4. Performance
+   - Optimized event listeners
+   - Efficient SVG manipulation
+   - Proper cleanup on unmount
+   - Production fallbacks
+
+5. Mobile Considerations
+   - Touch-friendly interactions
+   - Responsive text sizing
+   - Appropriate spacing
+   - Viewport-aware layouts

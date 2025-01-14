@@ -46,6 +46,54 @@ xl: 1280px /* Extra large devices */
 - Touch-friendly select options
 - Clear visual feedback on selection
 
+### Interactive Map
+```tsx
+// US Map responsive implementation
+// Viewport adjustments
+w-full                  // Full width container
+min-h-[300px]          // Minimum height on mobile
+max-h-[600px]          // Maximum height on desktop
+px-4                   // Consistent padding
+
+// Typography scaling
+text-3xl md:text-4xl   // Responsive headings
+text-base md:text-lg   // Description text
+text-lg md:text-xl     // Card headers
+text-4xl md:text-7xl   // Large numbers
+
+// Layout adaptations
+py-8 md:py-12          // Vertical spacing
+mb-8 md:mb-12          // Margin adjustments
+grid grid-cols-2 gap-4 // Responsive grid
+
+// Tooltip positioning
+transform: translate(-50%, -130%)  // Centered above state
+z-index: 50                       // Ensure visibility
+
+// SVG Handling
+preserveAspectRatio: xMidYMid meet // Maintain aspect ratio
+viewBox: 0 0 959 593              // Consistent scaling
+width: 100%                       // Responsive width
+height: auto                      // Maintain proportions
+
+// Touch Interactions
+cursor: pointer        // Desktop hover indicator
+touch-action: none     // Prevent scroll conflicts
+user-select: none      // Prevent text selection
+```
+
+### Map Features
+- Responsive container sizing
+- Touch-friendly state selection
+- Properly scaled tooltips
+- Consistent spacing across devices
+- Appropriate text sizing
+- Grid-based layout for totals
+- Semantic color system
+- Proper touch target sizes
+- Hardware-accelerated animations
+- Fallback for SVG loading issues
+
 ## Implementation Details
 
 ### Typography
