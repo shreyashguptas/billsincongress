@@ -290,3 +290,32 @@ interface BillsResponse {
 - Implement proper error boundaries
 - Show loading states
 - Provide fallback UI
+
+## Background Services
+
+### Automated Data Updates
+The system employs Supabase Edge Functions for automated background tasks:
+
+1. **Bill Update Service**
+   - **Type**: Supabase Edge Function
+   - **Schedule**: Daily at 1 AM
+   - **Purpose**: Keeps bill data synchronized with Congress.gov API
+   - **Components**:
+     - Deno runtime environment
+     - Rate-limited API requests
+     - Optimistic update strategy
+     - Error handling and retry logic
+   - **Data Flow**:
+     ```
+     Congress.gov API → Edge Function → Supabase Database
+     ```
+   - **Integration Points**:
+     - Congress.gov API for source data
+     - Supabase database for storage
+     - Supabase scheduler for timing
+   - **Monitoring**:
+     - Function logs
+     - Invocation history
+     - Performance metrics
+
+This service ensures that the application's bill data remains current while respecting API limits and maintaining data integrity.

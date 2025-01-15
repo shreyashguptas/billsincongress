@@ -4,28 +4,30 @@
 
 ### BillsService
 
-The `BillsService` class is responsible for handling all bill-related data operations. It provides a clean interface for fetching and transforming bill data from our Supabase database.
+The `billsService` object is responsible for handling all bill-related data operations. It provides a clean interface for fetching and transforming bill data from our Supabase database.
 
 ```typescript
-class BillsService {
-  constructor(private supabase: SupabaseClient) {}
+export const billsService = {
+  getClient(): SupabaseClient {
+    // Creates and returns Supabase client
+  },
 
   async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
-    // Implementation
-  }
+    // Fetches bills with filtering, pagination, and sorting
+  },
 
   async fetchBillById(id: string): Promise<Bill> {
-    // Implementation with PDF URL
-  }
+    // Fetches single bill with related data (summaries, text, subjects)
+  },
 
   async fetchFeaturedBills(): Promise<Bill[]> {
-    // Implementation
-  }
+    // Fetches featured bills (signed, to president, or law)
+  },
 
   async getCongressInfo(): Promise<{ congress: number; startYear: number; endYear: number }> {
-    // Implementation for Congress session years
+    // Gets current Congress info and calculates session years
   }
-}
+};
 ```
 
 ### Query Parameters
@@ -34,14 +36,14 @@ class BillsService {
 interface BillQueryParams {
   page?: number;
   itemsPerPage?: number;
-  status?: string;
-  introducedDateFilter?: string;
-  lastActionDateFilter?: string;
+  status?: string | null;
+  introducedDateFilter?: string | null;
+  lastActionDateFilter?: string | null;
   sponsorFilter?: string;
   titleFilter?: string;
-  stateFilter?: string;
-  policyArea?: string;
-  billType?: string;
+  stateFilter?: string | null;
+  policyArea?: string | null;
+  billType?: string | null;
 }
 ```
 
@@ -224,7 +226,7 @@ Contains all actions taken on a bill.
 | created_at | TIMESTAMP WITH TIME ZONE | Record creation timestamp | Auto-generated |
 | updated_at | TIMESTAMP WITH TIME ZONE | Record update timestamp | Auto-generated |
 
-#### 3. Bill Subjects (`bill_subjects`)
+#### 4. Bill Subjects (`bill_subjects`)
 Contains policy area information for each bill.
 
 **Primary Key**: `id`
@@ -233,12 +235,14 @@ Contains policy area information for each bill.
 | Column | Type | Description | Example |
 |--------|------|-------------|----------|
 | id | TEXT | References bill_info(id) | "114hr118" |
-| policy_area_name | TEXT | Name of policy area | "Government Operations and Politics" |
-| policy_area_update_date | TIMESTAMP WITH TIME ZONE | Last update of policy area | "2023-01-19T23:47:02Z" |
+| policy_area_name | TEXT | Name of the policy area | "Health" |
+| policy_area_update_date | TIMESTAMP WITH TIME ZONE | Last update timestamp | "2023-01-11T13:49:52Z" |
 | created_at | TIMESTAMP WITH TIME ZONE | Record creation timestamp | Auto-generated |
 | updated_at | TIMESTAMP WITH TIME ZONE | Record update timestamp | Auto-generated |
 
-#### 4. Bill Summaries (`bill_summaries`)
+The `bill_subjects` table has a one-to-one relationship with `bill_info`, meaning each bill has exactly one policy area. This design choice reflects that Congress.gov assigns one primary policy area to each bill.
+
+#### 5. Bill Summaries (`bill_summaries`)
 Contains different versions of bill summaries.
 
 **Primary Key**: Composite (`id`, `version_code`)
@@ -255,7 +259,7 @@ Contains different versions of bill summaries.
 | created_at | TIMESTAMP WITH TIME ZONE | Record creation timestamp | Auto-generated |
 | updated_at | TIMESTAMP WITH TIME ZONE | Record update timestamp | Auto-generated |
 
-#### 5. Bill Text (`bill_text`)
+#### 6. Bill Text (`bill_text`)
 Contains links to different versions of bill text.
 
 **Primary Key**: Composite (`id`, `date`, `type`)
@@ -271,7 +275,7 @@ Contains links to different versions of bill text.
 | created_at | TIMESTAMP WITH TIME ZONE | Record creation timestamp | Auto-generated |
 | updated_at | TIMESTAMP WITH TIME ZONE | Record update timestamp | Auto-generated |
 
-#### 6. Bill Titles (`bill_titles`)
+#### 7. Bill Titles (`bill_titles`)
 Contains different titles associated with bills.
 
 **Primary Key**: Composite (`id`, `title_type_code`, `title`)
@@ -799,3 +803,105 @@ Key action codes include:
 - `S32500`: Passed Senate
 - `H11100`: Referred to Committee
 - `S11100`: Referred to Committee
+
+## Automated Data Updates
+
+### Edge Function for Bill Updates
+
+The system uses a Supabase Edge Function to automatically update bill data on a scheduled basis. The function is located at `supabase/functions/update-bills/index.ts` and runs as a cron job.
+
+#### Function Overview
+
+The Edge Function performs the following tasks:
+1. Fetches bills that need updates based on their last update date
+2. Updates various aspects of bills:
+   - Core bill information (title, sponsor, etc.)
+   - Actions and progress
+   - Summaries
+   - Text versions
+   - Titles
+   - Policy areas/subjects
+
+#### Key Features
+
+1. **Rate Limiting**
+   - Respects Congress.gov API rate limits
+   - Implements delay between requests
+   - Handles pagination efficiently
+
+2. **Update Strategy**
+   - Checks update dates before modifying records
+   - Uses upsert operations for atomic updates
+   - Maintains data consistency across related tables
+
+3. **Error Handling**
+   - Graceful error recovery
+   - Detailed logging
+   - Continues processing despite individual failures
+
+#### Environment Variables
+
+Required variables in Supabase Dashboard:
+```
+CONGRESS_API_KEY=your_congress_api_key
+SUPABASE_URL=your_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+#### Cron Schedule
+
+The function runs daily at 1 AM UTC via Supabase's scheduled functions feature:
+```
+Schedule: 0 1 * * *  # Daily at 1 AM UTC
+Type: Edge Function
+HTTP Method: POST
+Function Name: update-bills
+```
+
+#### Monitoring
+
+Monitor function execution through:
+1. Supabase Dashboard > Edge Functions > Invocations
+2. Supabase Dashboard > Database > Tables (check updated_at timestamps)
+3. Function logs in Edge Function monitoring
+
+### Bill Progress Calculation
+
+The system automatically calculates and updates bill progress through a PostgreSQL trigger function. This ensures that bill progress is always up-to-date and consistent with the latest actions.
+
+#### Progress Stage Values
+
+| Stage | Description | Criteria |
+|-------|-------------|----------|
+| 100 | Became Law | Action code in ('36000', 'E40000') or type = 'BecameLaw' |
+| 90 | To President | Action code in ('28000', 'E20000') or text contains 'Presented to President' |
+| 90 | Signed by President | Action code in ('29000', 'E30000') or text contains 'Signed by President' |
+| 80 | Passed Both Chambers | Has actions with codes ('17000', '8000', 'E10000') or types ('PassedSenate', 'PassedHouse') |
+| 60 | Passed One Chamber | Action code in ('17000', '8000', 'E10000') or type in ('PassedSenate', 'PassedHouse') |
+| 40 | In Committee | Action code in ('5000', '14000') or type = 'Reported' |
+| 20 | Introduced | Action code in ('1000', '10000') or type = 'IntroReferral' |
+
+#### Implementation Details
+
+The progress calculation is implemented as a trigger function `calculate_bill_progress()` that:
+1. Fires after INSERT or UPDATE on `bill_actions`
+2. Finds the latest action for the bill
+3. Determines progress stage and description based on action codes
+4. Updates `progress_stage` and `progress_description` in `bill_info`
+
+#### Key Features
+
+1. **Automatic Updates**
+   - No manual intervention needed
+   - Updates immediately when actions change
+   - Maintains consistency across tables
+
+2. **Comprehensive Status Tracking**
+   - Handles both House and Senate actions
+   - Recognizes multiple action codes
+   - Supports text-based matching for flexibility
+
+3. **Performance Optimized**
+   - Uses efficient SQL operations
+   - Maintains indexes on relevant columns
+   - Minimizes database load
