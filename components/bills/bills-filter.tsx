@@ -68,6 +68,18 @@ const STATE_NAMES: { [key: string]: string } = {
   'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'District of Columbia'
 };
 
+// Map of bill types to their full names
+const BILL_TYPE_NAMES: { [key: string]: string } = {
+  'hr': 'House Bill',
+  'hres': 'House Resolution',
+  'hjres': 'House Joint Resolution',
+  'hconres': 'House Concurrent Resolution',
+  's': 'Senate Bill',
+  'sres': 'Senate Resolution',
+  'sjres': 'Senate Joint Resolution',
+  'sconres': 'Senate Concurrent Resolution'
+};
+
 interface BillsFilterProps {
   statusFilter: string;
   introducedDateFilter: string;
@@ -173,6 +185,27 @@ function BillsFilter({
 
       {/* Dropdown Filters */}
       <div className="space-y-4">
+        {/* Bill Type Filter - New Position */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Bill Type</label>
+          <Select 
+            value={billTypeFilter} 
+            onValueChange={onBillTypeChange}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Bill Types" />
+            </SelectTrigger>
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
+              <SelectItem value="all">All Bill Types</SelectItem>
+              {Object.entries(BILL_TYPE_NAMES).map(([type, fullName]) => (
+                <SelectItem key={type} value={type}>
+                  {fullName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Status Filter */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Status</label>
@@ -187,27 +220,6 @@ function BillsFilter({
               {statusOptions.map(option => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Bill Type Filter */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Bill Type</label>
-          <Select 
-            value={billTypeFilter} 
-            onValueChange={onBillTypeChange}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All Bill Types" />
-            </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
-              <SelectItem value="all">All Bill Types</SelectItem>
-              {Object.entries(BILL_TYPES).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
                 </SelectItem>
               ))}
             </SelectContent>
