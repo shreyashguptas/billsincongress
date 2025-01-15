@@ -36,6 +36,7 @@ export interface BillQueryParams {
   stateFilter?: string | null;
   policyArea?: string | null;
   billType?: string | null;
+  billNumber?: string;
 }
 
 export interface BillsResponse {
@@ -152,7 +153,8 @@ export const billsService = {
       titleFilter = '',
       stateFilter = 'all',
       policyArea = 'all',
-      billType = 'all'
+      billType = 'all',
+      billNumber = ''
     } = params;
 
     console.log('Fetching bills with policy area:', policyArea);
@@ -173,6 +175,9 @@ export const billsService = {
     }
     if (billType && billType !== 'all') {
       countQuery = countQuery.eq('bill_type', billType);
+    }
+    if (billNumber) {
+      countQuery = countQuery.eq('bill_number', billNumber);
     }
 
     const { count: totalCount, error: countError } = await countQuery;
@@ -269,6 +274,10 @@ export const billsService = {
 
     if (billType && billType !== 'all') {
       query = query.eq('bill_type', billType);
+    }
+
+    if (billNumber) {
+      query = query.eq('bill_number', billNumber);
     }
 
     const start = (page - 1) * itemsPerPage;

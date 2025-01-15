@@ -30,4 +30,5 @@ export interface BillQueryParams {
   stateFilter?: string;
   policyArea?: string;
   billType?: string;
+  billNumber?: string;
 } 

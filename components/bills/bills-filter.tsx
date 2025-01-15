@@ -89,6 +89,7 @@ interface BillsFilterProps {
   stateFilter: string;
   policyAreaFilter: string;
   billTypeFilter: string;
+  billNumberFilter: string;
   onStatusChange: (value: string) => void;
   onIntroducedDateChange: (value: string) => void;
   onLastActionDateChange: (value: string) => void;
@@ -97,6 +98,7 @@ interface BillsFilterProps {
   onStateChange: (value: string) => void;
   onPolicyAreaChange: (value: string) => void;
   onBillTypeChange: (value: string) => void;
+  onBillNumberChange: (value: string) => void;
   onClearAllFilters: () => void;
   isMobile: boolean;
 }
@@ -126,6 +128,7 @@ function BillsFilter({
   stateFilter,
   policyAreaFilter,
   billTypeFilter,
+  billNumberFilter,
   onStatusChange,
   onIntroducedDateChange,
   onLastActionDateChange,
@@ -134,9 +137,17 @@ function BillsFilter({
   onStateChange,
   onPolicyAreaChange,
   onBillTypeChange,
+  onBillNumberChange,
   onClearAllFilters,
   isMobile,
 }: BillsFilterProps) {
+  const handleBillNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === '' || /^\d+$/.test(value)) {
+      onBillNumberChange(value);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -178,6 +189,22 @@ function BillsFilter({
             placeholder="Search by sponsor..."
             value={sponsorFilter}
             onChange={(e) => onSponsorChange(e.target.value)}
+            className="w-full"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="billNumberFilter" className="text-sm font-medium">
+            Bill Number
+          </label>
+          <Input
+            id="billNumberFilter"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="Enter bill number..."
+            value={billNumberFilter}
+            onChange={handleBillNumberChange}
             className="w-full"
           />
         </div>

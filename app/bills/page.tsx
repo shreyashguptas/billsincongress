@@ -5,7 +5,6 @@ import { Suspense, useState } from 'react';
 import { useEffect } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '../../lib/types/bill';
-import { useDebounce } from '@/lib/hooks/use-debounce';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Filter } from 'lucide-react';
@@ -51,6 +50,9 @@ export default function BillsPage() {
   const [billTypeFilter, setBillTypeFilter] = useState<string>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('billsTypeFilter') || 'all' : 'all'
   );
+  const [billNumberFilter, setBillNumberFilter] = useState(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsNumberFilter') || '' : ''
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +64,12 @@ export default function BillsPage() {
     lastActionDate: 'all',
     state: 'all',
     policyArea: 'all',
-    billType: 'all'
+    billType: 'all',
+    billNumber: '',
+    title: '',
+    sponsor: ''
   });
   const [hasFilterChanges, setHasFilterChanges] = useState(false);
-
-  const debouncedSponsorFilter = useDebounce(sponsorFilter, 2000);
-  const debouncedTitleFilter = useDebounce(titleFilter, 2000);
 
   // Fetch Congress info on mount
   useEffect(() => {
@@ -93,6 +95,7 @@ export default function BillsPage() {
       localStorage.setItem('billsStateFilter', stateFilter);
       localStorage.setItem('billsPolicyAreaFilter', policyAreaFilter);
       localStorage.setItem('billsTypeFilter', billTypeFilter);
+      localStorage.setItem('billsNumberFilter', billNumberFilter);
     }
   }, [
     statusFilter,
@@ -102,7 +105,8 @@ export default function BillsPage() {
     titleFilter,
     stateFilter,
     policyAreaFilter,
-    billTypeFilter
+    billTypeFilter,
+    billNumberFilter
   ]);
 
   // Initialize pendingFilters with current filter values
@@ -113,9 +117,22 @@ export default function BillsPage() {
       lastActionDate: lastActionDateFilter,
       state: stateFilter,
       policyArea: policyAreaFilter,
-      billType: billTypeFilter
+      billType: billTypeFilter,
+      billNumber: billNumberFilter,
+      title: titleFilter,
+      sponsor: sponsorFilter
     });
-  }, [statusFilter, introducedDateFilter, lastActionDateFilter, stateFilter, policyAreaFilter, billTypeFilter]);
+  }, [
+    statusFilter,
+    introducedDateFilter,
+    lastActionDateFilter,
+    stateFilter,
+    policyAreaFilter,
+    billTypeFilter,
+    billNumberFilter,
+    titleFilter,
+    sponsorFilter
+  ]);
 
   const handleClearAllFilters = () => {
     // Reset both actual and pending filters
@@ -127,14 +144,11 @@ export default function BillsPage() {
     setStateFilter('all');
     setPolicyAreaFilter('all');
     setBillTypeFilter('all');
-    setPendingFilters({
-      status: 'all',
-      introducedDate: 'all',
-      lastActionDate: 'all',
-      state: 'all',
-      policyArea: 'all',
-      billType: 'all'
-    });
+    setBillNumberFilter('');
+    setPendingFilters(prev => ({
+      ...prev,
+      billNumber: ''
+    }));
     setHasFilterChanges(false);
 
     if (typeof window !== 'undefined') {
@@ -146,6 +160,7 @@ export default function BillsPage() {
       localStorage.removeItem('billsStateFilter');
       localStorage.removeItem('billsPolicyAreaFilter');
       localStorage.removeItem('billsTypeFilter');
+      localStorage.removeItem('billsNumberFilter');
     }
   };
 
@@ -160,11 +175,12 @@ export default function BillsPage() {
         status: statusFilter,
         introducedDateFilter: introducedDateFilter,
         lastActionDateFilter: lastActionDateFilter,
-        sponsorFilter: debouncedSponsorFilter,
-        titleFilter: debouncedTitleFilter,
+        sponsorFilter: sponsorFilter,
+        titleFilter: titleFilter,
         stateFilter: stateFilter,
         policyArea: policyAreaFilter,
         billType: billTypeFilter,
+        billNumber: billNumberFilter,
       });
       setBills(prevBills => [...prevBills, ...response.data]);
       setTotalBills(response.count);
@@ -189,11 +205,12 @@ export default function BillsPage() {
           status: statusFilter,
           introducedDateFilter: introducedDateFilter,
           lastActionDateFilter: lastActionDateFilter,
-          sponsorFilter: debouncedSponsorFilter,
-          titleFilter: debouncedTitleFilter,
+          sponsorFilter: sponsorFilter,
+          titleFilter: titleFilter,
           stateFilter: stateFilter,
           policyArea: policyAreaFilter,
           billType: billTypeFilter,
+          billNumber: billNumberFilter,
         });
         setBills(response.data);
         setTotalBills(response.count);
@@ -208,7 +225,17 @@ export default function BillsPage() {
     };
 
     fetchBills();
-  }, [statusFilter, introducedDateFilter, lastActionDateFilter, debouncedSponsorFilter, debouncedTitleFilter, stateFilter, policyAreaFilter, billTypeFilter]);
+  }, [
+    statusFilter,
+    introducedDateFilter,
+    lastActionDateFilter,
+    sponsorFilter,
+    titleFilter,
+    stateFilter,
+    policyAreaFilter,
+    billTypeFilter,
+    billNumberFilter
+  ]);
 
   const hasMoreBills = bills.length < totalBills;
 
@@ -219,6 +246,9 @@ export default function BillsPage() {
     setStateFilter(pendingFilters.state);
     setPolicyAreaFilter(pendingFilters.policyArea);
     setBillTypeFilter(pendingFilters.billType);
+    setBillNumberFilter(pendingFilters.billNumber);
+    setTitleFilter(pendingFilters.title);
+    setSponsorFilter(pendingFilters.sponsor);
     setIsFilterSheetOpen(false);
     setHasFilterChanges(false);
   };
@@ -264,19 +294,21 @@ export default function BillsPage() {
                     statusFilter={pendingFilters.status}
                     introducedDateFilter={pendingFilters.introducedDate}
                     lastActionDateFilter={pendingFilters.lastActionDate}
-                    sponsorFilter={sponsorFilter}
-                    titleFilter={titleFilter}
+                    sponsorFilter={pendingFilters.sponsor}
+                    titleFilter={pendingFilters.title}
                     stateFilter={pendingFilters.state}
                     policyAreaFilter={pendingFilters.policyArea}
                     billTypeFilter={pendingFilters.billType}
+                    billNumberFilter={pendingFilters.billNumber}
                     onStatusChange={(value) => handlePendingFilterChange('status', value)}
                     onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
                     onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
-                    onSponsorChange={setSponsorFilter}
-                    onTitleChange={setTitleFilter}
+                    onSponsorChange={(value) => handlePendingFilterChange('sponsor', value)}
+                    onTitleChange={(value) => handlePendingFilterChange('title', value)}
                     onStateChange={(value) => handlePendingFilterChange('state', value)}
                     onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
                     onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
+                    onBillNumberChange={(value) => handlePendingFilterChange('billNumber', value)}
                     onClearAllFilters={handleClearAllFilters}
                     isMobile={true}
                   />
@@ -302,19 +334,21 @@ export default function BillsPage() {
               statusFilter={pendingFilters.status}
               introducedDateFilter={pendingFilters.introducedDate}
               lastActionDateFilter={pendingFilters.lastActionDate}
-              sponsorFilter={sponsorFilter}
-              titleFilter={titleFilter}
+              sponsorFilter={pendingFilters.sponsor}
+              titleFilter={pendingFilters.title}
               stateFilter={pendingFilters.state}
               policyAreaFilter={pendingFilters.policyArea}
               billTypeFilter={pendingFilters.billType}
+              billNumberFilter={pendingFilters.billNumber}
               onStatusChange={(value) => handlePendingFilterChange('status', value)}
               onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
               onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
-              onSponsorChange={setSponsorFilter}
-              onTitleChange={setTitleFilter}
+              onSponsorChange={(value) => handlePendingFilterChange('sponsor', value)}
+              onTitleChange={(value) => handlePendingFilterChange('title', value)}
               onStateChange={(value) => handlePendingFilterChange('state', value)}
               onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
               onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
+              onBillNumberChange={(value) => handlePendingFilterChange('billNumber', value)}
               onClearAllFilters={handleClearAllFilters}
               isMobile={false}
             />
