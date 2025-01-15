@@ -86,6 +86,7 @@ interface BillsFilterProps {
   onPolicyAreaChange: (value: string) => void;
   onBillTypeChange: (value: string) => void;
   onClearAllFilters: () => void;
+  isMobile: boolean;
 }
 
 interface StatusOption {
@@ -122,26 +123,67 @@ function BillsFilter({
   onPolicyAreaChange,
   onBillTypeChange,
   onClearAllFilters,
+  isMobile,
 }: BillsFilterProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="font-semibold">{isMobile ? 'Filter Bills' : 'Filters'}</h2>
+        <Button
+          onClick={onClearAllFilters}
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          Clear All
+        </Button>
+      </div>
+
+      {/* Search Filters - Always immediate */}
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label htmlFor="titleFilter" className="text-sm font-medium">
+            Bill Title
+          </label>
+          <Input
+            id="titleFilter"
+            type="text"
+            placeholder="Search bill titles..."
+            value={titleFilter}
+            onChange={(e) => onTitleChange(e.target.value)}
+            className="w-full"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="sponsorFilter" className="text-sm font-medium">
+            Sponsor Name
+          </label>
+          <Input
+            id="sponsorFilter"
+            type="text"
+            placeholder="Search by sponsor..."
+            value={sponsorFilter}
+            onChange={(e) => onSponsorChange(e.target.value)}
+            className="w-full"
+          />
+        </div>
+      </div>
+
+      {/* Dropdown Filters */}
+      <div className="space-y-4">
         {/* Status Filter */}
-        <div className="relative">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Status</label>
           <Select
             value={statusFilter}
             onValueChange={onStatusChange}
           >
-            <SelectTrigger className="w-[180px] h-10">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
-            <SelectContent
-              position="popper"
-              className="w-[180px] min-w-[180px]"
-              align="start"
-              sideOffset={4}
-              side="bottom"
-            >
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
               {statusOptions.map(option => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
@@ -152,21 +194,16 @@ function BillsFilter({
         </div>
 
         {/* Bill Type Filter */}
-        <div className="relative">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Bill Type</label>
           <Select 
             value={billTypeFilter} 
             onValueChange={onBillTypeChange}
           >
-            <SelectTrigger className="w-[180px] h-10">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All Bill Types" />
             </SelectTrigger>
-            <SelectContent
-              position="popper"
-              className="w-[180px] min-w-[180px]"
-              align="start"
-              sideOffset={4}
-              side="bottom"
-            >
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
               <SelectItem value="all">All Bill Types</SelectItem>
               {Object.entries(BILL_TYPES).map(([value, label]) => (
                 <SelectItem key={value} value={value}>
@@ -178,21 +215,16 @@ function BillsFilter({
         </div>
 
         {/* State Filter */}
-        <div className="relative">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">State</label>
           <Select 
             value={stateFilter} 
             onValueChange={onStateChange}
           >
-            <SelectTrigger className="w-[180px] h-10">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All States" />
             </SelectTrigger>
-            <SelectContent
-              position="popper"
-              className="w-[180px] min-w-[180px]"
-              align="start"
-              sideOffset={4}
-              side="bottom"
-            >
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
               <SelectItem value="all">All States</SelectItem>
               {Object.entries(STATE_NAMES).map(([abbr, name]) => (
                 <SelectItem key={abbr} value={abbr}>
@@ -204,21 +236,16 @@ function BillsFilter({
         </div>
 
         {/* Policy Area Filter */}
-        <div className="relative">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Category</label>
           <Select 
             value={policyAreaFilter} 
             onValueChange={onPolicyAreaChange}
           >
-            <SelectTrigger className="w-[180px] h-10">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
-            <SelectContent
-              position="popper"
-              className="w-[180px] min-w-[180px]"
-              align="start"
-              sideOffset={4}
-              side="bottom"
-            >
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
               <SelectItem value="all">All Categories</SelectItem>
               {POLICY_AREAS.map((area) => (
                 <SelectItem key={area} value={area}>
@@ -229,76 +256,46 @@ function BillsFilter({
           </Select>
         </div>
 
-        {/* Introduced Date Filter */}
-        <div className="relative">
+        {/* Date Filters */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Introduced Date</label>
           <Select 
             value={introducedDateFilter} 
             onValueChange={onIntroducedDateChange}
           >
-            <SelectTrigger className="w-[180px] h-10">
-              <SelectValue placeholder="Introduced Date" />
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Dates" />
             </SelectTrigger>
-            <SelectContent
-              position="popper"
-              className="w-[180px] min-w-[180px]"
-              align="start"
-              sideOffset={4}
-              side="bottom"
-            >
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
               <SelectItem value="all">All Introduced Dates</SelectItem>
               <SelectItem value="week">Last Week</SelectItem>
               <SelectItem value="month">Last Month</SelectItem>
+              <SelectItem value="3months">Last 3 Months</SelectItem>
+              <SelectItem value="6months">Last 6 Months</SelectItem>
               <SelectItem value="year">Last Year</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* Last Action Date Filter */}
-        <div className="relative">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Last Action Date</label>
           <Select 
             value={lastActionDateFilter} 
             onValueChange={onLastActionDateChange}
           >
-            <SelectTrigger className="w-[180px] h-10">
-              <SelectValue placeholder="Last Action Date" />
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Dates" />
             </SelectTrigger>
-            <SelectContent
-              position="popper"
-              className="w-[180px] min-w-[180px]"
-              align="start"
-              sideOffset={4}
-              side="bottom"
-            >
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
               <SelectItem value="all">All Action Dates</SelectItem>
               <SelectItem value="week">Last Week</SelectItem>
               <SelectItem value="month">Last Month</SelectItem>
+              <SelectItem value="3months">Last 3 Months</SelectItem>
+              <SelectItem value="6months">Last 6 Months</SelectItem>
               <SelectItem value="year">Last Year</SelectItem>
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Title Search */}
-        <Input
-          placeholder="Search bill titles..."
-          value={titleFilter}
-          onChange={(e) => onTitleChange(e.target.value)}
-          className="w-[300px] h-10"
-        />
-
-        {/* Sponsor Search */}
-        <Input
-          placeholder="Search by sponsor name..."
-          value={sponsorFilter}
-          onChange={(e) => onSponsorChange(e.target.value)}
-          className="w-[300px] h-10"
-        />
-
-        {/* Clear All Filters Button */}
-        <Button variant="outline" onClick={onClearAllFilters} className="h-10">
-          Clear All Filters
-        </Button>
       </div>
     </div>
   );

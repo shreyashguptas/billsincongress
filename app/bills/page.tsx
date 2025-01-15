@@ -1,12 +1,14 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense } from 'react';
-import { useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useEffect } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '../../lib/types/bill';
 import { useDebounce } from '@/lib/hooks/use-debounce';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Filter } from 'lucide-react';
 
 // Dynamic imports with no SSR
 const BillsFilter = dynamic(
@@ -53,6 +55,16 @@ export default function BillsPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [congressInfo, setCongressInfo] = useState<{ congress: number; startYear: number; endYear: number } | null>(null);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [pendingFilters, setPendingFilters] = useState({
+    status: 'all',
+    introducedDate: 'all',
+    lastActionDate: 'all',
+    state: 'all',
+    policyArea: 'all',
+    billType: 'all'
+  });
+  const [hasFilterChanges, setHasFilterChanges] = useState(false);
 
   const debouncedSponsorFilter = useDebounce(sponsorFilter, 2000);
   const debouncedTitleFilter = useDebounce(titleFilter, 2000);
@@ -93,7 +105,20 @@ export default function BillsPage() {
     billTypeFilter
   ]);
 
+  // Initialize pendingFilters with current filter values
+  useEffect(() => {
+    setPendingFilters({
+      status: statusFilter,
+      introducedDate: introducedDateFilter,
+      lastActionDate: lastActionDateFilter,
+      state: stateFilter,
+      policyArea: policyAreaFilter,
+      billType: billTypeFilter
+    });
+  }, [statusFilter, introducedDateFilter, lastActionDateFilter, stateFilter, policyAreaFilter, billTypeFilter]);
+
   const handleClearAllFilters = () => {
+    // Reset both actual and pending filters
     setStatusFilter('all');
     setIntroducedDateFilter('all');
     setLastActionDateFilter('all');
@@ -102,6 +127,15 @@ export default function BillsPage() {
     setStateFilter('all');
     setPolicyAreaFilter('all');
     setBillTypeFilter('all');
+    setPendingFilters({
+      status: 'all',
+      introducedDate: 'all',
+      lastActionDate: 'all',
+      state: 'all',
+      policyArea: 'all',
+      billType: 'all'
+    });
+    setHasFilterChanges(false);
 
     if (typeof window !== 'undefined') {
       localStorage.removeItem('billsStatusFilter');
@@ -178,6 +212,22 @@ export default function BillsPage() {
 
   const hasMoreBills = bills.length < totalBills;
 
+  const handleApplyFilters = () => {
+    setStatusFilter(pendingFilters.status);
+    setIntroducedDateFilter(pendingFilters.introducedDate);
+    setLastActionDateFilter(pendingFilters.lastActionDate);
+    setStateFilter(pendingFilters.state);
+    setPolicyAreaFilter(pendingFilters.policyArea);
+    setBillTypeFilter(pendingFilters.billType);
+    setIsFilterSheetOpen(false);
+    setHasFilterChanges(false);
+  };
+
+  const handlePendingFilterChange = (filterType: string, value: string) => {
+    setPendingFilters(prev => ({ ...prev, [filterType]: value }));
+    setHasFilterChanges(true);
+  };
+
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="flex items-baseline justify-between mb-8">
@@ -197,76 +247,123 @@ export default function BillsPage() {
         </div>
       </div>
       
-      <div className="space-y-6">
-        <BillsFilter
-          statusFilter={statusFilter}
-          introducedDateFilter={introducedDateFilter}
-          lastActionDateFilter={lastActionDateFilter}
-          sponsorFilter={sponsorFilter}
-          titleFilter={titleFilter}
-          stateFilter={stateFilter}
-          policyAreaFilter={policyAreaFilter}
-          billTypeFilter={billTypeFilter}
-          onStatusChange={(value) => {
-            setStatusFilter(value);
-            setCurrentPage(1);
-          }}
-          onIntroducedDateChange={(value) => {
-            setIntroducedDateFilter(value);
-            setCurrentPage(1);
-          }}
-          onLastActionDateChange={(value) => {
-            setLastActionDateFilter(value);
-            setCurrentPage(1);
-          }}
-          onSponsorChange={setSponsorFilter}
-          onTitleChange={setTitleFilter}
-          onStateChange={(value) => {
-            setStateFilter(value);
-            setCurrentPage(1);
-          }}
-          onPolicyAreaChange={(value) => {
-            setPolicyAreaFilter(value);
-            setCurrentPage(1);
-          }}
-          onBillTypeChange={(value) => {
-            setBillTypeFilter(value);
-            setCurrentPage(1);
-          }}
-          onClearAllFilters={handleClearAllFilters}
-        />
-        
-        {error && (
-          <div className="text-red-500">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {isLoading ? (
-            <div>Loading...</div>
-          ) : bills.length > 0 ? (
-            bills.map((bill) => (
-              <Suspense key={bill.id} fallback={<div>Loading bill...</div>}>
-                <BillCard bill={bill} />
-              </Suspense>
-            ))
-          ) : (
-            <div>No bills found</div>
-          )}
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Mobile Filter Button */}
+        <div className="lg:hidden mb-4">
+          <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="w-full flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filters
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-[80vh]">
+              <div className="h-full flex flex-col">
+                <div className="flex-1 overflow-y-auto">
+                  <BillsFilter
+                    statusFilter={pendingFilters.status}
+                    introducedDateFilter={pendingFilters.introducedDate}
+                    lastActionDateFilter={pendingFilters.lastActionDate}
+                    sponsorFilter={sponsorFilter}
+                    titleFilter={titleFilter}
+                    stateFilter={pendingFilters.state}
+                    policyAreaFilter={pendingFilters.policyArea}
+                    billTypeFilter={pendingFilters.billType}
+                    onStatusChange={(value) => handlePendingFilterChange('status', value)}
+                    onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
+                    onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
+                    onSponsorChange={setSponsorFilter}
+                    onTitleChange={setTitleFilter}
+                    onStateChange={(value) => handlePendingFilterChange('state', value)}
+                    onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
+                    onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
+                    onClearAllFilters={handleClearAllFilters}
+                    isMobile={true}
+                  />
+                </div>
+                <div className="py-4 border-t">
+                  <Button 
+                    className="w-full" 
+                    onClick={handleApplyFilters}
+                    disabled={!hasFilterChanges}
+                  >
+                    Apply Filters
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
 
-        {hasMoreBills && !isLoading && (
-          <div className="mt-8 flex justify-center">
-            <Button
-              variant="outline"
-              onClick={handleLoadMore}
-              disabled={isLoadingMore}
+        {/* Desktop Sidebar Filters */}
+        <aside className="hidden lg:block lg:w-[300px] shrink-0">
+          <div className="space-y-6">
+            <BillsFilter
+              statusFilter={pendingFilters.status}
+              introducedDateFilter={pendingFilters.introducedDate}
+              lastActionDateFilter={pendingFilters.lastActionDate}
+              sponsorFilter={sponsorFilter}
+              titleFilter={titleFilter}
+              stateFilter={pendingFilters.state}
+              policyAreaFilter={pendingFilters.policyArea}
+              billTypeFilter={pendingFilters.billType}
+              onStatusChange={(value) => handlePendingFilterChange('status', value)}
+              onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
+              onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
+              onSponsorChange={setSponsorFilter}
+              onTitleChange={setTitleFilter}
+              onStateChange={(value) => handlePendingFilterChange('state', value)}
+              onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
+              onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
+              onClearAllFilters={handleClearAllFilters}
+              isMobile={false}
+            />
+            <Button 
+              className="w-full" 
+              onClick={handleApplyFilters}
+              disabled={!hasFilterChanges}
             >
-              {isLoadingMore ? 'Loading...' : 'Load More'}
+              Apply Filters
             </Button>
           </div>
-        )}
+        </aside>
+
+        {/* Main Content */}
+        <div className="flex-1">
+          {error && (
+            <div className="text-red-500 mb-6">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {isLoading ? (
+              <div>Loading...</div>
+            ) : bills.length > 0 ? (
+              bills.map((bill) => (
+                <Suspense key={bill.id} fallback={<div>Loading bill...</div>}>
+                  <BillCard bill={bill} />
+                </Suspense>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-8">
+                No bills found matching your filters.
+              </div>
+            )}
+          </div>
+
+          {hasMoreBills && (
+            <div className="mt-8 text-center">
+              <Button
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                variant="outline"
+              >
+                {isLoadingMore ? 'Loading...' : 'Load More'}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );
