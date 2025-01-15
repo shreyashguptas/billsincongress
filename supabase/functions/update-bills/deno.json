@@ -10,5 +10,10 @@
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.39.3",
     "std/": "https://deno.land/std@0.208.0/"
+  },
+  "deploy": {
+    "project": "billsincongress",
+    "functionName": "update-bills",
+    "memory": 2048
   }
 }

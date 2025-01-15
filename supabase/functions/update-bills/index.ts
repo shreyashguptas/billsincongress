@@ -38,6 +38,25 @@ const supabaseAdmin: SupabaseClient = createClient(
   }
 );
 
+// Validate environment variables
+const CONGRESS_API_KEY = Deno.env.get('CONGRESS_API_KEY');
+if (!CONGRESS_API_KEY) {
+  console.error('CONGRESS_API_KEY is not set');
+  throw new Error('CONGRESS_API_KEY is not set');
+}
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+if (!SUPABASE_URL) {
+  console.error('SUPABASE_URL is not set');
+  throw new Error('SUPABASE_URL is not set');
+}
+
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY is not set');
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+}
+
 // Utility function to fetch bills that need updates
 async function fetchBillsNeedingUpdates(congress: number): Promise<string[]> {
   const billsToUpdate: string[] = [];
@@ -323,26 +342,48 @@ async function updateBill(billId: string): Promise<void> {
 serve(async (req: Request) => {
   try {
     console.log('Starting bill update cron job...');
+    console.log('Environment check passed. All required variables are set.');
     const congress = 118; // Current congress
     
     // Get list of bills that need updates
+    console.log('Fetching bills that need updates...');
     const billsToUpdate = await fetchBillsNeedingUpdates(congress);
     console.log(`Found ${billsToUpdate.length} bills that need updates`);
     
+    if (billsToUpdate.length === 0) {
+      console.log('No bills need updating');
+      return new Response(JSON.stringify({ success: true, message: 'No bills need updating' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
     // Update each bill
+    let updatedCount = 0;
     for (const billId of billsToUpdate) {
+      console.log(`Processing bill ${billId} (${updatedCount + 1}/${billsToUpdate.length})`);
       await updateBill(billId);
+      updatedCount++;
       // Respect rate limit
       await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
     }
     
-    console.log('Bill update cron job completed successfully');
-    return new Response(JSON.stringify({ success: true }), {
+    console.log(`Bill update cron job completed successfully. Updated ${updatedCount} bills.`);
+    return new Response(JSON.stringify({ 
+      success: true, 
+      billsFound: billsToUpdate.length,
+      billsUpdated: updatedCount 
+    }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Cron job failed:', error);
-    return new Response(JSON.stringify({ success: false, error: (error as Error).message }), {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Cron job failed:', errorMessage);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined 
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
