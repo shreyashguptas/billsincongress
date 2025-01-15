@@ -180,6 +180,63 @@ export const billsService = {
       countQuery = countQuery.eq('bill_number', billNumber);
     }
 
+    // Add title filter to count query
+    if (titleFilter) {
+      const cleanedTitle = titleFilter.trim().toLowerCase()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ');
+      
+      if (cleanedTitle) {
+        const words = cleanedTitle.split(' ').filter(word => word.length > 0);
+        if (words.length > 0) {
+          words.forEach(word => {
+            countQuery = countQuery.ilike('title', `%${word}%`);
+          });
+        }
+      }
+    }
+
+    // Add sponsor filter to count query
+    if (sponsorFilter) {
+      const cleanedFilter = sponsorFilter.trim().toLowerCase().replace(/\s+/g, ' ');
+      
+      if (cleanedFilter) {
+        const names = cleanedFilter.split(' ').filter(part => part.length > 0);
+        
+        if (names.length > 1) {
+          const conditions = names.map(name => 
+            `sponsor_first_name.ilike.%${name}%,sponsor_last_name.ilike.%${name}%`
+          ).join(',');
+          
+          countQuery = countQuery.or(conditions);
+        } else if (names.length === 1) {
+          countQuery = countQuery.or(
+            `sponsor_first_name.ilike.%${names[0]}%,sponsor_last_name.ilike.%${names[0]}%`
+          );
+        }
+      }
+    }
+
+    // Add policy area filter to count query
+    if (policyArea && policyArea !== 'all') {
+      // First get the IDs of bills with the specified policy area
+      const { data: billIds } = await supabase
+        .from(BILL_INFO_TABLE_NAME)
+        .select(`
+          id,
+          bill_subjects!inner (
+            policy_area_name
+          )
+        `)
+        .eq('bill_subjects.policy_area_name', policyArea);
+
+      if (billIds && billIds.length > 0) {
+        countQuery = countQuery.in('id', billIds.map(b => b.id));
+      } else {
+        countQuery = countQuery.eq('id', '0'); // Will return no results
+      }
+    }
+
     const { count: totalCount, error: countError } = await countQuery;
 
     if (countError) {
