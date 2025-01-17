@@ -41,27 +41,37 @@ const supabaseAdmin = createClient(url, serviceKey, {
 const BASE_URL = 'https://api.congress.gov/v3';
 const RATE_LIMIT_PER_HOUR = 5000;
 const DELAY_BETWEEN_REQUESTS = Math.ceil((3600 * 1000) / RATE_LIMIT_PER_HOUR); // Milliseconds between requests
-const MAX_RETRIES = 3;
 const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
 
 // Utility function to fetch bills that need updates
 async function fetchBillsNeedingUpdates(congress: number): Promise<string[]> {
+  console.log(`Starting to fetch bills for congress ${congress}...`);
   const billsToUpdate: string[] = [];
   
   for (const billType of BILL_TYPES) {
+    console.log(`Checking bills of type: ${billType}`);
     let offset = 0;
     let hasMore = true;
 
     while (hasMore) {
       try {
         const url = `${BASE_URL}/bill/${congress}/${billType}?offset=${offset}&limit=250&api_key=${CONGRESS_API_KEY}&format=json`;
+        console.log(`Fetching bills from: ${url.replace(CONGRESS_API_KEY as string, 'XXXXX')}`);
+        
         const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to fetch bill list: ${response.statusText}`);
+        if (!response.ok) {
+          console.error(`API Response not OK. Status: ${response.status}, Status Text: ${response.statusText}`);
+          const errorText = await response.text();
+          console.error(`Error response body: ${errorText}`);
+          throw new Error(`Failed to fetch bill list: ${response.statusText}`);
+        }
         
         const data = await response.json();
+        console.log(`Received ${data.bills?.length || 0} bills in response`);
         const bills = data.bills || [];
         
         if (bills.length === 0) {
+          console.log('No more bills found for this type');
           hasMore = false;
           continue;
         }
@@ -71,25 +81,42 @@ async function fetchBillsNeedingUpdates(congress: number): Promise<string[]> {
           const billId = `${bill.number}${billType}${congress}`;
           const apiUpdateDate = new Date(bill.updateDate);
           
-          const { data: existingBill } = await supabaseAdmin
+          console.log(`Checking database for bill: ${billId}`);
+          const { data: existingBill, error: dbError } = await supabaseAdmin
             .from(BILL_INFO_TABLE_NAME)
-            .select('update_date')
+            .select('updated_at')
             .eq('id', billId)
             .single();
 
-          if (!existingBill || new Date(existingBill.update_date) < apiUpdateDate) {
+          if (dbError) {
+            // PGRST116 means no rows found - this is expected for new bills
+            if (dbError.code === 'PGRST116') {
+              console.log(`Bill ${billId} not found in database - will be added`);
+              billsToUpdate.push(billId);
+            } else {
+              console.error(`Database error for bill ${billId}:`, dbError);
+            }
+            continue;
+          }
+
+          if (!existingBill || new Date(existingBill.updated_at) < apiUpdateDate) {
+            console.log(`Adding ${billId} to update list - needs update`);
             billsToUpdate.push(billId);
           }
         }
 
         offset += bills.length;
-        if (bills.length < 250) hasMore = false;
+        if (bills.length < 250) {
+          console.log(`Less than 250 bills received, ending pagination for ${billType}`);
+          hasMore = false;
+        }
         
         // Respect rate limit
+        console.log(`Waiting ${DELAY_BETWEEN_REQUESTS}ms before next request...`);
         await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
       } catch (error) {
         console.error(`Error checking updates for ${billType} at offset ${offset}:`, error);
-        // Wait longer on error before retrying
+        console.log('Waiting 10 seconds before retrying...');
         await new Promise(resolve => setTimeout(resolve, 10000));
         hasMore = false;
       }
@@ -102,6 +129,8 @@ async function fetchBillsNeedingUpdates(congress: number): Promise<string[]> {
 // Update functions for each table type
 async function updateBillInfo(congress: number, billType: string, billNumber: string): Promise<void> {
   const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}?api_key=${CONGRESS_API_KEY}&format=json`;
+  console.log(`\nFetching bill info from: ${url.replace(CONGRESS_API_KEY as string, 'XXXXX')}`);
+  
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch bill info: ${response.statusText}`);
   
@@ -109,31 +138,85 @@ async function updateBillInfo(congress: number, billType: string, billNumber: st
   const bill = data.bill;
   const billId = `${billNumber}${billType}${congress}`;
   
-  // Transform and upsert bill info
+  // Get existing bill info to compare changes
+  const { data: existingBill, error: fetchError } = await supabaseAdmin
+    .from(BILL_INFO_TABLE_NAME)
+    .select('*')
+    .eq('id', billId)
+    .single();
+
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    throw new Error(`Failed to fetch existing bill info: ${fetchError.message}`);
+  }
+  
+  // Get sponsor info - checking both sponsors array and sponsor object
+  const sponsorInfo = bill.sponsors?.[0] || bill.sponsor;
+  
+  if (!sponsorInfo) {
+    console.warn(`⚠️ No sponsor information found for bill ${billId}`);
+  } else {
+    console.log(`\nSponsor information for ${billId}:`);
+    console.log(`  Name: ${sponsorInfo.firstName} ${sponsorInfo.lastName}`);
+    console.log(`  Party: ${sponsorInfo.party}`);
+    console.log(`  State: ${sponsorInfo.state}`);
+  }
+  
+  // Transform and prepare bill info
+  const billInfo = {
+    id: billId,
+    congress: congress,
+    bill_type: billType,
+    bill_number: billNumber,
+    bill_type_label: bill.type,
+    introduced_date: bill.introducedDate,
+    title: bill.title || '',
+    title_without_number: bill.title?.replace(/^(H\.R\.|S\.|H\.J\.Res\.|S\.J\.Res\.|H\.Con\.Res\.|S\.Con\.Res\.|H\.Res\.|S\.Res\.)\s*\d+\s*-\s*/, '') || '',
+    sponsor_first_name: sponsorInfo?.firstName || null,
+    sponsor_last_name: sponsorInfo?.lastName || null,
+    sponsor_party: sponsorInfo?.party || null,
+    sponsor_state: sponsorInfo?.state || null,
+    progress_stage: bill.progressStage,
+    progress_description: bill.progressDescription,
+    updated_at: new Date().toISOString()
+  };
+
+  // Log changes if updating existing record
+  if (existingBill) {
+    console.log(`\nUpdating existing bill ${billId}:`);
+    const changes = Object.entries(billInfo).filter(([key, value]) => {
+      return existingBill[key] !== value && key !== 'updated_at';
+    });
+    
+    if (changes.length === 0) {
+      console.log('  No changes detected');
+    } else {
+      changes.forEach(([key, newValue]) => {
+        console.log(`  ${key}:`);
+        console.log(`    Old: ${existingBill[key]}`);
+        console.log(`    New: ${newValue}`);
+      });
+    }
+  } else {
+    console.log(`\n📝 Adding new bill ${billId}:`);
+    Object.entries(billInfo).forEach(([key, value]) => {
+      if (key !== 'id' && value !== null) {
+        console.log(`  ${key}: ${value}`);
+      }
+    });
+  }
+
   const { error } = await supabaseAdmin
     .from(BILL_INFO_TABLE_NAME)
-    .upsert({
-      id: billId,
-      introduced_date: bill.introducedDate,
-      sponsor_bioguide_id: bill.sponsor?.bioguideId,
-      sponsor_district: bill.sponsor?.district,
-      sponsor_first_name: bill.sponsor?.firstName,
-      sponsor_last_name: bill.sponsor?.lastName,
-      sponsor_party: bill.sponsor?.party,
-      sponsor_state: bill.sponsor?.state,
-      sponsor_is_by_request: bill.sponsor?.isByRequest ? 'Y' : 'N',
-      update_date: bill.updateDate,
-      update_date_including_text: bill.updateDateIncludingText,
-      latest_action_code: bill.latestAction?.actionCode,
-      latest_action_date: bill.latestAction?.actionDate,
-      latest_action_text: bill.latestAction?.text,
-      progress_stage: bill.progressStage,
-      progress_description: bill.progressDescription
-    }, {
+    .upsert(billInfo, {
       onConflict: 'id'
     });
 
-  if (error) throw new Error(`Failed to update bill info: ${error.message}`);
+  if (error) {
+    console.error(`❌ Failed to update bill info for ${billId}:`, error);
+    throw new Error(`Failed to update bill info: ${error.message}`);
+  }
+
+  console.log(`✅ Successfully ${existingBill ? 'updated' : 'added'} bill ${billId}`);
 }
 
 async function updateBillSummaries(congress: number, billType: string, billNumber: string): Promise<void> {
@@ -176,41 +259,76 @@ async function updateBillSummaries(congress: number, billType: string, billNumbe
 
 async function updateBillActions(congress: number, billType: string, billNumber: string): Promise<void> {
   const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/actions?api_key=${CONGRESS_API_KEY}&format=json`;
+  console.log(`\nFetching bill actions from: ${url.replace(CONGRESS_API_KEY as string, 'XXXXX')}`);
+  
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch bill actions: ${response.statusText}`);
   
   const data = await response.json();
   const billId = `${billNumber}${billType}${congress}`;
   
+  console.log(`\nProcessing ${data.actions?.length || 0} actions for bill ${billId}`);
+  
   // For each action
   for (const action of data.actions || []) {
-    const { data: existingData } = await supabaseAdmin
+    const actionId = `${billId}_${action.actionDate}_${action.actionCode}`;
+    
+    // Check if action exists
+    const { data: existingAction, error: fetchError } = await supabaseAdmin
       .from(BILL_ACTIONS_TABLE_NAME)
-      .select('updated_at')
-      .eq('id', billId)
-      .eq('action_date', action.actionDate)
-      .eq('action_code', action.actionCode)
+      .select('*')
+      .eq('id', actionId)
       .single();
 
-    // Only insert if it's a new action or has been updated
-    if (!existingData || new Date(existingData.updated_at) < new Date()) {
-      const { error } = await supabaseAdmin
-        .from(BILL_ACTIONS_TABLE_NAME)
-        .upsert({
-          id: billId,
-          action_code: action.actionCode,
-          action_date: action.actionDate,
-          source_system_code: action.sourceSystem.code,
-          source_system_name: action.sourceSystem.name,
-          text: action.text,
-          type: action.type,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id,action_date,action_code'
-        });
-
-      if (error) throw new Error(`Failed to update bill action: ${error.message}`);
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error(`❌ Error checking existing action: ${fetchError.message}`);
+      continue;
     }
+
+    const actionData = {
+      id: actionId,
+      bill_id: billId,
+      action_code: action.actionCode,
+      action_date: action.actionDate,
+      source_system_code: action.sourceSystem.code,
+      source_system_name: action.sourceSystem.name,
+      text: action.text,
+      type: action.type,
+      updated_at: new Date().toISOString()
+    };
+
+    if (existingAction) {
+      const changes = Object.entries(actionData).filter(([key, value]) => {
+        return existingAction[key] !== value && key !== 'updated_at';
+      });
+      
+      if (changes.length > 0) {
+        console.log(`\n🔄 Updating action ${actionId}:`);
+        changes.forEach(([key, newValue]) => {
+          console.log(`  ${key}:`);
+          console.log(`    Old: ${existingAction[key]}`);
+          console.log(`    New: ${newValue}`);
+        });
+      }
+    } else {
+      console.log(`\n📝 Adding new action for bill ${billId}:`);
+      console.log(`  Date: ${action.actionDate}`);
+      console.log(`  Type: ${action.type}`);
+      console.log(`  Text: ${action.text}`);
+    }
+
+    const { error } = await supabaseAdmin
+      .from(BILL_ACTIONS_TABLE_NAME)
+      .upsert(actionData, {
+        onConflict: 'id'
+      });
+
+    if (error) {
+      console.error(`❌ Failed to update action ${actionId}:`, error);
+      throw new Error(`Failed to update bill action: ${error.message}`);
+    }
+
+    console.log(`✅ Successfully ${existingAction ? 'updated' : 'added'} action ${actionId}`);
   }
 }
 
@@ -316,44 +434,61 @@ async function updateBillSubjects(congress: number, billType: string, billNumber
 
 // Main update function
 async function updateBill(billId: string): Promise<void> {
-  const congress = parseInt(billId.slice(-3));
-  const billType = billId.slice(-5, -3);
-  const billNumber = billId.slice(0, -5);
-
   try {
+    const congress = parseInt(billId.slice(-3));
+    const billType = billId.slice(-5, -3);
+    const billNumber = billId.slice(0, -5);
+
+    console.log(`\n🔄 Starting update for bill ${billId}...`);
+    console.log('----------------------------------------');
+    
+    // Update each aspect of the bill
     await updateBillInfo(congress, billType, billNumber);
-    await updateBillSummaries(congress, billType, billNumber);
     await updateBillActions(congress, billType, billNumber);
+    await updateBillSummaries(congress, billType, billNumber);
     await updateBillText(congress, billType, billNumber);
     await updateBillTitles(congress, billType, billNumber);
     await updateBillSubjects(congress, billType, billNumber);
     
-    console.log(`Successfully updated bill ${billId}`);
-  } catch (error) {
-    console.error(`Error updating bill ${billId}:`, error);
+    console.log('----------------------------------------');
+    console.log(`✅ Successfully completed all updates for bill ${billId}`);
+  } catch (error: any) {
+    console.error(`\n❌ Error updating bill ${billId}:`, error);
+    console.error('Stack trace:', error.stack);
+    throw error;
   }
 }
 
-// Main function that runs as cron job
+// Main function to run the update
 async function main() {
   try {
-    console.log('Starting bill update cron job...');
+    // Verify environment and connection
+    if (!CONGRESS_API_KEY || !serviceKey) {
+      throw new Error('Missing required environment variables');
+    }
+
+    // Test database connection
+    const { error: testError } = await supabaseAdmin
+      .from(BILL_INFO_TABLE_NAME)
+      .select('id')
+      .limit(1);
+      
+    if (testError) {
+      throw new Error(`Database connection failed: ${testError.message}`);
+    }
+
     const congress = 118; // Current congress
-    
-    // Get list of bills that need updates
     const billsToUpdate = await fetchBillsNeedingUpdates(congress);
     console.log(`Found ${billsToUpdate.length} bills that need updates`);
     
-    // Update each bill
     for (const billId of billsToUpdate) {
       await updateBill(billId);
-      // Respect rate limit
       await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
     }
     
-    console.log('Bill update cron job completed successfully');
+    console.log('Update completed successfully');
   } catch (error) {
-    console.error('Cron job failed:', error);
+    console.error('Update failed:', error);
     process.exit(1);
   }
 }
