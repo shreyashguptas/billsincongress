@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import type { Bill } from '@/lib/types/bill';
+import QuoteCarousel from '@/components/QuoteCarousel';
 
 function FeaturedBills() {
   const [bills, setBills] = useState<Bill[]>([]);
@@ -112,6 +113,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <QuoteCarousel />
 
       <section className="w-full bg-background">
         <div className="container mx-auto px-4 py-12">
