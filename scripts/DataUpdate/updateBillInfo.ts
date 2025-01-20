@@ -173,7 +173,7 @@ function calculateBillStage(bill: any): { stage: number; description: string } {
 function transformBillInfo(bill: any): BillInfo {
   return {
     id: `${bill.number}${bill.type.toLowerCase()}${bill.congress}`,
-    congress: bill.congress,
+    congress: parseInt(bill.congress),
     bill_type: bill.type.toLowerCase(),
     bill_number: bill.number.toString(),
     bill_type_label: getBillTypeLabel(bill.type),
