@@ -493,14 +493,50 @@ The bill status tracking system uses several components:
      - Updates `progress_stage` and `progress_description` in `bill_info`
 
 4. **Status Calculation Logic**:
-   The status is determined by checking (in order of precedence):
-   - Became Law: action_code in ('36000', 'E40000') or type = 'BecameLaw'
-   - Signed by President: action_code in ('29000', 'E30000') → sets stage to 95
-   - To President: action_code in ('28000', 'E20000') → sets stage to 90
-   - Passed Both Chambers: Has actions with codes ('17000', '8000', 'E10000') → sets stage to 80
-   - Passed One Chamber: action_code in ('17000', '8000', 'E10000') → sets stage to 60
-   - In Committee: action_code in ('5000', '14000') → sets stage to 40
-   - Introduced: action_code in ('1000', '10000') → sets stage to 20
+   The bill status is automatically calculated through a database trigger that fires when actions are inserted or updated in the `bill_actions` table. The status is determined by examining action codes in the following priority order:
+
+   1. **Became Law (Stage 100)**
+      - Action codes: `36000`, `E40000`
+      - Description: "Became Law"
+      - Indicates bill has been enacted into law
+
+   2. **Signed by President (Stage 95)**
+      - Action codes: `29000`, `E30000`
+      - Description: "Signed by President"
+      - Indicates presidential signature
+
+   3. **To President (Stage 90)**
+      - Action codes: `28000`, `E20000`
+      - Description: "To President"
+      - Indicates bill has been sent for presidential review
+
+   4. **Passed Both Chambers (Stage 80)**
+      - Requires BOTH House and Senate passage actions:
+        - House passage: `H32500`
+        - Senate passage: `S32500`
+      - Description: "Passed Both Chambers"
+      - Must have evidence of passage through both chambers
+
+   5. **Passed One Chamber (Stage 60)**
+      - Action codes: Either `H32500` (House) or `S32500` (Senate)
+      - Description: "Passed One Chamber"
+      - Indicates passage through either chamber but not both
+
+   6. **In Committee (Stage 40)**
+      - Action codes: `5000`, `14000`, `H11100`, `S11100`
+      - Description: "In Committee"
+      - Indicates committee referral or action
+
+   7. **Introduced (Stage 20)**
+      - Default stage if no other conditions are met
+      - Description: "Introduced"
+      - Starting point for all bills
+
+   The trigger function `calculate_bill_progress()` automatically updates two columns in the `bill_info` table:
+   - `progress_stage`: Numeric value (20-100) indicating current stage
+   - `progress_description`: Text description of the current stage
+
+   This ensures consistent status calculation across the entire application and maintains accurate bill progress tracking based on actual legislative actions.
 
 5. **Progress Stage to Percentage Mapping**:
    - Introduced (20) → 0%
