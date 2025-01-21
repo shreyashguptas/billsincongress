@@ -2,3 +2,7 @@
 .branches
 .temp
 .env
+
+*.json
+
+.json

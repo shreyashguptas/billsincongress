@@ -18,14 +18,16 @@ const RATE_LIMIT_PER_HOUR = 5000;
 const DELAY_BETWEEN_REQUESTS = Math.ceil((3600 * 1000) / RATE_LIMIT_PER_HOUR); // Milliseconds between requests
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds
-const BILL_TYPES = ['sres'];
-// const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
+// const BILL_TYPES = ['sres'];
+const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
 
 // Progress tracking
 interface FailedBill {
   id: string;
   error: string;
+  errorType: 'API_ERROR' | 'NETWORK_ERROR' | 'RATE_LIMIT' | 'DATABASE_ERROR' | 'UNKNOWN';
   timestamp: string;
+  retryCount: number;
 }
 
 interface UpdateProgress {
@@ -230,8 +232,25 @@ async function fetchBillInfo(congress: number, billType: string, billNumber: str
   return response.json();
 }
 
-// Function to process a single bill
-async function processBill(bill: any, congress: number, billType: string): Promise<void> {
+// Utility function to categorize errors
+function categorizeError(error: any): { type: FailedBill['errorType']; message: string } {
+  if (error.message?.includes('rate limit')) {
+    return { type: 'RATE_LIMIT', message: 'API rate limit exceeded' };
+  }
+  if (error.message?.includes('fetch failed') || error.message?.includes('network')) {
+    return { type: 'NETWORK_ERROR', message: 'Network connectivity issue' };
+  }
+  if (error.code === 'PGRST') {
+    return { type: 'DATABASE_ERROR', message: error.message };
+  }
+  if (error.message?.includes('api_key') || error.message?.includes('404')) {
+    return { type: 'API_ERROR', message: error.message };
+  }
+  return { type: 'UNKNOWN', message: error.message || 'Unknown error occurred' };
+}
+
+// Function to process a single bill with retries
+async function processBill(bill: any, congress: number, billType: string, retryCount: number = 0): Promise<void> {
   const billId = `${bill.number}${billType}${congress}`;
   const apiUpdateDate = new Date(bill.updateDate);
   
@@ -272,15 +291,63 @@ async function processBill(bill: any, congress: number, billType: string): Promi
 
     console.log(`Successfully ${existingBill ? 'updated' : 'inserted'} bill ${billId}`);
     progress.success++;
+
+    // If this was a retry and it succeeded, remove from failed bills
+    progress.failedBills = progress.failedBills.filter(fb => fb.id !== billId);
+
   } catch (error: any) {
-    console.error(`Error processing bill ${billId}:`, error);
-    progress.failed++;
-    progress.failedBills.push({
-      id: billId,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-    throw error;
+    const { type, message } = categorizeError(error);
+    console.error(`Error processing bill ${billId} (${type}):`, message);
+    
+    // Add to failed bills if max retries reached
+    if (retryCount >= MAX_RETRIES) {
+      progress.failed++;
+      progress.failedBills.push({
+        id: billId,
+        error: message,
+        errorType: type,
+        timestamp: new Date().toISOString(),
+        retryCount
+      });
+    } else {
+      // Retry with exponential backoff
+      const backoffDelay = RETRY_DELAY * Math.pow(2, retryCount);
+      console.log(`Retrying bill ${billId} in ${backoffDelay/1000} seconds... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await delay(backoffDelay);
+      return processBill(bill, congress, billType, retryCount + 1);
+    }
+  }
+}
+
+// Function to retry failed bills
+async function retryFailedBills(): Promise<void> {
+  if (progress.failedBills.length === 0) return;
+
+  console.log('\n🔄 Retrying failed bills...');
+  const failedBills = [...progress.failedBills];
+  progress.failedBills = []; // Clear the list for new failures
+
+  for (const failedBill of failedBills) {
+    try {
+      const match = failedBill.id.match(/(\d+)([a-z]+)(\d+)/);
+      if (!match) {
+        console.error(`Invalid bill ID format: ${failedBill.id}`);
+        continue;
+      }
+      const [, billNumber, billType, congress] = match;
+      const bill = {
+        number: billNumber,
+        type: billType.toUpperCase(),
+        congress: parseInt(congress),
+        updateDate: new Date().toISOString() // Force update
+      };
+      
+      console.log(`\nRetrying failed bill ${failedBill.id} (previous error: ${failedBill.errorType})`);
+      await processBill(bill, parseInt(congress), billType, failedBill.retryCount);
+      await delay(DELAY_BETWEEN_REQUESTS);
+    } catch (error) {
+      console.error(`Failed to retry bill ${failedBill.id}`);
+    }
   }
 }
 
@@ -346,6 +413,10 @@ async function main() {
       }
     }
 
+    // After processing all bill types, retry failed bills
+    await retryFailedBills();
+
+    // Final summary with categorized errors
     console.log('\n🏁 Update process completed');
     console.log('----------------------------------------');
     console.log(`Total bills processed: ${progress.total}`);
@@ -354,22 +425,43 @@ async function main() {
     console.log(`⏭️ Skipped updates: ${progress.skipped}`);
     
     if (progress.failedBills.length > 0) {
-      console.log('\n❌ Failed Bills:');
+      console.log('\n❌ Failed Bills Summary:');
       console.log('----------------------------------------');
-      progress.failedBills.forEach(fail => {
-        console.log(`Bill ID: ${fail.id}`);
-        console.log(`Error: ${fail.error}`);
-        console.log(`Time: ${fail.timestamp}`);
-        console.log('----------------------------------------');
-      });
-    }
+      
+      // Group failures by error type
+      const groupedFailures = progress.failedBills.reduce((acc, fail) => {
+        acc[fail.errorType] = acc[fail.errorType] || [];
+        acc[fail.errorType].push(fail);
+        return acc;
+      }, {} as Record<FailedBill['errorType'], FailedBill[]>);
 
-    // Optionally save failed bills to a file
-    if (progress.failedBills.length > 0) {
+      // Print grouped failures
+      for (const [errorType, bills] of Object.entries(groupedFailures)) {
+        console.log(`\n${errorType} (${bills.length} bills):`);
+        bills.forEach(fail => {
+          console.log(`  - Bill ${fail.id}:`);
+          console.log(`    Error: ${fail.error}`);
+          console.log(`    Time: ${fail.timestamp}`);
+          console.log(`    Retry attempts: ${fail.retryCount}`);
+        });
+      }
+
+      // Save detailed failure report
       const fs = require('fs');
       const failedBillsLog = `failed_bills_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      fs.writeFileSync(failedBillsLog, JSON.stringify(progress.failedBills, null, 2));
-      console.log(`\nFailed bills log saved to: ${failedBillsLog}`);
+      fs.writeFileSync(failedBillsLog, JSON.stringify({
+        summary: {
+          total: progress.total,
+          success: progress.success,
+          failed: progress.failed,
+          skipped: progress.skipped,
+          errorTypes: Object.fromEntries(
+            Object.entries(groupedFailures).map(([type, bills]) => [type, bills.length])
+          )
+        },
+        failedBills: progress.failedBills
+      }, null, 2));
+      console.log(`\nDetailed failure report saved to: ${failedBillsLog}`);
     }
 
   } catch (error) {
