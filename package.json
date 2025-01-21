@@ -16,7 +16,9 @@
     "fetch-bill-titles": "tsx scripts/BillTitles.ts",
     "fetch-all-bills": "npm run fetch-bill-info && npm run fetch-bill-actions && npm run fetch-bill-subjects && npm run fetch-bill-summaries && npm run fetch-bill-text && npm run fetch-bill-titles",
     "optimize-images": "tsx scripts/optimize-images.ts",
-    "update-bill-info": "tsx scripts/DataUpdate/updateBillInfo.ts"
+    
+    "update-bill-info": "tsx scripts/DataUpdate/updateBillInfo.ts",
+    "update-bill-actions": "tsx scripts/DataUpdate/updateBillActions.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
