@@ -12,12 +12,25 @@ project/
 │   ├── layout.tsx         # Root layout with global providers and UI structure
 │   └── page.tsx           # Home page with featured bills and overview
 │
+├── sql/                   # Database SQL files and definitions
+│   ├── functions/        # Database functions with security settings
+│   │   └── bill_functions.sql  # Core bill-related database functions
+│   └── triggers/         # Database triggers
+│       └── triggers.sql  # All database trigger definitions
+│
+├── scripts/              # Data update and maintenance scripts
+│   └── DataUpdate/      # Scripts for updating bill data
+│       ├── updateBillInfo.ts    # Updates core bill information
+│       ├── updateBillActions.ts # Updates bill actions with retry logic
+│       └── updateBillSubjects.ts # Updates bill subjects and policy areas
+│
 ├── components/            # React components organized by feature
 │   ├── ui/               # Reusable UI components (shadcn/ui based)
 │   │   ├── button.tsx   # Button component for actions
 │   │   ├── card.tsx     # Card component for content display
 │   │   ├── select.tsx   # Select component for filters
 │   │   └── badge.tsx    # Badge component for status and tags
+│   │
 │   └── bills/           # Bill-specific components
 │       ├── bill-card.tsx    # Card component for bill preview
 │       ├── bills-filter.tsx # Filter component for bills page
@@ -26,11 +39,14 @@ project/
 ├── lib/                  # Core application logic and utilities
 │   ├── services/        # Service layer for data operations
 │   │   └── bills-service.ts # Bills data service with Supabase integration
+│   │
 │   ├── store/           # State management
 │   │   ├── bills-store.ts   # Bills state management
 │   │   └── ui-store.ts      # UI state management
+│   │
 │   ├── types/           # TypeScript type definitions
 │   │   └── BillInfo.ts      # Bill-related type definitions
+│   │
 │   └── utils/           # Utility functions and helpers
 │       ├── formatting.ts    # Date and text formatting utilities
 │       ├── styles.ts        # Style utility functions
@@ -166,6 +182,58 @@ export default {
 }
 ```
 
+### SQL Directory
+Houses all database-related SQL files for consistent database management.
+
+#### `/sql/functions/`
+- Contains database function definitions
+- Implements security-enhanced functions
+- Includes schema protection measures
+- Documents function behavior and triggers
+
+#### `/sql/functions/bill_functions.sql`
+- Core bill-related database functions
+- Security-enhanced with `SECURITY DEFINER`
+- Fixed search paths to prevent schema poisoning
+- Functions for:
+  - Updating timestamps
+  - Calculating bill progress
+  - Updating bill status
+
+#### `/sql/triggers/`
+- Database trigger definitions
+- Documents trigger relationships
+- Maintains data consistency
+- Automates data updates
+
+### Scripts Directory
+Contains scripts for data management and maintenance.
+
+#### `/scripts/DataUpdate/`
+- Scripts for updating bill data
+- Implements robust error handling
+- Includes retry mechanisms
+- Respects API rate limits
+
+#### Key Scripts:
+- **updateBillInfo.ts**
+  - Updates core bill information
+  - Handles API pagination
+  - Implements progress tracking
+  - Generates detailed error reports
+
+- **updateBillActions.ts**
+  - Manages bill action updates
+  - Implements append-only logic
+  - Verifies successful updates
+  - Handles trigger interactions
+
+- **updateBillSubjects.ts**
+  - Updates bill subjects and policy areas
+  - Manages one-to-one relationships
+  - Implements update verification
+  - Tracks update timestamps
+
 ## Best Practices
 
 ### 1. File Organization
@@ -197,3 +265,15 @@ export default {
 - Define clear interfaces
 - Document type definitions
 - Validate data at boundaries
+
+### 6. Database Management
+- Keep SQL files in version control
+- Document function security settings
+- Maintain clear trigger documentation
+- Use consistent naming conventions
+
+### 7. Data Update Scripts
+- Implement robust error handling
+- Use TypeScript for type safety
+- Document retry mechanisms
+- Generate detailed logs

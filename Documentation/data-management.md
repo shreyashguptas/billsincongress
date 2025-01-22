@@ -941,3 +941,62 @@ The progress calculation is implemented as a trigger function `calculate_bill_pr
    - Uses efficient SQL operations
    - Maintains indexes on relevant columns
    - Minimizes database load
+
+### Database Functions and Triggers
+
+#### Security-Enhanced Functions
+
+The database uses several functions with enhanced security settings to prevent schema poisoning and ensure consistent behavior:
+
+1. **update_updated_at_column()**
+   ```sql
+   RETURNS TRIGGER 
+   SECURITY DEFINER
+   SET search_path = public
+   ```
+   - Updates the `updated_at` column automatically
+   - Used by all tables to track modifications
+   - Security-enhanced with fixed search path
+
+2. **calculate_bill_progress()**
+   ```sql
+   RETURNS TRIGGER
+   SECURITY DEFINER
+   SET search_path = public
+   ```
+   - Updates bill_info with latest action details
+   - Triggered when new actions are added
+   - Maintains data consistency with secure schema access
+
+3. **update_bill_status()**
+   ```sql
+   RETURNS TRIGGER
+   SECURITY DEFINER
+   SET search_path = public
+   ```
+   - Updates progress stage and description
+   - Uses action codes to determine bill status
+   - Prevents schema poisoning with fixed search path
+
+#### Security Considerations
+
+- All functions use `SECURITY DEFINER` to run with creator's privileges
+- Fixed `search_path` prevents schema poisoning attacks
+- Consistent schema access ensures reliable operation
+- Functions operate in the `public` schema only
+
+#### Trigger Relationships
+
+```mermaid
+graph TD
+    A[bill_actions INSERT/UPDATE] --> B[calculate_bill_progress]
+    B --> C[bill_info]
+    C --> D[update_bill_status]
+    E[Any Table UPDATE] --> F[update_updated_at_column]
+```
+
+This security-enhanced design ensures:
+- Automatic timestamp updates
+- Consistent bill progress tracking
+- Secure schema access
+- Protection against SQL injection
