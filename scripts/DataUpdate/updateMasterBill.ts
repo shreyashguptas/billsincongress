@@ -28,6 +28,8 @@ const DELAY_BETWEEN_REQUESTS = Math.ceil(3600000 / RATE_LIMIT_PER_HOUR); // Mill
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 const MAX_BILL_NUMBER = 100000; // Increased to handle high bill numbers
+const CONSECUTIVE_MISSING_THRESHOLD = 50; // Number of consecutive missing bills before stopping
+const GAP_TOLERANCE = 20; // Number of missing bills we'll tolerate before resetting the counter
 
 // Validate environment variables
 const requiredEnvVars = {
@@ -208,13 +210,21 @@ function transformBillSummary(summary: any, billId: string): BillSummary {
   };
 }
 
-function transformBillSubject(subject: any, billId: string): BillSubject {
+function transformBillSubject(subjectsData: any, billId: string): BillSubject | null {
+  // Log the raw subject data to understand its structure
+  console.debug('Raw subject data:', JSON.stringify(subjectsData, null, 2));
+
+  // Extract policy area data from the full subjects response
+  const policyArea = subjectsData?.subjects?.policyArea;
+  if (!policyArea) {
+    console.warn(`No policy area found for bill ${billId}`);
+    return null;
+  }
+
   return {
     id: billId,
-    name: subject.name,
-    source_system_code: 'legislative',
-    source_system_name: 'Legislative Subject Terms',
-    update_date: subject.updateDate
+    policy_area_name: policyArea.name,
+    policy_area_update_date: policyArea.updateDate
   };
 }
 
@@ -314,7 +324,7 @@ async function updateBillSubjectsInDB(subjects: BillSubject[]): Promise<void> {
     const { error } = await supabaseAdmin
       .from(BILL_SUBJECTS_TABLE_NAME)
       .upsert(chunk, { 
-        onConflict: 'id,name',
+        onConflict: 'id',
         ignoreDuplicates: true
       });
     
@@ -360,17 +370,28 @@ async function updateBill(congress: number, type: string, number: string): Promi
     const texts = textData?.textVersions?.map((t: any) => transformBillText(t, billId)) || [];
     const titles = titlesData?.titles?.map((t: any) => transformBillTitle(t, billId)) || [];
     const summaries = summariesData?.summaries?.map((s: any) => transformBillSummary(s, billId)) || [];
-    const subjects = subjectsData?.subjects?.legislativeSubjects?.map((s: any) => 
-      transformBillSubject(s, billId)
-    ) || [];
+    
+    // Add error handling for subjects transformation
+    let subjects: BillSubject[] = [];
+    try {
+      if (subjectsData) {
+        const subject = transformBillSubject(subjectsData, billId);
+        if (subject) {
+          subjects = [subject];
+        }
+      }
+    } catch (error) {
+      console.error(`Error transforming subjects for bill ${billId}:`, error);
+      console.debug('Raw subjects data:', JSON.stringify(subjectsData, null, 2));
+    }
 
-    // Log what data was found
+    // Log what data was found with counts
     console.log(`Bill ${billId} data found:`, {
-      hasActions: actions.length > 0,
-      hasTexts: texts.length > 0,
-      hasTitles: titles.length > 0,
-      hasSummaries: summaries.length > 0,
-      hasSubjects: subjects.length > 0
+      actions: `${actions.length} actions`,
+      texts: `${texts.length} text versions`,
+      titles: `${titles.length} titles`,
+      summaries: `${summaries.length} summaries`,
+      subjects: `${subjects.length} subjects`
     });
 
     // Update database sequentially to avoid conflicts
@@ -414,14 +435,58 @@ async function updateAllBills(congress: number, options: {
   const endNumber = options.endNumber || MAX_BILL_NUMBER;
 
   for (const type of billTypes) {
+    let consecutiveMissingBills = 0;
+    let lastFoundBill = 0;
+
     for (let number = startNumber; number <= endNumber; number++) {
       progress.totalBills++;
       
       try {
+        // Check if bill exists first
+        const billInfoData = await fetchFromAPI(`/bill/${congress}/${type}/${number}`);
+        
+        if (!billInfoData) {
+          consecutiveMissingBills++;
+          
+          // If we've found bills before and hit our threshold, stop processing this bill type
+          if (lastFoundBill > 0 && consecutiveMissingBills >= CONSECUTIVE_MISSING_THRESHOLD) {
+            console.log(`\nStopping processing of ${type} bills for Congress ${congress}`);
+            console.log(`No bills found after bill number ${lastFoundBill} for ${CONSECUTIVE_MISSING_THRESHOLD} consecutive attempts`);
+            console.log(`Last successful bill: ${lastFoundBill}${type}${congress}\n`);
+            break;
+          }
+          
+          progress.skippedBills++;
+          continue;
+        }
+
+        // If we found a bill, update our tracking
+        consecutiveMissingBills = 0;
+        lastFoundBill = number;
+
+        // Process the bill
         await updateBill(congress, type, number.toString());
         progress.successfulBills++;
         console.log(`Successfully updated bill ${number}${type}${congress}`);
+        
       } catch (error: any) {
+        // If it's a "Bill does not exist" error, handle it like a missing bill
+        if (error.message.includes('Bill does not exist')) {
+          consecutiveMissingBills++;
+          
+          // If we've found bills before and hit our threshold, stop processing this bill type
+          if (lastFoundBill > 0 && consecutiveMissingBills >= CONSECUTIVE_MISSING_THRESHOLD) {
+            console.log(`\nStopping processing of ${type} bills for Congress ${congress}`);
+            console.log(`No bills found after bill number ${lastFoundBill} for ${CONSECUTIVE_MISSING_THRESHOLD} consecutive attempts`);
+            console.log(`Last successful bill: ${lastFoundBill}${type}${congress}\n`);
+            break;
+          }
+          
+          progress.skippedBills++;
+          continue;
+        }
+
+        // Handle other errors as before
         const errorType = determineErrorType(error);
         const failedBill: FailedBill = {
           id: `${number}${type}${congress}`,
@@ -436,6 +501,12 @@ async function updateAllBills(congress: number, options: {
         console.error(`Failed to update bill ${number}${type}${congress}:`, error.message);
       }
     }
+
+    // Log summary for this bill type
+    console.log(`\nCompleted processing ${type} bills for Congress ${congress}`);
+    console.log(`Last successful bill number: ${lastFoundBill}`);
+    console.log(`Total bills processed: ${progress.successfulBills}`);
+    console.log(`Skipped bills: ${progress.skippedBills}\n`);
   }
 
   // Retry failed bills

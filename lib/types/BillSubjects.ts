@@ -13,10 +13,8 @@ export interface BillSubjectsResponse {
 
 export interface BillSubject {
   id: string;
-  name: string;
-  source_system_code: string;
-  source_system_name: string;
-  update_date: string;
+  policy_area_name: string;
+  policy_area_update_date: string;
   created_at?: string;
   updated_at?: string;
 }
