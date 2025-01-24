@@ -14,33 +14,113 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Bill Progress Calculation Function
--- Security: Set search_path to prevent schema poisoning
+-- Function to calculate bill progress based on actions
 CREATE OR REPLACE FUNCTION calculate_bill_progress()
-RETURNS TRIGGER
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-    latest_action RECORD;
+RETURNS TRIGGER AS $$
 BEGIN
-    -- Get the latest action for this bill
-    SELECT * INTO latest_action
-    FROM bill_actions
-    WHERE id = NEW.id
-    ORDER BY action_date DESC, created_at DESC
-    LIMIT 1;
-
-    -- Update bill_info with the latest action details
-    IF FOUND THEN
-        NEW.latest_action_date = latest_action.action_date;
-        NEW.latest_action_text = latest_action.text;
-        NEW.latest_action_code = latest_action.action_code;
-    END IF;
-
+    WITH latest_action AS (
+        SELECT DISTINCT ON (id) 
+            id,
+            action_code, 
+            action_date, 
+            text, 
+            type,
+            source_system_code
+        FROM bill_actions
+        WHERE id = NEW.id
+        ORDER BY id, action_date DESC, action_code DESC
+    ),
+    -- Check for passage in each chamber
+    chamber_passage AS (
+        SELECT 
+            id,
+            bool_or(
+                (action_code = '8000' AND source_system_code = 9) OR  -- Library of Congress House passage
+                (action_code LIKE 'H%' AND source_system_code = 2 AND (
+                    action_code = 'H38310' OR  -- House passage codes
+                    action_code = 'H37300' OR
+                    text ILIKE '%Passed the House%'
+                ))
+            ) as passed_house,
+            bool_or(
+                (action_code = '17000' AND source_system_code = 9) OR  -- Library of Congress Senate passage
+                (action_code LIKE 'S%' AND source_system_code = 3 AND (
+                    text ILIKE '%Passed Senate%'
+                ))
+            ) as passed_senate
+        FROM bill_actions
+        WHERE id = NEW.id
+        GROUP BY id
+    ),
+    bill_status AS (
+        SELECT 
+            CASE
+                WHEN (action_code IN ('36000', 'E40000') AND source_system_code = 9)
+                    OR type = 'BecameLaw' 
+                    OR text ILIKE '%Became Public Law%' THEN 100
+                WHEN (action_code IN ('29000', 'E30000') AND source_system_code = 9)
+                    OR text ILIKE '%Signed by President%' THEN 90
+                WHEN (action_code IN ('28000', 'E20000') AND source_system_code = 9)
+                    OR text ILIKE '%Presented to President%' THEN 80
+                WHEN EXISTS (
+                    SELECT 1 FROM chamber_passage 
+                    WHERE id = latest_action.id 
+                    AND passed_house AND passed_senate
+                ) THEN 70
+                WHEN EXISTS (
+                    SELECT 1 FROM chamber_passage 
+                    WHERE id = latest_action.id 
+                    AND (passed_house OR passed_senate)
+                ) THEN 60
+                WHEN (action_code IN ('5000', '14000') AND source_system_code = 9)
+                    OR type = 'Reported' THEN 40
+                WHEN (action_code IN ('1000', '10000') AND source_system_code = 9)
+                    OR type = 'IntroReferral' THEN 20
+                ELSE 20
+            END as stage,
+            CASE
+                WHEN (action_code IN ('36000', 'E40000') AND source_system_code = 9)
+                    OR type = 'BecameLaw' 
+                    OR text ILIKE '%Became Public Law%' THEN 'Became Law'
+                WHEN (action_code IN ('29000', 'E30000') AND source_system_code = 9)
+                    OR text ILIKE '%Signed by President%' THEN 'Signed by President'
+                WHEN (action_code IN ('28000', 'E20000') AND source_system_code = 9)
+                    OR text ILIKE '%Presented to President%' THEN 'To President'
+                WHEN EXISTS (
+                    SELECT 1 FROM chamber_passage 
+                    WHERE id = latest_action.id 
+                    AND passed_house AND passed_senate
+                ) THEN 'Passed Both Chambers'
+                WHEN EXISTS (
+                    SELECT 1 FROM chamber_passage 
+                    WHERE id = latest_action.id 
+                    AND (passed_house OR passed_senate)
+                ) THEN 'Passed One Chamber'
+                WHEN (action_code IN ('5000', '14000') AND source_system_code = 9)
+                    OR type = 'Reported' THEN 'In Committee'
+                WHEN (action_code IN ('1000', '10000') AND source_system_code = 9)
+                    OR type = 'IntroReferral' THEN 'Introduced'
+                ELSE 'Introduced'
+            END as description
+        FROM latest_action
+    )
+    UPDATE bill_info
+    SET 
+        progress_stage = bill_status.stage,
+        progress_description = bill_status.description
+    FROM bill_status
+    WHERE bill_info.id = NEW.id;
+    
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Recreate the trigger
+DROP TRIGGER IF EXISTS update_bill_progress ON bill_actions;
+CREATE TRIGGER update_bill_progress
+AFTER INSERT OR UPDATE ON bill_actions
+FOR EACH ROW
+EXECUTE FUNCTION calculate_bill_progress();
 
 -- Bill Status Update Function
 -- Security: Set search_path to prevent schema poisoning

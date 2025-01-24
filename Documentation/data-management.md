@@ -474,15 +474,18 @@ Contains different titles associated with bills.
 
 The bill status tracking system uses several components:
 
-1. **Action Codes**: Numeric codes in `bill_actions` table that indicate specific legislative actions. We handle both Library of Congress codes (e.g., '36000') and House system codes (e.g., 'E40000').
+1. **Action Codes**: Numeric codes in `bill_actions` table that indicate specific legislative actions. We handle multiple source systems:
+   - Library of Congress (source_system_code = 9)
+   - House Floor Actions (source_system_code = 2)
+   - Senate Floor Actions (source_system_code = 3)
 
 2. **Progress Stages**:
    - 20: Introduced (0%)
    - 40: In Committee (20%)
    - 60: Passed One Chamber (40%)
-   - 80: Passed Both Chambers (60%)
-   - 90: To President (80%)
-   - 95: Signed by President (90%)
+   - 70: Passed Both Chambers (60%)
+   - 80: To President (80%)
+   - 90: Signed by President (90%)
    - 100: Became Law (100%)
 
 3. **Database Trigger Implementation**: 
@@ -493,58 +496,62 @@ The bill status tracking system uses several components:
      - Updates `progress_stage` and `progress_description` in `bill_info`
 
 4. **Status Calculation Logic**:
-   The bill status is automatically calculated through a database trigger that fires when actions are inserted or updated in the `bill_actions` table. The status is determined by examining action codes in the following priority order:
+   The bill status is automatically calculated through a database trigger that fires when actions are inserted or updated in the `bill_actions` table. The status is determined by examining action codes and source systems in the following priority order:
 
    1. **Became Law (Stage 100)**
-      - Action codes: `36000`, `E40000`
+      - Library of Congress: Action codes `36000`, `E40000`
+      - Or type = 'BecameLaw'
+      - Or text contains 'Became Public Law'
       - Description: "Became Law"
-      - Indicates bill has been enacted into law
 
-   2. **Signed by President (Stage 95)**
-      - Action codes: `29000`, `E30000`
+   2. **Signed by President (Stage 90)**
+      - Library of Congress: Action codes `29000`, `E30000`
+      - Or text contains 'Signed by President'
       - Description: "Signed by President"
-      - Indicates presidential signature
 
-   3. **To President (Stage 90)**
-      - Action codes: `28000`, `E20000`
+   3. **To President (Stage 80)**
+      - Library of Congress: Action codes `28000`, `E20000`
+      - Or text contains 'Presented to President'
       - Description: "To President"
-      - Indicates bill has been sent for presidential review
 
-   4. **Passed Both Chambers (Stage 80)**
-      - Requires BOTH House and Senate passage actions:
-        - House passage: `H32500`
-        - Senate passage: `S32500`
+   4. **Passed Both Chambers (Stage 70)**
+      - House Passage:
+        - Library of Congress: Action code `8000`
+        - Or House Floor: Action codes `H38310`, `H37300`
+        - Or text contains 'Passed the House'
+      - AND Senate Passage:
+        - Library of Congress: Action code `17000`
+        - Or text contains 'Passed Senate'
       - Description: "Passed Both Chambers"
-      - Must have evidence of passage through both chambers
 
    5. **Passed One Chamber (Stage 60)**
-      - Action codes: Either `H32500` (House) or `S32500` (Senate)
+      - Either House Passage OR Senate Passage (same conditions as above)
       - Description: "Passed One Chamber"
-      - Indicates passage through either chamber but not both
 
    6. **In Committee (Stage 40)**
-      - Action codes: `5000`, `14000`, `H11100`, `S11100`
+      - Library of Congress: Action codes `5000`, `14000`
+      - Or type = 'Reported'
       - Description: "In Committee"
-      - Indicates committee referral or action
 
    7. **Introduced (Stage 20)**
-      - Default stage if no other conditions are met
+      - Library of Congress: Action codes `1000`, `10000`
+      - Or type = 'IntroReferral'
+      - Or default stage if no other conditions are met
       - Description: "Introduced"
-      - Starting point for all bills
 
    The trigger function `calculate_bill_progress()` automatically updates two columns in the `bill_info` table:
    - `progress_stage`: Numeric value (20-100) indicating current stage
    - `progress_description`: Text description of the current stage
 
-   This ensures consistent status calculation across the entire application and maintains accurate bill progress tracking based on actual legislative actions.
+   This ensures consistent status calculation across the entire application and maintains accurate bill progress tracking based on actual legislative actions from multiple authoritative sources.
 
 5. **Progress Stage to Percentage Mapping**:
    - Introduced (20) → 0%
    - In Committee (40) → 20%
    - Passed One Chamber (60) → 40%
-   - Passed Both Chambers (80) → 60%
-   - To President (90) → 80%
-   - Signed by President (95) → 90%
+   - Passed Both Chambers (70) → 60%
+   - To President (80) → 80%
+   - Signed by President (90) → 90%
    - Became Law (100) → 100%
 
 6. **Data Flow**:
@@ -552,12 +559,14 @@ The bill status tracking system uses several components:
    - Status is automatically calculated by the trigger
    - No manual status updates needed
    - Status is always derived from actual actions
+   - Multiple source systems are considered for comprehensive status tracking
 
 This system ensures that bill status is:
 - Automatically updated
 - Consistently calculated
-- Based on authoritative action codes
-- Handles both LoC and House system codes
+- Based on authoritative action codes from multiple sources
+- Handles both Library of Congress and chamber-specific codes
+- Validates actions through text content when needed
 
 ## Data Relationships
 
