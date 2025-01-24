@@ -15,6 +15,9 @@ import { BillStageDescriptions, BillStageOrder } from '@/lib/utils/bill-stages';
 import { BillStages } from '@/lib/utils/bill-stages';
 import { useState, useEffect } from 'react';
 import { billsService } from '@/lib/services/bills-service';
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Circle } from "lucide-react";
 
 // Map of policy areas
 const POLICY_AREAS = [
@@ -169,6 +172,12 @@ function BillsFilter({
     fetchCongressNumbers();
   }, []);
 
+  // Helper function to check if a filter is active
+  const isFilterActive = (filterValue: string | null | undefined, defaultValue: string) => {
+    if (filterValue === null || filterValue === undefined) return false;
+    return filterValue !== defaultValue && filterValue !== '';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -178,7 +187,19 @@ function BillsFilter({
           onClick={onClearAllFilters}
           variant="ghost"
           size="sm"
-          className="text-muted-foreground hover:text-foreground"
+          className={cn(
+            "text-muted-foreground hover:text-foreground",
+            (isFilterActive(titleFilter, '') || 
+             isFilterActive(sponsorFilter, '') ||
+             isFilterActive(billNumberFilter, '') ||
+             isFilterActive(congressFilter, 'all') ||
+             isFilterActive(billTypeFilter, 'all') ||
+             isFilterActive(statusFilter, 'all') ||
+             isFilterActive(stateFilter, 'all') ||
+             isFilterActive(policyAreaFilter, 'all') ||
+             isFilterActive(introducedDateFilter, 'all') ||
+             isFilterActive(lastActionDateFilter, 'all')) && "text-foreground"
+          )}
         >
           Clear All
         </Button>
@@ -187,8 +208,11 @@ function BillsFilter({
       {/* Search Filters - Always immediate */}
       <div className="space-y-4">
         <div className="space-y-2">
-          <label htmlFor="titleFilter" className="text-sm font-medium">
+          <label htmlFor="titleFilter" className="text-sm font-medium flex items-center gap-2">
             Bill Title
+            {isFilterActive(titleFilter, '') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
           </label>
           <Input
             id="titleFilter"
@@ -196,13 +220,19 @@ function BillsFilter({
             placeholder="Search bill titles..."
             value={titleFilter}
             onChange={(e) => onTitleChange(e.target.value)}
-            className="w-full"
+            className={cn(
+              "w-full",
+              isFilterActive(titleFilter, '') && "border-primary"
+            )}
           />
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="sponsorFilter" className="text-sm font-medium">
+          <label htmlFor="sponsorFilter" className="text-sm font-medium flex items-center gap-2">
             Sponsor Name
+            {isFilterActive(sponsorFilter, '') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
           </label>
           <Input
             id="sponsorFilter"
@@ -210,13 +240,19 @@ function BillsFilter({
             placeholder="Search by sponsor..."
             value={sponsorFilter}
             onChange={(e) => onSponsorChange(e.target.value)}
-            className="w-full"
+            className={cn(
+              "w-full",
+              isFilterActive(sponsorFilter, '') && "border-primary"
+            )}
           />
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="billNumberFilter" className="text-sm font-medium">
+          <label htmlFor="billNumberFilter" className="text-sm font-medium flex items-center gap-2">
             Bill Number
+            {isFilterActive(billNumberFilter, '') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
           </label>
           <Input
             id="billNumberFilter"
@@ -226,21 +262,32 @@ function BillsFilter({
             placeholder="Enter bill number..."
             value={billNumberFilter}
             onChange={handleBillNumberChange}
-            className="w-full"
+            className={cn(
+              "w-full",
+              isFilterActive(billNumberFilter, '') && "border-primary"
+            )}
           />
         </div>
       </div>
 
       {/* Dropdown Filters */}
       <div className="space-y-4">
-        {/* Congress Filter - New Position */}
+        {/* Congress Filter */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Congress</label>
+          <label className="text-sm font-medium flex items-center gap-2">
+            Congress
+            {isFilterActive(congressFilter, 'all') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
+          </label>
           <Select 
             value={congressFilter} 
             onValueChange={onCongressChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full",
+              isFilterActive(congressFilter, 'all') && "border-primary"
+            )}>
               <SelectValue placeholder="All Congresses" />
             </SelectTrigger>
             <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
@@ -254,14 +301,22 @@ function BillsFilter({
           </Select>
         </div>
 
-        {/* Bill Type Filter - New Position */}
+        {/* Bill Type Filter */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Bill Type</label>
+          <label className="text-sm font-medium flex items-center gap-2">
+            Bill Type
+            {isFilterActive(billTypeFilter, 'all') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
+          </label>
           <Select 
             value={billTypeFilter} 
             onValueChange={onBillTypeChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full",
+              isFilterActive(billTypeFilter, 'all') && "border-primary"
+            )}>
               <SelectValue placeholder="All Bill Types" />
             </SelectTrigger>
             <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
@@ -277,12 +332,20 @@ function BillsFilter({
 
         {/* Status Filter */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Status</label>
+          <label className="text-sm font-medium flex items-center gap-2">
+            Status
+            {isFilterActive(statusFilter, 'all') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
+          </label>
           <Select
             value={statusFilter}
             onValueChange={onStatusChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full",
+              isFilterActive(statusFilter, 'all') && "border-primary"
+            )}>
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
@@ -297,12 +360,20 @@ function BillsFilter({
 
         {/* State Filter */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">State</label>
+          <label className="text-sm font-medium flex items-center gap-2">
+            State
+            {isFilterActive(stateFilter, 'all') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
+          </label>
           <Select 
             value={stateFilter} 
             onValueChange={onStateChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full",
+              isFilterActive(stateFilter, 'all') && "border-primary"
+            )}>
               <SelectValue placeholder="All States" />
             </SelectTrigger>
             <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
@@ -318,12 +389,20 @@ function BillsFilter({
 
         {/* Policy Area Filter */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Category</label>
+          <label className="text-sm font-medium flex items-center gap-2">
+            Category
+            {isFilterActive(policyAreaFilter, 'all') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
+          </label>
           <Select 
             value={policyAreaFilter} 
             onValueChange={onPolicyAreaChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full",
+              isFilterActive(policyAreaFilter, 'all') && "border-primary"
+            )}>
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
@@ -339,12 +418,20 @@ function BillsFilter({
 
         {/* Date Filters */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Introduced Date</label>
+          <label className="text-sm font-medium flex items-center gap-2">
+            Introduced Date
+            {isFilterActive(introducedDateFilter, 'all') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
+          </label>
           <Select 
             value={introducedDateFilter} 
             onValueChange={onIntroducedDateChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full",
+              isFilterActive(introducedDateFilter, 'all') && "border-primary"
+            )}>
               <SelectValue placeholder="All Dates" />
             </SelectTrigger>
             <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
@@ -359,12 +446,20 @@ function BillsFilter({
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Last Action Date</label>
+          <label className="text-sm font-medium flex items-center gap-2">
+            Last Action Date
+            {isFilterActive(lastActionDateFilter, 'all') && (
+              <Circle className="h-2 w-2 fill-primary" />
+            )}
+          </label>
           <Select 
             value={lastActionDateFilter} 
             onValueChange={onLastActionDateChange}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className={cn(
+              "w-full",
+              isFilterActive(lastActionDateFilter, 'all') && "border-primary"
+            )}>
               <SelectValue placeholder="All Dates" />
             </SelectTrigger>
             <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
