@@ -17,7 +17,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
 // Add or remove congress numbers here to specify which ones to fetch
 const CONGRESSES_TO_UPDATE: number[] = [
   119,
-  // 118,
+  118,
   // 117,
 ];
 
@@ -531,20 +531,32 @@ async function updateAllBills(congress: number, options: {
 
 // Main function to process multiple congresses
 async function updateMultipleCongresses(congresses: number[]): Promise<void> {
+  const startTime = Date.now();
+  
   for (const congress of congresses) {
-    console.log(`Starting update for Congress ${congress}`);
+    const congressStartTime = Date.now();
+    console.log(`\nStarting update for Congress ${congress}`);
     try {
       const progress = await updateAllBills(congress);
-      console.log(`Completed Congress ${congress}:`);
+      const congressDuration = (Date.now() - congressStartTime) / 60000; // Convert to minutes
+      
+      console.log(`\nCompleted Congress ${congress}:`);
       console.log(`- Total bills processed: ${progress.totalBills}`);
       console.log(`- Successfully updated: ${progress.successfulBills}`);
       console.log(`- Failed: ${progress.failedBills.length}`);
       console.log(`- Skipped: ${progress.skippedBills}`);
+      console.log(`- Time taken: ${congressDuration.toFixed(2)} minutes`);
       console.log('-----------------------------------');
     } catch (error) {
       console.error(`Failed to update Congress ${congress}:`, error);
     }
   }
+
+  const totalDuration = (Date.now() - startTime) / 60000; // Convert to minutes
+  console.log(`\n=== Total Execution Summary ===`);
+  console.log(`Total time taken: ${totalDuration.toFixed(2)} minutes`);
+  console.log(`Average time per Congress: ${(totalDuration / congresses.length).toFixed(2)} minutes`);
+  console.log(`===========================\n`);
 }
 
 // Helper functions
@@ -603,8 +615,9 @@ async function saveProgressReport(report: any): Promise<void> {
 // Export both functions
 export { updateAllBills, updateMultipleCongresses };
 
-// Update the CLI interface to use CONGRESSES_TO_UPDATE if no arguments are provided
+// Update the CLI interface
 if (require.main === module) {
+  const startTime = Date.now();
   const args = process.argv.slice(2);
   let congressesToUpdate: number[];
 
@@ -626,11 +639,15 @@ if (require.main === module) {
 
   updateMultipleCongresses(congressesToUpdate)
     .then(() => {
-      console.log('Completed updating all specified congresses');
+      const totalDuration = (Date.now() - startTime) / 60000;
+      console.log(`\nScript completed successfully!`);
+      console.log(`Total execution time: ${totalDuration.toFixed(2)} minutes`);
       process.exit(0);
     })
     .catch(error => {
+      const totalDuration = (Date.now() - startTime) / 60000;
       console.error('Failed to update congresses:', error);
+      console.log(`\nScript failed after running for ${totalDuration.toFixed(2)} minutes`);
       process.exit(1);
     });
 } 
