@@ -18,7 +18,12 @@
     "optimize-images": "tsx scripts/optimize-images.ts",
     
     "update-bill-info": "tsx scripts/DataUpdate/updateBillInfo.ts",
-    "update-bill-actions": "tsx scripts/DataUpdate/updateBillActions.ts"
+    "update-bill-actions": "tsx scripts/DataUpdate/updateBillActions.ts",
+    "update-bill-subjects": "tsx scripts/DataUpdate/updateBillSubjects.ts",
+    "update-bill-summaries": "tsx scripts/DataUpdate/updateBillSummaries.ts",
+    "update-bill-text": "tsx scripts/DataUpdate/updateBillText.ts",
+    "update-bill-titles": "tsx scripts/DataUpdate/updateBillTitles.ts",
+    "update-all-bills": "npm run update-bill-info && npm run update-bill-actions && npm run update-bill-subjects && npm run update-bill-summaries && npm run update-bill-text && npm run update-bill-titles"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
