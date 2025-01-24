@@ -13,6 +13,8 @@ import { BILL_TYPES } from '@/lib/constants/filters';
 import dynamic from 'next/dynamic';
 import { BillStageDescriptions, BillStageOrder } from '@/lib/utils/bill-stages';
 import { BillStages } from '@/lib/utils/bill-stages';
+import { useState, useEffect } from 'react';
+import { billsService } from '@/lib/services/bills-service';
 
 // Map of policy areas
 const POLICY_AREAS = [
@@ -90,6 +92,7 @@ interface BillsFilterProps {
   policyAreaFilter: string;
   billTypeFilter: string;
   billNumberFilter: string;
+  congressFilter: string;
   onStatusChange: (value: string) => void;
   onIntroducedDateChange: (value: string) => void;
   onLastActionDateChange: (value: string) => void;
@@ -99,6 +102,7 @@ interface BillsFilterProps {
   onPolicyAreaChange: (value: string) => void;
   onBillTypeChange: (value: string) => void;
   onBillNumberChange: (value: string) => void;
+  onCongressChange: (value: string) => void;
   onClearAllFilters: () => void;
   isMobile: boolean;
 }
@@ -129,6 +133,7 @@ function BillsFilter({
   policyAreaFilter,
   billTypeFilter,
   billNumberFilter,
+  congressFilter,
   onStatusChange,
   onIntroducedDateChange,
   onLastActionDateChange,
@@ -138,6 +143,7 @@ function BillsFilter({
   onPolicyAreaChange,
   onBillTypeChange,
   onBillNumberChange,
+  onCongressChange,
   onClearAllFilters,
   isMobile,
 }: BillsFilterProps) {
@@ -147,6 +153,21 @@ function BillsFilter({
       onBillNumberChange(value);
     }
   };
+
+  const [availableCongressNumbers, setAvailableCongressNumbers] = useState<number[]>([]);
+
+  useEffect(() => {
+    const fetchCongressNumbers = async () => {
+      try {
+        const numbers = await billsService.getAvailableCongressNumbers();
+        setAvailableCongressNumbers(numbers);
+      } catch (error) {
+        console.error('Error fetching congress numbers:', error);
+      }
+    };
+
+    fetchCongressNumbers();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -212,6 +233,27 @@ function BillsFilter({
 
       {/* Dropdown Filters */}
       <div className="space-y-4">
+        {/* Congress Filter - New Position */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Congress</label>
+          <Select 
+            value={congressFilter} 
+            onValueChange={onCongressChange}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="All Congresses" />
+            </SelectTrigger>
+            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
+              <SelectItem value="all">All Congresses</SelectItem>
+              {availableCongressNumbers.map((congress) => (
+                <SelectItem key={congress} value={congress.toString()}>
+                  {congress}th Congress
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Bill Type Filter - New Position */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Bill Type</label>

@@ -37,6 +37,7 @@ export interface BillQueryParams {
   policyArea?: string | null;
   billType?: string | null;
   billNumber?: string;
+  congress?: string | null;
 }
 
 export interface BillsResponse {
@@ -154,7 +155,8 @@ export const billsService = {
       stateFilter = 'all',
       policyArea = 'all',
       billType = 'all',
-      billNumber = ''
+      billNumber = '',
+      congress = 'all'
     } = params;
 
     console.log('Fetching bills with policy area:', policyArea);
@@ -178,6 +180,9 @@ export const billsService = {
     }
     if (billNumber) {
       countQuery = countQuery.eq('bill_number', billNumber);
+    }
+    if (congress && congress !== 'all') {
+      countQuery = countQuery.eq('congress', parseInt(congress, 10));
     }
 
     // Add title filter to count query
@@ -463,5 +468,23 @@ export const billsService = {
     });
 
     return transformedData as Bill[];
+  },
+
+  async getAvailableCongressNumbers(): Promise<number[]> {
+    const supabase = this.getClient();
+    
+    const { data, error } = await supabase
+      .from(BILL_INFO_TABLE_NAME)
+      .select('congress')
+      .order('congress', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching congress numbers:', error);
+      throw new Error(error.message || 'Failed to fetch congress numbers');
+    }
+
+    // Get unique congress numbers
+    const uniqueCongressNumbers = [...new Set(data.map(item => item.congress))];
+    return uniqueCongressNumbers;
   }
 }; 

@@ -58,6 +58,9 @@ export default function BillsPage() {
   const [error, setError] = useState<string | null>(null);
   const [congressInfo, setCongressInfo] = useState<{ congress: number; startYear: number; endYear: number } | null>(null);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+  const [congressFilter, setCongressFilter] = useState<string>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('billsCongressFilter') || 'all' : 'all'
+  );
   const [pendingFilters, setPendingFilters] = useState({
     status: 'all',
     introducedDate: 'all',
@@ -67,7 +70,8 @@ export default function BillsPage() {
     billType: 'all',
     billNumber: '',
     title: '',
-    sponsor: ''
+    sponsor: '',
+    congress: 'all'
   });
   const [hasFilterChanges, setHasFilterChanges] = useState(false);
 
@@ -96,6 +100,7 @@ export default function BillsPage() {
       localStorage.setItem('billsPolicyAreaFilter', policyAreaFilter);
       localStorage.setItem('billsTypeFilter', billTypeFilter);
       localStorage.setItem('billsNumberFilter', billNumberFilter);
+      localStorage.setItem('billsCongressFilter', congressFilter);
     }
   }, [
     statusFilter,
@@ -106,7 +111,8 @@ export default function BillsPage() {
     stateFilter,
     policyAreaFilter,
     billTypeFilter,
-    billNumberFilter
+    billNumberFilter,
+    congressFilter
   ]);
 
   // Initialize pendingFilters with current filter values
@@ -120,7 +126,8 @@ export default function BillsPage() {
       billType: billTypeFilter,
       billNumber: billNumberFilter,
       title: titleFilter,
-      sponsor: sponsorFilter
+      sponsor: sponsorFilter,
+      congress: congressFilter
     });
   }, [
     statusFilter,
@@ -131,7 +138,8 @@ export default function BillsPage() {
     billTypeFilter,
     billNumberFilter,
     titleFilter,
-    sponsorFilter
+    sponsorFilter,
+    congressFilter
   ]);
 
   const handleClearAllFilters = () => {
@@ -145,6 +153,7 @@ export default function BillsPage() {
     setPolicyAreaFilter('all');
     setBillTypeFilter('all');
     setBillNumberFilter('');
+    setCongressFilter('all');
     setPendingFilters(prev => ({
       ...prev,
       billNumber: ''
@@ -161,6 +170,7 @@ export default function BillsPage() {
       localStorage.removeItem('billsPolicyAreaFilter');
       localStorage.removeItem('billsTypeFilter');
       localStorage.removeItem('billsNumberFilter');
+      localStorage.removeItem('billsCongressFilter');
     }
   };
 
@@ -181,6 +191,7 @@ export default function BillsPage() {
         policyArea: policyAreaFilter,
         billType: billTypeFilter,
         billNumber: billNumberFilter,
+        congress: congressFilter,
       });
       setBills(prevBills => [...prevBills, ...response.data]);
       setTotalBills(response.count);
@@ -211,6 +222,7 @@ export default function BillsPage() {
           policyArea: policyAreaFilter,
           billType: billTypeFilter,
           billNumber: billNumberFilter,
+          congress: congressFilter,
         });
         setBills(response.data);
         setTotalBills(response.count);
@@ -234,7 +246,8 @@ export default function BillsPage() {
     stateFilter,
     policyAreaFilter,
     billTypeFilter,
-    billNumberFilter
+    billNumberFilter,
+    congressFilter
   ]);
 
   const hasMoreBills = bills.length < totalBills;
@@ -249,6 +262,7 @@ export default function BillsPage() {
     setBillNumberFilter(pendingFilters.billNumber);
     setTitleFilter(pendingFilters.title);
     setSponsorFilter(pendingFilters.sponsor);
+    setCongressFilter(pendingFilters.congress);
     setIsFilterSheetOpen(false);
     setHasFilterChanges(false);
   };
@@ -300,6 +314,7 @@ export default function BillsPage() {
                     policyAreaFilter={pendingFilters.policyArea}
                     billTypeFilter={pendingFilters.billType}
                     billNumberFilter={pendingFilters.billNumber}
+                    congressFilter={pendingFilters.congress}
                     onStatusChange={(value) => handlePendingFilterChange('status', value)}
                     onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
                     onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
@@ -309,6 +324,7 @@ export default function BillsPage() {
                     onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
                     onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
                     onBillNumberChange={(value) => handlePendingFilterChange('billNumber', value)}
+                    onCongressChange={(value) => handlePendingFilterChange('congress', value)}
                     onClearAllFilters={handleClearAllFilters}
                     isMobile={true}
                   />
@@ -340,6 +356,7 @@ export default function BillsPage() {
               policyAreaFilter={pendingFilters.policyArea}
               billTypeFilter={pendingFilters.billType}
               billNumberFilter={pendingFilters.billNumber}
+              congressFilter={pendingFilters.congress}
               onStatusChange={(value) => handlePendingFilterChange('status', value)}
               onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
               onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
@@ -349,6 +366,7 @@ export default function BillsPage() {
               onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
               onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
               onBillNumberChange={(value) => handlePendingFilterChange('billNumber', value)}
+              onCongressChange={(value) => handlePendingFilterChange('congress', value)}
               onClearAllFilters={handleClearAllFilters}
               isMobile={false}
             />
