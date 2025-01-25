@@ -19,6 +19,6 @@ echo "Installing dependencies..."
 npm install
 
 echo "Running update script..."
-npm run update-bills
+npm run update-all-bills
 
 echo "Update completed at $(date)" 
