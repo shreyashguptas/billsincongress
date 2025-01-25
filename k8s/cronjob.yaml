@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bills-update-job
+  namespace: bills-update
+  labels:
+    app: bills-update
+spec:
+  schedule: "0 1 * * *"  # 1 AM daily
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: bills-update
+            image: your-registry/bills-update:latest
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "250m"
+              limits:
+                memory: "1Gi"
+                cpu: "500m"
+            envFrom:
+            - secretRef:
+                name: bills-update-secrets
+            # Add resource monitoring
+            livenessProbe:
+              exec:
+                command:
+                - pgrep
+                - node
+              initialDelaySeconds: 60
+              periodSeconds: 300
+          # Add node selector for specific Raspberry Pi
+          nodeSelector:
+            kubernetes.io/hostname: your-worker-node
+          restartPolicy: OnFailure
+          # Add tolerations for node taints if any
+          tolerations:
+          - key: "node-role.kubernetes.io/worker"
+            operator: "Exists"
+            effect: "NoSchedule" 
