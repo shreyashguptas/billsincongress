@@ -18,6 +18,9 @@ git reset --hard origin/main
 echo "Installing dependencies..."
 npm install
 
+echo "Verifying available scripts..."
+npm run | grep "update-all-bills"
+
 echo "Running update script..."
 npm run update-all-bills
 

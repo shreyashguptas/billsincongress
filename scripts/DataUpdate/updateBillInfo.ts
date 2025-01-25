@@ -18,8 +18,12 @@ const RATE_LIMIT_PER_HOUR = 5000;
 const DELAY_BETWEEN_REQUESTS = Math.ceil((3600 * 1000) / RATE_LIMIT_PER_HOUR); // Milliseconds between requests
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds
-// const BILL_TYPES = ['sres'];
 const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
+// Configure which Congresses to process, in order from newest to oldest
+const CONGRESSES_TO_PROCESS = [118, 119]; // Add more Congress numbers as needed
+// Configure bill number range and empty response handling
+const MAX_EMPTY_RESPONSES = 50; // Stop after this many consecutive empty responses
+const BATCH_SIZE = 250; // Number of bills to request per API call
 
 // Progress tracking
 interface FailedBill {
@@ -37,6 +41,9 @@ interface UpdateProgress {
   failed: number;
   skipped: number;
   failedBills: FailedBill[];
+  currentCongress: number;
+  currentBillType: string;
+  lastProcessedBillNumber: number;
 }
 
 let progress: UpdateProgress = {
@@ -45,7 +52,10 @@ let progress: UpdateProgress = {
   success: 0,
   failed: 0,
   skipped: 0,
-  failedBills: []
+  failedBills: [],
+  currentCongress: CONGRESSES_TO_PROCESS[0],
+  currentBillType: BILL_TYPES[0],
+  lastProcessedBillNumber: 0
 };
 
 // Validate environment variables
@@ -209,7 +219,7 @@ function getBillTypeLabel(type: string): string {
 
 // Function to fetch bills from Congress API
 async function fetchBillList(congress: number, billType: string, offset: number = 0): Promise<any> {
-  const url = `${BASE_URL}/bill/${congress}/${billType}?offset=${offset}&limit=250&api_key=${CONGRESS_API_KEY}&format=json`;
+  const url = `${BASE_URL}/bill/${congress}/${billType}?offset=${offset}&limit=${BATCH_SIZE}&api_key=${CONGRESS_API_KEY}&format=json`;
   console.log(`Fetching bills from: ${url.replace(String(CONGRESS_API_KEY), 'XXXXX')}`);
   
   const response = await fetch(url);
@@ -366,58 +376,69 @@ async function main() {
       throw new Error(`Database connection failed: ${testError.message}`);
     }
 
-    const congress = 118; // Current congress
-    
-    for (const billType of BILL_TYPES) {
-      console.log(`\nProcessing ${billType.toUpperCase()} bills...`);
-      let offset = 0;
-      let hasMore = true;
+    // Process each Congress sequentially
+    for (const congress of CONGRESSES_TO_PROCESS) {
+      console.log(`\n📋 Processing Congress ${congress}...`);
+      progress.currentCongress = congress;
+      
+      for (const billType of BILL_TYPES) {
+        console.log(`\nProcessing ${billType.toUpperCase()} bills for Congress ${congress}...`);
+        progress.currentBillType = billType;
+        progress.lastProcessedBillNumber = 0;
+        
+        let consecutiveEmptyResponses = 0;
+        let offset = 0;
 
-      while (hasMore) {
-        try {
-          const data = await fetchBillList(congress, billType, offset);
-          const bills = data.bills || [];
-          
-          if (bills.length === 0) {
-            console.log(`No more ${billType.toUpperCase()} bills to process`);
-            hasMore = false;
-            continue;
-          }
-
-          console.log(`Processing ${bills.length} bills...`);
-          progress.total += bills.length;
-
-          // Process bills sequentially to respect rate limits
-          for (const bill of bills) {
-            progress.current++;
-            try {
-              await processBill(bill, congress, billType);
-            } catch (error) {
-              console.error(`Failed to process bill:`, error);
-              // Continue with next bill
+        while (consecutiveEmptyResponses < MAX_EMPTY_RESPONSES) {
+          try {
+            const data = await fetchBillList(congress, billType, offset);
+            const bills = data.bills || [];
+            
+            if (bills.length === 0) {
+              consecutiveEmptyResponses++;
+              console.log(`No bills found at offset ${offset}. Empty responses: ${consecutiveEmptyResponses}/${MAX_EMPTY_RESPONSES}`);
+              offset += BATCH_SIZE;
+              await delay(DELAY_BETWEEN_REQUESTS);
+              continue;
             }
-            await delay(DELAY_BETWEEN_REQUESTS);
-          }
 
-          offset += bills.length;
-          if (bills.length < 250) {
-            hasMore = false;
-          }
+            // Reset counter when we find bills
+            consecutiveEmptyResponses = 0;
+            console.log(`Processing ${bills.length} bills...`);
+            progress.total += bills.length;
 
-        } catch (error) {
-          console.error(`Error fetching bill list for ${billType} at offset ${offset}:`, error);
-          // Wait longer on error before retrying
-          await delay(RETRY_DELAY);
-          hasMore = false;
+            // Process bills sequentially to respect rate limits
+            for (const bill of bills) {
+              progress.current++;
+              progress.lastProcessedBillNumber = parseInt(bill.number);
+              try {
+                await processBill(bill, congress, billType);
+              } catch (error) {
+                console.error(`Failed to process bill:`, error);
+              }
+              await delay(DELAY_BETWEEN_REQUESTS);
+            }
+
+            offset += bills.length;
+
+          } catch (error) {
+            console.error(`Error fetching bill list for ${billType} at offset ${offset}:`, error);
+            await delay(RETRY_DELAY);
+            // Increment empty responses counter on error
+            consecutiveEmptyResponses++;
+          }
         }
+
+        console.log(`\nCompleted processing ${billType.toUpperCase()} bills for Congress ${congress}`);
+        console.log(`Last processed bill number: ${progress.lastProcessedBillNumber}`);
       }
+      
+      // After completing a Congress, retry failed bills for that Congress
+      await retryFailedBills();
     }
 
-    // After processing all bill types, retry failed bills
-    await retryFailedBills();
-
     // Final summary with categorized errors
-    console.log('\n🏁 Update process completed');
+    console.log('\n🏁 Update process completed for all Congresses');
     console.log('----------------------------------------');
     console.log(`Total bills processed: ${progress.total}`);
     console.log(`✅ Successful updates: ${progress.success}`);
@@ -459,7 +480,10 @@ async function main() {
             Object.entries(groupedFailures).map(([type, bills]) => [type, bills.length])
           )
         },
-        failedBills: progress.failedBills
+        failedBills: progress.failedBills,
+        lastProcessedCongress: progress.currentCongress,
+        lastProcessedBillType: progress.currentBillType,
+        lastProcessedBillNumber: progress.lastProcessedBillNumber
       }, null, 2));
       console.log(`\nDetailed failure report saved to: ${failedBillsLog}`);
     }
