@@ -23,10 +23,13 @@ const CONGRESSES_TO_UPDATE: number[] = [
 
 // Constants
 const BASE_URL = 'https://api.congress.gov/v3';
-const RATE_LIMIT_PER_HOUR = 5000;
-const DELAY_BETWEEN_REQUESTS = Math.ceil(3600000 / RATE_LIMIT_PER_HOUR); // Milliseconds between requests to stay under rate limit
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
+const RATE_LIMIT_PER_HOUR = 1000; // Reduced from 5000 to be more conservative
+const DELAY_BETWEEN_REQUESTS = Math.ceil(3600000 / RATE_LIMIT_PER_HOUR); // Milliseconds between requests
+const BURST_SIZE = 10; // Maximum number of requests to make in burst
+const BURST_WINDOW = 1000; // Time window for burst requests in milliseconds
+const MAX_RETRIES = 5; // Increased from 3
+const RETRY_DELAY_BASE = 2000; // Base delay for exponential backoff
+const MAX_RETRY_DELAY = 30000; // Maximum retry delay
 const MAX_BILL_NUMBER = 100000; // Increased to handle high bill numbers
 const CONSECUTIVE_MISSING_THRESHOLD = 50; // Number of consecutive missing bills before stopping
 const GAP_TOLERANCE = 20; // Number of missing bills we'll tolerate before resetting the counter
@@ -54,25 +57,70 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY!; // Changed to match .env.local
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-// Rate limiter class to manage API requests
+// Enhanced Rate limiter class to manage API requests
 class RateLimiter {
   private requestCount: number = 0;
   private lastRequestTime: number = 0;
+  private burstCount: number = 0;
+  private burstStartTime: number = 0;
+  public waitingForReset: boolean = false;
 
   async waitForNextRequest(): Promise<void> {
-    this.requestCount++;
     const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
-    
-    if (timeSinceLastRequest < DELAY_BETWEEN_REQUESTS) {
-      await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS - timeSinceLastRequest));
+
+    // Reset burst counter if burst window has passed
+    if (now - this.burstStartTime > BURST_WINDOW) {
+      this.burstCount = 0;
+      this.burstStartTime = now;
     }
-    
+
+    // If we're waiting for a rate limit reset
+    if (this.waitingForReset) {
+      console.log('Rate limit reached, waiting for reset...');
+      await new Promise(resolve => setTimeout(resolve, 60000)); // Wait 1 minute
+      this.waitingForReset = false;
+      this.requestCount = 0;
+      this.burstCount = 0;
+      return;
+    }
+
+    // Check burst limit
+    if (this.burstCount >= BURST_SIZE) {
+      const timeToWait = BURST_WINDOW - (now - this.burstStartTime);
+      if (timeToWait > 0) {
+        await new Promise(resolve => setTimeout(resolve, timeToWait));
+      }
+      this.burstCount = 0;
+      this.burstStartTime = Date.now();
+    }
+
+    // Check hourly limit
+    this.requestCount++;
+    if (this.requestCount >= RATE_LIMIT_PER_HOUR) {
+      this.waitingForReset = true;
+      return this.waitForNextRequest();
+    }
+
+    // Normal delay between requests
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    if (timeSinceLastRequest < DELAY_BETWEEN_REQUESTS) {
+      await new Promise(resolve => 
+        setTimeout(resolve, DELAY_BETWEEN_REQUESTS - timeSinceLastRequest)
+      );
+    }
+
+    this.burstCount++;
     this.lastRequestTime = Date.now();
   }
 
   getRequestCount(): number {
     return this.requestCount;
+  }
+
+  resetCounters() {
+    this.requestCount = 0;
+    this.burstCount = 0;
+    this.waitingForReset = false;
   }
 }
 
@@ -98,42 +146,68 @@ interface UpdateProgress {
 // API fetch function with rate limiting and retries
 const rateLimiter = new RateLimiter();
 
+// Enhanced API fetch function with better retry logic
 async function fetchFromAPI(endpoint: string): Promise<any> {
-  await rateLimiter.waitForNextRequest();
-  
-  const url = `${BASE_URL}${endpoint}?api_key=${process.env.CONGRESS_API_KEY}&format=json`;
-  
-  try {
-    const response = await fetch(url);
-    
-    // Handle different response statuses
-    if (response.status === 429) {
-      throw new Error('RATE_LIMIT_ERROR');
-    }
-    if (response.status === 404) {
-      return null;
-    }
-    if (response.status === 500) {
-      // For internal server errors, wait and retry
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const retryResponse = await fetch(url);
-      if (!retryResponse.ok) {
-        return null; // If retry fails, treat as non-existent
+  let retryCount = 0;
+  let lastError: Error | null = null;
+
+  while (retryCount < MAX_RETRIES) {
+    try {
+      await rateLimiter.waitForNextRequest();
+      
+      const url = `${BASE_URL}${endpoint}?api_key=${process.env.CONGRESS_API_KEY}&format=json`;
+      const response = await fetch(url);
+      
+      // Handle rate limiting
+      if (response.status === 429) {
+        console.log(`Rate limit hit, attempt ${retryCount + 1}/${MAX_RETRIES}`);
+        rateLimiter.waitingForReset = true;
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.min(
+          RETRY_DELAY_BASE * Math.pow(2, retryCount),
+          MAX_RETRY_DELAY
+        );
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        retryCount++;
+        continue;
       }
-      return retryResponse.json();
+
+      // Handle other responses
+      if (response.status === 404) {
+        return null;
+      }
+
+      if (!response.ok) {
+        throw new Error(`API_ERROR: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+
+    } catch (error: any) {
+      lastError = error;
+      
+      // Don't retry 404s
+      if (error.message.includes('404')) {
+        return null;
+      }
+
+      // Exponential backoff for retries
+      const waitTime = Math.min(
+        RETRY_DELAY_BASE * Math.pow(2, retryCount),
+        MAX_RETRY_DELAY
+      );
+      
+      console.log(`Request failed, waiting ${waitTime}ms before retry ${retryCount + 1}/${MAX_RETRIES}`);
+      console.log(`Error: ${error.message}`);
+      
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      retryCount++;
     }
-    if (!response.ok) {
-      throw new Error(`API_ERROR: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error: any) {
-    if (error.message.includes('API_ERROR')) {
-      throw error;
-    }
-    throw new Error(`NETWORK_ERROR: ${error.message}`);
   }
+
+  // If we've exhausted all retries, throw the last error
+  throw lastError || new Error('MAX_RETRIES_EXCEEDED');
 }
 
 // Transform functions for each type of data
@@ -581,7 +655,7 @@ async function retryFailedBills(progress: UpdateProgress): Promise<void> {
       }
       
       const [, number, type, congress] = match;
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (bill.retryCount + 1)));
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_BASE * (bill.retryCount + 1)));
       await updateBill(parseInt(congress), type, number);
       
       // Remove from failed bills and update counts
