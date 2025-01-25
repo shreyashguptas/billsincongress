@@ -10,13 +10,15 @@ exec 1> >(tee -a "$LOG_FILE") 2>&1
 
 echo "Starting update at $(date)"
 
-# Pull latest changes
-git pull origin main
+# Reset any local changes and update from git
+echo "Fetching latest code..."
+git fetch origin main
+git reset --hard origin/main
 
-# Install dependencies
+echo "Installing dependencies..."
 npm install
 
-# Run update script
+echo "Running update script..."
 npm run update-bills
 
 echo "Update completed at $(date)" 
