@@ -25,12 +25,12 @@ const CONGRESSES_TO_UPDATE: number[] = [
 const BASE_URL = 'https://api.congress.gov/v3';
 const RATE_LIMIT_PER_HOUR = 1000; // Reduced from 5000 to be more conservative
 const DELAY_BETWEEN_REQUESTS = Math.ceil(3600000 / RATE_LIMIT_PER_HOUR); // Milliseconds between requests
-const BURST_SIZE = 10; // Maximum number of requests to make in burst
-const BURST_WINDOW = 1000; // Time window for burst requests in milliseconds
-const MAX_RETRIES = 5; // Increased from 3
-const RETRY_DELAY_BASE = 2000; // Base delay for exponential backoff
-const MAX_RETRY_DELAY = 30000; // Maximum retry delay
-const MAX_BILL_NUMBER = 100000; // Increased to handle high bill numbers
+const BURST_SIZE = 5; // Reduced from 10 to be more conservative
+const BURST_WINDOW = 2000; // Increased from 1000 to give more breathing room
+const MAX_RETRIES = 5;
+const RETRY_DELAY_BASE = 5000; // Increased from 2000 to give more time between retries
+const MAX_RETRY_DELAY = 60000; // Increased from 30000 to allow longer waits
+const MAX_BILL_NUMBER = 100000;
 const CONSECUTIVE_MISSING_THRESHOLD = 50; // Number of consecutive missing bills before stopping
 const GAP_TOLERANCE = 20; // Number of missing bills we'll tolerate before resetting the counter
 
@@ -146,16 +146,21 @@ interface UpdateProgress {
 // API fetch function with rate limiting and retries
 const rateLimiter = new RateLimiter();
 
-// Enhanced API fetch function with better retry logic
+// Enhanced API fetch function with better error handling and logging
 async function fetchFromAPI(endpoint: string): Promise<any> {
   let retryCount = 0;
   let lastError: Error | null = null;
+
+  // Ensure endpoint starts with a slash
+  const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
   while (retryCount < MAX_RETRIES) {
     try {
       await rateLimiter.waitForNextRequest();
       
-      const url = `${BASE_URL}${endpoint}?api_key=${process.env.CONGRESS_API_KEY}&format=json`;
+      const url = `${BASE_URL}${formattedEndpoint}?api_key=${process.env.CONGRESS_API_KEY}&format=json`;
+      console.log(`Fetching: ${formattedEndpoint.split('?')[0]}`); // Log the endpoint without API key
+      
       const response = await fetch(url);
       
       // Handle rate limiting
@@ -167,21 +172,44 @@ async function fetchFromAPI(endpoint: string): Promise<any> {
           RETRY_DELAY_BASE * Math.pow(2, retryCount),
           MAX_RETRY_DELAY
         );
+        console.log(`Waiting ${waitTime/1000} seconds before retry...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         retryCount++;
         continue;
       }
 
-      // Handle other responses
+      // Handle 404 (Not Found)
       if (response.status === 404) {
         return null;
       }
 
+      // Handle 500 (Internal Server Error)
+      if (response.status === 500) {
+        console.log(`Server error (500) received, attempt ${retryCount + 1}/${MAX_RETRIES}`);
+        const waitTime = Math.min(
+          RETRY_DELAY_BASE * Math.pow(2, retryCount),
+          MAX_RETRY_DELAY
+        );
+        console.log(`Waiting ${waitTime/1000} seconds before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        retryCount++;
+        continue;
+      }
+
+      // Handle other non-200 responses
       if (!response.ok) {
-        throw new Error(`API_ERROR: ${response.statusText}`);
+        const responseText = await response.text();
+        console.error(`API Error Response:`, responseText);
+        throw new Error(`API_ERROR: ${response.statusText} - ${responseText}`);
       }
 
       const data = await response.json();
+      
+      // Validate the response structure
+      if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
+        throw new Error('API_ERROR: Empty or invalid response received');
+      }
+
       return data;
 
     } catch (error: any) {
@@ -192,13 +220,20 @@ async function fetchFromAPI(endpoint: string): Promise<any> {
         return null;
       }
 
+      // Log detailed error information
+      console.error(`Error details for ${formattedEndpoint}:`, {
+        message: error.message,
+        retryCount: retryCount + 1,
+        maxRetries: MAX_RETRIES
+      });
+
       // Exponential backoff for retries
       const waitTime = Math.min(
         RETRY_DELAY_BASE * Math.pow(2, retryCount),
         MAX_RETRY_DELAY
       );
       
-      console.log(`Request failed, waiting ${waitTime}ms before retry ${retryCount + 1}/${MAX_RETRIES}`);
+      console.log(`Request failed, waiting ${waitTime/1000} seconds before retry ${retryCount + 1}/${MAX_RETRIES}`);
       console.log(`Error: ${error.message}`);
       
       await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -412,69 +447,80 @@ async function updateBill(congress: number, type: string, number: string): Promi
   
   try {
     // First check if the bill exists
+    console.log(`\nProcessing bill ${billId}...`);
     const billInfoData = await fetchFromAPI(`/bill/${congress}/${type}/${number}`);
     if (!billInfoData) {
       console.log(`Bill ${billId} does not exist or is not accessible`);
       return;
     }
 
-    // Then fetch all other data in parallel
-    const [
-      actionsData,
-      textData,
-      titlesData,
-      summariesData,
-      subjectsData
-    ] = await Promise.all([
-      fetchFromAPI(`/bill/${congress}/${type}/${number}/actions`),
-      fetchFromAPI(`/bill/${congress}/${type}/${number}/text`),
-      fetchFromAPI(`/bill/${congress}/${type}/${number}/titles`),
-      fetchFromAPI(`/bill/${congress}/${type}/${number}/summaries`),
-      fetchFromAPI(`/bill/${congress}/${type}/${number}/subjects`)
-    ]);
-
-    // Transform the data
+    // Transform and update bill info first
     const billInfo = transformBillInfo(billInfoData.bill);
-    
-    // Only process data that exists and validate actions
+    await updateBillInfoInDB(billInfo);
+    console.log(`Updated basic info for bill ${billId}`);
+
+    // Add delay between different types of requests
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Fetch and update actions
+    const actionsData = await fetchFromAPI(`/bill/${congress}/${type}/${number}/actions`);
     const actions = actionsData?.actions
       ?.map((a: any) => transformBillAction(a, billId))
       .filter((a: BillAction | null): a is BillAction => a !== null) || [];
+    if (actions.length) {
+      await updateBillActionsInDB(actions);
+      console.log(`Updated ${actions.length} actions for bill ${billId}`);
+    }
 
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Fetch and update text versions
+    const textData = await fetchFromAPI(`/bill/${congress}/${type}/${number}/text`);
     const texts = textData?.textVersions?.map((t: any) => transformBillText(t, billId)) || [];
+    if (texts.length) {
+      await updateBillTextInDB(texts);
+      console.log(`Updated ${texts.length} text versions for bill ${billId}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Fetch and update titles
+    const titlesData = await fetchFromAPI(`/bill/${congress}/${type}/${number}/titles`);
     const titles = titlesData?.titles?.map((t: any) => transformBillTitle(t, billId)) || [];
+    if (titles.length) {
+      await updateBillTitlesInDB(titles);
+      console.log(`Updated ${titles.length} titles for bill ${billId}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Fetch and update summaries
+    const summariesData = await fetchFromAPI(`/bill/${congress}/${type}/${number}/summaries`);
     const summaries = summariesData?.summaries?.map((s: any) => transformBillSummary(s, billId)) || [];
-    
-    // Add error handling for subjects transformation
+    if (summaries.length) {
+      await updateBillSummariesInDB(summaries);
+      console.log(`Updated ${summaries.length} summaries for bill ${billId}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Fetch and update subjects last
+    const subjectsData = await fetchFromAPI(`/bill/${congress}/${type}/${number}/subjects`);
     let subjects: BillSubject[] = [];
     try {
       if (subjectsData) {
         const subject = transformBillSubject(subjectsData, billId);
         if (subject) {
           subjects = [subject];
+          await updateBillSubjectsInDB(subjects);
+          console.log(`Updated subjects for bill ${billId}`);
         }
       }
     } catch (error) {
       console.error(`Error transforming subjects for bill ${billId}:`, error);
-      console.debug('Raw subjects data:', JSON.stringify(subjectsData, null, 2));
     }
 
-    // Log what data was found with counts
-    console.log(`Bill ${billId} data found:`, {
-      actions: `${actions.length} actions`,
-      texts: `${texts.length} text versions`,
-      titles: `${titles.length} titles`,
-      summaries: `${summaries.length} summaries`,
-      subjects: `${subjects.length} subjects`
-    });
-
-    // Update database sequentially to avoid conflicts
-    await updateBillInfoInDB(billInfo);
-    if (actions.length) await updateBillActionsInDB(actions);
-    if (texts.length) await updateBillTextInDB(texts);
-    if (titles.length) await updateBillTitlesInDB(titles);
-    if (summaries.length) await updateBillSummariesInDB(summaries);
-    if (subjects.length) await updateBillSubjectsInDB(subjects);
+    console.log(`\nCompleted processing bill ${billId}`);
 
   } catch (error: any) {
     if (error.message === 'Bill does not exist') {
