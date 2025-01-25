@@ -367,4 +367,134 @@ docker build -t shreyashguptas/bills-update:latest .
 
 # Push to Docker Hub
 docker push shreyashguptas/bills-update:latest
-``` 
+```
+
+## Quick Reference: Monitoring and Inspection
+
+### Common Monitoring Commands
+
+1. **View Running Jobs and Pods**:
+```bash
+# List all pods in the namespace
+kubectl get pods -n bills-update
+
+# Watch pods status in real-time
+kubectl get pods -n bills-update --watch
+
+# List all jobs
+kubectl get jobs -n bills-update
+
+# List cronjobs
+kubectl get cronjobs -n bills-update
+```
+
+2. **Log Monitoring**:
+```bash
+# Follow logs of the current job
+kubectl logs -n bills-update -l job-name=manual-test --follow
+
+# Get last 100 lines of logs
+kubectl logs -n bills-update -l job-name=manual-test --tail=100
+
+# Get logs from a specific pod
+kubectl logs -n bills-update <pod-name>
+
+# Check logs stored in persistent volume
+kubectl exec -n bills-update <pod-name> -- ls -l /app/logs
+```
+
+3. **Resource Usage**:
+```bash
+# Check node resource usage
+kubectl top nodes
+
+# Check pod resource usage
+kubectl top pods -n bills-update
+
+# Get detailed pod information
+kubectl describe pod -n bills-update <pod-name>
+```
+
+4. **Job Management**:
+```bash
+# Create a manual test job
+kubectl create job --from=cronjob/bills-update-job manual-test -n bills-update
+
+# Delete a job
+kubectl delete job manual-test -n bills-update
+
+# Check job history
+kubectl get jobs -n bills-update --sort-by=.metadata.creationTimestamp
+```
+
+5. **Secret Management**:
+```bash
+# List secrets
+kubectl get secrets -n bills-update
+
+# Add new secret
+kubectl patch secret bills-update-secrets -n bills-update -p '{"stringData": {"NEW_KEY": "new-value"}}'
+
+# View secret (will be base64 encoded)
+kubectl get secret bills-update-secrets -n bills-update -o yaml
+```
+
+### Common Scenarios
+
+1. **Check if Job is Running**:
+```bash
+# First, check pod status
+kubectl get pods -n bills-update
+# Look for STATUS column - should show "Running"
+
+# Then check logs
+kubectl logs -n bills-update -l job-name=manual-test --follow
+```
+
+2. **Investigate Failed Job**:
+```bash
+# Check pod status
+kubectl get pods -n bills-update
+
+# Get detailed information
+kubectl describe pod -n bills-update <pod-name>
+
+# Check logs for errors
+kubectl logs -n bills-update <pod-name>
+```
+
+3. **Monitor Long-Running Job**:
+```bash
+# In first terminal - watch pod status
+kubectl get pods -n bills-update --watch
+
+# In second terminal - follow logs
+kubectl logs -n bills-update -l job-name=manual-test --follow
+```
+
+4. **Check Resource Usage**:
+```bash
+# Check both node and pod metrics
+kubectl top nodes
+kubectl top pods -n bills-update
+
+# For detailed resource allocation
+kubectl describe pod -n bills-update <pod-name> | grep -A 5 "Resources:"
+```
+
+### Troubleshooting Tips
+
+1. **Pod Stuck in Pending**:
+   - Check node resources: `kubectl describe nodes`
+   - Check PVC status: `kubectl get pvc -n bills-update`
+   - Check events: `kubectl get events -n bills-update`
+
+2. **Pod Crashing**:
+   - Check logs: `kubectl logs -n bills-update <pod-name>`
+   - Check previous logs: `kubectl logs -n bills-update <pod-name> --previous`
+   - Check pod description: `kubectl describe pod -n bills-update <pod-name>`
+
+3. **Resource Issues**:
+   - Monitor CPU/Memory: `kubectl top pods -n bills-update`
+   - Check limits: `kubectl describe pod -n bills-update <pod-name>`
+   - Check node capacity: `kubectl describe nodes | grep -A 5 "Capacity"`
