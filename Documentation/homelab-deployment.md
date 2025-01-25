@@ -177,10 +177,10 @@ spec:
 1. **Build Docker Image**:
    ```bash
    # Build image
-   docker build -t your-registry/bills-update:latest .
+   docker build -t shreyashguptas/bills-update:latest .
    
    # Push to registry
-   docker push your-registry/bills-update:latest
+   docker push shreyashguptas/bills-update:latest
    ```
 
 2. **Deploy to K3s**:
@@ -339,4 +339,32 @@ spec:
 1. Recreate namespace if needed
 2. Reapply secrets
 3. Deploy CronJob and PVC
-4. Verify functionality 
+4. Verify functionality
+
+## Cluster Information
+
+### Node Configuration
+```bash
+NAME           STATUS   ROLES                  AGE   VERSION
+raspberrypi1   Ready    control-plane,master   41d   v1.31.3+k3s1
+raspberrypi2   Ready    <none>                 41d   v1.31.3+k3s1
+raspberrypi3   Ready    <none>                 36d   v1.31.4+k3s1
+```
+
+The deployment is configured to run on `raspberrypi2` as the worker node.
+
+## Docker Configuration
+
+### Registry Information
+- Docker Hub Username: `shreyashguptas`
+- Image Name: `bills-update`
+- Full Image Path: `shreyashguptas/bills-update:latest`
+
+### Building and Pushing
+```bash
+# Build the Docker image
+docker build -t shreyashguptas/bills-update:latest .
+
+# Push to Docker Hub
+docker push shreyashguptas/bills-update:latest
+``` 

@@ -16,7 +16,7 @@ spec:
         spec:
           containers:
           - name: bills-update
-            image: your-registry/bills-update:latest
+            image: shreyashguptas/bills-update:latest
             resources:
               requests:
                 memory: "512Mi"
@@ -35,9 +35,9 @@ spec:
                 - node
               initialDelaySeconds: 60
               periodSeconds: 300
-          # Add node selector for specific Raspberry Pi
+          # Using raspberrypi2 as the worker node
           nodeSelector:
-            kubernetes.io/hostname: your-worker-node
+            kubernetes.io/hostname: raspberrypi2
           restartPolicy: OnFailure
           # Add tolerations for node taints if any
           tolerations:
