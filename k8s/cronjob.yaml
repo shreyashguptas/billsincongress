@@ -27,7 +27,9 @@ spec:
             envFrom:
             - secretRef:
                 name: bills-update-secrets
-            # Add resource monitoring
+            volumeMounts:
+            - name: logs-volume
+              mountPath: /app/logs
             livenessProbe:
               exec:
                 command:
@@ -35,6 +37,10 @@ spec:
                 - node
               initialDelaySeconds: 60
               periodSeconds: 300
+          volumes:
+          - name: logs-volume
+            persistentVolumeClaim:
+              claimName: bills-update-logs
           # Using raspberrypi2 as the worker node
           nodeSelector:
             kubernetes.io/hostname: raspberrypi2
