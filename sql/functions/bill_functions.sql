@@ -347,4 +347,33 @@ GRANT EXECUTE ON FUNCTION update_all_bills_progress() TO service_role;
 COMMENT ON FUNCTION update_all_bills_progress() IS 'Updates progress status for all bills based on their latest actions. Runs with security definer and RLS disabled to ensure full access to necessary tables.';
 
 -- Comment on table
-COMMENT ON TABLE bill_progress_updates IS 'Tracks when bill progress updates are run and how many bills were affected.'; 
+COMMENT ON TABLE bill_progress_updates IS 'Tracks when bill progress updates are run and how many bills were affected.';
+
+-- Set up Cron Job for Bill Progress Updates
+-- This section configures automated updates of bill progress statuses
+---------------------------------------------------------------
+-- Purpose: Automatically update bill progress stages and descriptions
+-- Schedule: Runs every 30 minutes
+-- Dependencies: 
+--   - update_all_bills_progress() function
+--   - bill_progress_updates table
+--   - Appropriate RLS policies and permissions
+---------------------------------------------------------------
+SELECT cron.schedule(
+    'update-bill-progress',    -- name of the cron job
+    '*/30 * * * *',           -- runs every 30 minutes
+    $$
+    SELECT update_all_bills_progress();
+    $$
+);
+
+-- Schedule Format Explanation:
+-- '*/30 * * * *' means:
+--   */30 - every 30 minutes
+--   * - any hour
+--   * - any day of month
+--   * - any month
+--   * - any day of week
+
+-- To remove this cron job if needed:
+-- SELECT cron.unschedule('update-bill-progress'); 
