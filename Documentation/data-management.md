@@ -20,10 +20,6 @@ export const billsService = {
     // Fetches single bill with related data (summaries, text, subjects)
   },
 
-  async fetchFeaturedBills(): Promise<Bill[]> {
-    // Fetches featured bills (signed, to president, or law)
-  },
-
   async getCongressInfo(): Promise<{ congress: number; startYear: number; endYear: number }> {
     // Gets current Congress info and calculates session years
   }
@@ -96,17 +92,6 @@ The bill detail view includes:
    - Uses normalized stages (20-100)
    - Converts to percentage for display
    - Visual indicators for each stage
-
-### Featured Bills Logic
-
-The featured bills section prioritizes bills based on their presidential status:
-
-1. First Priority: "Signed by President"
-   - Shows up to 3 most recently introduced bills that have been signed by the president
-   
-2. Second Priority: "To President"
-   - If fewer than 3 signed bills are available, fills the remaining slots with bills that have been sent to the president
-   - Ordered by introduction date within each status group
 
 ### Bill Filtering
 

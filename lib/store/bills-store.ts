@@ -12,7 +12,6 @@ interface BillFilters {
 interface BillsState extends BillFilters {
   // Data
   bills: Bill[];
-  featuredBills: Bill[];
   totalCount: number;
   
   // UI State
@@ -29,7 +28,6 @@ interface BillsState extends BillFilters {
   clearFilters: () => void;
   fetchBills: (force?: boolean) => Promise<void>;
   fetchMoreBills: () => Promise<void>;
-  fetchFeaturedBills: () => Promise<void>;
 }
 
 const DEFAULT_FILTERS: BillFilters = {
@@ -43,7 +41,6 @@ export const useBillsStore = create<BillsState>((set, get) => ({
   // Initial State
   ...DEFAULT_FILTERS,
   bills: [],
-  featuredBills: [],
   totalCount: 0,
   isLoading: false,
   error: null,
@@ -96,23 +93,5 @@ export const useBillsStore = create<BillsState>((set, get) => ({
       return;
     }
     await get().fetchBills(false);
-  },
-
-  fetchFeaturedBills: async () => {
-    set({ isLoading: true, error: null, featuredBills: [] });
-
-    try {
-      const bills = await billsService.fetchFeaturedBills();
-      set({ 
-        featuredBills: bills || [],
-        isLoading: false 
-      });
-    } catch (error) {
-      set({ 
-        error: error as Error, 
-        isLoading: false,
-        featuredBills: []
-      });
-    }
   }
 })); 
