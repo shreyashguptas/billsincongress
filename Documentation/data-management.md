@@ -118,6 +118,74 @@ The application supports multiple filtering mechanisms:
 All filters can be combined and cleared using the "Clear All Filters" button.
 Filter states persist across sessions using localStorage.
 
+### Database Functions for Filtering
+
+To optimize certain filtering operations, we use database functions. These functions are implemented as stored procedures in Supabase and provide better performance than client-side filtering.
+
+1. **Congress Numbers Function**
+   ```sql
+   -- Function to get distinct congress numbers
+   CREATE OR REPLACE FUNCTION get_distinct_congress_numbers()
+   RETURNS integer[] 
+   LANGUAGE sql
+   SECURITY DEFINER
+   AS $$
+       SELECT ARRAY(
+           SELECT DISTINCT congress 
+           FROM bill_info 
+           WHERE congress IS NOT NULL 
+           ORDER BY congress DESC
+       );
+   $$;
+
+   -- Grant necessary permissions
+   GRANT EXECUTE ON FUNCTION get_distinct_congress_numbers() TO anon;
+   GRANT EXECUTE ON FUNCTION get_distinct_congress_numbers() TO authenticated;
+   GRANT EXECUTE ON FUNCTION get_distinct_congress_numbers() TO public;
+   ```
+
+   - Uses `SECURITY DEFINER` to ensure consistent permissions
+   - Returns an ordered array of unique congress numbers
+   - Accessible to all user roles
+   - Called via Supabase RPC: `supabase.rpc('get_distinct_congress_numbers')`
+
+2. **Implementation in BillsService**
+   ```typescript
+   async getAvailableCongressNumbers(): Promise<number[]> {
+     const { data, error } = await supabase
+       .rpc('get_distinct_congress_numbers');
+
+     if (error) throw new Error(error.message);
+     return data || [];
+   }
+   ```
+
+3. **Congress Filter Implementation**
+   ```typescript
+   // In fetchBills function
+   if (congress && congress !== 'all') {
+     const congressNum = parseInt(congress, 10);
+     if (!isNaN(congressNum)) {
+       query = query.eq('congress', congressNum);
+     }
+   }
+   ```
+
+4. **Best Practices for Creating Filter Functions**
+   - Use `SECURITY DEFINER` for consistent permissions
+   - Return strongly typed arrays or records
+   - Grant appropriate permissions to all necessary roles
+   - Add input validation where necessary
+   - Use parameterized queries to prevent SQL injection
+   - Consider adding indexes for frequently filtered columns
+
+5. **Performance Considerations**
+   - Database functions reduce network overhead
+   - Avoid complex joins in functions when possible
+   - Use appropriate indexes on filtered columns
+   - Consider caching for relatively static data
+   - Monitor function execution time and optimize as needed
+
 ### Response Types
 
 ```typescript

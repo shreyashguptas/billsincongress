@@ -162,8 +162,11 @@ function BillsFilter({
   useEffect(() => {
     const fetchCongressNumbers = async () => {
       try {
+        console.log('Fetching congress numbers...');
         const numbers = await billsService.getAvailableCongressNumbers();
+        console.log('Received congress numbers:', numbers);
         setAvailableCongressNumbers(numbers);
+        console.log('Set congress numbers in state:', numbers);
       } catch (error) {
         console.error('Error fetching congress numbers:', error);
       }

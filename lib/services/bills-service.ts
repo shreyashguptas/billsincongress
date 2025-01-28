@@ -159,7 +159,7 @@ export const billsService = {
       congress = 'all'
     } = params;
 
-    console.log('Fetching bills with policy area:', policyArea);
+    console.log('Fetching bills with filters:', { congress, status, policyArea });
 
     const supabase = this.getClient();
     
@@ -182,7 +182,12 @@ export const billsService = {
       countQuery = countQuery.eq('bill_number', billNumber);
     }
     if (congress && congress !== 'all') {
-      countQuery = countQuery.eq('congress', parseInt(congress, 10));
+      // Convert congress to number and apply filter
+      const congressNum = parseInt(congress, 10);
+      if (!isNaN(congressNum)) {
+        console.log('Filtering by congress:', congressNum);
+        countQuery = countQuery.eq('congress', congressNum);
+      }
     }
 
     // Add title filter to count query
@@ -222,26 +227,6 @@ export const billsService = {
       }
     }
 
-    // Add policy area filter to count query
-    if (policyArea && policyArea !== 'all') {
-      // First get the IDs of bills with the specified policy area
-      const { data: billIds } = await supabase
-        .from(BILL_INFO_TABLE_NAME)
-        .select(`
-          id,
-          bill_subjects!inner (
-            policy_area_name
-          )
-        `)
-        .eq('bill_subjects.policy_area_name', policyArea);
-
-      if (billIds && billIds.length > 0) {
-        countQuery = countQuery.in('id', billIds.map(b => b.id));
-      } else {
-        countQuery = countQuery.eq('id', '0'); // Will return no results
-      }
-    }
-
     const { count: totalCount, error: countError } = await countQuery;
 
     if (countError) {
@@ -259,7 +244,7 @@ export const billsService = {
         )
       `);
 
-    // Add filters
+    // Apply filters
     if (status && status !== 'all') {
       query = query.eq('progress_stage', parseInt(status, 10));
     }
@@ -315,23 +300,7 @@ export const billsService = {
 
     if (policyArea && policyArea !== 'all') {
       console.log('Applying policy area filter:', policyArea);
-      // First get the IDs of bills with the specified policy area
-      const { data: billIds } = await supabase
-        .from(BILL_INFO_TABLE_NAME)
-        .select(`
-          id,
-          bill_subjects!inner (
-            policy_area_name
-          )
-        `)
-        .eq('bill_subjects.policy_area_name', policyArea);
-
-      if (billIds && billIds.length > 0) {
-        query = query.in('id', billIds.map(b => b.id));
-      } else {
-        // No bills found with this policy area
-        query = query.eq('id', '0'); // Will return no results
-      }
+      query = query.eq('bill_subjects.policy_area_name', policyArea);
     }
 
     if (billType && billType !== 'all') {
@@ -340,6 +309,15 @@ export const billsService = {
 
     if (billNumber) {
       query = query.eq('bill_number', billNumber);
+    }
+
+    if (congress && congress !== 'all') {
+      // Convert congress to number and apply filter
+      const congressNum = parseInt(congress, 10);
+      if (!isNaN(congressNum)) {
+        console.log('Filtering by congress:', congressNum);
+        query = query.eq('congress', congressNum);
+      }
     }
 
     const start = (page - 1) * itemsPerPage;
@@ -381,18 +359,23 @@ export const billsService = {
   async getAvailableCongressNumbers(): Promise<number[]> {
     const supabase = this.getClient();
     
+    console.log('Getting available congress numbers...');
+    
+    // Use raw SQL query to get distinct congress numbers
     const { data, error } = await supabase
-      .from(BILL_INFO_TABLE_NAME)
-      .select('congress')
-      .order('congress', { ascending: false });
+      .rpc('get_distinct_congress_numbers');
 
     if (error) {
       console.error('Error fetching congress numbers:', error);
       throw new Error(error.message || 'Failed to fetch congress numbers');
     }
 
-    // Get unique congress numbers
-    const uniqueCongressNumbers = [...new Set(data.map(item => item.congress))];
-    return uniqueCongressNumbers;
+    if (!data || !Array.isArray(data)) {
+      console.error('Invalid data received:', data);
+      return [];
+    }
+
+    console.log('Raw data from SQL:', data);
+    return data;
   }
 }; 
