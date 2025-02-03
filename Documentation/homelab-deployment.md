@@ -498,3 +498,61 @@ kubectl describe pod -n bills-update <pod-name> | grep -A 5 "Resources:"
    - Monitor CPU/Memory: `kubectl top pods -n bills-update`
    - Check limits: `kubectl describe pod -n bills-update <pod-name>`
    - Check node capacity: `kubectl describe nodes | grep -A 5 "Capacity"`
+
+### Manual Testing and Job Management
+
+1. **Create and Monitor Manual Test Jobs**:
+```bash
+# Create a manual test job from the CronJob
+kubectl create job --from=cronjob/bills-update-job manual-test-pull -n bills-update
+
+# Watch all pods in the namespace (including new test job)
+kubectl get pods -n bills-update --watch
+
+# Follow logs of the manual test job (replace pod name)
+kubectl logs -n bills-update manual-test-pull-xxxxx --follow
+```
+
+2. **Verify CronJob Configuration**:
+```bash
+# Check CronJob status and schedule
+kubectl get cronjob bills-update-job -n bills-update
+
+# Verify imagePullPolicy setting
+kubectl get cronjob bills-update-job -n bills-update -o yaml | grep imagePullPolicy
+
+# Update imagePullPolicy to Always if needed
+kubectl patch cronjob bills-update-job -n bills-update -p '{"spec":{"jobTemplate":{"spec":{"template":{"spec":{"containers":[{"name":"bills-update","imagePullPolicy":"Always"}]}}}}}}'
+```
+
+3. **Job History and Cleanup**:
+```bash
+# List all jobs including completed ones
+kubectl get jobs -n bills-update
+
+# List all pods including completed ones
+kubectl get pods -n bills-update
+
+# Delete a specific completed job
+kubectl delete job -n bills-update job-name-xxxxx
+
+# Delete all completed pods (optional cleanup)
+kubectl delete pods --field-selector status.phase=Succeeded -n bills-update
+```
+
+4. **Monitor Active Jobs**:
+```bash
+# Get detailed information about a running pod
+kubectl describe pod -n bills-update pod-name-xxxxx
+
+# Check resource usage of running pods
+kubectl top pods -n bills-update
+
+# View real-time logs
+kubectl logs -n bills-update pod-name-xxxxx --follow
+
+# Check the last 100 lines of logs
+kubectl logs -n bills-update pod-name-xxxxx --tail=100
+```
+
+Remember to replace `xxxxx` in pod and job names with the actual identifiers from your system.
