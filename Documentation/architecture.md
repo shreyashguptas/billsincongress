@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Congressional Bill Tracker follows a modern React architecture using Next.js 15's App Router. The application is built with a component-based architecture, emphasizing reusability, maintainability, and proper handling of dynamic parameters.
+The Congressional Bill Tracker follows a modern React architecture using Next.js 15's App Router. The application is built with a component-based architecture, emphasizing reusability, maintainability, and proper handling of dynamic parameters. The system uses a homelab Kubernetes (K3s) cluster for automated background tasks.
 
 ## Common Issues and Solutions
 
@@ -146,6 +146,7 @@ components/
 - Store layer for state management
 - Error boundaries for error handling
 - Loading states for better UX
+- Background jobs managed through K3s CronJobs
 
 ### 5. Caching Strategy
 - Page-level revalidation with ISR
@@ -155,16 +156,16 @@ components/
 
 ## File Organization
 
-### App Directory Structure
+### Current App Directory Structure
 ```
 app/
-├── bills/
-│   ├── [id]/     # Individual bill pages with async params
-│   └── page.tsx  # Bills listing page
-├── about/
-│   └── page.tsx
-├── layout.tsx
-└── page.tsx
+├── bills/       # Bill-related pages
+├── learn/       # Learning resources
+├── api/         # API routes
+├── about/       # About pages
+├── layout.tsx   # Root layout
+├── page.tsx     # Home page
+└── theme-config.ts, manifest.ts, etc.
 ```
 
 ### Service Layer Structure
@@ -173,7 +174,9 @@ lib/
 ├── services/    # API and data services
 ├── store/       # State management
 ├── types/       # TypeScript types
-└── utils/       # Utility functions
+├── utils/       # Utility functions
+├── constants/   # Application constants
+└── hooks/       # Custom React hooks
 ```
 
 ## Performance Considerations
@@ -201,19 +204,7 @@ lib/
 
 ## Dynamic Route Handling
 
-### 1. Async Params
-```typescript
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default async function BillPage({ params }: PageProps) {
-  const { id } = await params;
-  // ... rest of the implementation
-}
-```
-
-### 2. Static Generation
+### 1. Static Generation Strategy
 ```typescript
 export async function generateStaticParams() {
   // Pre-generate most recent bills
@@ -223,50 +214,10 @@ export async function generateStaticParams() {
 }
 ```
 
-### 3. Revalidation
+### 2. Revalidation Strategy
 ```typescript
 // Enable ISR with 1-hour revalidation
 export const revalidate = 3600;
-```
-
-## Service Layer
-
-### 1. Data Services
-```typescript
-// Example service structure
-class BillsService {
-  async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
-    // Implementation
-  }
-  
-  async fetchBill(id: string): Promise<BillInfo | null> {
-    // Implementation
-  }
-}
-```
-
-### 2. Error Handling
-```typescript
-try {
-  const data = await getBillData(id);
-  if (!data) {
-    notFound();
-  }
-  // ... rest of the implementation
-} catch (error) {
-  // Error handling
-}
-```
-
-### 3. Type Safety
-```typescript
-interface BillQueryParams {
-  // Query parameters
-}
-
-interface BillsResponse {
-  // Response structure
-}
 ```
 
 ## Best Practices
@@ -291,31 +242,64 @@ interface BillsResponse {
 - Show loading states
 - Provide fallback UI
 
-## Background Services
+## Caching Strategy
 
-### Automated Data Updates
-The system employs Supabase Edge Functions for automated background tasks:
+### Server-Side Caching
 
-1. **Bill Update Service**
-   - **Type**: Supabase Edge Function
-   - **Schedule**: Daily at 1 AM
-   - **Purpose**: Keeps bill data synchronized with Congress.gov API
-   - **Components**:
-     - Deno runtime environment
-     - Rate-limited API requests
-     - Optimistic update strategy
-     - Error handling and retry logic
-   - **Data Flow**:
-     ```
-     Congress.gov API → Edge Function → Supabase Database
-     ```
-   - **Integration Points**:
-     - Congress.gov API for source data
-     - Supabase database for storage
-     - Supabase scheduler for timing
-   - **Monitoring**:
-     - Function logs
-     - Invocation history
-     - Performance metrics
+1. **Page-Level Caching**
+   - Uses Next.js ISR (Incremental Static Regeneration)
+   - Pre-generates the most recent 100 bills at build time
+   - 1-hour revalidation period for static pages
+   - Dynamic routes use on-demand ISR
 
-This service ensures that the application's bill data remains current while respecting API limits and maintaining data integrity.
+2. **Service Layer Caching**
+   - Implements caching for repeated database queries
+   - Uses granular cache invalidation based on data updates
+   - Cache keys based on query parameters and filters
+   - Optimized for high-traffic endpoints
+
+3. **Cookie Handling**
+   - Proper cookie management in server components
+   - Session state preservation
+   - Authentication state caching
+   - User preferences caching
+
+## Performance Optimization
+
+### 1. Query Optimization
+- Selective column fetching
+- Strategic indexing on frequently queried columns
+- Optimized join operations
+- Efficient pagination implementation
+
+### 2. Cache Management
+- Granular cache invalidation strategies
+- Proactive cache warming for popular content
+- Memory usage optimization
+- Cache hit ratio monitoring
+
+### 3. Error Handling
+- Graceful degradation patterns
+- Fallback strategies for failed requests
+- Error boundary implementation
+- Cache miss handling
+
+### 4. Monitoring
+- Response time tracking
+- Cache performance metrics
+- Query execution analysis
+- Client-side performance monitoring
+
+## Best Practices
+
+### 1. Data Fetching
+- Use server components for data operations
+- Implement appropriate caching strategies
+- Handle loading and error states
+- Follow TypeScript type safety
+
+### 2. Performance
+- Regular performance audits
+- Optimization of critical paths
+- Resource usage monitoring
+- Load testing and benchmarking
