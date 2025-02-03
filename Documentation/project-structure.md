@@ -277,3 +277,150 @@ Contains scripts for data management and maintenance.
 - Use TypeScript for type safety
 - Document retry mechanisms
 - Generate detailed logs
+
+## Code Organization
+
+### Directory Structure
+```
+├── app/                 # Next.js app directory with App Router
+│   ├── bills/          # Bill-related pages
+│   ├── learn/          # Learning resources
+│   ├── api/            # API routes
+│   ├── about/          # About pages
+│   └── layout.tsx      # Root layout
+├── components/          # React components
+│   ├── ui/             # Base UI components
+│   ├── bills/          # Bill-specific components
+│   ├── layout/         # Layout components
+│   └── shared/         # Shared components
+├── lib/                # Core library code
+│   ├── services/       # API and data services
+│   ├── store/          # State management
+│   ├── types/          # TypeScript types
+│   ├── utils/          # Utility functions
+│   ├── constants/      # Application constants
+│   └── hooks/          # Custom React hooks
+└── Documentation/      # Project documentation
+```
+
+### Component Organization Guidelines
+
+1. **Group by Feature**
+   - Related components should be grouped together
+   - Shared/common components go in the ui folder
+   - Feature-specific components in their own directories
+
+2. **File Naming Conventions**
+   - Use kebab-case for file names (e.g., `bill-card.tsx`)
+   - Use PascalCase for component names (e.g., `BillCard`)
+   - Names should be descriptive and indicate functionality
+
+3. **TypeScript Best Practices**
+   ```typescript
+   // Use interfaces for props
+   interface ComponentProps {
+     prop1: string;
+     prop2?: number;
+   }
+
+   // Use type for specific unions/literals
+   type Status = 'pending' | 'approved' | 'rejected';
+   ```
+
+4. **Component Structure**
+   ```tsx
+   // Single responsibility principle
+   // Clear props interface
+   // Proper error handling
+   export function Component({ prop1, prop2 }: ComponentProps) {
+     // Implementation
+   }
+   ```
+
+5. **Custom Hooks**
+   ```tsx
+   // Extract reusable logic into custom hooks
+   function useCustomHook() {
+     const [state, setState] = useState();
+     // Hook logic
+     return { state, setState };
+   }
+   ```
+
+## Service Layer
+
+### Data Services
+
+#### Bills Service (`/lib/services/bills-service.ts`)
+Primary service for bill-related operations.
+
+Features:
+- Query parameter handling
+- Data transformation
+- Error handling
+- Type safety
+
+Key operations:
+- Fetching bills with filters
+- Retrieving single bill details
+- Managing bill relationships
+- Handling pagination
+
+#### Bill Storage Service (`/lib/services/bill-storage.ts`)
+Handles direct database operations.
+
+Responsibilities:
+- Data persistence
+- Schema validation
+- Relationship management
+- Progress tracking
+
+### Type Definitions
+
+#### Bill Types (`/lib/types/bill.ts`)
+Core bill interfaces and types.
+
+Key types:
+- `Bill` - Core bill information
+- `BillAction` - Legislative actions
+- `BillSubject` - Policy areas
+- `BillSummary` - Bill summaries
+
+#### Query Types (`/lib/types/BillInfo.ts`)
+Query and response interfaces.
+
+Includes:
+- `BillQueryParams` - Filter parameters
+- `BillsResponse` - API response format
+- `BillInfoResponse` - Database response
+
+### Database Functions
+
+#### Bill Functions (`/sql/functions/bill_functions.sql`)
+Core database operations.
+
+Features:
+- Progress calculation
+- Data validation
+- Relationship management
+- Timestamp handling
+
+#### Triggers (`/sql/triggers/`)
+Automated database operations.
+
+Includes:
+- Timestamp updates
+- Progress recalculation
+- Data validation
+- Relationship maintenance
+
+### Scripts
+
+#### Data Update (`/scripts/DataUpdate/`)
+Background service scripts.
+
+Components:
+- `updateMasterBill.ts` - Main update logic
+- `updateBillInfo.ts` - Core data updates
+- `updateBillActions.ts` - Action tracking
+- `updateBillSubjects.ts` - Subject management
