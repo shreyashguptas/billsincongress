@@ -37,6 +37,8 @@ Parent container for amendments. An `<amendments>` element may include the follo
     - `<type>` (e.g. SAMDT)
       - The type of amendment.
       - Possible values are "HAMDT", "SAMDT", and "SUAMDT". Note that the "SUAMDT" type value is only available for the 97th and 98th Congresses.
+    - `<updateDate>` (e.g., 2022-06-30T03:50:22Z)
+      - The date of update in Congress.gov.
     - `<latestAction>`
       - Container for the latest action taken on the amendment. A `<latestAction>` element may include the following children:
         - `<actionDate>` (e.g. 2021-08-08)
@@ -105,6 +107,29 @@ Parent container for an amendment. An `<amendment>` element may include the foll
         - `<district>`
           - The congressional district that the amendment's sponsor represents.
           - Note that this element will be empty for Senate sponsors and will be "0" for states, territories, or districts where there is only one congressional district.
+- `<onBehalfOfSponsor>`
+  - Container for the person who submitted and/or proposed the amendment on behalf of the sponsor of the amendment. A `<onBehalfOf>` element may include the following children:
+    - `<item>`
+      - Container for a single senator who submitted and/or proposed the amendment on behalf of the sponsor of the amendment. An `<item>` element may include the following children:
+        - `<bioguideId>` (e.g. S001191)
+          - The unique identifier for the  senator who submitted and/or proposed the amendment on behalf of the amendment's sponsor, as assigned in the [Biographical Directory of the United States Congress, 1774-Present](https://bioguide.congress.gov/).
+          - View a [field values list of Bioguide identifiers](https://www.congress.gov/help/field-values/member-bioguide-ids) for current and former members in Congress.gov.
+        - `<fullName>` (e.g. Sen. Sinema, Kyrsten [D-AZ])
+          - The display name of the senator who submitted and/or proposed the amendment on behalf of the sponsor of the amendment amendment's sponsor.
+        - `<firstName>` (e.g. Kyrsten)
+          - The first name of the  senator who submitted and/or proposed the amendment on behalf of the sponsor of the amendment amendment's sponsor.
+        - `<middleName>`
+          - The middle name or initial of the  senator who submitted and/or proposed the amendment on behalf of the sponsor of the amendment amendment's sponsor.
+        - `<lastName>`(e.g. Sinema)
+          - The last name of the  senator who submitted and/or proposed the amendment on behalf of the sponsor of the amendment amendment's sponsor.
+        - `<party>` (e.g. D)
+          - The party code of the  senator who submitted and/or proposed the amendment on behalf of the sponsor of the amendment amendment's sponsor.
+        - `<state>` (e.g. AZ)
+          - A two-letter abbreviation for the state, territory, or district represented by the senator who submitted and/or proposed the amendment on behalf of the sponsor of the amendment amendment's sponsor.
+       - `<type>`
+          - The type of on behalf of sponsor action. This can  be "Submitted on behalf of" the sponsor and/or "Proposed on behalf of" the sponsor.
+        - `<url>` (e.g. <https://api.congress.gov/v3/member/S001191>)
+          - A referrer URL to the member item in the API. Documentation for the member endpoint is available [here](https://github.com/LibraryOfCongress/api.congress.gov/blob/main/Documentation/MemberEndpoint.md).
 - `<cosponsors>`
   - Container for any cosponsors of the amendment. Only Senate amendments may have this element populated.
   - A `<cosponsors>` element may include the following children (the below counts are taken from <https://api.congress.gov/v3/amendment/117/samdt/3892>):

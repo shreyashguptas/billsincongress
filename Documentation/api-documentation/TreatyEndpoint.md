@@ -81,8 +81,8 @@ The `<api-root>` is only present in the XML format.
     - The country/ies associated with a particular treaty.
     - `<item>`
       - Container element for individual countries/parties associated with the treaty. An <item> element may include the following children:
-         - `<name>` (e.g., North Macedonia)
-           - The name of the associated country.
+         - `<name>` (e.g., Sweden)
+           - The name of the associated country or party.
   - `<oldNumber>`
     - The number assigned to treaties ratified prior to the 97th Congress.
     - To allow for searching by treaty document number on Congess.gov, old treaty numbers were converted. View the table that converts the old numbering to a new one at the [Treaty Numbers Conversion Table](https://www.congress.gov/help/treaty-documents#conversion) on Congress.gov.
@@ -97,7 +97,7 @@ The `<api-root>` is only present in the XML format.
     - The index terms associated with a particular treaty.
     - `<item>`
       - Container element for individual index terms associated with the treaty. An <item> element may include the following children:
-         - `<name>` (e.g., Maritime)
+         - `<name>` (e.g., North Atlantic Treaty of 1949)
            - The name of the associated index term.
   - `<relatedDocs>`
     - Container for executive reports associated with the treaty. A `<relatedDocs>` element may include the following children (the data below is taken from <https://api.congress.gov/v3/treaty/116/1>):
@@ -134,7 +134,8 @@ The `<api-root>` is only present in the XML format.
         - The number of actions on the treaty.
       - `<url>` (e.g., <https://api.congress.gov/congress/v3/treaty/117/3/actions>)
         - A referrer URL to the actions level of the treaty API. Click [here](#actions-level) for more information about the actions level.
-
+   
+         
 ### Actions Level
 
 `<api-root>`
