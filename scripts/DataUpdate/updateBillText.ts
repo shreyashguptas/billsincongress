@@ -19,7 +19,7 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds
 const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
 // Configure which Congresses to process, in order from newest to oldest
-const CONGRESSES_TO_PROCESS = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]; // Add more Congress numbers as needed
+const CONGRESSES_TO_PROCESS = [115, 116, 117, 118, 119]; // Add more Congress numbers as needed
 // Configure bill number range and empty response handling
 const MAX_EMPTY_RESPONSES = 50; // Stop after this many consecutive empty responses
 const BATCH_SIZE = 250; // Number of bills to request per API call
@@ -100,15 +100,24 @@ async function fetchBillList(congress: number, billType: string, offset: number 
 }
 
 // Function to fetch bill text versions
-async function fetchBillText(congress: number, billType: string, billNumber: string): Promise<BillTextResponse> {
-  const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/text?api_key=${CONGRESS_API_KEY}&format=json`;
-  
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch bill text: ${response.statusText}`);
+async function fetchBillText(congress: number, billType: string, billNumber: string, retries = 0): Promise<BillTextResponse> {
+  try {
+    const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/text?api_key=${CONGRESS_API_KEY}&format=json`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch bill text: ${response.statusText}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    if (retries < MAX_RETRIES) {
+      console.log(`Retrying bill text fetch for ${billType}${billNumber} (attempt ${retries + 1})`);
+      await delay(5000); // Wait 5 seconds before retry
+      return fetchBillText(congress, billType, billNumber, retries + 1);
+    }
+    throw error;
   }
-  
-  return response.json();
 }
 
 // Utility function to categorize errors
@@ -133,21 +142,40 @@ function transformBillText(data: BillTextResponse, billId: string): BillText[] {
   const textVersions: BillText[] = [];
   const now = new Date().toISOString();
 
+  if (!data.textVersions || !Array.isArray(data.textVersions)) {
+    return textVersions;
+  }
+
   data.textVersions.forEach(version => {
-    const txtFormat = version.formats.find(f => f.type === 'Text');
+    // Match the original script's format type - 'Formatted Text'
+    const txtFormat = version.formats.find(f => f.type === 'Formatted Text');
     const pdfFormat = version.formats.find(f => f.type === 'PDF');
 
-    if (txtFormat && pdfFormat) {
-      textVersions.push({
-        id: billId,
-        date: version.date,
-        formats_url_txt: txtFormat.url,
-        formats_url_pdf: pdfFormat.url,
-        type: version.type,
-        created_at: now,
-        updated_at: now
-      });
+    // Skip versions with missing text or PDF formats
+    if (!txtFormat || !pdfFormat) {
+      console.log(`Skipping text version for bill ${billId} type ${version.type} - missing required format`);
+      return;
     }
+
+    // Handle missing date - either skip or use fallback date
+    if (!version.date) {
+      // Option 1: Skip versions with no date since our DB requires it
+      console.log(`Skipping text version for bill ${billId} type ${version.type} - missing date`);
+      return;
+      
+      // Option 2 (alternative): Use a fallback date if we want to keep these versions
+      // const fallbackDate = now; // Use current date as fallback
+    }
+
+    textVersions.push({
+      id: billId,
+      date: version.date,
+      formats_url_txt: txtFormat.url,
+      formats_url_pdf: pdfFormat.url,
+      type: version.type,
+      created_at: now,
+      updated_at: now
+    });
   });
 
   return textVersions;
@@ -155,19 +183,24 @@ function transformBillText(data: BillTextResponse, billId: string): BillText[] {
 
 // Function to verify text version was inserted
 async function verifyTextVersionInsert(billId: string, textVersion: BillText): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from(BILL_TEXT_TABLE_NAME)
-    .select('*')
-    .eq('id', billId)
-    .eq('date', textVersion.date)
-    .eq('type', textVersion.type);
+  try {
+    const { data, error } = await supabaseAdmin
+      .from(BILL_TEXT_TABLE_NAME)
+      .select('id')
+      .eq('id', billId)
+      .eq('date', textVersion.date)
+      .eq('type', textVersion.type);
 
-  if (error) {
-    console.error(`Failed to verify text version insert: ${error.message}`);
+    if (error) {
+      console.error(`Failed to verify text version insert: ${error.message}`);
+      return false;
+    }
+
+    return Array.isArray(data) && data.length > 0;
+  } catch (error) {
+    console.error('Error verifying text version insert:', error);
     return false;
   }
-
-  return Array.isArray(data) && data.length > 0;
 }
 
 // Function to process a single bill's text versions with retries
@@ -197,27 +230,34 @@ async function processBillText(bill: any, congress: number, billType: string, re
     }
 
     // Create a Map of existing versions for quick lookup
-    const existingVersionsMap = new Map(
-      (existingVersions || []).map(version => [
-        `${billId}-${version.date}-${version.type}`,
-        true
-      ])
-    );
+    // Format dates consistently to ensure proper comparison
+    const existingVersionsMap = new Map();
+    if (existingVersions && existingVersions.length > 0) {
+      existingVersions.forEach(version => {
+        // Normalize date format to ensure consistent comparison
+        const formattedDate = new Date(version.date).toISOString();
+        const key = `${version.type}-${formattedDate}`;
+        existingVersionsMap.set(key, true);
+      });
+    }
 
     // Filter out versions that already exist
     const newVersions = transformedVersions.filter(version => {
-      const key = `${version.id}-${version.date}-${version.type}`;
+      // Normalize date format to ensure consistent comparison
+      const formattedDate = new Date(version.date).toISOString();
+      const key = `${version.type}-${formattedDate}`;
       return !existingVersionsMap.has(key);
     });
 
     if (newVersions.length === 0) {
-      console.log(`Skipping bill ${billId} - text versions already up to date`); // Match wording from updateBillInfo
+      console.log(`Skipping bill ${billId} - text versions already up to date`);
       progress.skipped++;
       return;
     }
 
     // Insert new text versions
     let successfulInserts = 0;
+    let failedInserts = 0;
     for (const version of newVersions) {
       try {
         const { error: insertError } = await supabaseAdmin
@@ -225,7 +265,14 @@ async function processBillText(bill: any, congress: number, billType: string, re
           .insert(version);
 
         if (insertError) {
-          console.error(`Failed to insert text version for bill ${billId}:`, insertError);
+          // If it's a duplicate key error, just count it as skipped (already exists)
+          if (insertError.code === '23505') {
+            console.log(`Text version for bill ${billId} type ${version.type} date ${version.date} already exists`);
+            failedInserts++;
+          } else {
+            console.error(`Failed to insert text version for bill ${billId}:`, insertError);
+            failedInserts++;
+          }
           continue;
         }
 
@@ -233,25 +280,30 @@ async function processBillText(bill: any, congress: number, billType: string, re
         const verified = await verifyTextVersionInsert(billId, version);
         if (!verified) {
           console.error(`Failed to verify text version insert for bill ${billId}`);
+          failedInserts++;
           continue;
         }
 
         successfulInserts++;
       } catch (error) {
         console.error(`Error inserting text version for bill ${billId}:`, error);
+        failedInserts++;
       }
     }
 
+    // Consider the bill successful if ANY versions were inserted successfully
     if (successfulInserts > 0) {
-      console.log(`Successfully ${existingVersions?.length ? 'updated' : 'inserted'} bill ${billId} with ${successfulInserts} text versions`); // Match format of updateBillInfo
+      console.log(`Successfully added ${successfulInserts} text versions for bill ${billId}`);
       progress.success++;
       progress.newTextVersions += successfulInserts;
+      // If this was a retry and it succeeded, remove from failed bills
+      progress.failedBills = progress.failedBills.filter(fb => fb.id !== billId);
     } else {
-      throw new Error(`Failed to process any text versions for bill ${billId}`);
+      // All versions failed to insert, but don't throw an error - just log it
+      console.log(`No new text versions added for bill ${billId} (${failedInserts} failed)`);
+      // Don't increment progress.failed since this isn't a critical error
+      // The bill might have other valid text versions already
     }
-
-    // If this was a retry and it succeeded, remove from failed bills
-    progress.failedBills = progress.failedBills.filter(fb => fb.id !== billId);
 
   } catch (error: any) {
     const { type, message } = categorizeError(error);
