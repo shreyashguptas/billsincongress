@@ -175,7 +175,18 @@ async function processBillText(bill: any, congress: number, billType: string, re
   const billId = `${bill.number}${billType}${congress}`;
   
   try {
-    // Fetch current text versions for this bill
+    // Fetch bill text data from API first - consistent with other scripts
+    console.log(`Fetching text versions for bill ${billId}...`);
+    const textData = await fetchBillText(congress, billType, bill.number.toString());
+    const transformedVersions = transformBillText(textData, billId);
+    
+    if (transformedVersions.length === 0) {
+      console.log(`No text versions available for bill ${billId}`);
+      progress.skipped++;
+      return;
+    }
+
+    // Now check existing versions - check after fetching, like other scripts
     const { data: existingVersions, error: fetchError } = await supabaseAdmin
       .from(BILL_TEXT_TABLE_NAME)
       .select('date, type')
@@ -193,11 +204,6 @@ async function processBillText(bill: any, congress: number, billType: string, re
       ])
     );
 
-    // Fetch new text versions from API
-    console.log(`Fetching text versions for bill ${billId}...`);
-    const textData = await fetchBillText(congress, billType, bill.number.toString());
-    const transformedVersions = transformBillText(textData, billId);
-
     // Filter out versions that already exist
     const newVersions = transformedVersions.filter(version => {
       const key = `${version.id}-${version.date}-${version.type}`;
@@ -205,13 +211,13 @@ async function processBillText(bill: any, congress: number, billType: string, re
     });
 
     if (newVersions.length === 0) {
-      console.log(`No new text versions for bill ${billId}`);
+      console.log(`Skipping bill ${billId} - text versions already up to date`); // Match wording from updateBillInfo
       progress.skipped++;
       return;
     }
 
-    let successfulInserts = 0;
     // Insert new text versions
+    let successfulInserts = 0;
     for (const version of newVersions) {
       try {
         const { error: insertError } = await supabaseAdmin
@@ -237,12 +243,11 @@ async function processBillText(bill: any, congress: number, billType: string, re
     }
 
     if (successfulInserts > 0) {
-      console.log(`Successfully processed ${successfulInserts} text versions for bill ${billId}`);
+      console.log(`Successfully ${existingVersions?.length ? 'updated' : 'inserted'} bill ${billId} with ${successfulInserts} text versions`); // Match format of updateBillInfo
       progress.success++;
       progress.newTextVersions += successfulInserts;
     } else {
-      console.log(`No text versions were successfully processed for bill ${billId}`);
-      throw new Error('Failed to process any text versions');
+      throw new Error(`Failed to process any text versions for bill ${billId}`);
     }
 
     // If this was a retry and it succeeded, remove from failed bills
