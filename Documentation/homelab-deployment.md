@@ -390,16 +390,17 @@ kubectl get cronjobs -n bills-update
 
 2. **Log Monitoring**:
 ```bash
-# Follow logs of the current job
-kubectl logs -n bills-update -l job-name=manual-test --follow
+# Follow logs of a specific job pod (replace the pod name with your actual pod name)
+kubectl logs -f <pod-name> -n bills-update
+# Example: kubectl logs -f bills-update-job-28977540-p9fpj -n bills-update
 
-# Get last 100 lines of logs
-kubectl logs -n bills-update -l job-name=manual-test --tail=100
+# Get last 100 lines of logs from a specific pod
+kubectl logs --tail=100 <pod-name> -n bills-update
 
-# Get logs from a specific pod
-kubectl logs -n bills-update <pod-name>
+# View logs in real-time (follow mode)
+kubectl logs -f <pod-name> -n bills-update
 
-# Check logs stored in persistent volume
+# Check logs stored in persistent volume (if configured)
 kubectl exec -n bills-update <pod-name> -- ls -l /app/logs
 ```
 
@@ -443,12 +444,13 @@ kubectl get secret bills-update-secrets -n bills-update -o yaml
 
 1. **Check if Job is Running**:
 ```bash
-# First, check pod status
+# First, check pod status and get the pod name
 kubectl get pods -n bills-update
 # Look for STATUS column - should show "Running"
 
-# Then check logs
-kubectl logs -n bills-update -l job-name=manual-test --follow
+# Then check logs using the pod name
+kubectl logs -f <pod-name> -n bills-update
+# Example: kubectl logs -f bills-update-job-28977540-p9fpj -n bills-update
 ```
 
 2. **Investigate Failed Job**:

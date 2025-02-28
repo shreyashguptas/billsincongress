@@ -9,12 +9,12 @@ export function Footer() {
         <div className="flex h-24 flex-col items-center justify-between gap-4 md:flex-row md:gap-0">
           <div className="flex items-center gap-2">
             <p className="text-sm text-muted-foreground">
-              Built with transparency and accountability in mind.{' '}
+              Data directly from Congress.gov.{' '}
               <Link
                 href="/about"
                 className="font-medium underline underline-offset-4"
               >
-                Learn more
+                About this project
               </Link>
             </p>
           </div>
