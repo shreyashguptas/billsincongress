@@ -19,7 +19,7 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds
 const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
 // Configure which Congresses to process, in order from newest to oldest
-const CONGRESSES_TO_PROCESS = [115, 116, 117, 118, 119]; // Add more Congress numbers as needed
+const CONGRESSES_TO_PROCESS = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]; // Add more Congress numbers as needed
 // Configure bill number range and empty response handling
 const MAX_EMPTY_RESPONSES = 50; // Stop after this many consecutive empty responses
 const BATCH_SIZE = 250; // Number of bills to request per API call
@@ -103,6 +103,7 @@ async function fetchBillList(congress: number, billType: string, offset: number 
 async function fetchBillText(congress: number, billType: string, billNumber: string, retries = 0): Promise<BillTextResponse> {
   try {
     const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/text?api_key=${CONGRESS_API_KEY}&format=json`;
+    console.log(`Fetching details for bill ${billNumber}${billType}${congress}...`);
     
     const response = await fetch(url);
     if (!response.ok) {
@@ -153,14 +154,14 @@ function transformBillText(data: BillTextResponse, billId: string): BillText[] {
 
     // Skip versions with missing text or PDF formats
     if (!txtFormat || !pdfFormat) {
-      console.log(`Skipping text version for bill ${billId} type ${version.type} - missing required format`);
+      console.log(`  - Skipping version type ${version.type} - missing required format`);
       return;
     }
 
     // Handle missing date - either skip or use fallback date
     if (!version.date) {
       // Option 1: Skip versions with no date since our DB requires it
-      console.log(`Skipping text version for bill ${billId} type ${version.type} - missing date`);
+      console.log(`  - Skipping version type ${version.type} - missing date`);
       return;
       
       // Option 2 (alternative): Use a fallback date if we want to keep these versions
@@ -209,7 +210,6 @@ async function processBillText(bill: any, congress: number, billType: string, re
   
   try {
     // Fetch bill text data from API first - consistent with other scripts
-    console.log(`Fetching text versions for bill ${billId}...`);
     const textData = await fetchBillText(congress, billType, bill.number.toString());
     const transformedVersions = transformBillText(textData, billId);
     
@@ -250,7 +250,7 @@ async function processBillText(bill: any, congress: number, billType: string, re
     });
 
     if (newVersions.length === 0) {
-      console.log(`Skipping bill ${billId} - text versions already up to date`);
+      console.log(`Skipping bill ${billId} - already up to date`);
       progress.skipped++;
       return;
     }
@@ -267,10 +267,10 @@ async function processBillText(bill: any, congress: number, billType: string, re
         if (insertError) {
           // If it's a duplicate key error, just count it as skipped (already exists)
           if (insertError.code === '23505') {
-            console.log(`Text version for bill ${billId} type ${version.type} date ${version.date} already exists`);
+            console.log(`  - Version type ${version.type} date ${version.date} already exists`);
             failedInserts++;
           } else {
-            console.error(`Failed to insert text version for bill ${billId}:`, insertError);
+            console.error(`  - Failed to insert version type ${version.type}:`, insertError.message);
             failedInserts++;
           }
           continue;
@@ -279,28 +279,32 @@ async function processBillText(bill: any, congress: number, billType: string, re
         // Verify the insert
         const verified = await verifyTextVersionInsert(billId, version);
         if (!verified) {
-          console.error(`Failed to verify text version insert for bill ${billId}`);
+          console.error(`  - Failed to verify version type ${version.type}`);
           failedInserts++;
           continue;
         }
 
         successfulInserts++;
       } catch (error) {
-        console.error(`Error inserting text version for bill ${billId}:`, error);
+        console.error(`  - Error inserting version type ${version.type}:`, error);
         failedInserts++;
       }
     }
 
     // Consider the bill successful if ANY versions were inserted successfully
     if (successfulInserts > 0) {
-      console.log(`Successfully added ${successfulInserts} text versions for bill ${billId}`);
+      if (existingVersions?.length > 0) {
+        console.log(`Successfully updated bill ${billId} with ${successfulInserts} text versions`);
+      } else {
+        console.log(`Successfully inserted bill ${billId} with ${successfulInserts} text versions`);
+      }
       progress.success++;
       progress.newTextVersions += successfulInserts;
       // If this was a retry and it succeeded, remove from failed bills
       progress.failedBills = progress.failedBills.filter(fb => fb.id !== billId);
     } else {
       // All versions failed to insert, but don't throw an error - just log it
-      console.log(`No new text versions added for bill ${billId} (${failedInserts} failed)`);
+      console.log(`No changes made to bill ${billId} (${failedInserts} failed)`);
       // Don't increment progress.failed since this isn't a critical error
       // The bill might have other valid text versions already
     }
