@@ -1,5 +1,5 @@
 .cursorignore
-
+.cursor/
 .next
 node_modules
 
