@@ -372,9 +372,27 @@ export const billsService = {
       };
     });
 
+    // Use a separate query for policy area since it requires a join
+    let finalCount = totalCount || 0;
+    if (policyArea && policyArea !== 'all') {
+      const policyAreaQuery = supabase
+        .from(BILL_INFO_TABLE_NAME)
+        .select('id', { count: 'exact', head: true })
+        .eq('bill_subjects.policy_area_name', policyArea)
+        .not('bill_subjects', 'is', null);
+      
+      const { count, error } = await policyAreaQuery;
+      
+      if (error) {
+        console.error('Error getting policy area count:', error);
+      } else if (count !== null) {
+        finalCount = count;
+      }
+    }
+
     return {
       data: transformedData as Bill[],
-      count: policyAreaCount !== null ? policyAreaCount : (totalCount || 0),
+      count: finalCount,
     };
   },
 

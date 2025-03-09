@@ -207,6 +207,9 @@ export default function BillsPage() {
       setBills(prevBills => [...prevBills, ...newBills]);
       setTotalBills(response.count);
       setCurrentPage(nextPage);
+      
+      // Log for debugging
+      console.log(`Loaded ${newBills.length} new bills. Total: ${bills.length + newBills.length}/${response.count}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load more bills';
       console.error('Error loading more bills:', error);
@@ -235,9 +238,14 @@ export default function BillsPage() {
           billNumber: billNumberFilter,
           congress: congressFilter,
         });
+        
+        // Update state with the fetched data
         setBills(response.data);
         setTotalBills(response.count);
         setCurrentPage(1);
+        
+        // Log for debugging
+        console.log(`Initial fetch: ${response.data.length} bills found out of ${response.count} total.`);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to fetch bills';
         console.error('Error fetching bills:', error);
@@ -261,7 +269,8 @@ export default function BillsPage() {
     congressFilter
   ]);
 
-  const hasMoreBills = bills.length > 0 && bills.length < totalBills;
+  // Only show "Load More" button if there are more bills to load
+  const hasMoreBills = totalBills > bills.length;
 
   const handleApplyFilters = () => {
     // Reset pagination when applying new filters
@@ -432,7 +441,7 @@ export default function BillsPage() {
                 variant="outline"
                 className="px-6 py-2"
               >
-                {isLoadingMore ? 'Loading...' : `Load More (${Math.min(ITEMS_PER_PAGE, totalBills - bills.length)} remaining)`}
+                {isLoadingMore ? 'Loading...' : 'Load More'}
               </Button>
             </div>
           )}
