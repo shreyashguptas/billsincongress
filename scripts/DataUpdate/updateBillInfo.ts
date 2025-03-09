@@ -20,7 +20,7 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds
 const BILL_TYPES = ['hr', 's', 'hjres', 'sjres', 'hconres', 'sconres', 'hres', 'sres'];
 // Configure which Congresses to process, in order from newest to oldest
-const CONGRESSES_TO_PROCESS = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]; // Add more Congress numbers as needed
+const CONGRESSES_TO_PROCESS = [119]; // Add more Congress numbers as needed
 // Configure bill number range and empty response handling
 const MAX_EMPTY_RESPONSES = 50; // Stop after this many consecutive empty responses
 const BATCH_SIZE = 250; // Number of bills to request per API call
