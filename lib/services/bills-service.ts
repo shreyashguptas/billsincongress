@@ -470,9 +470,12 @@ export const billsService = {
     
     console.log('Getting available congress numbers...');
     
-    // Use raw SQL query to get distinct congress numbers
+    // Use a simple query to get distinct congress numbers
     const { data, error } = await supabase
-      .rpc('get_distinct_congress_numbers');
+      .from('bill_info')
+      .select('congress')
+      .not('congress', 'is', null)
+      .order('congress', { ascending: false });
 
     if (error) {
       console.error('Error fetching congress numbers:', error);
@@ -484,7 +487,10 @@ export const billsService = {
       return [];
     }
 
-    console.log('Raw data from SQL:', data);
-    return data;
+    // Filter for unique values and transform to array of numbers
+    const uniqueCongressNumbers = [...new Set(data.map(item => item.congress))];
+    
+    console.log('Unique congress numbers:', uniqueCongressNumbers);
+    return uniqueCongressNumbers;
   }
 }; 
