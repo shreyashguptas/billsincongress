@@ -75,6 +75,13 @@ export default function BillsPage() {
   });
   const [hasFilterChanges, setHasFilterChanges] = useState(false);
 
+  // Results statistics for UI display
+  const [filteredStats, setFilteredStats] = useState({
+    totalBills: 0,         // Total bills in database 
+    filteredCount: 0,       // Count after filters applied
+    displayedCount: 0       // Currently displayed count
+  });
+
   // Fetch Congress info on mount
   useEffect(() => {
     const fetchCongressInfo = async () => {
@@ -142,6 +149,15 @@ export default function BillsPage() {
     congressFilter
   ]);
 
+  // Update the statistics whenever the relevant state changes
+  useEffect(() => {
+    setFilteredStats({
+      totalBills: totalBills,
+      filteredCount: totalBills,
+      displayedCount: bills.length
+    });
+  }, [bills.length, totalBills]);
+
   const handleClearAllFilters = () => {
     // Reset pagination when clearing filters
     setCurrentPage(1);
@@ -205,8 +221,19 @@ export default function BillsPage() {
       
       // Only add new, unique bills to the list
       setBills(prevBills => [...prevBills, ...newBills]);
+      
+      // Update total count to match the filtered count returned from the server
       setTotalBills(response.count);
+      
+      // Update current page
       setCurrentPage(nextPage);
+      
+      // Update filtered stats
+      setFilteredStats(prev => ({
+        ...prev,
+        filteredCount: response.count,
+        displayedCount: prev.displayedCount + newBills.length
+      }));
       
       // Log for debugging
       console.log(`Loaded ${newBills.length} new bills. Total: ${bills.length + newBills.length}/${response.count}`);
@@ -311,7 +338,12 @@ export default function BillsPage() {
         </div>
         <div className="text-sm text-muted-foreground">
           {bills.length > 0 ? (
-            <>Showing {bills.length} out of {totalBills} bills</>
+            <>
+              Showing {bills.length} out of {totalBills} bills
+              {hasFiltersActive() && (
+                <span className="ml-1">(filtered)</span>
+              )}
+            </>
           ) : isLoading ? (
             <>Loading bills...</>
           ) : (
@@ -449,4 +481,20 @@ export default function BillsPage() {
       </div>
     </main>
   );
+
+  // Helper to check if any filters are active
+  function hasFiltersActive() {
+    return (
+      statusFilter !== 'all' ||
+      introducedDateFilter !== 'all' ||
+      lastActionDateFilter !== 'all' ||
+      sponsorFilter !== '' ||
+      titleFilter !== '' ||
+      stateFilter !== 'all' ||
+      policyAreaFilter !== 'all' ||
+      billTypeFilter !== 'all' ||
+      billNumberFilter !== '' ||
+      congressFilter !== 'all'
+    );
+  }
 }

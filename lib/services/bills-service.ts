@@ -190,23 +190,15 @@ export const billsService = {
       }
     }
 
-    // Apply special filters to count query for policy area only if they're non-default values
-    // Use a separate query for policy area since it requires a join
-    let policyAreaCount = null;
-    if (policyArea && policyArea !== 'all') {
-      const policyAreaQuery = supabase
-        .from(BILL_INFO_TABLE_NAME)
-        .select('id', { count: 'exact', head: true })
-        .eq('bill_subjects.policy_area_name', policyArea)
-        .not('bill_subjects', 'is', null);
-      
-      const { count, error } = await policyAreaQuery;
-      
-      if (error) {
-        console.error('Error getting policy area count:', error);
-      } else {
-        policyAreaCount = count;
-      }
+    // Apply date filters to count query too
+    if (introducedDateFilter && introducedDateFilter !== 'all') {
+      const startDate = getStartDate(introducedDateFilter);
+      countQuery = countQuery.gte('introduced_date', startDate.toISOString());
+    }
+
+    if (lastActionDateFilter && lastActionDateFilter !== 'all') {
+      const startDate = getStartDate(lastActionDateFilter);
+      countQuery = countQuery.gte('updated_at', startDate.toISOString());
     }
 
     // Add title filter to count query
@@ -372,23 +364,100 @@ export const billsService = {
       };
     });
 
-    // Use a separate query for policy area since it requires a join
+    // For policy area, we need a special query since it has a join
     let finalCount = totalCount || 0;
     if (policyArea && policyArea !== 'all') {
-      const policyAreaQuery = supabase
+      // Create a new query that mimics all the other filters but adds the policy area
+      let policyAreaQuery = supabase
         .from(BILL_INFO_TABLE_NAME)
-        .select('id', { count: 'exact', head: true })
-        .eq('bill_subjects.policy_area_name', policyArea)
-        .not('bill_subjects', 'is', null);
+        .select('id', { count: 'exact', head: true });
+        
+      // Apply the same filters as the main query
+      if (status && status !== 'all') {
+        policyAreaQuery = policyAreaQuery.eq('progress_stage', parseInt(status, 10));
+      }
+      if (stateFilter && stateFilter !== 'all') {
+        policyAreaQuery = policyAreaQuery.eq('sponsor_state', stateFilter);
+      }
+      if (billType && billType !== 'all') {
+        policyAreaQuery = policyAreaQuery.eq('bill_type', billType);
+      }
+      if (billNumber) {
+        policyAreaQuery = policyAreaQuery.eq('bill_number', billNumber);
+      }
+      if (congress && congress !== 'all') {
+        const congressNum = parseInt(congress, 10);
+        if (!isNaN(congressNum)) {
+          policyAreaQuery = policyAreaQuery.eq('congress', congressNum);
+        }
+      }
       
-      const { count, error } = await policyAreaQuery;
+      // Apply date filters
+      if (introducedDateFilter && introducedDateFilter !== 'all') {
+        const startDate = getStartDate(introducedDateFilter);
+        policyAreaQuery = policyAreaQuery.gte('introduced_date', startDate.toISOString());
+      }
+      if (lastActionDateFilter && lastActionDateFilter !== 'all') {
+        const startDate = getStartDate(lastActionDateFilter);
+        policyAreaQuery = policyAreaQuery.gte('updated_at', startDate.toISOString());
+      }
       
-      if (error) {
-        console.error('Error getting policy area count:', error);
-      } else if (count !== null) {
-        finalCount = count;
+      // Apply text filters
+      if (titleFilter) {
+        const cleanedTitle = titleFilter.trim().toLowerCase()
+          .replace(/[^a-z0-9\s]/g, '')
+          .replace(/\s+/g, ' ');
+        
+        if (cleanedTitle) {
+          const words = cleanedTitle.split(' ').filter(word => word.length > 0);
+          if (words.length > 0) {
+            words.forEach(word => {
+              policyAreaQuery = policyAreaQuery.ilike('title', `%${word}%`);
+            });
+          }
+        }
+      }
+      if (sponsorFilter) {
+        const cleanedFilter = sponsorFilter.trim().toLowerCase().replace(/\s+/g, ' ');
+        
+        if (cleanedFilter) {
+          const names = cleanedFilter.split(' ').filter(part => part.length > 0);
+          
+          if (names.length > 1) {
+            const conditions = names.map(name => 
+              `sponsor_first_name.ilike.%${name}%,sponsor_last_name.ilike.%${name}%`
+            ).join(',');
+            
+            policyAreaQuery = policyAreaQuery.or(conditions);
+          } else if (names.length === 1) {
+            policyAreaQuery = policyAreaQuery.or(
+              `sponsor_first_name.ilike.%${names[0]}%,sponsor_last_name.ilike.%${names[0]}%`
+            );
+          }
+        }
+      }
+      
+      // Now add the policy area filter
+      try {
+        policyAreaQuery = policyAreaQuery
+          .eq('bill_subjects.policy_area_name', policyArea)
+          .not('bill_subjects', 'is', null);
+        
+        const { count, error } = await policyAreaQuery;
+        
+        if (error) {
+          console.error('Error getting policy area count:', error);
+        } else if (count !== null) {
+          console.log(`Policy area '${policyArea}' filtered count: ${count}`);
+          finalCount = count;
+        }
+      } catch (error) {
+        console.error('Error in policy area count query:', error);
       }
     }
+
+    // Combined query to get accurate count with all filters
+    console.log(`Final count for all filters: ${finalCount}`);
 
     return {
       data: transformedData as Bill[],
