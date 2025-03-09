@@ -94,16 +94,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message: `Successfully synced ${savedCount} bills out of ${bills.length} total`
     });
   } catch (error) {
     console.error('Error in sync route:', error);
-    return NextResponse.json({
+    return Response.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
       details: error instanceof Error ? error.stack : undefined
-    });
+    }, { status: 500 });
   }
 } 

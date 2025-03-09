@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'path';
-import { getSupabaseConfig } from '../../lib/utils/supabase/config';
+import { getSupabaseConfig } from '../../lib/services/supabase/config';
 import { BillInfo, BILL_INFO_TABLE_NAME } from '../../lib/types/BillInfo';
 import { BillStages, BillStageDescriptions, getStageFromDescription } from '../../lib/utils/bill-stages';
 

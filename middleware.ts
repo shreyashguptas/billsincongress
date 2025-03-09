@@ -2,11 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  // Create a new NextResponse object with the same URL
+  const response = NextResponse.next()
 
   // Set CORS headers for API routes
   if (request.nextUrl.pathname.startsWith('/api/')) {
@@ -35,6 +32,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: any) {
+          // In Next.js 15, we need to create a new response with the cookies
           response.cookies.set({
             name,
             value,
@@ -44,6 +42,7 @@ export async function middleware(request: NextRequest) {
           })
         },
         remove(name: string, options: any) {
+          // In Next.js 15, we need to create a new response with the cookies
           response.cookies.set({
             name,
             value: '',

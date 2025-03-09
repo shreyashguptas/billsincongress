@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/services/supabase/server';
 import { BillInfo, BillInfoResponse, BILL_INFO_TABLE_NAME } from '@/lib/types/BillInfo';
 import { BillStages } from '@/lib/utils/bill-stages';
 import { Bill } from '@/lib/types/bill';

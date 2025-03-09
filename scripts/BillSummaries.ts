@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { BillSummary, BillSummariesResponse, BILL_SUMMARIES_TABLE_NAME } from '../lib/types/BillSummaries';
 import dotenv from 'dotenv';
 import path from 'path';
-import { getSupabaseConfig } from '../lib/utils/supabase/config';
+import { getSupabaseConfig } from '../lib/services/supabase/config';
 
 // Load environment variables from both .env and .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });

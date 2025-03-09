@@ -12,7 +12,7 @@ export function createStaticClient() {
 
 // For server components
 export async function createAppClient() {
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,7 +32,7 @@ export async function createAppClient() {
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.delete(name);
+            cookieStore.delete({ name, ...options });
           } catch {
             // Ignore errors in edge runtime
           }

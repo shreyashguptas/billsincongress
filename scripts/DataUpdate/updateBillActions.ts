@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'path';
-import { getSupabaseConfig } from '../../lib/utils/supabase/config';
+import { getSupabaseConfig } from '../../lib/services/supabase/config';
 import { BillAction, BillActionsResponse, BILL_ACTIONS_TABLE_NAME } from '../../lib/types/BillActions';
 
 // Load environment variables
