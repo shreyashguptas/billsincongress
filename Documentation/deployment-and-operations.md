@@ -83,7 +83,7 @@ kubectl create secret generic bills-update-secrets \
 2. Then, create a separate secret for Git credentials (this keeps your personal information out of the repository):
 
 ```bash
-# Replace with your actual Git information for commits made by the update script
+# Replace with your actual Git information for commits made by the update script. Make sure in the git name there are no spaces. 
 kubectl create secret generic git-credentials \
   --namespace bills-update \
   --from-literal=git-email="your.email@example.com" \
