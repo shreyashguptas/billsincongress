@@ -43,7 +43,7 @@ npm install
 
 # Run the update script
 log "Running bill update script"
-npm run update-bills 2>&1 | tee -a "$LOG_FILE"
+npm run update-all-bills 2>&1 | tee -a "$LOG_FILE"
 
 # Check if update was successful
 if [ $? -eq 0 ]; then
