@@ -39,6 +39,122 @@ Bills progress through various stages in the legislative process. The progress i
 
 Progress calculation is handled by database functions. See implementation in `/sql/functions/bill_functions.sql`.
 
+## Custom Database Functions
+
+### Naming Conventions
+
+All custom database functions follow a structured naming pattern to ensure consistency and clarity:
+
+1. **Prefix**: `app_` - Identifies functions specific to our application.
+2. **Action**: Verb describing the function's action (e.g., `get_`, `update_`, `calculate_`).
+3. **Subject**: The data entity being operated on.
+4. **Qualifier** (optional): Additional context when needed.
+
+Example: `app_get_distinct_congress_numbers`
+
+### Security Best Practices
+
+All custom functions should:
+
+1. Include `SECURITY DEFINER` to run with the creator's permissions
+2. Explicitly `SET search_path = public` to prevent search path injection attacks
+3. Include a `COMMENT` describing the function's purpose
+4. Include appropriate error handling
+
+### Implementation Template
+
+```sql
+-- Function template
+CREATE OR REPLACE FUNCTION public.app_[action]_[subject]([parameters])
+RETURNS [return_type] AS $$
+DECLARE
+    [variable declarations]
+BEGIN
+    -- Set search path explicitly for security
+    SET search_path = 'public';
+    
+    -- Function logic here
+    
+    RETURN [result];
+END;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   SET search_path = public;
+
+-- Add comment for documentation
+COMMENT ON FUNCTION public.app_[action]_[subject]([parameters]) IS 
+'[Description of what the function does]';
+```
+
+### Existing Custom Functions
+
+#### 1. `app_get_distinct_congress_numbers()`
+
+**Purpose**: Returns an array of all unique congress numbers from the bill_info table in descending order.
+
+**Implementation**:
+```sql
+CREATE OR REPLACE FUNCTION public.app_get_distinct_congress_numbers()
+RETURNS integer[] AS $$
+DECLARE
+    result integer[];
+BEGIN
+    SET search_path = 'public';
+    
+    SELECT ARRAY(
+        SELECT DISTINCT congress 
+        FROM bill_info 
+        WHERE congress IS NOT NULL 
+        ORDER BY congress DESC
+    ) INTO result;
+    
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql 
+   SECURITY DEFINER 
+   SET search_path = public;
+
+COMMENT ON FUNCTION public.app_get_distinct_congress_numbers() IS 
+'Returns an array of all unique congress numbers from the bill_info table in descending order';
+```
+
+**Usage in TypeScript**:
+```typescript
+async getAvailableCongressNumbers(): Promise<number[]> {
+  const supabase = this.getClient();
+  
+  try {
+    const { data, error } = await supabase.rpc('app_get_distinct_congress_numbers');
+    
+    if (error) {
+      console.error('Error calling app_get_distinct_congress_numbers:', error);
+      throw error;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Failed to get congress numbers:', error);
+    return [];
+  }
+}
+```
+
+### Function Types by Feature Area
+
+Different feature areas should use different naming patterns to maintain organization:
+
+1. **Bill Data Functions**: `app_bill_[action]_[subject]`
+   - Example: `app_bill_get_recent_actions`
+
+2. **Filter Functions**: `app_filter_[subject]_by_[criteria]`
+   - Example: `app_filter_bills_by_sponsor`
+
+3. **Search Functions**: `app_search_[subject]_[criteria]`
+   - Example: `app_search_bills_text`
+
+4. **Utility Functions**: `app_util_[action]_[subject]`
+   - Example: `app_util_format_bill_number`
+
 ## Data Services
 
 ### Bill Storage Service

@@ -470,27 +470,27 @@ export const billsService = {
     
     console.log('Getting available congress numbers...');
     
-    // Use a simple query to get distinct congress numbers
-    const { data, error } = await supabase
-      .from('bill_info')
-      .select('congress')
-      .not('congress', 'is', null)
-      .order('congress', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching congress numbers:', error);
-      throw new Error(error.message || 'Failed to fetch congress numbers');
-    }
-
-    if (!data || !Array.isArray(data)) {
-      console.error('Invalid data received:', data);
+    try {
+      // Call the dedicated PostgreSQL function that returns all distinct congress numbers
+      const { data, error } = await supabase.rpc('app_get_distinct_congress_numbers');
+      
+      if (error) {
+        console.error('Error calling app_get_distinct_congress_numbers:', error);
+        throw error;
+      }
+      
+      if (!data || !Array.isArray(data)) {
+        console.error('Invalid response format from app_get_distinct_congress_numbers:', data);
+        throw new Error('Invalid response from database function');
+      }
+      
+      console.log(`Found ${data.length} unique congress numbers:`, data);
+      return data;
+    } catch (error) {
+      console.error('Failed to get congress numbers:', error);
+      // Return an empty array if the function call fails
+      // This will at least show the "All Congresses" option in the filter
       return [];
     }
-
-    // Filter for unique values and transform to array of numbers
-    const uniqueCongressNumbers = [...new Set(data.map(item => item.congress))];
-    
-    console.log('Unique congress numbers:', uniqueCongressNumbers);
-    return uniqueCongressNumbers;
   }
 }; 
