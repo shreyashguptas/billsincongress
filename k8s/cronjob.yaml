@@ -17,6 +17,9 @@ spec:
           containers:
           - name: bills-update
             image: shreyashguptas/bills-update:latest
+            # Always pull the latest image to ensure we're running the most recent version
+            # This is especially important when using the 'latest' tag
+            imagePullPolicy: Always
             resources:
               requests:
                 memory: "512Mi"
@@ -24,12 +27,12 @@ spec:
               limits:
                 memory: "1Gi"
                 cpu: "500m"
-            envFrom:
-            - secretRef:
-                name: bills-update-secrets
             volumeMounts:
             - name: logs-volume
               mountPath: /app/logs
+            - name: env-file
+              mountPath: /app/.env.local
+              subPath: .env.local
             livenessProbe:
               exec:
                 command:
@@ -41,9 +44,10 @@ spec:
           - name: logs-volume
             persistentVolumeClaim:
               claimName: bills-update-logs
-          # Using raspberrypi2 as the worker node
-          nodeSelector:
-            kubernetes.io/hostname: raspberrypi2
+          - name: env-file
+            secret:
+              secretName: bills-update-secrets
+          # Let Kubernetes decide which node to run on for better scheduling flexibility
           restartPolicy: OnFailure
           # Add tolerations for node taints if any
           tolerations:

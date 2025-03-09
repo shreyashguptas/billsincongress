@@ -1,27 +1,51 @@
 #!/bin/bash
+
+# Set error handling
 set -e
 
-# Create logs directory if it doesn't exist
-mkdir -p /app/logs
+# Log file setup
+LOG_DIR="/app/logs"
+LOG_FILE="$LOG_DIR/update-$(date +%Y-%m-%d-%H%M%S).log"
 
-# Set up logging
-LOG_FILE="/app/logs/update-$(date +%Y%m%d-%H%M%S).log"
-exec 1> >(tee -a "$LOG_FILE") 2>&1
+# Ensure log directory exists
+mkdir -p "$LOG_DIR"
 
-echo "Starting update at $(date)"
+# Function to log messages
+log() {
+  local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  echo "[$timestamp] $1" | tee -a "$LOG_FILE"
+}
 
-# Reset any local changes and update from git
-echo "Fetching latest code..."
-git fetch origin main
-git reset --hard origin/main
+# Log start of script
+log "Starting bill update process"
 
-echo "Installing dependencies..."
+# Verify .env.local file exists
+if [ ! -f "/app/.env.local" ]; then
+  log "ERROR: .env.local file not found. Make sure the Kubernetes secret is properly mounted."
+  exit 1
+else
+  log "Found .env.local file"
+fi
+
+# Pull latest code changes
+log "Pulling latest code changes"
+git pull origin main
+
+# Install any new dependencies
+log "Checking for new dependencies"
 npm install
 
-echo "Verifying available scripts..."
-npm run | grep "update-all-bills"
+# Run the update script
+log "Running bill update script"
+npm run update-bills 2>&1 | tee -a "$LOG_FILE"
 
-echo "Running update script..."
-npm run update-all-bills
+# Check if update was successful
+if [ $? -eq 0 ]; then
+  log "Bill update completed successfully"
+else
+  log "ERROR: Bill update failed"
+  exit 1
+fi
 
-echo "Update completed at $(date)" 
+# Log completion
+log "Update process completed" 

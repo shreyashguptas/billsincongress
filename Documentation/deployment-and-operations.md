@@ -1,133 +1,208 @@
 # Deployment & Operations
 
-## Homelab Deployment
+## Docker & Kubernetes Deployment
 
-### K3s Cluster Setup
+This document outlines how to build the Docker image for the Bills in Congress project and deploy it as a Kubernetes job to fetch data from the API and update the database.
 
-#### Server Node Setup
-1. Install K3s server on your main Raspberry Pi:
+### Preparation
+
+#### 1. Clone Repository and Create .env.local
+
+On your homelab, clone the repository and create the `.env.local` file that contains your environment variables:
+
 ```bash
-curl -sfL https://get.k3s.io | sh -
-```
+# Clone the repository 
+git clone https://github.com/shreyashguptas/billsincongress.git
+cd billsincongress
 
-2. After installation, get the node token from:
-```bash
-sudo cat /var/lib/rancher/k3s/server/node-token
-```
+# Create .env.local file with your secrets
+# Make sure to include all necessary API keys, database credentials, etc.
+nano .env.local  # or use any editor you prefer
 
-#### Agent Node Setup
-1. Join additional Raspberry Pis as agent nodes:
-```bash
-curl -sfL https://get.k3s.io | K3S_URL=https://server-ip:6443 K3S_TOKEN=mynodetoken sh -
-```
-
-2. Verify cluster status:
-```bash
-kubectl get nodes
-```
-
-#### Kubeconfig Setup
-1. Copy the kubeconfig from the server:
-```bash
-sudo cat /etc/rancher/k3s/k3s.yaml
-```
-
-2. Save it locally as `~/.kube/config` (replace server IP):
-```bash
-# Replace "127.0.0.1" with your server's IP
-sed 's/127.0.0.1/server-ip/' ~/.kube/config
+# For reference, the full path to your .env.local file would be:
+# (Replace with your actual path from running 'pwd' in the repository directory)
+# Example: /home/username/billsincongress/.env.local
 ```
 
 ### Docker Image Setup
 
 #### Building the Image
-1. Create a Dockerfile in the project root:
+
+1. Navigate to the project root directory where the Dockerfile is located (if you're not already there):
+
+```bash
+cd /path/to/billsincongress
+```
+
+2. **Important: Configure Git Settings**
+
+Before building the image, review and update the Git configuration in the Dockerfile:
 ```dockerfile
-FROM node:20-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY . .
-RUN npm run build
-
-CMD ["npm", "run", "start:update-script"]
+# Replace these values with appropriate credentials
+git config --global user.email "container@example.com" && \
+git config --global user.name "Container Script"
 ```
 
-2. Build the image:
+3. Build the Docker image:
+
 ```bash
-docker build -t bills-update:latest .
+docker build -t shreyashguptas/bills-update:latest .
 ```
 
-3. Tag the image for your registry:
+4. Push the image to Docker Hub (or your preferred registry) if you need to use it on multiple nodes:
+
 ```bash
-docker tag bills-update:latest localhost:5000/bills-update:latest
+docker push shreyashguptas/bills-update:latest
 ```
 
-4. Push to your local registry:
+### Kubernetes Deployment
+
+#### Prerequisites
+
+- Access to a K3s cluster (as documented in k3s-cluster-info.md)
+- kubectl configured to connect to your cluster
+- `.env.local` file created in the repository root directory
+
+#### Create the Namespace
+
 ```bash
-docker push localhost:5000/bills-update:latest
+kubectl create namespace bills-update
 ```
 
-### CronJob Deployment
+#### Create Secret from .env.local File
 
-1. Create a CronJob manifest (`cronjob.yaml`):
-```yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: bills-update-job
-spec:
-  schedule: "0 1 * * *"  # Daily at 1 AM
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - name: bills-update
-            image: localhost:5000/bills-update:latest
-            env:
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: db-secrets
-                  key: database-url
-            resources:
-              limits:
-                memory: "1Gi"
-                cpu: "500m"
-              requests:
-                memory: "512Mi"
-                cpu: "250m"
-          restartPolicy: OnFailure
-```
+Create a secret from your `.env.local` file that contains your Supabase credentials, API keys, and other environment variables:
 
-2. Create a secret for database credentials:
 ```bash
-kubectl create secret generic db-secrets \
-  --from-literal=database-url='postgres://user:password@hostname:5432/database'
+# IMPORTANT: The --from-file parameter has the format: --from-file=<name in secret>=<path to your actual file>
+# In our case: --from-file=.env.local=<ACTUAL PATH TO YOUR .ENV.LOCAL FILE>
+
+# If you're in the repository root directory where .env.local exists, you can use:
+kubectl create secret generic bills-update-secrets \
+  --namespace bills-update \
+  --from-file=.env.local=./.env.local
+
+# EXAMPLE with full path:
+# If 'pwd' returns "/home/username/billsincongress", the command would be:
+# kubectl create secret generic bills-update-secrets \
+#   --namespace bills-update \
+#   --from-file=.env.local=/home/username/billsincongress/.env.local
 ```
 
-3. Apply the CronJob:
+This command creates a Kubernetes secret and mounts it as a file at the same location in the container.
+
+#### Test Secret and File Mounting
+
+Before proceeding with the full deployment, you can test if the secret was created correctly and verify how it will be mounted:
+
 ```bash
-kubectl apply -f cronjob.yaml
+# Check if the secret was created successfully
+kubectl get secret bills-update-secrets -n bills-update
+
+# See details about the secret (verify .env.local exists)
+kubectl describe secret bills-update-secrets -n bills-update
+
+# Create a temporary test pod to verify the secret mounting
+kubectl run test-env-pod --image=busybox -n bills-update --rm -it --restart=Never \
+  --overrides='
+{
+  "spec": {
+    "containers": [
+      {
+        "name": "test-env-pod",
+        "image": "busybox",
+        "command": ["sh", "-c", "cat /app/.env.local && echo \"\n\nFile mounted successfully!\""],
+        "volumeMounts": [
+          {
+            "name": "env-file",
+            "mountPath": "/app/.env.local",
+            "subPath": ".env.local"
+          }
+        ]
+      }
+    ],
+    "volumes": [
+      {
+        "name": "env-file",
+        "secret": {
+          "secretName": "bills-update-secrets"
+        }
+      }
+    ]
+  }
+}'
 ```
+
+If the file is correctly mounted, you should see the contents of your .env.local file followed by "File mounted successfully!". If there are any issues, fix them before proceeding.
+
+#### Deploy Persistent Volume Claim
+
+Apply the PVC for log storage:
+
+```bash
+kubectl apply -f k8s/pvc.yaml
+```
+
+#### Deploy CronJob
+
+Apply the CronJob to run the bill update process:
+
+```bash
+kubectl apply -f k8s/cronjob.yaml
+```
+
+#### Verify Deployment
+
+```bash
+kubectl get cronjobs -n bills-update
+kubectl get pvc -n bills-update
+kubectl get secrets -n bills-update
+```
+
+### Self-Healing and Reliability
+
+The deployment is designed to be self-healing and recover automatically from failures:
+
+1. **CronJob Reliability**:
+   - Kubernetes CronJobs automatically reschedule after cluster restarts
+   - If a node goes down, jobs will run on other available nodes
+   - CronJobs will automatically execute at the next scheduled time after a failure
+
+2. **Image Pull Policy**:
+   - The `imagePullPolicy: Always` setting ensures the latest image is always used
+   - This allows for seamless updates by simply pushing a new image with the same tag
+
+3. **Health Monitoring**:
+   - The Docker image includes a health check that verifies the API endpoint is responding
+   - In Kubernetes, this feeds into the liveness probe which restarts unhealthy containers
+   - Container health status can be monitored through the Kubernetes dashboard
+
+4. **Logs Persistence**:
+   - Logs are stored in a persistent volume that survives pod restarts
+   - All update operations are logged with timestamps for auditing and debugging
+
+5. **Concurrency Protection**:
+   - The `concurrencyPolicy: Forbid` setting prevents overlapping job executions
+   - This ensures data consistency even if previous jobs run longer than expected
+
+6. **Environment Variables**:
+   - Environment variables are securely stored as Kubernetes secrets
+   - The `.env.local` file is mounted directly into the container
+   - No manual intervention needed after deployment
 
 ## Background Services
 
 ### Bill Data Update Service
 
 #### Overview
-The system employs a Kubernetes (K3s) cluster running on a homelab setup for automated background tasks.
+The system uses a Kubernetes CronJob to automate the process of fetching and updating bill data from the Congress.gov API.
 
 #### Service Configuration
-- **Type**: Kubernetes CronJob on K3s cluster
+- **Type**: Kubernetes CronJob
 - **Schedule**: Daily at 1 AM UTC
 - **Runtime**: Node.js
 - **Container**: Docker
-- **Resource Limits**: See deployment manifest
+- **Resource Limits**: 1Gi memory, 500m CPU
 
 #### Update Process
 
@@ -162,35 +237,101 @@ Key files:
 - Type definitions: `/lib/types/BillInfo.ts`
 - Database functions: `/sql/functions/bill_functions.sql`
 
-### Monitoring
+## Monitoring
 
-#### Kubernetes Dashboard
-1. Install the dashboard:
-```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
-```
+### Kubernetes Dashboard
 
-2. Create a service account:
-```bash
-kubectl create serviceaccount admin-user -n kubernetes-dashboard
-kubectl create clusterrolebinding admin-user --clusterrole=cluster-admin --serviceaccount=kubernetes-dashboard:admin-user
-```
+To monitor the CronJob and pod status:
 
-3. Get the token:
-```bash
-kubectl -n kubernetes-dashboard create token admin-user
-```
+1. Access the Kubernetes dashboard:
 
-4. Access the dashboard:
 ```bash
 kubectl proxy
 ```
 
-5. Navigate to: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
+2. Navigate to: http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/
+
+3. Check job status and logs:
+   - Navigate to "Jobs" in the dashboard
+   - Select the "bills-update" namespace
+   - Select the job to view details and logs
+
+### Health Check Monitoring
+
+To check the health status of containers:
+
+```bash
+# For running containers in Kubernetes
+kubectl describe pod <pod-name> -n bills-update
+
+# For Docker containers directly
+docker inspect --format='{{json .State.Health}}' <container_id> | jq
+```
+
+Health check logs contain information about the container's ability to connect to the API endpoint and can help diagnose connectivity issues.
+
+### Command Line Monitoring
+
+View CronJob status:
+```bash
+kubectl get cronjobs -n bills-update
+```
+
+View recent job history:
+```bash
+kubectl get jobs -n bills-update
+```
+
+View pod logs:
+```bash
+# Get pod name
+kubectl get pods -n bills-update
+
+# View logs
+kubectl logs <pod-name> -n bills-update
+```
 
 ## Troubleshooting
 
 ### Common Issues and Solutions
+
+#### Cluster Recovery After Downtime
+
+If the entire cluster goes down:
+
+1. After the cluster recovers, CronJobs will automatically resume on their next scheduled execution time
+2. Check the status of the CronJob after recovery:
+   ```bash
+   kubectl get cronjobs -n bills-update
+   ```
+3. If needed, manually trigger a job to run immediately:
+   ```bash
+   kubectl create job --from=cronjob/bills-update-job manual-recovery-$(date +%Y%m%d-%H%M%S) -n bills-update
+   ```
+
+#### Environment Variable Issues
+
+If your job fails due to missing environment variables:
+
+1. Check that the secret was created correctly:
+   ```bash
+   kubectl describe secret bills-update-secrets -n bills-update
+   ```
+
+2. Verify the secret is mounted correctly in the pod:
+   ```bash
+   kubectl describe pod <pod-name> -n bills-update
+   ```
+
+3. If needed, update the secret:
+   ```bash
+   # Update an existing secret with a new .env.local file
+   # Replace the path with your actual path to .env.local
+   kubectl create secret generic bills-update-secrets \
+     --namespace bills-update \
+     --from-file=.env.local=./.env.local \
+     --dry-run=client -o yaml | kubectl apply -f -
+   ```
 
 #### Progress Stage Issues
 
@@ -238,54 +379,32 @@ const normalizedProgress = ((stage - 20) / 80) * 100;
 - Implement comprehensive error handling
 - Add explicit return type annotations
 
-##### 2. Component State Management
-**Common Issues:**
-- HTML tags showing in text
-- Hydration mismatches
-- Missing error handling
-
-**Solutions:**
-- Parse HTML only on client side in useEffect
-- Provide fallback content
-- Implement proper error handling
-
-##### 3. Data Type Consistency
-**Common Issues:**
-- Inconsistent data types from API
-- Missing fallback values
-- Type conversion errors
-
-**Solutions:**
-- Add type checking and conversion
-- Provide default values
-- Use proper TypeScript types
-
 ### CronJob Debugging
 
 #### 1. Check CronJob Status
 ```bash
-kubectl get cronjobs
+kubectl get cronjobs -n bills-update
 ```
 
 #### 2. View Recent Job History
 ```bash
-kubectl get jobs
+kubectl get jobs -n bills-update
 ```
 
 #### 3. Check Pod Logs
 ```bash
-kubectl get pods | grep bills-update
-kubectl logs <pod-name>
+kubectl get pods -n bills-update | grep bills-update
+kubectl logs <pod-name> -n bills-update
 ```
 
 #### 4. Manual Job Trigger
 ```bash
-kubectl create job --from=cronjob/bills-update-job bills-update-manual
+kubectl create job --from=cronjob/bills-update-job manual-bills-update-$(date +%Y%m%d-%H%M%S) -n bills-update
 ```
 
 #### 5. Check for Resource Issues
 ```bash
-kubectl describe pod <pod-name>
+kubectl describe pod <pod-name> -n bills-update
 ```
 
 ### Application Performance Troubleshooting
@@ -303,9 +422,4 @@ kubectl describe pod <pod-name>
 #### 3. API Rate Limiting
 - Implement proper backoff strategies
 - Monitor API usage metrics
-- Add rate limiting awareness to scripts
-
-#### 4. Node.js Performance
-- Adjust memory limits if needed
-- Consider clustering for CPU-intensive tasks
-- Monitor garbage collection patterns 
+- Add rate limiting awareness to scripts 
