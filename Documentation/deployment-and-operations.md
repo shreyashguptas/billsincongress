@@ -34,22 +34,13 @@ nano .env.local  # or use any editor you prefer
 cd /path/to/billsincongress
 ```
 
-2. **Important: Configure Git Settings**
-
-Before building the image, review and update the Git configuration in the Dockerfile:
-```dockerfile
-# Replace these values with appropriate credentials
-git config --global user.email "container@example.com" && \
-git config --global user.name "Container Script"
-```
-
-3. Build the Docker image:
+2. Build the Docker image:
 
 ```bash
 docker build -t shreyashguptas/bills-update:latest .
 ```
 
-4. Push the image to Docker Hub (or your preferred registry) if you need to use it on multiple nodes:
+3. (Optional)Push the image to Docker Hub (or your preferred registry) if you need to use it on multiple nodes:
 
 ```bash
 docker push shreyashguptas/bills-update:latest
@@ -69,9 +60,9 @@ docker push shreyashguptas/bills-update:latest
 kubectl create namespace bills-update
 ```
 
-#### Create Secret from .env.local File
+#### Create Secrets
 
-Create a secret from your `.env.local` file that contains your Supabase credentials, API keys, and other environment variables:
+1. First, create a secret for your application environment variables:
 
 ```bash
 # IMPORTANT: The --from-file parameter has the format: --from-file=<name in secret>=<path to your actual file>
@@ -89,20 +80,32 @@ kubectl create secret generic bills-update-secrets \
 #   --from-file=.env.local=/home/username/billsincongress/.env.local
 ```
 
-This command creates a Kubernetes secret and mounts it as a file at the same location in the container.
+2. Then, create a separate secret for Git credentials (this keeps your personal information out of the repository):
+
+```bash
+# Replace with your actual Git information for commits made by the update script
+kubectl create secret generic git-credentials \
+  --namespace bills-update \
+  --from-literal=git-email="your.email@example.com" \
+  --from-literal=git-name="Your Name"
+```
+
+This approach ensures your Git credentials are stored securely in Kubernetes and not committed to any public repositories.
 
 #### Test Secret and File Mounting
 
 Before proceeding with the full deployment, you can test if the secret was created correctly and verify how it will be mounted:
 
 ```bash
-# Check if the secret was created successfully
+# Check if the secrets were created successfully
 kubectl get secret bills-update-secrets -n bills-update
+kubectl get secret git-credentials -n bills-update
 
-# See details about the secret (verify .env.local exists)
+# See details about the secrets
 kubectl describe secret bills-update-secrets -n bills-update
+kubectl describe secret git-credentials -n bills-update
 
-# Create a temporary test pod to verify the secret mounting
+# Create a temporary test pod to verify the .env.local mounting
 kubectl run test-env-pod --image=busybox -n bills-update --rm -it --restart=Never \
   --overrides='
 {
@@ -188,6 +191,7 @@ The deployment is designed to be self-healing and recover automatically from fai
 6. **Environment Variables**:
    - Environment variables are securely stored as Kubernetes secrets
    - The `.env.local` file is mounted directly into the container
+   - Git credentials are stored in a separate secret for security
    - No manual intervention needed after deployment
 
 ## Background Services
@@ -313,23 +317,30 @@ If the entire cluster goes down:
 
 If your job fails due to missing environment variables:
 
-1. Check that the secret was created correctly:
+1. Check that the secrets were created correctly:
    ```bash
    kubectl describe secret bills-update-secrets -n bills-update
+   kubectl describe secret git-credentials -n bills-update
    ```
 
-2. Verify the secret is mounted correctly in the pod:
+2. Verify the secrets are mounted and referenced correctly in the pod:
    ```bash
    kubectl describe pod <pod-name> -n bills-update
    ```
 
-3. If needed, update the secret:
+3. If needed, update the secrets:
    ```bash
-   # Update an existing secret with a new .env.local file
-   # Replace the path with your actual path to .env.local
+   # Update application secret with a new .env.local file
    kubectl create secret generic bills-update-secrets \
      --namespace bills-update \
      --from-file=.env.local=./.env.local \
+     --dry-run=client -o yaml | kubectl apply -f -
+     
+   # Update git credentials if needed
+   kubectl create secret generic git-credentials \
+     --namespace bills-update \
+     --from-literal=git-email="your.new.email@example.com" \
+     --from-literal=git-name="Your New Name" \
      --dry-run=client -o yaml | kubectl apply -f -
    ```
 

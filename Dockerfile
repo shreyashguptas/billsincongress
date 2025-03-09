@@ -8,14 +8,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone repository and configure git
-# IMPORTANT: Before building the image, replace these values with appropriate credentials
-# - For personal repositories, use your actual email and name
-# - For automated systems, use a service account email
-# - These values are stored in the Docker image and visible in the container
-RUN git clone https://github.com/shreyashguptas/billsincongress.git . && \
-    git config --global user.email "container@example.com" && \
-    git config --global user.name "Container Script"
+# Clone repository without configuring git
+# Git configuration will be done at runtime via environment variables
+RUN git clone https://github.com/shreyashguptas/billsincongress.git .
 
 # Copy update script before npm install
 COPY update-script.sh /app/

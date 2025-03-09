@@ -19,6 +19,12 @@ log() {
 # Log start of script
 log "Starting bill update process"
 
+# Configure Git using environment variables with fallbacks
+log "Configuring Git"
+git config --global user.email "${GIT_USER_EMAIL:-container@example.com}"
+git config --global user.name "${GIT_USER_NAME:-Container Script}"
+log "Git configured with user: $(git config --global user.name) <$(git config --global user.email)>"
+
 # Verify .env.local file exists
 if [ ! -f "/app/.env.local" ]; then
   log "ERROR: .env.local file not found. Make sure the Kubernetes secret is properly mounted."
