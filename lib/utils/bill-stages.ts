@@ -78,7 +78,7 @@ export function getStagePercentage(stage: number): number {
  * @returns True if the number is a valid bill stage
  */
 export function isValidStage(stage: number): stage is BillStage {
-  return Object.values(BillStages).includes(stage);
+  return Object.values(BillStages).includes(stage as BillStage);
 }
 
 /**

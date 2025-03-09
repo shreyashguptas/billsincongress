@@ -190,6 +190,25 @@ export const billsService = {
       }
     }
 
+    // Apply special filters to count query for policy area only if they're non-default values
+    // Use a separate query for policy area since it requires a join
+    let policyAreaCount = null;
+    if (policyArea && policyArea !== 'all') {
+      const policyAreaQuery = supabase
+        .from(BILL_INFO_TABLE_NAME)
+        .select('id', { count: 'exact', head: true })
+        .eq('bill_subjects.policy_area_name', policyArea)
+        .not('bill_subjects', 'is', null);
+      
+      const { count, error } = await policyAreaQuery;
+      
+      if (error) {
+        console.error('Error getting policy area count:', error);
+      } else {
+        policyAreaCount = count;
+      }
+    }
+
     // Add title filter to count query
     if (titleFilter) {
       const cleanedTitle = titleFilter.trim().toLowerCase()
@@ -320,7 +339,10 @@ export const billsService = {
       }
     }
 
+    // Calculate proper pagination values
     const start = (page - 1) * itemsPerPage;
+    
+    // Always order by updated_at to ensure consistent pagination results
     query = query
       .order('updated_at', { ascending: false })
       .range(start, start + itemsPerPage - 1);
@@ -332,7 +354,7 @@ export const billsService = {
       throw new Error(error.message || 'Failed to fetch bills');
     }
 
-    // Transform the data
+    // Transform the data and ensure we don't have duplicates
     const transformedData = (data || []).map(bill => {
       const policyArea = Array.isArray(bill.bill_subjects) 
         ? bill.bill_subjects[0]?.policy_area_name 
@@ -352,7 +374,7 @@ export const billsService = {
 
     return {
       data: transformedData as Bill[],
-      count: totalCount || 0,
+      count: policyAreaCount !== null ? policyAreaCount : (totalCount || 0),
     };
   },
 

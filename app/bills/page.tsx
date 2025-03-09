@@ -143,6 +143,9 @@ export default function BillsPage() {
   ]);
 
   const handleClearAllFilters = () => {
+    // Reset pagination when clearing filters
+    setCurrentPage(1);
+    
     // Reset both actual and pending filters
     setStatusFilter('all');
     setIntroducedDateFilter('all');
@@ -193,7 +196,15 @@ export default function BillsPage() {
         billNumber: billNumberFilter,
         congress: congressFilter,
       });
-      setBills(prevBills => [...prevBills, ...response.data]);
+      
+      // Create a Map of existing bill IDs for efficient lookup
+      const existingBillIds = new Set(bills.map(bill => bill.id));
+      
+      // Filter out any duplicate bills that might be returned
+      const newBills = response.data.filter(bill => !existingBillIds.has(bill.id));
+      
+      // Only add new, unique bills to the list
+      setBills(prevBills => [...prevBills, ...newBills]);
       setTotalBills(response.count);
       setCurrentPage(nextPage);
     } catch (error) {
@@ -250,9 +261,12 @@ export default function BillsPage() {
     congressFilter
   ]);
 
-  const hasMoreBills = bills.length < totalBills;
+  const hasMoreBills = bills.length > 0 && bills.length < totalBills;
 
   const handleApplyFilters = () => {
+    // Reset pagination when applying new filters
+    setCurrentPage(1);
+    
     setStatusFilter(pendingFilters.status);
     setIntroducedDateFilter(pendingFilters.introducedDate);
     setLastActionDateFilter(pendingFilters.lastActionDate);
@@ -287,7 +301,13 @@ export default function BillsPage() {
           </p>
         </div>
         <div className="text-sm text-muted-foreground">
-          Showing {bills.length} out of {totalBills} bills
+          {bills.length > 0 ? (
+            <>Showing {bills.length} out of {totalBills} bills</>
+          ) : isLoading ? (
+            <>Loading bills...</>
+          ) : (
+            <>No bills found</>
+          )}
         </div>
       </div>
       
@@ -390,7 +410,7 @@ export default function BillsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {isLoading ? (
-              <div>Loading...</div>
+              <div className="col-span-full text-center py-8">Loading bills...</div>
             ) : bills.length > 0 ? (
               bills.map((bill) => (
                 <Suspense key={bill.id} fallback={<div>Loading bill...</div>}>
@@ -410,8 +430,9 @@ export default function BillsPage() {
                 onClick={handleLoadMore}
                 disabled={isLoadingMore}
                 variant="outline"
+                className="px-6 py-2"
               >
-                {isLoadingMore ? 'Loading...' : 'Load More'}
+                {isLoadingMore ? 'Loading...' : `Load More (${Math.min(ITEMS_PER_PAGE, totalBills - bills.length)} remaining)`}
               </Button>
             </div>
           )}
