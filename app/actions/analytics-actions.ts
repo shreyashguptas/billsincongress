@@ -9,6 +9,13 @@ export interface BillsByCongressData {
   senate_bill_count: number;
 }
 
+// Type definition for the latest Congress status data
+export interface LatestCongressStatusData {
+  progress_stage: number;
+  progress_description: string;
+  bill_count: number;
+}
+
 /**
  * Fetches the number of bills introduced by the last 5 Congresses
  * Uses Next.js caching to improve performance
@@ -34,6 +41,33 @@ export const getBillsByCongressData = unstable_cache(
   },
   // Cache key
   ['analytics-bills-by-congress'],
+  // Revalidate every 24 hours (in seconds)
+  { revalidate: 86400 }
+);
+
+/**
+ * Fetches the status breakdown of bills in the latest Congress
+ * Uses Next.js caching to improve performance
+ */
+export const getLatestCongressStatusData = unstable_cache(
+  async () => {
+    const supabase = createClient();
+    
+    // Query the materialized view for latest Congress bill status
+    const { data, error } = await supabase
+      .from('app_analytics_latest_congress_status')
+      .select('*')
+      .order('progress_stage');
+      
+    if (error) {
+      console.error('Error fetching latest Congress status data:', error);
+      return [];
+    }
+    
+    return data;
+  },
+  // Cache key
+  ['analytics-latest-congress-status'],
   // Revalidate every 24 hours (in seconds)
   { revalidate: 86400 }
 ); 
