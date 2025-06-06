@@ -2,8 +2,8 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
-import { Navigation } from '@/components/navigation';
-import { Footer } from '@/components/footer';
+// import { Navigation } from '@/components/navigation';
+// import { Footer } from '@/components/footer';
 import { Analytics } from "@vercel/analytics/react"
 import { Toaster } from '@/components/ui/toaster';
 
@@ -54,11 +54,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <div className="flex min-h-screen flex-col">
-            <Navigation />
-            <main className="flex-1">{children}</main>
-            <Footer />
-          </div>
+          <main className="min-h-screen">{children}</main>
           <Analytics />
           <Toaster />
         </ThemeProvider>
