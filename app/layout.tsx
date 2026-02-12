@@ -1,13 +1,11 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/theme-provider';
-// import { Navigation } from '@/components/navigation';
-// import { Footer } from '@/components/footer';
+import { Navigation } from '@/components/navigation';
+import { Footer } from '@/components/footer';
 import { Analytics } from "@vercel/analytics/react"
 import { Toaster } from '@/components/ui/toaster';
-
-const inter = Inter({ subsets: ['latin'] });
+import { ConvexClientProvider } from './ConvexClientProvider';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -52,12 +50,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <main className="min-h-screen">{children}</main>
-          <Analytics />
-          <Toaster />
-        </ThemeProvider>
+      <body className="font-sans">
+        <ConvexClientProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <div className="flex min-h-screen flex-col">
+              <Navigation />
+              <main className="flex-1">{children}</main>
+              <Footer />
+            </div>
+            <Analytics />
+            <Toaster />
+          </ThemeProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   );

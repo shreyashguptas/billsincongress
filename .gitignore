@@ -1,18 +1,28 @@
-.cursorignore
-.cursor/
-.next
+# Dependencies
 node_modules
 
+# Next.js
+.next
 out
 
-*.DS_Store
+# Environment
 .env.local
-api-testing/api-testing.ipynb
-api-testing/latest_bills.csv
-failed_bills_summaries_2025-02-23T04-51-22-121Z.json
-failed_bills_titles_2025-02-28T15-19-50-104Z.json
+.env*.local
+
+# IDE
+.cursorignore
+.cursor/
+
+# OS
+*.DS_Store
+
+# Old data files
+api-testing/
+failed_bills_*.json
 images-of-representatives.json
 
+# Build
+tsconfig.tsbuildinfo
+
+# Misc
 /extra-files-for-future
-documentation/k3s-cluster-info.md
-documentation/codebase-cleanup.md
