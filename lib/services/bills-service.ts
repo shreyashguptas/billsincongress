@@ -139,6 +139,25 @@ export const billsService = {
     }
   },
 
+  async getSyncStatus(): Promise<{
+    syncType: string;
+    completedAt: string | undefined;
+    totalProcessed: number | undefined;
+    totalSuccess: number | undefined;
+    totalFailed: number | undefined;
+  } | null> {
+    const client = getConvexClient();
+    if (!client) return null;
+
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      return await client.query(api.bills.getSyncStatus);
+    } catch (error) {
+      console.error('Error fetching sync status from Convex:', error);
+      return null;
+    }
+  },
+
   async getAvailableCongressNumbers(): Promise<number[]> {
     const client = getConvexClient();
     if (!client) {

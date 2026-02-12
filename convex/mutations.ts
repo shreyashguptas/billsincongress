@@ -199,6 +199,34 @@ export const upsertBillTitles = internalMutation({
 });
 
 /**
+ * Update the sync status bitmask for a bill.
+ * Uses bitwise OR so bits are only ever added, never removed.
+ */
+export const updateBillSyncStatus = internalMutation({
+  args: {
+    billId: v.string(),
+    endpointBits: v.number(),
+    lastSyncAttempt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+
+    if (!existing) return;
+
+    const currentMask = existing.syncedEndpoints || 0;
+    const newMask = currentMask | args.endpointBits;
+
+    await ctx.db.patch(existing._id, {
+      syncedEndpoints: newMask,
+      lastSyncAttempt: args.lastSyncAttempt,
+    });
+  },
+});
+
+/**
  * Create a sync snapshot to track a data sync operation
  */
 export const createSyncSnapshot = internalMutation({

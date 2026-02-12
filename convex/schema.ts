@@ -18,6 +18,8 @@ export default defineSchema({
     sponsorState: v.optional(v.string()),
     progressStage: v.optional(v.number()), // 20, 40, 60, 80, 90, 95, 100
     progressDescription: v.optional(v.string()),
+    syncedEndpoints: v.optional(v.number()), // bitmask: 1=detail, 2=actions, 4=subjects, 8=summaries, 16=text
+    lastSyncAttempt: v.optional(v.string()), // ISO timestamp of last sync attempt
     updatedAt: v.string(),
   })
     .index("by_billId", ["billId"])

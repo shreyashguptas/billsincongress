@@ -20,6 +20,11 @@ const BillCard = dynamic(
   { ssr: false }
 );
 
+const SyncStatus = dynamic(
+  () => import('@/components/bills/sync-status'),
+  { ssr: false }
+);
+
 const ITEMS_PER_PAGE = 9;
 
 export default function BillsPage() {
@@ -335,6 +340,7 @@ export default function BillsPage() {
               </span>
             )}
           </p>
+          <SyncStatus />
         </div>
         <div className="text-sm text-muted-foreground">
           {bills.length > 0 ? (

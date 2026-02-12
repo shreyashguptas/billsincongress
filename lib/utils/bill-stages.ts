@@ -3,6 +3,7 @@ export const BillStages = {
   IN_COMMITTEE: 40,
   PASSED_ONE_CHAMBER: 60,
   PASSED_BOTH_CHAMBERS: 80,
+  VETOED: 85,
   TO_PRESIDENT: 90,
   SIGNED_BY_PRESIDENT: 95,
   BECAME_LAW: 100,
@@ -15,6 +16,7 @@ export const BillStageDescriptions: Record<BillStage, string> = {
   [BillStages.IN_COMMITTEE]: 'In Committee',
   [BillStages.PASSED_ONE_CHAMBER]: 'Passed One Chamber',
   [BillStages.PASSED_BOTH_CHAMBERS]: 'Passed Both Chambers',
+  [BillStages.VETOED]: 'Vetoed',
   [BillStages.TO_PRESIDENT]: 'To President',
   [BillStages.SIGNED_BY_PRESIDENT]: 'Signed by President',
   [BillStages.BECAME_LAW]: 'Became Law',
@@ -25,6 +27,7 @@ export const BillStageOrder: BillStage[] = [
   BillStages.IN_COMMITTEE,
   BillStages.PASSED_ONE_CHAMBER,
   BillStages.PASSED_BOTH_CHAMBERS,
+  BillStages.VETOED,
   BillStages.TO_PRESIDENT,
   BillStages.SIGNED_BY_PRESIDENT,
   BillStages.BECAME_LAW,
@@ -32,13 +35,14 @@ export const BillStageOrder: BillStage[] = [
 
 // Map of stage numbers to their visual percentage on the progress bar
 const StagePercentages: Record<BillStage, number> = {
-  [BillStages.INTRODUCED]: 0,          // Start at 0%
-  [BillStages.IN_COMMITTEE]: 16.67,    // 1/6
-  [BillStages.PASSED_ONE_CHAMBER]: 33.33,  // 2/6
-  [BillStages.PASSED_BOTH_CHAMBERS]: 50,   // 3/6
-  [BillStages.TO_PRESIDENT]: 66.67,    // 4/6
-  [BillStages.SIGNED_BY_PRESIDENT]: 83.33, // 5/6
-  [BillStages.BECAME_LAW]: 100,        // 6/6
+  [BillStages.INTRODUCED]: 0,              // Start at 0%
+  [BillStages.IN_COMMITTEE]: 14.29,        // 1/7
+  [BillStages.PASSED_ONE_CHAMBER]: 28.57,  // 2/7
+  [BillStages.PASSED_BOTH_CHAMBERS]: 42.86, // 3/7
+  [BillStages.VETOED]: 57.14,              // 4/7
+  [BillStages.TO_PRESIDENT]: 57.14,        // 4/7 (same as vetoed — parallel paths)
+  [BillStages.SIGNED_BY_PRESIDENT]: 71.43, // 5/7
+  [BillStages.BECAME_LAW]: 100,            // 7/7
 } as const;
 
 /**
@@ -86,9 +90,9 @@ export function isValidStage(stage: number): stage is BillStage {
  * @param currentStage - The current bill stage
  * @returns Array of progress dots with their completion status
  */
-export function getProgressDots(currentStage: number): { stage: string; isComplete: boolean }[] {
-  const shortLabels = ['Introduced', 'Committee', 'One Chamber', 'Both Chambers', 'To President', 'Signed', 'Law'];
-  
+export function getProgressDots(currentStage: number): { stage: string; isComplete: boolean; isVetoed?: boolean }[] {
+  const shortLabels = ['Introduced', 'Committee', 'One Chamber', 'Both Chambers', 'Vetoed', 'To President', 'Signed', 'Law'];
+
   // If not a valid stage, show all dots as incomplete
   if (!isValidStage(currentStage)) {
     return shortLabels.map(stage => ({
@@ -99,10 +103,12 @@ export function getProgressDots(currentStage: number): { stage: string; isComple
 
   // Get the index of the current stage in the order array
   const currentIndex = BillStageOrder.indexOf(currentStage);
-  
+  const isVetoedBill = currentStage === BillStages.VETOED;
+
   // Map each label to its completion status based on index comparison
   return shortLabels.map((label, index) => ({
     stage: label,
-    isComplete: index <= currentIndex
+    isComplete: index <= currentIndex,
+    ...(label === 'Vetoed' && isVetoedBill ? { isVetoed: true } : {}),
   }));
 } 

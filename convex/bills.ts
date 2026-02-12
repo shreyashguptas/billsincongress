@@ -7,6 +7,7 @@ const BILL_STAGE_DESCRIPTIONS: Record<number, string> = {
   40: "In Committee",
   60: "Passed One Chamber",
   80: "Passed Both Chambers",
+  85: "Vetoed",
   90: "To President",
   95: "Signed by President",
   100: "Became Law",
@@ -283,5 +284,30 @@ export const getPolicyAreas = query({
       ),
     ];
     return areas.sort();
+  },
+});
+
+/**
+ * Get the latest completed sync snapshot for frontend display.
+ */
+export const getSyncStatus = query({
+  handler: async (ctx) => {
+    const completedSnapshot = await ctx.db
+      .query("syncSnapshots")
+      .withIndex("by_status", (q) => q.eq("status", "completed"))
+      .order("desc")
+      .first();
+
+    if (!completedSnapshot) {
+      return null;
+    }
+
+    return {
+      syncType: completedSnapshot.syncType,
+      completedAt: completedSnapshot.completedAt,
+      totalProcessed: completedSnapshot.totalProcessed,
+      totalSuccess: completedSnapshot.totalSuccess,
+      totalFailed: completedSnapshot.totalFailed,
+    };
   },
 });
