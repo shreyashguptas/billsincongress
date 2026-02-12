@@ -1,11 +1,6 @@
 {
-  "buildCommand": "npm run optimize-images && npm run generate-icons && next build",
+  "buildCommand": "npm run generate-icons && next build",
   "devCommand": "next dev",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "outputDirectory": ".next",
-  "crons": [{
-    "path": "/api/cron",
-    "schedule": "0 1 * * *"
-  }]
+  "framework": "nextjs"
 }

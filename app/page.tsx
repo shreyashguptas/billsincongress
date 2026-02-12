@@ -1,36 +1,50 @@
-export default function Home() {
+import { getBillsByCongressData, getLatestCongressStatusData } from './actions/analytics-actions';
+import CongressionalBillsChart from './components/analytics/CongressionalBillsChart';
+import LatestCongressStatusChart from './components/analytics/LatestCongressStatusChart';
+import QuoteCarousel from '@/components/QuoteCarousel';
+
+export default async function Home() {
+  // Fetch the analytics data
+  const billsByCongressData = await getBillsByCongressData();
+  const latestCongressStatusData = await getLatestCongressStatusData();
+
+  // Get the latest congress number from the bills data
+  const latestCongress = billsByCongressData.length > 0
+    ? Math.max(...billsByCongressData.map(item => item.congress))
+    : 119; // Fallback to 119 if data is empty
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-800">
-      <div className="text-center px-6 py-12 max-w-4xl mx-auto">
-        <div className="space-y-8">
-          <h1 className="text-6xl md:text-8xl font-bold text-white mb-8 tracking-tight">
-            THE WEBSITE IS DOWN FOR MAINTENANCE
-          </h1>
-          
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
-            <p className="text-2xl md:text-3xl text-gray-200 mb-6">
-              We're working hard to improve your experience
+    <div className="flex flex-col">
+      {/* Analytics Section - Now the primary section */}
+      <section className="w-full bg-[#121825] text-white py-16 md:py-20 min-h-[calc(100vh-64px)]">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-[1200px]">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-center mb-4">
+              Hold your Representatives Accountable
+            </h1>
+            <p className="text-center text-gray-300 mb-12 max-w-[700px] mx-auto">
+            See how your elected representatives are doing in Congress.
+            And track the bills that they're introducing to help you live a better life.
             </p>
-            
-            <div className="text-xl md:text-2xl text-blue-300">
-              Check out{' '}
-              <a 
-                href="https://www.congress.gov/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline underline-offset-4 decoration-2 transition-colors duration-200"
-              >
-                https://www.congress.gov/
-              </a>
-              {' '}in the meantime
+
+            {/* Dashboard layout - side by side on large screens, stacked on smaller screens */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="w-full h-full">
+                <CongressionalBillsChart data={billsByCongressData} />
+              </div>
+
+              <div className="w-full h-full">
+                <LatestCongressStatusChart
+                  data={latestCongressStatusData}
+                  latestCongress={latestCongress}
+                />
+              </div>
             </div>
           </div>
-          
-          <div className="text-gray-400 text-lg">
-            Thank you for your patience
-          </div>
         </div>
-      </div>
+      </section>
+
+      <QuoteCarousel />
     </div>
   );
 }

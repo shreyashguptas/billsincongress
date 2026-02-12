@@ -1,7 +1,6 @@
-import { createClient } from '@/lib/services/supabase/server';
-import { unstable_cache } from 'next/cache';
+import { ConvexHttpClient } from 'convex/browser';
 
-// Type definition for the analytics data
+// Type definitions for the analytics data
 export interface BillsByCongressData {
   congress: number;
   bill_count: number;
@@ -9,65 +8,50 @@ export interface BillsByCongressData {
   senate_bill_count: number;
 }
 
-// Type definition for the latest Congress status data
 export interface LatestCongressStatusData {
   progress_stage: number;
   progress_description: string;
   bill_count: number;
 }
 
-/**
- * Fetches the number of bills introduced by the last 5 Congresses
- * Uses Next.js caching to improve performance
- */
-export const getBillsByCongressData = unstable_cache(
-  async () => {
-    const supabase = createClient();
-    
-    // Query the materialized view and get the latest 5 congresses
-    const { data, error } = await supabase
-      .from('app_analytics_bills_by_congress')
-      .select('*')
-      .order('congress', { ascending: false })
-      .limit(5);
-      
-    if (error) {
-      console.error('Error fetching bills by congress data:', error);
-      return [];
-    }
-    
-    // Return data in reverse order so the chart shows earlier congresses on the left
-    return data.reverse();
-  },
-  // Cache key
-  ['analytics-bills-by-congress'],
-  // Revalidate every 24 hours (in seconds)
-  { revalidate: 86400 }
-);
+function getConvexClient(): ConvexHttpClient | null {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!url) return null;
+  return new ConvexHttpClient(url);
+}
 
 /**
- * Fetches the status breakdown of bills in the latest Congress
- * Uses Next.js caching to improve performance
+ * Fetches the number of bills introduced by the last 5 Congresses.
+ * Uses Convex backend.
  */
-export const getLatestCongressStatusData = unstable_cache(
-  async () => {
-    const supabase = createClient();
-    
-    // Query the materialized view for latest Congress bill status
-    const { data, error } = await supabase
-      .from('app_analytics_latest_congress_status')
-      .select('*')
-      .order('progress_stage');
-      
-    if (error) {
-      console.error('Error fetching latest Congress status data:', error);
-      return [];
-    }
-    
-    return data;
-  },
-  // Cache key
-  ['analytics-latest-congress-status'],
-  // Revalidate every 24 hours (in seconds)
-  { revalidate: 86400 }
-); 
+export async function getBillsByCongressData(): Promise<BillsByCongressData[]> {
+  const client = getConvexClient();
+  if (!client) return [];
+
+  try {
+    const { api } = await import('../../convex/_generated/api');
+    const data = await client.query(api.bills.billsByCongress);
+    return data as BillsByCongressData[];
+  } catch (error) {
+    console.error('Error fetching bills by congress data:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches the status breakdown of bills in the latest Congress.
+ * Uses Convex backend.
+ */
+export async function getLatestCongressStatusData(): Promise<LatestCongressStatusData[]> {
+  const client = getConvexClient();
+  if (!client) return [];
+
+  try {
+    const { api } = await import('../../convex/_generated/api');
+    const data = await client.query(api.bills.latestCongressStatus);
+    return data as LatestCongressStatusData[];
+  } catch (error) {
+    console.error('Error fetching latest Congress status data:', error);
+    return [];
+  }
+}
