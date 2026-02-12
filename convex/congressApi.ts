@@ -3,8 +3,8 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 const BASE_URL = "https://api.congress.gov/v3";
-const BATCH_SIZE = 250;
-const DELAY_BETWEEN_REQUESTS_MS = 750; // ~4800 requests/hour, well under 5000 limit
+const BATCH_SIZE = 50; // 50 bills per batch keeps well within Convex's 10-min action timeout
+const DELAY_BETWEEN_REQUESTS_MS = 750; // delay between each API call (not per bill)
 const BILL_TYPES = [
   "hr",
   "s",
@@ -216,21 +216,22 @@ export const syncBillBatch = internalAction({
       const billId = `${bill.number}${args.billType}${args.congress}`;
 
       try {
-        // Fetch detailed bill info
+        // 1. Fetch detailed bill info
+        await delay(DELAY_BETWEEN_REQUESTS_MS);
         const detailUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}?api_key=${apiKey}&format=json`;
         const detailResponse = await fetch(detailUrl);
 
         if (!detailResponse.ok) {
           console.error(`Failed to fetch detail for ${billId}: ${detailResponse.statusText}`);
           failCount++;
-          await delay(DELAY_BETWEEN_REQUESTS_MS);
           continue;
         }
 
         const detailData = await detailResponse.json();
         const billDetail = detailData.bill;
 
-        // Fetch actions to calculate progress stage
+        // 2. Fetch actions to calculate progress stage
+        await delay(DELAY_BETWEEN_REQUESTS_MS);
         let actions: any[] = [];
         try {
           const actionsUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/actions?api_key=${apiKey}&format=json&limit=250`;
@@ -285,7 +286,8 @@ export const syncBillBatch = internalAction({
           });
         }
 
-        // Fetch and store subjects
+        // 3. Fetch and store subjects
+        await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
           const subjectsUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/subjects?api_key=${apiKey}&format=json`;
           const subjectsResponse = await fetch(subjectsUrl);
@@ -304,7 +306,8 @@ export const syncBillBatch = internalAction({
           // Non-critical
         }
 
-        // Fetch and store summaries
+        // 4. Fetch and store summaries
+        await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
           const summariesUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/summaries?api_key=${apiKey}&format=json`;
           const summariesResponse = await fetch(summariesUrl);
@@ -326,7 +329,8 @@ export const syncBillBatch = internalAction({
           // Non-critical
         }
 
-        // Fetch and store text/PDF info
+        // 5. Fetch and store text/PDF info
+        await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
           const textUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/text?api_key=${apiKey}&format=json`;
           const textResponse = await fetch(textUrl);
@@ -355,11 +359,9 @@ export const syncBillBatch = internalAction({
         }
 
         successCount++;
-        await delay(DELAY_BETWEEN_REQUESTS_MS);
       } catch (error: any) {
         console.error(`Error processing bill ${billId}: ${error.message}`);
         failCount++;
-        await delay(DELAY_BETWEEN_REQUESTS_MS);
       }
     }
 
@@ -367,11 +369,21 @@ export const syncBillBatch = internalAction({
       `Batch complete: ${successCount} success, ${failCount} failed out of ${bills.length}`
     );
 
+    // Update sync snapshot with batch progress
+    if (args.snapshotId) {
+      await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
+        snapshotId: args.snapshotId,
+        totalProcessed: args.offset + bills.length,
+        totalSuccess: (args.offset || 0) + successCount,
+        totalFailed: failCount,
+      });
+    }
+
     // Schedule next batch if there are more bills
     const hasMore = bills.length >= BATCH_SIZE;
     if (hasMore) {
       await ctx.scheduler.runAfter(
-        2000, // 2 second gap between batches
+        5000, // 5 second gap between batches
         internal.congressApi.syncBillBatch,
         {
           congress: args.congress,
@@ -380,6 +392,16 @@ export const syncBillBatch = internalAction({
           snapshotId: args.snapshotId,
         }
       );
+    } else if (args.snapshotId) {
+      // This bill type is done — mark snapshot completed
+      await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
+        snapshotId: args.snapshotId,
+        status: "completed",
+        completedAt: new Date().toISOString(),
+        totalProcessed: args.offset + bills.length,
+        totalSuccess: (args.offset || 0) + successCount,
+        totalFailed: failCount,
+      });
     }
 
     return { processed: bills.length, hasMore, successCount, failCount };
@@ -411,10 +433,11 @@ export const syncCongress = internalAction({
       `Starting ${syncType} sync for Congress ${args.congress} (snapshot: ${snapshotId})`
     );
 
-    // Schedule sync for each bill type with 5 second stagger
+    // Schedule sync for each bill type with 10 minute stagger
+    // so only one bill type hits the API at a time
     for (let i = 0; i < BILL_TYPES.length; i++) {
       await ctx.scheduler.runAfter(
-        i * 5000, // stagger by 5 seconds
+        i * 600000, // stagger by 10 minutes
         internal.congressApi.syncBillBatch,
         {
           congress: args.congress,
@@ -464,10 +487,11 @@ export const initialHistoricalPull = internalAction({
       `Starting historical pull for congresses: ${congressesToSync.join(", ")}`
     );
 
-    // Stagger each congress sync by 2 minutes to avoid API rate limits
+    // Stagger each congress by 2 hours — each congress has 8 bill types
+    // staggered by 10 min internally, so ~80 min per congress
     for (let i = 0; i < congressesToSync.length; i++) {
       await ctx.scheduler.runAfter(
-        i * 120000, // 2 minute gap between congresses
+        i * 7200000, // 2 hour gap between congresses
         internal.congressApi.syncCongress,
         {
           congress: congressesToSync[i],

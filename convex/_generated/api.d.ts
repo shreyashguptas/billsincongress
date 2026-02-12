@@ -1,39 +1,55 @@
+/* eslint-disable */
 /**
- * AUTO-GENERATED STUB - This file will be replaced when `npx convex dev` runs.
- * It provides type stubs so the project can build before Convex is initialized.
+ * Generated `api` utility.
+ *
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-type AnyFunction = (...args: any[]) => any;
-type ApiModule = Record<string, AnyFunction>;
+import type * as bills from "../bills.js";
+import type * as congressApi from "../congressApi.js";
+import type * as crons from "../crons.js";
+import type * as mutations from "../mutations.js";
 
-export declare const api: {
-  bills: {
-    getById: any;
-    list: any;
-    getCongressInfo: any;
-    getCongressNumbers: any;
-    billsByCongress: any;
-    latestCongressStatus: any;
-    getPolicyAreas: any;
-  };
-  mutations: {
-    upsertBill: any;
-    upsertBillActions: any;
-    upsertBillSubject: any;
-    upsertBillSummary: any;
-    upsertBillText: any;
-    upsertBillTitles: any;
-    createSyncSnapshot: any;
-    updateSyncSnapshot: any;
-  };
-  congressApi: {
-    syncBillBatch: any;
-    syncCongress: any;
-    dailySync: any;
-    initialHistoricalPull: any;
-  };
-  crons: any;
-};
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
 
-export declare const internal: typeof api;
+declare const fullApi: ApiFromModules<{
+  bills: typeof bills;
+  congressApi: typeof congressApi;
+  crons: typeof crons;
+  mutations: typeof mutations;
+}>;
+
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
+export declare const api: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "public">
+>;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
+export declare const internal: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "internal">
+>;
+
+export declare const components: {};

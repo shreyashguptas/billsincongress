@@ -21,5 +21,8 @@ api-testing/
 failed_bills_*.json
 images-of-representatives.json
 
+# Build
+tsconfig.tsbuildinfo
+
 # Misc
 /extra-files-for-future
