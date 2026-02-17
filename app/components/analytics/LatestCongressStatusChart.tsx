@@ -1,13 +1,9 @@
 'use client';
 
-import type { LatestCongressStatusData } from '@/app/actions/analytics-actions';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 import { useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-
-interface LatestCongressStatusChartProps {
-  data: LatestCongressStatusData[];
-  latestCongress?: number;
-}
 
 const STAGE_COLORS: Record<number, string> = {
   20: '#64748b',  // Introduced - slate
@@ -19,15 +15,28 @@ const STAGE_COLORS: Record<number, string> = {
   100: '#f43f5e', // Became Law - rose
 };
 
-export default function LatestCongressStatusChart({
-  data,
-  latestCongress = 119
-}: LatestCongressStatusChartProps) {
+export default function LatestCongressStatusChart() {
+  const congressInfo = useQuery(api.bills.getCongressInfo);
+  const data = useQuery(api.bills.latestCongressStatus);
+
+  const latestCongress = congressInfo?.congress ?? 119;
+
   const validData = useMemo(() => {
+    if (!data) return [];
     return data.filter(item => item.progress_stage !== null && item.progress_description !== null);
   }, [data]);
 
-  if (!validData || validData.length === 0) {
+  if (data === undefined) {
+    return (
+      <div className="mx-auto bg-[#19223C] rounded-lg shadow-lg h-full p-6 animate-pulse">
+        <div className="h-6 bg-gray-700 rounded w-3/4 mx-auto mb-4" />
+        <div className="h-4 bg-gray-700 rounded w-1/2 mx-auto mb-8" />
+        <div className="h-52 bg-gray-700 rounded-full w-52 mx-auto mb-4" />
+      </div>
+    );
+  }
+
+  if (validData.length === 0) {
     return null;
   }
 

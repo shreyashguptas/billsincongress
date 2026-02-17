@@ -132,30 +132,42 @@ export const getSyncCompleteness = query({
     congress: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let billsQuery;
-    if (args.congress !== undefined) {
-      billsQuery = ctx.db
-        .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", args.congress!));
-    } else {
-      billsQuery = ctx.db.query("bills");
-    }
+    // If congress is specified, query just that congress
+    // Otherwise, aggregate across all known congresses to avoid full table scan
+    const congressesToCheck: number[] = [];
 
-    const allBills = await billsQuery.collect();
+    if (args.congress !== undefined) {
+      congressesToCheck.push(args.congress);
+    } else {
+      for (let c = 93; c <= 120; c++) {
+        const bill = await ctx.db
+          .query("bills")
+          .withIndex("by_congress", (q) => q.eq("congress", c))
+          .first();
+        if (bill) congressesToCheck.push(c);
+      }
+    }
 
     let total = 0;
     let complete = 0;
     let partial = 0;
     let legacy = 0;
 
-    for (const bill of allBills) {
-      total++;
-      if (bill.syncedEndpoints === undefined) {
-        legacy++;
-      } else if (bill.syncedEndpoints >= SYNC_COMPLETE) {
-        complete++;
-      } else {
-        partial++;
+    for (const congress of congressesToCheck) {
+      const bills = await ctx.db
+        .query("bills")
+        .withIndex("by_congress", (q) => q.eq("congress", congress))
+        .collect();
+
+      for (const bill of bills) {
+        total++;
+        if (bill.syncedEndpoints === undefined) {
+          legacy++;
+        } else if (bill.syncedEndpoints >= SYNC_COMPLETE) {
+          complete++;
+        } else {
+          partial++;
+        }
       }
     }
 

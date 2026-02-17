@@ -1,13 +1,43 @@
 'use client';
 
-import type { BillsByCongressData } from '@/app/actions/analytics-actions';
+import { useQuery } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 
-interface CongressionalBillsChartProps {
-  data: BillsByCongressData[];
-}
+export default function CongressionalBillsChart() {
+  const congresses = useQuery(api.bills.getCongressNumbers);
 
-export default function CongressionalBillsChart({ data }: CongressionalBillsChartProps) {
-  if (!data || data.length === 0) {
+  // Take last 5 congresses
+  const last5 = congresses?.sort((a, b) => a - b).slice(-5) ?? [];
+
+  // Query each congress individually
+  const c0 = useQuery(api.bills.billCountByCongress, last5[0] !== undefined ? { congress: last5[0] } : 'skip');
+  const c1 = useQuery(api.bills.billCountByCongress, last5[1] !== undefined ? { congress: last5[1] } : 'skip');
+  const c2 = useQuery(api.bills.billCountByCongress, last5[2] !== undefined ? { congress: last5[2] } : 'skip');
+  const c3 = useQuery(api.bills.billCountByCongress, last5[3] !== undefined ? { congress: last5[3] } : 'skip');
+  const c4 = useQuery(api.bills.billCountByCongress, last5[4] !== undefined ? { congress: last5[4] } : 'skip');
+
+  const data = [c0, c1, c2, c3, c4].filter(
+    (d): d is NonNullable<typeof d> => d !== undefined && d !== null
+  );
+
+  if (congresses === undefined) {
+    return (
+      <div className="mx-auto bg-[#19223C] rounded-lg shadow-lg h-full p-6 animate-pulse">
+        <div className="h-6 bg-gray-700 rounded w-3/4 mx-auto mb-4" />
+        <div className="h-4 bg-gray-700 rounded w-1/2 mx-auto mb-8" />
+        <div className="space-y-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i}>
+              <div className="h-4 bg-gray-700 rounded w-1/3 mb-2" />
+              <div className="h-8 bg-gray-700 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
     return null;
   }
 

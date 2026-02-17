@@ -1,18 +1,8 @@
-import { getBillsByCongressData, getLatestCongressStatusData } from './actions/analytics-actions';
 import CongressionalBillsChart from './components/analytics/CongressionalBillsChart';
 import LatestCongressStatusChart from './components/analytics/LatestCongressStatusChart';
 import QuoteCarousel from '@/components/QuoteCarousel';
 
-export default async function Home() {
-  // Fetch the analytics data
-  const billsByCongressData = await getBillsByCongressData();
-  const latestCongressStatusData = await getLatestCongressStatusData();
-
-  // Get the latest congress number from the bills data
-  const latestCongress = billsByCongressData.length > 0
-    ? Math.max(...billsByCongressData.map(item => item.congress))
-    : 119; // Fallback to 119 if data is empty
-
+export default function Home() {
   return (
     <div className="flex flex-col">
       {/* Analytics Section - Now the primary section */}
@@ -30,14 +20,11 @@ export default async function Home() {
             {/* Dashboard layout - side by side on large screens, stacked on smaller screens */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="w-full h-full">
-                <CongressionalBillsChart data={billsByCongressData} />
+                <CongressionalBillsChart />
               </div>
 
               <div className="w-full h-full">
-                <LatestCongressStatusChart
-                  data={latestCongressStatusData}
-                  latestCongress={latestCongress}
-                />
+                <LatestCongressStatusChart />
               </div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { query } from "./_generated/server";
+import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 // Bill stage constants (mirroring lib/utils/bill-stages.ts)
@@ -76,20 +77,26 @@ export const list = query({
     const limit = args.limit || 9;
     const offset = args.offset || 0;
 
-    // Use the most selective index
-    let results;
-    if (args.congress) {
+    // Use the most selective index. Default to latest congress to avoid full table scan.
+    let congressFilter = args.congress;
+    if (!congressFilter) {
+      const latestBill = await ctx.db
+        .query("bills")
+        .withIndex("by_congress")
+        .order("desc")
+        .first();
+      congressFilter = latestBill?.congress;
+    }
+
+    let results: Doc<"bills">[];
+    if (congressFilter) {
       results = await ctx.db
         .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", args.congress!))
+        .withIndex("by_congress", (q) => q.eq("congress", congressFilter!))
         .order("desc")
         .collect();
     } else {
-      results = await ctx.db
-        .query("bills")
-        .withIndex("by_updated_at")
-        .order("desc")
-        .collect();
+      results = [];
     }
 
     // Apply in-memory filters
@@ -192,61 +199,74 @@ export const getCongressInfo = query({
 });
 
 /**
- * Get all distinct congress numbers available in the database
+ * Get all distinct congress numbers available in the database.
+ * Probes known congress range using the by_congress index instead of scanning all bills.
  */
 export const getCongressNumbers = query({
   handler: async (ctx) => {
-    const bills = await ctx.db.query("bills").collect();
-    const congresses = [...new Set(bills.map((b) => b.congress))];
+    const congresses: number[] = [];
+    // Probe a reasonable range of congress numbers (93rd–120th covers 1973–2029)
+    for (let c = 93; c <= 120; c++) {
+      const bill = await ctx.db
+        .query("bills")
+        .withIndex("by_congress", (q) => q.eq("congress", c))
+        .first();
+      if (bill) congresses.push(c);
+    }
     return congresses.sort((a, b) => b - a);
   },
 });
 
 /**
- * Analytics: bills count grouped by congress (last 5)
+ * Analytics: bill counts for a single congress.
+ * Called once per congress from the server action to stay within Convex byte limits.
  */
-export const billsByCongress = query({
-  handler: async (ctx) => {
-    const bills = await ctx.db.query("bills").collect();
-    const congressMap = new Map<
-      number,
-      { total: number; house: number; senate: number }
-    >();
+export const billCountByCongress = query({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const bills = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
 
+    let house = 0;
+    let senate = 0;
     for (const bill of bills) {
-      const entry = congressMap.get(bill.congress) || {
-        total: 0,
-        house: 0,
-        senate: 0,
-      };
-      entry.total++;
-      if (bill.billType.startsWith("h")) entry.house++;
-      else entry.senate++;
-      congressMap.set(bill.congress, entry);
+      if (bill.billType.startsWith("h")) house++;
+      else senate++;
     }
 
-    return Array.from(congressMap.entries())
-      .map(([congress, counts]) => ({
-        congress,
-        bill_count: counts.total,
-        house_bill_count: counts.house,
-        senate_bill_count: counts.senate,
-      }))
-      .sort((a, b) => a.congress - b.congress)
-      .slice(-5);
+    return {
+      congress: args.congress,
+      bill_count: bills.length,
+      house_bill_count: house,
+      senate_bill_count: senate,
+    };
   },
 });
 
 /**
- * Analytics: status breakdown for the latest congress
+ * Analytics: status breakdown for the latest congress.
+ * Uses by_congress index to avoid full table scan.
  */
 export const latestCongressStatus = query({
   handler: async (ctx) => {
-    const bills = await ctx.db.query("bills").collect();
-    if (bills.length === 0) return [];
+    // Find the latest congress using the index (desc order, first result)
+    const latestBill = await ctx.db
+      .query("bills")
+      .withIndex("by_congress")
+      .order("desc")
+      .first();
 
-    const latestCongress = Math.max(...bills.map((b) => b.congress));
-    const congressBills = bills.filter((b) => b.congress === latestCongress);
+    if (!latestBill) return [];
+
+    const latestCongress = latestBill.congress;
+
+    // Fetch only bills for the latest congress
+    const congressBills = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", latestCongress))
+      .collect();
 
     const stageMap = new Map<number, { description: string; count: number }>();
     for (const bill of congressBills) {
