@@ -226,6 +226,81 @@ export const updateBillSyncStatus = internalMutation({
   },
 });
 
+// Bill stage descriptions for stats computation
+const BILL_STAGE_DESCRIPTIONS: Record<number, string> = {
+  20: "Introduced",
+  40: "In Committee",
+  60: "Passed One Chamber",
+  80: "Passed Both Chambers",
+  85: "Vetoed",
+  90: "To President",
+  95: "Signed by President",
+  100: "Became Law",
+};
+
+/**
+ * Recompute the congressStats row for a single congress.
+ * Scans all bills for that congress (within Convex limits per-congress) and upserts the stats.
+ */
+export const recomputeCongressStats = internalMutation({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const bills = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+
+    let houseCount = 0;
+    let senateCount = 0;
+    const stageMap = new Map<number, { description: string; count: number }>();
+
+    for (const bill of bills) {
+      if (bill.billType.startsWith("h")) houseCount++;
+      else senateCount++;
+
+      const stage = bill.progressStage || 20;
+      const existing = stageMap.get(stage);
+      if (existing) {
+        existing.count++;
+      } else {
+        stageMap.set(stage, {
+          description:
+            bill.progressDescription ||
+            BILL_STAGE_DESCRIPTIONS[stage] ||
+            "Unknown",
+          count: 1,
+        });
+      }
+    }
+
+    const stageCounts = Array.from(stageMap.entries()).map(([stage, data]) => ({
+      stage,
+      description: data.description,
+      count: data.count,
+    }));
+
+    const stats = {
+      congress: args.congress,
+      totalCount: bills.length,
+      houseCount,
+      senateCount,
+      stageCounts,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const existingStats = await ctx.db
+      .query("congressStats")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .first();
+
+    if (existingStats) {
+      await ctx.db.patch(existingStats._id, stats);
+    } else {
+      await ctx.db.insert("congressStats", stats);
+    }
+  },
+});
+
 /**
  * Create a sync snapshot to track a data sync operation
  */

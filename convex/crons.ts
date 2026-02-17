@@ -25,4 +25,12 @@ crons.weekly(
   {},
 );
 
+// Run daily at 4:00 AM UTC - recompute homepage stats (safety net after syncs)
+crons.daily(
+  "daily-recompute-stats",
+  { hourUTC: 4, minuteUTC: 0 },
+  internal.congressApi.recomputeAllStats,
+  {},
+);
+
 export default crons;

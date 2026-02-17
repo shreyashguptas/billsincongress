@@ -16,17 +16,17 @@ const STAGE_COLORS: Record<number, string> = {
 };
 
 export default function LatestCongressStatusChart() {
-  const congressInfo = useQuery(api.bills.getCongressInfo);
-  const data = useQuery(api.bills.latestCongressStatus);
+  // Single lightweight query — reads 1 tiny precomputed row, not 1,373 bill documents
+  const result = useQuery(api.bills.latestCongressStatus);
 
-  const latestCongress = congressInfo?.congress ?? 119;
+  const congress = result?.congress ?? 119;
+  const stages = result?.stages ?? [];
 
   const validData = useMemo(() => {
-    if (!data) return [];
-    return data.filter(item => item.progress_stage !== null && item.progress_description !== null);
-  }, [data]);
+    return stages.filter(item => item.progress_stage !== null && item.progress_description !== null);
+  }, [stages]);
 
-  if (data === undefined) {
+  if (result === undefined) {
     return (
       <div className="mx-auto bg-[#19223C] rounded-lg shadow-lg h-full p-6 animate-pulse">
         <div className="h-6 bg-gray-700 rounded w-3/4 mx-auto mb-4" />
@@ -50,7 +50,7 @@ export default function LatestCongressStatusChart() {
   return (
     <div className="mx-auto bg-[#19223C] rounded-lg shadow-lg h-full flex flex-col p-6">
       <h3 className="text-center text-lg font-semibold text-gray-100">
-        {`${latestCongress}${getOrdinalSuffix(latestCongress)} Congress Bills by Status`}
+        {`${congress}${getOrdinalSuffix(congress)} Congress Bills by Status`}
       </h3>
       <p className="text-center text-sm text-gray-300 mt-2 mb-4">
         Distribution of bills across different legislative stages

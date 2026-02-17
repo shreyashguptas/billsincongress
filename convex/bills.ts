@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
@@ -13,6 +13,21 @@ const BILL_STAGE_DESCRIPTIONS: Record<number, string> = {
   95: "Signed by President",
   100: "Became Law",
 };
+
+/**
+ * Internal helper: check if any bills exist for a given congress.
+ * Used by recomputeAllStats to discover which congresses to process.
+ */
+export const hasBillsForCongress = internalQuery({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .first();
+    return bill !== null;
+  },
+});
 
 /**
  * Get a single bill by its composite ID, including related data
@@ -199,96 +214,58 @@ export const getCongressInfo = query({
 });
 
 /**
- * Get all distinct congress numbers available in the database.
- * Probes known congress range using the by_congress index instead of scanning all bills.
+ * Get all distinct congress numbers from the precomputed stats table.
+ * Reads ~3-5 tiny rows instead of probing the bills table.
  */
 export const getCongressNumbers = query({
   handler: async (ctx) => {
-    const congresses: number[] = [];
-    // Probe a reasonable range of congress numbers (93rd–120th covers 1973–2029)
-    for (let c = 93; c <= 120; c++) {
-      const bill = await ctx.db
-        .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", c))
-        .first();
-      if (bill) congresses.push(c);
-    }
-    return congresses.sort((a, b) => b - a);
+    const stats = await ctx.db.query("congressStats").collect();
+    return stats.map((s) => s.congress).sort((a, b) => b - a);
   },
 });
 
 /**
- * Analytics: bill counts for a single congress.
- * Called once per congress from the server action to stay within Convex byte limits.
+ * Homepage analytics: bill counts for all congresses (last 5).
+ * Reads from precomputed congressStats table — ~5 tiny document reads total.
  */
-export const billCountByCongress = query({
-  args: { congress: v.number() },
-  handler: async (ctx, args) => {
-    const bills = await ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .collect();
-
-    let house = 0;
-    let senate = 0;
-    for (const bill of bills) {
-      if (bill.billType.startsWith("h")) house++;
-      else senate++;
-    }
-
-    return {
-      congress: args.congress,
-      bill_count: bills.length,
-      house_bill_count: house,
-      senate_bill_count: senate,
-    };
+export const billCountsByCongress = query({
+  handler: async (ctx) => {
+    const stats = await ctx.db.query("congressStats").collect();
+    return stats
+      .sort((a, b) => a.congress - b.congress)
+      .slice(-5)
+      .map((s) => ({
+        congress: s.congress,
+        bill_count: s.totalCount,
+        house_bill_count: s.houseCount,
+        senate_bill_count: s.senateCount,
+      }));
   },
 });
 
 /**
- * Analytics: status breakdown for the latest congress.
- * Uses by_congress index to avoid full table scan.
+ * Homepage analytics: status breakdown for the latest congress.
+ * Reads a single precomputed congressStats row.
  */
 export const latestCongressStatus = query({
   handler: async (ctx) => {
-    // Find the latest congress using the index (desc order, first result)
-    const latestBill = await ctx.db
-      .query("bills")
-      .withIndex("by_congress")
-      .order("desc")
-      .first();
+    const stats = await ctx.db.query("congressStats").collect();
+    if (stats.length === 0) return { congress: 119, stages: [] };
 
-    if (!latestBill) return [];
+    const latest = stats.reduce((a, b) =>
+      a.congress > b.congress ? a : b
+    );
 
-    const latestCongress = latestBill.congress;
-
-    // Fetch only bills for the latest congress
-    const congressBills = await ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", latestCongress))
-      .collect();
-
-    const stageMap = new Map<number, { description: string; count: number }>();
-    for (const bill of congressBills) {
-      const stage = bill.progressStage || 20;
-      const entry = stageMap.get(stage) || {
-        description:
-          bill.progressDescription ||
-          BILL_STAGE_DESCRIPTIONS[stage] ||
-          "Unknown",
-        count: 0,
-      };
-      entry.count++;
-      stageMap.set(stage, entry);
-    }
-
-    return Array.from(stageMap.entries())
-      .map(([stage, data]) => ({
-        progress_stage: stage,
-        progress_description: data.description,
-        bill_count: data.count,
-      }))
-      .sort((a, b) => a.progress_stage - b.progress_stage);
+    return {
+      congress: latest.congress,
+      stages: latest.stageCounts
+        .map((s) => ({
+          progress_stage: s.stage,
+          progress_description: s.description,
+          bill_count: s.count,
+        }))
+        .sort((a, b) => a.progress_stage - b.progress_stage),
+    };
   },
 });
 

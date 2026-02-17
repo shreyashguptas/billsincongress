@@ -87,6 +87,22 @@ export default defineSchema({
     chamberName: v.optional(v.string()),
   }).index("by_billId", ["billId"]),
 
+  // Precomputed analytics — tiny table read by homepage instead of scanning all bills
+  congressStats: defineTable({
+    congress: v.number(),
+    totalCount: v.number(),
+    houseCount: v.number(),
+    senateCount: v.number(),
+    stageCounts: v.array(
+      v.object({
+        stage: v.number(),
+        description: v.string(),
+        count: v.number(),
+      })
+    ),
+    updatedAt: v.string(),
+  }).index("by_congress", ["congress"]),
+
   // Sync snapshots for audit trail
   syncSnapshots: defineTable({
     syncType: v.string(), // "historical" or "daily"

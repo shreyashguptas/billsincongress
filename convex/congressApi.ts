@@ -544,6 +544,11 @@ export const syncBillBatch = internalAction({
         totalSuccess: (args.offset || 0) + successCount,
         totalFailed: failCount,
       });
+
+      // Refresh precomputed homepage stats for this congress
+      await ctx.runMutation(internal.mutations.recomputeCongressStats, {
+        congress: args.congress,
+      });
     }
 
     return { processed: bills.length, hasMore, successCount, failCount };
@@ -978,5 +983,30 @@ export const backfillSyncStatus = internalAction({
     }
 
     return { processed: toBackfill.length, remaining: toBackfill.length >= BACKFILL_BATCH_SIZE };
+  },
+});
+
+/**
+ * Recompute congressStats for all congresses that have bills.
+ * Reads the bills table per-congress and writes precomputed counts.
+ * Called after syncs and by the daily stats cron.
+ */
+export const recomputeAllStats = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ congresses: number[] }> => {
+    // Find which congresses exist by probing the index
+    const congressesToUpdate: number[] = [];
+    for (let c = 93; c <= 120; c++) {
+      const bills = await ctx.runQuery(internal.bills.hasBillsForCongress, { congress: c });
+      if (bills) congressesToUpdate.push(c);
+    }
+
+    // Recompute stats for each congress
+    for (const congress of congressesToUpdate) {
+      await ctx.runMutation(internal.mutations.recomputeCongressStats, { congress });
+    }
+
+    console.log(`Recomputed stats for congresses: ${congressesToUpdate.join(", ")}`);
+    return { congresses: congressesToUpdate };
   },
 });

@@ -4,23 +4,10 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 
 export default function CongressionalBillsChart() {
-  const congresses = useQuery(api.bills.getCongressNumbers);
+  // Single lightweight query — reads ~5 tiny precomputed rows, not 38,000 bill documents
+  const data = useQuery(api.bills.billCountsByCongress);
 
-  // Take last 5 congresses
-  const last5 = congresses?.sort((a, b) => a - b).slice(-5) ?? [];
-
-  // Query each congress individually
-  const c0 = useQuery(api.bills.billCountByCongress, last5[0] !== undefined ? { congress: last5[0] } : 'skip');
-  const c1 = useQuery(api.bills.billCountByCongress, last5[1] !== undefined ? { congress: last5[1] } : 'skip');
-  const c2 = useQuery(api.bills.billCountByCongress, last5[2] !== undefined ? { congress: last5[2] } : 'skip');
-  const c3 = useQuery(api.bills.billCountByCongress, last5[3] !== undefined ? { congress: last5[3] } : 'skip');
-  const c4 = useQuery(api.bills.billCountByCongress, last5[4] !== undefined ? { congress: last5[4] } : 'skip');
-
-  const data = [c0, c1, c2, c3, c4].filter(
-    (d): d is NonNullable<typeof d> => d !== undefined && d !== null
-  );
-
-  if (congresses === undefined) {
+  if (data === undefined) {
     return (
       <div className="mx-auto bg-[#19223C] rounded-lg shadow-lg h-full p-6 animate-pulse">
         <div className="h-6 bg-gray-700 rounded w-3/4 mx-auto mb-4" />
