@@ -302,6 +302,117 @@ export const recomputeCongressStats = internalMutation({
 });
 
 /**
+ * Recompute the congressPolicyAreas table for a single congress.
+ * Uses take() limits to avoid Convex document limits.
+ */
+export const recomputeCongressPolicyAreas = internalMutation({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    // Get all billIds for this congress
+    const bills = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+    
+    const billIdSet = new Set(bills.map(b => b.billId));
+    
+    // Get all subjects - use take() to limit to 10000
+    const subjects = await ctx.db
+      .query("billSubjects")
+      .take(10000);
+    
+    // Aggregate by policy area
+    const policyAreaMap = new Map<string, number>();
+    for (const subject of subjects) {
+      if (billIdSet.has(subject.billId) && subject.policyAreaName) {
+        policyAreaMap.set(subject.policyAreaName, (policyAreaMap.get(subject.policyAreaName) || 0) + 1);
+      }
+    }
+    
+    // Convert to array and sort by count descending
+    const topAreas = Array.from(policyAreaMap.entries())
+      .map(([policyAreaName, count]) => ({ policyAreaName, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 50);
+    
+    // Delete existing policy areas for this congress
+    const existing = await ctx.db
+      .query("congressPolicyAreas")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+    
+    for (const doc of existing) {
+      await ctx.db.delete(doc._id);
+    }
+    
+    // Insert new policy areas
+    for (const area of topAreas) {
+      await ctx.db.insert("congressPolicyAreas", {
+        congress: args.congress,
+        policyAreaName: area.policyAreaName,
+        count: area.count,
+      });
+    }
+  },
+});
+
+/**
+ * Recompute the congressSponsors table for a single congress.
+ * Uses take() limits to avoid Convex document limits.
+ */
+export const recomputeCongressSponsors = internalMutation({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    // Get all bills for this congress
+    const bills = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+    
+    // Aggregate by sponsor name
+    const sponsorMap = new Map<string, { party?: string; state?: string; count: number }>();
+    for (const bill of bills) {
+      if (bill.sponsorFirstName || bill.sponsorLastName) {
+        const name = `${bill.sponsorFirstName || ""} ${bill.sponsorLastName || ""}`.trim();
+        const existing = sponsorMap.get(name) || { count: 0, party: bill.sponsorParty, state: bill.sponsorState };
+        sponsorMap.set(name, {
+          count: existing.count + 1,
+          party: bill.sponsorParty,
+          state: bill.sponsorState,
+        });
+      }
+    }
+    
+    // Convert to array and sort by count descending
+    const topSponsors = Array.from(sponsorMap.entries())
+      .map(([sponsorName, data]) => ({ sponsorName, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 50);
+    
+    // Delete existing sponsors for this congress
+    const existing = await ctx.db
+      .query("congressSponsors")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+    
+    for (const doc of existing) {
+      await ctx.db.delete(doc._id);
+    }
+    
+    // Insert new sponsors
+    for (const sponsor of topSponsors) {
+      await ctx.db.insert("congressSponsors", {
+        congress: args.congress,
+        sponsorName: sponsor.sponsorName,
+        sponsorParty: sponsor.party,
+        sponsorState: sponsor.state,
+        billCount: sponsor.count,
+      });
+    }
+  },
+});
+
+/**
  * Create a sync snapshot to track a data sync operation
  */
 export const createSyncSnapshot = internalMutation({

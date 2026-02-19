@@ -549,6 +549,12 @@ export const syncBillBatch = internalAction({
       await ctx.runMutation(internal.mutations.recomputeCongressStats, {
         congress: args.congress,
       });
+      await ctx.runMutation(internal.mutations.recomputeCongressPolicyAreas, {
+        congress: args.congress,
+      });
+      await ctx.runMutation(internal.mutations.recomputeCongressSponsors, {
+        congress: args.congress,
+      });
     }
 
     return { processed: bills.length, hasMore, successCount, failCount };

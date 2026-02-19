@@ -103,6 +103,26 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_congress", ["congress"]),
 
+  // Precomputed policy areas per congress
+  congressPolicyAreas: defineTable({
+    congress: v.number(),
+    policyAreaName: v.string(),
+    count: v.number(),
+  })
+    .index("by_congress", ["congress"])
+    .index("by_congress_and_count", ["congress", "count"]),
+
+  // Precomputed sponsors per congress
+  congressSponsors: defineTable({
+    congress: v.number(),
+    sponsorName: v.string(),
+    sponsorParty: v.optional(v.string()),
+    sponsorState: v.optional(v.string()),
+    billCount: v.number(),
+  })
+    .index("by_congress", ["congress"])
+    .index("by_congress_and_count", ["congress", "billCount"]),
+
   // Sync snapshots for audit trail
   syncSnapshots: defineTable({
     syncType: v.string(), // "historical" or "daily"

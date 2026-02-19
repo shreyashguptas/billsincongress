@@ -308,3 +308,112 @@ export const getSyncStatus = query({
     };
   },
 });
+
+/**
+ * Get comprehensive stats for a specific congress.
+ * Uses ONLY precomputed tables - no heavy queries.
+ */
+export const getCongressDashboard = query({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    // Get precomputed stats - single fast query
+    const stats = await ctx.db
+      .query("congressStats")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .first();
+
+    if (!stats) {
+      return null;
+    }
+
+    // Get precomputed policy areas
+    const policyAreas = await ctx.db
+      .query("congressPolicyAreas")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+
+    const topPolicyAreas = policyAreas.slice(0, 10).map(p => ({
+      name: p.policyAreaName,
+      count: p.count,
+    }));
+
+    // Get precomputed sponsors
+    const sponsors = await ctx.db
+      .query("congressSponsors")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+
+    const topSponsors = sponsors.slice(0, 10).map(s => ({
+      name: s.sponsorName,
+      count: s.billCount,
+      party: s.sponsorParty,
+      state: s.sponsorState,
+    }));
+
+    // Build status breakdown from precomputed stageCounts
+    const statusBreakdown = {
+      introduced: 0,
+      inCommittee: 0,
+      passedOneChamber: 0,
+      passedBothChambers: 0,
+      vetoed: 0,
+      toPresident: 0,
+      signed: 0,
+      becameLaw: 0,
+    };
+
+    for (const stage of stats.stageCounts) {
+      switch (stage.stage) {
+        case 20: statusBreakdown.introduced = stage.count; break;
+        case 40: statusBreakdown.inCommittee = stage.count; break;
+        case 60: statusBreakdown.passedOneChamber = stage.count; break;
+        case 80: statusBreakdown.passedBothChambers = stage.count; break;
+        case 85: statusBreakdown.vetoed = stage.count; break;
+        case 90: statusBreakdown.toPresident = stage.count; break;
+        case 95: statusBreakdown.signed = stage.count; break;
+        case 100: statusBreakdown.becameLaw = stage.count; break;
+      }
+    }
+
+    return {
+      congress: args.congress,
+      totalBills: stats.totalCount,
+      houseCount: stats.houseCount,
+      senateCount: stats.senateCount,
+      statusBreakdown,
+      topSponsors,
+      topPolicyAreas,
+      partyBreakdown: [],
+      stateBreakdown: [],
+      timelineMetrics: [
+        { stage: "introduced", avgDays: 0, description: "Introduced" },
+        { stage: "committee", avgDays: 0, description: "To Committee" },
+        { stage: "passedOneChamber", avgDays: 0, description: "Passed One Chamber" },
+        { stage: "passedBothChambers", avgDays: 0, description: "Passed Both Chambers" },
+        { stage: "toPresident", avgDays: 0, description: "To President" },
+        { stage: "signed", avgDays: 0, description: "Signed by President" },
+        { stage: "law", avgDays: 0, description: "Became Law" },
+      ],
+    };
+  },
+});
+
+/**
+ * Get overview stats for all congresses at once
+ */
+export const getAllCongressOverview = query({
+  handler: async (ctx) => {
+    const stats = await ctx.db.query("congressStats").collect();
+    
+    return stats
+      .sort((a, b) => a.congress - b.congress)
+      .map(s => ({
+        congress: s.congress,
+        totalCount: s.totalCount,
+        houseCount: s.houseCount,
+        senateCount: s.senateCount,
+        stageCounts: s.stageCounts,
+        updatedAt: s.updatedAt,
+      }));
+  },
+});

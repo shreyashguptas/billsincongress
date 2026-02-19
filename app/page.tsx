@@ -1,37 +1,23 @@
-import CongressionalBillsChart from './components/analytics/CongressionalBillsChart';
-import LatestCongressStatusChart from './components/analytics/LatestCongressStatusChart';
-import QuoteCarousel from '@/components/QuoteCarousel';
+'use client';
 
-export default function Home() {
+import dynamic from 'next/dynamic';
+
+const DashboardClient = dynamic(
+  () => import('./components/dashboard/DashboardClient'),
+  { ssr: false, loading: () => <LoadingState /> }
+);
+
+function LoadingState() {
   return (
-    <div className="flex flex-col">
-      {/* Analytics Section - Now the primary section */}
-      <section className="w-full bg-[#121825] text-white py-16 md:py-20 min-h-[calc(100vh-64px)]">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-[1200px]">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-center mb-4">
-              Hold your Representatives Accountable
-            </h1>
-            <p className="text-center text-gray-300 mb-12 max-w-[700px] mx-auto">
-            See how your elected representatives are doing in Congress.
-            And track the bills that they're introducing to help you live a better life.
-            </p>
-
-            {/* Dashboard layout - side by side on large screens, stacked on smaller screens */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="w-full h-full">
-                <CongressionalBillsChart />
-              </div>
-
-              <div className="w-full h-full">
-                <LatestCongressStatusChart />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <QuoteCarousel />
+    <div className="min-h-screen bg-[#0a1628] flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-[#c9a227] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-[#94a3b8] font-serif text-xl">Loading Congressional Intelligence...</p>
+      </div>
     </div>
   );
+}
+
+export default function Home() {
+  return <DashboardClient />;
 }
