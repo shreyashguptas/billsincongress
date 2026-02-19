@@ -39,6 +39,14 @@ export default function Dashboard({ initialCongress = 119 }: DashboardProps) {
     return <DashboardSkeleton />;
   }
 
+  if (!allCongressData || allCongressData.length === 0) {
+    return (
+      <div className="min-h-screen bg-congress-navy-950 text-white flex items-center justify-center">
+        <p className="text-congress-navy-400">No data available</p>
+      </div>
+    );
+  }
+
   const currentStats = allCongressData.find(d => d.congress === selectedCongress);
 
   return (
@@ -552,8 +560,24 @@ interface HistoricalChartProps {
 }
 
 function HistoricalChart({ data, selectedCongress, onCongressClick }: HistoricalChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-48 flex items-center justify-center text-congress-navy-400">
+        No historical data available
+      </div>
+    );
+  }
+
   const sortedData = [...data].sort((a, b) => a.congress - b.congress);
   const maxCount = Math.max(...sortedData.map(d => d.totalCount), 1);
+
+  if (sortedData.length === 0) {
+    return (
+      <div className="h-48 flex items-center justify-center text-congress-navy-400">
+        No historical data available
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

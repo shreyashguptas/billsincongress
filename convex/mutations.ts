@@ -248,7 +248,7 @@ export const recomputeCongressStats = internalMutation({
     const bills = await ctx.db
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .collect();
+      .take(10000);
 
     let houseCount = 0;
     let senateCount = 0;
@@ -312,7 +312,7 @@ export const recomputeCongressPolicyAreas = internalMutation({
     const bills = await ctx.db
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .collect();
+      .take(10000);
     
     const billIdSet = new Set(bills.map(b => b.billId));
     
@@ -339,7 +339,7 @@ export const recomputeCongressPolicyAreas = internalMutation({
     const existing = await ctx.db
       .query("congressPolicyAreas")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .collect();
+      .take(10000);
     
     for (const doc of existing) {
       await ctx.db.delete(doc._id);
@@ -367,7 +367,7 @@ export const recomputeCongressSponsors = internalMutation({
     const bills = await ctx.db
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .collect();
+      .take(10000);
     
     // Aggregate by sponsor name
     const sponsorMap = new Map<string, { party?: string; state?: string; count: number }>();
@@ -393,7 +393,7 @@ export const recomputeCongressSponsors = internalMutation({
     const existing = await ctx.db
       .query("congressSponsors")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .collect();
+      .take(10000);
     
     for (const doc of existing) {
       await ctx.db.delete(doc._id);

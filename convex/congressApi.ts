@@ -1,4 +1,4 @@
-import { internalAction } from "./_generated/server";
+import { internalAction, action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
@@ -1014,5 +1014,17 @@ export const recomputeAllStats = internalAction({
 
     console.log(`Recomputed stats for congresses: ${congressesToUpdate.join(", ")}`);
     return { congresses: congressesToUpdate };
+  },
+});
+
+/**
+ * Public action to trigger recompute of all congress stats.
+ * Can be called from the frontend or via API.
+ */
+export const triggerRecomputeStats = action({
+  args: {},
+  handler: async (ctx): Promise<{ congresses: number[] }> => {
+    const result = await ctx.runAction(internal.congressApi.recomputeAllStats);
+    return result;
   },
 });

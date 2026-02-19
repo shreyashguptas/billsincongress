@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 
 interface StateData {
@@ -69,7 +69,6 @@ interface USMapProps {
 export default function USMap({ onStateHover }: USMapProps) {
   const [hoveredState, setHoveredState] = useState<string | null>(null);
   const [statePosition, setStatePosition] = useState({ x: 0, y: 0 });
-  const objectRef = useRef<HTMLObjectElement>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
 
   // Calculate totals - using actual data from statesData
@@ -113,108 +112,9 @@ export default function USMap({ onStateHover }: USMapProps) {
   }, [onStateHover]);
 
   useEffect(() => {
-    const initializeMap = () => {
-      const obj = objectRef.current;
-      if (!obj) return;
-
-      const doc = obj.contentDocument;
-      if (!doc) {
-        console.warn('SVG document not loaded');
-        return;
-      }
-
-      const svg = doc.querySelector('svg');
-      if (!svg) {
-        console.error('SVG element not found in the object');
-        return;
-      }
-
-      // Set SVG to fill container while maintaining aspect ratio
-      svg.setAttribute('width', '100%');
-      svg.setAttribute('height', '100%');
-      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-
-      // Ensure viewBox is set
-      if (!svg.getAttribute('viewBox')) {
-        svg.setAttribute('viewBox', '0 0 959 593');
-      }
-
-      svg.style.backgroundColor = 'transparent';
-      
-      // Add styles directly to SVG document
-      const style = doc.createElement('style');
-      style.textContent = `
-        path { 
-          fill: #1f2937;
-          stroke: rgba(139, 92, 246, 0.3);
-          stroke-width: 1;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          transform-origin: center;
-          opacity: 0.8;
-          cursor: pointer;
-        }
-        path:hover { 
-          transform: scale(1.02);
-          filter: brightness(1.3);
-          stroke: rgb(167, 139, 250);
-          stroke-width: 2;
-          opacity: 1;
-        }
-      `;
-      svg.appendChild(style);
-
-      const paths = svg.querySelectorAll('path');
-      paths.forEach((path: SVGPathElement) => {
-        const stateId = path.getAttribute('id');
-        if (stateId && statesData[stateId]) {
-          path.style.fill = getStateColor(stateId);
-          
-          const handleEnter = () => handleStateHover(stateId, path);
-          const handleLeave = () => handleStateHover(null);
-          
-          path.addEventListener('mouseenter', handleEnter);
-          path.addEventListener('mouseleave', handleLeave);
-          path.addEventListener('touchstart', (e: Event) => {
-            e.preventDefault();
-            handleEnter();
-          });
-        } else if (stateId) {
-          console.warn(`Missing data for state: ${stateId}`);
-          path.style.fill = '#1f2937';
-        }
-      });
-
-      setIsMapLoaded(true);
-    };
-
-    const obj = objectRef.current;
-    if (obj) {
-      if (obj.contentDocument?.readyState === 'complete') {
-        initializeMap();
-      } else {
-        obj.addEventListener('load', initializeMap);
-      }
-
-      // Retry mechanism for production
-      let retryCount = 0;
-      const maxRetries = 3;
-      const retryInterval = setInterval(() => {
-        if (isMapLoaded || retryCount >= maxRetries) {
-          clearInterval(retryInterval);
-          return;
-        }
-        if (obj.contentDocument?.readyState === 'complete') {
-          initializeMap();
-        }
-        retryCount++;
-      }, 1000);
-
-      return () => {
-        clearInterval(retryInterval);
-        obj.removeEventListener('load', initializeMap);
-      };
-    }
-  }, [getStateColor, handleStateHover, isMapLoaded]);
+    // Mark as loaded since we're using img tag now
+    setIsMapLoaded(true);
+  }, []);
 
   return (
     <div className="w-full py-8 md:py-12">
@@ -247,21 +147,12 @@ export default function USMap({ onStateHover }: USMapProps) {
 
       {/* Map Container */}
       <div className="max-w-6xl mx-auto relative px-4">
-        <object
-          ref={objectRef}
-          data="/images/us-map.svg"
-          type="image/svg+xml"
+        <img
+          src="/images/us-map.svg"
+          alt="US Map showing congressional representation"
           className="w-full h-auto"
           style={{ minHeight: '300px', maxHeight: '600px' }}
-          aria-label="US Map showing congressional representation"
-        >
-          {/* Fallback for production */}
-          <img 
-            src="/images/us-map.svg" 
-            alt="US Map showing congressional representation"
-            className="w-full h-auto"
-          />
-        </object>
+        />
         
         {/* State info tooltip */}
         {hoveredState && statesData[hoveredState] && (
