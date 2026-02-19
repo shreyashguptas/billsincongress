@@ -5,6 +5,7 @@ import type { Bill } from '@/lib/types/bill';
 import { useEffect, useState } from 'react';
 import { getStageDescription, getStagePercentage, getProgressDots } from '@/lib/utils/bill-stages';
 import { isValidStage, BillStages } from '@/lib/utils/bill-stages';
+import BillQA from './bill-qa';
 
 // Map of state abbreviations to full names
 const STATE_NAMES: Record<string, string> = {
@@ -181,6 +182,8 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           </div>
         </div>
       </div>
+
+      <BillQA billId={bill.id} />
     </main>
   );
 } 

@@ -449,3 +449,24 @@ export const updateSyncSnapshot = internalMutation({
     await ctx.db.patch(snapshotId, updates);
   },
 });
+
+/**
+ * Delete all bills for a specific congress
+ */
+export const deleteCongressBills = internalMutation({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const bills = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .take(10000);
+    
+    let deleted = 0;
+    for (const bill of bills) {
+      await ctx.db.delete(bill._id);
+      deleted++;
+    }
+    
+    return { deleted };
+  },
+});

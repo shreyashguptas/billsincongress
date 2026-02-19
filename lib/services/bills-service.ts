@@ -172,4 +172,19 @@ export const billsService = {
       return [];
     }
   },
+
+  async askBillQuestion(billId: string, question: string): Promise<{ answer: string; error?: string }> {
+    const client = getConvexClient();
+    if (!client) {
+      return { answer: "", error: "Service not available" };
+    }
+
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      return await client.action(api.llm.askBillQuestion, { billId, question });
+    } catch (error) {
+      console.error('Error asking bill question:', error);
+      return { answer: "", error: "Failed to get response" };
+    }
+  },
 };

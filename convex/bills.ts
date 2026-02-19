@@ -72,6 +72,25 @@ export const getById = query({
 });
 
 /**
+ * Get bill actions for a specific bill (internal query)
+ */
+export const getBillActions = internalQuery({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const actions = await ctx.db
+      .query("billActions")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .order("desc")
+      .take(20);
+    
+    return actions.map(a => ({
+      date: a.actionDate,
+      description: a.text,
+    }));
+  },
+});
+
+/**
  * List bills with filtering and offset-based pagination.
  * Filters are applied in-memory after indexed query for the primary filter.
  */
