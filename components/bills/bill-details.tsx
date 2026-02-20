@@ -183,7 +183,14 @@ export default function BillDetails({ bill }: BillDetailsProps) {
         </div>
       </div>
 
-      <BillQA billId={bill.id} />
+      <BillQA
+        billId={bill.id}
+        billTypeLabel={bill.bill_type_label}
+        billNumber={bill.bill_number}
+        congress={bill.congress}
+        currentStatus={displayDescription}
+        policyArea={bill.bill_subjects?.policy_area_name}
+      />
     </main>
   );
-} 
+}

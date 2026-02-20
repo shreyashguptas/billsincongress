@@ -1,15 +1,14 @@
 import { Bill } from '@/lib/types/bill';
 import { ConvexHttpClient } from 'convex/browser';
+import { getConvexUrl } from '@/lib/constants/convex';
 
 /**
  * Bills service that fetches data from Convex backend.
- * Falls back to empty results if Convex is not configured.
+ * Defaults to production deployment if NEXT_PUBLIC_CONVEX_URL is not configured.
  */
 
-function getConvexClient(): ConvexHttpClient | null {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) return null;
-  return new ConvexHttpClient(url);
+function getConvexClient(): ConvexHttpClient {
+  return new ConvexHttpClient(getConvexUrl());
 }
 
 export interface BillQueryParams {
@@ -60,9 +59,6 @@ function transformConvexBill(doc: any): Bill {
 export const billsService = {
   async getCongressInfo(): Promise<{ congress: number; startYear: number; endYear: number }> {
     const client = getConvexClient();
-    if (!client) {
-      return { congress: 119, startYear: 2025, endYear: 2027 };
-    }
 
     try {
       const { api } = await import('../../convex/_generated/api');
@@ -76,9 +72,6 @@ export const billsService = {
 
   async fetchBillById(id: string): Promise<Bill> {
     const client = getConvexClient();
-    if (!client) {
-      throw new Error('Convex not configured');
-    }
 
     try {
       const { api } = await import('../../convex/_generated/api');
@@ -108,9 +101,6 @@ export const billsService = {
     } = params;
 
     const client = getConvexClient();
-    if (!client) {
-      return { data: [], count: 0 };
-    }
 
     try {
       const { api } = await import('../../convex/_generated/api');
@@ -147,7 +137,6 @@ export const billsService = {
     totalFailed: number | undefined;
   } | null> {
     const client = getConvexClient();
-    if (!client) return null;
 
     try {
       const { api } = await import('../../convex/_generated/api');
@@ -160,9 +149,6 @@ export const billsService = {
 
   async getAvailableCongressNumbers(): Promise<number[]> {
     const client = getConvexClient();
-    if (!client) {
-      return [];
-    }
 
     try {
       const { api } = await import('../../convex/_generated/api');
@@ -175,9 +161,6 @@ export const billsService = {
 
   async askBillQuestion(billId: string, question: string): Promise<{ answer: string; error?: string }> {
     const client = getConvexClient();
-    if (!client) {
-      return { answer: "", error: "Service not available" };
-    }
 
     try {
       const { api } = await import('../../convex/_generated/api');
