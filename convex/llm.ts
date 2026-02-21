@@ -25,35 +25,7 @@ interface BillContext {
   actions: Array<{ date: string; description: string }>;
 }
 
-async function fetchBillTextFromCongress(
-  congress: number,
-  billType: string,
-  billNumber: string,
-  apiKey: string
-): Promise<string> {
-  const url = `https://api.congress.gov/v3/bill/${congress}/${billType}/${billNumber}/format?format=txt&api_key=${apiKey}`;
-  
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "Accept": "text/plain",
-      },
-    });
-    
-    if (!response.ok) {
-      console.error(`Failed to fetch bill text: ${response.status} ${response.statusText}`);
-      return "";
-    }
-    
-    const text = await response.text();
-    return text.slice(0, 8000);
-  } catch (error) {
-    console.error("Error fetching bill text:", error);
-    return "";
-  }
-}
-
-function buildPrompt(bill: BillContext, question: string, billText: string): string {
+function buildPrompt(bill: BillContext, question: string): string {
   const stageDescriptions: Record<number, string> = {
     20: "Introduced",
     40: "In Committee", 
@@ -73,7 +45,7 @@ function buildPrompt(bill: BillContext, question: string, billText: string): str
 
   const sponsorParty = partyNames[bill.sponsorParty] || bill.sponsorParty;
 
-  let context = `# BILL INFORMATION
+  const context = `# BILL INFORMATION
 
 ## Basic Details
 - **Bill ID**: ${bill.billId}
@@ -98,18 +70,7 @@ ${bill.summary || "No official summary available."}
 ## Legislative History (Recent Actions)
 ${bill.actions.slice(0, 10).map((a, i) => `${i + 1}. [${a.date}] ${a.description}`).join("\n") || "No actions recorded."}
 
-`;
-
-  if (billText) {
-    context += `## Full Bill Text (truncated to first 8000 characters)
-\`\`\`
-${billText}
-\`\`\`
-
-`;
-  }
-
-  context += `# USER QUESTION
+# USER QUESTION
 ${question}
 
 # INSTRUCTIONS
@@ -141,8 +102,6 @@ export const askBillQuestion = action({
       return { answer: "", error: "OpenRouter API key not configured." };
     }
 
-    const congressApiKey = process.env.CONGRESS_API_KEY;
-
     try {
       const bill = await ctx.runQuery(api.bills.getById, { billId });
 
@@ -172,17 +131,7 @@ export const askBillQuestion = action({
         actions: actions || [],
       };
 
-      let billText = "";
-      if (congressApiKey) {
-        billText = await fetchBillTextFromCongress(
-          bill.congress || 119,
-          bill.billType || "hr",
-          bill.billNumber || "1",
-          congressApiKey
-        );
-      }
-
-      const prompt = buildPrompt(billContext, question, billText);
+      const prompt = buildPrompt(billContext, question);
 
       const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",

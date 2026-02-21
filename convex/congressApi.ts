@@ -1,4 +1,4 @@
-import { internalAction, action } from "./_generated/server";
+import { internalAction, action, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
@@ -1025,6 +1025,17 @@ export const triggerRecomputeStats = action({
   args: {},
   handler: async (ctx): Promise<{ congresses: number[] }> => {
     const result = await ctx.runAction(internal.congressApi.recomputeAllStats);
+    return result;
+  },
+});
+
+/**
+ * Public action to delete all bills for a specific congress
+ */
+export const deleteCongress = action({
+  args: { congress: v.number() },
+  handler: async (ctx, args): Promise<{ deleted: number }> => {
+    const result = await ctx.runMutation(internal.mutations.deleteCongressBills, { congress: args.congress });
     return result;
   },
 });

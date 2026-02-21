@@ -11,6 +11,7 @@
 import type * as bills from "../bills.js";
 import type * as congressApi from "../congressApi.js";
 import type * as crons from "../crons.js";
+import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
 import type * as sync from "../sync.js";
 
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   bills: typeof bills;
   congressApi: typeof congressApi;
   crons: typeof crons;
+  llm: typeof llm;
   mutations: typeof mutations;
   sync: typeof sync;
 }>;

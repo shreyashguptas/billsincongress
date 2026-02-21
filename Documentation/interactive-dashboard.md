@@ -2,14 +2,14 @@
 
 ## Overview
 
-This document describes the interactive Congress dashboard implemented in the `feature/interactive-dashboard-v2` worktree, including the frontend components and the precomputed analytics approach using Convex.
+This document describes the interactive Congress dashboard implemented in the main branch, including the frontend components and the precomputed analytics approach using Convex.
 
 ## The Problem
 
 The original homepage used simple bar charts with limited interactivity. The goal was to create a Power BI-style interactive dashboard that:
 - Shows comprehensive Congress statistics at a glance
 - Allows drilling down into specific metrics
-- Works with production data (Congress 108, 117, 118, 119)
+- Works with production data (current and previous 2 congresses)
 - Remains fast and cost-effective
 
 ## The Solution: Precomputed Tables
@@ -25,9 +25,9 @@ Instead of running expensive queries on every page load, we use **precomputed ta
 
 ## Precomputed Tables
 
-### 1. `congressStats` (Existing)
+### 1. `congressStats`
 
-This table already exists and stores aggregated stats per Congress:
+This table stores aggregated stats per Congress:
 
 ```typescript
 // Schema (from convex/schema.ts)
@@ -35,46 +35,49 @@ congressStats: defineTable({
   congress: v.number(),
   totalCount: v.number(),
   houseCount: v.number(),
-  senateCount: v.array(v.object({
+  senateCount: v.number(),
+  stageCounts: v.array(v.object({
     stage: v.number(),
     description: v.string(),
     count: v.number(),
   })),
   updatedAt: v.string(),
-})
+}).withIndex("by_congress")
 ```
 
 **Updated by**: `recomputeCongressStats` mutation in `convex/mutations.ts`
 
-### 2. Future Tables (Not Yet Implemented)
+### 2. `congressPolicyAreas`
 
-To support more dashboard features, these additional tables could be added:
+Stores bills grouped by policy area for each Congress:
 
 ```typescript
-// Proposed: congressPolicyAreas
 congressPolicyAreas: defineTable({
   congress: v.number(),
   policyAreaName: v.string(),
   count: v.number(),
-}).withIndex("by_congress_policyArea")
+}).withIndex("by_congress", ["congress"])
+   .withIndex("by_congress_and_count", ["congress", "count"])
+```
 
-// Proposed: congressSponsors
+**Updated by**: `recomputeCongressPolicyAreas` mutation
+
+### 3. `congressSponsors`
+
+Stores top sponsors per Congress:
+
+```typescript
 congressSponsors: defineTable({
   congress: v.number(),
   sponsorName: v.string(),
   sponsorParty: v.optional(v.string()),
   sponsorState: v.optional(v.string()),
   billCount: v.number(),
-}).withIndex("by_congress_count")
-
-// Proposed: congressStates
-congressStates: defineTable({
-  congress: v.number(),
-  state: v.string(),
-  houseCount: v.number(),
-  senateCount: v.number(),
-}).withIndex("by_congress")
+}).withIndex("by_congress", ["congress"])
+   .withIndex("by_congress_and_count", ["congress", "billCount"])
 ```
+
+**Updated by**: `recomputeCongressSponsors` mutation
 
 ## Convex Queries
 
@@ -203,14 +206,9 @@ const bills = await ctx.db
 
 ## Deployment
 
-The dashboard is deployed in the `feature/interactive-dashboard-v2` worktree at:
-```
-/Users/shreyashgupta/Documents/Github/billsincongress-dashboard
-```
+The dashboard is part of the main branch. To run locally:
 
-To run locally:
 ```bash
-cd ../billsincongress-dashboard
 npm run dev
 ```
 
@@ -219,6 +217,54 @@ The Convex functions are deployed to production:
 CONVEX_DEPLOYMENT=prod:industrious-llama-331
 NEXT_PUBLIC_CONVEX_URL=https://industrious-llama-331.convex.cloud
 ```
+
+## Cron Jobs & Data Updates
+
+### Scheduled Jobs (in `convex/crons.ts`)
+
+| Job | Schedule | Purpose |
+|-----|----------|---------|
+| `daily-incremental-sync` | Daily 1 AM UTC | Update recently changed bills |
+| `weekly-full-sync` | Sunday 2 AM UTC | Full refresh of all bills |
+| `weekly-repair-incomplete` | Wednesday 3 AM UTC | Fix missing data |
+| `daily-recompute-stats` | Daily 4 AM UTC | Update all precomputed tables |
+
+### How Data is Pulled
+
+The sync process only pulls data for the **current Congress and the previous 2 Congresses**:
+
+```typescript
+// In congressApi.ts - initialHistoricalPull and dailySync
+const currentCongress = Math.floor((currentYear - 1789) / 2) + 1;
+const congressesToSync = [
+  currentCongress,        // e.g., 119 (2025-2027)
+  currentCongress - 1,    // e.g., 118 (2023-2025)
+  currentCongress - 2,    // e.g., 117 (2021-2023)
+];
+```
+
+For 2026, this means Congress 117, 118, and 119 are synced.
+
+### Recompute Process
+
+The `recomputeAllStats` action runs at 4 AM UTC and:
+1. Loops through congresses 93-120 to find which have data
+2. Only creates `congressStats` entries for congresses that have actual bills
+3. Skips empty congresses (no remnant rows)
+
+### Manual Actions
+
+Two public actions are available for manual control:
+
+1. **triggerRecomputeStats** - Forces a recompute of all stats:
+   ```bash
+   npx convex run --prod congressApi:triggerRecomputeStats '{}'
+   ```
+
+2. **deleteCongress** - Deletes all bills for a specific congress:
+   ```bash
+   npx convex run --prod congressApi:deleteCongress '{"congress": 108}'
+   ```
 
 ## Future Enhancements
 

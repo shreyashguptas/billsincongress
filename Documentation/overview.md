@@ -45,21 +45,20 @@ project/
 │   ├── bills/                 # Bills listing page
 │   │   ├── [id]/             # Individual bill detail
 │   │   └── page.tsx          # Bills list with filters
-│   ├── components/
-│   │   ├── analytics/        # Dashboard charts
-│   │   └── dashboard/        # Dashboard components
-│   └── actions/              # Server actions
+│   ├── learn/                 # Learn page with US map
+│   ├── about/                 # About page
+│   └── components/
+│       └── dashboard/         # Dashboard components
 │
 ├── components/               # Shared React components
-│   ├── ui/                   # shadcn/ui components
+│   ├── ui/                   # shadcn/ui components (button, card, input, select, etc.)
 │   ├── bills/                # Bill-related components
 │   └── navigation.tsx        # Site navigation
 │
 ├── lib/                      # Client-side utilities
 │   ├── services/             # Convex client wrappers
-│   ├── store/                # Zustand state management
 │   ├── types/                # TypeScript types
-│   └── utils/                # Helper functions
+│   └── utils/                # Helper functions (cn, bill-stages)
 │
 ├── convex/                   # Backend logic
 │   ├── schema.ts             # Database schema
@@ -150,6 +149,7 @@ For performance, analytics data is precomputed during sync:
 | `recomputeCongressStats` | Recompute stats for one Congress |
 | `recomputeCongressPolicyAreas` | Recompute policy areas |
 | `recomputeCongressSponsors` | Recompute sponsors |
+| `deleteCongressBills` | Delete all bills for a specific Congress |
 
 ## API Integration (`convex/congressApi.ts`)
 
@@ -159,6 +159,8 @@ For performance, analytics data is precomputed during sync:
 | `fullSync` | Weekly full sync |
 | `repairIncompleteBills` | Fix bills with missing data |
 | `recomputeAllStats` | Refresh all precomputed tables |
+| `triggerRecomputeStats` | Public action to manually trigger stats recompute |
+| `deleteCongress` | Public action to delete all bills for a Congress |
 
 ---
 
@@ -171,7 +173,9 @@ For performance, analytics data is precomputed during sync:
 | `daily-incremental-sync` | Daily 1 AM UTC | Update recently changed bills |
 | `weekly-full-sync` | Sunday 2 AM UTC | Full refresh of all bills |
 | `weekly-repair-incomplete` | Wednesday 3 AM UTC | Fix missing data |
-| `daily-recompute-stats` | Daily 4 AM UTC | Update analytics |
+| `daily-recompute-stats` | Daily 4 AM UTC | Update all precomputed tables |
+
+**Note**: The sync only pulls data for the **current Congress and previous 2 Congresses**. For 2026, this is Congress 117, 118, and 119.
 
 ## Sync Bitmask
 
@@ -328,8 +332,22 @@ npx convex deploy
 ## Data Not Showing
 
 - Check if sync has run: `getSyncStatus` query
-- Verify Congress number is correct
+- Verify Congress number is correct (only 117, 118, 119 are pulled)
 - Check browser console for errors
+- Wait for 4 AM UTC cron job to run (recomputes stats)
+
+## Extra/Unexpected Congress Showing
+
+If a Congress appears with 0 bills (like Congress 108), it means:
+1. The recompute process found no bills for that Congress
+2. Wait for the next 4 AM UTC cron job to clean it up
+3. Or manually delete using: `npx convex run --prod congressApi:deleteCongress '{"congress": 108}'`
+
+## Production vs Development
+
+- Always use production deployment: `CONVEX_DEPLOYMENT=prod:industrious-llama-331`
+- Local development uses production database
+- This avoids storing duplicate data and extra costs
 
 ## Build Errors
 
