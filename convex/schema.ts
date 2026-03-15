@@ -123,6 +123,21 @@ export default defineSchema({
     .index("by_congress", ["congress"])
     .index("by_congress_and_count", ["congress", "billCount"]),
 
+  // Bill chat sessions — one per (billId, sessionId) pair
+  billChats: defineTable({
+    billId: v.string(),
+    sessionId: v.string(), // anonymous session ID stored in browser localStorage
+    createdAt: v.string(),
+  }).index("by_billId_and_session", ["billId", "sessionId"]),
+
+  // Bill chat messages — individual turns in a chat session
+  billChatMessages: defineTable({
+    chatId: v.id("billChats"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    createdAt: v.string(),
+  }).index("by_chatId", ["chatId"]),
+
   // Sync snapshots for audit trail
   syncSnapshots: defineTable({
     syncType: v.string(), // "historical" or "daily"
