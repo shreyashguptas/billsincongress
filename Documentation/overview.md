@@ -375,13 +375,15 @@ See `interactive-dashboard.md` for detailed walkthrough.
 ## Required
 
 ```env
-# Convex (created automatically by `npx convex dev`)
-CONVEX_DEPLOYMENT=
-NEXT_PUBLIC_CONVEX_URL=
+# Production Convex only for this repo
+CONVEX_DEPLOYMENT=prod:industrious-llama-331
+NEXT_PUBLIC_CONVEX_URL=https://industrious-llama-331.convex.cloud
 
 # Congress.gov API
 CONGRESS_API_KEY=      # Get from https://api.congress.gov/sign-up/
 ```
+
+Do not use `npx convex dev` for this project. Local frontend development should still point at the production Convex deployment.
 
 ## Optional
 
