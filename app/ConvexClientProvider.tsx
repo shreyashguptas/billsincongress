@@ -1,17 +1,34 @@
 "use client";
 
 import { ConvexProvider, ConvexReactClient } from "convex/react";
-import { ReactNode } from "react";
+import { createContext, ReactNode, useContext } from "react";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
-// Create client only if CONVEX_URL is configured
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
+
+const ConvexEnabledContext = createContext(false);
+
+/**
+ * Returns true when Convex is configured and the ConvexProvider is active.
+ * Components that call Convex hooks (useQuery, useMutation, etc.) must
+ * gate on this to avoid the "missing provider" runtime error.
+ */
+export function useConvexEnabled() {
+  return useContext(ConvexEnabledContext);
+}
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   if (!convex) {
-    // Convex not configured yet - render children without provider
-    return <>{children}</>;
+    return (
+      <ConvexEnabledContext.Provider value={false}>
+        {children}
+      </ConvexEnabledContext.Provider>
+    );
   }
-  return <ConvexProvider client={convex}>{children}</ConvexProvider>;
+  return (
+    <ConvexEnabledContext.Provider value={true}>
+      <ConvexProvider client={convex}>{children}</ConvexProvider>
+    </ConvexEnabledContext.Provider>
+  );
 }

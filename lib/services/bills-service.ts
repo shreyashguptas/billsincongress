@@ -187,4 +187,48 @@ export const billsService = {
       return { answer: "", error: "Failed to get response" };
     }
   },
+
+  /**
+   * Fetch persisted chat history for a bill + anonymous browser session.
+   * Returns an empty array when no conversation exists yet.
+   */
+  async getBillChatHistory(
+    billId: string,
+    sessionId: string
+  ): Promise<Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>> {
+    const client = getConvexClient();
+    if (!client) return [];
+
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      const result = await client.query(api.llm.getBillChatHistory, { billId, sessionId });
+      return result as Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>;
+    } catch (error) {
+      console.error('Error fetching bill chat history:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Send a message in the bill chat and return the AI response.
+   * Persists both the user message and the assistant reply in Convex.
+   */
+  async sendChatMessage(
+    billId: string,
+    sessionId: string,
+    question: string
+  ): Promise<{ answer: string; error?: string }> {
+    const client = getConvexClient();
+    if (!client) {
+      return { answer: "", error: "Service not available" };
+    }
+
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      return await client.action(api.llm.sendChatMessage, { billId, sessionId, question });
+    } catch (error) {
+      console.error('Error sending chat message:', error);
+      return { answer: "", error: "Failed to get response" };
+    }
+  },
 };

@@ -118,6 +118,99 @@ For performance, analytics data is precomputed during sync:
 | `congressPolicyAreas` | Bills grouped by policy area |
 | `congressSponsors` | Bills grouped by sponsor |
 | `syncSnapshots` | Audit trail for sync runs |
+| `billChats` | Per-bill chat sessions keyed by (billId, sessionId) |
+| `billChatMessages` | Individual chat turns (user + assistant) |
+
+---
+
+# Bill Chat Feature
+
+## Overview
+
+Each bill detail page includes a full **chat panel** powered by the NVIDIA Nemotron model via OpenRouter. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
+
+## Architecture
+
+```
+User types question (components/bills/bill-qa.tsx)
+    ↓
+billsService.sendChatMessage(billId, sessionId, question)
+    ↓
+Convex action: api.llm.sendChatMessage
+    ↓
+  1. Get/create billChats row for (billId, sessionId)
+  2. Fetch prior turns from billChatMessages
+  3. Save user message to billChatMessages
+  4. Call OpenRouter API with:
+       - system prompt (bill context)
+       - full conversation history
+       - current user question
+  5. Save assistant response to billChatMessages
+    ↓
+Answer rendered as Markdown in the chat UI
+```
+
+## Session Persistence
+
+Chat history is persisted per user **browser session** using an anonymous `sessionId` stored in `localStorage` (`bill_chat_session_id`). On every visit to a bill page the component:
+
+1. Reads the session ID from `localStorage` (or creates one on first visit)
+2. Queries `getBillChatHistory(billId, sessionId)` to restore prior messages
+3. Displays the conversation thread; new messages are appended in real-time
+
+Each browser retains its own private history per bill — there is no shared global chat.
+
+## Convex Functions (`convex/llm.ts`)
+
+| Function | Type | Purpose |
+|----------|------|---------|
+| `getBillChatHistory` | public query | Fetch chat history for a (billId, sessionId) |
+| `sendChatMessage` | public action | Send a message and get AI response (persists both turns) |
+| `getOrCreateBillChat` | internal mutation | Get or create a chat session row |
+| `addChatMessage` | internal mutation | Append a message to a session |
+| `getMessagesForChat` | internal query | Read all messages for a session |
+| `askBillQuestion` | public action (legacy) | Single-turn Q&A (kept for backward compat) |
+
+## Database Tables
+
+### `billChats`
+One row per (billId × sessionId) pair:
+```typescript
+{ billId: string, sessionId: string, createdAt: string }
+```
+
+### `billChatMessages`
+One row per message turn:
+```typescript
+{ chatId: Id<"billChats">, role: "user" | "assistant", content: string, createdAt: string }
+```
+
+## LLM Prompt Strategy
+
+The conversation history is passed to OpenRouter using the standard `messages` array format:
+
+```
+[system]   → bill metadata + instructions (rebuilt each request)
+[user]     → first question
+[assistant]→ first answer
+[user]     → follow-up
+...
+[user]     → current question
+```
+
+This gives the model full context for coherent multi-turn answers.
+
+## Testing the Chat Feature
+
+1. Visit any bill detail page, e.g. `/bills/1hr119`
+2. The chat panel is at the bottom — ask any question using the example chips or free text
+3. Ask a follow-up that references the first answer (e.g. "Tell me more about that") — the model should maintain context
+4. Reload the page — history should be restored from Convex
+5. Open the same bill in a different browser/incognito — history should be empty (different session)
+
+To inspect persisted chats in Convex dashboard:
+- Table: `billChats` — one row per user session + bill
+- Table: `billChatMessages` — all turns in order
 
 ---
 
@@ -150,6 +243,14 @@ For performance, analytics data is precomputed during sync:
 | `recomputeCongressPolicyAreas` | Recompute policy areas |
 | `recomputeCongressSponsors` | Recompute sponsors |
 | `deleteCongressBills` | Delete all bills for a specific Congress |
+
+## AI Chat (`convex/llm.ts`)
+
+| Function | Type | Purpose |
+|----------|------|---------|
+| `getBillChatHistory` | public query | Return persisted messages for a (billId, sessionId) |
+| `sendChatMessage` | public action | Multi-turn chat with persistence |
+| `askBillQuestion` | public action | Legacy single-turn Q&A |
 
 ## API Integration (`convex/congressApi.ts`)
 
@@ -274,22 +375,24 @@ See `interactive-dashboard.md` for detailed walkthrough.
 ## Required
 
 ```env
-# Convex (created automatically by `npx convex dev`)
-CONVEX_DEPLOYMENT=
-NEXT_PUBLIC_CONVEX_URL=
+# Production Convex only for this repo
+CONVEX_DEPLOYMENT=prod:industrious-llama-331
+NEXT_PUBLIC_CONVEX_URL=https://industrious-llama-331.convex.cloud
 
 # Congress.gov API
 CONGRESS_API_KEY=      # Get from https://api.congress.gov/sign-up/
 ```
 
+Do not use `npx convex dev` for this project. Local frontend development should still point at the production Convex deployment.
+
 ## Optional
 
 ```env
+# AI Bill Chat (required for chat feature)
+OPENROUTER_API_KEY=   # Get from https://openrouter.ai/
+
 # Analytics (if using Vercel)
 NEXT_PUBLIC_ANALYTICS_ID=
-
-# Development
-DEBUG=false
 ```
 
 ---

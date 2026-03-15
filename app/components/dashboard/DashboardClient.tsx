@@ -4,15 +4,46 @@ import { useState, useEffect } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { useRouter } from 'next/navigation';
+import { useConvexEnabled } from '../../ConvexClientProvider';
 
 interface DashboardProps {
   initialCongress?: number;
 }
 
 export default function Dashboard({ initialCongress = 119 }: DashboardProps) {
+  const convexEnabled = useConvexEnabled();
+
+  if (!convexEnabled) {
+    return <ConvexNotConfigured />;
+  }
+
+  return <DashboardInner initialCongress={initialCongress} />;
+}
+
+function ConvexNotConfigured() {
+  return (
+    <div className="min-h-screen bg-congress-navy-950 text-white flex items-center justify-center">
+      <div className="max-w-md text-center p-8">
+        <h2 className="text-2xl font-bold mb-4">Convex Not Configured</h2>
+        <p className="text-congress-navy-300 mb-4">
+          The real-time dashboard requires a Convex backend. Set the{' '}
+          <code className="bg-congress-navy-800 px-1.5 py-0.5 rounded text-sm">
+            NEXT_PUBLIC_CONVEX_URL
+          </code>{' '}
+          environment variable and restart the dev server.
+        </p>
+        <p className="text-congress-navy-400 text-sm">
+          See the project README for setup instructions.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DashboardInner({ initialCongress = 119 }: DashboardProps) {
   const router = useRouter();
   const [selectedCongress, setSelectedCongress] = useState(initialCongress);
-  
+
   const allCongressData = useQuery(api.bills.getAllCongressOverview);
   const congressDashboard = useQuery(api.bills.getCongressDashboard, { congress: selectedCongress });
 
