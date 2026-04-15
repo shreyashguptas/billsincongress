@@ -1,5 +1,6 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { v } from "convex/values";
+import { billsByChamber, billsByStage, BILL_STAGES } from "./aggregates";
 
 /**
  * Upsert a bill record. If a bill with the same billId exists, update it.
@@ -226,62 +227,74 @@ export const updateBillSyncStatus = internalMutation({
   },
 });
 
-// Bill stage descriptions for stats computation
-const BILL_STAGE_DESCRIPTIONS: Record<number, string> = {
-  20: "Introduced",
-  40: "In Committee",
-  60: "Passed One Chamber",
-  80: "Passed Both Chambers",
-  85: "Vetoed",
-  90: "To President",
-  95: "Signed by President",
-  100: "Became Law",
-};
-
 /**
  * Recompute the congressStats row for a single congress.
- * Scans all bills for that congress (within Convex limits per-congress) and upserts the stats.
+ *
+ * Reads counts from the `billsByChamber` and `billsByStage` aggregate
+ * components instead of scanning the bills table. This is O(log n) and works
+ * regardless of how many bills the congress has — historically this used
+ * `.take(10000)` and silently truncated counts at 10,000 (Congress 118 alone
+ * has 19,314 bills).
+ *
+ * Safety guard: if the aggregates report zero bills for a congress that
+ * actually has bills (e.g. immediately after deploy, before
+ * `aggregateBackfill:run` has populated them), skip the write so we don't
+ * overwrite valid `congressStats` rows with zeros.
  */
 export const recomputeCongressStats = internalMutation({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
-    const bills = await ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .take(10000);
+    const ns = { namespace: args.congress };
 
-    let houseCount = 0;
-    let senateCount = 0;
-    const stageMap = new Map<number, { description: string; count: number }>();
+    // Lexicographic bounds: every bill type starting with "h" sorts in
+    // ["h", "i") and every "s" type in ["s", "t"). All current bill types are
+    // covered by these two ranges (hr, hjres, hconres, hres / s, sjres,
+    // sconres, sres).
+    const houseBounds = {
+      lower: { key: "h", inclusive: true },
+      upper: { key: "i", inclusive: false },
+    } as const;
+    const senateBounds = {
+      lower: { key: "s", inclusive: true },
+      upper: { key: "t", inclusive: false },
+    } as const;
 
-    for (const bill of bills) {
-      if (bill.billType.startsWith("h")) houseCount++;
-      else senateCount++;
+    const [houseCount, senateCount] = await billsByChamber.countBatch(ctx, [
+      { ...ns, bounds: houseBounds },
+      { ...ns, bounds: senateBounds },
+    ]);
+    const totalCount = houseCount + senateCount;
 
-      const stage = bill.progressStage || 20;
-      const existing = stageMap.get(stage);
-      if (existing) {
-        existing.count++;
-      } else {
-        stageMap.set(stage, {
-          description:
-            bill.progressDescription ||
-            BILL_STAGE_DESCRIPTIONS[stage] ||
-            "Unknown",
-          count: 1,
-        });
+    // Skip the write if aggregates haven't been backfilled yet — otherwise we
+    // would zero out the existing precomputed row.
+    if (totalCount === 0) {
+      const billExists = await ctx.db
+        .query("bills")
+        .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+        .first();
+      if (billExists) {
+        console.warn(
+          `recomputeCongressStats: aggregates report 0 bills for congress ${args.congress} but the table is non-empty. Run aggregateBackfill:run first.`,
+        );
+        return;
       }
     }
 
-    const stageCounts = Array.from(stageMap.entries()).map(([stage, data]) => ({
-      stage,
-      description: data.description,
-      count: data.count,
+    const stageQueries = BILL_STAGES.map(({ stage }) => ({
+      ...ns,
+      bounds: { eq: stage } as const,
     }));
+    const stageResults = await billsByStage.countBatch(ctx, stageQueries);
+
+    const stageCounts = BILL_STAGES.map(({ stage, description }, i) => ({
+      stage,
+      description,
+      count: stageResults[i] ?? 0,
+    })).filter((s) => s.count > 0);
 
     const stats = {
       congress: args.congress,
-      totalCount: bills.length,
+      totalCount,
       houseCount,
       senateCount,
       stageCounts,
