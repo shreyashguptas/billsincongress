@@ -265,19 +265,21 @@ export const recomputeCongressStats = internalMutation({
     ]);
     const totalCount = houseCount + senateCount;
 
-    // Skip the write if aggregates haven't been backfilled yet — otherwise we
-    // would zero out the existing precomputed row.
-    if (totalCount === 0) {
-      const billExists = await ctx.db
-        .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-        .first();
-      if (billExists) {
-        console.warn(
-          `recomputeCongressStats: aggregates report 0 bills for congress ${args.congress} but the table is non-empty. Run aggregateBackfill:run first.`,
-        );
-        return;
-      }
+    // Guard: if the aggregate reports fewer bills than we can see in a small
+    // probe of the bills table, the aggregate hasn't been fully backfilled
+    // yet. Skip the write so we don't clobber a valid `congressStats` row
+    // with a stale or empty count. Triggers will keep things in sync once
+    // `aggregateBackfill:run` completes.
+    const probe = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .take(100);
+    if (probe.length > totalCount) {
+      console.warn(
+        `recomputeCongressStats: aggregate reports ${totalCount} bills for congress ${args.congress} ` +
+          `but a 100-bill probe returned ${probe.length}. Skipping write — run aggregateBackfill:run to populate aggregates.`,
+      );
+      return;
     }
 
     const stageQueries = BILL_STAGES.map(({ stage }) => ({

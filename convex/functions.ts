@@ -16,11 +16,17 @@ import { billsByChamber, billsByStage } from "./aggregates";
  * Any mutation that uses `internalMutation` / `mutation` from this module
  * (rather than directly from `_generated/server`) will run these triggers
  * transactionally on every insert / patch / replace / delete to `bills`.
+ *
+ * We use `idempotentTrigger()` (which calls `insertIfDoesNotExist` /
+ * `replaceOrInsert` / `deleteIfExists` internally) so that writes survive
+ * temporary out-of-sync states — e.g. a sync running between deploy and the
+ * one-time `aggregateBackfill:run`, or a repair run that touches bills the
+ * backfill hasn't reached yet. It's essentially free to use permanently.
  */
 const triggers = new Triggers<DataModel>();
 
-triggers.register("bills", billsByChamber.trigger());
-triggers.register("bills", billsByStage.trigger());
+triggers.register("bills", billsByChamber.idempotentTrigger());
+triggers.register("bills", billsByStage.idempotentTrigger());
 
 /** Drop-in replacement for `internalMutation` that fires bill triggers. */
 export const internalMutation = customMutation(
