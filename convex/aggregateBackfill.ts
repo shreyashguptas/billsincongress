@@ -4,7 +4,7 @@ import { internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { billsByChamber, billsByStage } from "./aggregates";
 
-const BACKFILL_BATCH_SIZE = 500;
+const BACKFILL_BATCH_SIZE = 50;
 
 /**
  * Public action to backfill the bill aggregates from the existing `bills`
@@ -14,23 +14,34 @@ const BACKFILL_BATCH_SIZE = 500;
  * Idempotent: uses `insertIfDoesNotExist` so re-running on already-populated
  * aggregates is safe.
  *
+ *     # default batch size (50):
  *     npx convex run --prod aggregateBackfill:run '{}'
+ *     # custom batch size — lower if you see transaction-limit errors in logs:
+ *     npx convex run --prod aggregateBackfill:run '{"batchSize": 25}'
  *
  * The action only kicks off the first batch and returns immediately. Each
  * batch self-schedules the next via the scheduler so we never exceed Convex's
  * per-mutation document limit, and the final batch triggers a recompute of
  * every congressStats row.
+ *
+ * Sizing note: each bill causes two nested `ctx.runMutation` calls into the
+ * aggregate component (one per aggregate), each of which writes a handful of
+ * btree nodes. 50 bills/batch keeps us well under the 8,192 write and 16,384
+ * read per-mutation limits even in the worst case.
  */
 export const run = internalAction({
-  args: {},
-  handler: async (ctx): Promise<{ started: true }> => {
-    console.log("Starting aggregate backfill from null cursor");
+  args: { batchSize: v.optional(v.number()) },
+  handler: async (ctx, args): Promise<{ started: true; batchSize: number }> => {
+    const batchSize = args.batchSize ?? BACKFILL_BATCH_SIZE;
+    console.log(
+      `Starting aggregate backfill from null cursor (batchSize=${batchSize})`,
+    );
     await ctx.scheduler.runAfter(
       0,
       internal.aggregateBackfill.backfillBatch,
-      { cursor: null },
+      { cursor: null, batchSize },
     );
-    return { started: true };
+    return { started: true, batchSize };
   },
 });
 
@@ -55,6 +66,10 @@ export const backfillBatch = internalMutation({
       await billsByChamber.insertIfDoesNotExist(ctx, bill);
       await billsByStage.insertIfDoesNotExist(ctx, bill);
     }
+
+    console.log(
+      `Backfilled ${result.page.length} bills (isDone=${result.isDone})`,
+    );
 
     if (!result.isDone) {
       await ctx.scheduler.runAfter(

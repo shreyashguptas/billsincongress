@@ -265,19 +265,24 @@ export const recomputeCongressStats = internalMutation({
     ]);
     const totalCount = houseCount + senateCount;
 
-    // Guard: if the aggregate reports fewer bills than we can see in a small
-    // probe of the bills table, the aggregate hasn't been fully backfilled
-    // yet. Skip the write so we don't clobber a valid `congressStats` row
-    // with a stale or empty count. Triggers will keep things in sync once
-    // `aggregateBackfill:run` completes.
+    // Guard: if the aggregate reports fewer bills than we can see in a probe
+    // of the bills table, the aggregate hasn't been fully backfilled yet.
+    // Skip the write so we don't clobber a valid `congressStats` row with a
+    // stale count.
+    //
+    // The probe size (1000) is tuned to catch partial-backfill states: with
+    // 50-bill batches, a stalled backfill might have populated several
+    // hundred aggregate entries before failing, and a smaller probe
+    // wouldn't notice the mismatch. 1000 reads is well under the 16,384
+    // per-mutation limit.
     const probe = await ctx.db
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .take(100);
+      .take(1000);
     if (probe.length > totalCount) {
       console.warn(
         `recomputeCongressStats: aggregate reports ${totalCount} bills for congress ${args.congress} ` +
-          `but a 100-bill probe returned ${probe.length}. Skipping write — run aggregateBackfill:run to populate aggregates.`,
+          `but a 1000-bill probe returned ${probe.length}. Skipping write — backfill likely incomplete.`,
       );
       return;
     }
