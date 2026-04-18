@@ -25,13 +25,12 @@ export default function SyncStatus() {
 
   if (!syncStatus?.completedAt) return null;
 
-  const timeAgo = formatDistanceToNow(new Date(syncStatus.completedAt), {
-    addSuffix: true,
-  });
+  const timeAgo = formatDistanceToNow(new Date(syncStatus.completedAt), { addSuffix: true });
 
   return (
-    <p className="text-xs text-muted-foreground/70">
-      Data updated {timeAgo}
-    </p>
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-status-law" aria-hidden="true" />
+      Updated {timeAgo}
+    </span>
   );
 }

@@ -9,10 +9,11 @@ const DashboardClient = dynamic(
 
 function LoadingState() {
   return (
-    <div className="min-h-screen bg-[#0a1628] flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-16 h-16 border-4 border-[#c9a227] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-[#94a3b8] font-serif text-xl">Loading Congressional Intelligence...</p>
+    <div className="container-editorial py-16 sm:py-24">
+      <div className="space-y-3">
+        <div className="h-3 w-32 bg-secondary rounded-sm animate-pulse" />
+        <div className="h-12 w-3/4 bg-secondary rounded-sm animate-pulse" />
+        <div className="h-4 w-1/2 bg-secondary rounded-sm animate-pulse" />
       </div>
     </div>
   );

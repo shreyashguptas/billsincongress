@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import ReactMarkdown from 'react-markdown';
+import { ArrowUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Message {
   id: string;
@@ -15,10 +17,10 @@ interface BillQAProps {
 }
 
 const EXAMPLE_QUESTIONS = [
-  "What does this bill do in simple terms?",
-  "What is the current status and what's next?",
-  "Who supports or opposes this bill?",
-  "What are the key sections of this bill?",
+  'What does this bill do in simple terms?',
+  "What's the current status and what's next?",
+  'Who supports or opposes this bill?',
+  'What are the key sections of this bill?',
 ];
 
 function generateSessionId(): string {
@@ -39,19 +41,19 @@ function getOrCreateSessionId(): string {
 const MarkdownMessage = ({ content }: { content: string }) => (
   <ReactMarkdown
     components={{
-      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-      li: ({ children }) => <li className="ml-1">{children}</li>,
-      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+      p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+      ul: ({ children }) => <ul className="list-disc list-outside ml-5 mb-2 space-y-1">{children}</ul>,
+      ol: ({ children }) => <ol className="list-decimal list-outside ml-5 mb-2 space-y-1">{children}</ol>,
+      li: ({ children }) => <li>{children}</li>,
+      strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
       em: ({ children }) => <em className="italic">{children}</em>,
-      h1: ({ children }) => <h1 className="text-base font-bold mt-3 mb-1">{children}</h1>,
-      h2: ({ children }) => <h2 className="text-sm font-semibold mt-2 mb-1">{children}</h2>,
-      h3: ({ children }) => <h3 className="text-sm font-medium mt-2 mb-1">{children}</h3>,
+      h1: ({ children }) => <h3 className="font-serif text-base font-semibold mt-3 mb-1.5">{children}</h3>,
+      h2: ({ children }) => <h3 className="font-serif text-base font-semibold mt-3 mb-1.5">{children}</h3>,
+      h3: ({ children }) => <h3 className="font-serif text-sm font-semibold mt-2 mb-1">{children}</h3>,
       a: ({ href, children }) => (
         <a
           href={href}
-          className="text-primary underline underline-offset-2"
+          className="text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -66,19 +68,10 @@ const MarkdownMessage = ({ content }: { content: string }) => (
 
 const TypingIndicator = () => (
   <div className="flex justify-start">
-    <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
-      <span
-        className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce"
-        style={{ animationDelay: '0ms' }}
-      />
-      <span
-        className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce"
-        style={{ animationDelay: '160ms' }}
-      />
-      <span
-        className="w-2 h-2 rounded-full bg-muted-foreground/60 animate-bounce"
-        style={{ animationDelay: '320ms' }}
-      />
+    <div className="rounded-sm border border-border bg-card px-4 py-3 flex items-center gap-1.5">
+      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '160ms' }} />
+      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: '320ms' }} />
     </div>
   </div>
 );
@@ -94,7 +87,6 @@ export default function BillQA({ billId }: BillQAProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initialise session and load persisted history on mount
   useEffect(() => {
     const sid = getOrCreateSessionId();
     setSessionId(sid);
@@ -102,21 +94,12 @@ export default function BillQA({ billId }: BillQAProps) {
     billsService
       .getBillChatHistory(billId, sid)
       .then((history) => {
-        setMessages(
-          history.map((m) => ({
-            id: m._id,
-            role: m.role,
-            content: m.content,
-          }))
-        );
+        setMessages(history.map((m) => ({ id: m._id, role: m.role, content: m.content })));
       })
-      .catch(() => {
-        // History fetch failure is non-fatal — start fresh
-      })
+      .catch(() => {})
       .finally(() => setIsLoadingHistory(false));
   }, [billId]);
 
-  // Scroll to the latest message
   useEffect(() => {
     if (!isLoadingHistory) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -138,7 +121,6 @@ export default function BillQA({ billId }: BillQAProps) {
         const result = await billsService.sendChatMessage(billId, sessionId, q);
         if (result.error) {
           setError(result.error);
-          // Remove the optimistic user message on error
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
         } else {
           setMessages((prev) => [
@@ -161,37 +143,36 @@ export default function BillQA({ billId }: BillQAProps) {
   const questionCount = messages.filter((m) => m.role === 'user').length;
 
   return (
-    <div className="bg-card rounded-lg shadow-lg mt-4 flex flex-col overflow-hidden" style={{ height: '520px' }}>
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b shrink-0">
-        <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-        <h2 className="text-base font-semibold">Ask about this bill</h2>
+    <div className="rounded-sm border border-border bg-background flex flex-col overflow-hidden" style={{ height: '540px' }}>
+      <div className="flex items-center justify-between gap-2 px-5 py-3 border-b border-border shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-status-law" aria-hidden="true" />
+          <p className="label-eyebrow !mb-0">Bill chat</p>
+        </div>
         {questionCount > 0 && (
-          <span className="text-xs text-muted-foreground ml-auto">
+          <span className="font-mono text-[11px] text-muted-foreground tabular">
             {questionCount} {questionCount === 1 ? 'question' : 'questions'}
           </span>
         )}
       </div>
 
-      {/* ── Messages ───────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3 min-h-0">
         {isLoadingHistory ? (
           <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-foreground border-t-transparent" />
           </div>
         ) : isEmpty ? (
-          /* Empty state: example questions */
           <div className="flex flex-col items-center justify-center h-full text-center px-2">
-            <p className="text-sm text-muted-foreground mb-4">
-              Ask any question about this bill. Try one of these:
+            <p className="text-sm text-muted-foreground mb-5 max-w-sm leading-relaxed">
+              Ask any question about this bill — its provisions, status, sponsors, or impact.
             </p>
-            <div className="flex flex-col sm:flex-row flex-wrap gap-2 justify-center max-w-lg">
+            <div className="flex flex-col gap-1.5 w-full max-w-md">
               {EXAMPLE_QUESTIONS.map((q, i) => (
                 <button
                   key={i}
                   onClick={() => handleSubmit(q)}
                   disabled={isLoading}
-                  className="px-3 py-2 text-sm bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-left sm:text-center disabled:opacity-50"
+                  className="px-3 py-2.5 text-sm text-left rounded-sm border border-border text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
                 >
                   {q}
                 </button>
@@ -201,29 +182,22 @@ export default function BillQA({ billId }: BillQAProps) {
         ) : (
           <>
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+              <div key={message.id} className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                  className={cn(
+                    'max-w-[85%] rounded-sm px-4 py-2.5 text-sm leading-relaxed',
                     message.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-br-sm'
-                      : 'bg-muted text-foreground rounded-bl-sm'
-                  }`}
-                >
-                  {message.role === 'assistant' ? (
-                    <MarkdownMessage content={message.content} />
-                  ) : (
-                    <p>{message.content}</p>
+                      ? 'bg-foreground text-background'
+                      : 'border border-border bg-card text-foreground'
                   )}
+                >
+                  {message.role === 'assistant' ? <MarkdownMessage content={message.content} /> : <p>{message.content}</p>}
                 </div>
               </div>
             ))}
 
             {isLoading && <TypingIndicator />}
 
-            {/* Example chips shown after first message for quick follow-ups */}
             {!isLoading && messages.length > 0 && messages.length < 4 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {EXAMPLE_QUESTIONS.filter(
@@ -235,7 +209,7 @@ export default function BillQA({ billId }: BillQAProps) {
                       key={i}
                       onClick={() => handleSubmit(q)}
                       disabled={isLoading}
-                      className="px-2.5 py-1 text-xs bg-secondary text-secondary-foreground rounded-full hover:bg-secondary/80 transition-colors disabled:opacity-50"
+                      className="px-2.5 py-1 text-[12px] border border-border rounded-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors disabled:opacity-50"
                     >
                       {q}
                     </button>
@@ -247,7 +221,7 @@ export default function BillQA({ billId }: BillQAProps) {
 
         {error && (
           <div className="flex justify-center">
-            <div className="px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-lg max-w-sm text-center">
+            <div className="px-3 py-2 border border-destructive/30 bg-destructive/5 rounded-sm max-w-sm text-center">
               <p className="text-sm text-destructive">{error}</p>
             </div>
           </div>
@@ -256,37 +230,34 @@ export default function BillQA({ billId }: BillQAProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Input bar ──────────────────────────────────────────────── */}
-      <div className="border-t px-4 py-3 shrink-0">
+      <div className="border-t border-border px-5 py-3 shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSubmit(input);
           }}
-          className="flex gap-2"
+          className="flex items-center gap-2"
         >
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isEmpty ? 'Ask a question about this bill…' : 'Ask a follow-up question…'}
-            className="flex-1 px-3 py-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+            placeholder={isEmpty ? 'Ask a question…' : 'Ask a follow-up…'}
+            className="flex-1 h-10 px-3 text-sm rounded-sm border border-border bg-background text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-foreground"
             disabled={isLoading || isLoadingHistory}
             maxLength={500}
           />
           <button
             type="submit"
             disabled={isLoading || isLoadingHistory || !input.trim()}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            aria-label="Send"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-sm bg-foreground text-background hover:bg-foreground/85 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
             {isLoading ? (
-              <span className="flex items-center gap-1.5">
-                <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-primary-foreground border-t-transparent" />
-                <span>Thinking</span>
-              </span>
+              <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-background border-t-transparent" />
             ) : (
-              'Send'
+              <ArrowUp className="h-4 w-4" />
             )}
           </button>
         </form>

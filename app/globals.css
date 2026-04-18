@@ -1,75 +1,96 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Editorial Modernism — design language
+ * Inspired by serious civic journalism (ProPublica, Economist).
+ * Single accent, restrained palette, typographic hierarchy.
+ * All colours expressed as HSL triplets so Tailwind CSS variables work.
+ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    
-    --accent: 45 80% 47%;
-    --accent-foreground: 0 0% 100%;
-    
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 45 80% 47%;
-    
-    --radius: 0.5rem;
-    
-    --congress-navy: 222 47% 8%;
-    --congress-gold: 45 80% 47%;
-    --congress-crimson: 350 75% 35%;
-    --congress-slate: 215 20% 25%;
+    /* Surface — warm newsprint */
+    --background: 40 30% 97%;
+    --foreground: 220 15% 12%;
+
+    --card: 40 30% 99%;
+    --card-foreground: 220 15% 12%;
+
+    --popover: 40 30% 99%;
+    --popover-foreground: 220 15% 12%;
+
+    /* Primary — civic ink */
+    --primary: 220 25% 14%;
+    --primary-foreground: 40 30% 98%;
+
+    --secondary: 40 15% 92%;
+    --secondary-foreground: 220 15% 18%;
+
+    --muted: 40 15% 94%;
+    --muted-foreground: 220 8% 42%;
+
+    /* Single accent — deep editorial red (masthead red) */
+    --accent: 358 65% 38%;
+    --accent-foreground: 40 30% 98%;
+
+    --destructive: 358 65% 38%;
+    --destructive-foreground: 40 30% 98%;
+
+    --border: 35 15% 85%;
+    --input: 35 15% 85%;
+    --ring: 220 25% 14%;
+
+    /* Stage / status colours used in dashboard charts */
+    --status-introduced: 220 8% 55%;
+    --status-committee: 220 25% 38%;
+    --status-passed-one: 35 65% 42%;
+    --status-passed-both: 28 70% 45%;
+    --status-president: 18 70% 42%;
+    --status-signed: 358 65% 38%;
+    --status-law: 145 40% 32%;
+
+    --radius: 0.25rem;
   }
 
   .dark {
-    --background: 222 47% 8%;
-    --foreground: 210 40% 98%;
-    
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 45 80% 47%;
-    --primary-foreground: 222 47% 8%;
-    
-    --secondary: 215 20% 20%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 215 20% 20%;
-    --muted-foreground: 215 20% 70%;
-    
-    --accent: 45 80% 55%;
-    --accent-foreground: 222 47% 8%;
-    
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    
-    --border: 215 20% 25%;
-    --input: 215 20% 25%;
-    --ring: 45 80% 55%;
+    /* Surface — warm dark, like newsprint at night */
+    --background: 220 18% 8%;
+    --foreground: 40 20% 92%;
+
+    --card: 220 18% 11%;
+    --card-foreground: 40 20% 92%;
+
+    --popover: 220 18% 11%;
+    --popover-foreground: 40 20% 92%;
+
+    --primary: 40 20% 92%;
+    --primary-foreground: 220 18% 8%;
+
+    --secondary: 220 12% 18%;
+    --secondary-foreground: 40 20% 92%;
+
+    --muted: 220 12% 16%;
+    --muted-foreground: 40 8% 65%;
+
+    --accent: 358 70% 58%;
+    --accent-foreground: 220 18% 8%;
+
+    --destructive: 358 70% 58%;
+    --destructive-foreground: 220 18% 8%;
+
+    --border: 220 12% 22%;
+    --input: 220 12% 22%;
+    --ring: 40 20% 92%;
+
+    --status-introduced: 220 8% 60%;
+    --status-committee: 220 20% 60%;
+    --status-passed-one: 35 60% 60%;
+    --status-passed-both: 28 65% 60%;
+    --status-president: 18 65% 58%;
+    --status-signed: 358 70% 60%;
+    --status-law: 145 40% 55%;
   }
 }
 
@@ -77,99 +98,76 @@
   * {
     @apply border-border;
   }
-  
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Source Sans 3', system-ui, sans-serif;
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: 'kern', 'liga', 'calt';
   }
-  
+
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', Georgia, serif;
+    @apply font-serif;
+    font-feature-settings: 'kern', 'liga', 'dlig', 'onum';
+    letter-spacing: -0.01em;
+  }
+
+  /* Editorial small caps for labels */
+  .label-eyebrow {
+    @apply text-[11px] font-sans font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  /* Pull-quote / dropped capital initial */
+  .first-letter-drop::first-letter {
+    @apply font-serif text-foreground;
+    float: left;
+    font-size: 4rem;
+    line-height: 0.9;
+    padding-right: 0.5rem;
+    padding-top: 0.3rem;
+  }
+
+  /* Tabular numerals for data */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Subtle horizontal rule used between sections */
+  .rule {
+    @apply border-0 border-t border-border;
   }
 }
 
-@layer utilities {
-  .transform-gpu {
-    transform: translate3d(0, 0, 0);
+@layer components {
+  /* Editorial container — slightly tighter than default */
+  .container-editorial {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
   }
-}
 
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  /* Article reading width */
+  .container-prose {
+    @apply mx-auto w-full max-w-2xl px-4 sm:px-6;
   }
 }
 
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-@keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }
-
-.animate-slide-up {
-  animation: slide-up 0.5s ease-out forwards;
-}
-
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out forwards;
-}
-
-.animate-scale-in {
-  animation: scale-in 0.3s ease-out forwards;
-}
-
-.animate-shimmer {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-.hardware-accelerated {
-  backface-visibility: hidden;
-  transform: translateZ(0);
-  perspective: 1000px;
-}
-
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-.stagger-4 { animation-delay: 0.4s; }
-.stagger-5 { animation-delay: 0.5s; }
-.stagger-6 { animation-delay: 0.6s; }

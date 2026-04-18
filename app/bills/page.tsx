@@ -1,29 +1,16 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useState } from 'react';
-import { useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Filter } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 
-// Dynamic imports with no SSR
-const BillsFilter = dynamic(
-  () => import('@/components/bills/bills-filter'),
-  { ssr: false }
-);
-
-const BillCard = dynamic(
-  () => import('@/components/bills/bill-card'),
-  { ssr: false }
-);
-
-const SyncStatus = dynamic(
-  () => import('@/components/bills/sync-status'),
-  { ssr: false }
-);
+const BillsFilter = dynamic(() => import('@/components/bills/bills-filter'), { ssr: false });
+const BillCard = dynamic(() => import('@/components/bills/bill-card'), { ssr: false });
+const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
 const ITEMS_PER_PAGE = 9;
 
@@ -31,7 +18,7 @@ export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [totalBills, setTotalBills] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<string>(() => 
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('billsStatusFilter') || 'all' : 'all'
   );
   const [introducedDateFilter, setIntroducedDateFilter] = useState<string>(() =>
@@ -76,28 +63,19 @@ export default function BillsPage() {
     billNumber: '',
     title: '',
     sponsor: '',
-    congress: 'all'
+    congress: 'all',
   });
   const [hasFilterChanges, setHasFilterChanges] = useState(false);
 
-  // Results statistics for UI display
-  const [filteredStats, setFilteredStats] = useState({
-    totalBills: 0,         // Total bills in database 
-    filteredCount: 0,       // Count after filters applied
-    displayedCount: 0       // Currently displayed count
-  });
-
-  // Fetch Congress info on mount
   useEffect(() => {
     const fetchCongressInfo = async () => {
       try {
         const info = await billsService.getCongressInfo();
         setCongressInfo(info);
-      } catch (error) {
-        console.error('Error fetching Congress info:', error);
+      } catch (e) {
+        console.error('Error fetching Congress info:', e);
       }
     };
-
     fetchCongressInfo();
   }, []);
 
@@ -115,19 +93,11 @@ export default function BillsPage() {
       localStorage.setItem('billsCongressFilter', congressFilter);
     }
   }, [
-    statusFilter,
-    introducedDateFilter,
-    lastActionDateFilter,
-    sponsorFilter,
-    titleFilter,
-    stateFilter,
-    policyAreaFilter,
-    billTypeFilter,
-    billNumberFilter,
-    congressFilter
+    statusFilter, introducedDateFilter, lastActionDateFilter, sponsorFilter,
+    titleFilter, stateFilter, policyAreaFilter, billTypeFilter,
+    billNumberFilter, congressFilter,
   ]);
 
-  // Initialize pendingFilters with current filter values
   useEffect(() => {
     setPendingFilters({
       status: statusFilter,
@@ -139,35 +109,16 @@ export default function BillsPage() {
       billNumber: billNumberFilter,
       title: titleFilter,
       sponsor: sponsorFilter,
-      congress: congressFilter
+      congress: congressFilter,
     });
   }, [
-    statusFilter,
-    introducedDateFilter,
-    lastActionDateFilter,
-    stateFilter,
-    policyAreaFilter,
-    billTypeFilter,
-    billNumberFilter,
-    titleFilter,
-    sponsorFilter,
-    congressFilter
+    statusFilter, introducedDateFilter, lastActionDateFilter, stateFilter,
+    policyAreaFilter, billTypeFilter, billNumberFilter, titleFilter,
+    sponsorFilter, congressFilter,
   ]);
 
-  // Update the statistics whenever the relevant state changes
-  useEffect(() => {
-    setFilteredStats({
-      totalBills: totalBills,
-      filteredCount: totalBills,
-      displayedCount: bills.length
-    });
-  }, [bills.length, totalBills]);
-
   const handleClearAllFilters = () => {
-    // Reset pagination when clearing filters
     setCurrentPage(1);
-    
-    // Reset both actual and pending filters
     setStatusFilter('all');
     setIntroducedDateFilter('all');
     setLastActionDateFilter('all');
@@ -178,23 +129,15 @@ export default function BillsPage() {
     setBillTypeFilter('all');
     setBillNumberFilter('');
     setCongressFilter('all');
-    setPendingFilters(prev => ({
-      ...prev,
-      billNumber: ''
-    }));
+    setPendingFilters((p) => ({ ...p, billNumber: '' }));
     setHasFilterChanges(false);
 
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('billsStatusFilter');
-      localStorage.removeItem('billsIntroducedDateFilter');
-      localStorage.removeItem('billsLastActionDateFilter');
-      localStorage.removeItem('billsSponsorFilter');
-      localStorage.removeItem('billsTitleFilter');
-      localStorage.removeItem('billsStateFilter');
-      localStorage.removeItem('billsPolicyAreaFilter');
-      localStorage.removeItem('billsTypeFilter');
-      localStorage.removeItem('billsNumberFilter');
-      localStorage.removeItem('billsCongressFilter');
+      [
+        'billsStatusFilter','billsIntroducedDateFilter','billsLastActionDateFilter',
+        'billsSponsorFilter','billsTitleFilter','billsStateFilter',
+        'billsPolicyAreaFilter','billsTypeFilter','billsNumberFilter','billsCongressFilter',
+      ].forEach((k) => localStorage.removeItem(k));
     }
   };
 
@@ -207,45 +150,23 @@ export default function BillsPage() {
         page: nextPage,
         itemsPerPage: ITEMS_PER_PAGE,
         status: statusFilter,
-        introducedDateFilter: introducedDateFilter,
-        lastActionDateFilter: lastActionDateFilter,
-        sponsorFilter: sponsorFilter,
-        titleFilter: titleFilter,
-        stateFilter: stateFilter,
+        introducedDateFilter,
+        lastActionDateFilter,
+        sponsorFilter,
+        titleFilter,
+        stateFilter,
         policyArea: policyAreaFilter,
         billType: billTypeFilter,
         billNumber: billNumberFilter,
         congress: congressFilter,
       });
-      
-      // Create a Map of existing bill IDs for efficient lookup
-      const existingBillIds = new Set(bills.map(bill => bill.id));
-      
-      // Filter out any duplicate bills that might be returned
-      const newBills = response.data.filter(bill => !existingBillIds.has(bill.id));
-      
-      // Only add new, unique bills to the list
-      setBills(prevBills => [...prevBills, ...newBills]);
-      
-      // Update total count to match the filtered count returned from the server
+      const existing = new Set(bills.map((b) => b.id));
+      const newBills = response.data.filter((b) => !existing.has(b.id));
+      setBills((prev) => [...prev, ...newBills]);
       setTotalBills(response.count);
-      
-      // Update current page
       setCurrentPage(nextPage);
-      
-      // Update filtered stats
-      setFilteredStats(prev => ({
-        ...prev,
-        filteredCount: response.count,
-        displayedCount: prev.displayedCount + newBills.length
-      }));
-      
-      // Log for debugging
-      console.log(`Loaded ${newBills.length} new bills. Total: ${bills.length + newBills.length}/${response.count}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load more bills';
-      console.error('Error loading more bills:', error);
-      setError(message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load more bills');
     } finally {
       setIsLoadingMore(false);
     }
@@ -260,54 +181,36 @@ export default function BillsPage() {
           page: 1,
           itemsPerPage: ITEMS_PER_PAGE,
           status: statusFilter,
-          introducedDateFilter: introducedDateFilter,
-          lastActionDateFilter: lastActionDateFilter,
-          sponsorFilter: sponsorFilter,
-          titleFilter: titleFilter,
-          stateFilter: stateFilter,
+          introducedDateFilter,
+          lastActionDateFilter,
+          sponsorFilter,
+          titleFilter,
+          stateFilter,
           policyArea: policyAreaFilter,
           billType: billTypeFilter,
           billNumber: billNumberFilter,
           congress: congressFilter,
         });
-        
-        // Update state with the fetched data
         setBills(response.data);
         setTotalBills(response.count);
         setCurrentPage(1);
-        
-        // Log for debugging
-        console.log(`Initial fetch: ${response.data.length} bills found out of ${response.count} total.`);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to fetch bills';
-        console.error('Error fetching bills:', error);
-        setError(message);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to fetch bills');
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchBills();
   }, [
-    statusFilter,
-    introducedDateFilter,
-    lastActionDateFilter,
-    sponsorFilter,
-    titleFilter,
-    stateFilter,
-    policyAreaFilter,
-    billTypeFilter,
-    billNumberFilter,
-    congressFilter
+    statusFilter, introducedDateFilter, lastActionDateFilter, sponsorFilter,
+    titleFilter, stateFilter, policyAreaFilter, billTypeFilter,
+    billNumberFilter, congressFilter,
   ]);
 
-  // Only show "Load More" button if there are more bills to load
   const hasMoreBills = totalBills > bills.length;
 
   const handleApplyFilters = () => {
-    // Reset pagination when applying new filters
     setCurrentPage(1);
-    
     setStatusFilter(pendingFilters.status);
     setIntroducedDateFilter(pendingFilters.introducedDate);
     setLastActionDateFilter(pendingFilters.lastActionDate);
@@ -323,54 +226,62 @@ export default function BillsPage() {
   };
 
   const handlePendingFilterChange = (filterType: string, value: string) => {
-    setPendingFilters(prev => ({ ...prev, [filterType]: value }));
+    setPendingFilters((prev) => ({ ...prev, [filterType]: value }));
     setHasFilterChanges(true);
   };
 
+  const filtersActive = hasFiltersActive(
+    statusFilter, introducedDateFilter, lastActionDateFilter,
+    sponsorFilter, titleFilter, stateFilter, policyAreaFilter,
+    billTypeFilter, billNumberFilter, congressFilter,
+  );
+
   return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="flex items-baseline justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold mb-1">All Bills</h1>
-          <p className="text-sm text-muted-foreground">
-            Browse bills introduced in Congress
-            {congressInfo && (
-              <span className="ml-1">
-                ({congressInfo.startYear}–{congressInfo.endYear})
-              </span>
-            )}
-          </p>
-          <SyncStatus />
-        </div>
-        <div className="text-sm text-muted-foreground">
-          {bills.length > 0 ? (
-            <>
-              Showing {bills.length} out of {totalBills} bills
-              {hasFiltersActive() && (
-                <span className="ml-1">(filtered)</span>
+    <div className="animate-fade-in">
+      {/* Page header — editorial */}
+      <section className="border-b border-border">
+        <div className="container-editorial py-10 sm:py-12">
+          <p className="label-eyebrow mb-3">The record</p>
+          <h1 className="font-serif text-display-md sm:text-display-lg font-semibold leading-[1.05] tracking-tight">
+            All bills
+          </h1>
+          <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span>
+              Browse legislation introduced in Congress
+              {congressInfo && (
+                <>
+                  {' '}
+                  <span className="font-mono tabular">
+                    ({congressInfo.startYear}–{congressInfo.endYear})
+                  </span>
+                </>
               )}
-            </>
-          ) : isLoading ? (
-            <>Loading bills...</>
-          ) : (
-            <>No bills found</>
-          )}
+              .
+            </span>
+            <SyncStatus />
+          </div>
         </div>
-      </div>
-      
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Mobile Filter Button */}
-        <div className="lg:hidden mb-4">
+      </section>
+
+      <div className="container-editorial py-8 lg:py-10">
+        {/* Mobile filter trigger */}
+        <div className="lg:hidden mb-5">
           <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
             <SheetTrigger asChild>
-              <Button variant="outline" className="w-full flex items-center gap-2">
-                <Filter className="h-4 w-4" />
+              <Button variant="outline" className="w-full">
+                <SlidersHorizontal className="h-4 w-4" />
                 Filters
+                {filtersActive && (
+                  <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-accent" />
+                )}
               </Button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="h-[80vh]">
-              <div className="h-full flex flex-col">
-                <div className="flex-1 overflow-y-auto">
+            <SheetContent side="bottom" className="h-[85vh] border-t border-border bg-background p-0">
+              <div className="flex h-full flex-col">
+                <div className="border-b border-border px-5 py-4">
+                  <p className="font-serif text-lg font-semibold tracking-tight">Filter bills</p>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-5">
                   <BillsFilter
                     statusFilter={pendingFilters.status}
                     introducedDateFilter={pendingFilters.introducedDate}
@@ -382,27 +293,23 @@ export default function BillsPage() {
                     billTypeFilter={pendingFilters.billType}
                     billNumberFilter={pendingFilters.billNumber}
                     congressFilter={pendingFilters.congress}
-                    onStatusChange={(value) => handlePendingFilterChange('status', value)}
-                    onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
-                    onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
-                    onSponsorChange={(value) => handlePendingFilterChange('sponsor', value)}
-                    onTitleChange={(value) => handlePendingFilterChange('title', value)}
-                    onStateChange={(value) => handlePendingFilterChange('state', value)}
-                    onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
-                    onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
-                    onBillNumberChange={(value) => handlePendingFilterChange('billNumber', value)}
-                    onCongressChange={(value) => handlePendingFilterChange('congress', value)}
+                    onStatusChange={(v) => handlePendingFilterChange('status', v)}
+                    onIntroducedDateChange={(v) => handlePendingFilterChange('introducedDate', v)}
+                    onLastActionDateChange={(v) => handlePendingFilterChange('lastActionDate', v)}
+                    onSponsorChange={(v) => handlePendingFilterChange('sponsor', v)}
+                    onTitleChange={(v) => handlePendingFilterChange('title', v)}
+                    onStateChange={(v) => handlePendingFilterChange('state', v)}
+                    onPolicyAreaChange={(v) => handlePendingFilterChange('policyArea', v)}
+                    onBillTypeChange={(v) => handlePendingFilterChange('billType', v)}
+                    onBillNumberChange={(v) => handlePendingFilterChange('billNumber', v)}
+                    onCongressChange={(v) => handlePendingFilterChange('congress', v)}
                     onClearAllFilters={handleClearAllFilters}
                     isMobile={true}
                   />
                 </div>
-                <div className="py-4 border-t">
-                  <Button 
-                    className="w-full" 
-                    onClick={handleApplyFilters}
-                    disabled={!hasFilterChanges}
-                  >
-                    Apply Filters
+                <div className="border-t border-border px-5 py-4">
+                  <Button className="w-full" onClick={handleApplyFilters} disabled={!hasFilterChanges}>
+                    Apply filters
                   </Button>
                 </div>
               </div>
@@ -410,97 +317,128 @@ export default function BillsPage() {
           </Sheet>
         </div>
 
-        {/* Desktop Sidebar Filters */}
-        <aside className="hidden lg:block lg:w-[300px] shrink-0">
-          <div className="space-y-6">
-            <BillsFilter
-              statusFilter={pendingFilters.status}
-              introducedDateFilter={pendingFilters.introducedDate}
-              lastActionDateFilter={pendingFilters.lastActionDate}
-              sponsorFilter={pendingFilters.sponsor}
-              titleFilter={pendingFilters.title}
-              stateFilter={pendingFilters.state}
-              policyAreaFilter={pendingFilters.policyArea}
-              billTypeFilter={pendingFilters.billType}
-              billNumberFilter={pendingFilters.billNumber}
-              congressFilter={pendingFilters.congress}
-              onStatusChange={(value) => handlePendingFilterChange('status', value)}
-              onIntroducedDateChange={(value) => handlePendingFilterChange('introducedDate', value)}
-              onLastActionDateChange={(value) => handlePendingFilterChange('lastActionDate', value)}
-              onSponsorChange={(value) => handlePendingFilterChange('sponsor', value)}
-              onTitleChange={(value) => handlePendingFilterChange('title', value)}
-              onStateChange={(value) => handlePendingFilterChange('state', value)}
-              onPolicyAreaChange={(value) => handlePendingFilterChange('policyArea', value)}
-              onBillTypeChange={(value) => handlePendingFilterChange('billType', value)}
-              onBillNumberChange={(value) => handlePendingFilterChange('billNumber', value)}
-              onCongressChange={(value) => handlePendingFilterChange('congress', value)}
-              onClearAllFilters={handleClearAllFilters}
-              isMobile={false}
-            />
-            <Button 
-              className="w-full" 
-              onClick={handleApplyFilters}
-              disabled={!hasFilterChanges}
-            >
-              Apply Filters
-            </Button>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <div className="flex-1">
-          {error && (
-            <div className="text-red-500 mb-6">
-              {error}
+        <div className="flex flex-col lg:flex-row gap-10 lg:gap-12">
+          {/* Desktop sidebar */}
+          <aside className="hidden lg:block lg:w-[260px] shrink-0">
+            <div className="sticky top-24 space-y-6">
+              <BillsFilter
+                statusFilter={pendingFilters.status}
+                introducedDateFilter={pendingFilters.introducedDate}
+                lastActionDateFilter={pendingFilters.lastActionDate}
+                sponsorFilter={pendingFilters.sponsor}
+                titleFilter={pendingFilters.title}
+                stateFilter={pendingFilters.state}
+                policyAreaFilter={pendingFilters.policyArea}
+                billTypeFilter={pendingFilters.billType}
+                billNumberFilter={pendingFilters.billNumber}
+                congressFilter={pendingFilters.congress}
+                onStatusChange={(v) => handlePendingFilterChange('status', v)}
+                onIntroducedDateChange={(v) => handlePendingFilterChange('introducedDate', v)}
+                onLastActionDateChange={(v) => handlePendingFilterChange('lastActionDate', v)}
+                onSponsorChange={(v) => handlePendingFilterChange('sponsor', v)}
+                onTitleChange={(v) => handlePendingFilterChange('title', v)}
+                onStateChange={(v) => handlePendingFilterChange('state', v)}
+                onPolicyAreaChange={(v) => handlePendingFilterChange('policyArea', v)}
+                onBillTypeChange={(v) => handlePendingFilterChange('billType', v)}
+                onBillNumberChange={(v) => handlePendingFilterChange('billNumber', v)}
+                onCongressChange={(v) => handlePendingFilterChange('congress', v)}
+                onClearAllFilters={handleClearAllFilters}
+                isMobile={false}
+              />
+              <Button className="w-full" onClick={handleApplyFilters} disabled={!hasFilterChanges}>
+                Apply filters
+              </Button>
             </div>
-          )}
+          </aside>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {isLoading ? (
-              <div className="col-span-full text-center py-8">Loading bills...</div>
-            ) : bills.length > 0 ? (
-              bills.map((bill) => (
-                <Suspense key={bill.id} fallback={<div>Loading bill...</div>}>
-                  <BillCard bill={bill} />
-                </Suspense>
-              ))
-            ) : (
-              <div className="col-span-full text-center py-8">
-                No bills found matching your filters.
+          {/* Results column */}
+          <div className="flex-1 min-w-0">
+            <div className="mb-5 flex items-baseline justify-between gap-3 border-b border-border pb-3">
+              <p className="text-sm text-muted-foreground">
+                {bills.length > 0 ? (
+                  <>
+                    Showing{' '}
+                    <span className="font-mono font-medium text-foreground tabular">
+                      {bills.length}
+                    </span>{' '}
+                    of{' '}
+                    <span className="font-mono font-medium text-foreground tabular">
+                      {totalBills.toLocaleString()}
+                    </span>{' '}
+                    bills
+                    {filtersActive && <span className="ml-1">· filtered</span>}
+                  </>
+                ) : isLoading ? (
+                  'Loading…'
+                ) : (
+                  'No matching bills'
+                )}
+              </p>
+            </div>
+
+            {error && (
+              <div className="mb-6 border border-destructive/30 bg-destructive/5 text-destructive px-4 py-3 text-sm rounded-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-64 border border-border bg-card rounded-sm animate-pulse" />
+                ))
+              ) : bills.length > 0 ? (
+                bills.map((bill) => (
+                  <Suspense key={bill.id} fallback={<div className="h-64 border border-border rounded-sm bg-card" />}>
+                    <BillCard bill={bill} />
+                  </Suspense>
+                ))
+              ) : (
+                <div className="col-span-full border border-dashed border-border rounded-sm p-12 text-center">
+                  <p className="font-serif text-xl tracking-tight mb-2">No bills found</p>
+                  <p className="text-sm text-muted-foreground">
+                    Try removing some filters to broaden the search.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {hasMoreBills && (
+              <div className="mt-10 text-center">
+                <Button onClick={handleLoadMore} disabled={isLoadingMore} variant="outline" size="lg">
+                  {isLoadingMore ? 'Loading…' : 'Load more bills'}
+                </Button>
               </div>
             )}
           </div>
-
-          {hasMoreBills && (
-            <div className="mt-8 text-center">
-              <Button
-                onClick={handleLoadMore}
-                disabled={isLoadingMore}
-                variant="outline"
-                className="px-6 py-2"
-              >
-                {isLoadingMore ? 'Loading...' : 'Load More'}
-              </Button>
-            </div>
-          )}
         </div>
       </div>
-    </main>
+    </div>
   );
+}
 
-  // Helper to check if any filters are active
-  function hasFiltersActive() {
-    return (
-      statusFilter !== 'all' ||
-      introducedDateFilter !== 'all' ||
-      lastActionDateFilter !== 'all' ||
-      sponsorFilter !== '' ||
-      titleFilter !== '' ||
-      stateFilter !== 'all' ||
-      policyAreaFilter !== 'all' ||
-      billTypeFilter !== 'all' ||
-      billNumberFilter !== '' ||
-      congressFilter !== 'all'
-    );
-  }
+function hasFiltersActive(
+  statusFilter: string,
+  introducedDateFilter: string,
+  lastActionDateFilter: string,
+  sponsorFilter: string,
+  titleFilter: string,
+  stateFilter: string,
+  policyAreaFilter: string,
+  billTypeFilter: string,
+  billNumberFilter: string,
+  congressFilter: string,
+) {
+  return (
+    statusFilter !== 'all' ||
+    introducedDateFilter !== 'all' ||
+    lastActionDateFilter !== 'all' ||
+    sponsorFilter !== '' ||
+    titleFilter !== '' ||
+    stateFilter !== 'all' ||
+    policyAreaFilter !== 'all' ||
+    billTypeFilter !== 'all' ||
+    billNumberFilter !== '' ||
+    congressFilter !== 'all'
+  );
 }

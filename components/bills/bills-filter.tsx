@@ -9,81 +9,72 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { BILL_TYPES } from '@/lib/constants/filters';
 import dynamic from 'next/dynamic';
-import { BillStageDescriptions, BillStageOrder } from '@/lib/utils/bill-stages';
-import { BillStages } from '@/lib/utils/bill-stages';
 import { useState, useEffect } from 'react';
 import { billsService } from '@/lib/services/bills-service';
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { Circle } from "lucide-react";
+import { cn } from '@/lib/utils';
 
-// Map of policy areas
 const POLICY_AREAS = [
-  'Agriculture and Food',
-  'Animals',
-  'Armed Forces and National Security',
-  'Arts, Culture, Religion',
-  'Civil Rights and Liberties, Minority Issues',
-  'Commerce',
-  'Congress',
-  'Crime and Law Enforcement',
-  'Economics and Public Finance',
-  'Education',
-  'Emergency Management',
-  'Energy',
-  'Environmental Protection',
-  'Families',
-  'Finance and Financial Sector',
-  'Foreign Trade and International Finance',
-  'Government Operations and Politics',
-  'Health',
-  'Housing and Community Development',
-  'Immigration',
-  'International Affairs',
-  'Labor and Employment',
-  'Law',
-  'Native Americans',
-  'Private Legislation',
-  'Public Lands and Natural Resources',
-  'Science, Technology, Communications',
-  'Social Sciences and History',
-  'Social Welfare',
-  'Sports and Recreation',
-  'Taxation',
-  'Transportation and Public Works',
-  'Water Resources Development'
+  'Agriculture and Food', 'Animals', 'Armed Forces and National Security',
+  'Arts, Culture, Religion', 'Civil Rights and Liberties, Minority Issues',
+  'Commerce', 'Congress', 'Crime and Law Enforcement',
+  'Economics and Public Finance', 'Education', 'Emergency Management',
+  'Energy', 'Environmental Protection', 'Families',
+  'Finance and Financial Sector', 'Foreign Trade and International Finance',
+  'Government Operations and Politics', 'Health',
+  'Housing and Community Development', 'Immigration', 'International Affairs',
+  'Labor and Employment', 'Law', 'Native Americans', 'Private Legislation',
+  'Public Lands and Natural Resources', 'Science, Technology, Communications',
+  'Social Sciences and History', 'Social Welfare', 'Sports and Recreation',
+  'Taxation', 'Transportation and Public Works', 'Water Resources Development',
 ];
 
-// Map of state abbreviations to full names
-const STATE_NAMES: { [key: string]: string } = {
-  'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
-  'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
-  'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho',
-  'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas',
-  'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
-  'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
-  'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada',
-  'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York',
-  'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma',
-  'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
-  'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah',
-  'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
-  'WI': 'Wisconsin', 'WY': 'Wyoming', 'DC': 'District of Columbia'
+const STATE_NAMES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas',
+  CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
+  FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
+  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas',
+  KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
+  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada',
+  NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York',
+  NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma',
+  OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
+  VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia',
+  WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia',
 };
 
-// Map of bill types to their full names
-const BILL_TYPE_NAMES: { [key: string]: string } = {
-  'hr': 'House Bill',
-  'hres': 'House Resolution',
-  'hjres': 'House Joint Resolution',
-  'hconres': 'House Concurrent Resolution',
-  's': 'Senate Bill',
-  'sres': 'Senate Resolution',
-  'sjres': 'Senate Joint Resolution',
-  'sconres': 'Senate Concurrent Resolution'
+const BILL_TYPE_NAMES: Record<string, string> = {
+  hr: 'House Bill',
+  hres: 'House Resolution',
+  hjres: 'House Joint Resolution',
+  hconres: 'House Concurrent Resolution',
+  s: 'Senate Bill',
+  sres: 'Senate Resolution',
+  sjres: 'Senate Joint Resolution',
+  sconres: 'Senate Concurrent Resolution',
 };
+
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: '20',  label: 'Introduced' },
+  { value: '40',  label: 'In committee' },
+  { value: '60',  label: 'Passed one chamber' },
+  { value: '80',  label: 'Passed both chambers' },
+  { value: '90',  label: 'To President' },
+  { value: '95',  label: 'Signed by President' },
+  { value: '100', label: 'Became law' },
+];
+
+const DATE_OPTIONS = [
+  { value: 'all', label: 'All time' },
+  { value: 'week', label: 'Last week' },
+  { value: 'month', label: 'Last month' },
+  { value: '3months', label: 'Last 3 months' },
+  { value: '6months', label: 'Last 6 months' },
+  { value: 'year', label: 'Last year' },
+];
 
 interface BillsFilterProps {
   statusFilter: string;
@@ -96,35 +87,50 @@ interface BillsFilterProps {
   billTypeFilter: string;
   billNumberFilter: string;
   congressFilter: string;
-  onStatusChange: (value: string) => void;
-  onIntroducedDateChange: (value: string) => void;
-  onLastActionDateChange: (value: string) => void;
-  onSponsorChange: (value: string) => void;
-  onTitleChange: (value: string) => void;
-  onStateChange: (value: string) => void;
-  onPolicyAreaChange: (value: string) => void;
-  onBillTypeChange: (value: string) => void;
-  onBillNumberChange: (value: string) => void;
-  onCongressChange: (value: string) => void;
+  onStatusChange: (v: string) => void;
+  onIntroducedDateChange: (v: string) => void;
+  onLastActionDateChange: (v: string) => void;
+  onSponsorChange: (v: string) => void;
+  onTitleChange: (v: string) => void;
+  onStateChange: (v: string) => void;
+  onPolicyAreaChange: (v: string) => void;
+  onBillTypeChange: (v: string) => void;
+  onBillNumberChange: (v: string) => void;
+  onCongressChange: (v: string) => void;
   onClearAllFilters: () => void;
   isMobile: boolean;
 }
 
-interface StatusOption {
-  value: string;
+function FilterField({
+  label,
+  active,
+  children,
+}: {
   label: string;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        {label}
+        {active && <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />}
+      </label>
+      {children}
+    </div>
+  );
 }
 
-const statusOptions: StatusOption[] = [
-  { value: 'all', label: 'All Statuses' },
-  { value: '20', label: 'Introduced' },
-  { value: '40', label: 'In Committee' },
-  { value: '60', label: 'Passed One Chamber' },
-  { value: '80', label: 'Passed Both Chambers' },
-  { value: '90', label: 'To President' },
-  { value: '95', label: 'Signed by President' },
-  { value: '100', label: 'Became Law' },
-];
+function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <p className="font-serif text-base font-semibold tracking-tight border-b border-border pb-1.5">
+        {title}
+      </p>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
 
 function BillsFilter({
   statusFilter,
@@ -162,322 +168,203 @@ function BillsFilter({
   useEffect(() => {
     const fetchCongressNumbers = async () => {
       try {
-        console.log('Fetching congress numbers...');
         const numbers = await billsService.getAvailableCongressNumbers();
-        console.log('Received congress numbers:', numbers);
         setAvailableCongressNumbers(numbers);
-        console.log('Set congress numbers in state:', numbers);
-      } catch (error) {
-        console.error('Error fetching congress numbers:', error);
+      } catch (e) {
+        console.error('Error fetching congress numbers:', e);
       }
     };
-
     fetchCongressNumbers();
   }, []);
 
-  // Helper function to check if a filter is active
-  const isFilterActive = (filterValue: string | null | undefined, defaultValue: string) => {
-    if (filterValue === null || filterValue === undefined) return false;
-    return filterValue !== defaultValue && filterValue !== '';
+  const isActive = (v: string | null | undefined, def: string) => {
+    if (v === null || v === undefined) return false;
+    return v !== def && v !== '';
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="font-semibold">{isMobile ? 'Filter Bills' : 'Filters'}</h2>
-        <Button
-          onClick={onClearAllFilters}
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "text-muted-foreground hover:text-foreground",
-            (isFilterActive(titleFilter, '') || 
-             isFilterActive(sponsorFilter, '') ||
-             isFilterActive(billNumberFilter, '') ||
-             isFilterActive(congressFilter, 'all') ||
-             isFilterActive(billTypeFilter, 'all') ||
-             isFilterActive(statusFilter, 'all') ||
-             isFilterActive(stateFilter, 'all') ||
-             isFilterActive(policyAreaFilter, 'all') ||
-             isFilterActive(introducedDateFilter, 'all') ||
-             isFilterActive(lastActionDateFilter, 'all')) && "text-foreground"
-          )}
-        >
-          Clear All
-        </Button>
-      </div>
+  const anyActive =
+    isActive(titleFilter, '') ||
+    isActive(sponsorFilter, '') ||
+    isActive(billNumberFilter, '') ||
+    isActive(congressFilter, 'all') ||
+    isActive(billTypeFilter, 'all') ||
+    isActive(statusFilter, 'all') ||
+    isActive(stateFilter, 'all') ||
+    isActive(policyAreaFilter, 'all') ||
+    isActive(introducedDateFilter, 'all') ||
+    isActive(lastActionDateFilter, 'all');
 
-      {/* Search Filters - Always immediate */}
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <label htmlFor="titleFilter" className="text-sm font-medium flex items-center gap-2">
-            Bill Title
-            {isFilterActive(titleFilter, '') && (
-              <Circle className="h-2 w-2 fill-primary" />
+  const sheetMaxHeight = isMobile ? 'max-h-[40vh]' : '';
+
+  return (
+    <div className="space-y-7">
+      {/* Header — only on desktop. Mobile sheet has its own header. */}
+      {!isMobile && (
+        <div className="flex items-baseline justify-between border-b border-border pb-2">
+          <p className="font-serif text-lg font-semibold tracking-tight">Filter</p>
+          <button
+            onClick={onClearAllFilters}
+            className={cn(
+              'text-xs font-medium underline underline-offset-4 decoration-border transition-colors',
+              anyActive
+                ? 'text-foreground hover:decoration-foreground'
+                : 'text-muted-foreground/50 pointer-events-none'
             )}
-          </label>
+            aria-disabled={!anyActive}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      <FilterGroup title="Search">
+        <FilterField label="Title" active={isActive(titleFilter, '')}>
           <Input
-            id="titleFilter"
             type="text"
-            placeholder="Search bill titles..."
+            placeholder="e.g. infrastructure"
             value={titleFilter}
             onChange={(e) => onTitleChange(e.target.value)}
-            className={cn(
-              "w-full",
-              isFilterActive(titleFilter, '') && "border-primary"
-            )}
           />
-        </div>
+        </FilterField>
 
-        <div className="space-y-2">
-          <label htmlFor="sponsorFilter" className="text-sm font-medium flex items-center gap-2">
-            Sponsor Name
-            {isFilterActive(sponsorFilter, '') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
+        <FilterField label="Sponsor" active={isActive(sponsorFilter, '')}>
           <Input
-            id="sponsorFilter"
             type="text"
-            placeholder="Search by sponsor..."
+            placeholder="Member's name"
             value={sponsorFilter}
             onChange={(e) => onSponsorChange(e.target.value)}
-            className={cn(
-              "w-full",
-              isFilterActive(sponsorFilter, '') && "border-primary"
-            )}
           />
-        </div>
+        </FilterField>
 
-        <div className="space-y-2">
-          <label htmlFor="billNumberFilter" className="text-sm font-medium flex items-center gap-2">
-            Bill Number
-            {isFilterActive(billNumberFilter, '') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
+        <FilterField label="Bill number" active={isActive(billNumberFilter, '')}>
           <Input
-            id="billNumberFilter"
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
-            placeholder="Enter bill number..."
+            placeholder="e.g. 1234"
             value={billNumberFilter}
             onChange={handleBillNumberChange}
-            className={cn(
-              "w-full",
-              isFilterActive(billNumberFilter, '') && "border-primary"
-            )}
           />
-        </div>
-      </div>
+        </FilterField>
+      </FilterGroup>
 
-      {/* Dropdown Filters */}
-      <div className="space-y-4">
-        {/* Congress Filter */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            Congress
-            {isFilterActive(congressFilter, 'all') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
-          <Select 
-            value={congressFilter} 
-            onValueChange={onCongressChange}
-          >
-            <SelectTrigger className={cn(
-              "w-full",
-              isFilterActive(congressFilter, 'all') && "border-primary"
-            )}>
+      <FilterGroup title="Identification">
+        <FilterField label="Congress" active={isActive(congressFilter, 'all')}>
+          <Select value={congressFilter} onValueChange={onCongressChange}>
+            <SelectTrigger>
               <SelectValue placeholder="All Congresses" />
             </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
+            <SelectContent className={sheetMaxHeight}>
               <SelectItem value="all">All Congresses</SelectItem>
-              {availableCongressNumbers.map((congress) => (
-                <SelectItem key={congress} value={congress.toString()}>
-                  {congress}th Congress
+              {availableCongressNumbers.map((c) => (
+                <SelectItem key={c} value={c.toString()}>
+                  {c}th Congress
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
 
-        {/* Bill Type Filter */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            Bill Type
-            {isFilterActive(billTypeFilter, 'all') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
-          <Select 
-            value={billTypeFilter} 
-            onValueChange={onBillTypeChange}
-          >
-            <SelectTrigger className={cn(
-              "w-full",
-              isFilterActive(billTypeFilter, 'all') && "border-primary"
-            )}>
-              <SelectValue placeholder="All Bill Types" />
+        <FilterField label="Bill type" active={isActive(billTypeFilter, 'all')}>
+          <Select value={billTypeFilter} onValueChange={onBillTypeChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="All bill types" />
             </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
-              <SelectItem value="all">All Bill Types</SelectItem>
-              {Object.entries(BILL_TYPE_NAMES).map(([type, fullName]) => (
-                <SelectItem key={type} value={type}>
-                  {fullName}
-                </SelectItem>
+            <SelectContent className={sheetMaxHeight}>
+              <SelectItem value="all">All bill types</SelectItem>
+              {Object.entries(BILL_TYPE_NAMES).map(([type, name]) => (
+                <SelectItem key={type} value={type}>{name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
 
-        {/* Status Filter */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            Status
-            {isFilterActive(statusFilter, 'all') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
-          <Select
-            value={statusFilter}
-            onValueChange={onStatusChange}
-          >
-            <SelectTrigger className={cn(
-              "w-full",
-              isFilterActive(statusFilter, 'all') && "border-primary"
-            )}>
-              <SelectValue placeholder="All Statuses" />
+        <FilterField label="Status" active={isActive(statusFilter, 'all')}>
+          <Select value={statusFilter} onValueChange={onStatusChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="All statuses" />
             </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
-              {statusOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
+            <SelectContent className={sheetMaxHeight}>
+              {STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
+      </FilterGroup>
 
-        {/* State Filter */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            State
-            {isFilterActive(stateFilter, 'all') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
-          <Select 
-            value={stateFilter} 
-            onValueChange={onStateChange}
-          >
-            <SelectTrigger className={cn(
-              "w-full",
-              isFilterActive(stateFilter, 'all') && "border-primary"
-            )}>
-              <SelectValue placeholder="All States" />
+      <FilterGroup title="Subject">
+        <FilterField label="Sponsor state" active={isActive(stateFilter, 'all')}>
+          <Select value={stateFilter} onValueChange={onStateChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="All states" />
             </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
-              <SelectItem value="all">All States</SelectItem>
+            <SelectContent className={sheetMaxHeight}>
+              <SelectItem value="all">All states</SelectItem>
               {Object.entries(STATE_NAMES).map(([abbr, name]) => (
-                <SelectItem key={abbr} value={abbr}>
-                  {name}
-                </SelectItem>
+                <SelectItem key={abbr} value={abbr}>{name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
 
-        {/* Policy Area Filter */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            Category
-            {isFilterActive(policyAreaFilter, 'all') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
-          <Select 
-            value={policyAreaFilter} 
-            onValueChange={onPolicyAreaChange}
-          >
-            <SelectTrigger className={cn(
-              "w-full",
-              isFilterActive(policyAreaFilter, 'all') && "border-primary"
-            )}>
-              <SelectValue placeholder="All Categories" />
+        <FilterField label="Policy area" active={isActive(policyAreaFilter, 'all')}>
+          <Select value={policyAreaFilter} onValueChange={onPolicyAreaChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="All policy areas" />
             </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
-              <SelectItem value="all">All Categories</SelectItem>
+            <SelectContent className={sheetMaxHeight}>
+              <SelectItem value="all">All policy areas</SelectItem>
               {POLICY_AREAS.map((area) => (
-                <SelectItem key={area} value={area}>
-                  {area}
-                </SelectItem>
+                <SelectItem key={area} value={area}>{area}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
+      </FilterGroup>
 
-        {/* Date Filters */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            Introduced Date
-            {isFilterActive(introducedDateFilter, 'all') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
-          <Select 
-            value={introducedDateFilter} 
-            onValueChange={onIntroducedDateChange}
-          >
-            <SelectTrigger className={cn(
-              "w-full",
-              isFilterActive(introducedDateFilter, 'all') && "border-primary"
-            )}>
-              <SelectValue placeholder="All Dates" />
+      <FilterGroup title="Dates">
+        <FilterField label="Introduced" active={isActive(introducedDateFilter, 'all')}>
+          <Select value={introducedDateFilter} onValueChange={onIntroducedDateChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="All time" />
             </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
-              <SelectItem value="all">All Introduced Dates</SelectItem>
-              <SelectItem value="week">Last Week</SelectItem>
-              <SelectItem value="month">Last Month</SelectItem>
-              <SelectItem value="3months">Last 3 Months</SelectItem>
-              <SelectItem value="6months">Last 6 Months</SelectItem>
-              <SelectItem value="year">Last Year</SelectItem>
+            <SelectContent className={sheetMaxHeight}>
+              {DATE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
-        </div>
+        </FilterField>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            Last Action Date
-            {isFilterActive(lastActionDateFilter, 'all') && (
-              <Circle className="h-2 w-2 fill-primary" />
-            )}
-          </label>
-          <Select 
-            value={lastActionDateFilter} 
-            onValueChange={onLastActionDateChange}
-          >
-            <SelectTrigger className={cn(
-              "w-full",
-              isFilterActive(lastActionDateFilter, 'all') && "border-primary"
-            )}>
-              <SelectValue placeholder="All Dates" />
+        <FilterField label="Last action" active={isActive(lastActionDateFilter, 'all')}>
+          <Select value={lastActionDateFilter} onValueChange={onLastActionDateChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="All time" />
             </SelectTrigger>
-            <SelectContent className={isMobile ? "max-h-[40vh]" : ""}>
-              <SelectItem value="all">All Action Dates</SelectItem>
-              <SelectItem value="week">Last Week</SelectItem>
-              <SelectItem value="month">Last Month</SelectItem>
-              <SelectItem value="3months">Last 3 Months</SelectItem>
-              <SelectItem value="6months">Last 6 Months</SelectItem>
-              <SelectItem value="year">Last Year</SelectItem>
+            <SelectContent className={sheetMaxHeight}>
+              {DATE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
+        </FilterField>
+      </FilterGroup>
+
+      {isMobile && (
+        <button
+          onClick={onClearAllFilters}
+          className={cn(
+            'text-sm font-medium underline underline-offset-4 decoration-border',
+            anyActive ? 'text-foreground' : 'text-muted-foreground/50 pointer-events-none'
+          )}
+          aria-disabled={!anyActive}
+        >
+          Clear all filters
+        </button>
+      )}
     </div>
   );
 }
 
-export default dynamic(() => Promise.resolve(BillsFilter), { ssr: false }); 
+export default dynamic(() => Promise.resolve(BillsFilter), { ssr: false });

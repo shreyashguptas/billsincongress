@@ -57,7 +57,17 @@ export default async function BillPage({ params }: PageProps): Promise<ReactElem
     }
 
     return (
-      <Suspense fallback={<div>Loading...</div>}>
+      <Suspense
+        fallback={
+          <div className="container-editorial py-16">
+            <div className="space-y-3">
+              <div className="h-3 w-24 bg-secondary rounded-sm animate-pulse" />
+              <div className="h-10 w-2/3 bg-secondary rounded-sm animate-pulse" />
+              <div className="h-4 w-1/2 bg-secondary rounded-sm animate-pulse" />
+            </div>
+          </div>
+        }
+      >
         <BillDetails bill={bill} />
       </Suspense>
     );

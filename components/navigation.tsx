@@ -5,67 +5,120 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { routes } from '@/lib/constants/routes';
 
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
 
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-[#002868] via-white to-[#BF0A30]">
-      <div className="container flex h-14 sm:h-16 items-center px-4">
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" className="mr-2 px-0 text-white md:hidden">
-              <Menu className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span className="sr-only">Toggle menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[80%] max-w-sm pr-0">
-            <ScrollArea className="my-4 h-[calc(100vh-8rem)] pb-10">
-              <div className="flex flex-col space-y-2">
-                {routes.map((route) => (
-                  <Link
-                    key={route.href}
-                    href={route.href}
-                    className={cn(
-                      'px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground',
-                      pathname === route.href && 'bg-accent'
-                    )}
-                    onClick={() => setOpen(false)}
-                  >
-                    {route.label}
-                  </Link>
-                ))}
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      {/* Eyebrow strip — date + tagline (newspaper convention) */}
+      <div className="hidden md:block border-b border-border/60">
+        <div className="container-editorial flex h-7 items-center justify-between text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          <span>{today}</span>
+          <span className="font-medium">An independent record of the U.S. Congress</span>
+        </div>
+      </div>
+
+      <div className="container-editorial flex h-14 sm:h-16 items-center justify-between gap-4">
+        {/* Mobile menu */}
+        <div className="flex md:hidden">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-ml-2"
+                aria-label="Open menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[88%] max-w-sm border-r border-border bg-background p-0">
+              <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                <span className="font-serif text-lg font-semibold tracking-tight">
+                  Bills in Congress
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close menu"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
-            </ScrollArea>
-          </SheetContent>
-        </Sheet>
-        <div className="mr-4 hidden md:flex">
-          <Link href="/" className="mr-6 flex items-center space-x-2">
-            <span className="hidden font-bold lg:inline-block">
-              Congressional Bill Tracker
-            </span>
-            <span className="font-bold lg:hidden">Bill Tracker</span>
-          </Link>
-          <nav className="flex items-center space-x-4 lg:space-x-6 text-sm font-medium">
-            {routes.map((route) => (
+              <nav className="flex flex-col px-2 py-4">
+                {routes.map((route) => {
+                  const active = pathname === route.href;
+                  return (
+                    <Link
+                      key={route.href}
+                      href={route.href}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        'flex items-center justify-between rounded-sm px-3 py-3 text-base font-sans border-l-2 border-transparent',
+                        active
+                          ? 'border-l-accent text-foreground font-medium'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                      )}
+                    >
+                      {route.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {/* Masthead title */}
+        <Link
+          href="/"
+          className="flex items-baseline gap-2 group"
+          aria-label="Bills in Congress — Home"
+        >
+          <span className="font-serif text-xl sm:text-2xl font-semibold tracking-tight text-foreground leading-none">
+            Bills<span className="text-accent">.</span>Congress
+          </span>
+          <span className="hidden lg:inline label-eyebrow">
+            Tracker
+          </span>
+        </Link>
+
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-1 text-sm">
+          {routes.map((route) => {
+            const active = pathname === route.href;
+            return (
               <Link
                 key={route.href}
                 href={route.href}
                 className={cn(
-                  'transition-colors hover:text-foreground/80',
-                  pathname === route.href ? 'text-foreground' : 'text-foreground/60'
+                  'relative px-3 py-2 font-medium transition-colors',
+                  active
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {route.label}
+                {active && (
+                  <span className="absolute inset-x-3 -bottom-px h-px bg-foreground" />
+                )}
               </Link>
-            ))}
-          </nav>
-        </div>
+            );
+          })}
+        </nav>
       </div>
     </header>
   );
