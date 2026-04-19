@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalAction, internalQuery } from "./_generated/server";
+import { internalAction, internalQuery, query } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { billsByChamber, billsByStage } from "./aggregates";
 
@@ -157,5 +157,65 @@ export const clearAggregates = internalMutation({
   handler: async (ctx) => {
     await billsByChamber.clearAll(ctx);
     await billsByStage.clearAll(ctx);
+  },
+});
+
+/**
+ * Diagnostic: return the current aggregate counts and a bills-table probe
+ * side-by-side for each interesting congress. Runs as a public query so it
+ * can be called from the CLI or curl without auth:
+ *
+ *     npx convex run --prod aggregateBackfill:status '{}'
+ *
+ *     # or via HTTP:
+ *     curl -sX POST https://industrious-llama-331.convex.cloud/api/query \
+ *       -H 'Content-Type: application/json' \
+ *       -d '{"path":"aggregateBackfill:status","args":{},"format":"json"}'
+ *
+ * Use this to tell whether the aggregate is empty, partially populated,
+ * or complete — compared to the actual bills table.
+ */
+export const status = query({
+  args: {},
+  handler: async (ctx) => {
+    const congresses = [117, 118, 119];
+    const out = [] as Array<{
+      congress: number;
+      aggregateTotal: number;
+      aggregateHouse: number;
+      aggregateSenate: number;
+      billsProbe1k: number;
+    }>;
+    for (const congress of congresses) {
+      const ns = { namespace: congress };
+      const [house, senate] = await billsByChamber.countBatch(ctx, [
+        {
+          ...ns,
+          bounds: {
+            lower: { key: "h", inclusive: true },
+            upper: { key: "i", inclusive: false },
+          },
+        },
+        {
+          ...ns,
+          bounds: {
+            lower: { key: "s", inclusive: true },
+            upper: { key: "t", inclusive: false },
+          },
+        },
+      ]);
+      const probe = await ctx.db
+        .query("bills")
+        .withIndex("by_congress", (q) => q.eq("congress", congress))
+        .take(1000);
+      out.push({
+        congress,
+        aggregateTotal: house + senate,
+        aggregateHouse: house,
+        aggregateSenate: senate,
+        billsProbe1k: probe.length,
+      });
+    }
+    return out;
   },
 });
