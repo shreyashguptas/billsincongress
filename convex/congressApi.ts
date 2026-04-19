@@ -16,6 +16,7 @@ const DELAY_BETWEEN_REQUESTS_MS = 750; // delay between each API call (not per b
 const MAX_RETRIES = 3; // max retries per API call on rate limit
 const RATE_LIMIT_BACKOFF_MS = 10000; // initial backoff on 429 (10s), doubles each retry
 const CONSECUTIVE_FAIL_LIMIT = 5; // abort batch after this many consecutive failures
+const RATE_LIMIT_RESUME_DELAY_MS = 300000; // 5 min backoff before resuming after circuit breaker
 const BILL_TYPES = [
   "hr",
   "s",
@@ -495,19 +496,35 @@ export const syncBillBatch = internalAction({
       `Batch complete: ${successCount} success, ${failCount} failed out of ${bills.length}${rateLimitAborted ? " (aborted by circuit breaker)" : ""}`
     );
 
-    // If circuit breaker tripped, mark snapshot as failed and stop
+    // If circuit breaker tripped, reschedule the SAME offset after a long
+    // backoff rather than abandoning pagination. Previously this returned
+    // early, which silently stranded any remaining bills at higher offsets
+    // until the next historical sync — the root cause of Congress 119 drifting
+    // ~8.8K bills behind. We advance offset by successCount so the next run
+    // retries the failed bills as well as the unseen ones.
     if (rateLimitAborted) {
+      const resumeOffset = args.offset + successCount;
       if (args.snapshotId) {
         await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
           snapshotId: args.snapshotId,
-          status: "failed",
-          errorDetails: `Rate limit circuit breaker tripped at offset ${args.offset} for ${args.billType}`,
+          errorDetails: `Rate limit circuit breaker at offset ${args.offset} for ${args.billType}; resuming at ${resumeOffset} after backoff`,
           totalProcessed: args.offset + successCount,
           totalSuccess: (args.offset || 0) + successCount,
           totalFailed: failCount,
         });
       }
-      return { processed: successCount, hasMore: false, successCount, failCount, rateLimitAborted: true };
+      await ctx.scheduler.runAfter(
+        RATE_LIMIT_RESUME_DELAY_MS,
+        internal.congressApi.syncBillBatch,
+        {
+          congress: args.congress,
+          billType: args.billType,
+          offset: resumeOffset,
+          snapshotId: args.snapshotId,
+          fromDateTime: args.fromDateTime,
+        },
+      );
+      return { processed: successCount, hasMore: true, successCount, failCount, rateLimitAborted: true };
     }
 
     // Update sync snapshot with batch progress
