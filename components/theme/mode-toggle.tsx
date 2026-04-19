@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export function ModeToggle() {
   const { setTheme, theme } = useTheme();
@@ -13,32 +13,39 @@ export function ModeToggle() {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
-    return (
-      <Button variant="ghost" size="icon" className="h-9 w-9 relative">
-        <span className="h-4 w-4" />
-        <span className="sr-only">Loading theme toggle</span>
-      </Button>
-    );
-  }
-
-  const cycleTheme = () => {
-    if (theme === 'light') setTheme('dark');
-    else if (theme === 'dark') setTheme('system');
-    else setTheme('light');
-  };
+  const options: Array<{ value: 'light' | 'dark' | 'system'; icon: React.ReactNode; label: string }> = [
+    { value: 'light', icon: <Sun className="h-3.5 w-3.5" />, label: 'Light' },
+    { value: 'dark', icon: <Moon className="h-3.5 w-3.5" />, label: 'Dark' },
+    { value: 'system', icon: <Monitor className="h-3.5 w-3.5" />, label: 'System' },
+  ];
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={cycleTheme}
-      className="h-9 w-9 relative"
+    <div
+      role="radiogroup"
+      aria-label="Color theme"
+      className="inline-flex items-center rounded-sm border border-border bg-background p-0.5"
     >
-      {theme === 'light' && <Sun className="h-4 w-4" />}
-      {theme === 'dark' && <Moon className="h-4 w-4" />}
-      {theme === 'system' && <Monitor className="h-4 w-4" />}
-      <span className="sr-only">Toggle theme</span>
-    </Button>
+      {options.map((opt) => {
+        const active = mounted && theme === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={opt.label}
+            onClick={() => setTheme(opt.value)}
+            className={cn(
+              'inline-flex h-7 w-7 items-center justify-center rounded-sm transition-colors',
+              active
+                ? 'bg-foreground text-background'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {opt.icon}
+          </button>
+        );
+      })}
+    </div>
   );
 }
