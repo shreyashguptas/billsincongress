@@ -53,7 +53,8 @@ function DashboardInner({ initialCongress = 119 }: DashboardProps) {
     congress: selectedCongress,
   });
 
-  const congressNumbers = allCongressData?.map((d) => d.congress) || [];
+  const congressNumbers =
+    allCongressData?.filter((d) => d.totalCount > 0).map((d) => d.congress) || [];
 
   useEffect(() => {
     if (congressNumbers.length > 0 && !congressNumbers.includes(selectedCongress)) {
@@ -331,27 +332,42 @@ interface StatsOverviewProps {
 function StatsOverview({ stats, dashboardData, onDrillDown }: StatsOverviewProps) {
   if (!stats || !dashboardData) return null;
 
-  const items = [
-    { label: 'Bills introduced', value: stats.totalCount, onClick: () => onDrillDown('status', 'all') },
-    { label: 'House bills', value: stats.houseCount, onClick: () => onDrillDown('billType', 'hr') },
-    { label: 'Senate bills', value: stats.senateCount, onClick: () => onDrillDown('billType', 's') },
+  // "House bills" / "Senate bills" count ALL house-originated (hr, hjres,
+  // hconres, hres) and senate-originated types. There is no single `billType`
+  // filter value that matches that union, so we omit drill-downs on those two
+  // cards rather than mislead the user with a narrower filter.
+  const items: Array<{
+    label: string;
+    value: number;
+    onClick?: () => void;
+  }> = [
+    { label: 'Bills introduced', value: stats.totalCount, onClick: () => onDrillDown('congress', stats.congress) },
+    { label: 'House bills', value: stats.houseCount },
+    { label: 'Senate bills', value: stats.senateCount },
     { label: 'Became law', value: dashboardData.statusBreakdown.becameLaw, onClick: () => onDrillDown('status', 100) },
   ];
 
   return (
     <dl className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border border-x border-border">
-      {items.map((item) => (
-        <button
-          key={item.label}
-          onClick={item.onClick}
-          className="group text-left px-5 py-4 hover:bg-secondary/60 transition-colors"
-        >
-          <dt className="label-eyebrow mb-2">{item.label}</dt>
-          <dd className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight tabular text-foreground">
-            {item.value.toLocaleString()}
-          </dd>
-        </button>
-      ))}
+      {items.map((item) => {
+        const isClickable = !!item.onClick;
+        const Tag = isClickable ? 'button' : 'div';
+        return (
+          <Tag
+            key={item.label}
+            onClick={item.onClick}
+            className={cn(
+              'group text-left px-5 py-4 transition-colors',
+              isClickable ? 'hover:bg-secondary/60 cursor-pointer' : 'cursor-default'
+            )}
+          >
+            <dt className="label-eyebrow mb-2">{item.label}</dt>
+            <dd className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight tabular text-foreground">
+              {item.value.toLocaleString()}
+            </dd>
+          </Tag>
+        );
+      })}
     </dl>
   );
 }
@@ -568,14 +584,23 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
   if (!data || data.length === 0) {
     return <p className="text-sm text-muted-foreground">No historical data available.</p>;
   }
-  const sorted = [...data].sort((a, b) => a.congress - b.congress);
+  // Drop empty congresses — they carry no signal and render as zero-height bars.
+  const filtered = data.filter((d) => d.totalCount > 0);
+  if (filtered.length === 0) {
+    return <p className="text-sm text-muted-foreground">No historical data available.</p>;
+  }
+  const sorted = [...filtered].sort((a, b) => a.congress - b.congress);
   const max = Math.max(...sorted.map((d) => d.totalCount), 1);
+  const MAX_BAR_HEIGHT_PX = 140;
 
   return (
     <div className="border-y border-border py-6">
-      <div className="flex items-end justify-between gap-2 sm:gap-4 h-44">
+      <div className="flex items-end justify-between gap-2 sm:gap-4">
         {sorted.map((item) => {
-          const heightPct = (item.totalCount / max) * 100;
+          const heightPx = Math.max(
+            Math.round((item.totalCount / max) * MAX_BAR_HEIGHT_PX),
+            2,
+          );
           const isSelected = item.congress === selectedCongress;
           return (
             <button
@@ -599,7 +624,7 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
                     ? 'bg-foreground'
                     : 'bg-foreground/30 group-hover:bg-foreground/60'
                 )}
-                style={{ height: `${Math.max(heightPct, 4)}%` }}
+                style={{ height: `${heightPx}px` }}
               />
               <span
                 className={cn(

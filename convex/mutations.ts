@@ -1,4 +1,9 @@
 import { internalMutation } from "./functions";
+import {
+  internalAction,
+  internalQuery,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { billsByChamber, billsByStage, BILL_STAGES } from "./aggregates";
 
@@ -321,52 +326,67 @@ export const recomputeCongressStats = internalMutation({
   },
 });
 
-/**
- * Recompute the congressPolicyAreas table for a single congress.
- * Uses take() limits to avoid Convex document limits.
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ * Paginated policy-area / sponsor recomputes
+ *
+ * Previous versions used `.take(10000)` on both the bills table (per
+ * congress) and the global billSubjects table. Both limits were too
+ * tight: c119 alone has 15k bills and billSubjects globally has ~50k
+ * rows, so the top-policy-areas counts were undercounting by an order
+ * of magnitude (e.g. Taxation for c119 showed 65 when the true count
+ * is 1,020).
+ *
+ * The fix paginates via internal queries. Single-mutation doc limits
+ * still apply, so we run the aggregation inside an internal action
+ * that chains many queries (actions have no doc limit), then hands the
+ * final top-50 list to a single mutation to write atomically.
+ * ─────────────────────────────────────────────────────────────────────
  */
-export const recomputeCongressPolicyAreas = internalMutation({
-  args: { congress: v.number() },
+
+/** Paginated fetch of bills for a given congress. */
+export const getBillsPageByCongress = internalQuery({
+  args: {
+    congress: v.number(),
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+  },
   handler: async (ctx, args) => {
-    // Get all billIds for this congress
-    const bills = await ctx.db
+    return await ctx.db
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .take(10000);
-    
-    const billIdSet = new Set(bills.map(b => b.billId));
-    
-    // Get all subjects - use take() to limit to 10000
-    const subjects = await ctx.db
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+  },
+});
+
+/** Paginated fetch of billSubjects (global). */
+export const getBillSubjectsPage = internalQuery({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
       .query("billSubjects")
-      .take(10000);
-    
-    // Aggregate by policy area
-    const policyAreaMap = new Map<string, number>();
-    for (const subject of subjects) {
-      if (billIdSet.has(subject.billId) && subject.policyAreaName) {
-        policyAreaMap.set(subject.policyAreaName, (policyAreaMap.get(subject.policyAreaName) || 0) + 1);
-      }
-    }
-    
-    // Convert to array and sort by count descending
-    const topAreas = Array.from(policyAreaMap.entries())
-      .map(([policyAreaName, count]) => ({ policyAreaName, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 50);
-    
-    // Delete existing policy areas for this congress
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+  },
+});
+
+/** Replace the congressPolicyAreas rows for a congress in one transaction. */
+export const writeCongressPolicyAreas = internalMutation({
+  args: {
+    congress: v.number(),
+    areas: v.array(
+      v.object({ policyAreaName: v.string(), count: v.number() }),
+    ),
+  },
+  handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("congressPolicyAreas")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
       .take(10000);
-    
-    for (const doc of existing) {
-      await ctx.db.delete(doc._id);
-    }
-    
-    // Insert new policy areas
-    for (const area of topAreas) {
+    for (const doc of existing) await ctx.db.delete(doc._id);
+    for (const area of args.areas) {
       await ctx.db.insert("congressPolicyAreas", {
         congress: args.congress,
         policyAreaName: area.policyAreaName,
@@ -376,59 +396,153 @@ export const recomputeCongressPolicyAreas = internalMutation({
   },
 });
 
-/**
- * Recompute the congressSponsors table for a single congress.
- * Uses take() limits to avoid Convex document limits.
- */
-export const recomputeCongressSponsors = internalMutation({
-  args: { congress: v.number() },
+/** Replace the congressSponsors rows for a congress in one transaction. */
+export const writeCongressSponsors = internalMutation({
+  args: {
+    congress: v.number(),
+    sponsors: v.array(
+      v.object({
+        sponsorName: v.string(),
+        sponsorParty: v.optional(v.string()),
+        sponsorState: v.optional(v.string()),
+        billCount: v.number(),
+      }),
+    ),
+  },
   handler: async (ctx, args) => {
-    // Get all bills for this congress
-    const bills = await ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .take(10000);
-    
-    // Aggregate by sponsor name
-    const sponsorMap = new Map<string, { party?: string; state?: string; count: number }>();
-    for (const bill of bills) {
-      if (bill.sponsorFirstName || bill.sponsorLastName) {
-        const name = `${bill.sponsorFirstName || ""} ${bill.sponsorLastName || ""}`.trim();
-        const existing = sponsorMap.get(name) || { count: 0, party: bill.sponsorParty, state: bill.sponsorState };
-        sponsorMap.set(name, {
-          count: existing.count + 1,
-          party: bill.sponsorParty,
-          state: bill.sponsorState,
-        });
-      }
-    }
-    
-    // Convert to array and sort by count descending
-    const topSponsors = Array.from(sponsorMap.entries())
-      .map(([sponsorName, data]) => ({ sponsorName, ...data }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 50);
-    
-    // Delete existing sponsors for this congress
     const existing = await ctx.db
       .query("congressSponsors")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
       .take(10000);
-    
-    for (const doc of existing) {
-      await ctx.db.delete(doc._id);
-    }
-    
-    // Insert new sponsors
-    for (const sponsor of topSponsors) {
+    for (const doc of existing) await ctx.db.delete(doc._id);
+    for (const s of args.sponsors) {
       await ctx.db.insert("congressSponsors", {
         congress: args.congress,
-        sponsorName: sponsor.sponsorName,
-        sponsorParty: sponsor.party,
-        sponsorState: sponsor.state,
-        billCount: sponsor.count,
+        sponsorName: s.sponsorName,
+        sponsorParty: s.sponsorParty,
+        sponsorState: s.sponsorState,
+        billCount: s.billCount,
       });
     }
+  },
+});
+
+type BillPageResult = {
+  page: Array<{
+    billId: string;
+    sponsorFirstName?: string;
+    sponsorLastName?: string;
+    sponsorParty?: string;
+    sponsorState?: string;
+  }>;
+  isDone: boolean;
+  continueCursor: string;
+};
+
+type SubjectPageResult = {
+  page: Array<{ billId: string; policyAreaName?: string }>;
+  isDone: boolean;
+  continueCursor: string;
+};
+
+/**
+ * Recompute the congressPolicyAreas table for a single congress.
+ * Paginates through all bills for the congress and all billSubjects
+ * globally — no silent cap.
+ */
+export const recomputeCongressPolicyAreas = internalAction({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const billIds = new Set<string>();
+    let cursor: string | null = null;
+    for (;;) {
+      const page: BillPageResult = await ctx.runQuery(
+        internal.mutations.getBillsPageByCongress,
+        { congress: args.congress, cursor, numItems: 2000 },
+      );
+      for (const b of page.page) billIds.add(b.billId);
+      if (page.isDone) break;
+      cursor = page.continueCursor;
+    }
+
+    const counts = new Map<string, number>();
+    cursor = null;
+    for (;;) {
+      const page: SubjectPageResult = await ctx.runQuery(
+        internal.mutations.getBillSubjectsPage,
+        { cursor, numItems: 2000 },
+      );
+      for (const s of page.page) {
+        if (s.policyAreaName && billIds.has(s.billId)) {
+          counts.set(
+            s.policyAreaName,
+            (counts.get(s.policyAreaName) ?? 0) + 1,
+          );
+        }
+      }
+      if (page.isDone) break;
+      cursor = page.continueCursor;
+    }
+
+    const areas = [...counts.entries()]
+      .map(([policyAreaName, count]) => ({ policyAreaName, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 50);
+
+    await ctx.runMutation(internal.mutations.writeCongressPolicyAreas, {
+      congress: args.congress,
+      areas,
+    });
+  },
+});
+
+/**
+ * Recompute the congressSponsors table for a single congress.
+ * Paginates through all bills so every sponsor is counted — previous
+ * `take(10000)` version dropped ~5k bills for c119.
+ */
+export const recomputeCongressSponsors = internalAction({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const sponsorMap = new Map<
+      string,
+      { party?: string; state?: string; count: number }
+    >();
+
+    let cursor: string | null = null;
+    for (;;) {
+      const page: BillPageResult = await ctx.runQuery(
+        internal.mutations.getBillsPageByCongress,
+        { congress: args.congress, cursor, numItems: 2000 },
+      );
+      for (const b of page.page) {
+        if (!b.sponsorFirstName && !b.sponsorLastName) continue;
+        const name = `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`.trim();
+        const prev = sponsorMap.get(name);
+        sponsorMap.set(name, {
+          count: (prev?.count ?? 0) + 1,
+          party: b.sponsorParty ?? prev?.party,
+          state: b.sponsorState ?? prev?.state,
+        });
+      }
+      if (page.isDone) break;
+      cursor = page.continueCursor;
+    }
+
+    const sponsors = [...sponsorMap.entries()]
+      .map(([sponsorName, d]) => ({
+        sponsorName,
+        sponsorParty: d.party,
+        sponsorState: d.state,
+        billCount: d.count,
+      }))
+      .sort((a, b) => b.billCount - a.billCount)
+      .slice(0, 50);
+
+    await ctx.runMutation(internal.mutations.writeCongressSponsors, {
+      congress: args.congress,
+      sponsors,
+    });
   },
 });
 
@@ -480,13 +594,52 @@ export const deleteCongressBills = internalMutation({
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
       .take(10000);
-    
+
     let deleted = 0;
     for (const bill of bills) {
       await ctx.db.delete(bill._id);
       deleted++;
     }
-    
+
     return { deleted };
+  },
+});
+
+/**
+ * Delete the precomputed stats rows (congressStats, congressPolicyAreas,
+ * congressSponsors) for a specific congress. Intended for cleaning up
+ * congresses that were never fully synced or are no longer displayed.
+ *
+ * Does NOT touch the bills table — run `deleteCongressBills` first if the
+ * congress has actual bill rows.
+ *
+ *     npx convex run --prod mutations:deleteCongressStats '{"congress": 108}'
+ */
+export const deleteCongressStats = internalMutation({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const stats = await ctx.db
+      .query("congressStats")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .collect();
+    for (const s of stats) await ctx.db.delete(s._id);
+
+    const policyAreas = await ctx.db
+      .query("congressPolicyAreas")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .take(10000);
+    for (const p of policyAreas) await ctx.db.delete(p._id);
+
+    const sponsors = await ctx.db
+      .query("congressSponsors")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .take(10000);
+    for (const s of sponsors) await ctx.db.delete(s._id);
+
+    return {
+      congressStats: stats.length,
+      congressPolicyAreas: policyAreas.length,
+      congressSponsors: sponsors.length,
+    };
   },
 });

@@ -175,6 +175,24 @@ export const clearAggregates = internalMutation({
  * Use this to tell whether the aggregate is empty, partially populated,
  * or complete — compared to the actual bills table.
  */
+/**
+ * Diagnostic: per-bill-type counts for a single congress. Use this when the
+ * chamber-level totals don't match Congress.gov to find which specific
+ * bill-type sync is short.
+ *
+ *     npx convex run --prod aggregateBackfill:countsByType '{"congress": 119}'
+ */
+export const countsByType = query({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    const ns = { namespace: args.congress };
+    const types = ["hr", "s", "hjres", "sjres", "hconres", "sconres", "hres", "sres"];
+    const bounds = types.map((t) => ({ ...ns, bounds: { eq: t } as const }));
+    const counts = await billsByChamber.countBatch(ctx, bounds);
+    return types.map((t, i) => ({ type: t, count: counts[i] ?? 0 }));
+  },
+});
+
 export const status = query({
   args: {},
   handler: async (ctx) => {

@@ -6,8 +6,14 @@ node_modules
 out
 
 # Environment
+.env
 .env.local
 .env*.local
+
+# Local agent / Claude Code config
+.agents/
+.claude/
+skills-lock.json
 
 # IDE
 .cursorignore

@@ -566,10 +566,10 @@ export const syncBillBatch = internalAction({
       await ctx.runMutation(internal.mutations.recomputeCongressStats, {
         congress: args.congress,
       });
-      await ctx.runMutation(internal.mutations.recomputeCongressPolicyAreas, {
+      await ctx.runAction(internal.mutations.recomputeCongressPolicyAreas, {
         congress: args.congress,
       });
-      await ctx.runMutation(internal.mutations.recomputeCongressSponsors, {
+      await ctx.runAction(internal.mutations.recomputeCongressSponsors, {
         congress: args.congress,
       });
     }

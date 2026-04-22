@@ -79,6 +79,35 @@ export default function BillsPage() {
     fetchCongressInfo();
   }, []);
 
+  // Seed filter state from homepage drill-down URL params, then strip them.
+  // Must run post-mount (not in useState initializer) because this page is
+  // SSR'd — window.location.search isn't available at initializer time and
+  // React reuses the SSR value on hydration, so URL params never reach state
+  // if read during init.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.size === 0) return;
+
+    const urlToSetter: Array<[string, (v: string) => void]> = [
+      ['status', setStatusFilter],
+      ['introducedDate', setIntroducedDateFilter],
+      ['lastActionDate', setLastActionDateFilter],
+      ['sponsor', setSponsorFilter],
+      ['title', setTitleFilter],
+      ['state', setStateFilter],
+      ['policyArea', setPolicyAreaFilter],
+      ['billType', setBillTypeFilter],
+      ['billNumber', setBillNumberFilter],
+      ['congress', setCongressFilter],
+    ];
+    for (const [key, setter] of urlToSetter) {
+      const v = params.get(key);
+      if (v !== null && v !== '') setter(v);
+    }
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('billsStatusFilter', statusFilter);
@@ -173,6 +202,10 @@ export default function BillsPage() {
   };
 
   useEffect(() => {
+    // Cancel flag so a slow stale fetch can't overwrite fresh state when
+    // filters change rapidly (e.g. URL-param seeding on mount triggers a
+    // second fetch while the first is still in flight).
+    let cancelled = false;
     const fetchBills = async () => {
       setIsLoading(true);
       setError(null);
@@ -191,16 +224,21 @@ export default function BillsPage() {
           billNumber: billNumberFilter,
           congress: congressFilter,
         });
+        if (cancelled) return;
         setBills(response.data);
         setTotalBills(response.count);
         setCurrentPage(1);
       } catch (e) {
+        if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Failed to fetch bills');
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     fetchBills();
+    return () => {
+      cancelled = true;
+    };
   }, [
     statusFilter, introducedDateFilter, lastActionDateFilter, sponsorFilter,
     titleFilter, stateFilter, policyAreaFilter, billTypeFilter,

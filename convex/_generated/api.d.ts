@@ -62,4 +62,7 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  billsByChamber: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"billsByChamber">;
+  billsByStage: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"billsByStage">;
+};
