@@ -946,13 +946,17 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
     return <p className="text-sm text-muted-foreground">No timeline data available.</p>;
   }
 
-  const max = Math.max(...months.map((m) => m.count), 1);
+  const introMax = Math.max(...months.map((m) => m.count), 1);
+  const lawMax = Math.max(...months.map((m) => m.becameLaw), 1);
   const totalLaws = months.reduce((s, m) => s + m.becameLaw, 0);
 
-  // Pick two peak months for inline narration
+  // Pick peaks for inline narration
   const sortedByCount = [...months].sort((a, b) => b.count - a.count);
   const peak = sortedByCount[0];
   const quietest = sortedByCount[sortedByCount.length - 1];
+  const lawPeak = [...months]
+    .filter((m) => m.becameLaw > 0)
+    .sort((a, b) => b.becameLaw - a.becameLaw)[0];
 
   // With >18 bars we label only the January of each year + the latest month.
   // With fewer, label each.
@@ -960,56 +964,86 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
 
   return (
     <div className="space-y-5">
-      <div className="border-y border-border py-6">
-        <div className="flex items-end justify-between gap-[3px] sm:gap-1 h-48">
-          {months.map((m, i) => {
-            const heightPct = (m.count / max) * 100;
-            const lawHeightPct = m.count > 0 ? (m.becameLaw / m.count) * heightPct : 0;
-            const showLabel = i % labelEvery === 0 || i === months.length - 1;
-            const [year, month] = m.month.split('-');
-            const monthLabel = MONTH_SHORT[parseInt(month, 10) - 1] ?? month;
-
+      <div className="border-y border-border py-6 space-y-0">
+        {/* Top track — bills introduced (own scale, grows up) */}
+        <div className="flex items-end justify-between gap-[3px] sm:gap-1 h-36">
+          {months.map((m) => {
+            const introHeightPct = (m.count / introMax) * 100;
             return (
               <div
-                key={m.month}
-                className="group flex-1 flex flex-col items-center gap-2 min-w-0"
+                key={`intro-${m.month}`}
+                className="group flex-1 flex flex-col items-center gap-2 min-w-0 h-full"
                 aria-label={`${m.month}: ${m.count.toLocaleString()} bills introduced, ${m.becameLaw} became law`}
                 title={`${m.month} · ${m.count.toLocaleString()} introduced · ${m.becameLaw} became law`}
               >
                 <span className="font-mono text-[10px] tabular text-muted-foreground group-hover:text-foreground transition-colors">
                   {m.count.toLocaleString()}
                 </span>
+                <div className="flex-1 w-full flex justify-center items-end min-h-0">
+                  <div
+                    className="w-full max-w-[40px] bg-foreground/25 group-hover:bg-foreground/45 transition-colors"
+                    style={{ height: `${Math.max(introHeightPct, 2)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-                {/* Bar container — total bar, with became-law slice coloured
-                    darker at the base. */}
-                <div
-                  className="relative w-full max-w-[40px] bg-foreground/25 group-hover:bg-foreground/45 transition-colors"
-                  style={{ height: `${Math.max(heightPct, 4)}%` }}
-                >
-                  {lawHeightPct > 0 && (
+        {/* Baseline + month labels */}
+        <div className="flex items-stretch justify-between gap-[3px] sm:gap-1 border-y border-border/60 py-2 mt-1">
+          {months.map((m, i) => {
+            const showLabel = i % labelEvery === 0 || i === months.length - 1;
+            const [year, month] = m.month.split('-');
+            const monthLabel = MONTH_SHORT[parseInt(month, 10) - 1] ?? month;
+            return (
+              <div
+                key={`label-${m.month}`}
+                className="flex-1 min-w-0 flex flex-col items-center gap-0.5"
+              >
+                {showLabel ? (
+                  <>
+                    <span className="font-mono text-[10px] tabular text-muted-foreground">
+                      {monthLabel}
+                    </span>
+                    {(monthLabel === 'Jan' || i === 0) && (
+                      <span className="font-mono text-[9px] tabular text-muted-foreground/70">
+                        '{year.slice(2)}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="font-mono text-[10px] tabular text-transparent">·</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom track — bills that became law (own scale, grows down).
+            Independent y-scale so single-digit counts are readable next to
+            1000+ introductions. */}
+        <div className="flex items-start justify-between gap-[3px] sm:gap-1 h-20 mt-1">
+          {months.map((m) => {
+            const lawHeightPct = (m.becameLaw / lawMax) * 100;
+            return (
+              <div
+                key={`law-${m.month}`}
+                className="group flex-1 flex flex-col items-center gap-2 min-w-0 h-full"
+                aria-label={`${m.month}: ${m.becameLaw} became law`}
+                title={`${m.month} · ${m.becameLaw} became law`}
+              >
+                <div className="flex-1 w-full flex justify-center items-start min-h-0">
+                  {m.becameLaw > 0 && (
                     <div
-                      className="absolute bottom-0 left-0 right-0 bg-foreground"
-                      style={{ height: `${(m.becameLaw / m.count) * 100}%` }}
+                      className="w-full max-w-[40px] bg-foreground"
+                      style={{ height: `${Math.max(lawHeightPct, 8)}%` }}
                     />
                   )}
                 </div>
-
-                <div className="h-7 flex flex-col items-center justify-start gap-0.5">
-                  {showLabel ? (
-                    <>
-                      <span className="font-mono text-[10px] tabular text-muted-foreground">
-                        {monthLabel}
-                      </span>
-                      {(monthLabel === 'Jan' || i === 0) && (
-                        <span className="font-mono text-[9px] tabular text-muted-foreground/70">
-                          '{year.slice(2)}
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="font-mono text-[10px] tabular text-transparent">·</span>
-                  )}
-                </div>
+                <span className="font-mono text-[10px] tabular text-muted-foreground group-hover:text-foreground transition-colors h-3">
+                  {m.becameLaw > 0 ? m.becameLaw : ''}
+                </span>
               </div>
             );
           })}
@@ -1027,10 +1061,13 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
             <span className="inline-block h-2.5 w-4 bg-foreground" aria-hidden="true" />
             Became law
           </span>
+          <span className="text-muted-foreground/60 hidden sm:inline">
+            · each track scaled independently
+          </span>
         </div>
         {peak && quietest && (
           <p className="max-w-md text-right leading-relaxed">
-            Peak:{' '}
+            Busiest:{' '}
             <span className="font-mono tabular text-foreground">
               {formatMonth(peak.month)}
             </span>{' '}
@@ -1042,7 +1079,17 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
             <span className="tabular text-foreground">
               {totalLaws.toLocaleString()}
             </span>{' '}
-            bills became law so far.
+            bills became law
+            {lawPeak && (
+              <>
+                , with the most signed in{' '}
+                <span className="font-mono tabular text-foreground">
+                  {formatMonth(lawPeak.month)}
+                </span>{' '}
+                ({lawPeak.becameLaw})
+              </>
+            )}
+            .
           </p>
         )}
       </div>
