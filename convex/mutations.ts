@@ -529,6 +529,9 @@ export const recomputeCongressSponsors = internalAction({
       cursor = page.continueCursor;
     }
 
+    // Store every unique sponsor for this congress (~500 members — tiny table).
+    // The homepage slices to top 10 on read; the /bills sponsor filter needs
+    // the full list so every member is selectable in the dropdown.
     const sponsors = [...sponsorMap.entries()]
       .map(([sponsorName, d]) => ({
         sponsorName,
@@ -536,8 +539,7 @@ export const recomputeCongressSponsors = internalAction({
         sponsorState: d.state,
         billCount: d.count,
       }))
-      .sort((a, b) => b.billCount - a.billCount)
-      .slice(0, 50);
+      .sort((a, b) => b.billCount - a.billCount);
 
     await ctx.runMutation(internal.mutations.writeCongressSponsors, {
       congress: args.congress,

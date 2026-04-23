@@ -27,9 +27,21 @@ export default function BillsPage() {
   const [lastActionDateFilter, setLastActionDateFilter] = useState<string>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('billsLastActionDateFilter') || 'all' : 'all'
   );
-  const [sponsorFilter, setSponsorFilter] = useState(() =>
-    typeof window !== 'undefined' ? localStorage.getItem('billsSponsorFilter') || '' : ''
-  );
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const raw = localStorage.getItem('billsSponsorFilter');
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === 'string');
+    } catch {
+      // Legacy single-string value — treat it as one pre-selected sponsor only
+      // if it looks like a full name ("First Last"). Otherwise drop it; the old
+      // fuzzy filter would have matched anything, and we no longer support that.
+      if (/^[\p{L} .'\-]+\s+[\p{L} .'\-]+$/u.test(raw)) return [raw];
+    }
+    return [];
+  });
   const [titleFilter, setTitleFilter] = useState(() =>
     typeof window !== 'undefined' ? localStorage.getItem('billsTitleFilter') || '' : ''
   );
@@ -53,7 +65,18 @@ export default function BillsPage() {
   const [congressFilter, setCongressFilter] = useState<string>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('billsCongressFilter') || 'all' : 'all'
   );
-  const [pendingFilters, setPendingFilters] = useState({
+  const [pendingFilters, setPendingFilters] = useState<{
+    status: string;
+    introducedDate: string;
+    lastActionDate: string;
+    state: string;
+    policyArea: string;
+    billType: string;
+    billNumber: string;
+    title: string;
+    sponsor: string[];
+    congress: string;
+  }>({
     status: 'all',
     introducedDate: 'all',
     lastActionDate: 'all',
@@ -62,7 +85,7 @@ export default function BillsPage() {
     billType: 'all',
     billNumber: '',
     title: '',
-    sponsor: '',
+    sponsor: [],
     congress: 'all',
   });
   const [hasFilterChanges, setHasFilterChanges] = useState(false);
@@ -93,7 +116,6 @@ export default function BillsPage() {
       ['status', setStatusFilter],
       ['introducedDate', setIntroducedDateFilter],
       ['lastActionDate', setLastActionDateFilter],
-      ['sponsor', setSponsorFilter],
       ['title', setTitleFilter],
       ['state', setStateFilter],
       ['policyArea', setPolicyAreaFilter],
@@ -105,6 +127,12 @@ export default function BillsPage() {
       const v = params.get(key);
       if (v !== null && v !== '') setter(v);
     }
+    // Sponsor is multi-valued. Accept either repeated `?sponsor=` params or a
+    // single value from the homepage drill-down. Dedupe to be safe.
+    const sponsorValues = params.getAll('sponsor').filter((v) => v !== '');
+    if (sponsorValues.length > 0) {
+      setSponsorFilter(Array.from(new Set(sponsorValues)));
+    }
     window.history.replaceState({}, '', window.location.pathname);
   }, []);
 
@@ -113,7 +141,7 @@ export default function BillsPage() {
       localStorage.setItem('billsStatusFilter', statusFilter);
       localStorage.setItem('billsIntroducedDateFilter', introducedDateFilter);
       localStorage.setItem('billsLastActionDateFilter', lastActionDateFilter);
-      localStorage.setItem('billsSponsorFilter', sponsorFilter);
+      localStorage.setItem('billsSponsorFilter', JSON.stringify(sponsorFilter));
       localStorage.setItem('billsTitleFilter', titleFilter);
       localStorage.setItem('billsStateFilter', stateFilter);
       localStorage.setItem('billsPolicyAreaFilter', policyAreaFilter);
@@ -151,7 +179,7 @@ export default function BillsPage() {
     setStatusFilter('all');
     setIntroducedDateFilter('all');
     setLastActionDateFilter('all');
-    setSponsorFilter('');
+    setSponsorFilter([]);
     setTitleFilter('');
     setStateFilter('all');
     setPolicyAreaFilter('all');
@@ -263,7 +291,7 @@ export default function BillsPage() {
     setHasFilterChanges(false);
   };
 
-  const handlePendingFilterChange = (filterType: string, value: string) => {
+  const handlePendingFilterChange = (filterType: string, value: string | string[]) => {
     setPendingFilters((prev) => ({ ...prev, [filterType]: value }));
     setHasFilterChanges(true);
   };
@@ -459,7 +487,7 @@ function hasFiltersActive(
   statusFilter: string,
   introducedDateFilter: string,
   lastActionDateFilter: string,
-  sponsorFilter: string,
+  sponsorFilter: string[],
   titleFilter: string,
   stateFilter: string,
   policyAreaFilter: string,
@@ -471,7 +499,7 @@ function hasFiltersActive(
     statusFilter !== 'all' ||
     introducedDateFilter !== 'all' ||
     lastActionDateFilter !== 'all' ||
-    sponsorFilter !== '' ||
+    sponsorFilter.length > 0 ||
     titleFilter !== '' ||
     stateFilter !== 'all' ||
     policyAreaFilter !== 'all' ||

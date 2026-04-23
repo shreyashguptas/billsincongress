@@ -101,7 +101,9 @@ export const list = query({
     sponsorState: v.optional(v.string()),
     billType: v.optional(v.string()),
     titleFilter: v.optional(v.string()),
-    sponsorFilter: v.optional(v.string()),
+    // Exact full names ("First Last"). Empty or missing = no sponsor filter.
+    // A bill matches if its "sponsorFirstName sponsorLastName" is in the list.
+    sponsorFilter: v.optional(v.array(v.string())),
     billNumber: v.optional(v.string()),
     policyArea: v.optional(v.string()),
     offset: v.optional(v.number()),
@@ -157,18 +159,17 @@ export const list = query({
         words.every((word) => b.title.toLowerCase().includes(word))
       );
     }
-    if (args.sponsorFilter) {
-      const names = args.sponsorFilter
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((n) => n.length > 0);
-      filtered = filtered.filter((b) =>
-        names.some(
-          (name) =>
-            (b.sponsorFirstName || "").toLowerCase().includes(name) ||
-            (b.sponsorLastName || "").toLowerCase().includes(name)
-        )
-      );
+    if (args.sponsorFilter && args.sponsorFilter.length > 0) {
+      // Exact full-name match. Normalise both sides (lowercase, collapse
+      // whitespace) so cosmetic differences don't cause misses.
+      const normalise = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+      const wanted = new Set(args.sponsorFilter.map(normalise));
+      filtered = filtered.filter((b) => {
+        const full = normalise(
+          `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`
+        );
+        return wanted.has(full);
+      });
     }
 
     // Policy area filter requires a join to billSubjects
@@ -229,6 +230,43 @@ export const getCongressInfo = query({
     const endYear = startYear + 2;
 
     return { congress, startYear, endYear };
+  },
+});
+
+/**
+ * Every unique sponsor across every congress, deduped by full name.
+ * Powers the sponsor dropdown on /bills. Party / state / billCount come from
+ * the row with the highest bill count for that name (so a member who served
+ * in multiple congresses is represented by their most-active record).
+ */
+export const listAllSponsors = query({
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("congressSponsors").collect();
+
+    const byName = new Map<
+      string,
+      { name: string; party?: string; state?: string; billCount: number }
+    >();
+    for (const r of rows) {
+      const existing = byName.get(r.sponsorName);
+      if (!existing) {
+        byName.set(r.sponsorName, {
+          name: r.sponsorName,
+          party: r.sponsorParty,
+          state: r.sponsorState,
+          billCount: r.billCount,
+        });
+        continue;
+      }
+      existing.billCount += r.billCount;
+      // Keep the latest non-empty party/state we see.
+      if (!existing.party && r.sponsorParty) existing.party = r.sponsorParty;
+      if (!existing.state && r.sponsorState) existing.state = r.sponsorState;
+    }
+
+    return [...byName.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    );
   },
 });
 
