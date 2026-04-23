@@ -53,6 +53,15 @@ function DashboardInner({ initialCongress = 119 }: DashboardProps) {
     congress: selectedCongress,
   });
 
+  const houseBreakdown = useQuery(api.bills.getChamberDeepBreakdown, {
+    congress: selectedCongress,
+    chamber: 'house',
+  });
+  const senateBreakdown = useQuery(api.bills.getChamberDeepBreakdown, {
+    congress: selectedCongress,
+    chamber: 'senate',
+  });
+
   const congressNumbers =
     allCongressData?.filter((d) => d.totalCount > 0).map((d) => d.congress) || [];
 
@@ -211,6 +220,37 @@ function DashboardInner({ initialCongress = 119 }: DashboardProps) {
               onSponsorClick={(name) => handleDrillDown('sponsor', name)}
             />
           )}
+        </div>
+      </section>
+
+      {/* ── Party & chamber breakdown ─────────────────────────────── */}
+      <section className="border-b border-border">
+        <div className="container-editorial py-12">
+          <SectionHeader
+            eyebrow="Across the aisle"
+            title="Who's writing the bills"
+            description="How sponsorship and passage split by party and chamber this Congress. The left column shows who introduces; the right shows whose bills actually become law."
+          />
+          <PartyChamberChart
+            house={houseBreakdown}
+            senate={senateBreakdown}
+            onStateClick={(state) => handleDrillDown('sponsorState', state)}
+          />
+        </div>
+      </section>
+
+      {/* ── Monthly introduction cadence ─────────────────────────── */}
+      <section className="border-b border-border">
+        <div className="container-editorial py-12">
+          <SectionHeader
+            eyebrow="Session rhythm"
+            title="Introductions, month by month"
+            description="The pulse of the legislative calendar — when bills are actually filed, and how many of them eventually became law."
+          />
+          <MonthlyCadenceChart
+            house={houseBreakdown}
+            senate={senateBreakdown}
+          />
         </div>
       </section>
 
@@ -641,4 +681,382 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
       </div>
     </div>
   );
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Party & chamber — stacked bars + laws-passed sidebar
+ *
+ * Two narratives in one view:
+ *  1. Sponsorship share — how many bills each party introduces per chamber
+ *  2. Passage gap       — the same breakdown, but filtered to laws that
+ *                         actually made it onto the books
+ * ───────────────────────────────────────────────────────────────────── */
+
+type ChamberBreakdown = {
+  chamber: 'house' | 'senate';
+  total: number;
+  partyCounts: { D: number; R: number; I: number; U: number };
+  partyLawCounts: { D: number; R: number; I: number; U: number };
+  stateCounts: Record<string, number>;
+  monthly: Array<{ month: string; count: number; becameLaw: number }>;
+};
+
+interface PartyChamberChartProps {
+  house: ChamberBreakdown | undefined;
+  senate: ChamberBreakdown | undefined;
+  onStateClick: (state: string) => void;
+}
+
+function PartyChamberChart({ house, senate, onStateClick }: PartyChamberChartProps) {
+  if (!house || !senate) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
+        <div className="lg:col-span-7 h-40 bg-secondary/60 rounded-sm animate-pulse" />
+        <div className="lg:col-span-5 h-40 bg-secondary/60 rounded-sm animate-pulse" />
+      </div>
+    );
+  }
+
+  const totalBills = house.total + senate.total;
+  const totalLaws =
+    house.partyLawCounts.D + house.partyLawCounts.R + house.partyLawCounts.I + house.partyLawCounts.U +
+    senate.partyLawCounts.D + senate.partyLawCounts.R + senate.partyLawCounts.I + senate.partyLawCounts.U;
+
+  // Combine top states from both chambers
+  const combinedStates = new Map<string, number>();
+  for (const [state, count] of Object.entries(house.stateCounts)) {
+    combinedStates.set(state, (combinedStates.get(state) || 0) + count);
+  }
+  for (const [state, count] of Object.entries(senate.stateCounts)) {
+    combinedStates.set(state, (combinedStates.get(state) || 0) + count);
+  }
+  const topStates = Array.from(combinedStates.entries())
+    .filter(([s]) => s && s !== '—')
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  const stateMax = topStates.length > 0 ? topStates[0][1] : 1;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
+      {/* LEFT — chamber × party stacked bars */}
+      <div className="lg:col-span-7 space-y-8">
+        <ChamberPartyRow
+          label="House"
+          total={house.total}
+          parties={house.partyCounts}
+          laws={house.partyLawCounts}
+        />
+        <ChamberPartyRow
+          label="Senate"
+          total={senate.total}
+          parties={senate.partyCounts}
+          laws={senate.partyLawCounts}
+        />
+
+        {/* Footnote: totals & passage rate */}
+        <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+          <span className="tabular">{totalBills.toLocaleString()}</span> bills
+          introduced in total;{' '}
+          <span className="tabular font-medium text-foreground">
+            {totalLaws.toLocaleString()}
+          </span>{' '}
+          became law
+          {totalBills > 0 && (
+            <>
+              {' '}— a passage rate of{' '}
+              <span className="tabular">
+                {((totalLaws / totalBills) * 100).toFixed(1)}%
+              </span>
+            </>
+          )}
+          .
+        </p>
+      </div>
+
+      {/* RIGHT — top sponsoring states */}
+      <div className="lg:col-span-5">
+        <p className="label-eyebrow mb-4">Top sponsoring states</p>
+        {topStates.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No state data available.</p>
+        ) : (
+          <ol className="space-y-2.5">
+            {topStates.map(([state, count]) => {
+              const w = (count / stateMax) * 100;
+              return (
+                <li key={state}>
+                  <button
+                    onClick={() => onStateClick(state)}
+                    className="w-full text-left group"
+                    aria-label={`${state}: ${count} bills`}
+                  >
+                    <div className="flex items-baseline justify-between gap-3 mb-1">
+                      <span className="font-mono text-xs tabular text-foreground group-hover:underline underline-offset-2 decoration-border">
+                        {state}
+                      </span>
+                      <span className="font-mono text-xs text-muted-foreground tabular shrink-0">
+                        {count.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="h-[3px] w-full bg-secondary overflow-hidden">
+                      <div
+                        className="h-full bg-foreground/80 group-hover:bg-foreground transition-colors"
+                        style={{ width: `${w}%` }}
+                      />
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One chamber row: name · total, a stacked party bar, a compact data grid
+ * below it covering introduced + became-law counts per party.
+ */
+function ChamberPartyRow({
+  label,
+  total,
+  parties,
+  laws,
+}: {
+  label: string;
+  total: number;
+  parties: { D: number; R: number; I: number; U: number };
+  laws: { D: number; R: number; I: number; U: number };
+}) {
+  const lawsTotal = laws.D + laws.R + laws.I + laws.U;
+  const order: Array<keyof typeof parties> = ['D', 'R', 'I', 'U'];
+  const partyLabel: Record<keyof typeof parties, string> = {
+    D: 'Democratic',
+    R: 'Republican',
+    I: 'Independent',
+    U: 'Unaffiliated',
+  };
+  const partyColor: Record<keyof typeof parties, string> = {
+    D: 'hsl(var(--party-d))',
+    R: 'hsl(var(--party-r))',
+    I: 'hsl(var(--party-i))',
+    U: 'hsl(var(--party-u))',
+  };
+
+  // Only show parties that actually have data
+  const presentParties = order.filter((p) => parties[p] > 0);
+
+  return (
+    <div>
+      {/* Title row */}
+      <div className="flex items-baseline justify-between mb-2.5">
+        <h3 className="font-serif text-lg font-semibold tracking-tight">{label}</h3>
+        <p className="font-mono text-xs text-muted-foreground tabular">
+          {total.toLocaleString()} introduced · {lawsTotal.toLocaleString()} became law
+        </p>
+      </div>
+
+      {/* Stacked bar for introductions */}
+      <div className="flex h-3 w-full overflow-hidden rounded-sm border border-border">
+        {presentParties.map((p) => {
+          const w = total > 0 ? (parties[p] / total) * 100 : 0;
+          if (w <= 0) return null;
+          return (
+            <div
+              key={p}
+              aria-label={`${partyLabel[p]}: ${parties[p].toLocaleString()} bills`}
+              className="block h-full"
+              style={{ width: `${w}%`, backgroundColor: partyColor[p] }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Table: party rows with introduced count, law count, passage rate */}
+      <ul className="mt-3 divide-y divide-border border-y border-border">
+        {presentParties.map((p) => {
+          const pct = total > 0 ? (parties[p] / total) * 100 : 0;
+          const lawPct = parties[p] > 0 ? (laws[p] / parties[p]) * 100 : 0;
+          return (
+            <li key={p}>
+              <div className="grid grid-cols-12 items-center gap-3 w-full py-2 px-1">
+                <span
+                  className="col-span-1 inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+                  style={{ backgroundColor: partyColor[p] }}
+                  aria-hidden="true"
+                />
+                <span className="col-span-4 sm:col-span-3 text-sm text-foreground">
+                  {partyLabel[p]}
+                </span>
+                <span className="col-span-3 sm:col-span-2 text-right font-mono text-xs text-muted-foreground tabular">
+                  {pct.toFixed(1)}%
+                </span>
+                <span className="col-span-4 sm:col-span-3 text-right font-mono text-sm font-medium text-foreground tabular">
+                  {parties[p].toLocaleString()}
+                </span>
+                <span className="hidden sm:block col-span-3 text-right font-mono text-xs text-muted-foreground tabular">
+                  {laws[p]} law{laws[p] === 1 ? '' : 's'}{' '}
+                  <span className="text-muted-foreground/60">
+                    ({lawPct.toFixed(1)}%)
+                  </span>
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Monthly cadence — vertical bars for bills introduced each month, with
+ * a thin inline marker showing how many of those eventually became law.
+ * ───────────────────────────────────────────────────────────────────── */
+
+interface MonthlyCadenceChartProps {
+  house: ChamberBreakdown | undefined;
+  senate: ChamberBreakdown | undefined;
+}
+
+function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
+  if (!house || !senate) {
+    return (
+      <div className="border-y border-border py-6">
+        <div className="h-52 bg-secondary/40 rounded-sm animate-pulse" />
+      </div>
+    );
+  }
+
+  // Merge monthly counts from both chambers.
+  const merged = new Map<string, { count: number; becameLaw: number }>();
+  for (const m of [...house.monthly, ...senate.monthly]) {
+    const e = merged.get(m.month) || { count: 0, becameLaw: 0 };
+    e.count += m.count;
+    e.becameLaw += m.becameLaw;
+    merged.set(m.month, e);
+  }
+
+  const months = Array.from(merged.entries())
+    .map(([month, v]) => ({ month, ...v }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  if (months.length === 0) {
+    return <p className="text-sm text-muted-foreground">No timeline data available.</p>;
+  }
+
+  const max = Math.max(...months.map((m) => m.count), 1);
+  const totalLaws = months.reduce((s, m) => s + m.becameLaw, 0);
+
+  // Pick two peak months for inline narration
+  const sortedByCount = [...months].sort((a, b) => b.count - a.count);
+  const peak = sortedByCount[0];
+  const quietest = sortedByCount[sortedByCount.length - 1];
+
+  // With >18 bars we label only the January of each year + the latest month.
+  // With fewer, label each.
+  const labelEvery = months.length > 18 ? 3 : 1;
+
+  return (
+    <div className="space-y-5">
+      <div className="border-y border-border py-6">
+        <div className="flex items-end justify-between gap-[3px] sm:gap-1 h-48">
+          {months.map((m, i) => {
+            const heightPct = (m.count / max) * 100;
+            const lawHeightPct = m.count > 0 ? (m.becameLaw / m.count) * heightPct : 0;
+            const showLabel = i % labelEvery === 0 || i === months.length - 1;
+            const [year, month] = m.month.split('-');
+            const monthLabel = MONTH_SHORT[parseInt(month, 10) - 1] ?? month;
+
+            return (
+              <div
+                key={m.month}
+                className="group flex-1 flex flex-col items-center gap-2 min-w-0"
+                aria-label={`${m.month}: ${m.count.toLocaleString()} bills introduced, ${m.becameLaw} became law`}
+                title={`${m.month} · ${m.count.toLocaleString()} introduced · ${m.becameLaw} became law`}
+              >
+                <span className="font-mono text-[10px] tabular text-muted-foreground group-hover:text-foreground transition-colors">
+                  {m.count.toLocaleString()}
+                </span>
+
+                {/* Bar container — total bar, with became-law slice coloured
+                    darker at the base. */}
+                <div
+                  className="relative w-full max-w-[40px] bg-foreground/25 group-hover:bg-foreground/45 transition-colors"
+                  style={{ height: `${Math.max(heightPct, 4)}%` }}
+                >
+                  {lawHeightPct > 0 && (
+                    <div
+                      className="absolute bottom-0 left-0 right-0 bg-foreground"
+                      style={{ height: `${(m.becameLaw / m.count) * 100}%` }}
+                    />
+                  )}
+                </div>
+
+                <div className="h-7 flex flex-col items-center justify-start gap-0.5">
+                  {showLabel ? (
+                    <>
+                      <span className="font-mono text-[10px] tabular text-muted-foreground">
+                        {monthLabel}
+                      </span>
+                      {(monthLabel === 'Jan' || i === 0) && (
+                        <span className="font-mono text-[9px] tabular text-muted-foreground/70">
+                          '{year.slice(2)}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="font-mono text-[10px] tabular text-transparent">·</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Legend + narrative */}
+      <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-4">
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-block h-2.5 w-4 bg-foreground/25" aria-hidden="true" />
+            Introduced
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-block h-2.5 w-4 bg-foreground" aria-hidden="true" />
+            Became law
+          </span>
+        </div>
+        {peak && quietest && (
+          <p className="max-w-md text-right leading-relaxed">
+            Peak:{' '}
+            <span className="font-mono tabular text-foreground">
+              {formatMonth(peak.month)}
+            </span>{' '}
+            ({peak.count.toLocaleString()}). Quietest:{' '}
+            <span className="font-mono tabular text-foreground">
+              {formatMonth(quietest.month)}
+            </span>{' '}
+            ({quietest.count.toLocaleString()}).{' '}
+            <span className="tabular text-foreground">
+              {totalLaws.toLocaleString()}
+            </span>{' '}
+            bills became law so far.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+function formatMonth(m: string): string {
+  const [year, month] = m.split('-');
+  const name = MONTH_SHORT[parseInt(month, 10) - 1] ?? month;
+  return `${name} ${year ? `’${year.slice(2)}` : ''}`.trim();
 }

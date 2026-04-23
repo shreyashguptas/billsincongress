@@ -51,6 +51,12 @@
     --status-signed: 358 65% 38%;
     --status-law: 145 40% 32%;
 
+    /* Party colours — muted to match editorial palette, not saturated. */
+    --party-d: 214 45% 42%;      /* muted editorial blue */
+    --party-r: 358 55% 42%;      /* muted editorial red  */
+    --party-i: 42 45% 42%;       /* muted ochre          */
+    --party-u: 220 5% 55%;       /* neutral grey         */
+
     --radius: 0.25rem;
   }
 
@@ -91,6 +97,12 @@
     --status-president: 18 65% 58%;
     --status-signed: 358 70% 60%;
     --status-law: 145 40% 55%;
+
+    /* Party colours — slightly brighter in dark mode for contrast. */
+    --party-d: 214 55% 62%;
+    --party-r: 358 60% 62%;
+    --party-i: 42 55% 62%;
+    --party-u: 220 6% 55%;
   }
 }
 
