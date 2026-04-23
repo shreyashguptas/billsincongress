@@ -1047,6 +1047,51 @@ export const triggerRecomputeStats = action({
 });
 
 /**
+ * Rebuild the congressSponsors table for every congress that has bills.
+ * Mirrors recomputeAllStats — probes the index for each congress in range
+ * and recomputes sponsors only where data exists. Every sponsor is stored,
+ * including members who sponsored a single bill.
+ *
+ * New congresses self-populate via the regular sync flow
+ * (syncBillBatch → recomputeCongressSponsors at end-of-batch), so this
+ * action is primarily for one-off backfills and manual refreshes.
+ */
+export const recomputeAllSponsors = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ congresses: number[] }> => {
+    const congressesToUpdate: number[] = [];
+    for (let c = 93; c <= 120; c++) {
+      const hasBills = await ctx.runQuery(internal.bills.hasBillsForCongress, {
+        congress: c,
+      });
+      if (hasBills) congressesToUpdate.push(c);
+    }
+
+    for (const congress of congressesToUpdate) {
+      await ctx.runAction(internal.mutations.recomputeCongressSponsors, {
+        congress,
+      });
+    }
+
+    console.log(
+      `Recomputed sponsors for congresses: ${congressesToUpdate.join(", ")}`,
+    );
+    return { congresses: congressesToUpdate };
+  },
+});
+
+/**
+ * Public action so you can kick off the backfill from the CLI:
+ *   npx convex run congressApi:triggerRecomputeAllSponsors
+ */
+export const triggerRecomputeAllSponsors = action({
+  args: {},
+  handler: async (ctx): Promise<{ congresses: number[] }> => {
+    return await ctx.runAction(internal.congressApi.recomputeAllSponsors);
+  },
+});
+
+/**
  * Public action to delete all bills for a specific congress
  */
 export const deleteCongress = action({

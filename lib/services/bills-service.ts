@@ -18,13 +18,21 @@ export interface BillQueryParams {
   status?: string | null;
   introducedDateFilter?: string | null;
   lastActionDateFilter?: string | null;
-  sponsorFilter?: string;
+  // Array of exact full names ("First Last"). Empty array = no filter.
+  sponsorFilter?: string[];
   titleFilter?: string;
   stateFilter?: string | null;
   policyArea?: string | null;
   billType?: string | null;
   billNumber?: string;
   congress?: string | null;
+}
+
+export interface SponsorOption {
+  name: string;
+  party?: string;
+  state?: string;
+  billCount: number;
 }
 
 export interface BillsResponse {
@@ -98,7 +106,7 @@ export const billsService = {
       page = 1,
       itemsPerPage = 10,
       status = 'all',
-      sponsorFilter = '',
+      sponsorFilter = [],
       titleFilter = '',
       stateFilter = 'all',
       policyArea = 'all',
@@ -122,7 +130,7 @@ export const billsService = {
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         billType: billType && billType !== 'all' ? billType : undefined,
         titleFilter: titleFilter || undefined,
-        sponsorFilter: sponsorFilter || undefined,
+        sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
         billNumber: billNumber || undefined,
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
         offset,
@@ -149,7 +157,7 @@ export const billsService = {
   ): Promise<number> {
     const {
       status = 'all',
-      sponsorFilter = '',
+      sponsorFilter = [],
       titleFilter = '',
       stateFilter = 'all',
       policyArea = 'all',
@@ -169,7 +177,7 @@ export const billsService = {
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         billType: billType && billType !== 'all' ? billType : undefined,
         titleFilter: titleFilter || undefined,
-        sponsorFilter: sponsorFilter || undefined,
+        sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
         billNumber: billNumber || undefined,
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
       });
@@ -195,6 +203,20 @@ export const billsService = {
     } catch (error) {
       console.error('Error fetching sync status from Convex:', error);
       return null;
+    }
+  },
+
+  async fetchAllSponsors(): Promise<SponsorOption[]> {
+    const client = getConvexClient();
+    if (!client) return [];
+
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      const rows = await client.query(api.bills.listAllSponsors);
+      return rows as SponsorOption[];
+    } catch (error) {
+      console.error('Error fetching sponsors from Convex:', error);
+      return [];
     }
   },
 

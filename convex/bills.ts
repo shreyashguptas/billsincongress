@@ -99,7 +99,9 @@ const BILLS_FILTER_ARGS = {
   sponsorState: v.optional(v.string()),
   billType: v.optional(v.string()),
   titleFilter: v.optional(v.string()),
-  sponsorFilter: v.optional(v.string()),
+  // Exact full names ("First Last"). Empty or missing = no sponsor filter.
+  // A bill matches if "sponsorFirstName sponsorLastName" is in the list.
+  sponsorFilter: v.optional(v.array(v.string())),
   billNumber: v.optional(v.string()),
   policyArea: v.optional(v.string()),
 };
@@ -110,7 +112,7 @@ type BillsFilterArgs = {
   sponsorState?: string;
   billType?: string;
   titleFilter?: string;
-  sponsorFilter?: string;
+  sponsorFilter?: string[];
   billNumber?: string;
   policyArea?: string;
 };
@@ -169,12 +171,15 @@ async function buildBillPredicate(
         .split(/\s+/)
         .filter((w) => w.length > 0)
     : null;
-  const sponsorNames = args.sponsorFilter
-    ? args.sponsorFilter
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((n) => n.length > 0)
-    : null;
+
+  // Exact full-name match against a normalised set (lowercase, collapsed
+  // whitespace). Matches the semantics of the multi-select sponsor combobox.
+  const normaliseName = (s: string) =>
+    s.trim().toLowerCase().replace(/\s+/g, " ");
+  const wantedSponsors =
+    args.sponsorFilter && args.sponsorFilter.length > 0
+      ? new Set(args.sponsorFilter.map(normaliseName))
+      : null;
 
   const match = (bill: Doc<"bills">): boolean => {
     if (args.progressStage !== undefined && bill.progressStage !== args.progressStage) return false;
@@ -187,17 +192,11 @@ async function buildBillPredicate(
         if (!title.includes(w)) return false;
       }
     }
-    if (sponsorNames) {
-      const first = (bill.sponsorFirstName || "").toLowerCase();
-      const last = (bill.sponsorLastName || "").toLowerCase();
-      let hit = false;
-      for (const n of sponsorNames) {
-        if (first.includes(n) || last.includes(n)) {
-          hit = true;
-          break;
-        }
-      }
-      if (!hit) return false;
+    if (wantedSponsors) {
+      const fullName = normaliseName(
+        `${bill.sponsorFirstName ?? ""} ${bill.sponsorLastName ?? ""}`,
+      );
+      if (!wantedSponsors.has(fullName)) return false;
     }
     if (policyBillIds && !policyBillIds.has(bill.billId)) return false;
     return true;
@@ -253,7 +252,7 @@ export const list = query({
     const hasMore = matches.length > offset + limit;
     const page = matches.slice(offset, offset + limit);
 
-    // Enrich each bill with its policy area (9 parallel indexed lookups).
+    // Enrich each bill with its policy area (parallel indexed lookups).
     const enrichedPage = await Promise.all(
       page.map(async (bill) => {
         const subject = await ctx.db
@@ -322,6 +321,43 @@ export const getCongressInfo = query({
     const endYear = startYear + 2;
 
     return { congress, startYear, endYear };
+  },
+});
+
+/**
+ * Every unique sponsor across every congress, deduped by full name.
+ * Powers the sponsor dropdown on /bills. Party / state / billCount come from
+ * the row with the highest bill count for that name (so a member who served
+ * in multiple congresses is represented by their most-active record).
+ */
+export const listAllSponsors = query({
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("congressSponsors").collect();
+
+    const byName = new Map<
+      string,
+      { name: string; party?: string; state?: string; billCount: number }
+    >();
+    for (const r of rows) {
+      const existing = byName.get(r.sponsorName);
+      if (!existing) {
+        byName.set(r.sponsorName, {
+          name: r.sponsorName,
+          party: r.sponsorParty,
+          state: r.sponsorState,
+          billCount: r.billCount,
+        });
+        continue;
+      }
+      existing.billCount += r.billCount;
+      // Keep the latest non-empty party/state we see.
+      if (!existing.party && r.sponsorParty) existing.party = r.sponsorParty;
+      if (!existing.state && r.sponsorState) existing.state = r.sponsorState;
+    }
+
+    return [...byName.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    );
   },
 });
 

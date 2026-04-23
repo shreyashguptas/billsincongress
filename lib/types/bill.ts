@@ -25,7 +25,7 @@ export interface BillQueryParams {
   status?: string;
   introducedDateFilter?: string;
   lastActionDateFilter?: string;
-  sponsorFilter?: string;
+  sponsorFilter?: string[];
   titleFilter?: string;
   stateFilter?: string;
   policyArea?: string;
