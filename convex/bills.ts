@@ -1,4 +1,4 @@
-import { query, internalQuery } from "./_generated/server";
+import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
@@ -91,102 +91,169 @@ export const getBillActions = internalQuery({
 });
 
 /**
+ * Shared filter args for the bills list + count queries.
+ */
+const BILLS_FILTER_ARGS = {
+  congress: v.optional(v.number()),
+  progressStage: v.optional(v.number()),
+  sponsorState: v.optional(v.string()),
+  billType: v.optional(v.string()),
+  titleFilter: v.optional(v.string()),
+  sponsorFilter: v.optional(v.string()),
+  billNumber: v.optional(v.string()),
+  policyArea: v.optional(v.string()),
+};
+
+type BillsFilterArgs = {
+  congress?: number;
+  progressStage?: number;
+  sponsorState?: string;
+  billType?: string;
+  titleFilter?: string;
+  sponsorFilter?: string;
+  billNumber?: string;
+  policyArea?: string;
+};
+
+/**
+ * Resolve the congress to filter by, defaulting to the latest one.
+ * Returns `null` when the bills table is empty.
+ */
+async function resolveCongress(
+  ctx: QueryCtx,
+  requested: number | undefined,
+): Promise<number | null> {
+  if (requested !== undefined) return requested;
+  const latestBill = await ctx.db
+    .query("bills")
+    .withIndex("by_congress")
+    .order("desc")
+    .first();
+  return latestBill?.congress ?? null;
+}
+
+/**
+ * Build an in-memory predicate that matches bills against all filter args.
+ *
+ * We pre-resolve the policy-area billId set once (rather than on each bill),
+ * and pre-tokenise the title / sponsor filters. The returned predicate is a
+ * tight per-bill check used by both the streaming list query and the count
+ * query. `matchesNone` short-circuits when the policy-area filter has zero
+ * subjects — no bill can possibly match, so the caller can skip iterating.
+ */
+async function buildBillPredicate(
+  ctx: QueryCtx,
+  args: BillsFilterArgs,
+): Promise<{
+  matchesNone: boolean;
+  match: (bill: Doc<"bills">) => boolean;
+}> {
+  let policyBillIds: Set<string> | null = null;
+  if (args.policyArea) {
+    const policyArea = args.policyArea;
+    const subjectDocs = await ctx.db
+      .query("billSubjects")
+      .withIndex("by_policy_area", (q) =>
+        q.eq("policyAreaName", policyArea),
+      )
+      .collect();
+    policyBillIds = new Set(subjectDocs.map((s) => s.billId));
+    if (policyBillIds.size === 0) {
+      return { matchesNone: true, match: () => false };
+    }
+  }
+
+  const titleWords = args.titleFilter
+    ? args.titleFilter
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 0)
+    : null;
+  const sponsorNames = args.sponsorFilter
+    ? args.sponsorFilter
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((n) => n.length > 0)
+    : null;
+
+  const match = (bill: Doc<"bills">): boolean => {
+    if (args.progressStage !== undefined && bill.progressStage !== args.progressStage) return false;
+    if (args.sponsorState && bill.sponsorState !== args.sponsorState) return false;
+    if (args.billType && bill.billType !== args.billType) return false;
+    if (args.billNumber && bill.billNumber !== args.billNumber) return false;
+    if (titleWords) {
+      const title = bill.title.toLowerCase();
+      for (const w of titleWords) {
+        if (!title.includes(w)) return false;
+      }
+    }
+    if (sponsorNames) {
+      const first = (bill.sponsorFirstName || "").toLowerCase();
+      const last = (bill.sponsorLastName || "").toLowerCase();
+      let hit = false;
+      for (const n of sponsorNames) {
+        if (first.includes(n) || last.includes(n)) {
+          hit = true;
+          break;
+        }
+      }
+      if (!hit) return false;
+    }
+    if (policyBillIds && !policyBillIds.has(bill.billId)) return false;
+    return true;
+  };
+
+  return { matchesNone: false, match };
+}
+
+/**
  * List bills with filtering and offset-based pagination.
- * Filters are applied in-memory after indexed query for the primary filter.
+ *
+ * Streams the `by_congress` index newest-first and stops as soon as we've
+ * collected `offset + limit + 1` matching bills (the +1 tells us whether
+ * more pages exist). Previously this query did `.collect()` on the full
+ * congress (up to ~19K docs) and filtered in-memory, which dominated the
+ * 4–5s drill-through latency. The common happy-path (no filters, or a
+ * selective filter like sponsor) now reads ~10 docs instead.
+ *
+ * Total count is intentionally NOT returned from this query — computing it
+ * still requires a full filter scan, which would re-introduce the same
+ * latency. Callers that need the total should use `listCount` in parallel.
  */
 export const list = query({
   args: {
-    congress: v.optional(v.number()),
-    progressStage: v.optional(v.number()),
-    sponsorState: v.optional(v.string()),
-    billType: v.optional(v.string()),
-    titleFilter: v.optional(v.string()),
-    sponsorFilter: v.optional(v.string()),
-    billNumber: v.optional(v.string()),
-    policyArea: v.optional(v.string()),
+    ...BILLS_FILTER_ARGS,
     offset: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const limit = args.limit || 9;
-    const offset = args.offset || 0;
+    const limit = args.limit ?? 9;
+    const offset = args.offset ?? 0;
 
-    // Use the most selective index. Default to latest congress to avoid full table scan.
-    let congressFilter = args.congress;
-    if (!congressFilter) {
-      const latestBill = await ctx.db
-        .query("bills")
-        .withIndex("by_congress")
-        .order("desc")
-        .first();
-      congressFilter = latestBill?.congress;
-    }
+    const congressFilter = await resolveCongress(ctx, args.congress);
+    if (congressFilter === null) return { data: [], hasMore: false };
 
-    let results: Doc<"bills">[];
-    if (congressFilter) {
-      results = await ctx.db
-        .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", congressFilter!))
-        .order("desc")
-        .collect();
-    } else {
-      results = [];
+    const { matchesNone, match } = await buildBillPredicate(ctx, args);
+    if (matchesNone) return { data: [], hasMore: false };
+
+    const needed = offset + limit + 1;
+    const matches: Doc<"bills">[] = [];
+
+    const iter = ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+      .order("desc");
+
+    for await (const bill of iter) {
+      if (!match(bill)) continue;
+      matches.push(bill);
+      if (matches.length >= needed) break;
     }
 
-    // Apply in-memory filters
-    let filtered = results;
+    const hasMore = matches.length > offset + limit;
+    const page = matches.slice(offset, offset + limit);
 
-    if (args.progressStage !== undefined) {
-      filtered = filtered.filter((b) => b.progressStage === args.progressStage);
-    }
-    if (args.sponsorState) {
-      filtered = filtered.filter((b) => b.sponsorState === args.sponsorState);
-    }
-    if (args.billType) {
-      filtered = filtered.filter((b) => b.billType === args.billType);
-    }
-    if (args.billNumber) {
-      filtered = filtered.filter((b) => b.billNumber === args.billNumber);
-    }
-    if (args.titleFilter) {
-      const words = args.titleFilter
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => w.length > 0);
-      filtered = filtered.filter((b) =>
-        words.every((word) => b.title.toLowerCase().includes(word))
-      );
-    }
-    if (args.sponsorFilter) {
-      const names = args.sponsorFilter
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((n) => n.length > 0);
-      filtered = filtered.filter((b) =>
-        names.some(
-          (name) =>
-            (b.sponsorFirstName || "").toLowerCase().includes(name) ||
-            (b.sponsorLastName || "").toLowerCase().includes(name)
-        )
-      );
-    }
-
-    // Policy area filter requires a join to billSubjects
-    if (args.policyArea) {
-      const subjectDocs = await ctx.db
-        .query("billSubjects")
-        .withIndex("by_policy_area", (q) =>
-          q.eq("policyAreaName", args.policyArea!)
-        )
-        .collect();
-      const matchingBillIds = new Set(subjectDocs.map((s) => s.billId));
-      filtered = filtered.filter((b) => matchingBillIds.has(b.billId));
-    }
-
-    const totalCount = filtered.length;
-    const page = filtered.slice(offset, offset + limit);
-
-    // Enrich each bill with its policy area
+    // Enrich each bill with its policy area (9 parallel indexed lookups).
     const enrichedPage = await Promise.all(
       page.map(async (bill) => {
         const subject = await ctx.db
@@ -199,13 +266,39 @@ export const list = query({
             ? { policy_area_name: subject.policyAreaName || "" }
             : { policy_area_name: "" },
         };
-      })
+      }),
     );
 
-    return {
-      data: enrichedPage,
-      count: totalCount,
-    };
+    return { data: enrichedPage, hasMore };
+  },
+});
+
+/**
+ * Exact count of bills matching the given filters.
+ *
+ * Split out from `list` so the page-1 render isn't blocked on the full
+ * filter scan. The client fires this in parallel with `list` and fills in
+ * the "of N" portion of the header once the count arrives.
+ */
+export const listCount = query({
+  args: BILLS_FILTER_ARGS,
+  handler: async (ctx, args) => {
+    const congressFilter = await resolveCongress(ctx, args.congress);
+    if (congressFilter === null) return 0;
+
+    const { matchesNone, match } = await buildBillPredicate(ctx, args);
+    if (matchesNone) return 0;
+
+    let count = 0;
+    const iter = ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", congressFilter));
+
+    for await (const bill of iter) {
+      if (match(bill)) count++;
+    }
+
+    return count;
   },
 });
 

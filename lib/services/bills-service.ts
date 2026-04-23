@@ -29,7 +29,7 @@ export interface BillQueryParams {
 
 export interface BillsResponse {
   data: Bill[];
-  count: number;
+  hasMore: boolean;
 }
 
 /**
@@ -109,7 +109,7 @@ export const billsService = {
 
     const client = getConvexClient();
     if (!client) {
-      return { data: [], count: 0 };
+      return { data: [], hasMore: false };
     }
 
     try {
@@ -131,11 +131,51 @@ export const billsService = {
 
       return {
         data: result.data.map(transformConvexBill),
-        count: result.count,
+        hasMore: result.hasMore,
       };
     } catch (error) {
       console.error('Error fetching bills from Convex:', error);
-      return { data: [], count: 0 };
+      return { data: [], hasMore: false };
+    }
+  },
+
+  /**
+   * Fetch the exact total count of bills matching the given filters.
+   * Runs independently from `fetchBills` so callers can render the page
+   * before the (slower) count finishes.
+   */
+  async fetchBillsCount(
+    params: Omit<BillQueryParams, 'page' | 'itemsPerPage'>,
+  ): Promise<number> {
+    const {
+      status = 'all',
+      sponsorFilter = '',
+      titleFilter = '',
+      stateFilter = 'all',
+      policyArea = 'all',
+      billType = 'all',
+      billNumber = '',
+      congress = 'all',
+    } = params;
+
+    const client = getConvexClient();
+    if (!client) return 0;
+
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      return await client.query(api.bills.listCount, {
+        congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
+        progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
+        sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
+        billType: billType && billType !== 'all' ? billType : undefined,
+        titleFilter: titleFilter || undefined,
+        sponsorFilter: sponsorFilter || undefined,
+        billNumber: billNumber || undefined,
+        policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
+      });
+    } catch (error) {
+      console.error('Error fetching bills count from Convex:', error);
+      return 0;
     }
   },
 

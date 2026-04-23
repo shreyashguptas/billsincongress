@@ -16,7 +16,10 @@ const ITEMS_PER_PAGE = 9;
 
 export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([]);
-  const [totalBills, setTotalBills] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  // `totalBills` is loaded asynchronously — kept off the critical render path
+  // so bills appear fast. `null` means "still loading / unknown".
+  const [totalBills, setTotalBills] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('billsStatusFilter') || 'all' : 'all'
@@ -192,7 +195,7 @@ export default function BillsPage() {
       const existing = new Set(bills.map((b) => b.id));
       const newBills = response.data.filter((b) => !existing.has(b.id));
       setBills((prev) => [...prev, ...newBills]);
-      setTotalBills(response.count);
+      setHasMore(response.hasMore);
       setCurrentPage(nextPage);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load more bills');
@@ -206,36 +209,59 @@ export default function BillsPage() {
     // filters change rapidly (e.g. URL-param seeding on mount triggers a
     // second fetch while the first is still in flight).
     let cancelled = false;
-    const fetchBills = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await billsService.fetchBills({
-          page: 1,
-          itemsPerPage: ITEMS_PER_PAGE,
-          status: statusFilter,
-          introducedDateFilter,
-          lastActionDateFilter,
-          sponsorFilter,
-          titleFilter,
-          stateFilter,
-          policyArea: policyAreaFilter,
-          billType: billTypeFilter,
-          billNumber: billNumberFilter,
-          congress: congressFilter,
-        });
+
+    setIsLoading(true);
+    setError(null);
+    // Clear count while the new count query is in flight so the header
+    // doesn't briefly show a stale "of X" against fresh bills. Bills render
+    // as soon as the page query resolves; count fills in once its slower
+    // full-congress scan finishes.
+    setTotalBills(null);
+
+    const filterArgs = {
+      status: statusFilter,
+      introducedDateFilter,
+      lastActionDateFilter,
+      sponsorFilter,
+      titleFilter,
+      stateFilter,
+      policyArea: policyAreaFilter,
+      billType: billTypeFilter,
+      billNumber: billNumberFilter,
+      congress: congressFilter,
+    };
+
+    // Fire page + count in parallel. The page query early-exits after ~9
+    // matches (fast); the count query still scans the full congress and is
+    // the slower of the two. We don't await both together — we update state
+    // as each resolves.
+    billsService
+      .fetchBills({ page: 1, itemsPerPage: ITEMS_PER_PAGE, ...filterArgs })
+      .then((response) => {
         if (cancelled) return;
         setBills(response.data);
-        setTotalBills(response.count);
+        setHasMore(response.hasMore);
         setCurrentPage(1);
-      } catch (e) {
+      })
+      .catch((e) => {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Failed to fetch bills');
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setIsLoading(false);
-      }
-    };
-    fetchBills();
+      });
+
+    billsService
+      .fetchBillsCount(filterArgs)
+      .then((count) => {
+        if (cancelled) return;
+        setTotalBills(count);
+      })
+      .catch((e) => {
+        // Count failures are non-fatal — bills still render without a total.
+        console.error('Error fetching bills count:', e);
+      });
+
     return () => {
       cancelled = true;
     };
@@ -244,8 +270,6 @@ export default function BillsPage() {
     titleFilter, stateFilter, policyAreaFilter, billTypeFilter,
     billNumberFilter, congressFilter,
   ]);
-
-  const hasMoreBills = totalBills > bills.length;
 
   const handleApplyFilters = () => {
     setCurrentPage(1);
@@ -398,12 +422,16 @@ export default function BillsPage() {
                     Showing{' '}
                     <span className="font-mono font-medium text-foreground tabular">
                       {bills.length}
-                    </span>{' '}
-                    of{' '}
-                    <span className="font-mono font-medium text-foreground tabular">
-                      {totalBills.toLocaleString()}
-                    </span>{' '}
-                    bills
+                    </span>
+                    {totalBills !== null && (
+                      <>
+                        {' '}of{' '}
+                        <span className="font-mono font-medium text-foreground tabular">
+                          {totalBills.toLocaleString()}
+                        </span>
+                      </>
+                    )}
+                    {' '}bills
                     {filtersActive && <span className="ml-1">· filtered</span>}
                   </>
                 ) : isLoading ? (
@@ -441,7 +469,7 @@ export default function BillsPage() {
               )}
             </div>
 
-            {hasMoreBills && (
+            {hasMore && (
               <div className="mt-10 text-center">
                 <Button onClick={handleLoadMore} disabled={isLoadingMore} variant="outline" size="lg">
                   {isLoadingMore ? 'Loading…' : 'Load more bills'}
