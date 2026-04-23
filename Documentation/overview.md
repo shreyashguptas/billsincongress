@@ -127,7 +127,7 @@ For performance, analytics data is precomputed during sync:
 
 ## Overview
 
-Each bill detail page includes a full **chat panel** powered by the NVIDIA Nemotron model via OpenRouter. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
+Each bill detail page includes a full **chat panel** powered by the Groq Compound Mini model. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
 
 ## Architecture
 
@@ -141,7 +141,7 @@ Convex action: api.llm.sendChatMessage
   1. Get/create billChats row for (billId, sessionId)
   2. Fetch prior turns from billChatMessages
   3. Save user message to billChatMessages
-  4. Call OpenRouter API with:
+  4. Call Groq API with:
        - system prompt (bill context)
        - full conversation history
        - current user question
@@ -187,7 +187,7 @@ One row per message turn:
 
 ## LLM Prompt Strategy
 
-The conversation history is passed to OpenRouter using the standard `messages` array format:
+The conversation history is passed to Groq using the standard `messages` array format:
 
 ```
 [system]   → bill metadata + instructions (rebuilt each request)
@@ -389,7 +389,7 @@ Do not use `npx convex dev` for this project. Local frontend development should 
 
 ```env
 # AI Bill Chat (required for chat feature)
-OPENROUTER_API_KEY=   # Get from https://openrouter.ai/
+GROQ_API_KEY=   # Get from https://console.groq.com/
 
 # Analytics (if using Vercel)
 NEXT_PUBLIC_ANALYTICS_ID=

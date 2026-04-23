@@ -2,8 +2,8 @@ import { action, internalMutation, internalQuery, mutation, query } from "./_gen
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 
-const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "nvidia/nemotron-3-nano-30b-a3b";
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const MODEL = "groq/compound-mini";
 
 interface BillContext {
   billId: string;
@@ -166,7 +166,7 @@ export const getBillChatHistory = query({
  *
  * - Persists the full conversation (user + assistant turns) in Convex so
  *   returning visitors pick up where they left off.
- * - Passes prior turns as OpenRouter `messages` for proper multi-turn context.
+ * - Passes prior turns as Groq `messages` for proper multi-turn context.
  */
 export const sendChatMessage = action({
   args: {
@@ -177,9 +177,9 @@ export const sendChatMessage = action({
   handler: async (ctx, args): Promise<{ answer: string; error?: string }> => {
     const { billId, sessionId, question } = args;
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return { answer: "", error: "OpenRouter API key not configured." };
+      return { answer: "", error: "Groq API key not configured." };
     }
 
     try {
@@ -233,14 +233,12 @@ export const sendChatMessage = action({
         { role: "user", content: question },
       ];
 
-      // Call OpenRouter
-      const response = await fetch(OPENROUTER_API_URL, {
+      // Call Groq
+      const response = await fetch(GROQ_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://billsincongress.com",
-          "X-Title": "BillsInCongress",
         },
         body: JSON.stringify({
           model: MODEL,
@@ -252,7 +250,7 @@ export const sendChatMessage = action({
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("OpenRouter API error:", errorText);
+        console.error("Groq API error:", errorText);
         return { answer: "", error: "Failed to get response from AI." };
       }
 
@@ -286,9 +284,9 @@ export const askBillQuestion = action({
   handler: async (ctx, args): Promise<{ answer: string; error?: string }> => {
     const { billId, question } = args;
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return { answer: "", error: "OpenRouter API key not configured." };
+      return { answer: "", error: "Groq API key not configured." };
     }
 
     try {
@@ -319,13 +317,11 @@ export const askBillQuestion = action({
 
       const systemPrompt = buildSystemPrompt(billContext);
 
-      const response = await fetch(OPENROUTER_API_URL, {
+      const response = await fetch(GROQ_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://billsincongress.com",
-          "X-Title": "BillsInCongress",
         },
         body: JSON.stringify({
           model: MODEL,
@@ -340,7 +336,7 @@ export const askBillQuestion = action({
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("OpenRouter API error:", errorText);
+        console.error("Groq API error:", errorText);
         return { answer: "", error: "Failed to get response from AI." };
       }
 
