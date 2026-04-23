@@ -9,6 +9,7 @@ out
 .env
 .env.local
 .env*.local
+.env*.bak
 
 # Local agent / Claude Code config
 .agents/
