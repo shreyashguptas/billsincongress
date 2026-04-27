@@ -24,6 +24,29 @@ export const currentUser = query({
   },
 });
 
+/**
+ * Returns true if the given email already has a password authAccount.
+ * Used by the sign-up form to give a clean "already registered, try sign in"
+ * message instead of the generic "Server Error" the auth library throws.
+ *
+ * Email enumeration trade-off: this lets anyone probe whether a given email
+ * is registered. Standard for sign-up UX (most apps tell you the email is
+ * taken). For sign-IN we keep error messages vague (no enumeration there).
+ */
+export const isEmailRegistered = query({
+  args: { email: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { email }) => {
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", email),
+      )
+      .first();
+    return account !== null;
+  },
+});
+
 // ─── Server-side helpers (not registered as functions) ─────────────────────
 
 type AnyDbCtx = QueryCtx | MutationCtx;
@@ -87,6 +110,66 @@ export const _getByStripeSubscriptionId = internalQuery({
         q.eq("stripeSubscriptionId", stripeSubscriptionId),
       )
       .unique();
+  },
+});
+
+// ─── Admin / debug helpers (internal-only) ─────────────────────────────────
+
+/**
+ * Inspect auth state for a given email — used during PR 1 testing to find
+ * orphaned authAccounts left over from earlier deploys with stricter schema
+ * validation. Safe to keep around: internal-only, read-only.
+ */
+export const _inspectAuthState = internalQuery({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const users = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", email))
+      .collect();
+
+    // authAccounts has no by_email index so we scan and filter (small table during dev)
+    const allAccounts = await ctx.db.query("authAccounts").take(500);
+    const matching = allAccounts.filter(
+      (a) => (a as any).providerAccountId === email,
+    );
+
+    return {
+      userCount: users.length,
+      users: users.map((u) => ({
+        _id: u._id,
+        email: u.email,
+        name: u.name,
+        plan: (u as any).plan ?? null,
+        emailVerificationTime: u.emailVerificationTime ?? null,
+      })),
+      authAccountCount: matching.length,
+      authAccounts: matching.map((a) => ({
+        _id: a._id,
+        provider: (a as any).provider,
+        providerAccountId: (a as any).providerAccountId,
+        userId: (a as any).userId,
+      })),
+    };
+  },
+});
+
+/**
+ * Delete a password authAccount for the given email — used to recover from
+ * orphan accounts so the user can re-sign-up. Does NOT delete the user row
+ * (so any Google-OAuth login for the same email keeps working). Internal-only.
+ */
+export const _deletePasswordAccount = internalMutation({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const allAccounts = await ctx.db.query("authAccounts").take(500);
+    const targets = allAccounts.filter(
+      (a) =>
+        (a as any).provider === "password" &&
+        (a as any).providerAccountId === email,
+    );
+    for (const t of targets) await ctx.db.delete(t._id);
+    return { deleted: targets.length };
   },
 });
 

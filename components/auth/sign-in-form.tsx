@@ -14,8 +14,9 @@ export function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
   const redirect = params.get("redirect") ?? "/account";
+  const prefillEmail = params.get("email") ?? "";
 
-  const [email, setEmail] = React.useState("");
+  const [email, setEmail] = React.useState(prefillEmail);
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -28,12 +29,24 @@ export function SignInForm() {
       await signIn("password", { email, password, flow: "signIn" });
       router.push(redirect);
     } catch (err) {
-      console.error("Sign-in failed", err);
-      setError(
-        err instanceof Error && err.message.includes("InvalidAccountId")
-          ? "No account with that email and password."
-          : "Sign-in failed. Check your email and password and try again.",
-      );
+      // console.warn (not error) so the Next.js dev overlay doesn't pop for
+      // expected auth failures like wrong password — those should only be
+      // shown via the friendly form message below.
+      console.warn("Sign-in failed", err);
+      const msg = err instanceof Error ? err.message.toLowerCase() : "";
+      // Vague error on sign-in (no email enumeration). Wrong-email and
+      // wrong-password both surface as "InvalidAccountId" or as the wrapped
+      // generic "Server Error" — both should look identical to the user.
+      if (
+        msg.includes("invalidaccountid") ||
+        msg.includes("invalid credentials") ||
+        msg.includes("server error") ||
+        msg.includes("[request id")
+      ) {
+        setError("Invalid email or password. Try again, or reset your password if you forgot it.");
+      } else {
+        setError("Sign-in failed. Please try again in a moment.");
+      }
       setBusy(false);
     }
   }
@@ -66,7 +79,15 @@ export function SignInForm() {
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-baseline justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link
+              href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <Input
             id="password"
             name="password"

@@ -4,6 +4,9 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvex } from "convex/react";
+
+import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +16,14 @@ type Step = "credentials" | "verify";
 
 const PASSWORD_RULES = "At least 10 characters, with upper-, lower-case, and a number.";
 
+type ErrorState =
+  | null
+  | { kind: "message"; text: string }
+  | { kind: "alreadyExists"; email: string };
+
 export function SignUpForm() {
   const { signIn } = useAuthActions();
+  const convex = useConvex();
   const router = useRouter();
   const params = useSearchParams();
   const redirect = params.get("redirect") ?? "/account";
@@ -24,7 +33,7 @@ export function SignUpForm() {
   const [password, setPassword] = React.useState("");
   const [code, setCode] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<ErrorState>(null);
 
   function validatePassword(pw: string): string | null {
     if (pw.length < 10) return "Password must be at least 10 characters.";
@@ -38,21 +47,47 @@ export function SignUpForm() {
     e.preventDefault();
     const pwError = validatePassword(password);
     if (pwError) {
-      setError(pwError);
+      setError({ kind: "message", text: pwError });
       return;
     }
     setBusy(true);
     setError(null);
     try {
+      // Pre-check: if a password account already exists for this email, the
+      // library will throw a generic "Server Error". Detect first so we can
+      // give a clean "already registered" UX instead.
+      const exists = await convex.query(api.users.isEmailRegistered, { email });
+      if (exists) {
+        setError({ kind: "alreadyExists", email });
+        setBusy(false);
+        return;
+      }
+
       await signIn("password", { email, password, flow: "signUp" });
       setStep("verify");
     } catch (err) {
-      console.error("Sign-up failed", err);
-      setError(
-        err instanceof Error && err.message.toLowerCase().includes("already")
-          ? "An account with that email already exists. Try signing in."
-          : "Sign-up failed. Try a different email or check your password.",
-      );
+      console.warn("Sign-up failed", err);
+      const msg = err instanceof Error ? err.message.toLowerCase() : "";
+      // Belt-and-suspenders: still match the wrapped "Server Error" in case the
+      // pre-check raced with another signup. We assume "already exists" because
+      // that's the dominant signUp failure mode.
+      if (
+        msg.includes("already exists") ||
+        msg.includes("server error") ||
+        msg.includes("[request id")
+      ) {
+        setError({ kind: "alreadyExists", email });
+      } else if (msg.includes("password")) {
+        setError({
+          kind: "message",
+          text: "Password didn't meet requirements. " + PASSWORD_RULES,
+        });
+      } else {
+        setError({
+          kind: "message",
+          text: "Sign-up failed. Check your email and password and try again.",
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -70,8 +105,11 @@ export function SignUpForm() {
       });
       router.push(redirect);
     } catch (err) {
-      console.error("Verification failed", err);
-      setError("That code didn't work. Check your email and try again.");
+      console.warn("Verification failed", err);
+      setError({
+        kind: "message",
+        text: "That code didn't work. Check your email and try again.",
+      });
       setBusy(false);
     }
   }
@@ -83,8 +121,11 @@ export function SignUpForm() {
       // Re-running signUp re-sends the code through the verify provider.
       await signIn("password", { email, password, flow: "signUp" });
     } catch (err) {
-      console.error("Resend failed", err);
-      setError("Could not resend the code. Try again in a minute.");
+      console.warn("Resend failed", err);
+      setError({
+        kind: "message",
+        text: "Could not resend the code. Try again in a minute.",
+      });
     } finally {
       setBusy(false);
     }
@@ -121,8 +162,8 @@ export function SignUpForm() {
               className="font-mono tracking-widest text-center"
             />
           </div>
-          {error && (
-            <p className="text-sm text-destructive" role="alert">{error}</p>
+          {error?.kind === "message" && (
+            <p className="text-sm text-destructive" role="alert">{error.text}</p>
           )}
           <Button type="submit" className="w-full" disabled={busy || code.length !== 6}>
             {busy ? "Verifying…" : "Verify email"}
@@ -199,8 +240,45 @@ export function SignUpForm() {
             {PASSWORD_RULES}
           </p>
         </div>
-        {error && (
-          <p className="text-sm text-destructive" role="alert">{error}</p>
+        {error?.kind === "message" && (
+          <p className="text-sm text-destructive" role="alert">{error.text}</p>
+        )}
+        {error?.kind === "alreadyExists" && (
+          <div
+            className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm space-y-2"
+            role="alert"
+          >
+            <p className="text-foreground">
+              An account with <span className="font-medium">{error.email}</span>{" "}
+              already exists.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href={`/sign-in?email=${encodeURIComponent(error.email)}&redirect=${encodeURIComponent(redirect)}`}
+                className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
+              >
+                Sign in instead
+              </Link>
+              <span className="text-muted-foreground">·</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setStep("verify");
+                }}
+                className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+              >
+                I have a verification code
+              </button>
+              <span className="text-muted-foreground">·</span>
+              <Link
+                href={`/forgot-password?email=${encodeURIComponent(error.email)}`}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          </div>
         )}
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? "Creating account…" : "Create account"}
