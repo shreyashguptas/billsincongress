@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, X } from 'lucide-react';
 import { routes } from '@/lib/constants/routes';
+import { UserMenu } from '@/components/auth/user-menu';
 
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
@@ -119,6 +120,11 @@ export function Navigation() {
             );
           })}
         </nav>
+
+        {/* Account slot — UserMenu when authed, Sign in link when not */}
+        <div className="ml-auto md:ml-0 flex items-center">
+          <UserMenu />
+        </div>
       </div>
     </header>
   );

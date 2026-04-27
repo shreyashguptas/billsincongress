@@ -8,15 +8,20 @@
  * @module
  */
 
+import type * as ResendOTP from "../ResendOTP.js";
+import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
+import type * as auth from "../auth.js";
 import type * as bills from "../bills.js";
 import type * as congressApi from "../congressApi.js";
 import type * as crons from "../crons.js";
 import type * as functions from "../functions.js";
+import type * as http from "../http.js";
 import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
 import type * as sync from "../sync.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -25,15 +30,20 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  ResendOTP: typeof ResendOTP;
+  ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   aggregateBackfill: typeof aggregateBackfill;
   aggregates: typeof aggregates;
+  auth: typeof auth;
   bills: typeof bills;
   congressApi: typeof congressApi;
   crons: typeof crons;
   functions: typeof functions;
+  http: typeof http;
   llm: typeof llm;
   mutations: typeof mutations;
   sync: typeof sync;
+  users: typeof users;
 }>;
 
 /**
