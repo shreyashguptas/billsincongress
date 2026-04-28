@@ -123,6 +123,41 @@ export default defineSchema({
     .index("by_congress", ["congress"])
     .index("by_congress_and_count", ["congress", "billCount"]),
 
+  // Precomputed party / state / monthly aggregations per (congress, chamber).
+  // Replaces the per-load 13K-doc scan in getChamberDeepBreakdown — homepage
+  // reads a single row via the by_congress_and_chamber index.
+  congressChamberBreakdowns: defineTable({
+    congress: v.number(),
+    chamber: v.union(v.literal("house"), v.literal("senate")),
+    total: v.number(),
+    partyCounts: v.object({
+      D: v.number(),
+      R: v.number(),
+      I: v.number(),
+      U: v.number(),
+    }),
+    partyLawCounts: v.object({
+      D: v.number(),
+      R: v.number(),
+      I: v.number(),
+      U: v.number(),
+    }),
+    // Stored as array (not record) to keep the validator simple — Convex
+    // object keys must be valid identifiers and we don't want to risk
+    // edge-case state codes breaking the schema.
+    stateCounts: v.array(
+      v.object({ state: v.string(), count: v.number() }),
+    ),
+    monthly: v.array(
+      v.object({
+        month: v.string(),
+        count: v.number(),
+        becameLaw: v.number(),
+      }),
+    ),
+    updatedAt: v.string(),
+  }).index("by_congress_and_chamber", ["congress", "chamber"]),
+
   // Bill chat sessions — one per (billId, sessionId) pair
   billChats: defineTable({
     billId: v.string(),
