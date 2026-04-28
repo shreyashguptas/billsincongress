@@ -1,7 +1,78 @@
 import { defineSchema, defineTable } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  // ─── Auth + billing ─────────────────────────────────────────────────────────
+  // `authTables` provides: authAccounts, authSessions, authRefreshTokens,
+  // authVerificationCodes, authRateLimits. We override `users` below to add
+  // app-managed billing columns alongside the auth-managed identity fields.
+  ...authTables,
+
+  users: defineTable({
+    // Auth-managed (mirrors authTables.users shape so the library can write here)
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    image: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+
+    // App-managed billing. `plan` is optional in the schema because the
+    // @convex-dev/auth library inserts new users with only the auth fields
+    // (email/name/image) — it doesn't know about our app fields. Anywhere we
+    // read `plan`, treat undefined as "free". The `requirePro` helper checks
+    // for === "pro" so undefined is correctly excluded from Pro access.
+    plan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
+    stripeCustomerId: v.optional(v.string()),
+    stripeSubscriptionId: v.optional(v.string()),
+    stripeSubscriptionStatus: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("trialing"),
+        v.literal("past_due"),
+        v.literal("canceled"),
+        v.literal("incomplete"),
+        v.literal("incomplete_expired"),
+        v.literal("unpaid"),
+        v.literal("paused"),
+      ),
+    ),
+    stripePriceId: v.optional(v.string()),
+    stripeCurrentPeriodEnd: v.optional(v.number()), // unix seconds
+    cancelAtPeriodEnd: v.optional(v.boolean()),
+  })
+    .index("email", ["email"])
+    .index("by_stripeCustomerId", ["stripeCustomerId"])
+    .index("by_stripeSubscriptionId", ["stripeSubscriptionId"]),
+
+  // Stripe webhook idempotency. Every incoming event id is recorded; duplicate
+  // deliveries short-circuit to a 200 ack without re-applying side effects.
+  stripeEvents: defineTable({
+    eventId: v.string(),
+    type: v.string(),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+    status: v.union(
+      v.literal("received"),
+      v.literal("processed"),
+      v.literal("failed"),
+    ),
+    error: v.optional(v.string()),
+  }).index("by_eventId", ["eventId"]),
+
+  // Forward-compat audit log for Pro feature usage. `kind` is intentionally a
+  // free-form string so adding a new feature later doesn't require a migration.
+  usageEvents: defineTable({
+    userId: v.id("users"),
+    kind: v.string(),
+    billId: v.optional(v.string()),
+    createdAt: v.number(),
+    metadata: v.optional(v.any()),
+  })
+    .index("by_user_and_kind", ["userId", "kind"])
+    .index("by_user_and_createdAt", ["userId", "createdAt"]),
+
+  // ─── Bills domain ──────────────────────────────────────────────────────────
   // Main bill info table
   bills: defineTable({
     billId: v.string(), // Composite key: "{number}{type}{congress}" e.g. "1234hr119"
@@ -159,11 +230,16 @@ export default defineSchema({
   }).index("by_congress_and_chamber", ["congress", "chamber"]),
 
   // Bill chat sessions — one per (billId, sessionId) pair
+  // `userId` is set only when the chatter is logged in. Anonymous chats keep
+  // `sessionId` only, preserving the existing flow for logged-out visitors.
   billChats: defineTable({
     billId: v.string(),
     sessionId: v.string(), // anonymous session ID stored in browser localStorage
+    userId: v.optional(v.id("users")),
     createdAt: v.string(),
-  }).index("by_billId_and_session", ["billId", "sessionId"]),
+  })
+    .index("by_billId_and_session", ["billId", "sessionId"])
+    .index("by_userId", ["userId"]),
 
   // Bill chat messages — individual turns in a chat session
   billChatMessages: defineTable({

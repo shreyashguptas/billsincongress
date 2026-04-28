@@ -1,6 +1,8 @@
 import './globals.css';
+import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
+import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
@@ -75,6 +77,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // ConvexAuthNextjsServerProvider reads request cookies (dynamic data) so
+  // its render must be inside a Suspense boundary under Cache Components.
+  // The shell (html/body) prerenders statically; the auth-aware tree streams
+  // from inside the provider once cookies are read.
   return (
     <html
       lang="en"
@@ -82,25 +88,29 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
-        <ConvexClientProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <a
-              href="#main"
-              className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
-            >
-              Skip to content
-            </a>
-            <div className="flex min-h-screen flex-col">
-              <Navigation />
-              <main id="main" className="flex-1">
-                {children}
-              </main>
-              <Footer />
-            </div>
-            <Analytics />
-            <Toaster />
-          </ThemeProvider>
-        </ConvexClientProvider>
+        <Suspense fallback={null}>
+          <ConvexAuthNextjsServerProvider>
+            <ConvexClientProvider>
+              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+                <a
+                  href="#main"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
+                >
+                  Skip to content
+                </a>
+                <div className="flex min-h-screen flex-col">
+                  <Navigation />
+                  <main id="main" className="flex-1">
+                    {children}
+                  </main>
+                  <Footer />
+                </div>
+                <Analytics />
+                <Toaster />
+              </ThemeProvider>
+            </ConvexClientProvider>
+          </ConvexAuthNextjsServerProvider>
+        </Suspense>
       </body>
     </html>
   );
