@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery } from 'convex/react';
+import type { FunctionReturnType } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import { useRouter } from 'next/navigation';
 import { useConvexEnabled } from '../../ConvexClientProvider';
@@ -9,16 +10,34 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// Shape of the SSR-loaded data passed through from app/page.tsx.
+// Each field mirrors the return type of its Convex query.
+export type InitialDashboardData = {
+  allCongress: FunctionReturnType<typeof api.bills.getAllCongressOverview>;
+  dashboard: FunctionReturnType<typeof api.bills.getCongressDashboard>;
+  house: FunctionReturnType<typeof api.bills.getChamberDeepBreakdown>;
+  senate: FunctionReturnType<typeof api.bills.getChamberDeepBreakdown>;
+};
+
 interface DashboardProps {
   initialCongress?: number;
+  initialData?: InitialDashboardData | null;
 }
 
-export default function Dashboard({ initialCongress = 119 }: DashboardProps) {
+export default function Dashboard({
+  initialCongress = 119,
+  initialData = null,
+}: DashboardProps) {
   const convexEnabled = useConvexEnabled();
   if (!convexEnabled) {
     return <ConvexNotConfigured />;
   }
-  return <DashboardInner initialCongress={initialCongress} />;
+  return (
+    <DashboardInner
+      initialCongress={initialCongress}
+      initialData={initialData}
+    />
+  );
 }
 
 function ConvexNotConfigured() {
@@ -44,23 +63,43 @@ function ConvexNotConfigured() {
   );
 }
 
-function DashboardInner({ initialCongress = 119 }: DashboardProps) {
+function DashboardInner({
+  initialCongress = 119,
+  initialData = null,
+}: DashboardProps) {
   const router = useRouter();
   const [selectedCongress, setSelectedCongress] = useState(initialCongress);
 
-  const allCongressData = useQuery(api.bills.getAllCongressOverview);
-  const congressDashboard = useQuery(api.bills.getCongressDashboard, {
-    congress: selectedCongress,
-  });
+  // While the user is on the SSR'd Congress, skip the live queries — the
+  // initial render has all the data inline. Subscribing only happens when
+  // the user clicks a different Congress button, which is rare on cold load.
+  const isInitial = selectedCongress === initialCongress;
 
-  const houseBreakdown = useQuery(api.bills.getChamberDeepBreakdown, {
-    congress: selectedCongress,
-    chamber: 'house',
-  });
-  const senateBreakdown = useQuery(api.bills.getChamberDeepBreakdown, {
-    congress: selectedCongress,
-    chamber: 'senate',
-  });
+  const liveAll = useQuery(api.bills.getAllCongressOverview);
+  const liveDashboard = useQuery(
+    api.bills.getCongressDashboard,
+    isInitial ? 'skip' : { congress: selectedCongress },
+  );
+  const liveHouse = useQuery(
+    api.bills.getChamberDeepBreakdown,
+    isInitial
+      ? 'skip'
+      : { congress: selectedCongress, chamber: 'house' as const },
+  );
+  const liveSenate = useQuery(
+    api.bills.getChamberDeepBreakdown,
+    isInitial
+      ? 'skip'
+      : { congress: selectedCongress, chamber: 'senate' as const },
+  );
+
+  // The historical chart spans every Congress, so it doesn't depend on
+  // selectedCongress — keep it always-live so it picks up new data, falling
+  // back to the SSR snapshot until the websocket replies.
+  const allCongressData = liveAll ?? initialData?.allCongress;
+  const congressDashboard = isInitial ? initialData?.dashboard : liveDashboard;
+  const houseBreakdown = isInitial ? initialData?.house : liveHouse;
+  const senateBreakdown = isInitial ? initialData?.senate : liveSenate;
 
   const congressNumbers =
     allCongressData?.filter((d) => d.totalCount > 0).map((d) => d.congress) || [];
@@ -78,11 +117,11 @@ function DashboardInner({ initialCongress = 119 }: DashboardProps) {
     router.push(`/bills?${params.toString()}`);
   };
 
-  if (allCongressData === undefined || congressDashboard === undefined) {
+  if (!allCongressData || !congressDashboard) {
     return <DashboardSkeleton />;
   }
 
-  if (!allCongressData || allCongressData.length === 0) {
+  if (allCongressData.length === 0) {
     return (
       <div className="container-editorial py-24 text-center text-muted-foreground">
         No data available.

@@ -566,47 +566,17 @@ export const getAllCongressOverview = query({
   },
 });
 
-/* ─────────────────────────────────────────────────────────────────────────
- * Deep breakdowns — party / state / monthly cadence
- *
- * These power three new homepage visuals (party split, top states, monthly
- * introduction timeline). They read the bills table directly because the
- * precomputed aggregates don't carry party / state / introducedDate dimensions.
- *
- * IMPORTANT — Convex query functions are capped at ~16,384 document reads per
- * transaction. Several Congresses (117, 118) exceed that in total bills, so we
- * split the query by *chamber*: each chamber has at most ~13K bills even in
- * the largest Congress, comfortably under the cap. The client calls the query
- * twice (once per chamber) and merges the results in-memory.
- * ───────────────────────────────────────────────────────────────────────── */
-
-// All bill-type prefixes per chamber. Mirrors HOUSE_BILL_TYPES /
-// SENATE_BILL_TYPES in aggregates.ts but kept local to avoid cross-imports in
-// this file.
-const HOUSE_TYPES = ["hr", "hjres", "hconres", "hres"] as const;
-const SENATE_TYPES = ["s", "sjres", "sconres", "sres"] as const;
-
-// Normalise raw party letter codes (D / R / I / ID / blank) into one of four
-// display buckets so the UI doesn't have to worry about edge cases.
-function normaliseParty(raw: string | undefined): "D" | "R" | "I" | "U" {
-  if (!raw) return "U";
-  const v = raw.trim().toUpperCase();
-  if (v === "D") return "D";
-  if (v === "R") return "R";
-  if (v === "I" || v === "ID" || v === "IND") return "I";
-  return "U";
-}
-
 /**
- * Per-chamber deep breakdown for one Congress.
+ * Per-chamber deep breakdown for one Congress (party / state / monthly).
  *
- * Returns partisan / geographic / temporal aggregations for a single chamber,
- * computed from the raw bills table. The caller fires this once per chamber
- * and merges the two responses client-side.
+ * Reads a single precomputed row from `congressChamberBreakdowns` —
+ * populated by `recomputeCongressChamberBreakdown` after each sync and by
+ * the daily 4 AM stats cron. Replaces a previous implementation that
+ * scanned 6-7K bill documents per call, which dominated homepage cold-load
+ * latency.
  *
- * Why split by chamber: a single query can read up to ~16,384 documents;
- * Congress 118 alone has 19,314 bills across both chambers. Every chamber on
- * record stays under ~13K bills, so per-chamber queries always fit.
+ * Returns an empty-shape response if the precomputed row hasn't been
+ * built yet — the homepage tolerates zero counts.
  */
 export const getChamberDeepBreakdown = query({
   args: {
@@ -614,68 +584,43 @@ export const getChamberDeepBreakdown = query({
     chamber: v.union(v.literal("house"), v.literal("senate")),
   },
   handler: async (ctx, args) => {
-    const billTypes = args.chamber === "house" ? HOUSE_TYPES : SENATE_TYPES;
+    const row = await ctx.db
+      .query("congressChamberBreakdowns")
+      .withIndex("by_congress_and_chamber", (q) =>
+        q.eq("congress", args.congress).eq("chamber", args.chamber),
+      )
+      .unique();
 
-    // Fetch all bills for each bill type within this chamber+congress.
-    // `by_congress_and_type` is a compound index so each call is O(log n) + k.
-    const chunks: Doc<"bills">[][] = [];
-    for (const billType of billTypes) {
-      const chunk = await ctx.db
-        .query("bills")
-        .withIndex("by_congress_and_type", (q) =>
-          q.eq("congress", args.congress).eq("billType", billType),
-        )
-        .collect();
-      chunks.push(chunk);
-    }
-    const bills = chunks.flat();
-
-    // Aggregate in a single pass.
-    const partyCounts: Record<"D" | "R" | "I" | "U", number> = {
-      D: 0, R: 0, I: 0, U: 0,
-    };
-    const partyLawCounts: Record<"D" | "R" | "I" | "U", number> = {
-      D: 0, R: 0, I: 0, U: 0,
-    };
-    const stateCounts = new Map<string, number>();
-    const monthCounts = new Map<string, { total: number; law: number }>();
-
-    for (const bill of bills) {
-      const party = normaliseParty(bill.sponsorParty);
-      const isLaw = bill.progressStage === 100;
-
-      partyCounts[party] += 1;
-      if (isLaw) partyLawCounts[party] += 1;
-
-      // Only aggregate valid ASCII state codes — Convex object keys must be
-      // non-control ASCII, and we don't want "Unknown" polluting the top-states
-      // list on the homepage.
-      if (bill.sponsorState && /^[A-Z]{2,3}$/.test(bill.sponsorState)) {
-        stateCounts.set(
-          bill.sponsorState,
-          (stateCounts.get(bill.sponsorState) || 0) + 1,
-        );
-      }
-
-      // introducedDate is "YYYY-MM-DD"; bucket by month (YYYY-MM).
-      const month = (bill.introducedDate || "").slice(0, 7);
-      if (month) {
-        const entry = monthCounts.get(month) || { total: 0, law: 0 };
-        entry.total += 1;
-        if (isLaw) entry.law += 1;
-        monthCounts.set(month, entry);
-      }
+    if (!row) {
+      return {
+        chamber: args.chamber,
+        total: 0,
+        partyCounts: { D: 0, R: 0, I: 0, U: 0 } as Record<
+          "D" | "R" | "I" | "U",
+          number
+        >,
+        partyLawCounts: { D: 0, R: 0, I: 0, U: 0 } as Record<
+          "D" | "R" | "I" | "U",
+          number
+        >,
+        stateCounts: {} as Record<string, number>,
+        monthly: [] as Array<{
+          month: string;
+          count: number;
+          becameLaw: number;
+        }>,
+      };
     }
 
     return {
       chamber: args.chamber,
-      total: bills.length,
-      partyCounts,
-      partyLawCounts,
-      stateCounts: Object.fromEntries(stateCounts),
-      monthly: Array.from(monthCounts.entries())
-        .map(([month, v]) => ({ month, count: v.total, becameLaw: v.law }))
-        .sort((a, b) => a.month.localeCompare(b.month)),
+      total: row.total,
+      partyCounts: row.partyCounts,
+      partyLawCounts: row.partyLawCounts,
+      stateCounts: Object.fromEntries(
+        row.stateCounts.map((s) => [s.state, s.count]),
+      ),
+      monthly: row.monthly,
     };
   },
 });
