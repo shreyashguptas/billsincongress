@@ -33,14 +33,26 @@ function initialsFor(nameOrEmail: string | undefined | null): string {
 
 export function UserMenu() {
   const enabled = useConvexEnabled();
-  if (!enabled) return null;
+  // Only render after client mount. With Cache Components enabled at the
+  // root layout, ConvexAuthNextjsProvider's React context isn't populated
+  // during prerender — useConvexAuth() returns undefined and destructuring
+  // crashes the build. Skipping render until mount avoids this and the
+  // hydration happens cleanly once the client provider is live.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  if (!enabled || !mounted) {
+    // Reserve the slot's space so the layout doesn't shift after hydration.
+    return <div aria-hidden className="h-9 w-9" />;
+  }
   return <UserMenuInner />;
 }
 
 function UserMenuInner() {
-  const { isLoading, isAuthenticated } = useConvexAuth();
+  const auth = useConvexAuth();
   const { signOut } = useAuthActions();
   const router = useRouter();
+  const isAuthenticated = auth?.isAuthenticated ?? false;
+  const isLoading = auth?.isLoading ?? true;
   const user = useQuery(api.users.currentUser, isAuthenticated ? {} : "skip");
 
   if (isLoading) {

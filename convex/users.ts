@@ -173,6 +173,57 @@ export const _deletePasswordAccount = internalMutation({
   },
 });
 
+/**
+ * Delete duplicate user rows for a given email that have no auth accounts
+ * pointing at them. Created during PR 1 testing when the `email` index on
+ * users was briefly absent (after main wiped indexes mid-flight, before our
+ * branch redeployed). Without the index, the auth library couldn't dedupe
+ * by email and created multiple `users` rows for the same address.
+ *
+ * Safety: only deletes user rows that have ZERO authAccounts referencing
+ * them. The active user (with the password authAccount) is preserved.
+ * Also deletes any dangling authSessions / authRefreshTokens that point at
+ * the deleted users.
+ */
+export const _deleteOrphanUsers = internalMutation({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const users = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", email))
+      .collect();
+    if (users.length <= 1) return { deletedUsers: 0, deletedSessions: 0 };
+
+    const allAccounts = await ctx.db.query("authAccounts").take(2000);
+    const allSessions = await ctx.db.query("authSessions").take(2000);
+    const allRefresh = await ctx.db.query("authRefreshTokens").take(2000);
+
+    let deletedUsers = 0;
+    let deletedSessions = 0;
+    for (const u of users) {
+      const hasAccounts = allAccounts.some(
+        (a) => (a as any).userId === u._id,
+      );
+      if (hasAccounts) continue; // keep — this is the live user
+      // Cascade: delete sessions + refresh tokens pointing at this user
+      const userSessions = allSessions.filter(
+        (s) => (s as any).userId === u._id,
+      );
+      for (const s of userSessions) {
+        const refresh = allRefresh.filter(
+          (r) => (r as any).sessionId === s._id,
+        );
+        for (const r of refresh) await ctx.db.delete(r._id);
+        await ctx.db.delete(s._id);
+        deletedSessions++;
+      }
+      await ctx.db.delete(u._id);
+      deletedUsers++;
+    }
+    return { deletedUsers, deletedSessions };
+  },
+});
+
 // ─── Internal billing-column mutation (webhook-only) ───────────────────────
 
 const billingPatchValidator = v.object({
