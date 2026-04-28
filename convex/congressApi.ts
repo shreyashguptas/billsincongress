@@ -28,6 +28,10 @@ const BILL_TYPES = [
   "sres",
 ];
 
+// Lookup for resolving chamber from billType when scheduling per-chamber
+// breakdown recomputes after each bill type finishes syncing.
+const HOUSE_TYPES_SET = new Set(["hr", "hjres", "hconres", "hres"]);
+
 // Bill stage constants
 const BillStages = {
   INTRODUCED: 20,
@@ -572,6 +576,17 @@ export const syncBillBatch = internalAction({
       await ctx.runAction(internal.mutations.recomputeCongressSponsors, {
         congress: args.congress,
       });
+
+      // Refresh the per-chamber deep breakdown for the chamber this bill
+      // type belongs to. The other chamber will be recomputed when its own
+      // bill types finish; the daily 4 AM cron does a full sweep regardless.
+      const chamber: "house" | "senate" = HOUSE_TYPES_SET.has(args.billType)
+        ? "house"
+        : "senate";
+      await ctx.runAction(
+        internal.mutations.recomputeCongressChamberBreakdown,
+        { congress: args.congress, chamber },
+      );
     }
 
     return { processed: bills.length, hasMore, successCount, failCount };
@@ -1027,6 +1042,18 @@ export const recomputeAllStats = internalAction({
     // Recompute stats for each congress
     for (const congress of congressesToUpdate) {
       await ctx.runMutation(internal.mutations.recomputeCongressStats, { congress });
+    }
+
+    // Recompute the per-chamber deep breakdown (party / state / monthly).
+    // Each call paginates through ~6-7K bills, so we run them sequentially
+    // to stay polite to the database.
+    for (const congress of congressesToUpdate) {
+      for (const chamber of ["house", "senate"] as const) {
+        await ctx.runAction(
+          internal.mutations.recomputeCongressChamberBreakdown,
+          { congress, chamber },
+        );
+      }
     }
 
     console.log(`Recomputed stats for congresses: ${congressesToUpdate.join(", ")}`);

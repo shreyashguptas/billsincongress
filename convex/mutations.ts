@@ -5,7 +5,13 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { billsByChamber, billsByStage, BILL_STAGES } from "./aggregates";
+import {
+  billsByChamber,
+  billsByStage,
+  BILL_STAGES,
+  HOUSE_BILL_TYPES,
+  SENATE_BILL_TYPES,
+} from "./aggregates";
 
 /**
  * Upsert a bill record. If a bill with the same billId exists, update it.
@@ -545,6 +551,217 @@ export const recomputeCongressSponsors = internalAction({
       congress: args.congress,
       sponsors,
     });
+  },
+});
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Chamber deep breakdown precompute
+ *
+ * Mirrors the policy-areas / sponsors pattern: paginate the bills table to
+ * dodge the 16K-doc per-mutation read limit, aggregate party / state /
+ * monthly counts in an action, then write the result atomically.
+ *
+ * The homepage `getChamberDeepBreakdown` query reads the resulting row in
+ * O(1), replacing a 6-7K-doc scan that dominated cold-load latency.
+ * ───────────────────────────────────────────────────────────────────── */
+
+function normaliseParty(raw: string | undefined): "D" | "R" | "I" | "U" {
+  if (!raw) return "U";
+  const v = raw.trim().toUpperCase();
+  if (v === "D") return "D";
+  if (v === "R") return "R";
+  if (v === "I" || v === "ID" || v === "IND") return "I";
+  return "U";
+}
+
+/** Paginated fetch of bills for a single (congress, billType). */
+export const getChamberBillsPage = internalQuery({
+  args: {
+    congress: v.number(),
+    billType: v.string(),
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_type", (q) =>
+        q.eq("congress", args.congress).eq("billType", args.billType),
+      )
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+  },
+});
+
+/** Atomic write of a (congress, chamber) breakdown row. */
+export const writeCongressChamberBreakdown = internalMutation({
+  args: {
+    congress: v.number(),
+    chamber: v.union(v.literal("house"), v.literal("senate")),
+    total: v.number(),
+    partyCounts: v.object({
+      D: v.number(),
+      R: v.number(),
+      I: v.number(),
+      U: v.number(),
+    }),
+    partyLawCounts: v.object({
+      D: v.number(),
+      R: v.number(),
+      I: v.number(),
+      U: v.number(),
+    }),
+    stateCounts: v.array(
+      v.object({ state: v.string(), count: v.number() }),
+    ),
+    monthly: v.array(
+      v.object({
+        month: v.string(),
+        count: v.number(),
+        becameLaw: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("congressChamberBreakdowns")
+      .withIndex("by_congress_and_chamber", (q) =>
+        q.eq("congress", args.congress).eq("chamber", args.chamber),
+      )
+      .unique();
+
+    const data = {
+      congress: args.congress,
+      chamber: args.chamber,
+      total: args.total,
+      partyCounts: args.partyCounts,
+      partyLawCounts: args.partyLawCounts,
+      stateCounts: args.stateCounts,
+      monthly: args.monthly,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert("congressChamberBreakdowns", data);
+    }
+  },
+});
+
+type ChamberBillPageResult = {
+  page: Array<{
+    sponsorParty?: string;
+    sponsorState?: string;
+    progressStage?: number;
+    introducedDate: string;
+  }>;
+  isDone: boolean;
+  continueCursor: string;
+};
+
+/**
+ * Recompute the chamber breakdown for one (congress, chamber).
+ * Paginates through every bill type in the chamber so total bill count is
+ * never silently truncated. The aggregation runs in an action (no doc cap)
+ * and the write happens in one mutation.
+ */
+export const recomputeCongressChamberBreakdown = internalAction({
+  args: {
+    congress: v.number(),
+    chamber: v.union(v.literal("house"), v.literal("senate")),
+  },
+  handler: async (ctx, args) => {
+    const billTypes =
+      args.chamber === "house" ? HOUSE_BILL_TYPES : SENATE_BILL_TYPES;
+
+    const partyCounts: Record<"D" | "R" | "I" | "U", number> = {
+      D: 0,
+      R: 0,
+      I: 0,
+      U: 0,
+    };
+    const partyLawCounts: Record<"D" | "R" | "I" | "U", number> = {
+      D: 0,
+      R: 0,
+      I: 0,
+      U: 0,
+    };
+    const stateCounts = new Map<string, number>();
+    const monthCounts = new Map<string, { total: number; law: number }>();
+    let total = 0;
+
+    for (const billType of billTypes) {
+      let cursor: string | null = null;
+      for (;;) {
+        const page: ChamberBillPageResult = await ctx.runQuery(
+          internal.mutations.getChamberBillsPage,
+          {
+            congress: args.congress,
+            billType,
+            cursor,
+            numItems: 2000,
+          },
+        );
+        for (const bill of page.page) {
+          total += 1;
+          const party = normaliseParty(bill.sponsorParty);
+          const isLaw = bill.progressStage === 100;
+          partyCounts[party] += 1;
+          if (isLaw) partyLawCounts[party] += 1;
+
+          // Only aggregate valid ASCII state codes — keeps the homepage
+          // top-states list clean and avoids polluting the table with
+          // "Unknown".
+          if (
+            bill.sponsorState &&
+            /^[A-Z]{2,3}$/.test(bill.sponsorState)
+          ) {
+            stateCounts.set(
+              bill.sponsorState,
+              (stateCounts.get(bill.sponsorState) || 0) + 1,
+            );
+          }
+
+          // introducedDate is "YYYY-MM-DD"; bucket by month.
+          const month = (bill.introducedDate || "").slice(0, 7);
+          if (month) {
+            const entry = monthCounts.get(month) || {
+              total: 0,
+              law: 0,
+            };
+            entry.total += 1;
+            if (isLaw) entry.law += 1;
+            monthCounts.set(month, entry);
+          }
+        }
+        if (page.isDone) break;
+        cursor = page.continueCursor;
+      }
+    }
+
+    const stateCountsArr = [...stateCounts.entries()]
+      .map(([state, count]) => ({ state, count }))
+      .sort((a, b) => b.count - a.count);
+    const monthly = [...monthCounts.entries()]
+      .map(([month, v]) => ({
+        month,
+        count: v.total,
+        becameLaw: v.law,
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    await ctx.runMutation(
+      internal.mutations.writeCongressChamberBreakdown,
+      {
+        congress: args.congress,
+        chamber: args.chamber,
+        total,
+        partyCounts,
+        partyLawCounts,
+        stateCounts: stateCountsArr,
+        monthly,
+      },
+    );
   },
 });
 

@@ -14,12 +14,20 @@ export function Navigation() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
 
-  const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  // Compute the date after hydration. Cache Components disallows `new Date()`
+  // during prerender; this defers it to the client so the prerendered HTML
+  // doesn't lock in a stale date string.
+  const [today, setToday] = React.useState('');
+  React.useEffect(() => {
+    setToday(
+      new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    );
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
