@@ -1,6 +1,8 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { rateLimiter } from "./rateLimits";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "groq/compound-mini";
@@ -174,12 +176,51 @@ export const sendChatMessage = action({
     sessionId: v.string(),
     question: v.string(),
   },
-  handler: async (ctx, args): Promise<{ answer: string; error?: string }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    answer: string;
+    error?: string;
+    rateLimit?: {
+      kind: "anonymous" | "authed";
+      max: number;
+      retryAfterMs: number;
+      resetAt: number;
+    };
+  }> => {
     const { billId, sessionId, question } = args;
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return { answer: "", error: "Groq API key not configured." };
+    }
+
+    // Daily quota check (PR 2). Anonymous browsers get 5/day keyed by
+    // sessionId; logged-in users get 100/day keyed by userId. Reset at
+    // midnight US Eastern (EST baseline) per `start: 5h` in rateLimits.ts.
+    // We consume the token BEFORE calling Groq. If Groq fails after, the
+    // user "loses" that question — small leak, easy reasoning. Acceptable
+    // first-cut trade-off; revisit if Groq error rate gets noticeable.
+    const userId = await getAuthUserId(ctx);
+    const isAuthed = userId !== null;
+    const limitName = isAuthed ? "chatAuthedPerDay" : "chatAnonPerDay";
+    const limitKey = isAuthed ? userId! : sessionId;
+    const limitMax = isAuthed ? 100 : 5;
+    const limitStatus = await rateLimiter.limit(ctx, limitName, {
+      key: limitKey,
+    });
+    if (!limitStatus.ok) {
+      return {
+        answer: "",
+        error: "RATE_LIMITED",
+        rateLimit: {
+          kind: isAuthed ? "authed" : "anonymous",
+          max: limitMax,
+          retryAfterMs: limitStatus.retryAfter ?? 0,
+          resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
+        },
+      };
     }
 
     try {

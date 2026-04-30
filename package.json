@@ -13,6 +13,7 @@
     "@auth/core": "0.37.0",
     "@convex-dev/aggregate": "^0.2.1",
     "@convex-dev/auth": "0.0.91",
+    "@convex-dev/rate-limiter": "0.3.2",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-dropdown-menu": "2.1.16",
     "@radix-ui/react-label": "^2.1.1",

@@ -20,6 +20,7 @@ import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
+import type * as rateLimits from "../rateLimits.js";
 import type * as sync from "../sync.js";
 import type * as users from "../users.js";
 
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   llm: typeof llm;
   mutations: typeof mutations;
+  rateLimits: typeof rateLimits;
   sync: typeof sync;
   users: typeof users;
 }>;
@@ -75,4 +77,5 @@ export declare const internal: FilterApi<
 export declare const components: {
   billsByChamber: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"billsByChamber">;
   billsByStage: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"billsByStage">;
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
 };
