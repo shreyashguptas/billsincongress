@@ -5,6 +5,27 @@ import { ConvexError } from "convex/values";
 import { ResendOTP } from "./ResendOTP";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
+// ─── Session lifetime ──────────────────────────────────────────────────────
+// We want users to stay signed in for a long time across browser restarts —
+// "set it and forget it" UX, no surprise sign-outs. 60 days is the chosen
+// upper bound (longer than the industry default of 30, still reasonable for
+// a low-risk public bills tracker; banking-grade apps would pick 15 min, we
+// are explicitly the opposite).
+//
+// The library refreshes the JWT access token transparently every hour using
+// the long-lived refresh token, so the only thing the user sees is "still
+// signed in" until either:
+//   (a) 60 days pass with no requests at all (inactiveDurationMs), OR
+//   (b) 60 days pass since the original sign-in (totalDurationMs)
+// whichever fires first. Refresh-token rotation with a 10s reuse window is
+// already on by default — old tokens are invalidated on use.
+//
+// This MUST stay in sync with `cookieConfig.maxAge` in `proxy.ts`. The
+// cookie expiry ≥ refresh-token expiry, otherwise users get signed out
+// every time the cookie expires even though the server-side session is
+// still valid. We use the same constant in both places.
+const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 60; // 60 days
+
 // Allow-list for OAuth `redirectTo`. The library defaults to "starts with
 // SITE_URL only" which blocks local dev (we test from http://localhost:3000
 // while SITE_URL is the prod site). We tightly restrict the dev allow-list:
@@ -48,6 +69,14 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       },
     }),
   ],
+  session: {
+    // Total time a session can live before forced re-auth. Hard cap.
+    totalDurationMs: SESSION_DURATION_MS,
+    // Time without any request before the session expires. Practically the
+    // same as the total cap for our usage (active users won't go 60 days
+    // silent), but the library treats them as separate gates.
+    inactiveDurationMs: SESSION_DURATION_MS,
+  },
   callbacks: {
     async redirect({ redirectTo }) {
       // Relative paths are always safe — the library resolves them against SITE_URL.

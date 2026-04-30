@@ -11,6 +11,24 @@ import {
 // our custom handler, where we layer route protection + the existing CORS and
 // cache-control behavior previously in proxy.ts.
 
+// Cookie / session lifetime. MUST match `SESSION_DURATION_MS` in
+// `convex/auth.ts`. The cookie's maxAge needs to be ≥ the refresh-token's
+// `inactiveDurationMs`, otherwise the browser drops the cookie before the
+// server-side session expires and the user is signed out for no good reason.
+//
+// Cookie attributes set by `@convex-dev/auth/nextjs/server` (verified in lib
+// source `dist/nextjs/server/cookies.js`):
+//   - httpOnly: true   (XSS-safe — JS can't read tokens)
+//   - sameSite: lax    (CSRF-safe, still works across OAuth redirects)
+//   - secure:   true on prod, false on localhost
+//   - path:     /
+//   - prefix:   __Host- on prod (pins cookie to exact host, no subdomains)
+//
+// Three cookies are set: __Host-__convexAuthJWT (1h access token, rotates
+// transparently), __Host-__convexAuthRefreshToken (60d, used to mint new
+// access tokens), __Host-__convexAuthOAuthVerifier (short-lived, OAuth flow).
+const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 60; // 60 days
+
 const isAuthPage = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
 const isProtectedRoute = createRouteMatcher(["/account(.*)"]);
 
@@ -55,7 +73,7 @@ export default convexAuthNextjsMiddleware(
 
     return response;
   },
-  { cookieConfig: { maxAge: 60 * 60 * 24 * 30 } }, // 30-day sessions
+  { cookieConfig: { maxAge: SESSION_COOKIE_MAX_AGE_SECONDS } },
 );
 
 // The matcher includes /api/* so /api/auth/* requests reach the proxy and get
