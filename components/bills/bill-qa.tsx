@@ -1,10 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
+import { useQuery } from 'convex/react';
 import { billsService } from '@/lib/services/bills-service';
 import ReactMarkdown from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useConvexEnabled } from '@/app/ConvexClientProvider';
+import { api } from '@/convex/_generated/api';
+import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
+
+interface RateLimitInfo {
+  kind: 'anonymous' | 'authed';
+  max: number;
+  resetAt: number;
+}
 
 interface Message {
   id: string;
@@ -83,9 +94,22 @@ export default function BillQA({ billId }: BillQAProps) {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [error, setError] = useState('');
   const [sessionId, setSessionId] = useState('');
+  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Reactive read of "are you currently blocked?" state. Used to disable the
+  // input on initial render so a refresh after hitting the limit doesn't
+  // forget the state. Skipped (passes "skip") until we have a sessionId so
+  // we don't fire a query with an empty key.
+  const convexEnabled = useConvexEnabled();
+  const usage = useQuery(
+    api.rateLimits.getChatUsage,
+    convexEnabled && sessionId ? { sessionId } : 'skip',
+  );
+  const pathname = usePathname();
 
   useEffect(() => {
     const sid = getOrCreateSessionId();
@@ -119,7 +143,15 @@ export default function BillQA({ billId }: BillQAProps) {
 
       try {
         const result = await billsService.sendChatMessage(billId, sessionId, q);
-        if (result.error) {
+        if (result.error === 'RATE_LIMITED' && result.rateLimit) {
+          setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          setRateLimitInfo({
+            kind: result.rateLimit.kind,
+            max: result.rateLimit.max,
+            resetAt: result.rateLimit.resetAt,
+          });
+          setDialogOpen(true);
+        } else if (result.error) {
           setError(result.error);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
         } else {
@@ -141,6 +173,25 @@ export default function BillQA({ billId }: BillQAProps) {
 
   const isEmpty = messages.length === 0 && !isLoadingHistory;
   const questionCount = messages.filter((m) => m.role === 'user').length;
+
+  // Persistent blocked state — survives refresh while the user is at zero
+  // remaining. The query returns `blocked: true` when the rate limiter
+  // refuses any further consumption.
+  const blocked = usage?.blocked === true;
+  const inputDisabled = isLoading || isLoadingHistory || blocked;
+  const blockedHint = blocked
+    ? `Daily limit reached. Resets at ${new Date(usage!.resetAt!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`
+    : '';
+
+  function openLimitDialog() {
+    if (!usage || !usage.blocked || !usage.resetAt) return;
+    setRateLimitInfo({
+      kind: usage.kind,
+      max: usage.max,
+      resetAt: usage.resetAt,
+    });
+    setDialogOpen(true);
+  }
 
   return (
     <div className="rounded-sm border border-border bg-background flex flex-col overflow-hidden" style={{ height: '540px' }}>
@@ -230,10 +281,23 @@ export default function BillQA({ billId }: BillQAProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-border px-5 py-3 shrink-0">
+      <div className="border-t border-border px-5 py-3 shrink-0 space-y-2">
+        {blocked && (
+          <button
+            type="button"
+            onClick={openLimitDialog}
+            className="w-full text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {blockedHint} <span className="underline underline-offset-2">See options →</span>
+          </button>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (blocked) {
+              openLimitDialog();
+              return;
+            }
             handleSubmit(input);
           }}
           className="flex items-center gap-2"
@@ -243,14 +307,20 @@ export default function BillQA({ billId }: BillQAProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isEmpty ? 'Ask a question…' : 'Ask a follow-up…'}
-            className="flex-1 h-10 px-3 text-sm rounded-sm border border-border bg-background text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-foreground"
-            disabled={isLoading || isLoadingHistory}
+            placeholder={
+              blocked
+                ? 'Daily limit reached'
+                : isEmpty
+                  ? 'Ask a question…'
+                  : 'Ask a follow-up…'
+            }
+            className="flex-1 h-10 px-3 text-sm rounded-sm border border-border bg-background text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:border-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={inputDisabled}
             maxLength={500}
           />
           <button
             type="submit"
-            disabled={isLoading || isLoadingHistory || !input.trim()}
+            disabled={inputDisabled || !input.trim()}
             aria-label="Send"
             className="inline-flex h-10 w-10 items-center justify-center rounded-sm bg-foreground text-background hover:bg-foreground/85 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
@@ -262,6 +332,17 @@ export default function BillQA({ billId }: BillQAProps) {
           </button>
         </form>
       </div>
+
+      {rateLimitInfo && (
+        <RateLimitDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          kind={rateLimitInfo.kind}
+          max={rateLimitInfo.max}
+          resetAt={rateLimitInfo.resetAt}
+          redirectTo={pathname}
+        />
+      )}
     </div>
   );
 }

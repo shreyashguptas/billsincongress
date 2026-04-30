@@ -274,12 +274,16 @@ export const billsService = {
   /**
    * Send a message in the bill chat and return the AI response.
    * Persists both the user message and the assistant reply in Convex.
+   *
+   * On rate-limit hit, returns `error: "RATE_LIMITED"` with a `rateLimit`
+   * object describing the cap and reset time. Caller (bill-qa.tsx) is
+   * expected to render a dialog from those fields.
    */
   async sendChatMessage(
     billId: string,
     sessionId: string,
     question: string
-  ): Promise<{ answer: string; error?: string }> {
+  ): Promise<ChatResult> {
     const client = getConvexClient();
     if (!client) {
       return { answer: "", error: "Service not available" };
@@ -287,10 +291,31 @@ export const billsService = {
 
     try {
       const { api } = await import('../../convex/_generated/api');
-      return await client.action(api.llm.sendChatMessage, { billId, sessionId, question });
+      const result = await client.action(api.llm.sendChatMessage, {
+        billId,
+        sessionId,
+        question,
+      });
+      return result as ChatResult;
     } catch (error) {
       console.error('Error sending chat message:', error);
       return { answer: "", error: "Failed to get response" };
     }
   },
+};
+
+/**
+ * Return type for the bill chat. The `RATE_LIMITED` branch carries enough
+ * info for the UI to render a "you've hit your daily limit" dialog with
+ * the right copy + reset time, without a second round-trip.
+ */
+export type ChatResult = {
+  answer: string;
+  error?: string;
+  rateLimit?: {
+    kind: "anonymous" | "authed";
+    max: number;
+    retryAfterMs: number;
+    resetAt: number;
+  };
 };
