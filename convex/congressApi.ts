@@ -217,15 +217,24 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * Fetch a URL with retry on rate limit (429).
+ * Fetch a Congress.gov URL with retry on rate limit (429). Authenticates
+ * via the `X-Api-Key` header rather than a `?api_key=…` query string so the
+ * key never lands in URLs that might be captured by Convex platform logs,
+ * downstream tracing breadcrumbs, or upstream caches.
+ *
  * Returns the Response on success, or null if all retries exhausted.
  */
 async function fetchWithRetry(
   url: string,
   label: string
 ): Promise<Response | null> {
+  const apiKey = process.env.CONGRESS_API_KEY;
+  if (!apiKey) {
+    throw new Error("CONGRESS_API_KEY not configured");
+  }
+  const init = { headers: { "X-Api-Key": apiKey } };
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const response = await fetch(url);
+    const response = await fetch(url, init);
     if (response.status === 429) {
       if (attempt === MAX_RETRIES) {
         console.error(
@@ -261,7 +270,7 @@ export const syncBillBatch = internalAction({
     const apiKey = process.env.CONGRESS_API_KEY;
     if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
 
-    let listUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}?offset=${args.offset}&limit=${BATCH_SIZE}&api_key=${apiKey}&format=json`;
+    let listUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}?offset=${args.offset}&limit=${BATCH_SIZE}&format=json`;
     if (args.fromDateTime) {
       listUrl += `&fromDateTime=${encodeURIComponent(args.fromDateTime)}&sort=updateDate+desc`;
     }
@@ -330,7 +339,7 @@ export const syncBillBatch = internalAction({
 
         // 1. Fetch detailed bill info
         await delay(DELAY_BETWEEN_REQUESTS_MS);
-        const detailUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}?api_key=${apiKey}&format=json`;
+        const detailUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}?format=json`;
         const detailResponse = await fetchWithRetry(detailUrl, `detail ${billId}`);
 
         if (!detailResponse || !detailResponse.ok) {
@@ -353,7 +362,7 @@ export const syncBillBatch = internalAction({
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         let actions: any[] = [];
         try {
-          const actionsUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/actions?api_key=${apiKey}&format=json&limit=250`;
+          const actionsUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/actions?format=json&limit=250`;
           const actionsResponse = await fetchWithRetry(actionsUrl, `actions ${billId}`);
           if (actionsResponse && actionsResponse.ok) {
             const actionsData = await actionsResponse.json();
@@ -409,7 +418,7 @@ export const syncBillBatch = internalAction({
         // 3. Fetch and store subjects
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const subjectsUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/subjects?api_key=${apiKey}&format=json`;
+          const subjectsUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/subjects?format=json`;
           const subjectsResponse = await fetchWithRetry(subjectsUrl, `subjects ${billId}`);
           if (subjectsResponse && subjectsResponse.ok) {
             endpointBits |= SYNC_SUBJECTS;
@@ -430,7 +439,7 @@ export const syncBillBatch = internalAction({
         // 4. Fetch and store summaries
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const summariesUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/summaries?api_key=${apiKey}&format=json`;
+          const summariesUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/summaries?format=json`;
           const summariesResponse = await fetchWithRetry(summariesUrl, `summaries ${billId}`);
           if (summariesResponse && summariesResponse.ok) {
             endpointBits |= SYNC_SUMMARIES;
@@ -454,7 +463,7 @@ export const syncBillBatch = internalAction({
         // 5. Fetch and store text/PDF info
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const textUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/text?api_key=${apiKey}&format=json`;
+          const textUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/text?format=json`;
           const textResponse = await fetchWithRetry(textUrl, `text ${billId}`);
           if (textResponse && textResponse.ok) {
             endpointBits |= SYNC_TEXT;
@@ -797,7 +806,7 @@ export const repairIncompleteBills = internalAction({
         // Detail is missing — we need it to know bill number/type for other calls
         // but we already have billType and billNumber from the query
         await delay(DELAY_BETWEEN_REQUESTS_MS);
-        const detailUrl = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}?api_key=${apiKey}&format=json`;
+        const detailUrl = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}?format=json`;
         const resp = await fetchWithRetry(detailUrl, `repair detail ${bill.billId}`);
         if (resp && resp.ok) {
           const data = await resp.json();
@@ -832,7 +841,7 @@ export const repairIncompleteBills = internalAction({
       if ((currentMask & SYNC_ACTIONS) === 0) {
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/actions?api_key=${apiKey}&format=json&limit=250`;
+          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/actions?format=json&limit=250`;
           const resp = await fetchWithRetry(url, `repair actions ${bill.billId}`);
           if (resp && resp.ok) {
             newBits |= SYNC_ACTIONS;
@@ -863,7 +872,7 @@ export const repairIncompleteBills = internalAction({
       if ((currentMask & SYNC_SUBJECTS) === 0) {
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/subjects?api_key=${apiKey}&format=json`;
+          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/subjects?format=json`;
           const resp = await fetchWithRetry(url, `repair subjects ${bill.billId}`);
           if (resp && resp.ok) {
             newBits |= SYNC_SUBJECTS;
@@ -888,7 +897,7 @@ export const repairIncompleteBills = internalAction({
       if ((currentMask & SYNC_SUMMARIES) === 0) {
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/summaries?api_key=${apiKey}&format=json`;
+          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/summaries?format=json`;
           const resp = await fetchWithRetry(url, `repair summaries ${bill.billId}`);
           if (resp && resp.ok) {
             newBits |= SYNC_SUMMARIES;
@@ -916,7 +925,7 @@ export const repairIncompleteBills = internalAction({
       if ((currentMask & SYNC_TEXT) === 0) {
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/text?api_key=${apiKey}&format=json`;
+          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/text?format=json`;
           const resp = await fetchWithRetry(url, `repair text ${bill.billId}`);
           if (resp && resp.ok) {
             newBits |= SYNC_TEXT;
