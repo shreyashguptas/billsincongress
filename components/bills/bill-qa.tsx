@@ -35,7 +35,11 @@ const EXAMPLE_QUESTIONS = [
 ];
 
 function generateSessionId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  // CSPRNG so an attacker can't predict another visitor's session ID and
+  // fetch their persisted chat history. 16 bytes = 128 bits of entropy.
+  const buf = new Uint8Array(16);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function getOrCreateSessionId(): string {
