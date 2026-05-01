@@ -8,8 +8,7 @@ import {
 // Next.js 16 calls this file "proxy.ts" (formerly middleware.ts).
 // We use @convex-dev/auth's middleware wrapper since it's the only way it can
 // proxy /api/auth/* to Convex AND refresh session tokens. The wrapper accepts
-// our custom handler, where we layer route protection + the existing CORS and
-// cache-control behavior previously in proxy.ts.
+// our custom handler, where we layer route protection + cache-control headers.
 
 // Cookie / session lifetime. MUST match `SESSION_DURATION_MS` in
 // `convex/auth.ts`. The cookie's maxAge needs to be ≥ the refresh-token's
@@ -47,21 +46,14 @@ export default convexAuthNextjsMiddleware(
       return nextjsMiddlewareRedirect(request, `/sign-in?redirect=${next}`);
     }
 
-    // 3. Default: proceed and apply existing CORS / cache headers
+    // 3. Default: proceed and apply cache headers
     const response = NextResponse.next();
 
-    // CORS for /api/* — preserves prior behavior
-    if (pathname.startsWith("/api/")) {
-      response.headers.set("Access-Control-Allow-Origin", "*");
-      response.headers.set(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS",
-      );
-      response.headers.set(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization",
-      );
-    }
+    // The only `/api/*` route the app exposes is `/api/auth/*`, served by
+    // @convex-dev/auth and consumed same-origin from this Next.js app. No
+    // documented cross-origin caller, so we deliberately don't set any
+    // `Access-Control-Allow-*` headers here — adding `Origin: *` would only
+    // broaden the surface for any future authenticated `/api/foo` route.
 
     // Cache headers for /bills page routes — preserves prior behavior
     if (pathname.startsWith("/bills") && !pathname.includes("api")) {
