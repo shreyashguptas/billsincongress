@@ -1,4 +1,4 @@
-import { internalAction, action, internalMutation } from "./_generated/server";
+import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
@@ -1062,10 +1062,13 @@ export const recomputeAllStats = internalAction({
 });
 
 /**
- * Public action to trigger recompute of all congress stats.
- * Can be called from the frontend or via API.
+ * Trigger a recompute of all congress stats. Internal-only — call from the
+ * CLI (`npx convex run congressApi:triggerRecomputeStats`) or from server
+ * code via `ctx.runAction`. Not exposed to the client because the cascade
+ * paginates every bill in every congress and would let any visitor amplify
+ * Convex function-quota cost on demand.
  */
-export const triggerRecomputeStats = action({
+export const triggerRecomputeStats = internalAction({
   args: {},
   handler: async (ctx): Promise<{ congresses: number[] }> => {
     const result = await ctx.runAction(internal.congressApi.recomputeAllStats);
@@ -1108,10 +1111,14 @@ export const recomputeAllSponsors = internalAction({
 });
 
 /**
- * Public action so you can kick off the backfill from the CLI:
+ * Kick off the sponsor backfill from the CLI:
  *   npx convex run congressApi:triggerRecomputeAllSponsors
+ *
+ * Internal-only — `npx convex run` works for both `action` and
+ * `internalAction`, so the documented workflow is unchanged. Not exposed
+ * to clients because the cascade paginates every bill in every congress.
  */
-export const triggerRecomputeAllSponsors = action({
+export const triggerRecomputeAllSponsors = internalAction({
   args: {},
   handler: async (ctx): Promise<{ congresses: number[] }> => {
     return await ctx.runAction(internal.congressApi.recomputeAllSponsors);
@@ -1119,9 +1126,12 @@ export const triggerRecomputeAllSponsors = action({
 });
 
 /**
- * Public action to delete all bills for a specific congress
+ * Delete all bills for a specific congress. Internal-only — destructive
+ * and irreversible (the next incremental sync only re-pulls the last 26
+ * hours of activity, so historical congresses do NOT auto-recover). Run
+ * from the CLI: `npx convex run congressApi:deleteCongress '{"congress": 108}'`.
  */
-export const deleteCongress = action({
+export const deleteCongress = internalAction({
   args: { congress: v.number() },
   handler: async (ctx, args): Promise<{ deleted: number }> => {
     const result = await ctx.runMutation(internal.mutations.deleteCongressBills, { congress: args.congress });
