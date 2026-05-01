@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "./google-button";
+import { safeRedirect } from "./safe-redirect";
 
 type Step = "credentials" | "verify";
 
@@ -26,7 +27,7 @@ export function SignUpForm() {
   const convex = useConvex();
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get("redirect") ?? "/account";
+  const redirect = safeRedirect(params.get("redirect"));
 
   const [step, setStep] = React.useState<Step>("credentials");
   const [email, setEmail] = React.useState("");
