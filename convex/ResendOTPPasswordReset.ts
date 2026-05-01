@@ -1,5 +1,7 @@
 import Resend from "@auth/core/providers/resend";
 import { Resend as ResendAPI } from "resend";
+import type { ActionCtx } from "./_generated/server";
+import { rateLimiter } from "./rateLimits";
 
 // Distinct provider id from ResendOTP — the auth library uses the id
 // to differentiate verify-email vs reset-password code flows.
@@ -19,7 +21,15 @@ export const ResendOTPPasswordReset = Resend({
   async generateVerificationToken() {
     return generateOTP();
   },
-  async sendVerificationRequest({ identifier: email, provider, token }) {
+  // Shares the `otpRequestPerEmail` bucket with ResendOTP — sending a
+  // password-reset code and a signup-verify code to the same address are
+  // equivalently abusable surfaces and should share one budget.
+  // @ts-expect-error second arg is runtime-only on the upstream type
+  async sendVerificationRequest({ identifier: email, provider, token }, ctx: ActionCtx) {
+    await rateLimiter.limit(ctx, "otpRequestPerEmail", {
+      key: email,
+      throws: true,
+    });
     const resend = new ResendAPI(provider.apiKey);
     const from = process.env.AUTH_EMAIL_FROM ?? "Bills.Congress <onboarding@resend.dev>";
     const { error } = await resend.emails.send({

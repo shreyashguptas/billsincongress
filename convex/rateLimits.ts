@@ -29,6 +29,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: DAY,
     start: 5 * HOUR,
   },
+  // OTP issuance, keyed by email address. Caps the email-bombing surface
+  // (an attacker can't trigger dozens of OTP emails to a victim's inbox)
+  // and meaningfully slows OTP brute force (5 codes/hr × 1-in-1M space).
+  // Applied to BOTH the verify-email signup flow and the password-reset
+  // flow — same provider mechanic, same threat model. Send-side only;
+  // verify-side throttling is owned by the @convex-dev/auth library.
+  otpRequestPerEmail: {
+    kind: "fixed window",
+    rate: 5,
+    period: HOUR,
+  },
 });
 
 // ─── Public query: current chat quota status ───────────────────────────────

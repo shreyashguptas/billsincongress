@@ -1,5 +1,7 @@
 import Resend from "@auth/core/providers/resend";
 import { Resend as ResendAPI } from "resend";
+import type { ActionCtx } from "./_generated/server";
+import { rateLimiter } from "./rateLimits";
 
 // 6-digit numeric verification code, expires in 15 minutes.
 // Used on signup and on `resendVerificationEmail`.
@@ -20,7 +22,18 @@ export const ResendOTP = Resend({
   async generateVerificationToken() {
     return generateOTP();
   },
-  async sendVerificationRequest({ identifier: email, provider, token }) {
+  // @convex-dev/auth passes the action `ctx` as a second arg at runtime
+  // (suppressed in the upstream type signature; see signIn.js in the
+  // library). We use it to rate-limit OTP issuance per email.
+  // @ts-expect-error second arg is runtime-only on the upstream type
+  async sendVerificationRequest({ identifier: email, provider, token }, ctx: ActionCtx) {
+    // Throws ConvexError if the bucket is empty — caller (auth library)
+    // surfaces it to the client. Caps email-bombing of a victim's inbox
+    // and slows brute-forcing the 6-digit code space.
+    await rateLimiter.limit(ctx, "otpRequestPerEmail", {
+      key: email,
+      throws: true,
+    });
     const resend = new ResendAPI(provider.apiKey);
     const from = process.env.AUTH_EMAIL_FROM ?? "Bills.Congress <onboarding@resend.dev>";
     const { error } = await resend.emails.send({
