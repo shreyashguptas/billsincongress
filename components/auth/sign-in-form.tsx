@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "./google-button";
+import { safeRedirect } from "./safe-redirect";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get("redirect") ?? "/account";
+  const redirect = safeRedirect(params.get("redirect"));
   const prefillEmail = params.get("email") ?? "";
 
   const [email, setEmail] = React.useState(prefillEmail);

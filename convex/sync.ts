@@ -1,4 +1,4 @@
-import { internalQuery, query } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 // Bitmask constants for endpoint tracking
@@ -125,9 +125,12 @@ export const checkBillCompleteness = internalQuery({
 
 /**
  * Aggregate stats: total bills, complete, partial, legacy (undefined).
- * Public query for optional admin visibility.
+ * Internal-only — anyone-callable would let an unauthenticated visitor
+ * trigger a full bills-table scan (~40k docs) on demand. No client
+ * surface uses this; invoke from the CLI for ad-hoc audits:
+ *   npx convex run sync:getSyncCompleteness '{}'
  */
-export const getSyncCompleteness = query({
+export const getSyncCompleteness = internalQuery({
   args: {
     congress: v.optional(v.number()),
   },
