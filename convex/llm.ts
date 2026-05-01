@@ -290,8 +290,15 @@ export const sendChatMessage = action({
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Groq API error:", errorText);
+        // Redact any echoed Authorization header before logging — defends
+        // against future upstream changes that might surface the bearer
+        // in error responses. Truncate to keep log lines bounded.
+        const body = (await response.text())
+          .slice(0, 500)
+          .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
+        console.error(
+          `Groq API error ${response.status} ${response.statusText}: ${body}`,
+        );
         return { answer: "", error: "Failed to get response from AI." };
       }
 
