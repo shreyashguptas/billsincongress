@@ -13,7 +13,7 @@ const nextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   // Baseline security response headers. CSP is intentionally NOT set here —
   // a real CSP for a Convex + Next app needs to allowlist the Convex
