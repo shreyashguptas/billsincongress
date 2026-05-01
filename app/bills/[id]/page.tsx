@@ -21,6 +21,12 @@ async function getCachedBill(id: string): Promise<Bill | null> {
   'use cache';
   cacheLife({ revalidate: 3600 });
   cacheTag('bills', `bill-${id}`);
+  // `__placeholder__` is the sentinel returned by `generateStaticParams`
+  // when no real bills are available at build time (e.g. local builds
+  // without NEXT_PUBLIC_CONVEX_URL set). The route is expected to 404
+  // at request time, so short-circuit before hitting the service to
+  // avoid a noisy "failed to fetch" log on every build.
+  if (id === '__placeholder__') return null;
   try {
     return await billsService.fetchBillById(id);
   } catch (error) {
