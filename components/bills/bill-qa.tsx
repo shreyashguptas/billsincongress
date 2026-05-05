@@ -2,13 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
-import { useQuery } from 'convex/react';
-import { billsService } from '@/lib/services/bills-service';
+import { billsService, type ChatUsageResult } from '@/lib/services/bills-service';
 import ReactMarkdown from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useConvexEnabled } from '@/app/ConvexClientProvider';
-import { api } from '@/convex/_generated/api';
 import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
 
 interface RateLimitInfo {
@@ -100,20 +97,30 @@ export default function BillQA({ billId }: BillQAProps) {
   const [sessionId, setSessionId] = useState('');
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [usage, setUsage] = useState<ChatUsageResult | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reactive read of "are you currently blocked?" state. Used to disable the
-  // input on initial render so a refresh after hitting the limit doesn't
-  // forget the state. Skipped (passes "skip") until we have a sessionId so
-  // we don't fire a query with an empty key.
-  const convexEnabled = useConvexEnabled();
-  const usage = useQuery(
-    api.rateLimits.getChatUsage,
-    convexEnabled && sessionId ? { sessionId } : 'skip',
-  );
   const pathname = usePathname();
+
+  const refreshUsage = useCallback(async () => {
+    const next = await billsService.getChatUsage();
+    setUsage(next);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    billsService
+      .getChatUsage()
+      .then((next) => {
+        if (!cancelled) setUsage(next);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const sid = getOrCreateSessionId();
@@ -149,6 +156,12 @@ export default function BillQA({ billId }: BillQAProps) {
         const result = await billsService.sendChatMessage(billId, sessionId, q);
         if (result.error === 'RATE_LIMITED' && result.rateLimit) {
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
+          setUsage({
+            kind: result.rateLimit.kind,
+            max: result.rateLimit.max,
+            blocked: true,
+            resetAt: result.rateLimit.resetAt,
+          });
           setRateLimitInfo({
             kind: result.rateLimit.kind,
             max: result.rateLimit.max,
@@ -163,6 +176,7 @@ export default function BillQA({ billId }: BillQAProps) {
             ...prev,
             { id: `assistant_${Date.now()}`, role: 'assistant', content: result.answer },
           ]);
+          void refreshUsage();
         }
       } catch {
         setError('Failed to get a response. Please try again.');
@@ -172,27 +186,28 @@ export default function BillQA({ billId }: BillQAProps) {
         inputRef.current?.focus();
       }
     },
-    [billId, sessionId, isLoading]
+    [billId, sessionId, isLoading, refreshUsage]
   );
 
   const isEmpty = messages.length === 0 && !isLoadingHistory;
   const questionCount = messages.filter((m) => m.role === 'user').length;
 
   // Persistent blocked state — survives refresh while the user is at zero
-  // remaining. The query returns `blocked: true` when the rate limiter
-  // refuses any further consumption.
+  // remaining. The same-origin usage route checks the server-bound quota key.
   const blocked = usage?.blocked === true;
   const inputDisabled = isLoading || isLoadingHistory || blocked;
-  const blockedHint = blocked
+  const blockedHint = blocked && usage?.resetAt
     ? `Daily limit reached. Resets at ${new Date(usage!.resetAt!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`
+    : blocked
+      ? 'Daily limit reached.'
     : '';
 
   function openLimitDialog() {
-    if (!usage || !usage.blocked || !usage.resetAt) return;
+    if (!usage || !usage.blocked) return;
     setRateLimitInfo({
       kind: usage.kind,
       max: usage.max,
-      resetAt: usage.resetAt,
+      resetAt: usage.resetAt ?? Date.now(),
     });
     setDialogOpen(true);
   }

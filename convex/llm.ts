@@ -1,8 +1,9 @@
-import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { rateLimiter } from "./rateLimits";
+import { chatGatewayValidator, verifyChatGateway } from "./chatGateway";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "groq/compound-mini";
@@ -175,6 +176,7 @@ export const sendChatMessage = action({
     billId: v.string(),
     sessionId: v.string(),
     question: v.string(),
+    gateway: v.optional(chatGatewayValidator),
   },
   handler: async (
     ctx,
@@ -189,38 +191,100 @@ export const sendChatMessage = action({
       resetAt: number;
     };
   }> => {
-    const { billId, sessionId, question } = args;
+    const { billId, sessionId, question, gateway } = args;
+
+    if (question.trim().length === 0 || question.length > 2000) {
+      return {
+        answer: "",
+        error: "Question must be between 1 and 2000 characters.",
+      };
+    }
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return { answer: "", error: "Groq API key not configured." };
     }
 
-    // Daily quota check (PR 2). Anonymous browsers get 5/day keyed by
-    // sessionId; logged-in users get 100/day keyed by userId. Reset at
-    // midnight US Eastern (EST baseline) per `start: 5h` in rateLimits.ts.
-    // We consume the token BEFORE calling Groq. If Groq fails after, the
-    // user "loses" that question — small leak, easy reasoning. Acceptable
-    // first-cut trade-off; revisit if Groq error rate gets noticeable.
+    // Daily quota check. Anonymous requests must come through the same-origin
+    // Next.js chat route, which signs server-derived quota keys. The browser
+    // sessionId is only for chat-history scoping, not for quota decisions.
+    // We consume the token BEFORE calling Groq. If Groq fails after, the user
+    // "loses" that question; keep this simple unless Groq errors become noisy.
     const userId = await getAuthUserId(ctx);
     const isAuthed = userId !== null;
-    const limitName = isAuthed ? "chatAuthedPerDay" : "chatAnonPerDay";
-    const limitKey = isAuthed ? userId! : sessionId;
     const limitMax = isAuthed ? 100 : 5;
-    const limitStatus = await rateLimiter.limit(ctx, limitName, {
-      key: limitKey,
-    });
-    if (!limitStatus.ok) {
-      return {
-        answer: "",
-        error: "RATE_LIMITED",
-        rateLimit: {
-          kind: isAuthed ? "authed" : "anonymous",
-          max: limitMax,
-          retryAfterMs: limitStatus.retryAfter ?? 0,
-          resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
-        },
-      };
+
+    if (isAuthed) {
+      const limitStatus = await rateLimiter.limit(ctx, "chatAuthedPerDay", {
+        key: userId!,
+      });
+      if (!limitStatus.ok) {
+        return {
+          answer: "",
+          error: "RATE_LIMITED",
+          rateLimit: {
+            kind: "authed",
+            max: limitMax,
+            retryAfterMs: limitStatus.retryAfter ?? 0,
+            resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
+          },
+        };
+      }
+    } else {
+      if (!(await verifyChatGateway(gateway))) {
+        return {
+          answer: "",
+          error: "Chat requests must be sent through the app.",
+        };
+      }
+
+      const [sessionCheck, networkCheck] = await Promise.all([
+        rateLimiter.check(ctx, "chatAnonPerDay", {
+          key: gateway!.anonSessionKey,
+        }),
+        rateLimiter.check(ctx, "chatAnonNetworkPerDay", {
+          key: gateway!.anonNetworkKey,
+        }),
+      ]);
+      const blockedStatus = !sessionCheck.ok
+        ? sessionCheck
+        : !networkCheck.ok
+          ? networkCheck
+          : null;
+      if (blockedStatus) {
+        return {
+          answer: "",
+          error: "RATE_LIMITED",
+          rateLimit: {
+            kind: "anonymous",
+            max: limitMax,
+            retryAfterMs: blockedStatus.retryAfter ?? 0,
+            resetAt: Date.now() + (blockedStatus.retryAfter ?? 0),
+          },
+        };
+      }
+
+      const sessionLimit = await rateLimiter.limit(ctx, "chatAnonPerDay", {
+        key: gateway!.anonSessionKey,
+      });
+      const networkLimit = sessionLimit.ok
+        ? await rateLimiter.limit(ctx, "chatAnonNetworkPerDay", {
+            key: gateway!.anonNetworkKey,
+          })
+        : sessionLimit;
+      const limitStatus = sessionLimit.ok ? networkLimit : sessionLimit;
+      if (!limitStatus.ok) {
+        return {
+          answer: "",
+          error: "RATE_LIMITED",
+          rateLimit: {
+            kind: "anonymous",
+            max: limitMax,
+            retryAfterMs: limitStatus.retryAfter ?? 0,
+            resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
+          },
+        };
+      }
     }
 
     try {
@@ -319,4 +383,3 @@ export const sendChatMessage = action({
     }
   },
 });
-

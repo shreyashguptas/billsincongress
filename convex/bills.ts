@@ -1,6 +1,7 @@
 import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { billsByChamber, billsByStage } from "./aggregates";
 
 // Bill stage constants (mirroring lib/utils/bill-stages.ts)
 const BILL_STAGE_DESCRIPTIONS: Record<number, string> = {
@@ -117,6 +118,16 @@ type BillsFilterArgs = {
   policyArea?: string;
 };
 
+type BillsCountResult = {
+  count: number | null;
+  exact: boolean;
+};
+
+const unknownCount = (): BillsCountResult => ({ count: null, exact: false });
+
+const normaliseName = (s: string) =>
+  s.trim().toLowerCase().replace(/\s+/g, " ");
+
 /**
  * Resolve the congress to filter by, defaulting to the latest one.
  * Returns `null` when the bills table is empty.
@@ -174,8 +185,6 @@ async function buildBillPredicate(
 
   // Exact full-name match against a normalised set (lowercase, collapsed
   // whitespace). Matches the semantics of the multi-select sponsor combobox.
-  const normaliseName = (s: string) =>
-    s.trim().toLowerCase().replace(/\s+/g, " ");
   const wantedSponsors =
     args.sponsorFilter && args.sponsorFilter.length > 0
       ? new Set(args.sponsorFilter.map(normaliseName))
@@ -273,31 +282,138 @@ export const list = query({
 });
 
 /**
- * Exact count of bills matching the given filters.
+ * Exact count of bills matching filters when we can answer from precomputed
+ * tables or aggregate components.
  *
- * Split out from `list` so the page-1 render isn't blocked on the full
- * filter scan. The client fires this in parallel with `list` and fills in
- * the "of N" portion of the header once the count arrives.
+ * Complex filter combinations return `{ count: null, exact: false }` instead
+ * of scanning an entire congress and tripping Convex's read limit.
  */
 export const listCount = query({
   args: BILLS_FILTER_ARGS,
   handler: async (ctx, args) => {
     const congressFilter = await resolveCongress(ctx, args.congress);
-    if (congressFilter === null) return 0;
+    if (congressFilter === null) return { count: 0, exact: true };
 
-    const { matchesNone, match } = await buildBillPredicate(ctx, args);
-    if (matchesNone) return 0;
+    const activeFilters = [
+      args.progressStage !== undefined,
+      args.sponsorState !== undefined,
+      args.billType !== undefined,
+      args.titleFilter !== undefined && args.titleFilter.trim() !== "",
+      args.sponsorFilter !== undefined && args.sponsorFilter.length > 0,
+      args.billNumber !== undefined && args.billNumber.trim() !== "",
+      args.policyArea !== undefined,
+    ].filter(Boolean).length;
 
-    let count = 0;
-    const iter = ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", congressFilter));
+    if (activeFilters === 0) {
+      const stats = await ctx.db
+        .query("congressStats")
+        .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+        .first();
+      if (stats) return { count: stats.totalCount, exact: true };
 
-    for await (const bill of iter) {
-      if (match(bill)) count++;
+      const ns = { namespace: congressFilter };
+      const [houseCount, senateCount] = await billsByChamber.countBatch(ctx, [
+        {
+          ...ns,
+          bounds: {
+            lower: { key: "h", inclusive: true },
+            upper: { key: "i", inclusive: false },
+          },
+        },
+        {
+          ...ns,
+          bounds: {
+            lower: { key: "s", inclusive: true },
+            upper: { key: "t", inclusive: false },
+          },
+        },
+      ]);
+      if (houseCount + senateCount === 0) {
+        const bill = await ctx.db
+          .query("bills")
+          .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+          .first();
+        if (bill) return unknownCount();
+      }
+      return { count: houseCount + senateCount, exact: true };
     }
 
-    return count;
+    if (activeFilters === 1 && args.billType !== undefined) {
+      const [count] = await billsByChamber.countBatch(ctx, [
+        {
+          namespace: congressFilter,
+          bounds: { eq: args.billType },
+        },
+      ]);
+      return { count, exact: true };
+    }
+
+    if (activeFilters === 1 && args.progressStage !== undefined) {
+      const [count] = await billsByStage.countBatch(ctx, [
+        {
+          namespace: congressFilter,
+          bounds: { eq: args.progressStage },
+        },
+      ]);
+      return { count, exact: true };
+    }
+
+    if (activeFilters === 1 && args.policyArea !== undefined) {
+      const rows = await ctx.db
+        .query("congressPolicyAreas")
+        .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+        .take(1000);
+      if (rows.length === 0) return unknownCount();
+      const match = rows.find((r) => r.policyAreaName === args.policyArea);
+      return { count: match?.count ?? 0, exact: true };
+    }
+
+    if (
+      activeFilters === 1 &&
+      args.sponsorFilter &&
+      args.sponsorFilter.length > 0
+    ) {
+      const wanted = new Set(args.sponsorFilter.map(normaliseName));
+      const rows = await ctx.db
+        .query("congressSponsors")
+        .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+        .take(10000);
+      if (rows.length === 0) return unknownCount();
+      const count = rows.reduce((total, row) => {
+        return wanted.has(normaliseName(row.sponsorName))
+          ? total + row.billCount
+          : total;
+      }, 0);
+      return { count, exact: true };
+    }
+
+    if (activeFilters === 1 && args.sponsorState !== undefined) {
+      const [house, senate] = await Promise.all([
+        ctx.db
+          .query("congressChamberBreakdowns")
+          .withIndex("by_congress_and_chamber", (q) =>
+            q.eq("congress", congressFilter).eq("chamber", "house"),
+          )
+          .first(),
+        ctx.db
+          .query("congressChamberBreakdowns")
+          .withIndex("by_congress_and_chamber", (q) =>
+            q.eq("congress", congressFilter).eq("chamber", "senate"),
+          )
+          .first(),
+      ]);
+      if (!house && !senate) return unknownCount();
+      const countForState = (rows: Array<{ state: string; count: number }>) =>
+        rows.find((r) => r.state === args.sponsorState)?.count ?? 0;
+      return {
+        count:
+          countForState(house?.stateCounts ?? []) +
+          countForState(senate?.stateCounts ?? []),
+        exact: true,
+      };
+    }
+
+    return unknownCount();
   },
 });
 
@@ -422,10 +538,10 @@ export const latestCongressStatus = query({
  */
 export const getPolicyAreas = query({
   handler: async (ctx) => {
-    const subjects = await ctx.db.query("billSubjects").collect();
+    const rows = await ctx.db.query("congressPolicyAreas").take(1000);
     const areas = [
       ...new Set(
-        subjects.map((s) => s.policyAreaName).filter((a): a is string => !!a)
+        rows.map((s) => s.policyAreaName).filter((a): a is string => !!a)
       ),
     ];
     return areas.sort();

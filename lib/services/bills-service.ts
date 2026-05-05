@@ -40,6 +40,11 @@ export interface BillsResponse {
   hasMore: boolean;
 }
 
+export interface BillsCountResult {
+  count: number | null;
+  exact: boolean;
+}
+
 /**
  * Transform a Convex bill document to the frontend Bill interface.
  * Maps camelCase Convex fields to snake_case Bill fields.
@@ -148,13 +153,13 @@ export const billsService = {
   },
 
   /**
-   * Fetch the exact total count of bills matching the given filters.
-   * Runs independently from `fetchBills` so callers can render the page
-   * before the (slower) count finishes.
+   * Fetch an exact total count when Convex can answer from precomputed data.
+   * Complex filter combinations return `{ count: null, exact: false }` rather
+   * than scanning an entire congress.
    */
   async fetchBillsCount(
     params: Omit<BillQueryParams, 'page' | 'itemsPerPage'>,
-  ): Promise<number> {
+  ): Promise<BillsCountResult> {
     const {
       status = 'all',
       sponsorFilter = [],
@@ -167,7 +172,7 @@ export const billsService = {
     } = params;
 
     const client = getConvexClient();
-    if (!client) return 0;
+    if (!client) return { count: null, exact: false };
 
     try {
       const { api } = await import('../../convex/_generated/api');
@@ -183,7 +188,7 @@ export const billsService = {
       });
     } catch (error) {
       console.error('Error fetching bills count from Convex:', error);
-      return 0;
+      return { count: null, exact: false };
     }
   },
 
@@ -269,22 +274,43 @@ export const billsService = {
     sessionId: string,
     question: string
   ): Promise<ChatResult> {
-    const client = getConvexClient();
-    if (!client) {
-      return { answer: "", error: "Service not available" };
-    }
-
     try {
-      const { api } = await import('../../convex/_generated/api');
-      const result = await client.action(api.llm.sendChatMessage, {
-        billId,
-        sessionId,
-        question,
+      const response = await fetch('/api/bill-chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billId, sessionId, question }),
       });
-      return result as ChatResult;
+      const result = (await response.json()) as ChatResult;
+      if (!response.ok && !result.error) {
+        return { answer: "", error: "Failed to get response" };
+      }
+      return result;
     } catch (error) {
       console.error('Error sending chat message:', error);
       return { answer: "", error: "Failed to get response" };
+    }
+  },
+
+  async getChatUsage(): Promise<ChatUsageResult> {
+    try {
+      const response = await fetch('/api/bill-chat/usage');
+      if (!response.ok) {
+        return {
+          kind: 'anonymous',
+          max: 5,
+          blocked: false,
+          resetAt: null,
+        };
+      }
+      return (await response.json()) as ChatUsageResult;
+    } catch (error) {
+      console.error('Error fetching chat usage:', error);
+      return {
+        kind: 'anonymous',
+        max: 5,
+        blocked: false,
+        resetAt: null,
+      };
     }
   },
 };
@@ -303,4 +329,11 @@ export type ChatResult = {
     retryAfterMs: number;
     resetAt: number;
   };
+};
+
+export type ChatUsageResult = {
+  kind: "anonymous" | "authed";
+  max: number;
+  blocked: boolean;
+  resetAt: number | null;
 };

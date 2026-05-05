@@ -241,9 +241,8 @@ export default function BillsPage() {
     setIsLoading(true);
     setError(null);
     // Clear count while the new count query is in flight so the header
-    // doesn't briefly show a stale "of X" against fresh bills. Bills render
-    // as soon as the page query resolves; count fills in once its slower
-    // full-congress scan finishes.
+    // doesn't briefly show a stale "of X" against fresh bills. Counts now
+    // render only when Convex can answer from precomputed data.
     setTotalBills(null);
 
     const filterArgs = {
@@ -259,10 +258,8 @@ export default function BillsPage() {
       congress: congressFilter,
     };
 
-    // Fire page + count in parallel. The page query early-exits after ~9
-    // matches (fast); the count query still scans the full congress and is
-    // the slower of the two. We don't await both together — we update state
-    // as each resolves.
+    // Fire page + count in parallel. We don't await both together; bills render
+    // as soon as the page query resolves, and exact counts fill in when cheap.
     billsService
       .fetchBills({ page: 1, itemsPerPage: ITEMS_PER_PAGE, ...filterArgs })
       .then((response) => {
@@ -281,9 +278,9 @@ export default function BillsPage() {
 
     billsService
       .fetchBillsCount(filterArgs)
-      .then((count) => {
+      .then((result) => {
         if (cancelled) return;
-        setTotalBills(count);
+        setTotalBills(result.exact ? result.count : null);
       })
       .catch((e) => {
         // Count failures are non-fatal — bills still render without a total.
