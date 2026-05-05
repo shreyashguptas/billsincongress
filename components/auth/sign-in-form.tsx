@@ -27,7 +27,11 @@ export function SignInForm() {
     setBusy(true);
     setError(null);
     try {
-      await signIn("password", { email, password, flow: "signIn" });
+      await signIn("password", {
+        email: email.trim().toLowerCase(),
+        password,
+        flow: "signIn",
+      });
       router.push(redirect);
     } catch (err) {
       // console.warn (not error) so the Next.js dev overlay doesn't pop for

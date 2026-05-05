@@ -24,29 +24,6 @@ export const currentUser = query({
   },
 });
 
-/**
- * Returns true if the given email already has a password authAccount.
- * Used by the sign-up form to give a clean "already registered, try sign in"
- * message instead of the generic "Server Error" the auth library throws.
- *
- * Email enumeration trade-off: this lets anyone probe whether a given email
- * is registered. Standard for sign-up UX (most apps tell you the email is
- * taken). For sign-IN we keep error messages vague (no enumeration there).
- */
-export const isEmailRegistered = query({
-  args: { email: v.string() },
-  returns: v.boolean(),
-  handler: async (ctx, { email }) => {
-    const account = await ctx.db
-      .query("authAccounts")
-      .withIndex("providerAndAccountId", (q) =>
-        q.eq("provider", "password").eq("providerAccountId", email),
-      )
-      .first();
-    return account !== null;
-  },
-});
-
 // ─── Server-side helpers (not registered as functions) ─────────────────────
 
 type AnyDbCtx = QueryCtx | MutationCtx;

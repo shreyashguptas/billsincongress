@@ -4,9 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvex } from "convex/react";
 
-import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,12 +17,10 @@ const PASSWORD_RULES = "At least 10 characters, with upper-, lower-case, and a n
 
 type ErrorState =
   | null
-  | { kind: "message"; text: string }
-  | { kind: "alreadyExists"; email: string };
+  | { kind: "message"; text: string };
 
 export function SignUpForm() {
   const { signIn } = useAuthActions();
-  const convex = useConvex();
   const router = useRouter();
   const params = useSearchParams();
   const redirect = safeRedirect(params.get("redirect"));
@@ -53,41 +49,26 @@ export function SignUpForm() {
     }
     setBusy(true);
     setError(null);
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      // Pre-check: if a password account already exists for this email, the
-      // library will throw a generic "Server Error". Detect first so we can
-      // give a clean "already registered" UX instead.
-      const exists = await convex.query(api.users.isEmailRegistered, { email });
-      if (exists) {
-        setError({ kind: "alreadyExists", email });
-        setBusy(false);
-        return;
-      }
-
-      await signIn("password", { email, password, flow: "signUp" });
+      await signIn("password", {
+        email: normalizedEmail,
+        password,
+        flow: "signUp",
+      });
+      setEmail(normalizedEmail);
       setStep("verify");
     } catch (err) {
       console.warn("Sign-up failed", err);
       const msg = err instanceof Error ? err.message.toLowerCase() : "";
-      // Belt-and-suspenders: still match the wrapped "Server Error" in case the
-      // pre-check raced with another signup. We assume "already exists" because
-      // that's the dominant signUp failure mode.
-      if (
-        msg.includes("already exists") ||
-        msg.includes("server error") ||
-        msg.includes("[request id")
-      ) {
-        setError({ kind: "alreadyExists", email });
-      } else if (msg.includes("password")) {
+      if (msg.includes("password")) {
         setError({
           kind: "message",
           text: "Password didn't meet requirements. " + PASSWORD_RULES,
         });
       } else {
-        setError({
-          kind: "message",
-          text: "Sign-up failed. Check your email and password and try again.",
-        });
+        setEmail(normalizedEmail);
+        setStep("verify");
       }
     } finally {
       setBusy(false);
@@ -100,7 +81,7 @@ export function SignUpForm() {
     setError(null);
     try {
       await signIn("password", {
-        email,
+        email: email.trim().toLowerCase(),
         code,
         flow: "email-verification",
       });
@@ -120,13 +101,13 @@ export function SignUpForm() {
     setError(null);
     try {
       // Re-running signUp re-sends the code through the verify provider.
-      await signIn("password", { email, password, flow: "signUp" });
+      await signIn("password", {
+        email: email.trim().toLowerCase(),
+        password,
+        flow: "signUp",
+      });
     } catch (err) {
       console.warn("Resend failed", err);
-      setError({
-        kind: "message",
-        text: "Could not resend the code. Try again in a minute.",
-      });
     } finally {
       setBusy(false);
     }
@@ -137,7 +118,7 @@ export function SignUpForm() {
       <div className="space-y-6">
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>.
+            If this email can be used, we sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>.
             It expires in 15 minutes.
           </p>
         </div>
@@ -243,43 +224,6 @@ export function SignUpForm() {
         </div>
         {error?.kind === "message" && (
           <p className="text-sm text-destructive" role="alert">{error.text}</p>
-        )}
-        {error?.kind === "alreadyExists" && (
-          <div
-            className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm space-y-2"
-            role="alert"
-          >
-            <p className="text-foreground">
-              An account with <span className="font-medium">{error.email}</span>{" "}
-              already exists.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href={`/sign-in?email=${encodeURIComponent(error.email)}&redirect=${encodeURIComponent(redirect)}`}
-                className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
-              >
-                Sign in instead
-              </Link>
-              <span className="text-muted-foreground">·</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setStep("verify");
-                }}
-                className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
-              >
-                I have a verification code
-              </button>
-              <span className="text-muted-foreground">·</span>
-              <Link
-                href={`/forgot-password?email=${encodeURIComponent(error.email)}`}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                Forgot password?
-              </Link>
-            </div>
-          </div>
         )}
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? "Creating account…" : "Create account"}

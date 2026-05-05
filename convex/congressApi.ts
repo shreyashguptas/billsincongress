@@ -576,7 +576,7 @@ export const syncBillBatch = internalAction({
       });
 
       // Refresh precomputed homepage stats for this congress
-      await ctx.runMutation(internal.mutations.recomputeCongressStats, {
+      await ctx.runAction(internal.mutations.recomputeCongressStats, {
         congress: args.congress,
       });
       await ctx.runAction(internal.mutations.recomputeCongressPolicyAreas, {
@@ -1050,7 +1050,7 @@ export const recomputeAllStats = internalAction({
 
     // Recompute stats for each congress
     for (const congress of congressesToUpdate) {
-      await ctx.runMutation(internal.mutations.recomputeCongressStats, { congress });
+      await ctx.runAction(internal.mutations.recomputeCongressStats, { congress });
     }
 
     // Recompute the per-chamber deep breakdown (party / state / monthly).
@@ -1143,7 +1143,15 @@ export const triggerRecomputeAllSponsors = internalAction({
 export const deleteCongress = internalAction({
   args: { congress: v.number() },
   handler: async (ctx, args): Promise<{ deleted: number }> => {
-    const result = await ctx.runMutation(internal.mutations.deleteCongressBills, { congress: args.congress });
-    return result;
+    let deleted = 0;
+    for (;;) {
+      const result = await ctx.runMutation(
+        internal.mutations.deleteCongressBills,
+        { congress: args.congress },
+      );
+      deleted += result.deleted;
+      if (!result.hasMore) break;
+    }
+    return { deleted };
   },
 });

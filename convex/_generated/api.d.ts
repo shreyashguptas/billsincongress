@@ -14,7 +14,6 @@ import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
 import type * as auth from "../auth.js";
 import type * as bills from "../bills.js";
-import type * as chatGateway from "../chatGateway.js";
 import type * as congressApi from "../congressApi.js";
 import type * as crons from "../crons.js";
 import type * as functions from "../functions.js";
@@ -38,7 +37,6 @@ declare const fullApi: ApiFromModules<{
   aggregates: typeof aggregates;
   auth: typeof auth;
   bills: typeof bills;
-  chatGateway: typeof chatGateway;
   congressApi: typeof congressApi;
   crons: typeof crons;
   functions: typeof functions;

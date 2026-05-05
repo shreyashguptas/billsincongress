@@ -273,7 +273,7 @@ function DashboardInner({
           <PartyChamberChart
             house={houseBreakdown}
             senate={senateBreakdown}
-            onStateClick={(state) => handleDrillDown('sponsorState', state)}
+            onStateClick={(state) => handleDrillDown('state', state)}
           />
         </div>
       </section>

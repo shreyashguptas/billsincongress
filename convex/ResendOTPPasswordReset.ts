@@ -14,6 +14,10 @@ function generateOTP(): string {
   return out;
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export const ResendOTPPasswordReset = Resend({
   id: "resend-otp-password-reset",
   apiKey: process.env.AUTH_RESEND_KEY,
@@ -26,15 +30,16 @@ export const ResendOTPPasswordReset = Resend({
   // equivalently abusable surfaces and should share one budget.
   // @ts-expect-error second arg is runtime-only on the upstream type
   async sendVerificationRequest({ identifier: email, provider, token }, ctx: ActionCtx) {
+    const normalizedEmail = normalizeEmail(email);
     await rateLimiter.limit(ctx, "otpRequestPerEmail", {
-      key: email,
+      key: normalizedEmail,
       throws: true,
     });
     const resend = new ResendAPI(provider.apiKey);
     const from = process.env.AUTH_EMAIL_FROM ?? "Bills.Congress <onboarding@resend.dev>";
     const { error } = await resend.emails.send({
       from,
-      to: [email],
+      to: [normalizedEmail],
       subject: "Reset your password — Bills.Congress",
       text: [
         `Your password-reset code is ${token}.`,

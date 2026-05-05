@@ -11,8 +11,45 @@
  * helper covers the password and email-verification flows, which finish
  * client-side via `router.push()`.
  */
-export function safeRedirect(target: string | null | undefined, fallback = "/account"): string {
+const SAFE_REDIRECT_BASE = "https://billsincongress.com";
+
+function decodeRedirect(value: string): string | null {
+  let current = value;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const next = decodeURIComponent(current);
+      if (next === current) break;
+      current = next;
+    } catch {
+      return null;
+    }
+  }
+  return current;
+}
+
+export function safeRedirect(
+  target: string | null | undefined,
+  fallback = "/account",
+): string {
   if (!target) return fallback;
-  if (!target.startsWith("/") || target.startsWith("//")) return fallback;
-  return target;
+
+  const value = target.trim();
+  if (value !== target) return fallback;
+  if (!value.startsWith("/") || value.startsWith("//")) return fallback;
+  if (/[\\\u0000-\u001f\u007f]/.test(value)) return fallback;
+
+  const decoded = decodeRedirect(value);
+  if (!decoded) return fallback;
+  if (decoded.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(decoded)) {
+    return fallback;
+  }
+
+  try {
+    const resolved = new URL(value, SAFE_REDIRECT_BASE);
+    if (resolved.origin !== SAFE_REDIRECT_BASE) return fallback;
+  } catch {
+    return fallback;
+  }
+
+  return value;
 }

@@ -105,6 +105,8 @@ const BILLS_FILTER_ARGS = {
   sponsorFilter: v.optional(v.array(v.string())),
   billNumber: v.optional(v.string()),
   policyArea: v.optional(v.string()),
+  introducedDateFilter: v.optional(v.string()),
+  lastActionDateFilter: v.optional(v.string()),
 };
 
 type BillsFilterArgs = {
@@ -116,6 +118,8 @@ type BillsFilterArgs = {
   sponsorFilter?: string[];
   billNumber?: string;
   policyArea?: string;
+  introducedDateFilter?: string;
+  lastActionDateFilter?: string;
 };
 
 type BillsCountResult = {
@@ -127,6 +131,61 @@ const unknownCount = (): BillsCountResult => ({ count: null, exact: false });
 
 const normaliseName = (s: string) =>
   s.trim().toLowerCase().replace(/\s+/g, " ");
+
+const MAX_LIST_LIMIT = 50;
+const MAX_LIST_OFFSET = 500;
+const MAX_LIST_SCAN = 1200;
+const MAX_POLICY_SUBJECTS_FOR_LIST = 2000;
+const MAX_SPONSOR_FILTERS = 10;
+const MAX_TEXT_FILTER_LENGTH = 120;
+
+function clampPageNumber(
+  value: number | undefined,
+  fallback: number,
+  max: number,
+): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.min(Math.floor(value), max));
+}
+
+function validatePublicFilters(args: BillsFilterArgs) {
+  const boundedStrings: Array<[string, string | undefined]> = [
+    ["titleFilter", args.titleFilter],
+    ["billNumber", args.billNumber],
+    ["policyArea", args.policyArea],
+    ["sponsorState", args.sponsorState],
+    ["billType", args.billType],
+    ["introducedDateFilter", args.introducedDateFilter],
+    ["lastActionDateFilter", args.lastActionDateFilter],
+  ];
+  for (const [name, value] of boundedStrings) {
+    if (value !== undefined && value.length > MAX_TEXT_FILTER_LENGTH) {
+      throw new Error(`${name} is too long.`);
+    }
+  }
+  if (
+    args.sponsorFilter &&
+    (args.sponsorFilter.length > MAX_SPONSOR_FILTERS ||
+      args.sponsorFilter.some((s) => s.length > MAX_TEXT_FILTER_LENGTH))
+  ) {
+    throw new Error("Too many sponsor filters.");
+  }
+}
+
+function cutoffDateForFilter(filter: string | undefined): string | null {
+  if (!filter || filter === "all") return null;
+  const daysByFilter: Record<string, number> = {
+    week: 7,
+    month: 30,
+    "3months": 90,
+    "6months": 180,
+    year: 365,
+  };
+  const days = daysByFilter[filter];
+  if (!days) return null;
+  const date = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return date.toISOString().slice(0, 10);
+}
 
 /**
  * Resolve the congress to filter by, defaulting to the latest one.
@@ -169,7 +228,7 @@ async function buildBillPredicate(
       .withIndex("by_policy_area", (q) =>
         q.eq("policyAreaName", policyArea),
       )
-      .collect();
+      .take(MAX_POLICY_SUBJECTS_FOR_LIST);
     policyBillIds = new Set(subjectDocs.map((s) => s.billId));
     if (policyBillIds.size === 0) {
       return { matchesNone: true, match: () => false };
@@ -195,6 +254,15 @@ async function buildBillPredicate(
     if (args.sponsorState && bill.sponsorState !== args.sponsorState) return false;
     if (args.billType && bill.billType !== args.billType) return false;
     if (args.billNumber && bill.billNumber !== args.billNumber) return false;
+    const introducedCutoff = cutoffDateForFilter(args.introducedDateFilter);
+    if (introducedCutoff && bill.introducedDate < introducedCutoff) return false;
+    const lastActionCutoff = cutoffDateForFilter(args.lastActionDateFilter);
+    if (
+      lastActionCutoff &&
+      (bill.latestActionDate ?? "") < lastActionCutoff
+    ) {
+      return false;
+    }
     if (titleWords) {
       const title = bill.title.toLowerCase();
       for (const w of titleWords) {
@@ -235,8 +303,12 @@ export const list = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const limit = args.limit ?? 9;
-    const offset = args.offset ?? 0;
+    validatePublicFilters(args);
+    const limit = Math.max(
+      1,
+      clampPageNumber(args.limit, 9, MAX_LIST_LIMIT),
+    );
+    const offset = clampPageNumber(args.offset, 0, MAX_LIST_OFFSET);
 
     const congressFilter = await resolveCongress(ctx, args.congress);
     if (congressFilter === null) return { data: [], hasMore: false };
@@ -246,6 +318,7 @@ export const list = query({
 
     const needed = offset + limit + 1;
     const matches: Doc<"bills">[] = [];
+    let scanned = 0;
 
     const iter = ctx.db
       .query("bills")
@@ -253,9 +326,14 @@ export const list = query({
       .order("desc");
 
     for await (const bill of iter) {
-      if (!match(bill)) continue;
+      scanned++;
+      if (!match(bill)) {
+        if (scanned >= MAX_LIST_SCAN) break;
+        continue;
+      }
       matches.push(bill);
       if (matches.length >= needed) break;
+      if (scanned >= MAX_LIST_SCAN) break;
     }
 
     const hasMore = matches.length > offset + limit;
@@ -291,6 +369,7 @@ export const list = query({
 export const listCount = query({
   args: BILLS_FILTER_ARGS,
   handler: async (ctx, args) => {
+    validatePublicFilters(args);
     const congressFilter = await resolveCongress(ctx, args.congress);
     if (congressFilter === null) return { count: 0, exact: true };
 
@@ -302,6 +381,8 @@ export const listCount = query({
       args.sponsorFilter !== undefined && args.sponsorFilter.length > 0,
       args.billNumber !== undefined && args.billNumber.trim() !== "",
       args.policyArea !== undefined,
+      args.introducedDateFilter !== undefined && args.introducedDateFilter !== "all",
+      args.lastActionDateFilter !== undefined && args.lastActionDateFilter !== "all",
     ].filter(Boolean).length;
 
     if (activeFilters === 0) {

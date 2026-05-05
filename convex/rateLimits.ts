@@ -1,9 +1,7 @@
-import { v } from "convex/values";
 import { RateLimiter, HOUR, DAY } from "@convex-dev/rate-limiter";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { components } from "./_generated/api";
 import { query } from "./_generated/server";
-import { chatGatewayValidator, verifyChatGateway } from "./chatGateway";
 
 // ─── Limit definitions ─────────────────────────────────────────────────────
 // `start: 5 * HOUR` aligns the 24h fixed window to Unix-epoch + 5h, which is
@@ -14,22 +12,6 @@ import { chatGatewayValidator, verifyChatGateway } from "./chatGateway";
 // `kind: "fixed window"` grants all tokens at once at the start of each
 // window; no token-bucket carry-over.
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
-  // Anonymous browser session cap. The key is a server-signed httpOnly cookie
-  // hash from the Next.js chat route, not a client-controlled localStorage ID.
-  chatAnonPerDay: {
-    kind: "fixed window",
-    rate: 5,
-    period: DAY,
-    start: 5 * HOUR,
-  },
-  // Anonymous network-level cap. This makes deleting cookies/localStorage a
-  // bounded abuse path instead of minting unlimited Groq calls.
-  chatAnonNetworkPerDay: {
-    kind: "fixed window",
-    rate: 25,
-    period: DAY,
-    start: 5 * HOUR,
-  },
   // Logged-in users — keyed by userId. Email-verification status is
   // intentionally NOT a factor; that gate is reserved for the Pro upgrade
   // (PR 3+).
@@ -61,57 +43,32 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
 // only shows anything when the user is already blocked, so we just need
 // (a) "are you blocked?" and (b) "when does it reset?".
 export const getChatUsage = query({
-  args: { gateway: v.optional(chatGatewayValidator) },
-  handler: async (ctx, { gateway }) => {
+  args: {},
+  handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     const isAuthed = userId !== null;
-    const max = isAuthed ? 100 : 5;
+    const max = isAuthed ? 100 : 0;
 
-    if (isAuthed) {
-      const status = await rateLimiter.check(ctx, "chatAuthedPerDay", {
-        key: userId!,
-      });
-      const blocked = !status.ok;
-      return {
-        kind: "authed" as const,
-        max,
-        blocked,
-        resetAt: blocked ? Date.now() + (status.retryAfter ?? 0) : null,
-      };
-    }
-
-    if (!(await verifyChatGateway(gateway))) {
+    if (!isAuthed) {
       return {
         kind: "anonymous" as const,
         max,
         blocked: true,
         resetAt: null,
+        requiresAuth: true,
       };
     }
 
-    const [sessionStatus, networkStatus] = await Promise.all([
-      rateLimiter.check(ctx, "chatAnonPerDay", {
-        key: gateway!.anonSessionKey,
-      }),
-      rateLimiter.check(ctx, "chatAnonNetworkPerDay", {
-        key: gateway!.anonNetworkKey,
-      }),
-    ]);
-    const blockedStatus = !sessionStatus.ok
-      ? sessionStatus
-      : !networkStatus.ok
-        ? networkStatus
-        : null;
-    const blocked = blockedStatus !== null;
-    const resetAt = blocked
-      ? Date.now() + (blockedStatus.retryAfter ?? 0)
-      : null;
+    const status = await rateLimiter.check(ctx, "chatAuthedPerDay", {
+      key: userId,
+    });
+    const blocked = !status.ok;
 
     return {
-      kind: "anonymous" as const,
+      kind: "authed" as const,
       max,
       blocked,
-      resetAt,
+      resetAt: blocked ? Date.now() + (status.retryAfter ?? 0) : null,
     };
   },
 });

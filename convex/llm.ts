@@ -3,7 +3,6 @@ import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { rateLimiter } from "./rateLimits";
-import { chatGatewayValidator, verifyChatGateway } from "./chatGateway";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "groq/compound-mini";
@@ -90,20 +89,24 @@ ${bill.actions.slice(0, 10).map((a, i) => `${i + 1}. [${a.date}] ${a.description
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
-/** Get or create a chat session for a (billId, sessionId) pair. */
+/** Get or create a chat session for a signed-in user and bill. */
 export const getOrCreateBillChat = internalMutation({
-  args: { billId: v.string(), sessionId: v.string() },
+  args: {
+    billId: v.string(),
+    userId: v.id("users"),
+  },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("billChats")
-      .withIndex("by_billId_and_session", (q) =>
-        q.eq("billId", args.billId).eq("sessionId", args.sessionId)
+      .withIndex("by_billId_and_userId", (q) =>
+        q.eq("billId", args.billId).eq("userId", args.userId)
       )
       .first();
     if (existing) return existing._id;
     return await ctx.db.insert("billChats", {
       billId: args.billId,
-      sessionId: args.sessionId,
+      sessionId: `user:${args.userId}`,
+      userId: args.userId,
       createdAt: new Date().toISOString(),
     });
   },
@@ -141,16 +144,19 @@ export const getMessagesForChat = internalQuery({
 // ─── Public queries ───────────────────────────────────────────────────────────
 
 /**
- * Fetch persisted chat history for a given bill + browser session.
+ * Fetch persisted chat history for the signed-in user and bill.
  * Returns an empty array when no chat exists yet.
  */
 export const getBillChatHistory = query({
-  args: { billId: v.string(), sessionId: v.string() },
+  args: { billId: v.string() },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
     const chat = await ctx.db
       .query("billChats")
-      .withIndex("by_billId_and_session", (q) =>
-        q.eq("billId", args.billId).eq("sessionId", args.sessionId)
+      .withIndex("by_billId_and_userId", (q) =>
+        q.eq("billId", args.billId).eq("userId", userId)
       )
       .first();
     if (!chat) return [];
@@ -174,9 +180,7 @@ export const getBillChatHistory = query({
 export const sendChatMessage = action({
   args: {
     billId: v.string(),
-    sessionId: v.string(),
     question: v.string(),
-    gateway: v.optional(chatGatewayValidator),
   },
   handler: async (
     ctx,
@@ -191,7 +195,7 @@ export const sendChatMessage = action({
       resetAt: number;
     };
   }> => {
-    const { billId, sessionId, question, gateway } = args;
+    const { billId, question } = args;
 
     if (question.trim().length === 0 || question.length > 2000) {
       return {
@@ -205,86 +209,31 @@ export const sendChatMessage = action({
       return { answer: "", error: "Groq API key not configured." };
     }
 
-    // Daily quota check. Anonymous requests must come through the same-origin
-    // Next.js chat route, which signs server-derived quota keys. The browser
-    // sessionId is only for chat-history scoping, not for quota decisions.
-    // We consume the token BEFORE calling Groq. If Groq fails after, the user
-    // "loses" that question; keep this simple unless Groq errors become noisy.
     const userId = await getAuthUserId(ctx);
-    const isAuthed = userId !== null;
-    const limitMax = isAuthed ? 100 : 5;
+    if (!userId) {
+      return {
+        answer: "",
+        error: "Sign in to use bill chat.",
+      };
+    }
 
-    if (isAuthed) {
-      const limitStatus = await rateLimiter.limit(ctx, "chatAuthedPerDay", {
-        key: userId!,
-      });
-      if (!limitStatus.ok) {
-        return {
-          answer: "",
-          error: "RATE_LIMITED",
-          rateLimit: {
-            kind: "authed",
-            max: limitMax,
-            retryAfterMs: limitStatus.retryAfter ?? 0,
-            resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
-          },
-        };
-      }
-    } else {
-      if (!(await verifyChatGateway(gateway))) {
-        return {
-          answer: "",
-          error: "Chat requests must be sent through the app.",
-        };
-      }
-
-      const [sessionCheck, networkCheck] = await Promise.all([
-        rateLimiter.check(ctx, "chatAnonPerDay", {
-          key: gateway!.anonSessionKey,
-        }),
-        rateLimiter.check(ctx, "chatAnonNetworkPerDay", {
-          key: gateway!.anonNetworkKey,
-        }),
-      ]);
-      const blockedStatus = !sessionCheck.ok
-        ? sessionCheck
-        : !networkCheck.ok
-          ? networkCheck
-          : null;
-      if (blockedStatus) {
-        return {
-          answer: "",
-          error: "RATE_LIMITED",
-          rateLimit: {
-            kind: "anonymous",
-            max: limitMax,
-            retryAfterMs: blockedStatus.retryAfter ?? 0,
-            resetAt: Date.now() + (blockedStatus.retryAfter ?? 0),
-          },
-        };
-      }
-
-      const sessionLimit = await rateLimiter.limit(ctx, "chatAnonPerDay", {
-        key: gateway!.anonSessionKey,
-      });
-      const networkLimit = sessionLimit.ok
-        ? await rateLimiter.limit(ctx, "chatAnonNetworkPerDay", {
-            key: gateway!.anonNetworkKey,
-          })
-        : sessionLimit;
-      const limitStatus = sessionLimit.ok ? networkLimit : sessionLimit;
-      if (!limitStatus.ok) {
-        return {
-          answer: "",
-          error: "RATE_LIMITED",
-          rateLimit: {
-            kind: "anonymous",
-            max: limitMax,
-            retryAfterMs: limitStatus.retryAfter ?? 0,
-            resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
-          },
-        };
-      }
+    // Consume the token before calling Groq. If Groq fails after, the user
+    // loses that question; keep this simple unless upstream errors get noisy.
+    const limitMax = 100;
+    const limitStatus = await rateLimiter.limit(ctx, "chatAuthedPerDay", {
+      key: userId,
+    });
+    if (!limitStatus.ok) {
+      return {
+        answer: "",
+        error: "RATE_LIMITED",
+        rateLimit: {
+          kind: "authed",
+          max: limitMax,
+          retryAfterMs: limitStatus.retryAfter ?? 0,
+          resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
+        },
+      };
     }
 
     try {
@@ -317,7 +266,7 @@ export const sendChatMessage = action({
       // Get or create chat session
       const chatId = await ctx.runMutation(internal.llm.getOrCreateBillChat, {
         billId,
-        sessionId,
+        userId,
       });
 
       // Fetch existing conversation history (before this turn)

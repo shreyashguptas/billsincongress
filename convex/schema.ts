@@ -89,6 +89,7 @@ export default defineSchema({
     sponsorState: v.optional(v.string()),
     progressStage: v.optional(v.number()), // 20, 40, 60, 80, 90, 95, 100
     progressDescription: v.optional(v.string()),
+    latestActionDate: v.optional(v.string()),
     syncedEndpoints: v.optional(v.number()), // bitmask: 1=detail, 2=actions, 4=subjects, 8=summaries, 16=text
     lastSyncAttempt: v.optional(v.string()), // ISO timestamp of last sync attempt
     updatedAt: v.string(),
@@ -229,16 +230,16 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_congress_and_chamber", ["congress", "chamber"]),
 
-  // Bill chat sessions — one per (billId, sessionId) pair
-  // `userId` is set only when the chatter is logged in. Anonymous chats keep
-  // `sessionId` only, preserving the existing flow for logged-out visitors.
+  // Bill chat sessions — one per signed-in user and bill. `sessionId` is kept
+  // only for compatibility with rows created before chat required sign-in.
   billChats: defineTable({
     billId: v.string(),
-    sessionId: v.string(), // anonymous session ID stored in browser localStorage
+    sessionId: v.string(),
     userId: v.optional(v.id("users")),
     createdAt: v.string(),
   })
     .index("by_billId_and_session", ["billId", "sessionId"])
+    .index("by_billId_and_userId", ["billId", "userId"])
     .index("by_userId", ["userId"]),
 
   // Bill chat messages — individual turns in a chat session

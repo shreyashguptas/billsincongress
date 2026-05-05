@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { api } from "@/convex/_generated/api";
 import {
-  type ChatGateway,
   MAX_QUESTION_LENGTH,
-  buildGateway,
   getConvexClient,
-  getOrCreateAnonCookie,
   setConvexAuth,
-  withAnonCookie,
 } from "../_shared";
 
 function badRequest(message: string) {
@@ -22,21 +18,13 @@ export async function POST(request: NextRequest) {
     return badRequest("Invalid JSON body.");
   }
 
-  const { billId, sessionId, question } = body as {
+  const { billId, question } = body as {
     billId?: unknown;
-    sessionId?: unknown;
     question?: unknown;
   };
 
   if (typeof billId !== "string" || billId.length === 0 || billId.length > 80) {
     return badRequest("Invalid billId.");
-  }
-  if (
-    typeof sessionId !== "string" ||
-    sessionId.length === 0 ||
-    sessionId.length > 128
-  ) {
-    return badRequest("Invalid sessionId.");
   }
   if (
     typeof question !== "string" ||
@@ -54,25 +42,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { value: anonCookie, shouldSet } = getOrCreateAnonCookie(request);
-  let gateway: ChatGateway;
-  try {
-    gateway = buildGateway(request, anonCookie);
-  } catch {
-    return NextResponse.json(
-      { answer: "", error: "Chat gateway is not configured." },
-      { status: 500 },
-    );
-  }
-
   await setConvexAuth(client);
 
   const result = await client.action(api.llm.sendChatMessage, {
     billId,
-    sessionId,
     question,
-    gateway,
   });
 
-  return withAnonCookie(NextResponse.json(result), anonCookie, shouldSet);
+  return NextResponse.json(result);
 }

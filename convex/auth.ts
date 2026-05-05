@@ -26,6 +26,32 @@ import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 // still valid. We use the same constant in both places.
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 60; // 60 days
 
+function decodeRedirect(value: string): string | null {
+  let current = value;
+  for (let i = 0; i < 2; i++) {
+    try {
+      const next = decodeURIComponent(current);
+      if (next === current) break;
+      current = next;
+    } catch {
+      return null;
+    }
+  }
+  return current;
+}
+
+function hasUnsafeRedirectChars(value: string): boolean {
+  return /[\\\u0000-\u001f\u007f]/.test(value);
+}
+
+function isSafeRelativeRedirect(value: string): boolean {
+  if (!value.startsWith("/") || value.startsWith("//")) return false;
+  if (hasUnsafeRedirectChars(value)) return false;
+  const decoded = decodeRedirect(value);
+  if (!decoded) return false;
+  return !decoded.startsWith("//") && !hasUnsafeRedirectChars(decoded);
+}
+
 // Allow-list for OAuth `redirectTo`. The library defaults to "starts with
 // SITE_URL only" which blocks local dev (we test from http://localhost:3000
 // while SITE_URL is the prod site). We tightly restrict the dev allow-list:
@@ -79,20 +105,36 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   },
   callbacks: {
     async redirect({ redirectTo }) {
-      // Relative paths are always safe — the library resolves them against SITE_URL.
-      if (!redirectTo.startsWith("http://") && !redirectTo.startsWith("https://")) {
-        return redirectTo;
+      const value = redirectTo.trim();
+      if (value !== redirectTo) {
+        throw new Error("Invalid redirect URL.");
       }
+
+      // Only same-origin path redirects are accepted as relative values.
+      if (value.startsWith("/")) {
+        if (!isSafeRelativeRedirect(value)) {
+          throw new Error("Invalid redirect path.");
+        }
+        return value;
+      }
+
       let url: URL;
       try {
-        url = new URL(redirectTo);
+        url = new URL(value);
       } catch {
-        throw new Error(`Invalid redirect URL: ${redirectTo}`);
+        throw new Error("Invalid redirect URL.");
+      }
+      if (
+        !["http:", "https:"].includes(url.protocol) ||
+        hasUnsafeRedirectChars(value) ||
+        hasUnsafeRedirectChars(decodeRedirect(value) ?? "")
+      ) {
+        throw new Error("Invalid redirect URL.");
       }
       if (!isAllowedRedirect(url)) {
         throw new Error(`Unauthorized redirect target: ${url.origin}`);
       }
-      return redirectTo;
+      return url.toString();
     },
   },
 });

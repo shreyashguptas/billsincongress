@@ -48,7 +48,7 @@ export const metadata: Metadata = {
   },
   description:
     'A clear, independent view of every bill moving through the United States Congress.',
-  manifest: '/manifest.ts',
+  manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       { url: '/favicon.png', sizes: '32x32', type: 'image/png' },

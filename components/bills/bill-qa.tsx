@@ -31,25 +31,6 @@ const EXAMPLE_QUESTIONS = [
   'What are the key sections of this bill?',
 ];
 
-function generateSessionId(): string {
-  // CSPRNG so an attacker can't predict another visitor's session ID and
-  // fetch their persisted chat history. 16 bytes = 128 bits of entropy.
-  const buf = new Uint8Array(16);
-  crypto.getRandomValues(buf);
-  return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function getOrCreateSessionId(): string {
-  if (typeof window === 'undefined') return '';
-  const key = 'bill_chat_session_id';
-  let id = localStorage.getItem(key);
-  if (!id) {
-    id = generateSessionId();
-    localStorage.setItem(key, id);
-  }
-  return id;
-}
-
 const MarkdownMessage = ({ content }: { content: string }) => (
   <ReactMarkdown
     components={{
@@ -94,7 +75,6 @@ export default function BillQA({ billId }: BillQAProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [error, setError] = useState('');
-  const [sessionId, setSessionId] = useState('');
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [usage, setUsage] = useState<ChatUsageResult | null>(null);
@@ -123,11 +103,8 @@ export default function BillQA({ billId }: BillQAProps) {
   }, []);
 
   useEffect(() => {
-    const sid = getOrCreateSessionId();
-    setSessionId(sid);
-
     billsService
-      .getBillChatHistory(billId, sid)
+      .getBillChatHistory(billId)
       .then((history) => {
         setMessages(history.map((m) => ({ id: m._id, role: m.role, content: m.content })));
       })
@@ -144,7 +121,12 @@ export default function BillQA({ billId }: BillQAProps) {
   const handleSubmit = useCallback(
     async (question: string) => {
       const q = question.trim();
-      if (!q || isLoading || !sessionId) return;
+      if (!q || isLoading) return;
+      if (usage?.requiresAuth) {
+        setError('Sign in to use bill chat.');
+        return;
+      }
+      if (usage?.blocked) return;
 
       const tempId = `temp_${Date.now()}`;
       setMessages((prev) => [...prev, { id: tempId, role: 'user', content: q }]);
@@ -153,7 +135,7 @@ export default function BillQA({ billId }: BillQAProps) {
       setError('');
 
       try {
-        const result = await billsService.sendChatMessage(billId, sessionId, q);
+        const result = await billsService.sendChatMessage(billId, q);
         if (result.error === 'RATE_LIMITED' && result.rateLimit) {
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
           setUsage({
@@ -186,7 +168,7 @@ export default function BillQA({ billId }: BillQAProps) {
         inputRef.current?.focus();
       }
     },
-    [billId, sessionId, isLoading, refreshUsage]
+    [billId, isLoading, refreshUsage, usage]
   );
 
   const isEmpty = messages.length === 0 && !isLoadingHistory;
@@ -196,11 +178,13 @@ export default function BillQA({ billId }: BillQAProps) {
   // remaining. The same-origin usage route checks the server-bound quota key.
   const blocked = usage?.blocked === true;
   const inputDisabled = isLoading || isLoadingHistory || blocked;
-  const blockedHint = blocked && usage?.resetAt
+  const blockedHint = usage?.requiresAuth
+    ? 'Sign in to use bill chat.'
+    : blocked && usage?.resetAt
     ? `Daily limit reached. Resets at ${new Date(usage!.resetAt!).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`
     : blocked
       ? 'Daily limit reached.'
-    : '';
+      : '';
 
   function openLimitDialog() {
     if (!usage || !usage.blocked) return;
@@ -241,7 +225,7 @@ export default function BillQA({ billId }: BillQAProps) {
                 <button
                   key={i}
                   onClick={() => handleSubmit(q)}
-                  disabled={isLoading}
+                  disabled={inputDisabled}
                   className="px-3 py-2.5 text-sm text-left rounded-sm border border-border text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
                 >
                   {q}

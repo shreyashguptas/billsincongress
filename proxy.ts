@@ -55,12 +55,11 @@ export default convexAuthNextjsMiddleware(
     // `Access-Control-Allow-*` headers here — adding `Origin: *` would only
     // broaden the surface for any future authenticated `/api/foo` route.
 
-    // Cache headers for /bills page routes — preserves prior behavior
+    // `/bills` is rendered below ConvexAuthNextjsServerProvider. Authenticated
+    // responses can contain user-specific auth bootstrap state, so never mark
+    // the full page response public-cacheable.
     if (pathname.startsWith("/bills") && !pathname.includes("api")) {
-      response.headers.set(
-        "Cache-Control",
-        "public, s-maxage=3600, stale-while-revalidate=59",
-      );
+      response.headers.set("Cache-Control", "private, no-store");
     }
 
     return response;

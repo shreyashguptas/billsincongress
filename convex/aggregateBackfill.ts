@@ -9,7 +9,7 @@ const BACKFILL_BATCH_SIZE = 50;
 /**
  * Public action to backfill the bill aggregates from the existing `bills`
  * table. Run this once after deploying the aggregate components — without it
- * the new `recomputeCongressStats` would see empty aggregates.
+ * the aggregate component queries used by the public bill filters have data.
  *
  * Idempotent: uses `insertIfDoesNotExist` so re-running on already-populated
  * aggregates is safe.
@@ -104,7 +104,7 @@ export const recomputeAll = internalAction({
       {},
     );
     for (const congress of congresses) {
-      await ctx.runMutation(internal.mutations.recomputeCongressStats, {
+      await ctx.runAction(internal.mutations.recomputeCongressStats, {
         congress,
       });
     }
@@ -137,10 +137,7 @@ export const distinctCongresses = internalQuery({
 
 /**
  * Wipes both bill aggregates. Use only if you intend to immediately re-run
- * the backfill. After clearing, you MUST run `aggregateBackfill:run` before
- * `recomputeCongressStats` runs again, or the precomputed stats will get
- * zeroed out (the recompute has a guard to avoid this, but it relies on the
- * bills table being non-empty).
+ * the backfill so aggregate-backed filter counts stay available.
  *
  *     npx convex run --prod aggregateBackfill:clear '{}'
  */

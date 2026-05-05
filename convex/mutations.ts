@@ -6,8 +6,6 @@ import {
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
-  billsByChamber,
-  billsByStage,
   BILL_STAGES,
   HOUSE_BILL_TYPES,
   SENATE_BILL_TYPES,
@@ -72,6 +70,13 @@ export const upsertBillActions = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    const latestActionDate =
+      args.actions.reduce<string | null>((latest, action) => {
+        return latest === null || action.actionDate > latest
+          ? action.actionDate
+          : latest;
+      }, null) ?? undefined;
+
     // Delete existing actions for this bill
     const existing = await ctx.db
       .query("billActions")
@@ -87,6 +92,14 @@ export const upsertBillActions = internalMutation({
         billId: args.billId,
         ...action,
       });
+    }
+
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (bill && latestActionDate) {
+      await ctx.db.patch(bill._id, { latestActionDate });
     }
   },
 });
@@ -238,84 +251,27 @@ export const updateBillSyncStatus = internalMutation({
   },
 });
 
-/**
- * Recompute the congressStats row for a single congress.
- *
- * Reads counts from the `billsByChamber` and `billsByStage` aggregate
- * components instead of scanning the bills table. This is O(log n) and works
- * regardless of how many bills the congress has — historically this used
- * `.take(10000)` and silently truncated counts at 10,000 (Congress 118 alone
- * has 19,314 bills).
- *
- * Safety guard: if the aggregates report zero bills for a congress that
- * actually has bills (e.g. immediately after deploy, before
- * `aggregateBackfill:run` has populated them), skip the write so we don't
- * overwrite valid `congressStats` rows with zeros.
- */
-export const recomputeCongressStats = internalMutation({
-  args: { congress: v.number() },
+export const writeCongressStats = internalMutation({
+  args: {
+    congress: v.number(),
+    totalCount: v.number(),
+    houseCount: v.number(),
+    senateCount: v.number(),
+    stageCounts: v.array(
+      v.object({
+        stage: v.number(),
+        description: v.string(),
+        count: v.number(),
+      }),
+    ),
+  },
   handler: async (ctx, args) => {
-    const ns = { namespace: args.congress };
-
-    // Lexicographic bounds: every bill type starting with "h" sorts in
-    // ["h", "i") and every "s" type in ["s", "t"). All current bill types are
-    // covered by these two ranges (hr, hjres, hconres, hres / s, sjres,
-    // sconres, sres).
-    const houseBounds = {
-      lower: { key: "h", inclusive: true },
-      upper: { key: "i", inclusive: false },
-    } as const;
-    const senateBounds = {
-      lower: { key: "s", inclusive: true },
-      upper: { key: "t", inclusive: false },
-    } as const;
-
-    const [houseCount, senateCount] = await billsByChamber.countBatch(ctx, [
-      { ...ns, bounds: houseBounds },
-      { ...ns, bounds: senateBounds },
-    ]);
-    const totalCount = houseCount + senateCount;
-
-    // Guard: if the aggregate reports fewer bills than we can see in a probe
-    // of the bills table, the aggregate hasn't been fully backfilled yet.
-    // Skip the write so we don't clobber a valid `congressStats` row with a
-    // stale count.
-    //
-    // The probe size (1000) is tuned to catch partial-backfill states: with
-    // 50-bill batches, a stalled backfill might have populated several
-    // hundred aggregate entries before failing, and a smaller probe
-    // wouldn't notice the mismatch. 1000 reads is well under the 16,384
-    // per-mutation limit.
-    const probe = await ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .take(1000);
-    if (probe.length > totalCount) {
-      console.warn(
-        `recomputeCongressStats: aggregate reports ${totalCount} bills for congress ${args.congress} ` +
-          `but a 1000-bill probe returned ${probe.length}. Skipping write — backfill likely incomplete.`,
-      );
-      return;
-    }
-
-    const stageQueries = BILL_STAGES.map(({ stage }) => ({
-      ...ns,
-      bounds: { eq: stage } as const,
-    }));
-    const stageResults = await billsByStage.countBatch(ctx, stageQueries);
-
-    const stageCounts = BILL_STAGES.map(({ stage, description }, i) => ({
-      stage,
-      description,
-      count: stageResults[i] ?? 0,
-    })).filter((s) => s.count > 0);
-
     const stats = {
       congress: args.congress,
-      totalCount,
-      houseCount,
-      senateCount,
-      stageCounts,
+      totalCount: args.totalCount,
+      houseCount: args.houseCount,
+      senateCount: args.senateCount,
+      stageCounts: args.stageCounts,
       updatedAt: new Date().toISOString(),
     };
 
@@ -329,6 +285,65 @@ export const recomputeCongressStats = internalMutation({
     } else {
       await ctx.db.insert("congressStats", stats);
     }
+  },
+});
+
+type StatsBillPageResult = {
+  page: Array<{
+    billType: string;
+    progressStage?: number;
+  }>;
+  isDone: boolean;
+  continueCursor: string;
+};
+
+/**
+ * Recompute the congressStats row for a single congress from the bills table.
+ * This runs as an action and paginates every bill, so it has an exact source of
+ * truth and cannot accept partially backfilled aggregate component counts.
+ */
+export const recomputeCongressStats = internalAction({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    let cursor: string | null = null;
+    let totalCount = 0;
+    let houseCount = 0;
+    let senateCount = 0;
+    const stageCounts = new Map<number, number>();
+
+    for (;;) {
+      const page: StatsBillPageResult = await ctx.runQuery(
+        internal.mutations.getBillsPageByCongress,
+        { congress: args.congress, cursor, numItems: 2000 },
+      );
+
+      for (const bill of page.page) {
+        totalCount += 1;
+        if (bill.billType.startsWith("h")) houseCount += 1;
+        if (bill.billType.startsWith("s")) senateCount += 1;
+        if (bill.progressStage !== undefined) {
+          stageCounts.set(
+            bill.progressStage,
+            (stageCounts.get(bill.progressStage) ?? 0) + 1,
+          );
+        }
+      }
+
+      if (page.isDone) break;
+      cursor = page.continueCursor;
+    }
+
+    await ctx.runMutation(internal.mutations.writeCongressStats, {
+      congress: args.congress,
+      totalCount,
+      houseCount,
+      senateCount,
+      stageCounts: BILL_STAGES.map(({ stage, description }) => ({
+        stage,
+        description,
+        count: stageCounts.get(stage) ?? 0,
+      })).filter((s) => s.count > 0),
+    });
   },
 });
 
@@ -803,8 +818,11 @@ export const updateSyncSnapshot = internalMutation({
   },
 });
 
+const DELETE_CONGRESS_BATCH_SIZE = 50;
+
 /**
- * Delete all bills for a specific congress
+ * Delete one bounded batch of bills for a specific congress, including related
+ * child rows. Callers that need a full wipe must loop until `hasMore` is false.
  */
 export const deleteCongressBills = internalMutation({
   args: { congress: v.number() },
@@ -812,15 +830,48 @@ export const deleteCongressBills = internalMutation({
     const bills = await ctx.db
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .take(10000);
+      .take(DELETE_CONGRESS_BATCH_SIZE);
 
     let deleted = 0;
     for (const bill of bills) {
+      const actions = await ctx.db
+        .query("billActions")
+        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+        .collect();
+      for (const doc of actions) await ctx.db.delete(doc._id);
+
+      const subjects = await ctx.db
+        .query("billSubjects")
+        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+        .collect();
+      for (const doc of subjects) await ctx.db.delete(doc._id);
+
+      const summaries = await ctx.db
+        .query("billSummaries")
+        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+        .collect();
+      for (const doc of summaries) await ctx.db.delete(doc._id);
+
+      const textVersions = await ctx.db
+        .query("billText")
+        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+        .collect();
+      for (const doc of textVersions) await ctx.db.delete(doc._id);
+
+      const titles = await ctx.db
+        .query("billTitles")
+        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+        .collect();
+      for (const doc of titles) await ctx.db.delete(doc._id);
+
       await ctx.db.delete(bill._id);
       deleted++;
     }
 
-    return { deleted };
+    return {
+      deleted,
+      hasMore: bills.length === DELETE_CONGRESS_BATCH_SIZE,
+    };
   },
 });
 

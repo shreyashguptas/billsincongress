@@ -111,6 +111,8 @@ export const billsService = {
       page = 1,
       itemsPerPage = 10,
       status = 'all',
+      introducedDateFilter = 'all',
+      lastActionDateFilter = 'all',
       sponsorFilter = [],
       titleFilter = '',
       stateFilter = 'all',
@@ -138,6 +140,10 @@ export const billsService = {
         sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
         billNumber: billNumber || undefined,
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
+        introducedDateFilter:
+          introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,
+        lastActionDateFilter:
+          lastActionDateFilter && lastActionDateFilter !== 'all' ? lastActionDateFilter : undefined,
         offset,
         limit: itemsPerPage,
       });
@@ -162,6 +168,8 @@ export const billsService = {
   ): Promise<BillsCountResult> {
     const {
       status = 'all',
+      introducedDateFilter = 'all',
+      lastActionDateFilter = 'all',
       sponsorFilter = [],
       titleFilter = '',
       stateFilter = 'all',
@@ -185,6 +193,10 @@ export const billsService = {
         sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
         billNumber: billNumber || undefined,
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
+        introducedDateFilter:
+          introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,
+        lastActionDateFilter:
+          lastActionDateFilter && lastActionDateFilter !== 'all' ? lastActionDateFilter : undefined,
       });
     } catch (error) {
       console.error('Error fetching bills count from Convex:', error);
@@ -241,19 +253,18 @@ export const billsService = {
   },
 
   /**
-   * Fetch persisted chat history for a bill + anonymous browser session.
+   * Fetch persisted chat history for the signed-in user and bill.
    * Returns an empty array when no conversation exists yet.
    */
   async getBillChatHistory(
-    billId: string,
-    sessionId: string
+    billId: string
   ): Promise<Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>> {
     const client = getConvexClient();
     if (!client) return [];
 
     try {
       const { api } = await import('../../convex/_generated/api');
-      const result = await client.query(api.llm.getBillChatHistory, { billId, sessionId });
+      const result = await client.query(api.llm.getBillChatHistory, { billId });
       return result as Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>;
     } catch (error) {
       console.error('Error fetching bill chat history:', error);
@@ -271,14 +282,13 @@ export const billsService = {
    */
   async sendChatMessage(
     billId: string,
-    sessionId: string,
     question: string
   ): Promise<ChatResult> {
     try {
       const response = await fetch('/api/bill-chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ billId, sessionId, question }),
+        body: JSON.stringify({ billId, question }),
       });
       const result = (await response.json()) as ChatResult;
       if (!response.ok && !result.error) {
@@ -297,9 +307,10 @@ export const billsService = {
       if (!response.ok) {
         return {
           kind: 'anonymous',
-          max: 5,
-          blocked: false,
+          max: 0,
+          blocked: true,
           resetAt: null,
+          requiresAuth: true,
         };
       }
       return (await response.json()) as ChatUsageResult;
@@ -307,9 +318,10 @@ export const billsService = {
       console.error('Error fetching chat usage:', error);
       return {
         kind: 'anonymous',
-        max: 5,
-        blocked: false,
+        max: 0,
+        blocked: true,
         resetAt: null,
+        requiresAuth: true,
       };
     }
   },
@@ -336,4 +348,5 @@ export type ChatUsageResult = {
   max: number;
   blocked: boolean;
   resetAt: number | null;
+  requiresAuth?: boolean;
 };

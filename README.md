@@ -141,15 +141,10 @@ CONGRESS_API_KEY=        # https://api.congress.gov/sign-up/
 
 # Required for the AI chat panel
 GROQ_API_KEY=            # https://console.groq.com/
-CHAT_GATEWAY_SECRET=     # 32+ random bytes; must also be set in Convex env
 
 # Optional
 NEXT_PUBLIC_ANALYTICS_ID=
 ```
-
-Set the same `CHAT_GATEWAY_SECRET` on the Convex deployment too, since the
-Next.js chat route signs anonymous quota keys and Convex verifies them before
-calling Groq.
 
 Then start the dev server:
 

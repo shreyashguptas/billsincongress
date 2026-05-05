@@ -15,6 +15,10 @@ function generateOTP(): string {
   return out;
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export const ResendOTP = Resend({
   id: "resend-otp",
   apiKey: process.env.AUTH_RESEND_KEY,
@@ -27,18 +31,19 @@ export const ResendOTP = Resend({
   // library). We use it to rate-limit OTP issuance per email.
   // @ts-expect-error second arg is runtime-only on the upstream type
   async sendVerificationRequest({ identifier: email, provider, token }, ctx: ActionCtx) {
+    const normalizedEmail = normalizeEmail(email);
     // Throws ConvexError if the bucket is empty — caller (auth library)
     // surfaces it to the client. Caps email-bombing of a victim's inbox
     // and slows brute-forcing the 6-digit code space.
     await rateLimiter.limit(ctx, "otpRequestPerEmail", {
-      key: email,
+      key: normalizedEmail,
       throws: true,
     });
     const resend = new ResendAPI(provider.apiKey);
     const from = process.env.AUTH_EMAIL_FROM ?? "Bills.Congress <onboarding@resend.dev>";
     const { error } = await resend.emails.send({
       from,
-      to: [email],
+      to: [normalizedEmail],
       subject: "Verify your email — Bills.Congress",
       text: [
         `Your verification code is ${token}.`,
