@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { api } from "@/convex/_generated/api";
 import {
+  debugBillChatAuth,
   getConvexClient,
+  getOrCreateAnonymousChatSessionId,
   setConvexAuth,
 } from "../_shared";
 
@@ -20,9 +22,27 @@ export async function GET() {
     );
   }
 
-  await setConvexAuth(client);
+  const auth = await setConvexAuth(client, "usage");
+  const anonymousSessionId = await getOrCreateAnonymousChatSessionId();
 
-  const result = await client.query(api.rateLimits.getChatUsage, {});
+  const usage = await client.query(api.rateLimits.getChatUsage, {
+    anonymousSessionId,
+  });
+  const result = {
+    ...usage,
+    resetAt:
+      usage.blocked && typeof usage.retryAfterMs === "number"
+        ? Date.now() + usage.retryAfterMs
+        : usage.resetAt,
+  };
+  debugBillChatAuth("usage-result", {
+    hadToken: auth.hasToken,
+    kind: result.kind,
+    blocked: result.blocked,
+    max: result.max,
+    resetAt: result.resetAt,
+    requiresAuth: result.requiresAuth ?? false,
+  });
 
   return NextResponse.json(result);
 }

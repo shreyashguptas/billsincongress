@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { api } from "@/convex/_generated/api";
 import {
   MAX_QUESTION_LENGTH,
+  debugBillChatAuth,
   getConvexClient,
+  getOrCreateAnonymousChatSessionId,
   setConvexAuth,
 } from "../_shared";
 
@@ -42,11 +44,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await setConvexAuth(client);
+  const auth = await setConvexAuth(client, "send");
+  const anonymousSessionId = await getOrCreateAnonymousChatSessionId();
 
   const result = await client.action(api.llm.sendChatMessage, {
     billId,
     question,
+    anonymousSessionId,
+  });
+  debugBillChatAuth("send-result", {
+    hadToken: auth.hasToken,
+    hasError: Boolean(result.error),
+    rateLimitKind: result.rateLimit?.kind,
+    rateLimitMax: result.rateLimit?.max,
   });
 
   return NextResponse.json(result);

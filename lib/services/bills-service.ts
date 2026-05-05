@@ -307,10 +307,9 @@ export const billsService = {
       if (!response.ok) {
         return {
           kind: 'anonymous',
-          max: 0,
-          blocked: true,
+          max: 5,
+          blocked: false,
           resetAt: null,
-          requiresAuth: true,
         };
       }
       return (await response.json()) as ChatUsageResult;
@@ -318,10 +317,9 @@ export const billsService = {
       console.error('Error fetching chat usage:', error);
       return {
         kind: 'anonymous',
-        max: 0,
-        blocked: true,
+        max: 5,
+        blocked: false,
         resetAt: null,
-        requiresAuth: true,
       };
     }
   },
@@ -348,5 +346,6 @@ export type ChatUsageResult = {
   max: number;
   blocked: boolean;
   resetAt: number | null;
+  retryAfterMs?: number | null;
   requiresAuth?: boolean;
 };

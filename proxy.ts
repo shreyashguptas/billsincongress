@@ -47,7 +47,11 @@ export default convexAuthNextjsMiddleware(
     }
 
     // 3. Default: proceed and apply cache headers
-    const response = NextResponse.next();
+    const response = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
 
     // The only `/api/*` route the app exposes is `/api/auth/*`, served by
     // @convex-dev/auth and consumed same-origin from this Next.js app. No

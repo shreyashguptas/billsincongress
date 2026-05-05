@@ -6,6 +6,8 @@ import { rateLimiter } from "./rateLimits";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "groq/compound-mini";
+const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
+const AUTHED_CHAT_DAILY_LIMIT = 100;
 
 interface BillContext {
   billId: string;
@@ -93,20 +95,28 @@ ${bill.actions.slice(0, 10).map((a, i) => `${i + 1}. [${a.date}] ${a.description
 export const getOrCreateBillChat = internalMutation({
   args: {
     billId: v.string(),
-    userId: v.id("users"),
+    sessionId: v.string(),
+    userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("billChats")
-      .withIndex("by_billId_and_userId", (q) =>
-        q.eq("billId", args.billId).eq("userId", args.userId)
-      )
-      .first();
+    const existing = args.userId
+      ? await ctx.db
+          .query("billChats")
+          .withIndex("by_billId_and_userId", (q) =>
+            q.eq("billId", args.billId).eq("userId", args.userId)
+          )
+          .first()
+      : await ctx.db
+          .query("billChats")
+          .withIndex("by_billId_and_session", (q) =>
+            q.eq("billId", args.billId).eq("sessionId", args.sessionId)
+          )
+          .first();
     if (existing) return existing._id;
     return await ctx.db.insert("billChats", {
       billId: args.billId,
-      sessionId: `user:${args.userId}`,
-      userId: args.userId,
+      sessionId: args.sessionId,
+      ...(args.userId ? { userId: args.userId } : {}),
       createdAt: new Date().toISOString(),
     });
   },
@@ -181,6 +191,7 @@ export const sendChatMessage = action({
   args: {
     billId: v.string(),
     question: v.string(),
+    anonymousSessionId: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -210,7 +221,14 @@ export const sendChatMessage = action({
     }
 
     const userId = await getAuthUserId(ctx);
-    if (!userId) {
+    const isAuthed = userId !== null;
+    const sessionId = isAuthed
+      ? `user:${userId}`
+      : args.anonymousSessionId
+        ? `anon:${args.anonymousSessionId}`
+        : null;
+
+    if (!sessionId) {
       return {
         answer: "",
         error: "Sign in to use bill chat.",
@@ -219,19 +237,23 @@ export const sendChatMessage = action({
 
     // Consume the token before calling Groq. If Groq fails after, the user
     // loses that question; keep this simple unless upstream errors get noisy.
-    const limitMax = 100;
-    const limitStatus = await rateLimiter.limit(ctx, "chatAuthedPerDay", {
-      key: userId,
-    });
+    const limitStatus = isAuthed
+      ? await rateLimiter.limit(ctx, "chatAuthedPerDay", {
+          key: userId,
+        })
+      : await rateLimiter.limit(ctx, "chatAnonPerDay", {
+          key: args.anonymousSessionId!,
+        });
     if (!limitStatus.ok) {
+      const retryAfterMs = limitStatus.retryAfter ?? 0;
       return {
         answer: "",
         error: "RATE_LIMITED",
         rateLimit: {
-          kind: "authed",
-          max: limitMax,
-          retryAfterMs: limitStatus.retryAfter ?? 0,
-          resetAt: Date.now() + (limitStatus.retryAfter ?? 0),
+          kind: isAuthed ? "authed" : "anonymous",
+          max: isAuthed ? AUTHED_CHAT_DAILY_LIMIT : ANONYMOUS_CHAT_DAILY_LIMIT,
+          retryAfterMs,
+          resetAt: Date.now() + retryAfterMs,
         },
       };
     }
@@ -264,10 +286,19 @@ export const sendChatMessage = action({
       };
 
       // Get or create chat session
-      const chatId = await ctx.runMutation(internal.llm.getOrCreateBillChat, {
-        billId,
-        userId,
-      });
+      const chatId = await ctx.runMutation(
+        internal.llm.getOrCreateBillChat,
+        isAuthed
+          ? {
+              billId,
+              sessionId,
+              userId,
+            }
+          : {
+              billId,
+              sessionId,
+            },
+      );
 
       // Fetch existing conversation history (before this turn)
       const history = await ctx.runQuery(internal.llm.getMessagesForChat, { chatId });

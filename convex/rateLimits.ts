@@ -2,6 +2,10 @@ import { RateLimiter, HOUR, DAY } from "@convex-dev/rate-limiter";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { components } from "./_generated/api";
 import { query } from "./_generated/server";
+import { v } from "convex/values";
+
+const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
+const AUTHED_CHAT_DAILY_LIMIT = 100;
 
 // ─── Limit definitions ─────────────────────────────────────────────────────
 // `start: 5 * HOUR` aligns the 24h fixed window to Unix-epoch + 5h, which is
@@ -12,12 +16,21 @@ import { query } from "./_generated/server";
 // `kind: "fixed window"` grants all tokens at once at the start of each
 // window; no token-bucket carry-over.
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
+  // Anonymous visitors — keyed by an HTTP-only browser session cookie minted by
+  // the Next.js route handler. This keeps casual use available without exposing
+  // unlimited AI spend to every page view.
+  chatAnonPerDay: {
+    kind: "fixed window",
+    rate: ANONYMOUS_CHAT_DAILY_LIMIT,
+    period: DAY,
+    start: 5 * HOUR,
+  },
   // Logged-in users — keyed by userId. Email-verification status is
   // intentionally NOT a factor; that gate is reserved for the Pro upgrade
   // (PR 3+).
   chatAuthedPerDay: {
     kind: "fixed window",
-    rate: 100,
+    rate: AUTHED_CHAT_DAILY_LIMIT,
     period: DAY,
     start: 5 * HOUR,
   },
@@ -43,32 +56,51 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
 // only shows anything when the user is already blocked, so we just need
 // (a) "are you blocked?" and (b) "when does it reset?".
 export const getChatUsage = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    anonymousSessionId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    const isAuthed = userId !== null;
-    const max = isAuthed ? 100 : 0;
 
-    if (!isAuthed) {
+    if (userId !== null) {
+      const status = await rateLimiter.check(ctx, "chatAuthedPerDay", {
+        key: userId,
+      });
+      const blocked = !status.ok;
+
       return {
-        kind: "anonymous" as const,
-        max,
-        blocked: true,
+        kind: "authed" as const,
+        max: AUTHED_CHAT_DAILY_LIMIT,
+        blocked,
         resetAt: null,
-        requiresAuth: true,
+        retryAfterMs: blocked ? (status.retryAfter ?? 0) : null,
+        requiresAuth: false,
       };
     }
 
-    const status = await rateLimiter.check(ctx, "chatAuthedPerDay", {
-      key: userId,
+    if (!args.anonymousSessionId) {
+      return {
+        kind: "anonymous" as const,
+        max: ANONYMOUS_CHAT_DAILY_LIMIT,
+        blocked: false,
+        resetAt: null,
+        retryAfterMs: null,
+        requiresAuth: false,
+      };
+    }
+
+    const status = await rateLimiter.check(ctx, "chatAnonPerDay", {
+      key: args.anonymousSessionId,
     });
     const blocked = !status.ok;
 
     return {
-      kind: "authed" as const,
-      max,
+      kind: "anonymous" as const,
+      max: ANONYMOUS_CHAT_DAILY_LIMIT,
       blocked,
-      resetAt: blocked ? Date.now() + (status.retryAfter ?? 0) : null,
+      resetAt: null,
+      retryAfterMs: blocked ? (status.retryAfter ?? 0) : null,
+      requiresAuth: false,
     };
   },
 });
