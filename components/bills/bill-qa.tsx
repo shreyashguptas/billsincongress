@@ -33,6 +33,13 @@ const EXAMPLE_QUESTIONS = [
 
 const CHAT_SCROLL_DEBUG_KEY = 'billChatScrollDebug';
 const CHAT_BOTTOM_THRESHOLD_PX = 96;
+const CHAT_CLIENT_SESSION_KEY = 'billChatClientSession';
+const CHAT_CLIENT_SESSION_IDLE_MS = 30 * 60 * 1000;
+
+interface StoredChatClientSession {
+  id: string;
+  lastSeenAt: number;
+}
 
 function canRefocusChatInput() {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
@@ -48,6 +55,45 @@ function debugChatScroll(reason: string, element: HTMLDivElement | null) {
     clientHeight: element.clientHeight,
     distanceFromBottom: Math.round(element.scrollHeight - element.scrollTop - element.clientHeight),
   } : null);
+}
+
+function createClientSessionId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `chat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function getBillChatClientSessionId() {
+  if (typeof window === 'undefined') return createClientSessionId();
+
+  const now = Date.now();
+  const raw = window.sessionStorage.getItem(CHAT_CLIENT_SESSION_KEY);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as StoredChatClientSession;
+      if (
+        typeof parsed.id === 'string' &&
+        typeof parsed.lastSeenAt === 'number' &&
+        now - parsed.lastSeenAt < CHAT_CLIENT_SESSION_IDLE_MS
+      ) {
+        window.sessionStorage.setItem(
+          CHAT_CLIENT_SESSION_KEY,
+          JSON.stringify({ id: parsed.id, lastSeenAt: now }),
+        );
+        return parsed.id;
+      }
+    } catch {
+      window.sessionStorage.removeItem(CHAT_CLIENT_SESSION_KEY);
+    }
+  }
+
+  const next = createClientSessionId();
+  window.sessionStorage.setItem(
+    CHAT_CLIENT_SESSION_KEY,
+    JSON.stringify({ id: next, lastSeenAt: now }),
+  );
+  return next;
 }
 
 const MarkdownMessage = ({ content }: { content: string }) => (
@@ -192,7 +238,11 @@ export default function BillQA({ billId }: BillQAProps) {
       setError('');
 
       try {
-        const result = await billsService.sendChatMessage(billId, q);
+        const result = await billsService.sendChatMessage(
+          billId,
+          q,
+          getBillChatClientSessionId(),
+        );
         if (result.error === 'RATE_LIMITED' && result.rateLimit) {
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
           setUsage({

@@ -282,13 +282,14 @@ export const billsService = {
    */
   async sendChatMessage(
     billId: string,
-    question: string
+    question: string,
+    clientSessionId?: string,
   ): Promise<ChatResult> {
     try {
       const response = await fetch('/api/bill-chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ billId, question }),
+        body: JSON.stringify({ billId, question, clientSessionId }),
       });
       const result = (await response.json()) as ChatResult;
       if (!response.ok && !result.error) {

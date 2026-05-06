@@ -192,6 +192,7 @@ export const sendChatMessage = action({
     billId: v.string(),
     question: v.string(),
     anonymousSessionId: v.optional(v.string()),
+    clientSessionId: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -259,6 +260,13 @@ export const sendChatMessage = action({
     }
 
     try {
+      const askedAtUtc = Date.now();
+      const askedAtIso = new Date(askedAtUtc).toISOString();
+      const user = isAuthed
+        ? await ctx.runQuery(internal.users._getUserById, { userId })
+        : null;
+      const planAtTime = user?.plan === "pro" ? "pro" : "free";
+
       // Fetch bill data
       const bill = await ctx.runQuery(api.bills.getById, { billId });
       if (!bill) return { answer: "", error: "Bill not found." };
@@ -304,7 +312,7 @@ export const sendChatMessage = action({
       const history = await ctx.runQuery(internal.llm.getMessagesForChat, { chatId });
 
       // Persist user message
-      await ctx.runMutation(internal.llm.addChatMessage, {
+      const userMessageId = await ctx.runMutation(internal.llm.addChatMessage, {
         chatId,
         role: "user",
         content: question,
@@ -348,13 +356,70 @@ export const sendChatMessage = action({
 
       const data = await response.json();
       const answer = data.choices?.[0]?.message?.content || "No response generated.";
+      const answeredAtUtc = Date.now();
+      const answeredAtIso = new Date(answeredAtUtc).toISOString();
 
       // Persist assistant response
-      await ctx.runMutation(internal.llm.addChatMessage, {
+      const assistantMessageId = await ctx.runMutation(internal.llm.addChatMessage, {
         chatId,
         role: "assistant",
         content: answer,
       });
+
+      if (isAuthed) {
+        try {
+          const analyticsSessionId = await ctx.runMutation(
+            internal.chatAnalytics.getOrCreateAnalyticsSession,
+            {
+              userId,
+              billId,
+              clientSessionId: args.clientSessionId ?? sessionId,
+              chatId,
+              nowUtc: answeredAtUtc,
+              nowIso: answeredAtIso,
+              planAtTime,
+            },
+          );
+          await ctx.runMutation(internal.chatAnalytics.recordAnalyticsTurn, {
+            analyticsSessionId,
+            userId,
+            billId,
+            chatId,
+            userMessageId,
+            assistantMessageId,
+            question,
+            answer,
+            billSnapshot: {
+              billId: billContext.billId,
+              congress: billContext.congress,
+              billType: billContext.billType,
+              billNumber: billContext.billNumber,
+              billTypeLabel: billContext.billTypeLabel,
+              title: billContext.title,
+              introducedDate: billContext.introducedDate,
+              sponsorFirstName: billContext.sponsorFirstName,
+              sponsorLastName: billContext.sponsorLastName,
+              sponsorParty: billContext.sponsorParty,
+              sponsorState: billContext.sponsorState,
+              progressStage: billContext.progressStage,
+              progressDescription: billContext.progressDescription,
+              policyArea: billContext.policyArea,
+              hasSummary: billContext.summary.length > 0,
+              summaryLength: billContext.summary.length,
+              hasPdf: billContext.pdfUrl.length > 0,
+            },
+            model: MODEL,
+            createdAtUtc: askedAtUtc,
+            createdAtIso: askedAtIso,
+            answeredAtUtc,
+            answeredAtIso,
+            latencyMs: answeredAtUtc - askedAtUtc,
+            planAtTime,
+          });
+        } catch (analyticsError) {
+          console.error("Failed to record bill chat analytics:", analyticsError);
+        }
+      }
 
       return { answer };
     } catch (error) {

@@ -251,6 +251,74 @@ export default defineSchema({
     createdAt: v.string(),
   }).index("by_chatId", ["chatId"]),
 
+  // Signed-in bill chat analytics. Times are recorded by Convex in UTC as both
+  // epoch milliseconds and ISO strings so analysis is timezone-independent.
+  billChatAnalyticsSessions: defineTable({
+    userId: v.id("users"),
+    billId: v.string(),
+    clientSessionId: v.string(),
+    chatId: v.id("billChats"),
+    startedAtUtc: v.number(),
+    startedAtIso: v.string(),
+    lastActivityAtUtc: v.number(),
+    lastActivityIso: v.string(),
+    questionCount: v.number(),
+    planAtTime: v.union(v.literal("free"), v.literal("pro")),
+  })
+    .index("by_user_and_startedAt", ["userId", "startedAtUtc"])
+    .index("by_user_and_clientSession", ["userId", "clientSessionId"])
+    .index("by_user_and_clientSession_and_billId", [
+      "userId",
+      "clientSessionId",
+      "billId",
+    ])
+    .index("by_billId", ["billId"])
+    .index("by_chatId", ["chatId"]),
+
+  billChatAnalyticsTurns: defineTable({
+    analyticsSessionId: v.id("billChatAnalyticsSessions"),
+    userId: v.id("users"),
+    billId: v.string(),
+    chatId: v.id("billChats"),
+    userMessageId: v.id("billChatMessages"),
+    assistantMessageId: v.id("billChatMessages"),
+    question: v.string(),
+    answer: v.string(),
+    billSnapshot: v.object({
+      billId: v.string(),
+      congress: v.number(),
+      billType: v.string(),
+      billNumber: v.string(),
+      billTypeLabel: v.string(),
+      title: v.string(),
+      introducedDate: v.string(),
+      sponsorFirstName: v.string(),
+      sponsorLastName: v.string(),
+      sponsorParty: v.string(),
+      sponsorState: v.string(),
+      progressStage: v.number(),
+      progressDescription: v.string(),
+      policyArea: v.string(),
+      hasSummary: v.boolean(),
+      summaryLength: v.number(),
+      hasPdf: v.boolean(),
+    }),
+    model: v.string(),
+    createdAtUtc: v.number(),
+    createdAtIso: v.string(),
+    answeredAtUtc: v.number(),
+    answeredAtIso: v.string(),
+    latencyMs: v.number(),
+    planAtTime: v.union(v.literal("free"), v.literal("pro")),
+  })
+    .index("by_user_and_createdAt", ["userId", "createdAtUtc"])
+    .index("by_session_and_createdAt", [
+      "analyticsSessionId",
+      "createdAtUtc",
+    ])
+    .index("by_billId_and_createdAt", ["billId", "createdAtUtc"])
+    .index("by_chatId", ["chatId"]),
+
   // Sync snapshots for audit trail
   syncSnapshots: defineTable({
     syncType: v.string(), // "historical" or "daily"

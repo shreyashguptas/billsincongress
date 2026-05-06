@@ -20,9 +20,10 @@ export async function POST(request: NextRequest) {
     return badRequest("Invalid JSON body.");
   }
 
-  const { billId, question } = body as {
+  const { billId, question, clientSessionId } = body as {
     billId?: unknown;
     question?: unknown;
+    clientSessionId?: unknown;
   };
 
   if (typeof billId !== "string" || billId.length === 0 || billId.length > 80) {
@@ -34,6 +35,14 @@ export async function POST(request: NextRequest) {
     question.length > MAX_QUESTION_LENGTH
   ) {
     return badRequest("Question must be between 1 and 2000 characters.");
+  }
+  if (
+    clientSessionId !== undefined &&
+    (typeof clientSessionId !== "string" ||
+      clientSessionId.length === 0 ||
+      clientSessionId.length > 120)
+  ) {
+    return badRequest("Invalid clientSessionId.");
   }
 
   const client = getConvexClient();
@@ -51,6 +60,7 @@ export async function POST(request: NextRequest) {
     billId,
     question,
     anonymousSessionId,
+    ...(typeof clientSessionId === "string" ? { clientSessionId } : {}),
   });
   debugBillChatAuth("send-result", {
     hadToken: auth.hasToken,
