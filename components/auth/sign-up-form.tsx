@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "./google-button";
 import { safeRedirect } from "./safe-redirect";
+import { markSignupCelebrationPending } from "./welcome-new-user";
 
 type Step = "credentials" | "verify";
 
@@ -85,6 +86,7 @@ export function SignUpForm() {
         code,
         flow: "email-verification",
       });
+      markSignupCelebrationPending();
       router.push(redirect);
     } catch (err) {
       console.warn("Verification failed", err);
@@ -175,7 +177,7 @@ export function SignUpForm() {
 
   return (
     <div className="space-y-6">
-      <GoogleButton redirectTo={redirect} label="Sign up with Google" />
+      <GoogleButton redirectTo={redirect} label="Sign up with Google" celebrateOnReturn />
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">

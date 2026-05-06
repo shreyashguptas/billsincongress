@@ -63,9 +63,10 @@ export const getChatUsage = query({
     const userId = await getAuthUserId(ctx);
 
     if (userId !== null) {
-      const status = await rateLimiter.check(ctx, "chatAuthedPerDay", {
-        key: userId,
-      });
+      const [status, quota] = await Promise.all([
+        rateLimiter.check(ctx, "chatAuthedPerDay", { key: userId }),
+        rateLimiter.getValue(ctx, "chatAuthedPerDay", { key: userId }),
+      ]);
       const blocked = !status.ok;
 
       return {
@@ -75,6 +76,7 @@ export const getChatUsage = query({
         resetAt: null,
         retryAfterMs: blocked ? (status.retryAfter ?? 0) : null,
         requiresAuth: false,
+        quota,
       };
     }
 
@@ -86,12 +88,15 @@ export const getChatUsage = query({
         resetAt: null,
         retryAfterMs: null,
         requiresAuth: false,
+        remaining: ANONYMOUS_CHAT_DAILY_LIMIT,
+        used: 0,
       };
     }
 
-    const status = await rateLimiter.check(ctx, "chatAnonPerDay", {
-      key: args.anonymousSessionId,
-    });
+    const [status, quota] = await Promise.all([
+      rateLimiter.check(ctx, "chatAnonPerDay", { key: args.anonymousSessionId }),
+      rateLimiter.getValue(ctx, "chatAnonPerDay", { key: args.anonymousSessionId }),
+    ]);
     const blocked = !status.ok;
 
     return {
@@ -101,6 +106,7 @@ export const getChatUsage = query({
       resetAt: null,
       retryAfterMs: blocked ? (status.retryAfter ?? 0) : null,
       requiresAuth: false,
+      quota,
     };
   },
 });

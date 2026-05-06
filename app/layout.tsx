@@ -8,6 +8,7 @@ import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
 import { Analytics } from '@vercel/analytics/react';
 import { Toaster } from '@/components/ui/toaster';
+import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { ConvexClientProvider } from './ConvexClientProvider';
 
 const fraunces = Fraunces({
@@ -106,6 +107,7 @@ export default function RootLayout({
                   <Footer />
                 </div>
                 <Analytics />
+                <WelcomeNewUser />
                 <Toaster />
               </ThemeProvider>
             </ConvexClientProvider>

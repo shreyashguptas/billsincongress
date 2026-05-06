@@ -347,5 +347,7 @@ export type ChatUsageResult = {
   blocked: boolean;
   resetAt: number | null;
   retryAfterMs?: number | null;
+  remaining?: number;
+  used?: number;
   requiresAuth?: boolean;
 };

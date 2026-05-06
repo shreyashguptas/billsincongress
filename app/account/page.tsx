@@ -8,7 +8,9 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useConvexEnabled } from "@/app/ConvexClientProvider";
+import { billsService, type ChatUsageResult } from "@/lib/services/bills-service";
 
 export default function AccountPage() {
   const enabled = useConvexEnabled();
@@ -25,6 +27,23 @@ export default function AccountPage() {
 function AccountInner() {
   const user = useQuery(api.users.currentUser, {});
   const { signOut } = useAuthActions();
+  const [chatUsage, setChatUsage] = React.useState<ChatUsageResult | null>(null);
+
+  React.useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    billsService
+      .getChatUsage()
+      .then((usage) => {
+        if (!cancelled) setChatUsage(usage);
+      })
+      .catch(() => {
+        if (!cancelled) setChatUsage(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   if (user === undefined) {
     return (
@@ -49,6 +68,16 @@ function AccountInner() {
   }
 
   const verified = Boolean(user.emailVerificationTime);
+  const chatMax = chatUsage?.max ?? 100;
+  const chatUsed = Math.min(chatMax, chatUsage?.used ?? 0);
+  const chatRemaining = Math.max(0, chatUsage?.remaining ?? chatMax - chatUsed);
+  const chatPercent = chatMax > 0 ? Math.round((chatUsed / chatMax) * 100) : 0;
+  const resetLabel = chatUsage?.resetAt
+    ? new Date(chatUsage.resetAt).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "midnight Eastern";
 
   return (
     <div className="container-editorial py-16 space-y-10">
@@ -59,7 +88,7 @@ function AccountInner() {
         </h1>
       </header>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Profile</CardTitle>
@@ -111,6 +140,26 @@ function AccountInner() {
                 Pro adds daily bill digests, generated bill audio, and more. Pricing page coming in PR 2.
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Usage</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider">Free bill chat</p>
+              <p className="mt-1 font-serif text-2xl">
+                {chatUsed}
+                <span className="text-base text-muted-foreground"> / {chatMax}</span>
+              </p>
+            </div>
+            <Progress value={chatPercent} aria-label="Bill chat usage" />
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>{chatRemaining} remaining today</span>
+              <span>Resets at {resetLabel}</span>
+            </div>
           </CardContent>
         </Card>
       </div>

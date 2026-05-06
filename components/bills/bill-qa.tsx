@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { billsService, type ChatUsageResult } from '@/lib/services/bills-service';
 import ReactMarkdown from 'react-markdown';
@@ -30,6 +30,25 @@ const EXAMPLE_QUESTIONS = [
   'Who supports or opposes this bill?',
   'What are the key sections of this bill?',
 ];
+
+const CHAT_SCROLL_DEBUG_KEY = 'billChatScrollDebug';
+const CHAT_BOTTOM_THRESHOLD_PX = 96;
+
+function canRefocusChatInput() {
+  return typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches;
+}
+
+function debugChatScroll(reason: string, element: HTMLDivElement | null) {
+  if (typeof window === 'undefined') return;
+  if (window.localStorage.getItem(CHAT_SCROLL_DEBUG_KEY) !== '1') return;
+
+  console.debug('[bill-chat-scroll]', reason, element ? {
+    scrollTop: Math.round(element.scrollTop),
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+    distanceFromBottom: Math.round(element.scrollHeight - element.scrollTop - element.clientHeight),
+  } : null);
+}
 
 const MarkdownMessage = ({ content }: { content: string }) => (
   <ReactMarkdown
@@ -79,8 +98,10 @@ export default function BillQA({ billId }: BillQAProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [usage, setUsage] = useState<ChatUsageResult | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const lastMessageCountRef = useRef(0);
 
   const pathname = usePathname();
 
@@ -106,17 +127,52 @@ export default function BillQA({ billId }: BillQAProps) {
     billsService
       .getBillChatHistory(billId)
       .then((history) => {
+        shouldStickToBottomRef.current = true;
         setMessages(history.map((m) => ({ id: m._id, role: m.role, content: m.content })));
       })
       .catch(() => {})
       .finally(() => setIsLoadingHistory(false));
   }, [billId]);
 
-  useEffect(() => {
-    if (!isLoadingHistory) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const isNearBottom = useCallback(() => {
+    const element = scrollContainerRef.current;
+    if (!element) return true;
+    return element.scrollHeight - element.scrollTop - element.clientHeight < CHAT_BOTTOM_THRESHOLD_PX;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior, reason: string) => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+
+    requestAnimationFrame(() => {
+      element.scrollTo({
+        top: element.scrollHeight,
+        behavior,
+      });
+      debugChatScroll(reason, element);
+    });
+  }, []);
+
+  const handleChatScroll = useCallback(() => {
+    shouldStickToBottomRef.current = isNearBottom();
+    debugChatScroll('user-scroll', scrollContainerRef.current);
+  }, [isNearBottom]);
+
+  useLayoutEffect(() => {
+    if (isLoadingHistory) return;
+
+    const previousCount = lastMessageCountRef.current;
+    const hasNewMessage = messages.length !== previousCount;
+    const lastRole = messages[messages.length - 1]?.role;
+    lastMessageCountRef.current = messages.length;
+
+    if (messages.length === 0 && !isLoading) return;
+
+    const forceBottom = previousCount === 0 || lastRole === 'user';
+    if (forceBottom || shouldStickToBottomRef.current || (isLoading && hasNewMessage)) {
+      scrollToBottom(forceBottom ? 'auto' : 'smooth', forceBottom ? 'force-bottom' : 'sticky-bottom');
     }
-  }, [messages, isLoadingHistory]);
+  }, [messages, isLoading, isLoadingHistory, scrollToBottom]);
 
   const handleSubmit = useCallback(
     async (question: string) => {
@@ -129,6 +185,7 @@ export default function BillQA({ billId }: BillQAProps) {
       if (usage?.blocked) return;
 
       const tempId = `temp_${Date.now()}`;
+      shouldStickToBottomRef.current = true;
       setMessages((prev) => [...prev, { id: tempId, role: 'user', content: q }]);
       setInput('');
       setIsLoading(true);
@@ -165,7 +222,7 @@ export default function BillQA({ billId }: BillQAProps) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
       } finally {
         setIsLoading(false);
-        inputRef.current?.focus();
+        if (canRefocusChatInput()) inputRef.current?.focus();
       }
     },
     [billId, isLoading, refreshUsage, usage]
@@ -210,7 +267,11 @@ export default function BillQA({ billId }: BillQAProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3 min-h-0">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleChatScroll}
+        className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-3 min-h-0 [overflow-anchor:none] [-webkit-overflow-scrolling:touch]"
+      >
         {isLoadingHistory ? (
           <div className="flex justify-center items-center h-full">
             <div className="animate-spin rounded-full h-5 w-5 border-2 border-foreground border-t-transparent" />
@@ -280,8 +341,6 @@ export default function BillQA({ billId }: BillQAProps) {
             </div>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       <div className="border-t border-border px-5 py-3 shrink-0 space-y-2">

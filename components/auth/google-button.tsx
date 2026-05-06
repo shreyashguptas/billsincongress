@@ -3,13 +3,19 @@
 import * as React from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@/components/ui/button";
+import { markSignupCelebrationPending } from "./welcome-new-user";
 
 interface GoogleButtonProps {
   redirectTo?: string;
   label?: string;
+  celebrateOnReturn?: boolean;
 }
 
-export function GoogleButton({ redirectTo = "/account", label = "Continue with Google" }: GoogleButtonProps) {
+export function GoogleButton({
+  redirectTo = "/account",
+  label = "Continue with Google",
+  celebrateOnReturn = false,
+}: GoogleButtonProps) {
   const { signIn } = useAuthActions();
   const [busy, setBusy] = React.useState(false);
 
@@ -22,6 +28,7 @@ export function GoogleButton({ redirectTo = "/account", label = "Continue with G
       const absolute = redirectTo.startsWith("http")
         ? redirectTo
         : new URL(redirectTo, window.location.origin).toString();
+      if (celebrateOnReturn) markSignupCelebrationPending();
       await signIn("google", { redirectTo: absolute });
     } catch (err) {
       console.error("Google sign-in failed", err);

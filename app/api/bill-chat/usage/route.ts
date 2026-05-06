@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { calculateRateLimit } from "@convex-dev/rate-limiter";
 import { api } from "@/convex/_generated/api";
 import {
   debugBillChatAuth,
@@ -28,8 +29,27 @@ export async function GET() {
   const usage = await client.query(api.rateLimits.getChatUsage, {
     anonymousSessionId,
   });
+  const quota = "quota" in usage ? usage.quota : null;
+  const currentQuota = quota
+    ? calculateRateLimit(
+        { value: quota.value, ts: quota.ts },
+        quota.config,
+        Date.now(),
+        0,
+      )
+    : null;
+  const remaining = currentQuota
+    ? Math.max(0, Math.min(usage.max, Math.floor(currentQuota.value)))
+    : ("remaining" in usage && typeof usage.remaining === "number" ? usage.remaining : usage.max);
+  const used =
+    "used" in usage && typeof usage.used === "number"
+      ? usage.used
+      : Math.max(0, usage.max - remaining);
   const result = {
     ...usage,
+    quota: undefined,
+    remaining,
+    used,
     resetAt:
       usage.blocked && typeof usage.retryAfterMs === "number"
         ? Date.now() + usage.retryAfterMs
