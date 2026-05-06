@@ -120,6 +120,8 @@ For performance, analytics data is precomputed during sync:
 | `syncSnapshots` | Audit trail for sync runs |
 | `billChats` | Per-bill chat sessions keyed by (billId, sessionId) |
 | `billChatMessages` | Individual chat turns (user + assistant) |
+| `billChatAnalyticsSessions` | Signed-in bill chat analytics sessions |
+| `billChatAnalyticsTurns` | Analytics metadata for chat turns, linked to canonical messages |
 
 ---
 
@@ -146,6 +148,7 @@ Convex action: api.llm.sendChatMessage
        - full conversation history
        - current user question
   5. Save assistant response to billChatMessages
+  6. For signed-in users, save analytics metadata with userMessageId and assistantMessageId references
     ↓
 Answer rendered as Markdown in the chat UI
 ```
@@ -180,10 +183,13 @@ One row per (billId × sessionId) pair:
 ```
 
 ### `billChatMessages`
-One row per message turn:
+Canonical transcript storage. One row per user or assistant message:
 ```typescript
 { chatId: Id<"billChats">, role: "user" | "assistant", content: string, createdAt: string }
 ```
+
+### `billChatAnalyticsTurns`
+Analytics rows do not duplicate transcript text. They store `userMessageId` and `assistantMessageId` references back to `billChatMessages`, plus bill snapshot, model, timing, latency, and plan metadata.
 
 ## LLM Prompt Strategy
 
@@ -211,6 +217,7 @@ This gives the model full context for coherent multi-turn answers.
 To inspect persisted chats in Convex dashboard:
 - Table: `billChats` — one row per user session + bill
 - Table: `billChatMessages` — all turns in order
+- Table: `billChatAnalyticsTurns` — analytics references and metadata only
 
 ---
 

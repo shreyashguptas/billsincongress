@@ -82,8 +82,6 @@ export const recordAnalyticsTurn = internalMutation({
     chatId: v.id("billChats"),
     userMessageId: v.id("billChatMessages"),
     assistantMessageId: v.id("billChatMessages"),
-    question: v.string(),
-    answer: v.string(),
     billSnapshot: billSnapshotValidator,
     model: v.string(),
     createdAtUtc: v.number(),

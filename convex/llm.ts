@@ -387,8 +387,6 @@ export const sendChatMessage = action({
             chatId,
             userMessageId,
             assistantMessageId,
-            question,
-            answer,
             billSnapshot: {
               billId: billContext.billId,
               congress: billContext.congress,

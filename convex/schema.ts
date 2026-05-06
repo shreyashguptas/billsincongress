@@ -282,8 +282,6 @@ export default defineSchema({
     chatId: v.id("billChats"),
     userMessageId: v.id("billChatMessages"),
     assistantMessageId: v.id("billChatMessages"),
-    question: v.string(),
-    answer: v.string(),
     billSnapshot: v.object({
       billId: v.string(),
       congress: v.number(),
