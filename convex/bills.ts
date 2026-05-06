@@ -320,10 +320,20 @@ export const list = query({
     const matches: Doc<"bills">[] = [];
     let scanned = 0;
 
-    const iter = ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-      .order("desc");
+    const iter =
+      args.progressStage !== undefined
+        ? ctx.db
+            .query("bills")
+            .withIndex("by_congress_and_progress_stage", (q) =>
+              q
+                .eq("congress", congressFilter)
+                .eq("progressStage", args.progressStage),
+            )
+            .order("desc")
+        : ctx.db
+            .query("bills")
+            .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+            .order("desc");
 
     for await (const bill of iter) {
       scanned++;
@@ -334,6 +344,27 @@ export const list = query({
       matches.push(bill);
       if (matches.length >= needed) break;
       if (scanned >= MAX_LIST_SCAN) break;
+    }
+
+    if (scanned >= MAX_LIST_SCAN && matches.length <= offset + limit) {
+      console.warn("bills.list hit scan cap before filling page", {
+        congress: congressFilter,
+        filters: {
+          progressStage: args.progressStage ?? null,
+          sponsorState: args.sponsorState ?? null,
+          billType: args.billType ?? null,
+          hasTitleFilter: Boolean(args.titleFilter?.trim()),
+          sponsorFilterCount: args.sponsorFilter?.length ?? 0,
+          billNumber: args.billNumber ?? null,
+          policyArea: args.policyArea ?? null,
+          introducedDateFilter: args.introducedDateFilter ?? null,
+          lastActionDateFilter: args.lastActionDateFilter ?? null,
+        },
+        offset,
+        limit,
+        matches: matches.length,
+        scanned,
+      });
     }
 
     const hasMore = matches.length > offset + limit;

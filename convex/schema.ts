@@ -97,6 +97,7 @@ export default defineSchema({
     .index("by_billId", ["billId"])
     .index("by_congress", ["congress"])
     .index("by_congress_and_type", ["congress", "billType"])
+    .index("by_congress_and_progress_stage", ["congress", "progressStage"])
     .index("by_progress_stage", ["progressStage"])
     .index("by_sponsor_state", ["sponsorState"])
     .index("by_updated_at", ["updatedAt"])
