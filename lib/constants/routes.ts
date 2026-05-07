@@ -12,6 +12,10 @@ export const routes = [
     label: 'Learn',
   },
   {
+    href: '/docs',
+    label: 'Developers',
+  },
+  {
     href: '/about',
     label: 'About',
   },

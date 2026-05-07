@@ -166,6 +166,61 @@
   }
 }
 
+/* Docs prose — used inside <article class="docs-prose"> for the
+ * /docs/* pages. Editorial typography with Fraunces headings, generous
+ * spacing, and careful inline-code styling. Does not depend on
+ * @tailwindcss/typography (the project doesn't have that plugin yet).
+ */
+.docs-prose {
+  @apply max-w-3xl text-foreground;
+}
+.docs-prose .lead {
+  @apply mt-2 text-base sm:text-lg text-muted-foreground leading-relaxed;
+}
+.docs-prose h1 {
+  @apply mt-2 mb-4;
+}
+.docs-prose h2 {
+  @apply font-serif text-2xl font-semibold tracking-tight mt-10 mb-3;
+}
+.docs-prose h3 {
+  @apply font-serif text-xl font-semibold tracking-tight mt-8 mb-2;
+}
+.docs-prose p {
+  @apply my-4 leading-relaxed text-[15px];
+}
+.docs-prose ul,
+.docs-prose ol {
+  @apply my-4 pl-5 space-y-1.5 text-[15px];
+}
+.docs-prose ul {
+  @apply list-disc;
+}
+.docs-prose ol {
+  @apply list-decimal;
+}
+.docs-prose code {
+  @apply rounded-sm bg-secondary px-1 py-0.5 font-mono text-[12.5px];
+}
+.docs-prose pre {
+  @apply my-4 overflow-x-auto rounded-md border border-border bg-foreground/[0.04] p-3 text-[12px] leading-relaxed;
+}
+.docs-prose pre code {
+  @apply bg-transparent p-0 font-mono;
+}
+.docs-prose a {
+  @apply underline underline-offset-4 decoration-border hover:decoration-foreground;
+}
+.docs-prose hr {
+  @apply my-12 border-t border-border;
+}
+.docs-prose strong {
+  @apply font-semibold text-foreground;
+}
+.docs-prose .not-prose {
+  @apply my-6;
+}
+
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }

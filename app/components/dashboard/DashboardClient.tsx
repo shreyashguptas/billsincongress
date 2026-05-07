@@ -101,8 +101,10 @@ function DashboardInner({
   const houseBreakdown = isInitial ? initialData?.house : liveHouse;
   const senateBreakdown = isInitial ? initialData?.senate : liveSenate;
 
-  const congressNumbers =
-    allCongressData?.filter((d) => d.totalCount > 0).map((d) => d.congress) || [];
+  const congressNumbers: number[] =
+    allCongressData
+      ?.filter((d: { totalCount: number }) => d.totalCount > 0)
+      .map((d: { congress: number }) => d.congress) || [];
 
   useEffect(() => {
     if (congressNumbers.length > 0 && !congressNumbers.includes(selectedCongress)) {
@@ -129,7 +131,9 @@ function DashboardInner({
     );
   }
 
-  const currentStats = allCongressData.find((d) => d.congress === selectedCongress);
+  const currentStats = allCongressData.find(
+    (d: { congress: number }) => d.congress === selectedCongress,
+  );
   const currentTerm = getCongressTermYears(selectedCongress);
 
   return (
