@@ -1,11 +1,29 @@
-import { RateLimiter, HOUR, DAY } from "@convex-dev/rate-limiter";
+import { RateLimiter, HOUR, DAY, MINUTE } from "@convex-dev/rate-limiter";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { components } from "./_generated/api";
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
 const AUTHED_CHAT_DAILY_LIMIT = 100;
+
+// ─── Public API limits ─────────────────────────────────────────────────────
+// Limits are looked up by `(plan, scope)` so that future paid tiers can
+// raise them with a one-line change. For v1 free === pro on purpose: we
+// want to ship the API, observe real usage, then design tiers from data
+// instead of from the armchair.
+//
+// Token bucket on the hourly limit so a legitimate burst (one-off backfill,
+// 800 requests in 5 minutes) is fine; sustained abuse still trips the daily
+// fixed window.
+export const API_TOKEN_HOURLY_LIMIT = 1000;
+export const API_TOKEN_DAILY_LIMIT = 10000;
+// Per-IP edge limit, applied BEFORE the token check so an attacker burning
+// through invalid tokens can't pummel Convex.
+export const API_IP_PER_MINUTE_LIMIT = 100;
+// Re-auth OTP issuance cap (per user) before they can mint a token. Tighter
+// than the email-bombing cap because this is a higher-value flow.
+export const API_REAUTH_OTP_PER_HOUR = 5;
 
 // ─── Limit definitions ─────────────────────────────────────────────────────
 // `start: 5 * HOUR` aligns the 24h fixed window to Unix-epoch + 5h, which is
@@ -43,6 +61,36 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   otpRequestPerEmail: {
     kind: "fixed window",
     rate: 5,
+    period: HOUR,
+  },
+  // Public API — per-token hourly bucket. Token-bucket so bursts are fine
+  // and tokens refill continuously instead of cliff-resetting.
+  apiTokenPerHour: {
+    kind: "token bucket",
+    rate: API_TOKEN_HOURLY_LIMIT,
+    period: HOUR,
+    capacity: API_TOKEN_HOURLY_LIMIT,
+  },
+  // Public API — per-token daily fixed window. Aligned to 5 AM UTC = midnight
+  // EST so the reset is predictable for our primary US audience.
+  apiTokenPerDay: {
+    kind: "fixed window",
+    rate: API_TOKEN_DAILY_LIMIT,
+    period: DAY,
+    start: 5 * HOUR,
+  },
+  // Public API — per-IP edge limit. Cheap reject path for attackers spraying
+  // invalid tokens; honest single-machine callers will never hit this.
+  apiIpPerMinute: {
+    kind: "fixed window",
+    rate: API_IP_PER_MINUTE_LIMIT,
+    period: MINUTE,
+  },
+  // Token-mint re-auth OTPs, keyed by userId. 5/hr is plenty for a user
+  // legitimately generating tokens; tight enough to slow OTP brute force.
+  apiTokenReauthOtpPerUser: {
+    kind: "fixed window",
+    rate: API_REAUTH_OTP_PER_HOUR,
     period: HOUR,
   },
 });
@@ -107,6 +155,75 @@ export const getChatUsage = query({
       retryAfterMs: blocked ? (status.retryAfter ?? 0) : null,
       requiresAuth: false,
       quota,
+    };
+  },
+});
+
+// ─── Public API rate-limit consumers ───────────────────────────────────────
+// These are mutations (not queries) because consuming a token is a write.
+// Called by the Next.js /api/v1/* route handlers via ConvexHttpClient.
+//
+// They are deliberately public so the unauthenticated route handler can
+// reach them — but they're harmless to call: the worst an attacker can do
+// is burn down their own IP bucket. The token-id mutations require an
+// id<"apiTokens">, which can't be forged.
+
+export const consumeApiIp = mutation({
+  args: { ip: v.string() },
+  handler: async (ctx, args) => {
+    // An attacker can forge x-forwarded-for. Truncating to 64 chars
+    // before keying means oversize values can't slip past the gate by
+    // failing length validation; it also bounds the bucket-key
+    // cardinality so memory usage stays predictable.
+    const key = (args.ip ?? "").slice(0, 64);
+    if (!key) {
+      // No IP at all (no x-forwarded-for, no x-real-ip) — degrade
+      // gracefully. The per-token bucket below still protects any path
+      // that requires authentication; the unauth'd OPTIONS / openapi
+      // routes don't need this gate.
+      return { ok: true, remaining: API_IP_PER_MINUTE_LIMIT };
+    }
+    const result = await rateLimiter.limit(ctx, "apiIpPerMinute", {
+      key,
+    });
+    return {
+      ok: result.ok,
+      remaining: 0, // not exposed by limit(); UI doesn't need it
+      retryAfterMs: result.ok ? undefined : result.retryAfter,
+    };
+  },
+});
+
+export const consumeApiTokenHourly = mutation({
+  args: { tokenId: v.id("apiTokens") },
+  handler: async (ctx, args) => {
+    const result = await rateLimiter.limit(ctx, "apiTokenPerHour", {
+      key: args.tokenId,
+    });
+    const value = await rateLimiter.getValue(ctx, "apiTokenPerHour", {
+      key: args.tokenId,
+    });
+    return {
+      ok: result.ok,
+      remaining: Math.max(0, Math.floor(value.value)),
+      retryAfterMs: result.ok ? undefined : result.retryAfter,
+    };
+  },
+});
+
+export const consumeApiTokenDaily = mutation({
+  args: { tokenId: v.id("apiTokens") },
+  handler: async (ctx, args) => {
+    const result = await rateLimiter.limit(ctx, "apiTokenPerDay", {
+      key: args.tokenId,
+    });
+    const value = await rateLimiter.getValue(ctx, "apiTokenPerDay", {
+      key: args.tokenId,
+    });
+    return {
+      ok: result.ok,
+      remaining: Math.max(0, Math.floor(value.value)),
+      retryAfterMs: result.ok ? undefined : result.retryAfter,
     };
   },
 });

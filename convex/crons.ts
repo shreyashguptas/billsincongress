@@ -33,4 +33,23 @@ crons.daily(
   {},
 );
 
+// Run daily at 5:30 AM UTC - prune apiRequestLogs older than 90 days.
+// Loops through batches inside the action so a backlog doesn't blow the
+// per-mutation document limit.
+crons.daily(
+  "daily-prune-api-request-logs",
+  { hourUTC: 5, minuteUTC: 30 },
+  internal.apiTokens._pruneOldLogsLoop,
+  {},
+);
+
+// Run daily at 5:35 AM UTC - prune expired re-auth OTP challenges.
+// Cheap; just hygiene so the table doesn't accumulate dead rows.
+crons.daily(
+  "daily-prune-api-reauth-challenges",
+  { hourUTC: 5, minuteUTC: 35 },
+  internal.apiTokenReauth._pruneExpiredChallengesAction,
+  {},
+);
+
 export default crons;

@@ -317,6 +317,67 @@ export default defineSchema({
     .index("by_billId_and_createdAt", ["billId", "createdAtUtc"])
     .index("by_chatId", ["chatId"]),
 
+  // ─── Public API tokens ─────────────────────────────────────────────────────
+  // Personal access tokens minted by signed-in users for the public REST API
+  // at /api/v1/*. Plaintext NEVER leaves the server beyond the single response
+  // body of `createToken` — at rest we keep only SHA-256 of the token plus the
+  // last 4 chars (for UI disambiguation).
+  //
+  // `scopes` is forward-compat for v2: today every token gets ["read"]; later
+  // we plan to add "chat" (bill chat over the API, costs LLM credits).
+  // `tokenPrefix` is "bic_live_" today; reserved space for "bic_test_".
+  apiTokens: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    tokenHash: v.string(), // SHA-256 hex of plaintext token
+    tokenPrefix: v.string(),
+    tokenLast4: v.string(),
+    scopes: v.array(v.string()),
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()), // null = no expiry
+    revokedAt: v.optional(v.number()), // null = active
+  })
+    .index("by_userId", ["userId"])
+    .index("by_tokenHash", ["tokenHash"]),
+
+  // Per-request log for the public API. Powers the per-token usage panel in
+  // the account UI and gives us forensic data if a token is leaked. Retained
+  // for 90 days then deleted by `apiTokens.pruneOldLogs` cron.
+  apiRequestLogs: defineTable({
+    tokenId: v.id("apiTokens"),
+    userId: v.id("users"),
+    endpoint: v.string(),
+    method: v.string(),
+    status: v.number(),
+    latencyMs: v.number(),
+    ip: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_tokenId_and_createdAt", ["tokenId", "createdAt"])
+    .index("by_userId_and_createdAt", ["userId", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
+
+  // Email-OTP re-auth challenges issued before revealing a freshly minted
+  // API token. A user must prove possession of their email by entering a
+  // 6-digit code; we store the SHA-256 of the code (never the plaintext).
+  // Lifecycle: created on `issueChallenge`, marked `verifiedAt` on
+  // successful `verifyChallenge`, deleted when a successful
+  // `apiTokens.createToken` consumes the challenge. Any rows left over
+  // (unverified, or verified but never used) are pruned by the daily
+  // cron once `expiresAt` is in the past. Default lifetime is 10 minutes.
+  apiTokenReauthChallenges: defineTable({
+    userId: v.id("users"),
+    codeHash: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    attempts: v.number(),
+    verifiedAt: v.optional(v.number()),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   // Sync snapshots for audit trail
   syncSnapshots: defineTable({
     syncType: v.string(), // "historical" or "daily"

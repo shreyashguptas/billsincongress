@@ -73,6 +73,105 @@ export const getById = query({
 });
 
 /**
+ * Public bill actions list. Identical shape to the internal version that
+ * powers bill chat, but exposed for the public REST API. Capped at 200 to
+ * keep the response payload bounded; ample for any real bill (typical
+ * actions per bill: 5–60).
+ */
+export const listActionsPublic = query({
+  args: {
+    billId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.max(1, Math.min(args.limit ?? 200, 500));
+    const actions = await ctx.db
+      .query("billActions")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .order("desc")
+      .take(limit);
+    return actions.map((a) => ({
+      action_date: a.actionDate,
+      text: a.text,
+      action_code: a.actionCode ?? null,
+      type: a.type ?? null,
+      source_system_name: a.sourceSystemName ?? null,
+      source_system_code: a.sourceSystemCode ?? null,
+    }));
+  },
+});
+
+/** All summaries for a bill, newest first. */
+export const listSummariesPublic = query({
+  args: {
+    billId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.max(1, Math.min(args.limit ?? 50, 200));
+    const summaries = await ctx.db
+      .query("billSummaries")
+      .withIndex("by_billId_and_date", (q) => q.eq("billId", args.billId))
+      .order("desc")
+      .take(limit);
+    return summaries.map((s) => ({
+      action_date: s.actionDate ?? null,
+      action_desc: s.actionDesc ?? null,
+      version_code: s.versionCode ?? null,
+      update_date: s.updateDate,
+      text: s.text,
+    }));
+  },
+});
+
+/** All text versions for a bill (TXT + PDF URLs). */
+export const listTextPublic = query({
+  args: {
+    billId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.max(1, Math.min(args.limit ?? 50, 200));
+    const text = await ctx.db
+      .query("billText")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .order("desc")
+      .take(limit);
+    return text.map((t) => ({
+      date: t.date ?? null,
+      type: t.type ?? null,
+      formats_url_txt: t.formatsUrlTxt ?? null,
+      formats_url_pdf: t.formatsUrlPdf ?? null,
+    }));
+  },
+});
+
+/** Title variants for a bill. */
+export const listTitlesPublic = query({
+  args: {
+    billId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.max(1, Math.min(args.limit ?? 50, 200));
+    const titles = await ctx.db
+      .query("billTitles")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(limit);
+    return titles.map((t) => ({
+      title: t.title,
+      title_type: t.titleType ?? null,
+      title_type_code: t.titleTypeCode ?? null,
+      update_date: t.updateDate ?? null,
+      bill_text_version_code: t.billTextVersionCode ?? null,
+      bill_text_version_name: t.billTextVersionName ?? null,
+      chamber_code: t.chamberCode ?? null,
+      chamber_name: t.chamberName ?? null,
+    }));
+  },
+});
+
+/**
  * Get bill actions for a specific bill (internal query)
  */
 export const getBillActions = internalQuery({
