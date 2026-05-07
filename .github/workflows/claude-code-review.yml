@@ -20,6 +20,11 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
+      # Required by anthropics/claude-code-action so it can fetch an OIDC
+      # token from the GitHub Actions OIDC provider. Without this the
+      # action's first step ("Requesting OIDC token") fails three times
+      # and the job exits 1.
+      id-token: write
 
     steps:
       - name: Checkout repository

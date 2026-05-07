@@ -33,6 +33,9 @@ jobs:
       pull-requests: read
       issues: read
       actions: read # Required for Claude to read CI results on PRs
+      # Required for the action's OIDC handshake. Without this the step
+      # "Requesting OIDC token" fails three times and the job exits 1.
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
