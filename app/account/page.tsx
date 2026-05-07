@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useConvexEnabled } from "@/app/ConvexClientProvider";
 import { billsService, type ChatUsageResult } from "@/lib/services/bills-service";
+import { ApiTokensCard } from "@/components/auth/api-tokens-card";
 
 export default function AccountPage() {
   const enabled = useConvexEnabled();
@@ -163,6 +164,8 @@ function AccountInner() {
           </CardContent>
         </Card>
       </div>
+
+      <ApiTokensCard />
 
       <div className="border-t border-border pt-6">
         <Button
