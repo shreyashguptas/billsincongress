@@ -1,6 +1,5 @@
-import { Suspense } from 'react';
+import { Suspense, cache } from 'react';
 import { notFound } from 'next/navigation';
-import { cacheLife, cacheTag } from 'next/cache';
 import BillDetails from '../../../components/bills/bill-details';
 import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
@@ -11,55 +10,22 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-// Cache the per-bill fetch at the edge. 1-hour revalidate matches the
-// previous `export const revalidate = 3600` ISR window. The bill ID
-// argument forms the cache key automatically. Returns `null` on any
-// failure (missing Convex env, bill not found, network error) so the
-// caller can route to notFound() cleanly — throwing inside `'use cache'`
-// fails the prerender for placeholder routes.
-async function getCachedBill(id: string): Promise<Bill | null> {
-  'use cache';
-  cacheLife({ revalidate: 3600 });
-  cacheTag('bills', `bill-${id}`);
-  // `__placeholder__` is the sentinel returned by `generateStaticParams`
-  // when no real bills are available at build time (e.g. local builds
-  // without NEXT_PUBLIC_CONVEX_URL set). The route is expected to 404
-  // at request time, so short-circuit before hitting the service to
-  // avoid a noisy "failed to fetch" log on every build.
-  if (id === '__placeholder__') return null;
+// Fetch the bill once per request. React's `cache()` dedupes the call shared
+// between generateMetadata and the page render (request-scoped only — no
+// persistent cache). The page renders dynamically on each request; returns
+// null on any failure so the caller can route to notFound() cleanly.
+const getBill = cache(async (id: string): Promise<Bill | null> => {
   try {
     return await billsService.fetchBillById(id);
   } catch (error) {
-    console.error(`getCachedBill(${id}) failed:`, error);
+    console.error(`getBill(${id}) failed:`, error);
     return null;
   }
-}
+});
 
-// Cache Components requires `generateStaticParams` to return at least one
-// entry so the build can validate the route. We try to fetch the most
-// recent 100 bills (matches the previous ISR pre-generation behavior); if
-// the build environment lacks Convex env or the fetch fails, we fall back
-// to a single placeholder route which renders a 404 at build time via
-// notFound() and resolves real bills on demand via getCachedBill.
-export async function generateStaticParams(): Promise<Array<{ id: string }>> {
-  try {
-    const { data } = await billsService.fetchBills({
-      page: 1,
-      itemsPerPage: 100,
-    });
-    if (data.length > 0) {
-      return data.map((bill) => ({ id: bill.id }));
-    }
-  } catch (error: unknown) {
-    console.error('Error generating static params:', error);
-  }
-  return [{ id: '__placeholder__' }];
-}
-
-// Generate metadata for the page
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const bill = await getCachedBill(id);
+  const bill = await getBill(id);
 
   if (!bill) {
     return { title: 'Bill Not Found' };
@@ -73,7 +39,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BillPage({ params }: PageProps): Promise<ReactElement> {
   const { id } = await params;
-  const bill = await getCachedBill(id);
+  const bill = await getBill(id);
 
   if (!bill) {
     notFound();

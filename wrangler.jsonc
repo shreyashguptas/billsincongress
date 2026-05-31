@@ -2,6 +2,11 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "billsincongress",
   "main": ".open-next/worker.js",
+  // esbuild's keep-names (on by default in Wrangler) injects a `__name` helper
+  // into stringified inline scripts (e.g. next-themes' pre-paint theme script),
+  // causing "ReferenceError: __name is not defined" in the browser. Disabling it
+  // fixes that. See https://opennext.js.org/cloudflare/howtos/keep_names
+  "keep_names": false,
   "compatibility_date": "2026-04-23",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {

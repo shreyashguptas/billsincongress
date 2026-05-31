@@ -1,14 +1,8 @@
 import { ModeToggle } from '@/components/theme/mode-toggle';
-import { cacheLife } from 'next/cache';
 import { Github } from 'lucide-react';
 import Link from 'next/link';
 
-// The copyright year is the only non-deterministic value here. Caching the
-// whole Footer for a week is fine — the year doesn't change between cache
-// refreshes, and the rest is fully static.
-export async function Footer() {
-  'use cache';
-  cacheLife('weeks');
+export function Footer() {
   const year = new Date().getFullYear();
 
   return (

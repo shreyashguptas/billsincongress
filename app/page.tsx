@@ -1,39 +1,10 @@
-import { Suspense } from 'react';
-import { cacheLife, cacheTag } from 'next/cache';
 import { fetchQuery } from 'convex/nextjs';
 import { api } from '@/convex/_generated/api';
 import DashboardClient, {
   type InitialDashboardData,
 } from './components/dashboard/DashboardClient';
 
-// PPR pattern: the page itself is fully static (just a shell + Suspense
-// boundary). Dynamic searchParams are awaited inside the Suspense'd loader
-// so they don't block the static shell from flushing to the browser.
-export default function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ congress?: string }>;
-}) {
-  return (
-    <Suspense fallback={<HomeShell />}>
-      <DashboardServerLoader searchParams={searchParams} />
-    </Suspense>
-  );
-}
-
-function HomeShell() {
-  return (
-    <div className="container-editorial py-16 sm:py-24">
-      <div className="space-y-3">
-        <div className="h-3 w-32 bg-secondary rounded-sm animate-pulse" />
-        <div className="h-12 w-3/4 bg-secondary rounded-sm animate-pulse" />
-        <div className="h-4 w-1/2 bg-secondary rounded-sm animate-pulse" />
-      </div>
-    </div>
-  );
-}
-
-async function DashboardServerLoader({
+export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<{ congress?: string }>;
@@ -44,17 +15,14 @@ async function DashboardServerLoader({
   return <DashboardClient initialCongress={congress} initialData={data} />;
 }
 
-// Cached at the edge — the function argument forms the cache key, so
-// `?congress=119` and `?congress=118` get separate entries automatically.
-// Bills sync once per day so a 10-minute revalidate window is generous;
-// 1-hour hard expiry keeps the cache from going arbitrarily stale.
+// Fetches all dashboard data for a given Congress directly from Convex and is
+// rendered server-side on each request. The bills dataset syncs roughly once a
+// day, so per-request freshness is fine; we prefer plain dynamic rendering over
+// the previous experimental Cache Components streaming, which did not render
+// reliably on the Cloudflare Workers runtime.
 async function loadDashboardData(
   congress: number,
 ): Promise<InitialDashboardData | null> {
-  'use cache';
-  cacheLife({ stale: 60, revalidate: 600, expire: 3600 });
-  cacheTag('bills-dashboard', `bills-dashboard-${congress}`);
-
   if (!process.env.NEXT_PUBLIC_CONVEX_URL) return null;
 
   try {

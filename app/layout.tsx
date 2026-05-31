@@ -6,7 +6,6 @@ import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
-import { Analytics } from '@vercel/analytics/react';
 import { Toaster } from '@/components/ui/toaster';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { ConvexClientProvider } from './ConvexClientProvider';
@@ -106,7 +105,6 @@ export default function RootLayout({
                   </main>
                   <Footer />
                 </div>
-                <Analytics />
                 <WelcomeNewUser />
                 <Toaster />
               </ThemeProvider>
