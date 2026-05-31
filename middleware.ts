@@ -5,7 +5,12 @@ import {
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
 
-// Next.js 16 calls this file "proxy.ts" (formerly middleware.ts).
+// Kept as "middleware.ts" (not Next.js 16's "proxy.ts") on purpose: proxy.ts is
+// locked to the Node.js runtime, which the Cloudflare/OpenNext adapter doesn't
+// support — it requires Edge middleware. The middleware.ts convention still
+// runs on the Edge runtime, and all logic here (cookies, redirects, route
+// matching via @convex-dev/auth) is Edge-compatible.
+//
 // We use @convex-dev/auth's middleware wrapper since it's the only way it can
 // proxy /api/auth/* to Convex AND refresh session tokens. The wrapper accepts
 // our custom handler, where we layer route protection + cache-control headers.

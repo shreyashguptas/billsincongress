@@ -31,5 +31,10 @@ images-of-representatives.json
 # Build
 tsconfig.tsbuildinfo
 
+# Cloudflare / OpenNext
+.open-next/
+.wrangler/
+cloudflare-env.d.ts
+
 # Misc
 /extra-files-for-future

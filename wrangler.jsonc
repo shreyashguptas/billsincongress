@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "billsincongress",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-04-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    { "binding": "NEXT_INC_CACHE_KV", "id": "27119da2bbef43b0b8a73deb425772a5" },
+    { "binding": "NEXT_TAG_CACHE_KV", "id": "b0bc643509234dbb823721087525d9f7" }
+  ],
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "billsincongress" }
+  ]
+}
