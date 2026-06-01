@@ -323,8 +323,17 @@ export default function BillsPage() {
     billTypeFilter, billNumberFilter, congressFilter,
   );
 
+  // Signature of the active filter set. Re-keying the results grid on this
+  // makes the new cards cross-fade/stagger in when filters change, while a
+  // "load more" (same signature) leaves the existing cards untouched.
+  const resultsKey = [
+    statusFilter, introducedDateFilter, lastActionDateFilter,
+    sponsorFilter.join(','), titleFilter, stateFilter, policyAreaFilter,
+    billTypeFilter, billNumberFilter, congressFilter,
+  ].join('|');
+
   return (
-    <div className="animate-fade-in">
+    <div>
       {/* Page header — editorial */}
       <section className="border-b border-border">
         <div className="container-editorial py-10 sm:py-12">
@@ -473,16 +482,25 @@ export default function BillsPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div
+              key={resultsKey}
+              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
+            >
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="h-64 border border-border bg-card rounded-sm animate-pulse" />
                 ))
               ) : bills.length > 0 ? (
-                bills.map((bill) => (
-                  <Suspense key={bill.id} fallback={<div className="h-64 border border-border rounded-sm bg-card" />}>
-                    <BillCard bill={bill} />
-                  </Suspense>
+                bills.map((bill, i) => (
+                  <div
+                    key={bill.id}
+                    className="animate-rise-in"
+                    style={{ animationDelay: `${(i % ITEMS_PER_PAGE) * 35}ms` }}
+                  >
+                    <Suspense fallback={<div className="h-64 border border-border rounded-sm bg-card" />}>
+                      <BillCard bill={bill} />
+                    </Suspense>
+                  </div>
                 ))
               ) : (
                 <div className="col-span-full border border-dashed border-border rounded-sm p-12 text-center">

@@ -19,6 +19,16 @@ export type InitialDashboardData = {
   senate: FunctionReturnType<typeof api.bills.getChamberDeepBreakdown>;
 };
 
+// The fully-loaded report for a single Congress. We keep the last loaded view
+// on screen (dimmed) while a newly-selected Congress loads, then cross-fade to
+// the new numbers — so switching Congress never blanks the page to a skeleton.
+type DashboardView = {
+  congress: number;
+  dashboard: NonNullable<InitialDashboardData['dashboard']>;
+  house: InitialDashboardData['house'];
+  senate: InitialDashboardData['senate'];
+};
+
 interface DashboardProps {
   initialCongress?: number;
   initialData?: InitialDashboardData | null;
@@ -97,9 +107,41 @@ function DashboardInner({
   // selectedCongress — keep it always-live so it picks up new data, falling
   // back to the SSR snapshot until the websocket replies.
   const allCongressData = liveAll ?? initialData?.allCongress;
-  const congressDashboard = isInitial ? initialData?.dashboard : liveDashboard;
-  const houseBreakdown = isInitial ? initialData?.house : liveHouse;
-  const senateBreakdown = isInitial ? initialData?.senate : liveSenate;
+
+  // Data for whichever Congress the user has currently selected. Each is
+  // `undefined` while a freshly-selected Congress is still loading over the wire.
+  const resolvedDashboard = isInitial ? initialData?.dashboard : liveDashboard;
+  const resolvedHouse = isInitial ? initialData?.house : liveHouse;
+  const resolvedSenate = isInitial ? initialData?.senate : liveSenate;
+
+  // The last Congress whose data fully loaded. We keep showing it (dimmed)
+  // while a newly-selected Congress loads, then cross-fade to the new numbers
+  // once all of them have arrived — so switching never blanks to a skeleton.
+  const [view, setView] = useState<DashboardView | null>(() =>
+    initialData?.dashboard
+      ? {
+          congress: initialCongress,
+          dashboard: initialData.dashboard,
+          house: initialData.house,
+          senate: initialData.senate,
+        }
+      : null,
+  );
+
+  useEffect(() => {
+    if (resolvedDashboard && resolvedHouse !== undefined && resolvedSenate !== undefined) {
+      setView({
+        congress: selectedCongress,
+        dashboard: resolvedDashboard,
+        house: resolvedHouse,
+        senate: resolvedSenate,
+      });
+    }
+  }, [selectedCongress, resolvedDashboard, resolvedHouse, resolvedSenate]);
+
+  // True while the user has picked a Congress whose data hasn't arrived yet —
+  // we keep the previous report visible but dimmed until it does.
+  const isSwitching = view !== null && view.congress !== selectedCongress;
 
   const congressNumbers =
     allCongressData?.filter((d) => d.totalCount > 0).map((d) => d.congress) || [];
@@ -117,7 +159,9 @@ function DashboardInner({
     router.push(`/bills?${params.toString()}`);
   };
 
-  if (!allCongressData || !congressDashboard) {
+  // Cold start only — nothing has ever loaded. Once we have a view, switching
+  // Congress keeps the previous report on screen instead of dropping to this.
+  if (!allCongressData || !view) {
     return <DashboardSkeleton />;
   }
 
@@ -129,19 +173,25 @@ function DashboardInner({
     );
   }
 
-  const currentStats = allCongressData.find((d) => d.congress === selectedCongress);
-  const currentTerm = getCongressTermYears(selectedCongress);
+  // Everything on screen is driven by the loaded `view`, not the just-clicked
+  // selection, so every number belongs to the same Congress while switching.
+  const viewCongress = view.congress;
+  const congressDashboard = view.dashboard;
+  const houseBreakdown = view.house;
+  const senateBreakdown = view.senate;
+  const currentStats = allCongressData.find((d) => d.congress === viewCongress);
+  const currentTerm = getCongressTermYears(viewCongress);
 
   return (
-    <div className="animate-fade-in">
+    <div>
       {/* ── HERO / Editorial masthead ─────────────────────────────── */}
       <section className="border-b border-border">
         <div className="container-editorial py-10 sm:py-14">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div className="max-w-3xl">
               <p className="label-eyebrow mb-3">
-                The {selectedCongress}
-                {getOrdinalSuffix(selectedCongress)} Congress
+                The {viewCongress}
+                {getOrdinalSuffix(viewCongress)} Congress
                 {currentTerm && (
                   <span className="ml-2 text-muted-foreground/80 normal-case tracking-normal">
                     · {currentTerm}
@@ -201,6 +251,15 @@ function DashboardInner({
         </div>
       </section>
 
+      {/* Data region — dims while a newly-picked Congress loads, then
+          cross-fades to the new numbers (re-keyed on the loaded Congress). */}
+      <div
+        className={cn(
+          'transition-opacity duration-300',
+          isSwitching && 'opacity-50 pointer-events-none',
+        )}
+      >
+        <div key={viewCongress} className="animate-fade-in">
       {/* ── KEY METRICS row ───────────────────────────────────────── */}
       <section className="border-b border-border">
         <div className="container-editorial py-8">
@@ -303,11 +362,13 @@ function DashboardInner({
           />
           <HistoricalChart
             data={allCongressData}
-            selectedCongress={selectedCongress}
+            selectedCongress={viewCongress}
             onCongressClick={setSelectedCongress}
           />
         </div>
       </section>
+        </div>
+      </div>
     </div>
   );
 }

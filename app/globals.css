@@ -175,6 +175,27 @@
   animation: fade-in 0.4s ease-out forwards;
 }
 
+/* Page-to-page enter transition. Re-runs on every navigation via app/template.tsx.
+   Ends at `transform: none` so it never leaves a stacking/containing-block
+   behind (which would break sticky sidebars / portaled overlays). */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-page-in {
+  animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* List item entrance — used for bill cards as a filtered result set comes in.
+   `backwards` holds the start state during the per-item stagger delay. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-rise-in {
+  animation: rise-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
