@@ -1,6 +1,0 @@
-{
-  "buildCommand": "npm run generate-icons && next build",
-  "devCommand": "next dev",
-  "installCommand": "npm install",
-  "framework": "nextjs"
-}

@@ -12,7 +12,7 @@ The Congressional Bill Tracker makes Congress accessible to everyone by providin
 | Backend | Convex (serverless functions + database) |
 | Charts | Recharts |
 | Styling | Tailwind CSS |
-| Deployment | Vercel + Convex Cloud |
+| Deployment | Cloudflare Workers + Convex Cloud |
 
 ## Data Flow
 
@@ -397,9 +397,6 @@ Do not use `npx convex dev` for this project. Local frontend development should 
 ```env
 # AI Bill Chat (required for chat feature)
 GROQ_API_KEY=   # Get from https://console.groq.com/
-
-# Analytics (if using Vercel)
-NEXT_PUBLIC_ANALYTICS_ID=
 ```
 
 ---
@@ -410,12 +407,12 @@ NEXT_PUBLIC_ANALYTICS_ID=
 
 | Service | URL | Managed by |
 |---------|-----|------------|
-| Frontend | billsincongress.com | Vercel |
+| Frontend | billsincongress.com | Cloudflare |
 | Backend | industrious-llama-331.convex.cloud | Convex |
 
 ## Deploying Changes
 
-1. **Frontend changes**: Push to GitHub → Vercel auto-deploys
+1. **Frontend changes**: Run `npm run deploy` (builds with OpenNext → deploys to Cloudflare Workers)
 2. **Convex functions**: Run `npx convex deploy`
 3. **Both**: Can be done together - changes are independent
 
@@ -427,7 +424,7 @@ npx convex deploy
 ## Monitoring
 
 - **Convex**: Check Convex dashboard for function logs
-- **Vercel**: Check Vercel dashboard for deployment status
+- **Cloudflare**: Check the Cloudflare dashboard (or `wrangler tail`) for Worker logs and deployment status
 
 ---
 

@@ -57,15 +57,14 @@ The rest of this document is for people who want to read, run, or change the cod
 
 | Layer        | What we use                                                              |
 | ------------ | ------------------------------------------------------------------------ |
-| Frontend     | Next.js 16 (App Router, Cache Components / PPR), React 19, TypeScript    |
+| Frontend     | Next.js 16 (App Router), React 19, TypeScript                            |
 | Styling      | Tailwind CSS, shadcn/ui (Radix primitives), Framer Motion                |
 | Charts       | Recharts                                                                 |
 | Backend      | Convex (database, queries, mutations, actions, scheduled jobs)           |
 | Auth         | `@convex-dev/auth` with email OTP via Resend, plus Google OAuth          |
 | Rate limits  | `@convex-dev/rate-limiter` — 5 chat messages/day anon, 100/day signed-in |
 | AI chat      | Groq Compound Mini, with per-session history persisted in Convex         |
-| Hosting      | Vercel (frontend) + Convex Cloud (backend)                               |
-| Analytics    | Vercel Analytics                                                         |
+| Hosting      | Cloudflare Workers via OpenNext (frontend) + Convex Cloud (backend)       |
 
 ### Architecture at a glance
 
@@ -120,7 +119,7 @@ scripts/                 # Build-time helpers (icon generation, image optimisati
 
 ### Running it locally
 
-You'll need Node.js 20+ (Node 24 LTS is the recommended runtime on Vercel) and a package manager (`npm`, `pnpm`, or `bun` — examples below use `npm`).
+You'll need Node.js 20+ (Node 24 LTS is the recommended runtime) and a package manager (`npm`, `pnpm`, or `bun` — examples below use `npm`).
 
 ```bash
 git clone https://github.com/shreyashguptas/billsincongress.git
@@ -212,10 +211,10 @@ See [`Documentation/interactive-dashboard.md`](./Documentation/interactive-dashb
 
 | Service  | URL                                  | Owner  |
 | -------- | ------------------------------------ | ------ |
-| Frontend | billsincongress.com                  | Vercel |
+| Frontend | billsincongress.com                  | Cloudflare |
 | Backend  | industrious-llama-331.convex.cloud   | Convex |
 
-Pushing to `main` on GitHub deploys the frontend automatically. Convex functions deploy via `npx convex deploy`. The two are independent — you can ship one without the other.
+The frontend deploys to Cloudflare Workers by running `npm run deploy` (builds with OpenNext, then deploys via Wrangler). Convex functions deploy via `npx convex deploy`. The two are independent — you can ship one without the other.
 
 ## Contributing
 
