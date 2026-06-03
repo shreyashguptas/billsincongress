@@ -6,6 +6,7 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { X } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
+import { analytics } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useConvexEnabled } from "@/app/ConvexClientProvider";
@@ -39,6 +40,7 @@ export function WelcomeNewUser() {
     if (!isFreshAccount || window.localStorage.getItem(seenKey) === "1") return;
 
     window.localStorage.setItem(seenKey, "1");
+    analytics.welcomeModalShown();
     setOpen(true);
   }, [user]);
 

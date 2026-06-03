@@ -10,6 +10,7 @@ import {
   isValidStage,
   BillStages,
 } from '@/lib/utils/bill-stages';
+import { analytics } from '@/lib/analytics';
 import BillQA from './bill-qa';
 import { ArrowLeft, FileText, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -66,6 +67,24 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     typeof bill.progress_stage === 'string'
       ? parseInt(bill.progress_stage, 10)
       : bill.progress_stage;
+
+  // Top of the bill-engagement funnel: one event per bill detail view, with
+  // richer properties than the automatic $pageview.
+  useEffect(() => {
+    analytics.billViewed({
+      bill_id: String(bill.id),
+      bill_type: bill.bill_type,
+      bill_number: bill.bill_number,
+      congress: bill.congress,
+      policy_area: bill.bill_subjects?.policy_area_name ?? '',
+      progress_stage: progressStage,
+      has_summary: Boolean(bill.latest_summary),
+      has_pdf: Boolean(bill.pdf_url),
+    });
+    // Re-fire only if the user navigates to a different bill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bill.id]);
+
   const progressPercentage = getStagePercentage(progressStage);
   const displayDescription = getStageDescription(progressStage);
   const progressDots = isValidStage(progressStage)
@@ -137,6 +156,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                     href={bill.pdf_url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => analytics.billPdfOpened(String(bill.id))}
                     className="inline-flex items-center gap-1.5 text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground"
                   >
                     <FileText className="h-3.5 w-3.5" />

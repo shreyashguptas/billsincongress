@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@/components/ui/button";
+import { analytics } from "@/lib/analytics";
 import { markSignupCelebrationPending } from "./welcome-new-user";
 
 interface GoogleButtonProps {
@@ -28,6 +29,11 @@ export function GoogleButton({
       const absolute = redirectTo.startsWith("http")
         ? redirectTo
         : new URL(redirectTo, window.location.origin).toString();
+      // Capture intent before the full-page OAuth redirect; completion is
+      // attributed after return by PostHogAuthSync.
+      const intent = celebrateOnReturn ? "sign_up" : "sign_in";
+      analytics.authGoogleClicked(intent);
+      analytics.markPendingGoogleAuth(intent);
       if (celebrateOnReturn) markSignupCelebrationPending();
       await signIn("google", { redirectTo: absolute });
     } catch (err) {

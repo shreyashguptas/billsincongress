@@ -9,6 +9,7 @@ import { useConvexEnabled } from '../../ConvexClientProvider';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { analytics } from '@/lib/analytics';
 
 // Shape of the SSR-loaded data passed through from app/page.tsx.
 // Each field mirrors the return type of its Convex query.
@@ -153,6 +154,8 @@ function DashboardInner({
   }, [congressNumbers, selectedCongress]);
 
   const handleDrillDown = (filterType: string, filterValue: string | number) => {
+    // Single chokepoint for every dashboard stat/chart click that drills into /bills.
+    analytics.dashboardDrilldownClicked(filterType, filterValue, selectedCongress);
     const params = new URLSearchParams();
     params.set('congress', selectedCongress.toString());
     params.set(filterType, filterValue.toString());
@@ -210,6 +213,7 @@ function DashboardInner({
               <div className="mt-7 flex flex-wrap gap-3">
                 <Link
                   href="/bills"
+                  data-ph-capture-attribute-cta="home-browse-bills"
                   className="inline-flex items-center gap-2 rounded-sm bg-foreground px-4 py-2.5 text-sm font-medium text-background hover:bg-foreground/85 transition-colors"
                 >
                   Browse all bills
@@ -217,6 +221,7 @@ function DashboardInner({
                 </Link>
                 <Link
                   href="/learn"
+                  data-ph-capture-attribute-cta="home-learn"
                   className="inline-flex items-center gap-2 rounded-sm border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
                 >
                   How a bill becomes law
@@ -233,7 +238,10 @@ function DashboardInner({
                   .map((c) => (
                     <button
                       key={c}
-                      onClick={() => setSelectedCongress(c)}
+                      onClick={() => {
+                        analytics.dashboardCongressSelected(c);
+                        setSelectedCongress(c);
+                      }}
                       className={cn(
                         'rounded-sm border px-2.5 py-1 font-mono text-xs transition-colors tabular',
                         selectedCongress === c

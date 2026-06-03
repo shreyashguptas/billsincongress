@@ -90,6 +90,7 @@ export default function AboutPage() {
                   href="https://github.com/shreyashguptas/billsincongress"
                   target="_blank"
                   rel="noopener noreferrer"
+                  data-ph-capture-attribute-cta="about-github"
                   className="inline-flex items-center gap-2 rounded-sm border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary"
                 >
                   Source on GitHub
@@ -97,6 +98,7 @@ export default function AboutPage() {
                 </a>
                 <Link
                   href="/bills"
+                  data-ph-capture-attribute-cta="about-browse-bills"
                   className="inline-flex items-center gap-2 rounded-sm bg-foreground px-4 py-2.5 text-sm font-medium text-background hover:bg-foreground/85"
                 >
                   Explore the bills

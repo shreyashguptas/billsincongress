@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect } from 'react';
 import { billsService } from '@/lib/services/bills-service';
+import { analytics } from '@/lib/analytics';
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -178,6 +179,7 @@ export default function BillsPage() {
   ]);
 
   const handleClearAllFilters = () => {
+    analytics.billsFiltersCleared();
     setCurrentPage(1);
     setStatusFilter('all');
     setIntroducedDateFilter('all');
@@ -201,9 +203,26 @@ export default function BillsPage() {
     }
   };
 
+  // Count of filters that differ from their defaults (for analytics properties).
+  const countActiveFilters = () => {
+    let n = 0;
+    if (statusFilter !== 'all') n++;
+    if (introducedDateFilter !== 'all') n++;
+    if (lastActionDateFilter !== 'all') n++;
+    if (sponsorFilter.length > 0) n++;
+    if (titleFilter !== '') n++;
+    if (stateFilter !== 'all') n++;
+    if (policyAreaFilter !== 'all') n++;
+    if (billTypeFilter !== 'all') n++;
+    if (billNumberFilter !== '') n++;
+    if (congressFilter !== 'all') n++;
+    return n;
+  };
+
   const handleLoadMore = async () => {
     setIsLoadingMore(true);
     setError(null);
+    analytics.billsLoadMoreClicked(currentPage + 1, bills.length);
     try {
       const nextPage = currentPage + 1;
       const response = await billsService.fetchBills({
@@ -267,6 +286,14 @@ export default function BillsPage() {
         setBills(response.data);
         setHasMore(response.hasMore);
         setCurrentPage(1);
+        // UX friction signal: an active filter combination matched nothing.
+        if (response.data.length === 0 && hasFiltersActive(
+          statusFilter, introducedDateFilter, lastActionDateFilter,
+          sponsorFilter, titleFilter, stateFilter, policyAreaFilter,
+          billTypeFilter, billNumberFilter, congressFilter,
+        )) {
+          analytics.billsNoResults(countActiveFilters(), titleFilter);
+        }
       })
       .catch((e) => {
         if (cancelled) return;
@@ -297,6 +324,24 @@ export default function BillsPage() {
   ]);
 
   const handleApplyFilters = () => {
+    const f = pendingFilters;
+    analytics.billsFiltersApplied({
+      status: f.status,
+      bill_type: f.billType,
+      congress: f.congress,
+      state: f.state,
+      policy_area: f.policyArea,
+      introduced_date: f.introducedDate,
+      last_action_date: f.lastActionDate,
+      title_query: f.title,
+      bill_number: f.billNumber,
+      sponsor_count: f.sponsor.length,
+      active_filter_count: [
+        f.status !== 'all', f.introducedDate !== 'all', f.lastActionDate !== 'all',
+        f.sponsor.length > 0, f.title !== '', f.state !== 'all', f.policyArea !== 'all',
+        f.billType !== 'all', f.billNumber !== '', f.congress !== 'all',
+      ].filter(Boolean).length,
+    });
     setCurrentPage(1);
     setStatusFilter(pendingFilters.status);
     setIntroducedDateFilter(pendingFilters.introducedDate);

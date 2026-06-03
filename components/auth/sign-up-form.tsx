@@ -8,6 +8,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { analytics } from "@/lib/analytics";
 import { GoogleButton } from "./google-button";
 import { safeRedirect } from "./safe-redirect";
 import { markSignupCelebrationPending } from "./welcome-new-user";
@@ -50,6 +51,7 @@ export function SignUpForm() {
     }
     setBusy(true);
     setError(null);
+    analytics.signupFormSubmitted();
     const normalizedEmail = email.trim().toLowerCase();
     try {
       await signIn("password", {
@@ -63,6 +65,7 @@ export function SignUpForm() {
       console.warn("Sign-up failed", err);
       const msg = err instanceof Error ? err.message.toLowerCase() : "";
       if (msg.includes("password")) {
+        analytics.signupFailed("credentials", "password_requirements");
         setError({
           kind: "message",
           text: "Password didn't meet requirements. " + PASSWORD_RULES,
@@ -80,16 +83,19 @@ export function SignUpForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    analytics.signupVerificationSubmitted();
     try {
       await signIn("password", {
         email: email.trim().toLowerCase(),
         code,
         flow: "email-verification",
       });
+      analytics.signupCompleted("password");
       markSignupCelebrationPending();
       router.push(redirect);
     } catch (err) {
       console.warn("Verification failed", err);
+      analytics.signupFailed("verification", "invalid_code");
       setError({
         kind: "message",
         text: "That code didn't work. Check your email and try again.",
@@ -101,6 +107,7 @@ export function SignUpForm() {
   async function onResend() {
     setBusy(true);
     setError(null);
+    analytics.signupVerificationCodeResent();
     try {
       // Re-running signUp re-sends the code through the verify provider.
       await signIn("password", {

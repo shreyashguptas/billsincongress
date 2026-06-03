@@ -12,6 +12,22 @@ function getConvexClient(): ConvexHttpClient | null {
   return new ConvexHttpClient(url);
 }
 
+/**
+ * PostHog distinct/session ID headers so server-side captures in API routes
+ * attach to the same person and session replay as the browser's events.
+ * Browser-only (dynamic import) so this shared client/server file stays
+ * safe to import from server components.
+ */
+async function getPostHogHeaders(): Promise<Record<string, string>> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const { analytics } = await import('@/lib/analytics');
+    return analytics.requestHeaders();
+  } catch {
+    return {};
+  }
+}
+
 export interface BillQueryParams {
   page?: number;
   itemsPerPage?: number;
@@ -288,7 +304,7 @@ export const billsService = {
     try {
       const response = await fetch('/api/bill-chat/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await getPostHogHeaders()) },
         body: JSON.stringify({ billId, question, clientSessionId }),
       });
       const result = (await response.json()) as ChatResult;

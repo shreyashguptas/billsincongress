@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 
 import { api } from "@/convex/_generated/api";
+import { analytics } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -168,6 +169,8 @@ function AccountInner() {
         <Button
           variant="outline"
           onClick={async () => {
+            // Capture + reset PostHog identity before the auth state changes.
+            analytics.signedOut();
             await signOut();
             window.location.href = "/";
           }}

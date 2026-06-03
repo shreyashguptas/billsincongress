@@ -9,6 +9,7 @@ import { useConvexAuth } from "convex/react";
 import { LogOut, User as UserIcon } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
+import { analytics } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -77,6 +78,8 @@ function UserMenuInner() {
   const verified = Boolean(user?.emailVerificationTime);
 
   async function onSignOut() {
+    // Capture + reset PostHog identity before the auth state changes.
+    analytics.signedOut();
     await signOut();
     router.push("/");
     router.refresh();

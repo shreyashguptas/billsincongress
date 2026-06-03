@@ -8,6 +8,7 @@ import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
 import { Toaster } from '@/components/ui/toaster';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
+import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { ConvexClientProvider } from './ConvexClientProvider';
 
 const fraunces = Fraunces({
@@ -106,6 +107,7 @@ export default function RootLayout({
                   <Footer />
                 </div>
                 <WelcomeNewUser />
+                <PostHogAuthSync />
                 <Toaster />
               </ThemeProvider>
             </ConvexClientProvider>

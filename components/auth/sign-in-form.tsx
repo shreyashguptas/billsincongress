@@ -7,6 +7,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { analytics } from "@/lib/analytics";
 import { GoogleButton } from "./google-button";
 import { safeRedirect } from "./safe-redirect";
 
@@ -26,12 +27,14 @@ export function SignInForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    analytics.signinSubmitted();
     try {
       await signIn("password", {
         email: email.trim().toLowerCase(),
         password,
         flow: "signIn",
       });
+      analytics.signinCompleted("password");
       router.push(redirect);
     } catch (err) {
       // console.warn (not error) so the Next.js dev overlay doesn't pop for
@@ -48,8 +51,10 @@ export function SignInForm() {
         msg.includes("server error") ||
         msg.includes("[request id")
       ) {
+        analytics.signinFailed("invalid_credentials");
         setError("Invalid email or password. Try again, or reset your password if you forgot it.");
       } else {
+        analytics.signinFailed("other");
         setError("Sign-in failed. Please try again in a moment.");
       }
       setBusy(false);

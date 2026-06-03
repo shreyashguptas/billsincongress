@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Bill } from '@/lib/types/bill';
+import { analytics } from '@/lib/analytics';
 import { BillProgress } from './bill-progress';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
@@ -32,6 +33,16 @@ export default function BillCard({ bill }: BillCardProps) {
   return (
     <Link
       href={`/bills/${bill.id}`}
+      onClick={() =>
+        analytics.billCardClicked({
+          bill_id: String(bill.id),
+          bill_type: bill.bill_type,
+          bill_number: bill.bill_number,
+          congress: bill.congress,
+          policy_area: bill.bill_subjects?.policy_area_name ?? '',
+          progress_stage: stage,
+        })
+      }
       className="group block rounded-sm border border-border bg-card hover:border-foreground/40 transition-colors h-full"
     >
       <article className="flex flex-col h-full p-5">

@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { billsService, type ChatUsageResult } from '@/lib/services/bills-service';
+import { analytics } from '@/lib/analytics';
 import ReactMarkdown from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -237,6 +238,18 @@ export default function BillQA({ billId }: BillQAProps) {
       setIsLoading(true);
       setError('');
 
+      const userType = usage?.kind ?? 'anonymous';
+      const questionNumber = messages.filter((m) => m.role === 'user').length + 1;
+      analytics.billChatQuestionSubmitted({
+        bill_id: billId,
+        question: q,
+        question_length: q.length,
+        source: EXAMPLE_QUESTIONS.includes(q) ? 'example' : 'typed',
+        question_number: questionNumber,
+        user_type: userType,
+      });
+      const askedAt = Date.now();
+
       try {
         const result = await billsService.sendChatMessage(
           billId,
@@ -244,6 +257,7 @@ export default function BillQA({ billId }: BillQAProps) {
           getBillChatClientSessionId(),
         );
         if (result.error === 'RATE_LIMITED' && result.rateLimit) {
+          analytics.billChatRateLimited(billId, result.rateLimit.kind, result.rateLimit.max);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
           setUsage({
             kind: result.rateLimit.kind,
@@ -258,9 +272,15 @@ export default function BillQA({ billId }: BillQAProps) {
           });
           setDialogOpen(true);
         } else if (result.error) {
+          analytics.billChatFailed(billId, result.error);
           setError(result.error);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
         } else {
+          analytics.billChatAnswerReceived({
+            bill_id: billId,
+            response_ms: Date.now() - askedAt,
+            answer_length: result.answer.length,
+          });
           setMessages((prev) => [
             ...prev,
             { id: `assistant_${Date.now()}`, role: 'assistant', content: result.answer },
@@ -268,6 +288,7 @@ export default function BillQA({ billId }: BillQAProps) {
           void refreshUsage();
         }
       } catch {
+        analytics.billChatFailed(billId, 'network_error');
         setError('Failed to get a response. Please try again.');
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
       } finally {
@@ -275,7 +296,7 @@ export default function BillQA({ billId }: BillQAProps) {
         if (canRefocusChatInput()) inputRef.current?.focus();
       }
     },
-    [billId, isLoading, refreshUsage, usage]
+    [billId, isLoading, messages, refreshUsage, usage]
   );
 
   const isEmpty = messages.length === 0 && !isLoadingHistory;

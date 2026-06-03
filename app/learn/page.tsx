@@ -157,6 +157,7 @@ export default function LearnPage() {
             <p className="label-eyebrow mb-3">Now you're ready.</p>
             <Link
               href="/bills"
+              data-ph-capture-attribute-cta="learn-browse-bills"
               className="inline-flex items-center gap-2 rounded-sm bg-foreground px-5 py-3 text-sm font-medium text-background hover:bg-foreground/85 transition-colors"
             >
               Browse the bills in Congress

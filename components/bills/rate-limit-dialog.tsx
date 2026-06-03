@@ -5,6 +5,7 @@ import Link from "next/link";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
+import { analytics } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -81,10 +82,14 @@ export function RateLimitDialog({
 
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                 <Button asChild className="w-full sm:flex-1">
-                  <Link href={signUpHref}>Sign up free</Link>
+                  <Link href={signUpHref} onClick={() => analytics.rateLimitSignupClicked(kind)}>
+                    Sign up free
+                  </Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full sm:flex-1">
-                  <Link href={signInHref}>I have an account</Link>
+                  <Link href={signInHref} onClick={() => analytics.rateLimitSigninClicked(kind)}>
+                    I have an account
+                  </Link>
                 </Button>
               </div>
 

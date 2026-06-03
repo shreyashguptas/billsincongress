@@ -7,6 +7,7 @@ import {
   getOrCreateAnonymousChatSessionId,
   setConvexAuth,
 } from "../_shared";
+import { captureServerException } from "@/lib/posthog-server";
 
 export async function GET() {
   const client = getConvexClient();
@@ -26,9 +27,16 @@ export async function GET() {
   const auth = await setConvexAuth(client, "usage");
   const anonymousSessionId = await getOrCreateAnonymousChatSessionId();
 
-  const usage = await client.query(api.rateLimits.getChatUsage, {
-    anonymousSessionId,
-  });
+  let usage;
+  try {
+    usage = await client.query(api.rateLimits.getChatUsage, {
+      anonymousSessionId,
+    });
+  } catch (error) {
+    // Report to PostHog Error Tracking, then preserve the original 500 behavior.
+    await captureServerException(error, undefined, { route: "bill-chat/usage" });
+    throw error;
+  }
   const quota = "quota" in usage ? usage.quota : null;
   const currentQuota = quota
     ? calculateRateLimit(
