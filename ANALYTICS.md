@@ -59,7 +59,9 @@ These are enabled by `posthog.init` config in `instrumentation-client.ts`:
 
 Server components (Learn, About pages) intentionally have **no custom code** — their CTA
 clicks are captured by autocapture and tagged with `data-ph-capture-attribute-*` HTML
-attributes so they can be filtered in PostHog.
+attributes so they can be filtered in PostHog. (One exception: the Learn page embeds the
+client-side podcast promo component, which fires `podcast_promo_clicked` — see the
+"Podcast cross-promotion" section below.)
 
 ---
 
@@ -105,6 +107,17 @@ attributes so they can be filtered in PostHog.
 | `bill_chat_rate_limited` | User hit the daily question limit | `bill_id`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/bills/bill-qa.tsx` |
 | `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
 | `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
+
+### Podcast cross-promotion
+
+The owner's podcast ("The Federalist Papers: Explained") is promoted in three places:
+the home page (full promo section), the Learn page (full promo, "§ 05 — Go deeper")
+and the end of every bill detail page (compact promo after the Q&A). The `placement`
+property exists to settle, with data, which placements earn their spot.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `podcast_promo_clicked` | User clicks "Listen on Spotify" / "Listen on Apple Podcasts" in any podcast promo | `placement: "home" \| "learn" \| "bill"`, `platform: "spotify" \| "apple"`, `bill_id` (bill pages only) | `components/podcast-promo.tsx` (rendered by `app/components/dashboard/DashboardClient.tsx`, `app/learn/page.tsx`, `components/bills/bill-details.tsx`) |
 
 ### Server-side events (source of truth)
 
@@ -156,6 +169,8 @@ These are the saved insights the project should maintain in the PostHog UI:
 4. **Activation** — `signup_completed` → `bill_chat_question_submitted` within 1 day.
 5. **Trends**: daily `signup_completed` (by method), daily `bill_chat_question_submitted`
    (by user_type), daily unique visitors, `bills_no_results` rate.
+   Also: `podcast_promo_clicked` broken down by `placement` (and against page views of
+   each placement's page) — decides whether each promo placement keeps its spot.
 6. **Retention**: weekly retention on `bill_chat_question_submitted`.
 7. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
 

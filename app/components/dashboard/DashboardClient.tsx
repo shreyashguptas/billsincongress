@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
+import PodcastPromo from '@/components/podcast-promo';
 
 // Shape of the SSR-loaded data passed through from app/page.tsx.
 // Each field mirrors the return type of its Convex query.
@@ -377,6 +378,13 @@ function DashboardInner({
       </section>
         </div>
       </div>
+
+      {/* ── Podcast cross-promotion ───────────────────────────────── */}
+      <section className="border-t border-border bg-secondary/30">
+        <div className="container-editorial py-12 sm:py-16">
+          <PodcastPromo placement="home" />
+        </div>
+      </section>
     </div>
   );
 }

@@ -205,4 +205,12 @@ export const analytics = {
 
   rateLimitSigninClicked: (kind: LimitKind) =>
     capture('rate_limit_signin_clicked', { limit_kind: kind }),
+
+  // ── Podcast cross-promotion ──────────────────────────────────────────────
+
+  podcastPromoClicked: (props: {
+    placement: 'home' | 'learn' | 'bill';
+    platform: 'spotify' | 'apple';
+    bill_id?: string;
+  }) => capture('podcast_promo_clicked', props),
 };

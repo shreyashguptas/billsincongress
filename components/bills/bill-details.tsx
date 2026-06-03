@@ -12,6 +12,7 @@ import {
 } from '@/lib/utils/bill-stages';
 import { analytics } from '@/lib/analytics';
 import BillQA from './bill-qa';
+import PodcastPromo from '@/components/podcast-promo';
 import { ArrowLeft, FileText, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -244,6 +245,17 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             </p>
             <BillQA billId={bill.id} />
           </div>
+        </div>
+      </section>
+
+      {/* ── Podcast cross-promotion (end of page — never mid-read) ── */}
+      <section className="border-t border-border">
+        <div className="container-editorial py-10 sm:py-12">
+          <PodcastPromo
+            placement="bill"
+            variant="compact"
+            billId={String(bill.id)}
+          />
         </div>
       </section>
     </article>

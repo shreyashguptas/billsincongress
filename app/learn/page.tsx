@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { sharedViewport } from '../shared-metadata';
 import type { Metadata, Viewport } from 'next';
+import PodcastPromo from '@/components/podcast-promo';
 
 export const viewport: Viewport = sharedViewport;
 
@@ -32,6 +33,7 @@ export default function LearnPage() {
             <a href="#chambers" className="text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground">The two chambers</a>
             <a href="#bills" className="text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground">What a bill is</a>
             <a href="#journey" className="text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground">A bill's journey</a>
+            <a href="#podcast" className="text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground">Go deeper</a>
           </nav>
         </div>
       </header>
@@ -149,6 +151,12 @@ export default function LearnPage() {
                 </li>
               ))}
             </ol>
+          </section>
+
+          <div className="rule" />
+
+          <section id="podcast" className="scroll-mt-24">
+            <PodcastPromo placement="learn" eyebrow="§ 05 — Go deeper" />
           </section>
 
           <div className="rule" />
