@@ -213,4 +213,25 @@ export const analytics = {
     platform: 'spotify' | 'apple';
     bill_id?: string;
   }) => capture('podcast_promo_clicked', props),
+
+  // ── Learn page (interactive civics guide) ────────────────────────────────
+
+  /** User picked their state in the "two chambers" seat-chart explorer. */
+  learnStateSelected: (state: string, representatives: number) =>
+    capture('learn_state_selected', { state, representatives }),
+
+  /** User navigated to a step of the interactive bill journey. */
+  learnJourneyStepViewed: (step: number, stepTitle: string, method: 'next' | 'back' | 'jump') =>
+    capture('learn_journey_step_viewed', { step, step_title: stepTitle, method }),
+
+  /** User answered a civics-quiz question. */
+  learnQuizAnswered: (question: number, correct: boolean) =>
+    capture('learn_quiz_answered', { question, correct }),
+
+  /** User finished the civics quiz. */
+  learnQuizCompleted: (score: number, total: number) =>
+    capture('learn_quiz_completed', { score, total }),
+
+  /** User restarted the civics quiz from the results screen. */
+  learnQuizRestarted: () => capture('learn_quiz_restarted'),
 };

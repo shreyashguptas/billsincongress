@@ -57,11 +57,10 @@ These are enabled by `posthog.init` config in `instrumentation-client.ts`:
 | `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) |
 
-Server components (Learn, About pages) intentionally have **no custom code** — their CTA
-clicks are captured by autocapture and tagged with `data-ph-capture-attribute-*` HTML
-attributes so they can be filtered in PostHog. (One exception: the Learn page embeds the
-client-side podcast promo component, which fires `podcast_promo_clicked` — see the
-"Podcast cross-promotion" section below.)
+Server-rendered pages with no interactivity (the About page) intentionally have **no custom
+code** — their CTA clicks are captured by autocapture and tagged with
+`data-ph-capture-attribute-*` HTML attributes so they can be filtered in PostHog. The Learn
+page is interactive (civics guide) and fires its own custom events — see "Learn page" below.
 
 ---
 
@@ -108,10 +107,24 @@ client-side podcast promo component, which fires `podcast_promo_clicked` — see
 | `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
 | `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
 
+### Learn page (interactive civics guide)
+
+The Learn page is an illustrated, interactive explainer of how Congress works. Each
+interactive element fires events so we can see which parts people actually engage with
+(and where they drop off). Static CTA clicks are still covered by autocapture.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `learn_state_selected` | User picks their state in the "two rooms" seat-chart explorer | `state`, `representatives` | `app/learn/components/chamber-seats.tsx` |
+| `learn_journey_step_viewed` | User navigates to a step of the interactive bill journey (click on a step number, Next, or Back) | `step` (1–7), `step_title`, `method: "next" \| "back" \| "jump"` | `app/learn/components/bill-journey.tsx` |
+| `learn_quiz_answered` | User answers a civics-quiz question | `question` (1–5), `correct` | `app/learn/components/civics-quiz.tsx` |
+| `learn_quiz_completed` | User reaches the quiz results screen | `score`, `total` | `app/learn/components/civics-quiz.tsx` |
+| `learn_quiz_restarted` | User clicks "Take it again" on the results screen | — | `app/learn/components/civics-quiz.tsx` |
+
 ### Podcast cross-promotion
 
 The owner's podcast ("The Federalist Papers: Explained") is promoted in three places:
-the home page (full promo section), the Learn page (full promo, "§ 05 — Go deeper")
+the home page (full promo section), the Learn page (full promo, "§ 06 — Go deeper")
 and the end of every bill detail page (compact promo after the Q&A). The `placement`
 property exists to settle, with data, which placements earn their spot.
 
