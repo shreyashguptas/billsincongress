@@ -12,6 +12,7 @@ import type * as ResendOTP from "../ResendOTP.js";
 import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
+import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as billStage from "../billStage.js";
 import type * as bills from "../bills.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   aggregateBackfill: typeof aggregateBackfill;
   aggregates: typeof aggregates;
+  audit: typeof audit;
   auth: typeof auth;
   billStage: typeof billStage;
   bills: typeof bills;

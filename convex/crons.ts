@@ -33,4 +33,25 @@ crons.daily(
   {},
 );
 
+// Run monthly on the 1st at 5:00 AM UTC - full re-pull of the current congress.
+// The most reliable freshness mechanism: re-derives stage + latestActionDate,
+// refreshes enrichment, inserts missing bills, and corrects present-but-stale
+// bills (closed congresses are final, so only the current one needs this).
+crons.cron(
+  "monthly-current-congress-repull",
+  "0 5 1 * *",
+  internal.congressApi.monthlyCurrentCongressRepull,
+  {},
+);
+
+// Run weekly on Monday at 6:00 AM UTC - completeness reconciliation across the
+// current + 2 most recent congresses. Inserts never-synced bills the bounded
+// daily/weekly lookback windows can't discover.
+crons.cron(
+  "weekly-reconcile-recent-congresses",
+  "0 6 * * 1",
+  internal.congressApi.reconcileRecentCongresses,
+  {},
+);
+
 export default crons;
