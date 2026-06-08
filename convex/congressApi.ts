@@ -110,7 +110,26 @@ async function fetchWithRetry(
   }
   const init = { headers: { "X-Api-Key": apiKey } };
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const response = await fetch(url, init);
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (err: any) {
+      // Transient network failure (e.g. "TypeError: fetch failed" — a dropped
+      // connection). Treat like a retryable error so a single blip never kills
+      // a long-running backfill mid-flight.
+      if (attempt === MAX_RETRIES) {
+        console.error(
+          `Network error on ${label} after ${MAX_RETRIES + 1} attempts (${err?.message ?? err}), giving up`
+        );
+        return null;
+      }
+      const backoff = RATE_LIMIT_BACKOFF_MS * Math.pow(2, attempt);
+      console.warn(
+        `Network error on ${label} (${err?.message ?? err}), retrying in ${backoff / 1000}s (attempt ${attempt + 1}/${MAX_RETRIES})`
+      );
+      await delay(backoff);
+      continue;
+    }
     if (response.status === 429) {
       if (attempt === MAX_RETRIES) {
         console.error(
@@ -1086,10 +1105,21 @@ const ENRICHMENT_RESCHEDULE_MS = 2000; // gap between self-scheduled continuatio
  * safety floor. Each invocation stops after ~8 minutes (well under the 10-min
  * action limit) and self-schedules a continuation.
  *
+ * Resilient by design: transient per-bill failures are caught and skipped
+ * (the bill keeps its missing bit and is retried on a later pass), and on
+ * reaching the end the action starts a fresh pass whenever the previous pass
+ * enriched at least one bill — so anything skipped due to a network blip is
+ * picked up automatically. The loop stops once a full pass enriches nothing.
+ *
  * Run from the CLI: `npx convex run congressApi:backfillBillEnrichment '{}'`.
  */
 export const backfillBillEnrichment = internalAction({
-  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    // Bills enriched so far in the CURRENT pass (threaded across the pass's
+    // self-scheduled invocations). Used to decide whether to start another pass.
+    passEnriched: v.optional(v.number()),
+  },
   handler: async (
     ctx,
     args,
@@ -1103,6 +1133,7 @@ export const backfillBillEnrichment = internalAction({
 
     const startedAt = Date.now();
     let cursor: string | null = args.cursor ?? null;
+    let passEnriched = args.passEnriched ?? 0;
     let enrichedThisRun = 0;
 
     for (;;) {
@@ -1129,75 +1160,98 @@ export const backfillBillEnrichment = internalAction({
           await ctx.scheduler.runAfter(
             ENRICHMENT_COOLDOWN_MS,
             internal.congressApi.backfillBillEnrichment,
-            { cursor },
+            { cursor, passEnriched },
           );
           return { done: false, enrichedThisRun, pausedForRateLimit: true };
         }
 
-        let bits = 0;
+        // Per-bill work is isolated: a thrown error (network blip, bad JSON)
+        // skips just this bill — it keeps its missing bit and is retried later.
+        try {
+          let bits = 0;
 
-        if (needsSubjects) {
-          await delay(ENRICHMENT_DELAY_MS);
-          const subjects = await fetchBillSubjects(
-            bill.congress,
-            bill.billType,
-            bill.billNumber,
-            `enrich subjects ${bill.billId}`,
-          );
-          if (subjects) {
-            if (subjects.policyArea) {
-              await ctx.runMutation(internal.mutations.upsertBillSubject, {
-                billId: bill.billId,
-                policyAreaName: subjects.policyArea.name,
-                policyAreaUpdateDate: subjects.policyArea.updateDate,
-              });
-            }
-            await ctx.runMutation(
-              internal.mutations.replaceBillLegislativeSubjects,
-              { billId: bill.billId, subjects: subjects.legislativeSubjects },
+          if (needsSubjects) {
+            await delay(ENRICHMENT_DELAY_MS);
+            const subjects = await fetchBillSubjects(
+              bill.congress,
+              bill.billType,
+              bill.billNumber,
+              `enrich subjects ${bill.billId}`,
             );
-            bits |= EXTRA_LEGISLATIVE_SUBJECTS;
+            if (subjects) {
+              if (subjects.policyArea) {
+                await ctx.runMutation(internal.mutations.upsertBillSubject, {
+                  billId: bill.billId,
+                  policyAreaName: subjects.policyArea.name,
+                  policyAreaUpdateDate: subjects.policyArea.updateDate,
+                });
+              }
+              await ctx.runMutation(
+                internal.mutations.replaceBillLegislativeSubjects,
+                { billId: bill.billId, subjects: subjects.legislativeSubjects },
+              );
+              bits |= EXTRA_LEGISLATIVE_SUBJECTS;
+            }
           }
-        }
 
-        if (needsText) {
-          await delay(ENRICHMENT_DELAY_MS);
-          const textUrl = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/text?format=json`;
-          const resp = await fetchWithRetry(textUrl, `enrich text ${bill.billId}`);
-          if (resp && resp.ok) {
-            const data = await resp.json();
-            await ctx.runMutation(internal.mutations.replaceBillTextVersions, {
+          if (needsText) {
+            await delay(ENRICHMENT_DELAY_MS);
+            const textUrl = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/text?format=json`;
+            const resp = await fetchWithRetry(textUrl, `enrich text ${bill.billId}`);
+            if (resp && resp.ok) {
+              const data = await resp.json();
+              await ctx.runMutation(internal.mutations.replaceBillTextVersions, {
+                billId: bill.billId,
+                versions: textVersionsToRows(data.textVersions || []),
+              });
+              bits |= EXTRA_TEXT_VERSIONS;
+            }
+          }
+
+          if (bits > 0) {
+            await ctx.runMutation(internal.mutations.setBillExtraSyncedBits, {
               billId: bill.billId,
-              versions: textVersionsToRows(data.textVersions || []),
+              bits,
             });
-            bits |= EXTRA_TEXT_VERSIONS;
+            enrichedThisRun++;
+            passEnriched++;
           }
-        }
-
-        if (bits > 0) {
-          await ctx.runMutation(internal.mutations.setBillExtraSyncedBits, {
-            billId: bill.billId,
-            bits,
-          });
-          enrichedThisRun++;
+        } catch (err: any) {
+          console.error(
+            `backfillBillEnrichment: skipping ${bill.billId} after error: ${err?.message ?? err}`,
+          );
         }
 
         if (Date.now() - startedAt > ENRICHMENT_MAX_RUN_MS) {
           await ctx.scheduler.runAfter(
             ENRICHMENT_RESCHEDULE_MS,
             internal.congressApi.backfillBillEnrichment,
-            { cursor },
+            { cursor, passEnriched },
           );
           console.log(
-            `backfillBillEnrichment: time budget reached, enriched ${enrichedThisRun}; scheduled continuation`,
+            `backfillBillEnrichment: time budget reached, enriched ${enrichedThisRun} (pass ${passEnriched}); scheduled continuation`,
           );
           return { done: false, enrichedThisRun, pausedForRateLimit: false };
         }
       }
 
       if (page.isDone) {
+        // Self-heal: if this pass enriched anything, run another full pass to
+        // pick up bills that were skipped due to transient errors. A pass that
+        // enriches nothing means everything reachable is done — stop.
+        if (passEnriched > 0) {
+          console.log(
+            `backfillBillEnrichment: pass complete (enriched ${passEnriched}); starting another pass to catch any skipped bills`,
+          );
+          await ctx.scheduler.runAfter(
+            ENRICHMENT_RESCHEDULE_MS,
+            internal.congressApi.backfillBillEnrichment,
+            { cursor: null, passEnriched: 0 },
+          );
+          return { done: false, enrichedThisRun, pausedForRateLimit: false };
+        }
         console.log(
-          `backfillBillEnrichment: full pass complete, enriched ${enrichedThisRun} this run`,
+          `backfillBillEnrichment: complete — a full pass enriched 0 bills`,
         );
         return { done: true, enrichedThisRun, pausedForRateLimit: false };
       }
