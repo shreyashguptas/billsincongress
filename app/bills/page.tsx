@@ -93,6 +93,16 @@ export default function BillsPage() {
     congress: 'all',
   });
   const [hasFilterChanges, setHasFilterChanges] = useState(false);
+  // The filter state above is seeded from localStorage in its initializers, so
+  // on the server (no localStorage) it is all defaults, while a returning user's
+  // browser restores their saved filters. Any markup that depends on filter
+  // state therefore differs between the server HTML and the first client render,
+  // which throws React hydration error #418. Gate such markup on `mounted` so it
+  // only renders after hydration, when client and server already agree.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const fetchCongressInfo = async () => {
@@ -412,7 +422,7 @@ export default function BillsPage() {
               <Button variant="outline" className="w-full">
                 <SlidersHorizontal className="h-4 w-4" />
                 Filters
-                {filtersActive && (
+                {mounted && filtersActive && (
                   <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-accent" />
                 )}
               </Button>
