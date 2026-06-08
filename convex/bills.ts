@@ -169,6 +169,39 @@ export const debugBillStage = internalQuery({
   },
 });
 
+/**
+ * Read-only spot-check for the enrichment backfill: reports a bill's
+ * extraSyncedBits, how many legislative subjects and text versions are stored,
+ * and small samples. Compare the subject count against the live
+ * `/subjects` `pagination.count` (e.g. 1hr119 ≈ 239) to confirm fidelity.
+ *   npx convex run bills:debugBillEnrichment '{"billId":"1hr119"}'
+ */
+export const debugBillEnrichment = internalQuery({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    const legislativeSubjects = await ctx.db
+      .query("billLegislativeSubjects")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(500);
+    const texts = await ctx.db
+      .query("billText")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(100);
+    return {
+      billId: args.billId,
+      extraSyncedBits: bill?.extraSyncedBits ?? 0,
+      legislativeSubjectCount: legislativeSubjects.length,
+      sampleSubjects: legislativeSubjects.slice(0, 8).map((s) => s.name),
+      textVersionCount: texts.length,
+      textVersionTypes: texts.map((t) => t.type),
+    };
+  },
+});
+
 // A bill stores at most 250 actions (the sync fetches with limit=250).
 const MAX_BILL_ACTIONS = 250;
 const RECENT_ACTIONS_LIMIT = 20;
