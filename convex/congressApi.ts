@@ -8,7 +8,30 @@ import {
   SYNC_SUMMARIES,
   SYNC_TEXT,
   SYNC_COMPLETE,
+  EXTRA_LEGISLATIVE_SUBJECTS,
+  EXTRA_TEXT_VERSIONS,
+  EXTRA_COMPLETE,
 } from "./sync";
+import { calculateBillStage } from "./billStage";
+import { Id } from "./_generated/dataModel";
+
+// Shape returned by internal.mutations.getBillBackfillPage. Declared explicitly
+// to break a TypeScript inference cycle through the `internal` API graph when
+// the backfill actions call the paginator.
+type BillBackfillPage = {
+  bills: Array<{
+    _id: Id<"bills">;
+    billId: string;
+    congress: number;
+    billType: string;
+    billNumber: string;
+    progressStage?: number;
+    progressDescription?: string;
+    extraSyncedBits: number;
+  }>;
+  isDone: boolean;
+  continueCursor: string;
+};
 
 const BASE_URL = "https://api.congress.gov/v3";
 const BATCH_SIZE = 50; // 50 bills per batch keeps well within Convex's 10-min action timeout
@@ -32,29 +55,6 @@ const BILL_TYPES = [
 // breakdown recomputes after each bill type finishes syncing.
 const HOUSE_TYPES_SET = new Set(["hr", "hjres", "hconres", "hres"]);
 
-// Bill stage constants
-const BillStages = {
-  INTRODUCED: 20,
-  IN_COMMITTEE: 40,
-  PASSED_ONE_CHAMBER: 60,
-  PASSED_BOTH_CHAMBERS: 80,
-  VETOED: 85,
-  TO_PRESIDENT: 90,
-  SIGNED_BY_PRESIDENT: 95,
-  BECAME_LAW: 100,
-} as const;
-
-const BillStageDescriptions: Record<number, string> = {
-  [BillStages.INTRODUCED]: "Introduced",
-  [BillStages.IN_COMMITTEE]: "In Committee",
-  [BillStages.PASSED_ONE_CHAMBER]: "Passed One Chamber",
-  [BillStages.PASSED_BOTH_CHAMBERS]: "Passed Both Chambers",
-  [BillStages.VETOED]: "Vetoed",
-  [BillStages.TO_PRESIDENT]: "To President",
-  [BillStages.SIGNED_BY_PRESIDENT]: "Signed by President",
-  [BillStages.BECAME_LAW]: "Became Law",
-};
-
 // Incremental sync constants
 const INCREMENTAL_LOOKBACK_HOURS = 26; // covers 24-hour cron + 2-hour buffer
 const FULL_SYNC_LOOKBACK_DAYS = 7; // weekly safety net catches anything missed
@@ -75,145 +75,21 @@ function getBillTypeLabel(type: string): string {
   return labels[type.toLowerCase()] || type;
 }
 
-/**
- * Calculate the bill's progress stage from its actions.
- * Ported from scripts/DataUpdate/updateBillInfo.ts
- */
-function calculateBillStage(actions: Array<{ text: string; type?: string; actionCode?: string }>): {
-  stage: number;
-  description: string;
-} {
-  let stage: number = BillStages.INTRODUCED;
-  let description =
-    BillStageDescriptions[BillStages.INTRODUCED];
-
-  if (!actions || !Array.isArray(actions) || actions.length === 0) {
-    return { stage, description };
-  }
-
-  let passedHouse = false;
-  let passedSenate = false;
-  let vetoed = false;
-  let toPresident = false;
-
-  // First pass: scan all actions to build a complete picture
-  for (const action of actions) {
-    const actionText = (action.text || "").toLowerCase();
-    const actionType = (action.type || "").toLowerCase();
-    const actionCode = action.actionCode || "";
-
-    // Check for law status first (highest priority)
-    if (
-      actionText.includes("became public law") ||
-      actionText.includes("became private law") ||
-      actionType === "becamelaw" ||
-      actionCode === "36000" ||
-      actionCode === "E40000"
-    ) {
-      return {
-        stage: BillStages.BECAME_LAW,
-        description: BillStageDescriptions[BillStages.BECAME_LAW],
-      };
-    }
-
-    // Check for presidential signature
-    if (
-      actionText.includes("signed by president") ||
-      actionType === "signedbypresident" ||
-      actionCode === "29000" ||
-      actionCode === "E30000"
-    ) {
-      return {
-        stage: BillStages.SIGNED_BY_PRESIDENT,
-        description: BillStageDescriptions[BillStages.SIGNED_BY_PRESIDENT],
-      };
-    }
-
-    // Check for veto (must be checked before "to president" to avoid early return)
-    if (
-      actionText.includes("vetoed") ||
-      actionText.includes("veto message") ||
-      actionType === "vetoed" ||
-      actionCode === "31000" ||
-      actionCode === "E50000"
-    ) {
-      vetoed = true;
-    }
-
-    // Check if sent to president
-    if (
-      actionText.includes("to president") ||
-      actionText.includes("presented to president") ||
-      actionCode === "28000" ||
-      actionCode === "E20000"
-    ) {
-      toPresident = true;
-    }
-
-    // Track passage through each chamber
-    if (
-      actionText.includes("passed house") ||
-      actionType === "passedhouse" ||
-      actionCode === "H32500"
-    ) {
-      passedHouse = true;
-    }
-    if (
-      actionText.includes("passed senate") ||
-      actionType === "passedsenate" ||
-      actionCode === "S32500"
-    ) {
-      passedSenate = true;
-    }
-
-    // Check for committee action
-    if (
-      actionText.includes("referred to") ||
-      actionText.includes("committee") ||
-      actionCode === "5000" ||
-      actionCode === "14000" ||
-      actionCode === "H11100" ||
-      actionCode === "S11100"
-    ) {
-      stage = BillStages.IN_COMMITTEE;
-      description = BillStageDescriptions[BillStages.IN_COMMITTEE];
-    }
-  }
-
-  // Determine final stage from flags (order matters: most advanced first)
-  if (vetoed) {
-    return {
-      stage: BillStages.VETOED,
-      description: BillStageDescriptions[BillStages.VETOED],
-    };
-  }
-
-  if (toPresident) {
-    return {
-      stage: BillStages.TO_PRESIDENT,
-      description: BillStageDescriptions[BillStages.TO_PRESIDENT],
-    };
-  }
-
-  if (passedHouse && passedSenate) {
-    return {
-      stage: BillStages.PASSED_BOTH_CHAMBERS,
-      description: BillStageDescriptions[BillStages.PASSED_BOTH_CHAMBERS],
-    };
-  }
-
-  if (passedHouse || passedSenate) {
-    return {
-      stage: BillStages.PASSED_ONE_CHAMBER,
-      description: BillStageDescriptions[BillStages.PASSED_ONE_CHAMBER],
-    };
-  }
-
-  return { stage, description };
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Most recent value of the Congress.gov `x-ratelimit-remaining` response
+ * header, updated on every successful (non-429) fetch. The enrichment backfill
+ * reads this to throttle adaptively — pausing before it ever exhausts the
+ * 20,000-requests/hour budget rather than relying solely on 429 backoff.
+ * `null` until the first response carrying the header is seen.
+ */
+let lastRateLimitRemaining: number | null = null;
+
+export function getLastRateLimitRemaining(): number | null {
+  return lastRateLimitRemaining;
 }
 
 /**
@@ -249,9 +125,90 @@ async function fetchWithRetry(
       await delay(backoff);
       continue;
     }
+    const remaining = response.headers.get("x-ratelimit-remaining");
+    if (remaining !== null && remaining !== "") {
+      const parsed = Number(remaining);
+      if (!Number.isNaN(parsed)) lastRateLimitRemaining = parsed;
+    }
     return response;
   }
   return null;
+}
+
+type BillSubjectsResult = {
+  policyArea?: { name?: string; updateDate?: string };
+  legislativeSubjects: Array<{ name: string; updateDate?: string }>;
+};
+
+/**
+ * Fetch a bill's subjects, paginating the `legislativeSubjects` list (its
+ * `count` can exceed the 250-per-page limit; the original sync read only the
+ * first page's policy area and discarded the rest). Returns null only if the
+ * FIRST page fails; a later-page failure returns what was collected so far.
+ *
+ * The caller is expected to have just delayed before the first call, so page 0
+ * does not delay; subsequent pages delay between requests to respect the rate
+ * limit.
+ */
+async function fetchBillSubjects(
+  congress: number,
+  billType: string,
+  billNumber: number | string,
+  label: string,
+): Promise<BillSubjectsResult | null> {
+  const PAGE = 250;
+  const MAX_PAGES = 20; // 5,000 subjects — far beyond any real bill
+  let offset = 0;
+  let policyArea: { name?: string; updateDate?: string } | undefined;
+  const legislativeSubjects: Array<{ name: string; updateDate?: string }> = [];
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    if (page > 0) await delay(DELAY_BETWEEN_REQUESTS_MS);
+    const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/subjects?format=json&limit=${PAGE}&offset=${offset}`;
+    const resp = await fetchWithRetry(url, `${label} offset=${offset}`);
+    if (!resp || !resp.ok) {
+      if (page === 0) return null;
+      break;
+    }
+    const data = await resp.json();
+    if (policyArea === undefined && data.subjects?.policyArea) {
+      policyArea = data.subjects.policyArea;
+    }
+    const batch: Array<{ name?: string; updateDate?: string }> =
+      data.subjects?.legislativeSubjects ?? [];
+    for (const s of batch) {
+      if (s?.name) {
+        legislativeSubjects.push({ name: s.name, updateDate: s.updateDate });
+      }
+    }
+    if (batch.length < PAGE) break; // last page
+    offset += PAGE;
+  }
+  return { policyArea, legislativeSubjects };
+}
+
+/**
+ * Map the Library of Congress `textVersions` array to billText rows, pulling
+ * the PDF and Formatted Text URLs out of each version's `formats`.
+ */
+function textVersionsToRows(
+  textVersions: any[],
+): Array<{
+  date?: string;
+  formatsUrlPdf?: string;
+  formatsUrlTxt?: string;
+  type?: string;
+}> {
+  return (textVersions || []).map((v: any) => {
+    const pdf = v.formats?.find((f: any) => f.type === "PDF");
+    const txt = v.formats?.find((f: any) => f.type === "Formatted Text");
+    return {
+      date: v.date ?? undefined,
+      formatsUrlPdf: pdf?.url,
+      formatsUrlTxt: txt?.url,
+      type: v.type ?? undefined,
+    };
+  });
 }
 
 /**
@@ -336,6 +293,7 @@ export const syncBillBatch = internalAction({
 
       try {
         let endpointBits = 0;
+        let extraBits = 0;
 
         // 1. Fetch detailed bill info
         await delay(DELAY_BETWEEN_REQUESTS_MS);
@@ -415,22 +373,31 @@ export const syncBillBatch = internalAction({
           });
         }
 
-        // 3. Fetch and store subjects
+        // 3. Fetch and store subjects (policy area + ALL legislative subjects)
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
-          const subjectsUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/subjects?format=json`;
-          const subjectsResponse = await fetchWithRetry(subjectsUrl, `subjects ${billId}`);
-          if (subjectsResponse && subjectsResponse.ok) {
+          const subjects = await fetchBillSubjects(
+            args.congress,
+            args.billType,
+            bill.number,
+            `subjects ${billId}`,
+          );
+          if (subjects) {
             endpointBits |= SYNC_SUBJECTS;
-            const subjectsData = await subjectsResponse.json();
-            const policyArea = subjectsData.subjects?.policyArea;
-            if (policyArea) {
+            if (subjects.policyArea) {
               await ctx.runMutation(internal.mutations.upsertBillSubject, {
                 billId,
-                policyAreaName: policyArea.name,
-                policyAreaUpdateDate: policyArea.updateDate,
+                policyAreaName: subjects.policyArea.name,
+                policyAreaUpdateDate: subjects.policyArea.updateDate,
               });
             }
+            // Replace-all, even when empty (a legitimately-empty list is a
+            // valid "fully synced" state for minor bills).
+            await ctx.runMutation(
+              internal.mutations.replaceBillLegislativeSubjects,
+              { billId, subjects: subjects.legislativeSubjects },
+            );
+            extraBits |= EXTRA_LEGISLATIVE_SUBJECTS;
           }
         } catch {
           // Non-critical
@@ -460,7 +427,7 @@ export const syncBillBatch = internalAction({
           // Non-critical
         }
 
-        // 5. Fetch and store text/PDF info
+        // 5. Fetch and store text/PDF info (ALL versions, replace-all)
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         try {
           const textUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}/${bill.number}/text?format=json`;
@@ -468,23 +435,11 @@ export const syncBillBatch = internalAction({
           if (textResponse && textResponse.ok) {
             endpointBits |= SYNC_TEXT;
             const textData = await textResponse.json();
-            const textVersions = textData.textVersions || [];
-            if (textVersions.length > 0) {
-              const latest = textVersions[textVersions.length - 1];
-              const pdfFormat = latest.formats?.find(
-                (f: any) => f.type === "PDF"
-              );
-              const txtFormat = latest.formats?.find(
-                (f: any) => f.type === "Formatted Text"
-              );
-              await ctx.runMutation(internal.mutations.upsertBillText, {
-                billId,
-                date: latest.date,
-                formatsUrlPdf: pdfFormat?.url,
-                formatsUrlTxt: txtFormat?.url,
-                type: latest.type,
-              });
-            }
+            await ctx.runMutation(internal.mutations.replaceBillTextVersions, {
+              billId,
+              versions: textVersionsToRows(textData.textVersions || []),
+            });
+            extraBits |= EXTRA_TEXT_VERSIONS;
           }
         } catch {
           // Non-critical
@@ -496,6 +451,14 @@ export const syncBillBatch = internalAction({
           endpointBits,
           lastSyncAttempt: new Date().toISOString(),
         });
+
+        // Track enrichment progress separately (subjects + text versions).
+        if (extraBits > 0) {
+          await ctx.runMutation(internal.mutations.setBillExtraSyncedBits, {
+            billId,
+            bits: extraBits,
+          });
+        }
 
         successCount++;
       } catch (error: any) {
@@ -1030,6 +993,287 @@ export const backfillSyncStatus = internalAction({
     }
 
     return { processed: toBackfill.length, remaining: toBackfill.length >= BACKFILL_BATCH_SIZE };
+  },
+});
+
+const STAGE_BACKFILL_PAGE = 40; // bills per mutation (≤250 actions each → read-limit safe)
+const STAGE_BACKFILL_BILLS_PER_RUN = 5000; // bills per invocation before self-scheduling
+
+/**
+ * Re-derive the progress stage for ALL existing bills from their stored
+ * actions, using the corrected calculator (no API calls). Patches only bills
+ * whose stage changed; the trigger-wrapped mutation keeps the aggregates in
+ * sync. Self-schedules across batches and, on completion, refreshes the
+ * precomputed homepage stats (Part 1c). Idempotent and safe to re-run.
+ *
+ * Run from the CLI: `npx convex run congressApi:backfillBillStages '{}'`.
+ */
+export const backfillBillStages = internalAction({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ done: boolean; processedThisRun: number; changedThisRun: number }> => {
+    let cursor: string | null = args.cursor ?? null;
+    let processedThisRun = 0;
+    let changedThisRun = 0;
+
+    for (;;) {
+      const page: BillBackfillPage = await ctx.runQuery(internal.mutations.getBillBackfillPage, {
+        cursor,
+        numItems: STAGE_BACKFILL_PAGE,
+      });
+
+      if (page.bills.length > 0) {
+        const { changed } = await ctx.runMutation(
+          internal.mutations.rederiveStagesForBills,
+          {
+            bills: page.bills.map((b) => ({
+              _id: b._id,
+              billId: b.billId,
+              progressStage: b.progressStage,
+              progressDescription: b.progressDescription,
+            })),
+          },
+        );
+        changedThisRun += changed;
+        processedThisRun += page.bills.length;
+      }
+
+      if (page.isDone) {
+        console.log(
+          `backfillBillStages: pass complete, ${changedThisRun} stages changed this run; refreshing rollups`,
+        );
+        // Part 1c: refresh precomputed homepage stats so corrected stages show.
+        await ctx.scheduler.runAfter(0, internal.congressApi.recomputeAllStats, {});
+        return { done: true, processedThisRun, changedThisRun };
+      }
+
+      cursor = page.continueCursor;
+
+      if (processedThisRun >= STAGE_BACKFILL_BILLS_PER_RUN) {
+        await ctx.scheduler.runAfter(
+          1000,
+          internal.congressApi.backfillBillStages,
+          { cursor },
+        );
+        console.log(
+          `backfillBillStages: processed ${processedThisRun} (changed ${changedThisRun}); scheduled continuation`,
+        );
+        return { done: false, processedThisRun, changedThisRun };
+      }
+    }
+  },
+});
+
+const ENRICHMENT_PAGE = 100; // bills scanned per page (already-done bills skip cheaply)
+const ENRICHMENT_DELAY_MS = 350; // per API call
+const ENRICHMENT_RATE_FLOOR = 3000; // pause when x-ratelimit-remaining drops below this
+const ENRICHMENT_MAX_RUN_MS = 8 * 60 * 1000; // 8 min — margin before the 10-min action kill
+const ENRICHMENT_COOLDOWN_MS = 15 * 60 * 1000; // wait when the rate floor is hit
+const ENRICHMENT_RESCHEDULE_MS = 2000; // gap between self-scheduled continuations
+
+/**
+ * Managed historical backfill of the richer LoC data that the original sync
+ * discarded: all legislative subjects (paginated) and all text versions. Visits
+ * each bill missing an enrichment bit and fetches only the endpoints it needs,
+ * marking progress via `extraSyncedBits` so it always resumes where it stopped
+ * and no-ops once everything is stored.
+ *
+ * "Never hit the limit": a ~350ms per-call delay holds throughput near
+ * ~10k req/hr (half the 20k/hr cap), and an adaptive throttle pauses for a
+ * cooldown the moment the live `x-ratelimit-remaining` header drops below a
+ * safety floor. Each invocation stops after ~8 minutes (well under the 10-min
+ * action limit) and self-schedules a continuation.
+ *
+ * Run from the CLI: `npx convex run congressApi:backfillBillEnrichment '{}'`.
+ */
+export const backfillBillEnrichment = internalAction({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    done: boolean;
+    enrichedThisRun: number;
+    pausedForRateLimit: boolean;
+  }> => {
+    const apiKey = process.env.CONGRESS_API_KEY;
+    if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
+
+    const startedAt = Date.now();
+    let cursor: string | null = args.cursor ?? null;
+    let enrichedThisRun = 0;
+
+    for (;;) {
+      const page: BillBackfillPage = await ctx.runQuery(internal.mutations.getBillBackfillPage, {
+        cursor,
+        numItems: ENRICHMENT_PAGE,
+      });
+
+      for (const bill of page.bills) {
+        const needsSubjects =
+          (bill.extraSyncedBits & EXTRA_LEGISLATIVE_SUBJECTS) === 0;
+        const needsText = (bill.extraSyncedBits & EXTRA_TEXT_VERSIONS) === 0;
+        if (!needsSubjects && !needsText) continue;
+
+        // Adaptive throttle: bail before exhausting the hourly budget. Resume
+        // from the current page cursor (already-done bills skip on re-run).
+        if (
+          lastRateLimitRemaining !== null &&
+          lastRateLimitRemaining < ENRICHMENT_RATE_FLOOR
+        ) {
+          console.warn(
+            `backfillBillEnrichment: rate-limit floor hit (${lastRateLimitRemaining} remaining); cooling down`,
+          );
+          await ctx.scheduler.runAfter(
+            ENRICHMENT_COOLDOWN_MS,
+            internal.congressApi.backfillBillEnrichment,
+            { cursor },
+          );
+          return { done: false, enrichedThisRun, pausedForRateLimit: true };
+        }
+
+        let bits = 0;
+
+        if (needsSubjects) {
+          await delay(ENRICHMENT_DELAY_MS);
+          const subjects = await fetchBillSubjects(
+            bill.congress,
+            bill.billType,
+            bill.billNumber,
+            `enrich subjects ${bill.billId}`,
+          );
+          if (subjects) {
+            if (subjects.policyArea) {
+              await ctx.runMutation(internal.mutations.upsertBillSubject, {
+                billId: bill.billId,
+                policyAreaName: subjects.policyArea.name,
+                policyAreaUpdateDate: subjects.policyArea.updateDate,
+              });
+            }
+            await ctx.runMutation(
+              internal.mutations.replaceBillLegislativeSubjects,
+              { billId: bill.billId, subjects: subjects.legislativeSubjects },
+            );
+            bits |= EXTRA_LEGISLATIVE_SUBJECTS;
+          }
+        }
+
+        if (needsText) {
+          await delay(ENRICHMENT_DELAY_MS);
+          const textUrl = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}/text?format=json`;
+          const resp = await fetchWithRetry(textUrl, `enrich text ${bill.billId}`);
+          if (resp && resp.ok) {
+            const data = await resp.json();
+            await ctx.runMutation(internal.mutations.replaceBillTextVersions, {
+              billId: bill.billId,
+              versions: textVersionsToRows(data.textVersions || []),
+            });
+            bits |= EXTRA_TEXT_VERSIONS;
+          }
+        }
+
+        if (bits > 0) {
+          await ctx.runMutation(internal.mutations.setBillExtraSyncedBits, {
+            billId: bill.billId,
+            bits,
+          });
+          enrichedThisRun++;
+        }
+
+        if (Date.now() - startedAt > ENRICHMENT_MAX_RUN_MS) {
+          await ctx.scheduler.runAfter(
+            ENRICHMENT_RESCHEDULE_MS,
+            internal.congressApi.backfillBillEnrichment,
+            { cursor },
+          );
+          console.log(
+            `backfillBillEnrichment: time budget reached, enriched ${enrichedThisRun}; scheduled continuation`,
+          );
+          return { done: false, enrichedThisRun, pausedForRateLimit: false };
+        }
+      }
+
+      if (page.isDone) {
+        console.log(
+          `backfillBillEnrichment: full pass complete, enriched ${enrichedThisRun} this run`,
+        );
+        return { done: true, enrichedThisRun, pausedForRateLimit: false };
+      }
+      cursor = page.continueCursor;
+    }
+  },
+});
+
+/**
+ * Verification query for the enrichment backfill: per-congress counts of bills
+ * still missing legislative subjects / text versions, plus the global total
+ * remaining. Watch `remaining` trend to 0.
+ *
+ * Run from the CLI: `npx convex run congressApi:backfillEnrichmentStatus '{}'`.
+ */
+export const backfillEnrichmentStatus = internalAction({
+  args: {},
+  handler: async (
+    ctx,
+  ): Promise<{
+    total: number;
+    remaining: number;
+    byCongress: Array<{
+      congress: number;
+      total: number;
+      missingSubjects: number;
+      missingText: number;
+      complete: number;
+    }>;
+  }> => {
+    let cursor: string | null = null;
+    let total = 0;
+    let remaining = 0;
+    const perCongress = new Map<
+      number,
+      {
+        total: number;
+        missingSubjects: number;
+        missingText: number;
+        complete: number;
+      }
+    >();
+
+    for (;;) {
+      const page: BillBackfillPage = await ctx.runQuery(internal.mutations.getBillBackfillPage, {
+        cursor,
+        numItems: 2000,
+      });
+      for (const b of page.bills) {
+        total++;
+        const row =
+          perCongress.get(b.congress) ??
+          { total: 0, missingSubjects: 0, missingText: 0, complete: 0 };
+        row.total++;
+        if ((b.extraSyncedBits & EXTRA_LEGISLATIVE_SUBJECTS) === 0)
+          row.missingSubjects++;
+        if ((b.extraSyncedBits & EXTRA_TEXT_VERSIONS) === 0) row.missingText++;
+        if ((b.extraSyncedBits & EXTRA_COMPLETE) === EXTRA_COMPLETE) {
+          row.complete++;
+        } else {
+          remaining++;
+        }
+        perCongress.set(b.congress, row);
+      }
+      if (page.isDone) break;
+      cursor = page.continueCursor;
+    }
+
+    const byCongress = [...perCongress.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([congress, row]) => ({ congress, ...row }));
+
+    console.log(
+      `backfillEnrichmentStatus: total=${total}, remaining=${remaining}`,
+    );
+    return { total, remaining, byCongress };
   },
 });
 

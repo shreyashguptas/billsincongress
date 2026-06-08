@@ -3,6 +3,7 @@ import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { rateLimiter } from "./rateLimits";
+import { BillStageDescriptions as STAGE_DESCRIPTIONS } from "./billStage";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = "groq/compound-mini";
@@ -28,17 +29,6 @@ interface BillContext {
   pdfUrl: string;
   actions: Array<{ date: string; description: string }>;
 }
-
-const STAGE_DESCRIPTIONS: Record<number, string> = {
-  20: "Introduced",
-  40: "In Committee",
-  60: "Passed One Chamber",
-  80: "Passed Both Chambers",
-  85: "Vetoed",
-  90: "To President",
-  95: "Signed by President",
-  100: "Became Law",
-};
 
 const PARTY_NAMES: Record<string, string> = {
   R: "Republican",

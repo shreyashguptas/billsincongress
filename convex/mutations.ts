@@ -10,6 +10,7 @@ import {
   HOUSE_BILL_TYPES,
   SENATE_BILL_TYPES,
 } from "./aggregates";
+import { calculateBillStage } from "./billStage";
 
 /**
  * Upsert a bill record. If a bill with the same billId exists, update it.
@@ -224,6 +225,96 @@ export const upsertBillTitles = internalMutation({
 });
 
 /**
+ * Replace ALL detailed legislative subjects for a bill (one-to-many). Distinct
+ * from upsertBillSubject, which stores the single policy area. Called by the
+ * sync and the enrichment backfill after paginating the /subjects endpoint.
+ */
+export const replaceBillLegislativeSubjects = internalMutation({
+  args: {
+    billId: v.string(),
+    subjects: v.array(
+      v.object({
+        name: v.string(),
+        updateDate: v.optional(v.string()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("billLegislativeSubjects")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .collect();
+    for (const doc of existing) {
+      await ctx.db.delete(doc._id);
+    }
+    for (const subject of args.subjects) {
+      await ctx.db.insert("billLegislativeSubjects", {
+        billId: args.billId,
+        name: subject.name,
+        updateDate: subject.updateDate,
+      });
+    }
+  },
+});
+
+/**
+ * Replace ALL text versions for a bill (one-to-many). The sync used to keep
+ * only the single last array element; this stores every version so the
+ * current-text selection in `getById` can pick by finality/date.
+ */
+export const replaceBillTextVersions = internalMutation({
+  args: {
+    billId: v.string(),
+    versions: v.array(
+      v.object({
+        date: v.optional(v.string()),
+        formatsUrlTxt: v.optional(v.string()),
+        formatsUrlPdf: v.optional(v.string()),
+        type: v.optional(v.string()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("billText")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .collect();
+    for (const doc of existing) {
+      await ctx.db.delete(doc._id);
+    }
+    for (const version of args.versions) {
+      await ctx.db.insert("billText", {
+        billId: args.billId,
+        ...version,
+      });
+    }
+  },
+});
+
+/**
+ * OR-in enrichment progress bits on a bill (1 = legislativeSubjects stored,
+ * 2 = all text versions stored). Kept separate from `syncedEndpoints` so the
+ * existing repair / SYNC_COMPLETE logic is untouched.
+ */
+export const setBillExtraSyncedBits = internalMutation({
+  args: {
+    billId: v.string(),
+    bits: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (!existing) return;
+    const current = existing.extraSyncedBits || 0;
+    await ctx.db.patch(existing._id, {
+      extraSyncedBits: current | args.bits,
+    });
+  },
+});
+
+/**
  * Update the sync status bitmask for a bill.
  * Uses bitwise OR so bits are only ever added, never removed.
  */
@@ -377,6 +468,93 @@ export const getBillsPageByCongress = internalQuery({
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
       .paginate({ cursor: args.cursor, numItems: args.numItems });
+  },
+});
+
+/**
+ * Paginated fetch of the whole bills table, returning just the fields the
+ * backfills / status checks need. Shared by `backfillBillStages` (stage
+ * re-derivation), `backfillBillEnrichment` (subjects + text), and
+ * `backfillEnrichmentStatus` (progress counts).
+ */
+export const getBillBackfillPage = internalQuery({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("bills")
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+    return {
+      bills: page.page.map((b) => ({
+        _id: b._id,
+        billId: b.billId,
+        congress: b.congress,
+        billType: b.billType,
+        billNumber: b.billNumber,
+        progressStage: b.progressStage,
+        progressDescription: b.progressDescription,
+        extraSyncedBits: b.extraSyncedBits ?? 0,
+      })),
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
+  },
+});
+
+/**
+ * Re-derive the progress stage for a batch of bills from their stored actions
+ * (no API calls) and patch only those whose stage actually changed. Uses the
+ * trigger-wrapped internalMutation so the billsByStage / billsByChamber
+ * aggregates stay in sync automatically. Bills with no stored actions are
+ * skipped (we can't derive a stage without them).
+ *
+ * numItems at the call site is kept small (≤40) so reading up to 250 actions
+ * per bill stays within Convex's per-transaction read limit.
+ */
+export const rederiveStagesForBills = internalMutation({
+  args: {
+    bills: v.array(
+      v.object({
+        _id: v.id("bills"),
+        billId: v.string(),
+        progressStage: v.optional(v.number()),
+        progressDescription: v.optional(v.string()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    let changed = 0;
+    let skippedNoActions = 0;
+    for (const bill of args.bills) {
+      const actions = await ctx.db
+        .query("billActions")
+        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+        .take(250);
+      if (actions.length === 0) {
+        skippedNoActions++;
+        continue;
+      }
+      const { stage, description } = calculateBillStage(
+        actions.map((a) => ({
+          text: a.text,
+          type: a.type,
+          actionCode: a.actionCode,
+        })),
+      );
+      if (
+        bill.progressStage !== stage ||
+        bill.progressDescription !== description
+      ) {
+        await ctx.db.patch(bill._id, {
+          progressStage: stage,
+          progressDescription: description,
+        });
+        changed++;
+      }
+    }
+    return { changed, skippedNoActions };
   },
 });
 

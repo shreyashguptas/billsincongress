@@ -2,6 +2,10 @@ import { TableAggregate } from "@convex-dev/aggregate";
 import { componentsGeneric } from "convex/server";
 import { DataModel } from "./_generated/dataModel";
 
+// Re-export the homepage status-chart stage list from the single source of
+// truth so callers (e.g. convex/mutations.ts) keep importing it from here.
+export { BILL_STAGES } from "./billStage";
+
 // Component handles. We resolve them via `componentsGeneric()` rather than the
 // `_generated/api.ts` re-export so this file typechecks locally without
 // requiring `npx convex codegen` to run with credentials. After
@@ -46,22 +50,6 @@ export const billsByStage = new TableAggregate<{
   namespace: (doc) => doc.congress,
   sortKey: (doc) => doc.progressStage ?? DEFAULT_STAGE,
 });
-
-/**
- * Bill stages that appear on the homepage status chart. Order matters here —
- * it controls the sort order of the chart segments.
- */
-export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> =
-  [
-    { stage: 20, description: "Introduced" },
-    { stage: 40, description: "In Committee" },
-    { stage: 60, description: "Passed One Chamber" },
-    { stage: 80, description: "Passed Both Chambers" },
-    { stage: 85, description: "Vetoed" },
-    { stage: 90, description: "To President" },
-    { stage: 95, description: "Signed by President" },
-    { stage: 100, description: "Became Law" },
-  ];
 
 /**
  * Bill type prefixes for each chamber. Used to derive house/senate counts

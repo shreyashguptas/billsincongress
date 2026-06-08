@@ -63,6 +63,7 @@ const STATUS_OPTIONS = [
   { value: '40',  label: 'In committee' },
   { value: '60',  label: 'Passed one chamber' },
   { value: '80',  label: 'Passed both chambers' },
+  { value: '85',  label: 'Vetoed' },
   { value: '90',  label: 'To President' },
   { value: '95',  label: 'Signed by President' },
   { value: '100', label: 'Became law' },

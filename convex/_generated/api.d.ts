@@ -13,6 +13,7 @@ import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
 import type * as auth from "../auth.js";
+import type * as billStage from "../billStage.js";
 import type * as bills from "../bills.js";
 import type * as chatAnalytics from "../chatAnalytics.js";
 import type * as congressApi from "../congressApi.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   aggregateBackfill: typeof aggregateBackfill;
   aggregates: typeof aggregates;
   auth: typeof auth;
+  billStage: typeof billStage;
   bills: typeof bills;
   chatAnalytics: typeof chatAnalytics;
   congressApi: typeof congressApi;

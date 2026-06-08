@@ -9,6 +9,13 @@ export const SYNC_SUMMARIES = 8; // bit 3
 export const SYNC_TEXT = 16; // bit 4
 export const SYNC_COMPLETE = 31; // all bits set
 
+// Enrichment bitmask (bills.extraSyncedBits) — kept SEPARATE from the endpoint
+// bitmask above so the repair / SYNC_COMPLETE flow is untouched. Tracks the
+// richer data that the original sync fetched but discarded.
+export const EXTRA_LEGISLATIVE_SUBJECTS = 1; // bit 0: all legislativeSubjects stored
+export const EXTRA_TEXT_VERSIONS = 2; // bit 1: all text versions stored
+export const EXTRA_COMPLETE = 3; // all enrichment bits set
+
 const ENDPOINT_NAMES: Record<number, string> = {
   [SYNC_DETAIL]: "detail",
   [SYNC_ACTIONS]: "actions",
