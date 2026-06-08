@@ -8,6 +8,7 @@
     "start": "next start",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "optimize-images": "tsx scripts/optimize-images.ts",
+    "test": "tsx convex/billStage.test.ts",
     "cf:build": "npm run generate-icons && opennextjs-cloudflare build",
     "preview": "npm run cf:build && opennextjs-cloudflare preview",
     "deploy": "npm run cf:build && opennextjs-cloudflare deploy",

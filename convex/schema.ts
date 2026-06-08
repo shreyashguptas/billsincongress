@@ -91,6 +91,10 @@ export default defineSchema({
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
     syncedEndpoints: v.optional(v.number()), // bitmask: 1=detail, 2=actions, 4=subjects, 8=summaries, 16=text
+    // Enrichment progress, kept SEPARATE from syncedEndpoints so the existing
+    // repair logic / SYNC_COMPLETE checks are untouched. Bits:
+    //   1 = all legislativeSubjects stored, 2 = all text versions stored.
+    extraSyncedBits: v.optional(v.number()),
     lastSyncAttempt: v.optional(v.string()), // ISO timestamp of last sync attempt
     updatedAt: v.string(),
   })
@@ -146,6 +150,19 @@ export default defineSchema({
     formatsUrlPdf: v.optional(v.string()),
     type: v.optional(v.string()),
   }).index("by_billId", ["billId"]),
+
+  // Detailed legislative subjects (one-to-many: bill -> subjects). Distinct
+  // from the single policy area kept in billSubjects — the Library of Congress
+  // returns a rich list of legislative subjects per bill (e.g. HR1/119 has
+  // 239). Stored replace-all per bill by the sync + enrichment backfill, and
+  // indexed by name to support a future "filter by subject" feature.
+  billLegislativeSubjects: defineTable({
+    billId: v.string(),
+    name: v.string(),
+    updateDate: v.optional(v.string()),
+  })
+    .index("by_billId", ["billId"])
+    .index("by_name", ["name"]),
 
   // Bill title variations (one-to-many: bill -> titles)
   billTitles: defineTable({

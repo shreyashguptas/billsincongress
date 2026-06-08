@@ -2,18 +2,70 @@ import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { billsByChamber, billsByStage } from "./aggregates";
+import { calculateBillStage } from "./billStage";
 
-// Bill stage constants (mirroring lib/utils/bill-stages.ts)
-const BILL_STAGE_DESCRIPTIONS: Record<number, string> = {
-  20: "Introduced",
-  40: "In Committee",
-  60: "Passed One Chamber",
-  80: "Passed Both Chambers",
-  85: "Vetoed",
-  90: "To President",
-  95: "Signed by President",
-  100: "Became Law",
-};
+// Bounds for reading a single bill's child rows. Real bills have only a handful
+// of summaries / text versions, so these caps are generous safety limits.
+const MAX_SUMMARIES_PER_BILL = 50;
+const MAX_TEXT_VERSIONS_PER_BILL = 50;
+
+/** Effective date for ordering a summary: prefer actionDate, fall back to updateDate. */
+function summaryEffectiveDate(s: Doc<"billSummaries">): string {
+  return s.actionDate || s.updateDate || "";
+}
+
+/**
+ * Pick the summary describing the most advanced action — the one with the
+ * latest effective date. The Library of Congress returns summaries in an order
+ * that is NOT chronological, so we must select by date rather than by array
+ * position / `_creationTime`.
+ */
+function pickLatestSummary(
+  summaries: Doc<"billSummaries">[],
+): Doc<"billSummaries"> | null {
+  if (summaries.length === 0) return null;
+  return [...summaries].sort((a, b) => {
+    const da = summaryEffectiveDate(a);
+    const db = summaryEffectiveDate(b);
+    return da < db ? 1 : da > db ? -1 : 0;
+  })[0];
+}
+
+/**
+ * Rank a bill-text version by how final it is. The "current" text is the most
+ * advanced version that exists (a signed Public Law supersedes the Enrolled
+ * copy, which supersedes Engrossed, etc.).
+ */
+function textVersionRank(type: string | undefined): number {
+  const t = (type || "").toLowerCase();
+  if (t.includes("public law") || t.includes("private law")) return 100;
+  if (t.includes("enrolled")) return 90;
+  if (t.includes("engrossed amendment")) return 80;
+  if (t.includes("engrossed")) return 70;
+  if (t.includes("reported")) return 60;
+  if (t.includes("placed on calendar")) return 55;
+  if (t.includes("referred")) return 50;
+  if (t.includes("considered")) return 45;
+  if (t.includes("introduced")) return 40;
+  return 10;
+}
+
+/**
+ * Pick the current text version: most final by rank, then most recent by date.
+ * Works on the single legacy row stored today and improves automatically once
+ * the sync stores every text version.
+ */
+function pickCurrentText(texts: Doc<"billText">[]): Doc<"billText"> | null {
+  if (texts.length === 0) return null;
+  return [...texts].sort((a, b) => {
+    const ra = textVersionRank(a.type);
+    const rb = textVersionRank(b.type);
+    if (ra !== rb) return rb - ra;
+    const da = a.date || "";
+    const db = b.date || "";
+    return da < db ? 1 : da > db ? -1 : 0;
+  })[0];
+}
 
 /**
  * Internal helper: check if any bills exist for a given congress.
@@ -43,8 +95,10 @@ export const getById = query({
 
     if (!bill) return null;
 
-    // Fetch related data in parallel
-    const [subjects, summary, text] = await Promise.all([
+    // Fetch related data in parallel. Summaries and text versions are selected
+    // by date / finality (see helpers above), NOT by array position — the
+    // Library of Congress does not return them in chronological order.
+    const [subjects, summaries, texts] = await Promise.all([
       ctx.db
         .query("billSubjects")
         .withIndex("by_billId", (q) => q.eq("billId", args.billId))
@@ -52,14 +106,15 @@ export const getById = query({
       ctx.db
         .query("billSummaries")
         .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-        .order("desc")
-        .first(),
+        .take(MAX_SUMMARIES_PER_BILL),
       ctx.db
         .query("billText")
         .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-        .order("desc")
-        .first(),
+        .take(MAX_TEXT_VERSIONS_PER_BILL),
     ]);
+
+    const summary = pickLatestSummary(summaries);
+    const text = pickCurrentText(texts);
 
     return {
       ...bill,
@@ -73,7 +128,94 @@ export const getById = query({
 });
 
 /**
- * Get bill actions for a specific bill (internal query)
+ * Read-only diagnostic: dump a bill's stored actions (code/type/text/date) and
+ * compare its stored stage against the freshly-computed one. Used to verify the
+ * veto-detection fix against production data without any API calls, e.g.
+ *   npx convex run bills:debugBillStage '{"billId":"4199s118"}'
+ */
+export const debugBillStage = internalQuery({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    const actions = await ctx.db
+      .query("billActions")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(250);
+    const computed = calculateBillStage(
+      actions.map((a) => ({
+        text: a.text,
+        type: a.type,
+        actionCode: a.actionCode,
+      })),
+    );
+    return {
+      billId: args.billId,
+      exists: bill !== null,
+      storedStage: bill?.progressStage,
+      storedDescription: bill?.progressDescription,
+      computedStage: computed.stage,
+      computedDescription: computed.description,
+      actionCount: actions.length,
+      actions: actions.map((a) => ({
+        date: a.actionDate,
+        code: a.actionCode,
+        type: a.type,
+        text: a.text,
+      })),
+    };
+  },
+});
+
+/**
+ * Read-only spot-check for the enrichment backfill: reports a bill's
+ * extraSyncedBits, how many legislative subjects and text versions are stored,
+ * and small samples. Compare the subject count against the live
+ * `/subjects` `pagination.count` (e.g. 1hr119 ≈ 239) to confirm fidelity.
+ *   npx convex run bills:debugBillEnrichment '{"billId":"1hr119"}'
+ */
+export const debugBillEnrichment = internalQuery({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    const legislativeSubjects = await ctx.db
+      .query("billLegislativeSubjects")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(500);
+    const texts = await ctx.db
+      .query("billText")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(100);
+    return {
+      billId: args.billId,
+      extraSyncedBits: bill?.extraSyncedBits ?? 0,
+      legislativeSubjectCount: legislativeSubjects.length,
+      sampleSubjects: legislativeSubjects.slice(0, 8).map((s) => s.name),
+      textVersionCount: texts.length,
+      textVersionTypes: texts.map((t) => t.type),
+    };
+  },
+});
+
+// A bill stores at most 250 actions (the sync fetches with limit=250).
+const MAX_BILL_ACTIONS = 250;
+const RECENT_ACTIONS_LIMIT = 20;
+
+/**
+ * Get a bill's most-recent actions (internal query, feeds the AI chatbot).
+ *
+ * Actions are stored newest-first (the sync deletes + re-inserts in the order
+ * the Library of Congress API returns them), so reading the index by
+ * `_creationTime` does NOT give chronological order — the previous
+ * `.order("desc").take(20)` returned the 20 *oldest* actions and the chatbot
+ * presented them as "Recent." We instead read the bounded set and sort by
+ * `actionDate` descending. The sort is stable, so actions sharing a date keep
+ * their stored order (the API's own newest-first ordering within a day).
  */
 export const getBillActions = internalQuery({
   args: { billId: v.string() },
@@ -81,10 +223,13 @@ export const getBillActions = internalQuery({
     const actions = await ctx.db
       .query("billActions")
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-      .order("desc")
-      .take(20);
-    
-    return actions.map(a => ({
+      .take(MAX_BILL_ACTIONS);
+
+    const sorted = [...actions].sort((a, b) =>
+      a.actionDate < b.actionDate ? 1 : a.actionDate > b.actionDate ? -1 : 0,
+    );
+
+    return sorted.slice(0, RECENT_ACTIONS_LIMIT).map((a) => ({
       date: a.actionDate,
       description: a.text,
     }));
@@ -759,17 +904,6 @@ export const getCongressDashboard = query({
       statusBreakdown,
       topSponsors,
       topPolicyAreas,
-      partyBreakdown: [],
-      stateBreakdown: [],
-      timelineMetrics: [
-        { stage: "introduced", avgDays: 0, description: "Introduced" },
-        { stage: "committee", avgDays: 0, description: "To Committee" },
-        { stage: "passedOneChamber", avgDays: 0, description: "Passed One Chamber" },
-        { stage: "passedBothChambers", avgDays: 0, description: "Passed Both Chambers" },
-        { stage: "toPresident", avgDays: 0, description: "To President" },
-        { stage: "signed", avgDays: 0, description: "Signed by President" },
-        { stage: "law", avgDays: 0, description: "Became Law" },
-      ],
     };
   },
 });
