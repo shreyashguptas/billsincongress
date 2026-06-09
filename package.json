@@ -2,16 +2,17 @@
   "name": "bills-in-congress",
   "version": "0.2.0",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "next dev",
-    "build": "npm run generate-icons && next build",
+    "build": "pnpm generate-icons && next build",
     "start": "next start",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "optimize-images": "tsx scripts/optimize-images.ts",
     "test": "tsx convex/billStage.test.ts",
-    "cf:build": "npm run generate-icons && opennextjs-cloudflare build",
-    "preview": "npm run cf:build && opennextjs-cloudflare preview",
-    "deploy": "npm run cf:build && opennextjs-cloudflare deploy",
+    "cf:build": "pnpm generate-icons && opennextjs-cloudflare build",
+    "preview": "pnpm cf:build && opennextjs-cloudflare preview",
+    "deploy": "pnpm cf:build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
