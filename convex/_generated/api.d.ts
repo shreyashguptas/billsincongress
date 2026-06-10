@@ -24,6 +24,7 @@ import type * as http from "../http.js";
 import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
 import type * as rateLimits from "../rateLimits.js";
+import type * as savedBills from "../savedBills.js";
 import type * as sync from "../sync.js";
 import type * as users from "../users.js";
 
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   llm: typeof llm;
   mutations: typeof mutations;
   rateLimits: typeof rateLimits;
+  savedBills: typeof savedBills;
   sync: typeof sync;
   users: typeof users;
 }>;

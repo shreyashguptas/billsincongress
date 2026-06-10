@@ -12,6 +12,7 @@ import {
 } from '@/lib/utils/bill-stages';
 import { analytics } from '@/lib/analytics';
 import BillQA from './bill-qa';
+import SaveBillButton from './save-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
 import { ArrowLeft, FileText, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -165,6 +166,16 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                   </a>
                 </>
               )}
+              <SaveBillButton
+                billId={String(bill.id)}
+                analyticsProps={{
+                  bill_type: bill.bill_type,
+                  bill_number: bill.bill_number,
+                  congress: bill.congress,
+                  policy_area: bill.bill_subjects?.policy_area_name ?? '',
+                  progress_stage: progressStage,
+                }}
+              />
             </div>
           </div>
         </div>
