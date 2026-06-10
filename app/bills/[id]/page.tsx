@@ -7,11 +7,81 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import {
   SITE_NAME,
+  SITE_URL,
   DEFAULT_OG_IMAGE,
   billSeoDescription,
   congressOrdinal,
+  congressGovUrl,
+  legislationTypeLabel,
+  stripHtml,
   truncateAtWord,
 } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/json-ld';
+
+// schema.org Legislation + BreadcrumbList nodes for a bill page. Stage
+// thresholds mirror convex/billStage.ts (80 = passed both chambers,
+// 100 = signed into law).
+function billJsonLd(bill: Bill, id: string): object {
+  const url = `${SITE_URL}/bills/${id}`;
+  const identifier = `${bill.bill_type_label} ${bill.bill_number}`;
+  const summary = bill.latest_summary ? stripHtml(bill.latest_summary) : '';
+  const officialUrl = congressGovUrl(bill);
+
+  const legislation: Record<string, unknown> = {
+    '@type': 'Legislation',
+    '@id': url,
+    url,
+    name: bill.title,
+    legislationIdentifier: identifier,
+    legislationType: legislationTypeLabel(bill.bill_type),
+    inLanguage: 'en',
+    isPartOf: { '@id': `${SITE_URL}/#website` },
+  };
+  if (bill.introduced_date) {
+    legislation.legislationDate = bill.introduced_date;
+    legislation.dateCreated = bill.introduced_date;
+  }
+  if (summary) {
+    legislation.abstract = truncateAtWord(summary, 500);
+  }
+  if (bill.sponsor_first_name || bill.sponsor_last_name) {
+    legislation.sponsor = {
+      '@type': 'Person',
+      name: `${bill.sponsor_first_name ?? ''} ${bill.sponsor_last_name ?? ''}`.trim(),
+    };
+  }
+  if (bill.progress_stage >= 80) {
+    legislation.legislationPassedBy = {
+      '@type': 'Organization',
+      name: 'United States Congress',
+    };
+  }
+  if (bill.progress_stage === 100) {
+    legislation.legislationLegalForce = 'https://schema.org/InForce';
+  }
+  if (officialUrl) {
+    legislation.sameAs = officialUrl;
+  }
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      legislation,
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Bills', item: `${SITE_URL}/bills` },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: `${identifier} (${congressOrdinal(bill.congress)} Congress)`,
+          },
+        ],
+      },
+    ],
+  };
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -81,18 +151,21 @@ export default async function BillPage({ params }: PageProps): Promise<ReactElem
   }
 
   return (
-    <Suspense
-      fallback={
-        <div className="container-editorial py-16">
-          <div className="space-y-3">
-            <div className="h-3 w-24 bg-secondary rounded-sm animate-pulse" />
-            <div className="h-10 w-2/3 bg-secondary rounded-sm animate-pulse" />
-            <div className="h-4 w-1/2 bg-secondary rounded-sm animate-pulse" />
+    <>
+      <JsonLd data={billJsonLd(bill, id)} />
+      <Suspense
+        fallback={
+          <div className="container-editorial py-16">
+            <div className="space-y-3">
+              <div className="h-3 w-24 bg-secondary rounded-sm animate-pulse" />
+              <div className="h-10 w-2/3 bg-secondary rounded-sm animate-pulse" />
+              <div className="h-4 w-1/2 bg-secondary rounded-sm animate-pulse" />
+            </div>
           </div>
-        </div>
-      }
-    >
-      <BillDetails bill={bill} />
-    </Suspense>
+        }
+      >
+        <BillDetails bill={bill} />
+      </Suspense>
+    </>
   );
 }

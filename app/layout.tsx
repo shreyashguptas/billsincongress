@@ -11,6 +11,39 @@ import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { ConvexClientProvider } from './ConvexClientProvider';
 import { sharedViewport, sharedThemeColor } from './shared-metadata';
 import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/json-ld';
+
+// Sitewide identity for search engines: who publishes this site and how its
+// search works. Bill pages add Legislation + BreadcrumbList nodes of their own.
+const SITE_GRAPH = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_URL}/#org`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/icons/icon-512x512.png`,
+      description:
+        'An independent record of legislation in the United States Congress, sourced from the public Congress.gov API. Not affiliated with the U.S. government.',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_URL}/#website`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      publisher: { '@id': `${SITE_URL}/#org` },
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${SITE_URL}/bills?title={search_term_string}`,
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  ],
+};
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -92,6 +125,7 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
+        <JsonLd data={SITE_GRAPH} />
         <ConvexAuthNextjsServerProvider>
           <ConvexClientProvider>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
