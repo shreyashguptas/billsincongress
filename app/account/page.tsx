@@ -27,6 +27,7 @@ export default function AccountPage() {
 
 function AccountInner() {
   const user = useQuery(api.users.currentUser, {});
+  const savedBills = useQuery(api.savedBills.listSaved, {});
   const { signOut } = useAuthActions();
   const [chatUsage, setChatUsage] = React.useState<ChatUsageResult | null>(null);
 
@@ -164,6 +165,66 @@ function AccountInner() {
           </CardContent>
         </Card>
       </div>
+
+      <section className="space-y-4">
+        <h2 className="font-serif text-xl font-semibold tracking-tight">Saved bills</h2>
+        {savedBills === undefined ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : savedBills.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No saved bills yet.{" "}
+            <Link href="/bills" className="underline underline-offset-4">
+              Browse bills
+            </Link>{" "}
+            and tap Save on any bill to keep it here.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border border-y border-border">
+            {savedBills.map((row) =>
+              row.bill ? (
+                <li key={row.billId}>
+                  <Link
+                    href={`/bills/${row.billId}`}
+                    className="group flex items-baseline justify-between gap-4 py-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                        {row.bill.billTypeLabel} {row.bill.billNumber} · {row.bill.congress}th
+                        Congress
+                      </p>
+                      <p className="mt-1 font-serif font-medium leading-snug group-hover:underline underline-offset-4">
+                        {row.bill.title}
+                      </p>
+                      {row.bill.progressDescription && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {row.bill.progressDescription}
+                        </p>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      Saved{" "}
+                      {new Intl.DateTimeFormat("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      }).format(new Date(row.savedAt))}
+                    </span>
+                  </Link>
+                </li>
+              ) : (
+                <li
+                  key={row.billId}
+                  className="flex items-baseline justify-between gap-4 py-4"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    This bill is no longer available{" "}
+                    <span className="font-mono text-xs">({row.billId})</span>
+                  </p>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
+      </section>
 
       <div className="border-t border-border pt-6">
         <Button
