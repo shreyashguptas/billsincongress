@@ -179,6 +179,20 @@ export const analytics = {
 
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
 
+  billSaveToggled: (props: {
+    bill_id: string;
+    action: 'saved' | 'unsaved';
+    bill_type: string;
+    bill_number: string;
+    congress: number;
+    policy_area: string;
+    progress_stage: number | string;
+  }) => capture('bill_save_toggled', props),
+
+  /** Signed-out user clicked Save — the save-as-signup-driver conversion moment. */
+  billSaveSigninRedirected: (billId: string) =>
+    capture('bill_save_signin_redirected', { bill_id: billId }),
+
   billChatQuestionSubmitted: (props: {
     bill_id: string;
     question: string;

@@ -72,6 +72,16 @@ export default defineSchema({
     .index("by_user_and_kind", ["userId", "kind"])
     .index("by_user_and_createdAt", ["userId", "createdAt"]),
 
+  // Saved bills (plain bookmarks). One row per (user, bill); unsave deletes
+  // the row, so a re-save gets a fresh _creationTime and sorts as newest.
+  savedBills: defineTable({
+    userId: v.id("users"),
+    billId: v.string(), // References bills.billId composite key, e.g. "1hr119"
+    savedAt: v.number(), // epoch ms
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_bill", ["userId", "billId"]),
+
   // ─── Bills domain ──────────────────────────────────────────────────────────
   // Main bill info table
   bills: defineTable({
