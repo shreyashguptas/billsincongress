@@ -26,10 +26,10 @@ export default function ForgotPasswordPage() {
             <li>
               Email{" "}
               <a
-                href="mailto:hi@mail.billsincongress.com"
+                href="mailto:hi@billsincongress.com"
                 className="text-foreground underline"
               >
-                hi@mail.billsincongress.com
+                hi@billsincongress.com
               </a>{" "}
               and we&apos;ll reset it for you
             </li>

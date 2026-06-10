@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     'The terms for using Bills.Congress — a free, independent record of legislation in the United States Congress.',
 };
 
-const LAST_UPDATED = 'June 9, 2026';
+const LAST_UPDATED = 'June 10, 2026';
 
 export default function TermsPage() {
   return (
@@ -100,10 +100,10 @@ export default function TermsPage() {
                 You can stop using the site at any time, and you can have your
                 account and its data deleted by emailing{' '}
                 <a
-                  href="mailto:hi@mail.billsincongress.com"
+                  href="mailto:hi@billsincongress.com"
                   className="underline underline-offset-4 hover:text-foreground"
                 >
-                  hi@mail.billsincongress.com
+                  hi@billsincongress.com
                 </a>
                 .
               </p>
@@ -224,10 +224,10 @@ export default function TermsPage() {
                 These terms are governed by the laws of the United States.
                 Questions about them are welcome at{' '}
                 <a
-                  href="mailto:hi@mail.billsincongress.com"
+                  href="mailto:hi@billsincongress.com"
                   className="underline underline-offset-4 hover:text-foreground"
                 >
-                  hi@mail.billsincongress.com
+                  hi@billsincongress.com
                 </a>{' '}
                 or on{' '}
                 <ExternalLink href="https://github.com/shreyashguptas/billsincongress">

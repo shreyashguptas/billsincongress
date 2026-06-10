@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     'How Bills.Congress collects, uses, and protects your data — in plain English.',
 };
 
-const LAST_UPDATED = 'June 9, 2026';
+const LAST_UPDATED = 'June 10, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -219,10 +219,10 @@ export default function PrivacyPage() {
                 history — or to request a copy of the data we hold about you,
                 email{' '}
                 <a
-                  href="mailto:hi@mail.billsincongress.com"
+                  href="mailto:hi@billsincongress.com"
                   className="underline underline-offset-4 hover:text-foreground"
                 >
-                  hi@mail.billsincongress.com
+                  hi@billsincongress.com
                 </a>{' '}
                 and we&rsquo;ll take care of it.
               </p>
@@ -275,10 +275,10 @@ export default function PrivacyPage() {
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Questions? Email{' '}
                 <a
-                  href="mailto:hi@mail.billsincongress.com"
+                  href="mailto:hi@billsincongress.com"
                   className="underline underline-offset-4 hover:text-foreground"
                 >
-                  hi@mail.billsincongress.com
+                  hi@billsincongress.com
                 </a>
                 . See also our{' '}
                 <Link
