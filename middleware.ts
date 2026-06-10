@@ -65,10 +65,24 @@ export default convexAuthNextjsMiddleware(
     // broaden the surface for any future authenticated `/api/foo` route.
 
     // `/bills` is rendered below ConvexAuthNextjsServerProvider. Authenticated
-    // responses can contain user-specific auth bootstrap state, so never mark
-    // the full page response public-cacheable.
+    // responses can contain user-specific auth bootstrap state, so those must
+    // never be cached. Anonymous responses are identical for everyone — let
+    // shared caches and crawlers treat them as cacheable. Cookie *presence* is
+    // the signal (no JWT validation needed): the refresh-token cookie matters
+    // too, since an expired JWT + valid refresh token still re-auths
+    // mid-request and yields an authed response.
     if (pathname.startsWith("/bills") && !pathname.includes("api")) {
-      response.headers.set("Cache-Control", "private, no-store");
+      const hasAuthCookie =
+        request.cookies.has("__Host-__convexAuthJWT") ||
+        request.cookies.has("__convexAuthJWT") ||
+        request.cookies.has("__Host-__convexAuthRefreshToken") ||
+        request.cookies.has("__convexAuthRefreshToken");
+      response.headers.set(
+        "Cache-Control",
+        hasAuthCookie
+          ? "private, no-store"
+          : "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+      );
     }
 
     return response;
