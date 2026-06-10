@@ -10,11 +10,18 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+// Bill IDs look like "1hr119" / "4199s118": number + type + congress. Anything
+// else can 404 without a Convex round-trip.
+const BILL_ID_PATTERN = /^\d{1,5}[a-z]{1,7}\d{2,3}$/;
+
 // Fetch the bill once per request. React's `cache()` dedupes the call shared
 // between generateMetadata and the page render (request-scoped only — no
 // persistent cache). The page renders dynamically on each request; returns
 // null on any failure so the caller can route to notFound() cleanly.
 const getBill = cache(async (id: string): Promise<Bill | null> => {
+  if (!BILL_ID_PATTERN.test(id)) {
+    return null;
+  }
   try {
     return await billsService.fetchBillById(id);
   } catch (error) {

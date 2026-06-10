@@ -1,5 +1,4 @@
 import './globals.css';
-import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
 import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
@@ -78,10 +77,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // ConvexAuthNextjsServerProvider reads request cookies (dynamic data) so
-  // its render must be inside a Suspense boundary under Cache Components.
-  // The shell (html/body) prerenders statically; the auth-aware tree streams
-  // from inside the provider once cookies are read.
+  // No Suspense boundary above the page: the response must not flush before
+  // page data resolves, so notFound() can still produce a real 404 status and
+  // metadata lands in <head> instead of being streamed into <body>.
   return (
     <html
       lang="en"
@@ -89,30 +87,28 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
-        <Suspense fallback={null}>
-          <ConvexAuthNextjsServerProvider>
-            <ConvexClientProvider>
-              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <a
-                  href="#main"
-                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
-                >
-                  Skip to content
-                </a>
-                <div className="flex min-h-screen flex-col">
-                  <Navigation />
-                  <main id="main" className="flex-1">
-                    {children}
-                  </main>
-                  <Footer />
-                </div>
-                <WelcomeNewUser />
-                <PostHogAuthSync />
-                <Toaster />
-              </ThemeProvider>
-            </ConvexClientProvider>
-          </ConvexAuthNextjsServerProvider>
-        </Suspense>
+        <ConvexAuthNextjsServerProvider>
+          <ConvexClientProvider>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+              <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
+              >
+                Skip to content
+              </a>
+              <div className="flex min-h-screen flex-col">
+                <Navigation />
+                <main id="main" className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+              </div>
+              <WelcomeNewUser />
+              <PostHogAuthSync />
+              <Toaster />
+            </ThemeProvider>
+          </ConvexClientProvider>
+        </ConvexAuthNextjsServerProvider>
       </body>
     </html>
   );
