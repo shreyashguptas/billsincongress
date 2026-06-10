@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import { analytics } from '@/lib/analytics';
+import { formatCongressOrdinalSpan, formatCongressYearSpan } from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -64,7 +65,9 @@ export default function BillsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [congressInfo, setCongressInfo] = useState<{ congress: number; startYear: number; endYear: number } | null>(null);
+  // Oldest/newest Congress with data — drives the header's "(2021–2026 ·
+  // 117th–119th)" span. Null until loaded (or if nothing is available).
+  const [congressRange, setCongressRange] = useState<{ oldest: number; newest: number } | null>(null);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [congressFilter, setCongressFilter] = useState<string>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('billsCongressFilter') || 'all' : 'all'
@@ -105,15 +108,20 @@ export default function BillsPage() {
   }, []);
 
   useEffect(() => {
-    const fetchCongressInfo = async () => {
+    const fetchCongressRange = async () => {
       try {
-        const info = await billsService.getCongressInfo();
-        setCongressInfo(info);
+        const numbers = await billsService.getAvailableCongressNumbers();
+        if (numbers.length > 0) {
+          setCongressRange({
+            oldest: Math.min(...numbers),
+            newest: Math.max(...numbers),
+          });
+        }
       } catch (e) {
-        console.error('Error fetching Congress info:', e);
+        console.error('Error fetching Congress range:', e);
       }
     };
-    fetchCongressInfo();
+    fetchCongressRange();
   }, []);
 
   // Seed filter state from homepage drill-down URL params, then strip them.
@@ -399,11 +407,12 @@ export default function BillsPage() {
           <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span>
               Browse legislation introduced in Congress
-              {congressInfo && (
+              {congressRange && (
                 <>
                   {' '}
                   <span className="font-mono tabular">
-                    ({congressInfo.startYear}–{congressInfo.endYear})
+                    ({formatCongressYearSpan(congressRange.oldest, congressRange.newest)} ·{' '}
+                    {formatCongressOrdinalSpan(congressRange.oldest, congressRange.newest)})
                   </span>
                 </>
               )}

@@ -7,6 +7,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
+import { formatCongressProse } from "@/lib/congress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -189,8 +190,8 @@ function AccountInner() {
                   >
                     <div className="min-w-0">
                       <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                        {row.bill.billTypeLabel} {row.bill.billNumber} · {row.bill.congress}th
-                        Congress
+                        {row.bill.billTypeLabel} {row.bill.billNumber} ·{" "}
+                        {formatCongressProse(row.bill.congress)}
                       </p>
                       <p className="mt-1 font-serif font-medium leading-snug group-hover:underline underline-offset-4">
                         {row.bill.title}
