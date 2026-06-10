@@ -505,6 +505,41 @@ export const getBillBackfillPage = internalQuery({
 });
 
 /**
+ * Same projection as getBillBackfillPage but scoped to one congress via the
+ * by_congress index, so a per-congress field backfill processes only that
+ * congress instead of paginating the whole bills table (where the current
+ * congress sorts last and is reached only after ~37k other bills).
+ */
+export const getBillBackfillPageByCongress = internalQuery({
+  args: {
+    congress: v.number(),
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+    return {
+      bills: page.page.map((b) => ({
+        _id: b._id,
+        billId: b.billId,
+        congress: b.congress,
+        billType: b.billType,
+        billNumber: b.billNumber,
+        progressStage: b.progressStage,
+        progressDescription: b.progressDescription,
+        latestActionDate: b.latestActionDate,
+        extraSyncedBits: b.extraSyncedBits ?? 0,
+      })),
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
+  },
+});
+
+/**
  * Re-derive a batch of bills' action-derived fields from their stored actions
  * (no API calls) and patch only those that actually changed:
  *   - progressStage / progressDescription (corrected stage calculator), and

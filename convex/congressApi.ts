@@ -1359,19 +1359,28 @@ const STAGE_BACKFILL_PAGE = 40; // bills per mutation (≤250 actions each → r
 const STAGE_BACKFILL_BILLS_PER_RUN = 5000; // bills per invocation before self-scheduling
 
 /**
- * Re-derive ALL existing bills' action-derived fields from their stored actions
+ * Re-derive existing bills' action-derived fields from their stored actions
  * (no API calls): the corrected progress stage AND latestActionDate (max stored
  * actionDate). Patches only bills whose values changed; the trigger-wrapped
  * mutation keeps the aggregates in sync. Self-schedules across batches and, on
- * completion, refreshes the precomputed homepage stats. Idempotent and safe to
- * re-run.
+ * completion, refreshes the precomputed homepage stats. Idempotent.
  *
- * This is the no-API fix for the ~90% of bills missing latestActionDate (which
- * silently excluded them from the /bills "last action date" recency filter):
+ * Hardened: any transient platform / write-conflict error reschedules the chain
+ * from the current cursor rather than letting it die mid-sweep — an earlier
+ * unhardened pass silently died on a write conflict and left most of the
+ * current congress unpatched.
+ *
+ * Pass `congress` to scope the sweep to one congress (via the by_congress
+ * index) instead of the whole table — much faster when only one congress needs
+ * fixing, since the current congress otherwise sorts last:
  *   npx convex run congressApi:backfillBillFieldsFromActions '{}'
+ *   npx convex run congressApi:backfillBillFieldsFromActions '{"congress":119}'
  */
 export const backfillBillFieldsFromActions = internalAction({
-  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    congress: v.optional(v.number()),
+  },
   handler: async (
     ctx,
     args,
@@ -1381,31 +1390,55 @@ export const backfillBillFieldsFromActions = internalAction({
     let changedThisRun = 0;
 
     for (;;) {
-      const page: BillBackfillPage = await ctx.runQuery(internal.mutations.getBillBackfillPage, {
-        cursor,
-        numItems: STAGE_BACKFILL_PAGE,
-      });
+      let page: BillBackfillPage;
+      try {
+        page =
+          args.congress !== undefined
+            ? await ctx.runQuery(
+                internal.mutations.getBillBackfillPageByCongress,
+                {
+                  congress: args.congress,
+                  cursor,
+                  numItems: STAGE_BACKFILL_PAGE,
+                },
+              )
+            : await ctx.runQuery(internal.mutations.getBillBackfillPage, {
+                cursor,
+                numItems: STAGE_BACKFILL_PAGE,
+              });
 
-      if (page.bills.length > 0) {
-        const { changed } = await ctx.runMutation(
-          internal.mutations.rederiveBillFieldsFromActions,
-          {
-            bills: page.bills.map((b) => ({
-              _id: b._id,
-              billId: b.billId,
-              progressStage: b.progressStage,
-              progressDescription: b.progressDescription,
-              latestActionDate: b.latestActionDate,
-            })),
-          },
+        if (page.bills.length > 0) {
+          const { changed } = await ctx.runMutation(
+            internal.mutations.rederiveBillFieldsFromActions,
+            {
+              bills: page.bills.map((b) => ({
+                _id: b._id,
+                billId: b.billId,
+                progressStage: b.progressStage,
+                progressDescription: b.progressDescription,
+                latestActionDate: b.latestActionDate,
+              })),
+            },
+          );
+          changedThisRun += changed;
+          processedThisRun += page.bills.length;
+        }
+      } catch (err: any) {
+        // Don't let a transient blip kill the chain — resume from this cursor.
+        console.error(
+          `backfillBillFieldsFromActions: transient error, rescheduling from cursor: ${err?.message ?? err}`,
         );
-        changedThisRun += changed;
-        processedThisRun += page.bills.length;
+        await ctx.scheduler.runAfter(
+          5000,
+          internal.congressApi.backfillBillFieldsFromActions,
+          { cursor, congress: args.congress },
+        );
+        return { done: false, processedThisRun, changedThisRun };
       }
 
       if (page.isDone) {
         console.log(
-          `backfillBillFieldsFromActions: pass complete, ${changedThisRun} bills changed this run; refreshing rollups`,
+          `backfillBillFieldsFromActions: pass complete${args.congress !== undefined ? ` (congress ${args.congress})` : ""}, ${changedThisRun} bills changed this run; refreshing rollups`,
         );
         // Refresh precomputed homepage stats so corrected stages show.
         await ctx.scheduler.runAfter(0, internal.congressApi.recomputeAllStats, {});
@@ -1418,7 +1451,7 @@ export const backfillBillFieldsFromActions = internalAction({
         await ctx.scheduler.runAfter(
           1000,
           internal.congressApi.backfillBillFieldsFromActions,
-          { cursor },
+          { cursor, congress: args.congress },
         );
         console.log(
           `backfillBillFieldsFromActions: processed ${processedThisRun} (changed ${changedThisRun}); scheduled continuation`,
