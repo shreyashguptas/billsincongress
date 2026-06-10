@@ -5,6 +5,13 @@ import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
+import {
+  SITE_NAME,
+  DEFAULT_OG_IMAGE,
+  billSeoDescription,
+  congressOrdinal,
+  truncateAtWord,
+} from '@/lib/seo';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,9 +45,30 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Bill Not Found' };
   }
 
+  const identifier = `${bill.bill_type_label} ${bill.bill_number}`;
+  const title = `${identifier} (${congressOrdinal(bill.congress)} Congress): ${truncateAtWord(bill.title, 70)}`;
+  const description = billSeoDescription(bill);
+  const canonical = `/bills/${id}`;
+
   return {
-    title: `${bill.bill_type_label} ${bill.bill_number} - ${bill.congress}th Congress`,
-    description: bill.title,
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      // Page-level openGraph replaces the root object, so re-include the
+      // shared image.
+      type: 'article',
+      url: canonical,
+      title,
+      description,
+      siteName: SITE_NAME,
+      images: [DEFAULT_OG_IMAGE],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
   };
 }
 

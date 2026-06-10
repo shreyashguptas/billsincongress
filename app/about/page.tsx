@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: 'About',
   description:
     'About Bills.Congress — an independent record of legislation in the United States Congress.',
+  alternates: { canonical: '/about' },
 };
 
 export default function AboutPage() {

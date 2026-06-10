@@ -9,6 +9,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { ConvexClientProvider } from './ConvexClientProvider';
+import { sharedViewport, sharedThemeColor } from './shared-metadata';
+import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -30,24 +32,27 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  // Don't disable user zoom — accessibility
-  maximumScale: 5,
-  userScalable: true,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f3ec' },
-    { media: '(prefers-color-scheme: dark)', color: '#16181d' },
-  ],
+  ...sharedViewport,
+  themeColor: sharedThemeColor,
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Congressional Bill Tracker',
-    template: '%s · Congressional Bill Tracker',
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
   },
   description:
     'A clear, independent view of every bill moving through the United States Congress.',
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    locale: 'en_US',
+    images: [DEFAULT_OG_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
@@ -68,7 +73,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Congressional Bill Tracker',
+    title: SITE_NAME,
   },
 };
 

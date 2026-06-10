@@ -6,6 +6,7 @@ import { SignInForm } from "@/components/auth/sign-in-form";
 export const metadata: Metadata = {
   title: "Sign in",
   description: "Sign in to your Bills.Congress account.",
+  alternates: { canonical: '/sign-in' },
 };
 
 export default function SignInPage() {

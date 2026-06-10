@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   title: 'How Congress works',
   description:
     'An illustrated, interactive guide to the United States Congress — who writes the laws, how a bill survives the journey, and why most never make it.',
+  alternates: { canonical: '/learn' },
 };
 
 const JUMP_LINKS = [

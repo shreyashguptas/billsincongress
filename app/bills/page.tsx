@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
@@ -7,6 +8,24 @@ import {
   filterSignature,
   type BillsFilterValues,
 } from './filter-signature';
+
+export async function generateMetadata({
+  searchParams,
+}: PageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const { page } = parseRequest(params);
+  return {
+    title: 'All bills',
+    description:
+      'Browse every bill introduced in the United States Congress — filter by status, chamber, sponsor, state, policy area, and more.',
+    alternates: {
+      // Deep pages self-canonicalize; page 1 and every filter permutation
+      // consolidate on /bills (filters are one-shot drill-down seeds, not
+      // stable documents).
+      canonical: page > 1 ? `/bills?page=${page}` : '/bills',
+    },
+  };
+}
 
 const ITEMS_PER_PAGE = 9;
 // The Convex list query caps offset at 500, so (page - 1) * 9 must stay ≤ 500.
