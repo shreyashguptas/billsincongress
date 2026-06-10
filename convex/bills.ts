@@ -1,6 +1,7 @@
 import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage } from "./billStage";
 
@@ -742,6 +743,33 @@ export const getCongressNumbers = query({
   handler: async (ctx) => {
     const stats = await ctx.db.query("congressStats").collect();
     return stats.map((s) => s.congress).sort((a, b) => b - a);
+  },
+});
+
+/**
+ * Cursor-paginated feed of every bill in a congress, for sitemap generation.
+ * Returns only billId + updatedAt (~17-20k bills per congress, so the sitemap
+ * route loops pages of 2,500 to stay well under per-query read limits). The
+ * general `list` query is unusable here — it caps offset at 500 by design.
+ */
+export const listForSitemap = query({
+  args: {
+    congress: v.number(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+      .paginate(args.paginationOpts);
+    return {
+      page: result.page.map((b) => ({
+        billId: b.billId,
+        updatedAt: b.updatedAt,
+      })),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
   },
 });
 

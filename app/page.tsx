@@ -1,8 +1,23 @@
+import type { Metadata } from 'next';
 import { fetchQuery } from 'convex/nextjs';
 import { api } from '@/convex/_generated/api';
 import DashboardClient, {
   type InitialDashboardData,
 } from './components/dashboard/DashboardClient';
+
+export const metadata: Metadata = {
+  title: {
+    // Bypass the layout template — the homepage title should carry the full
+    // positioning rather than "Home · Congressional Bill Tracker".
+    absolute: 'Congressional Bill Tracker — Every Bill in the U.S. Congress',
+  },
+  description:
+    'Track every bill in the United States Congress: live status, plain-language summaries, sponsors, and progress. Independent, sourced from Congress.gov.',
+  alternates: {
+    // `?congress=` views are variations of the same dashboard.
+    canonical: '/',
+  },
+};
 
 export default async function Home({
   searchParams,

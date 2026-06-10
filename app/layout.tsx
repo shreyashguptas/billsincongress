@@ -1,5 +1,4 @@
 import './globals.css';
-import { Suspense } from 'react';
 import type { Metadata, Viewport } from 'next';
 import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
 import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
@@ -10,6 +9,41 @@ import { Toaster } from '@/components/ui/toaster';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { ConvexClientProvider } from './ConvexClientProvider';
+import { sharedViewport, sharedThemeColor } from './shared-metadata';
+import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
+import { JsonLd } from '@/components/seo/json-ld';
+
+// Sitewide identity for search engines: who publishes this site and how its
+// search works. Bill pages add Legislation + BreadcrumbList nodes of their own.
+const SITE_GRAPH = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_URL}/#org`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/icons/icon-512x512.png`,
+      description:
+        'An independent record of legislation in the United States Congress, sourced from the public Congress.gov API. Not affiliated with the U.S. government.',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_URL}/#website`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      publisher: { '@id': `${SITE_URL}/#org` },
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${SITE_URL}/bills?title={search_term_string}`,
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  ],
+};
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -31,24 +65,27 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  // Don't disable user zoom — accessibility
-  maximumScale: 5,
-  userScalable: true,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f3ec' },
-    { media: '(prefers-color-scheme: dark)', color: '#16181d' },
-  ],
+  ...sharedViewport,
+  themeColor: sharedThemeColor,
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Congressional Bill Tracker',
-    template: '%s · Congressional Bill Tracker',
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
   },
   description:
     'A clear, independent view of every bill moving through the United States Congress.',
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    locale: 'en_US',
+    images: [DEFAULT_OG_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
@@ -69,7 +106,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Congressional Bill Tracker',
+    title: SITE_NAME,
   },
 };
 
@@ -78,10 +115,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // ConvexAuthNextjsServerProvider reads request cookies (dynamic data) so
-  // its render must be inside a Suspense boundary under Cache Components.
-  // The shell (html/body) prerenders statically; the auth-aware tree streams
-  // from inside the provider once cookies are read.
+  // No Suspense boundary above the page: the response must not flush before
+  // page data resolves, so notFound() can still produce a real 404 status and
+  // metadata lands in <head> instead of being streamed into <body>.
   return (
     <html
       lang="en"
@@ -89,30 +125,29 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground font-sans antialiased">
-        <Suspense fallback={null}>
-          <ConvexAuthNextjsServerProvider>
-            <ConvexClientProvider>
-              <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <a
-                  href="#main"
-                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
-                >
-                  Skip to content
-                </a>
-                <div className="flex min-h-screen flex-col">
-                  <Navigation />
-                  <main id="main" className="flex-1">
-                    {children}
-                  </main>
-                  <Footer />
-                </div>
-                <WelcomeNewUser />
-                <PostHogAuthSync />
-                <Toaster />
-              </ThemeProvider>
-            </ConvexClientProvider>
-          </ConvexAuthNextjsServerProvider>
-        </Suspense>
+        <JsonLd data={SITE_GRAPH} />
+        <ConvexAuthNextjsServerProvider>
+          <ConvexClientProvider>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+              <a
+                href="#main"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
+              >
+                Skip to content
+              </a>
+              <div className="flex min-h-screen flex-col">
+                <Navigation />
+                <main id="main" className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+              </div>
+              <WelcomeNewUser />
+              <PostHogAuthSync />
+              <Toaster />
+            </ThemeProvider>
+          </ConvexClientProvider>
+        </ConvexAuthNextjsServerProvider>
       </body>
     </html>
   );

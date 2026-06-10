@@ -4,6 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Forgot your password?",
   description: "Reset your Bills.Congress password.",
+  alternates: { canonical: '/forgot-password' },
 };
 
 export default function ForgotPasswordPage() {
