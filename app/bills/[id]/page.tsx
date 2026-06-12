@@ -2,6 +2,7 @@ import { Suspense, cache } from 'react';
 import { notFound } from 'next/navigation';
 import BillDetails from '../../../components/bills/bill-details';
 import { billsService } from '@/lib/services/bills-service';
+import { formatCongressYears } from '@/lib/congress';
 import type { Bill } from '@/lib/types/bill';
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
@@ -116,7 +117,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const identifier = `${bill.bill_type_label} ${bill.bill_number}`;
-  const title = `${identifier} (${congressOrdinal(bill.congress)} Congress): ${truncateAtWord(bill.title, 70)}`;
+  const title = `${identifier} (${congressOrdinal(bill.congress)} Congress, ${formatCongressYears(bill.congress)}): ${truncateAtWord(bill.title, 70)}`;
   const description = billSeoDescription(bill);
   const canonical = `/bills/${id}`;
 

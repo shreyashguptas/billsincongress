@@ -11,6 +11,11 @@ import {
   BillStages,
 } from '@/lib/utils/bill-stages';
 import { analytics } from '@/lib/analytics';
+import {
+  formatCongressOrdinal,
+  formatCongressProse,
+  formatCongressYears,
+} from '@/lib/congress';
 import BillQA from './bill-qa';
 import SaveBillButton from './save-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
@@ -124,7 +129,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4">
               <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground tabular">
-                {billLabel} · {bill.congress}th Congress
+                {billLabel} · {formatCongressProse(bill.congress)}
               </span>
               {bill.bill_subjects?.policy_area_name && (
                 <Badge variant="muted">{bill.bill_subjects.policy_area_name}</Badge>
@@ -235,7 +240,9 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                 </div>
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted-foreground">Congress</dt>
-                  <dd className="text-foreground font-mono tabular">{bill.congress}th</dd>
+                  <dd className="text-foreground font-mono tabular">
+                    {formatCongressOrdinal(bill.congress)} ({formatCongressYears(bill.congress)})
+                  </dd>
                 </div>
               </dl>
             </div>

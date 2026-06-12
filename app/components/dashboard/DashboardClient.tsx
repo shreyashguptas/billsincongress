@@ -10,6 +10,13 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
+import {
+  formatCongressOrdinal,
+  formatCongressPicker,
+  formatCongressProse,
+  formatCongressYears,
+  formatCongressYearsShort,
+} from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
 
 // Shape of the SSR-loaded data passed through from app/page.tsx.
@@ -184,7 +191,6 @@ function DashboardInner({
   const houseBreakdown = view.house;
   const senateBreakdown = view.senate;
   const currentStats = allCongressData.find((d) => d.congress === viewCongress);
-  const currentTerm = getCongressTermYears(viewCongress);
 
   return (
     <div>
@@ -194,13 +200,10 @@ function DashboardInner({
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div className="max-w-3xl">
               <p className="label-eyebrow mb-3">
-                The {viewCongress}
-                {getOrdinalSuffix(viewCongress)} Congress
-                {currentTerm && (
-                  <span className="ml-2 text-muted-foreground/80 normal-case tracking-normal">
-                    · {currentTerm}
-                  </span>
-                )}
+                The {formatCongressOrdinal(viewCongress)} Congress
+                <span className="ml-2 text-muted-foreground/80 normal-case tracking-normal">
+                  · {formatCongressYears(viewCongress)}
+                </span>
               </p>
               <h1 className="font-serif text-display-md sm:text-display-lg lg:text-display-xl font-semibold leading-[1.05] tracking-tight">
                 Every bill, every step,
@@ -243,15 +246,28 @@ function DashboardInner({
                         analytics.dashboardCongressSelected(c);
                         setSelectedCongress(c);
                       }}
+                      title={formatCongressPicker(c)}
+                      aria-label={formatCongressPicker(c)}
                       className={cn(
-                        'rounded-sm border px-2.5 py-1 font-mono text-xs transition-colors tabular',
+                        'rounded-sm border px-2.5 py-1 font-mono text-xs transition-colors tabular text-left',
                         selectedCongress === c
                           ? 'border-foreground bg-foreground text-background'
                           : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
                       )}
                     >
-                      {c}
-                      {getOrdinalSuffix(c)}
+                      <span className="block leading-tight">
+                        {formatCongressYearsShort(c)}
+                      </span>
+                      <span
+                        className={cn(
+                          'block text-[10px] leading-tight',
+                          selectedCongress === c
+                            ? 'text-background/70'
+                            : 'text-muted-foreground/70'
+                        )}
+                      >
+                        {formatCongressOrdinal(c)}
+                      </span>
                     </button>
                   ))}
               </div>
@@ -420,22 +436,6 @@ function SectionHeader({
 /* ─────────────────────────────────────────────────────────────────────
  * Helpers
  * ───────────────────────────────────────────────────────────────────── */
-
-function getOrdinalSuffix(num: number): string {
-  const j = num % 10;
-  const k = num % 100;
-  if (j === 1 && k !== 11) return 'st';
-  if (j === 2 && k !== 12) return 'nd';
-  if (j === 3 && k !== 13) return 'rd';
-  return 'th';
-}
-
-function getCongressTermYears(congress: number): string | null {
-  // 1st Congress began March 4, 1789. Each Congress is two years.
-  const startYear = 1789 + (congress - 1) * 2;
-  if (startYear < 1789 || startYear > 2200) return null;
-  return `${startYear}–${startYear + 2}`;
-}
 
 function DashboardSkeleton() {
   return (
@@ -763,7 +763,8 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
               key={item.congress}
               onClick={() => onCongressClick(item.congress)}
               className="group flex-1 flex flex-col items-center gap-2 min-w-0"
-              aria-label={`${item.congress}th Congress: ${item.totalCount.toLocaleString()} bills`}
+              title={formatCongressProse(item.congress)}
+              aria-label={`${formatCongressProse(item.congress)}: ${item.totalCount.toLocaleString()} bills`}
             >
               <span
                 className={cn(
@@ -788,8 +789,7 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
                   isSelected ? 'text-foreground font-semibold' : 'text-muted-foreground'
                 )}
               >
-                {item.congress}
-                {getOrdinalSuffix(item.congress)}
+                {formatCongressOrdinal(item.congress)}
               </span>
             </button>
           );

@@ -1,4 +1,5 @@
 import type { Bill } from '@/lib/types/bill';
+import { formatCongressOrdinal } from '@/lib/congress';
 
 export const SITE_URL = 'https://billsincongress.com';
 export const SITE_NAME = 'Congressional Bill Tracker';
@@ -41,16 +42,8 @@ export function billSeoDescription(bill: Bill): string {
   return truncateAtWord(source, 155);
 }
 
-export function congressOrdinal(congress: number): string {
-  const mod100 = congress % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${congress}th`;
-  switch (congress % 10) {
-    case 1: return `${congress}st`;
-    case 2: return `${congress}nd`;
-    case 3: return `${congress}rd`;
-    default: return `${congress}th`;
-  }
-}
+/** "119th" — delegates to the shared formatter in lib/congress.ts. */
+export const congressOrdinal = formatCongressOrdinal;
 
 const CONGRESS_GOV_SLUGS: Record<string, string> = {
   hr: 'house-bill',

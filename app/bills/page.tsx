@@ -112,19 +112,26 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   let initialBills: Bill[] | null = null;
   let initialHasMore = false;
   let initialTotal: number | null = null;
-  let congressInfo: { congress: number; startYear: number; endYear: number } | null = null;
+  // Oldest/newest Congress with data — drives the header's "(2021–2026 ·
+  // 117th–119th)" span. Null until known (or if nothing is available).
+  let congressRange: { oldest: number; newest: number } | null = null;
   try {
-    const [billsResponse, countResult, info] = await Promise.all([
+    const [billsResponse, countResult, congressNumbers] = await Promise.all([
       billsService.fetchBills({ page, itemsPerPage: ITEMS_PER_PAGE, ...serviceArgs }),
       billsService
         .fetchBillsCount(serviceArgs)
         .catch(() => ({ count: null, exact: false })),
-      billsService.getCongressInfo(),
+      billsService.getAvailableCongressNumbers(),
     ]);
     initialBills = billsResponse.data;
     initialHasMore = billsResponse.hasMore;
     initialTotal = countResult.exact ? countResult.count : null;
-    congressInfo = info;
+    if (congressNumbers.length > 0) {
+      congressRange = {
+        oldest: Math.min(...congressNumbers),
+        newest: Math.max(...congressNumbers),
+      };
+    }
   } catch (error) {
     console.error('Server-side bills fetch failed, deferring to client:', error);
   }
@@ -138,7 +145,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
       urlFilters={urlFilters}
       serverFilterSignature={filterSignature(applied)}
       hadUrlParams={hadUrlParams}
-      congressInfo={congressInfo}
+      congressRange={congressRange}
     />
   );
 }
