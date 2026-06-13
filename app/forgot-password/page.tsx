@@ -4,6 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Forgot your password?",
   description: "Reset your Bills.Congress password.",
+  alternates: { canonical: '/forgot-password' },
 };
 
 export default function ForgotPasswordPage() {
@@ -26,10 +27,10 @@ export default function ForgotPasswordPage() {
             <li>
               Email{" "}
               <a
-                href="mailto:hi@mail.billsincongress.com"
+                href="mailto:hi@billsincongress.com"
                 className="text-foreground underline"
               >
-                hi@mail.billsincongress.com
+                hi@billsincongress.com
               </a>{" "}
               and we&apos;ll reset it for you
             </li>

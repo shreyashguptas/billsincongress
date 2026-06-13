@@ -10,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/account', '/api/'],
     },
-    host: 'https://billsincongress.com',
+    sitemap: 'https://billsincongress.com/sitemap_index.xml',
   };
 }

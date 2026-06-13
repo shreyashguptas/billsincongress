@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { billsService, type SponsorOption } from '@/lib/services/bills-service';
+import { formatCongressPicker } from '@/lib/congress';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 
@@ -451,7 +452,7 @@ function BillsFilter({
               <SelectItem value="all">All Congresses</SelectItem>
               {availableCongressNumbers.map((c) => (
                 <SelectItem key={c} value={c.toString()}>
-                  {c}th Congress
+                  {formatCongressPicker(c)}
                 </SelectItem>
               ))}
             </SelectContent>

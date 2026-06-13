@@ -40,6 +40,17 @@ export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
     const { pathname, search } = request.nextUrl;
 
+    // 0. Canonical host: 301 www → apex. `www.billsincongress.com` is attached
+    //    to this Worker as a custom domain; this redirect keeps a single
+    //    canonical hostname so search engines never see duplicate content.
+    //    Fires only for the www host, so the bare apex is untouched.
+    if (request.headers.get("host") === "www.billsincongress.com") {
+      const url = request.nextUrl.clone();
+      url.host = "billsincongress.com";
+      url.port = "";
+      return NextResponse.redirect(url, 301);
+    }
+
     // 1. Bounce authed users away from sign-in/sign-up
     if (isAuthPage(request) && (await convexAuth.isAuthenticated())) {
       return nextjsMiddlewareRedirect(request, "/account");
@@ -65,10 +76,24 @@ export default convexAuthNextjsMiddleware(
     // broaden the surface for any future authenticated `/api/foo` route.
 
     // `/bills` is rendered below ConvexAuthNextjsServerProvider. Authenticated
-    // responses can contain user-specific auth bootstrap state, so never mark
-    // the full page response public-cacheable.
+    // responses can contain user-specific auth bootstrap state, so those must
+    // never be cached. Anonymous responses are identical for everyone — let
+    // shared caches and crawlers treat them as cacheable. Cookie *presence* is
+    // the signal (no JWT validation needed): the refresh-token cookie matters
+    // too, since an expired JWT + valid refresh token still re-auths
+    // mid-request and yields an authed response.
     if (pathname.startsWith("/bills") && !pathname.includes("api")) {
-      response.headers.set("Cache-Control", "private, no-store");
+      const hasAuthCookie =
+        request.cookies.has("__Host-__convexAuthJWT") ||
+        request.cookies.has("__convexAuthJWT") ||
+        request.cookies.has("__Host-__convexAuthRefreshToken") ||
+        request.cookies.has("__convexAuthRefreshToken");
+      response.headers.set(
+        "Cache-Control",
+        hasAuthCookie
+          ? "private, no-store"
+          : "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+      );
     }
 
     return response;
