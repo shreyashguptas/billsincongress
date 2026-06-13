@@ -57,7 +57,8 @@ These are enabled by `posthog.init` config in `instrumentation-client.ts`:
 | `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) |
 
-Server-rendered pages with no interactivity (the About page) intentionally have **no custom
+Server-rendered pages with no interactivity (the About page and the legal pages — `/terms`,
+`/privacy`) intentionally have **no custom
 code** — their CTA clicks are captured by autocapture and tagged with
 `data-ph-capture-attribute-*` HTML attributes so they can be filtered in PostHog. The Learn
 page is interactive (civics guide) and fires its own custom events — see "Learn page" below.
