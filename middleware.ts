@@ -40,6 +40,17 @@ export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
     const { pathname, search } = request.nextUrl;
 
+    // 0. Canonical host: 301 www → apex. `www.billsincongress.com` is attached
+    //    to this Worker as a custom domain; this redirect keeps a single
+    //    canonical hostname so search engines never see duplicate content.
+    //    Fires only for the www host, so the bare apex is untouched.
+    if (request.headers.get("host") === "www.billsincongress.com") {
+      const url = request.nextUrl.clone();
+      url.host = "billsincongress.com";
+      url.port = "";
+      return NextResponse.redirect(url, 301);
+    }
+
     // 1. Bounce authed users away from sign-in/sign-up
     if (isAuthPage(request) && (await convexAuth.isAuthenticated())) {
       return nextjsMiddlewareRedirect(request, "/account");
