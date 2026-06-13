@@ -1,38 +1,30 @@
 import { internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  SYNC_DETAIL,
+  SYNC_ACTIONS,
+  SYNC_SUBJECTS,
+  SYNC_SUMMARIES,
+  SYNC_TEXT,
+  SYNC_COMPLETE,
+  getMissingEndpoints,
+  classifySyncState,
+} from "./syncStatus";
 
-// Bitmask constants for endpoint tracking
-export const SYNC_DETAIL = 1; // bit 0
-export const SYNC_ACTIONS = 2; // bit 1
-export const SYNC_SUBJECTS = 4; // bit 2
-export const SYNC_SUMMARIES = 8; // bit 3
-export const SYNC_TEXT = 16; // bit 4
-export const SYNC_COMPLETE = 31; // all bits set
-
-// Enrichment bitmask (bills.extraSyncedBits) — kept SEPARATE from the endpoint
-// bitmask above so the repair / SYNC_COMPLETE flow is untouched. Tracks the
-// richer data that the original sync fetched but discarded.
-export const EXTRA_LEGISLATIVE_SUBJECTS = 1; // bit 0: all legislativeSubjects stored
-export const EXTRA_TEXT_VERSIONS = 2; // bit 1: all text versions stored
-export const EXTRA_COMPLETE = 3; // all enrichment bits set
-
-const ENDPOINT_NAMES: Record<number, string> = {
-  [SYNC_DETAIL]: "detail",
-  [SYNC_ACTIONS]: "actions",
-  [SYNC_SUBJECTS]: "subjects",
-  [SYNC_SUMMARIES]: "summaries",
-  [SYNC_TEXT]: "text",
-};
-
-function getMissingEndpoints(mask: number): string[] {
-  const missing: string[] = [];
-  for (const [bit, name] of Object.entries(ENDPOINT_NAMES)) {
-    if ((mask & Number(bit)) === 0) {
-      missing.push(name);
-    }
-  }
-  return missing;
-}
+// Re-export the bitmask constants + helpers so existing importers
+// (congressApi.ts, audit.ts) keep importing them from "./sync" unchanged.
+export {
+  SYNC_DETAIL,
+  SYNC_ACTIONS,
+  SYNC_SUBJECTS,
+  SYNC_SUMMARIES,
+  SYNC_TEXT,
+  SYNC_COMPLETE,
+  EXTRA_LEGISLATIVE_SUBJECTS,
+  EXTRA_TEXT_VERSIONS,
+  EXTRA_COMPLETE,
+  getMissingEndpoints,
+} from "./syncStatus";
 
 /**
  * Returns bills where syncedEndpoints is undefined or < SYNC_COMPLETE.
