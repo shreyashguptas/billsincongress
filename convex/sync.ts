@@ -123,6 +123,54 @@ export const checkBillCompleteness = internalQuery({
 });
 
 /**
+ * One page of INCOMPLETE bills (legacy or partial), found via the
+ * by_syncedEndpoints index range. Convex orders `undefined` before all numbers,
+ * so `.lt(SYNC_COMPLETE)` returns legacy (field missing) AND partial (0..30)
+ * bills while complete bills (>=31) are never read — a healthy table reads ZERO
+ * rows here regardless of size. This is what makes the repair job immune to the
+ * per-query read limit.
+ *
+ * Optional `congress` filters the (already tiny) page in memory, avoiding a
+ * second compound index.
+ */
+export const getIncompleteBillsPage = internalQuery({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+    congress: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("bills")
+      .withIndex("by_syncedEndpoints", (q) =>
+        q.lt("syncedEndpoints", SYNC_COMPLETE),
+      )
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+
+    const bills = page.page
+      .filter(
+        (b) => args.congress === undefined || b.congress === args.congress,
+      )
+      .map((b) => ({
+        _id: b._id,
+        billId: b.billId,
+        congress: b.congress,
+        billType: b.billType,
+        billNumber: b.billNumber,
+        syncedEndpoints: b.syncedEndpoints,
+        missingEndpoints: getMissingEndpoints(b.syncedEndpoints ?? 0),
+        isLegacy: b.syncedEndpoints === undefined,
+      }));
+
+    return {
+      bills,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
+  },
+});
+
+/**
  * Aggregate stats: total bills, complete, partial, legacy (undefined).
  * Internal-only — anyone-callable would let an unauthenticated visitor
  * trigger a full bills-table scan (~40k docs) on demand. No client
