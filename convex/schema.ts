@@ -115,6 +115,11 @@ export default defineSchema({
     .index("by_progress_stage", ["progressStage"])
     .index("by_sponsor_state", ["sponsorState"])
     .index("by_updated_at", ["updatedAt"])
+    // Lets the repair job + completeness diagnostic find INCOMPLETE bills via a
+    // range scan (syncedEndpoints < 31) instead of scanning the whole table.
+    // Convex orders undefined < numbers, so the range also returns legacy bills
+    // (field missing). Complete bills (31) are never read.
+    .index("by_syncedEndpoints", ["syncedEndpoints"])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["congress", "billType", "progressStage", "sponsorState"],
