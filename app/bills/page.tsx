@@ -27,9 +27,9 @@ export async function generateMetadata({
   };
 }
 
-const ITEMS_PER_PAGE = 9;
-// The Convex list query caps offset at 500, so (page - 1) * 9 must stay ≤ 500.
-const MAX_PAGE = 56;
+const ITEMS_PER_PAGE = 10;
+// The Convex list query caps offset at 500, so (page - 1) * 10 must stay ≤ 500.
+const MAX_PAGE = 51;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 

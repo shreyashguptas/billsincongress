@@ -85,6 +85,41 @@ export function isValidStage(stage: number): stage is BillStage {
   return Object.values(BillStages).includes(stage as BillStage);
 }
 
+// The 7-step main path a bill travels. Vetoed sits off this path: a vetoed
+// bill made it as far as the President (step 5) but is not advancing.
+const StageSteps: Record<BillStage, number> = {
+  [BillStages.INTRODUCED]: 1,
+  [BillStages.IN_COMMITTEE]: 2,
+  [BillStages.PASSED_ONE_CHAMBER]: 3,
+  [BillStages.PASSED_BOTH_CHAMBERS]: 4,
+  [BillStages.VETOED]: 5,
+  [BillStages.TO_PRESIDENT]: 5,
+  [BillStages.SIGNED_BY_PRESIDENT]: 6,
+  [BillStages.BECAME_LAW]: 7,
+} as const;
+
+export const TOTAL_STAGE_STEPS = 7;
+
+/**
+ * Gets a bill's position on the 7-step main path (Introduced → Became Law)
+ * @param stage - The bill stage number
+ * @returns The step reached (1–7), the total, and whether the bill was vetoed
+ */
+export function getStageStep(stage: number): {
+  step: number;
+  total: number;
+  isVetoed: boolean;
+} {
+  if (!isValidStage(stage)) {
+    return { step: 1, total: TOTAL_STAGE_STEPS, isVetoed: false };
+  }
+  return {
+    step: StageSteps[stage],
+    total: TOTAL_STAGE_STEPS,
+    isVetoed: stage === BillStages.VETOED,
+  };
+}
+
 /**
  * Gets the progress dots configuration for a given stage
  * @param currentStage - The current bill stage

@@ -15,7 +15,7 @@ import { filterSignature } from './filter-signature';
 const BillsFilter = dynamic(() => import('@/components/bills/bills-filter'), { ssr: false });
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
-const ITEMS_PER_PAGE = 9;
+const ITEMS_PER_PAGE = 10;
 
 /** Filter values the server derived from URL search params (absent = not in URL). */
 export interface UrlFilters {
@@ -594,11 +594,11 @@ export default function BillsClient({
 
             <div
               key={resultsKey}
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
               {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-64 border border-border bg-card rounded-sm animate-pulse" />
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-80 border border-border bg-card rounded-sm animate-pulse" />
                 ))
               ) : bills.length > 0 ? (
                 bills.map((bill, i) => (
@@ -607,7 +607,7 @@ export default function BillsClient({
                     className="animate-rise-in"
                     style={{ animationDelay: `${(i % ITEMS_PER_PAGE) * 35}ms` }}
                   >
-                    <Suspense fallback={<div className="h-64 border border-border rounded-sm bg-card" />}>
+                    <Suspense fallback={<div className="h-80 border border-border rounded-sm bg-card" />}>
                       <BillCard bill={bill} />
                     </Suspense>
                   </div>
