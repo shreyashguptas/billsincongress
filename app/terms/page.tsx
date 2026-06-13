@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Terms of Service',
   description:
     'The terms for using Bills.Congress — a free, independent record of legislation in the United States Congress.',
+  alternates: { canonical: '/terms' },
 };
 
 const LAST_UPDATED = 'June 10, 2026';

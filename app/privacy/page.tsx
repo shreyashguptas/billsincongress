@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Privacy Policy',
   description:
     'How Bills.Congress collects, uses, and protects your data — in plain English.',
+  alternates: { canonical: '/privacy' },
 };
 
 const LAST_UPDATED = 'June 10, 2026';
