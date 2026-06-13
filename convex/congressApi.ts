@@ -1075,23 +1075,38 @@ const REPAIR_BATCH_SIZE = 20; // fewer bills per batch since we're targeted
 export const repairIncompleteBills = internalAction({
   args: {
     congress: v.optional(v.number()),
+    // Cursor into the by_syncedEndpoints incomplete range. Omitted/`null` starts
+    // a fresh drain from the top of the range (how the weekly cron + CLI call it).
+    cursor: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args): Promise<{ repaired: number; remaining: boolean }> => {
     const apiKey = process.env.CONGRESS_API_KEY;
     if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
 
-    // Get incomplete bills
-    const incompleteBills = await ctx.runQuery(internal.sync.getIncompleteBills, {
+    // Read ONE page of incomplete bills from the by_syncedEndpoints index range.
+    // Only incomplete bills are ever read (complete bills are skipped by the
+    // index), so this is safe no matter how large the bills table grows.
+    const page = await ctx.runQuery(internal.sync.getIncompleteBillsPage, {
+      cursor: args.cursor ?? null,
+      numItems: REPAIR_BATCH_SIZE,
       congress: args.congress,
-      limit: REPAIR_BATCH_SIZE,
     });
+    const incompleteBills = page.bills;
 
-    if (incompleteBills.length === 0) {
+    // Nothing left in the whole incomplete range → done.
+    if (incompleteBills.length === 0 && page.isDone) {
       console.log("No incomplete bills to repair");
       return { repaired: 0, remaining: false };
     }
 
-    console.log(`Repairing ${incompleteBills.length} incomplete bills...`);
+    // Always log page progress (incl. congress scope) so a multi-page drain is
+    // observable — a congress-filtered page can legitimately be empty while more
+    // pages remain, and silent empty reschedules are hard to debug in prod.
+    const scope = args.congress !== undefined ? ` (congress ${args.congress})` : "";
+    console.log(
+      `Repair page${scope}: ${incompleteBills.length} incomplete bills to process` +
+        (page.isDone ? " (last page)" : ""),
+    );
     let repairedCount = 0;
     let consecutiveFailures = 0;
 
@@ -1292,15 +1307,25 @@ export const repairIncompleteBills = internalAction({
 
     console.log(`Repair batch complete: ${repairedCount} bills processed`);
 
-    // Self-schedule if more incomplete bills likely remain
-    if (incompleteBills.length >= REPAIR_BATCH_SIZE && consecutiveFailures < CONSECUTIVE_FAIL_LIMIT) {
-      await ctx.scheduler.runAfter(10000, internal.congressApi.repairIncompleteBills, {
-        congress: args.congress,
-      });
-      console.log("Scheduled next repair batch");
+    // Advance through the incomplete range by cursor until it's exhausted, as
+    // long as the circuit breaker hasn't tripped. When the range is drained
+    // (page.isDone) we stop — next week's cron starts a fresh drain from the top.
+    const moreToScan =
+      !page.isDone && consecutiveFailures < CONSECUTIVE_FAIL_LIMIT;
+    if (moreToScan) {
+      await ctx.scheduler.runAfter(
+        10000,
+        internal.congressApi.repairIncompleteBills,
+        { congress: args.congress, cursor: page.continueCursor },
+      );
+      console.log("Scheduled next repair page");
     }
 
-    return { repaired: repairedCount, remaining: incompleteBills.length >= REPAIR_BATCH_SIZE };
+    // `remaining` means "more pages of the incomplete index remain to scan"
+    // (not "more bills still need repair"): with a congress filter it can be true
+    // while zero bills for that congress remain. Callers (CLI/cron) treat it as a
+    // progress signal only.
+    return { repaired: repairedCount, remaining: !page.isDone };
   },
 });
 
