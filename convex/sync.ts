@@ -1,93 +1,35 @@
 import { internalQuery } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  SYNC_DETAIL,
+  SYNC_ACTIONS,
+  SYNC_SUBJECTS,
+  SYNC_SUMMARIES,
+  SYNC_TEXT,
+  SYNC_COMPLETE,
+  getMissingEndpoints,
+  classifySyncState,
+} from "./syncStatus";
 
-// Bitmask constants for endpoint tracking
-export const SYNC_DETAIL = 1; // bit 0
-export const SYNC_ACTIONS = 2; // bit 1
-export const SYNC_SUBJECTS = 4; // bit 2
-export const SYNC_SUMMARIES = 8; // bit 3
-export const SYNC_TEXT = 16; // bit 4
-export const SYNC_COMPLETE = 31; // all bits set
-
-// Enrichment bitmask (bills.extraSyncedBits) — kept SEPARATE from the endpoint
-// bitmask above so the repair / SYNC_COMPLETE flow is untouched. Tracks the
-// richer data that the original sync fetched but discarded.
-export const EXTRA_LEGISLATIVE_SUBJECTS = 1; // bit 0: all legislativeSubjects stored
-export const EXTRA_TEXT_VERSIONS = 2; // bit 1: all text versions stored
-export const EXTRA_COMPLETE = 3; // all enrichment bits set
-
-const ENDPOINT_NAMES: Record<number, string> = {
-  [SYNC_DETAIL]: "detail",
-  [SYNC_ACTIONS]: "actions",
-  [SYNC_SUBJECTS]: "subjects",
-  [SYNC_SUMMARIES]: "summaries",
-  [SYNC_TEXT]: "text",
-};
-
-function getMissingEndpoints(mask: number): string[] {
-  const missing: string[] = [];
-  for (const [bit, name] of Object.entries(ENDPOINT_NAMES)) {
-    if ((mask & Number(bit)) === 0) {
-      missing.push(name);
-    }
-  }
-  return missing;
-}
-
-/**
- * Returns bills where syncedEndpoints is undefined or < SYNC_COMPLETE.
- * Accepts optional congress filter and limit.
- */
-export const getIncompleteBills = internalQuery({
-  args: {
-    congress: v.optional(v.number()),
-    limit: v.optional(v.number()),
-    legacyOnly: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    const limit = args.limit || 100;
-    const legacyOnly = args.legacyOnly || false;
-
-    let billsQuery;
-    if (args.congress !== undefined) {
-      billsQuery = ctx.db
-        .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", args.congress!));
-    } else {
-      billsQuery = ctx.db.query("bills");
-    }
-
-    const allBills = await billsQuery.collect();
-    const incomplete = [];
-
-    for (const bill of allBills) {
-      if (incomplete.length >= limit) break;
-
-      const isLegacy = bill.syncedEndpoints === undefined;
-      if (legacyOnly && !isLegacy) continue;
-
-      if (isLegacy || bill.syncedEndpoints! < SYNC_COMPLETE) {
-        const mask = bill.syncedEndpoints || 0;
-        incomplete.push({
-          _id: bill._id,
-          billId: bill.billId,
-          congress: bill.congress,
-          billType: bill.billType,
-          billNumber: bill.billNumber,
-          syncedEndpoints: bill.syncedEndpoints,
-          missingEndpoints: getMissingEndpoints(mask),
-          isLegacy,
-        });
-      }
-    }
-
-    return incomplete;
-  },
-});
+// Re-export the bitmask constants + helpers so existing importers
+// (congressApi.ts, audit.ts) keep importing them from "./sync" unchanged.
+export {
+  SYNC_DETAIL,
+  SYNC_ACTIONS,
+  SYNC_SUBJECTS,
+  SYNC_SUMMARIES,
+  SYNC_TEXT,
+  SYNC_COMPLETE,
+  EXTRA_LEGISLATIVE_SUBJECTS,
+  EXTRA_TEXT_VERSIONS,
+  EXTRA_COMPLETE,
+  getMissingEndpoints,
+} from "./syncStatus";
 
 /**
  * For a single bill, checks all 4 sub-tables for existence and returns a computed bitmask.
- * Used by the backfill action for legacy bills that have no syncedEndpoints value.
+ * Used by the repair path to derive the bitmask for legacy bills that have no
+ * syncedEndpoints value (the `isLegacy` branch of repairIncompleteBills).
  */
 export const checkBillCompleteness = internalQuery({
   args: {
@@ -131,56 +73,104 @@ export const checkBillCompleteness = internalQuery({
 });
 
 /**
- * Aggregate stats: total bills, complete, partial, legacy (undefined).
- * Internal-only — anyone-callable would let an unauthenticated visitor
- * trigger a full bills-table scan (~40k docs) on demand. No client
- * surface uses this; invoke from the CLI for ad-hoc audits:
- *   npx convex run sync:getSyncCompleteness '{}'
+ * One page of INCOMPLETE bills (legacy or partial), found via the
+ * by_syncedEndpoints index range. Convex orders `undefined` before all numbers,
+ * so `.lt(SYNC_COMPLETE)` returns legacy (field missing) AND partial (0..30)
+ * bills while complete bills (>=31) are never read — a healthy table reads ZERO
+ * rows here regardless of size. This is what makes the repair job immune to the
+ * per-query read limit.
+ *
+ * Optional `congress` filters the (already tiny) page in memory, avoiding a
+ * second compound index.
+ */
+export const getIncompleteBillsPage = internalQuery({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+    congress: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("bills")
+      .withIndex("by_syncedEndpoints", (q) =>
+        q.lt("syncedEndpoints", SYNC_COMPLETE),
+      )
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+
+    const bills = page.page
+      .filter(
+        (b) => args.congress === undefined || b.congress === args.congress,
+      )
+      .map((b) => ({
+        _id: b._id,
+        billId: b.billId,
+        congress: b.congress,
+        billType: b.billType,
+        billNumber: b.billNumber,
+        syncedEndpoints: b.syncedEndpoints,
+        missingEndpoints: getMissingEndpoints(b.syncedEndpoints ?? 0),
+        isLegacy: b.syncedEndpoints === undefined,
+      }));
+
+    return {
+      bills,
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
+  },
+});
+
+const COMPLETENESS_SCAN_CAP = 4000; // safety bound on incomplete rows read
+
+/**
+ * Completeness diagnostic. Counts INCOMPLETE bills via the by_syncedEndpoints
+ * index range (legacy + partial) — so it reads only the incomplete set (a
+ * healthy table reads ~0 rows). `total` comes from the precomputed congressStats
+ * table (no bills scan); complete = total - incomplete. `truncated` is true if
+ * the incomplete set exceeded the safety cap (signals something is badly wrong).
+ *
+ * Internal-only; CLI:  npx convex run sync:getSyncCompleteness '{}'
  */
 export const getSyncCompleteness = internalQuery({
   args: {
     congress: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // If congress is specified, query just that congress
-    // Otherwise, aggregate across all known congresses to avoid full table scan
-    const congressesToCheck: number[] = [];
+    const incomplete = await ctx.db
+      .query("bills")
+      .withIndex("by_syncedEndpoints", (q) =>
+        q.lt("syncedEndpoints", SYNC_COMPLETE),
+      )
+      .take(COMPLETENESS_SCAN_CAP);
 
-    if (args.congress !== undefined) {
-      congressesToCheck.push(args.congress);
-    } else {
-      for (let c = 93; c <= 120; c++) {
-        const bill = await ctx.db
-          .query("bills")
-          .withIndex("by_congress", (q) => q.eq("congress", c))
-          .first();
-        if (bill) congressesToCheck.push(c);
-      }
-    }
-
-    let total = 0;
-    let complete = 0;
     let partial = 0;
     let legacy = 0;
-
-    for (const congress of congressesToCheck) {
-      const bills = await ctx.db
-        .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", congress))
-        .collect();
-
-      for (const bill of bills) {
-        total++;
-        if (bill.syncedEndpoints === undefined) {
-          legacy++;
-        } else if (bill.syncedEndpoints >= SYNC_COMPLETE) {
-          complete++;
-        } else {
-          partial++;
-        }
-      }
+    for (const b of incomplete) {
+      if (args.congress !== undefined && b.congress !== args.congress) continue;
+      if (classifySyncState(b.syncedEndpoints) === "legacy") legacy++;
+      else partial++;
     }
 
-    return { total, complete, partial, legacy };
+    // total from precomputed stats — never scans the bills table
+    let total = 0;
+    if (args.congress !== undefined) {
+      const row = await ctx.db
+        .query("congressStats")
+        .withIndex("by_congress", (q) => q.eq("congress", args.congress!))
+        .first();
+      total = row?.totalCount ?? 0;
+    } else {
+      const stats = await ctx.db.query("congressStats").collect();
+      total = stats.reduce((sum, s) => sum + s.totalCount, 0);
+    }
+
+    const incompleteCount = partial + legacy;
+    return {
+      total,
+      complete: Math.max(0, total - incompleteCount),
+      partial,
+      legacy,
+      truncated: incomplete.length >= COMPLETENESS_SCAN_CAP,
+    };
   },
 });
