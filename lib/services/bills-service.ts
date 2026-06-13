@@ -87,22 +87,6 @@ function transformConvexBill(doc: any): Bill {
 }
 
 export const billsService = {
-  async getCongressInfo(): Promise<{ congress: number; startYear: number; endYear: number }> {
-    const client = getConvexClient();
-    if (!client) {
-      return { congress: 119, startYear: 2025, endYear: 2027 };
-    }
-
-    try {
-      const { api } = await import('../../convex/_generated/api');
-      const result = await client.query(api.bills.getCongressInfo);
-      return result;
-    } catch (error) {
-      console.error('Error fetching congress info from Convex:', error);
-      return { congress: 119, startYear: 2025, endYear: 2027 };
-    }
-  },
-
   async fetchBillById(id: string): Promise<Bill> {
     const client = getConvexClient();
     if (!client) {

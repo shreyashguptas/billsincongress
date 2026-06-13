@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import { analytics } from '@/lib/analytics';
+import { formatCongressOrdinalSpan, formatCongressYearSpan } from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -44,7 +45,8 @@ export interface BillsClientProps {
    */
   serverFilterSignature: string;
   hadUrlParams: boolean;
-  congressInfo: { congress: number; startYear: number; endYear: number } | null;
+  /** Oldest/newest Congress with data — drives the header's year span. */
+  congressRange: { oldest: number; newest: number } | null;
 }
 
 export default function BillsClient({
@@ -55,7 +57,7 @@ export default function BillsClient({
   urlFilters,
   serverFilterSignature,
   hadUrlParams,
-  congressInfo: initialCongressInfo,
+  congressRange: initialCongressRange,
 }: BillsClientProps) {
   const [bills, setBills] = useState<Bill[]>(initialBills ?? []);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -108,7 +110,7 @@ export default function BillsClient({
   const [isLoading, setIsLoading] = useState(initialBills === null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [congressInfo, setCongressInfo] = useState<{ congress: number; startYear: number; endYear: number } | null>(initialCongressInfo);
+  const [congressRange, setCongressRange] = useState<{ oldest: number; newest: number } | null>(initialCongressRange);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [congressFilter, setCongressFilter] = useState<string>(() =>
     urlFilters.congress ?? (typeof window !== 'undefined' ? localStorage.getItem('billsCongressFilter') || 'all' : 'all')
@@ -149,16 +151,21 @@ export default function BillsClient({
   }, []);
 
   useEffect(() => {
-    if (congressInfo) return;
-    const fetchCongressInfo = async () => {
+    if (congressRange) return;
+    const fetchCongressRange = async () => {
       try {
-        const info = await billsService.getCongressInfo();
-        setCongressInfo(info);
+        const numbers = await billsService.getAvailableCongressNumbers();
+        if (numbers.length > 0) {
+          setCongressRange({
+            oldest: Math.min(...numbers),
+            newest: Math.max(...numbers),
+          });
+        }
       } catch (e) {
-        console.error('Error fetching Congress info:', e);
+        console.error('Error fetching Congress range:', e);
       }
     };
-    fetchCongressInfo();
+    fetchCongressRange();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -446,11 +453,12 @@ export default function BillsClient({
           <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span>
               Browse legislation introduced in Congress
-              {congressInfo && (
+              {congressRange && (
                 <>
                   {' '}
                   <span className="font-mono tabular">
-                    ({congressInfo.startYear}–{congressInfo.endYear})
+                    ({formatCongressYearSpan(congressRange.oldest, congressRange.newest)} ·{' '}
+                    {formatCongressOrdinalSpan(congressRange.oldest, congressRange.newest)})
                   </span>
                 </>
               )}

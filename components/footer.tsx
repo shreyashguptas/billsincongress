@@ -54,6 +54,8 @@ export function Footer() {
                   Data: Congress.gov
                 </a>
               </li>
+              <li><Link href="/terms" className="text-muted-foreground hover:text-foreground">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="text-muted-foreground hover:text-foreground">Privacy Policy</Link></li>
             </ul>
           </div>
         </div>

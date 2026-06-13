@@ -228,7 +228,7 @@ If you're not sure where to start, [open an issue](https://github.com/shreyashgu
 
 ## Questions or feedback
 
-Email **hi@mail.billsincongress.com** or open an issue on GitHub. Bills.Congress is a public-interest project — feedback from people outside the codebase is the most valuable kind.
+Email **hi@billsincongress.com** or open an issue on GitHub. Bills.Congress is a public-interest project — feedback from people outside the codebase is the most valuable kind.
 
 ## License
 
