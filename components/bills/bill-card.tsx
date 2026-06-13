@@ -11,6 +11,12 @@ interface BillCardProps {
   bill: Bill;
 }
 
+const PARTY_DOT_COLOR: Record<string, string> = {
+  D: 'bg-party-d',
+  R: 'bg-party-r',
+  I: 'bg-party-i',
+};
+
 export default function BillCard({ bill }: BillCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString + 'T00:00:00Z');
@@ -27,8 +33,8 @@ export default function BillCard({ bill }: BillCardProps) {
       ? parseInt(bill.progress_stage, 10)
       : bill.progress_stage;
 
-  // Reconstruct the bill number string (e.g., HR · 1234) from available fields.
   const billNumberLabel = formatBillNumber(bill);
+  const partyDot = PARTY_DOT_COLOR[bill.sponsor_party] ?? 'bg-party-u';
 
   return (
     <Link
@@ -45,50 +51,57 @@ export default function BillCard({ bill }: BillCardProps) {
       }
       className="group block rounded-sm border border-border bg-card hover:border-foreground/40 transition-colors h-full"
     >
-      <article className="flex flex-col h-full p-5">
-        {/* Header — number + date */}
-        <div className="flex items-baseline justify-between gap-3 mb-3">
-          <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground tabular">
-            {billNumberLabel}
-          </span>
-          <time className="font-mono text-[11px] text-muted-foreground tabular">
-            {formatDate(bill.introduced_date)}
-          </time>
-        </div>
+      <article className="flex flex-col h-full p-6">
+        {/* Header — bill number + congress */}
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground tabular mb-3">
+          {billNumberLabel}
+        </p>
 
         {/* Title */}
-        <h3 className="font-serif text-lg font-semibold leading-snug tracking-tight text-foreground line-clamp-3 min-h-[4.5rem] group-hover:underline underline-offset-4 decoration-border">
+        <h3 className="font-serif text-xl font-semibold leading-snug tracking-tight text-foreground line-clamp-4 min-h-[5.25rem] group-hover:underline underline-offset-4 decoration-border">
           {bill.title}
         </h3>
 
-        {/* Policy area */}
-        {bill.bill_subjects?.policy_area_name && (
-          <div className="mt-3">
+        {/* Meta — labeled date + policy area */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] text-muted-foreground">
+          <span>
+            Introduced{' '}
+            <span className="text-foreground font-medium">
+              {formatDate(bill.introduced_date)}
+            </span>
+          </span>
+          {bill.bill_subjects?.policy_area_name && (
             <Badge variant="muted">{bill.bill_subjects.policy_area_name}</Badge>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Progress */}
-        <div className="mt-5">
-          <BillProgress stage={stage} description={bill.progress_description} />
+        <div className="mt-6">
+          <BillProgress stage={stage} />
         </div>
 
         {/* Footer — sponsor */}
-        <div className="mt-4 pt-4 border-t border-border flex items-center justify-between gap-3">
+        <div className="mt-5 pt-4 border-t border-border flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground mb-1">
               Sponsor
             </p>
-            <p className="text-sm font-medium text-foreground truncate">
-              {bill.sponsor_first_name} {bill.sponsor_last_name}
-              {bill.sponsor_party && bill.sponsor_state && (
-                <span className="font-mono text-xs text-muted-foreground tabular">
-                  {' '}· {bill.sponsor_party}-{bill.sponsor_state}
-                </span>
-              )}
+            <p className="flex items-center gap-2 text-[15px] font-medium text-foreground">
+              <span
+                className={`h-2 w-2 rounded-full shrink-0 ${partyDot}`}
+                aria-hidden="true"
+              />
+              <span className="truncate">
+                {bill.sponsor_first_name} {bill.sponsor_last_name}
+                {bill.sponsor_party && bill.sponsor_state && (
+                  <span className="font-mono text-xs text-muted-foreground tabular">
+                    {' '}· {bill.sponsor_party}-{bill.sponsor_state}
+                  </span>
+                )}
+              </span>
             </p>
           </div>
           <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
@@ -99,8 +112,9 @@ export default function BillCard({ bill }: BillCardProps) {
 }
 
 function formatBillNumber(bill: Bill): string {
-  if (bill.bill_type && bill.bill_number) {
-    return `${bill.bill_type.toUpperCase()} ${bill.bill_number} · ${bill.congress}${ordinal(bill.congress)}`;
+  const typeLabel = bill.bill_type_label || bill.bill_type?.toUpperCase();
+  if (typeLabel && bill.bill_number) {
+    return `${typeLabel} ${bill.bill_number} · ${bill.congress}${ordinal(bill.congress)} Congress`;
   }
   return typeof bill.id === 'string' ? bill.id.replace(/-/g, ' · ').toUpperCase() : 'BILL';
 }

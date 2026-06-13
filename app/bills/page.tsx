@@ -13,7 +13,7 @@ const BillsFilter = dynamic(() => import('@/components/bills/bills-filter'), { s
 const BillCard = dynamic(() => import('@/components/bills/bill-card'), { ssr: false });
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
-const ITEMS_PER_PAGE = 9;
+const ITEMS_PER_PAGE = 10;
 
 export default function BillsPage() {
   const [bills, setBills] = useState<Bill[]>([]);
@@ -539,11 +539,11 @@ export default function BillsPage() {
 
             <div
               key={resultsKey}
-              className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
+              className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
               {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-64 border border-border bg-card rounded-sm animate-pulse" />
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-80 border border-border bg-card rounded-sm animate-pulse" />
                 ))
               ) : bills.length > 0 ? (
                 bills.map((bill, i) => (
@@ -552,7 +552,7 @@ export default function BillsPage() {
                     className="animate-rise-in"
                     style={{ animationDelay: `${(i % ITEMS_PER_PAGE) * 35}ms` }}
                   >
-                    <Suspense fallback={<div className="h-64 border border-border rounded-sm bg-card" />}>
+                    <Suspense fallback={<div className="h-80 border border-border rounded-sm bg-card" />}>
                       <BillCard bill={bill} />
                     </Suspense>
                   </div>

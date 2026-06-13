@@ -81,6 +81,13 @@ module.exports = {
           signed: 'hsl(var(--status-signed))',
           law: 'hsl(var(--status-law))',
         },
+        // Party palette — used for sponsor indicators and dashboard charts
+        party: {
+          d: 'hsl(var(--party-d))',
+          r: 'hsl(var(--party-r))',
+          i: 'hsl(var(--party-i))',
+          u: 'hsl(var(--party-u))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
