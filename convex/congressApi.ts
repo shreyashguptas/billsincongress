@@ -1329,57 +1329,6 @@ export const repairIncompleteBills = internalAction({
   },
 });
 
-const BACKFILL_BATCH_SIZE = 200;
-
-/**
- * One-time backfill: compute syncedEndpoints for existing bills by inspecting sub-tables.
- * No API calls — purely DB reads. Self-schedules in batches.
- */
-export const backfillSyncStatus = internalAction({
-  args: {
-    congress: v.optional(v.number()),
-  },
-  handler: async (ctx, args): Promise<{ processed: number; remaining: boolean }> => {
-    // Get legacy bills (syncedEndpoints undefined)
-    const toBackfill = await ctx.runQuery(internal.sync.getIncompleteBills, {
-      congress: args.congress,
-      limit: BACKFILL_BATCH_SIZE,
-      legacyOnly: true,
-    });
-
-    if (toBackfill.length === 0) {
-      console.log("No legacy bills to backfill");
-      return { processed: 0, remaining: false };
-    }
-
-    console.log(`Backfilling sync status for ${toBackfill.length} legacy bills...`);
-
-    for (const bill of toBackfill) {
-      const completeness = await ctx.runQuery(internal.sync.checkBillCompleteness, {
-        billId: bill.billId,
-      });
-
-      await ctx.runMutation(internal.mutations.updateBillSyncStatus, {
-        billId: bill.billId,
-        endpointBits: completeness.syncedEndpoints,
-        lastSyncAttempt: new Date().toISOString(),
-      });
-    }
-
-    console.log(`Backfilled ${toBackfill.length} bills`);
-
-    // Self-schedule if more remain
-    if (toBackfill.length >= BACKFILL_BATCH_SIZE) {
-      await ctx.scheduler.runAfter(2000, internal.congressApi.backfillSyncStatus, {
-        congress: args.congress,
-      });
-      console.log("Scheduled next backfill batch");
-    }
-
-    return { processed: toBackfill.length, remaining: toBackfill.length >= BACKFILL_BATCH_SIZE };
-  },
-});
-
 const STAGE_BACKFILL_PAGE = 40; // bills per mutation (≤250 actions each → read-limit safe)
 const STAGE_BACKFILL_BILLS_PER_RUN = 5000; // bills per invocation before self-scheduling
 

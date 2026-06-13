@@ -27,59 +27,9 @@ export {
 } from "./syncStatus";
 
 /**
- * Returns bills where syncedEndpoints is undefined or < SYNC_COMPLETE.
- * Accepts optional congress filter and limit.
- */
-export const getIncompleteBills = internalQuery({
-  args: {
-    congress: v.optional(v.number()),
-    limit: v.optional(v.number()),
-    legacyOnly: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    const limit = args.limit || 100;
-    const legacyOnly = args.legacyOnly || false;
-
-    let billsQuery;
-    if (args.congress !== undefined) {
-      billsQuery = ctx.db
-        .query("bills")
-        .withIndex("by_congress", (q) => q.eq("congress", args.congress!));
-    } else {
-      billsQuery = ctx.db.query("bills");
-    }
-
-    const allBills = await billsQuery.collect();
-    const incomplete = [];
-
-    for (const bill of allBills) {
-      if (incomplete.length >= limit) break;
-
-      const isLegacy = bill.syncedEndpoints === undefined;
-      if (legacyOnly && !isLegacy) continue;
-
-      if (isLegacy || bill.syncedEndpoints! < SYNC_COMPLETE) {
-        const mask = bill.syncedEndpoints || 0;
-        incomplete.push({
-          _id: bill._id,
-          billId: bill.billId,
-          congress: bill.congress,
-          billType: bill.billType,
-          billNumber: bill.billNumber,
-          syncedEndpoints: bill.syncedEndpoints,
-          missingEndpoints: getMissingEndpoints(mask),
-          isLegacy,
-        });
-      }
-    }
-
-    return incomplete;
-  },
-});
-
-/**
  * For a single bill, checks all 4 sub-tables for existence and returns a computed bitmask.
- * Used by the backfill action for legacy bills that have no syncedEndpoints value.
+ * Used by the repair path to derive the bitmask for legacy bills that have no
+ * syncedEndpoints value (the `isLegacy` branch of repairIncompleteBills).
  */
 export const checkBillCompleteness = internalQuery({
   args: {
