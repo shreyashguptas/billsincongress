@@ -7,12 +7,10 @@ import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinalSpan, formatCongressYearSpan } from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { SlidersHorizontal } from 'lucide-react';
 import BillCard from '@/components/bills/bill-card';
+import { FilterQuickAccess } from '@/components/bills/mobile-filter-bar';
 import { filterSignature } from './filter-signature';
 
-const BillsFilter = dynamic(() => import('@/components/bills/bills-filter'), { ssr: false });
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
 const ITEMS_PER_PAGE = 10;
@@ -111,34 +109,9 @@ export default function BillsClient({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [congressRange, setCongressRange] = useState<{ oldest: number; newest: number } | null>(initialCongressRange);
-  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [congressFilter, setCongressFilter] = useState<string>(() =>
     urlFilters.congress ?? (typeof window !== 'undefined' ? localStorage.getItem('billsCongressFilter') || 'all' : 'all')
   );
-  const [pendingFilters, setPendingFilters] = useState<{
-    status: string;
-    introducedDate: string;
-    lastActionDate: string;
-    state: string;
-    policyArea: string;
-    billType: string;
-    billNumber: string;
-    title: string;
-    sponsor: string[];
-    congress: string;
-  }>({
-    status: 'all',
-    introducedDate: 'all',
-    lastActionDate: 'all',
-    state: 'all',
-    policyArea: 'all',
-    billType: 'all',
-    billNumber: '',
-    title: '',
-    sponsor: [],
-    congress: 'all',
-  });
-  const [hasFilterChanges, setHasFilterChanges] = useState(false);
   // The filter state above falls back to localStorage in its initializers, so
   // on the server (no localStorage) it is URL params/defaults, while a returning
   // user's browser restores their saved filters. Any markup that depends on
@@ -198,25 +171,6 @@ export default function BillsClient({
     billNumberFilter, congressFilter,
   ]);
 
-  useEffect(() => {
-    setPendingFilters({
-      status: statusFilter,
-      introducedDate: introducedDateFilter,
-      lastActionDate: lastActionDateFilter,
-      state: stateFilter,
-      policyArea: policyAreaFilter,
-      billType: billTypeFilter,
-      billNumber: billNumberFilter,
-      title: titleFilter,
-      sponsor: sponsorFilter,
-      congress: congressFilter,
-    });
-  }, [
-    statusFilter, introducedDateFilter, lastActionDateFilter, stateFilter,
-    policyAreaFilter, billTypeFilter, billNumberFilter, titleFilter,
-    sponsorFilter, congressFilter,
-  ]);
-
   const handleClearAllFilters = () => {
     analytics.billsFiltersCleared();
     setCurrentPage(1);
@@ -230,8 +184,6 @@ export default function BillsClient({
     setBillTypeFilter('all');
     setBillNumberFilter('');
     setCongressFilter('all');
-    setPendingFilters((p) => ({ ...p, billNumber: '' }));
-    setHasFilterChanges(false);
 
     if (typeof window !== 'undefined') {
       [
@@ -387,45 +339,6 @@ export default function BillsClient({
     billNumberFilter, congressFilter,
   ]);
 
-  const handleApplyFilters = () => {
-    const f = pendingFilters;
-    analytics.billsFiltersApplied({
-      status: f.status,
-      bill_type: f.billType,
-      congress: f.congress,
-      state: f.state,
-      policy_area: f.policyArea,
-      introduced_date: f.introducedDate,
-      last_action_date: f.lastActionDate,
-      title_query: f.title,
-      bill_number: f.billNumber,
-      sponsor_count: f.sponsor.length,
-      active_filter_count: [
-        f.status !== 'all', f.introducedDate !== 'all', f.lastActionDate !== 'all',
-        f.sponsor.length > 0, f.title !== '', f.state !== 'all', f.policyArea !== 'all',
-        f.billType !== 'all', f.billNumber !== '', f.congress !== 'all',
-      ].filter(Boolean).length,
-    });
-    setCurrentPage(1);
-    setStatusFilter(pendingFilters.status);
-    setIntroducedDateFilter(pendingFilters.introducedDate);
-    setLastActionDateFilter(pendingFilters.lastActionDate);
-    setStateFilter(pendingFilters.state);
-    setPolicyAreaFilter(pendingFilters.policyArea);
-    setBillTypeFilter(pendingFilters.billType);
-    setBillNumberFilter(pendingFilters.billNumber);
-    setTitleFilter(pendingFilters.title);
-    setSponsorFilter(pendingFilters.sponsor);
-    setCongressFilter(pendingFilters.congress);
-    setIsFilterSheetOpen(false);
-    setHasFilterChanges(false);
-  };
-
-  const handlePendingFilterChange = (filterType: string, value: string | string[]) => {
-    setPendingFilters((prev) => ({ ...prev, [filterType]: value }));
-    setHasFilterChanges(true);
-  };
-
   const filtersActive = hasFiltersActive(
     statusFilter, introducedDateFilter, lastActionDateFilter,
     sponsorFilter, titleFilter, stateFilter, policyAreaFilter,
@@ -470,93 +383,37 @@ export default function BillsClient({
       </section>
 
       <div className="container-editorial py-8 lg:py-10">
-        {/* Mobile filter trigger */}
-        <div className="lg:hidden mb-5">
-          <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="w-full">
-                <SlidersHorizontal className="h-4 w-4" />
-                Filters
-                {mounted && filtersActive && (
-                  <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-accent" />
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-[85vh] border-t border-border bg-background p-0">
-              <div className="flex h-full flex-col">
-                <div className="border-b border-border px-5 py-4">
-                  <p className="font-serif text-lg font-semibold tracking-tight">Filter bills</p>
-                </div>
-                <div className="flex-1 overflow-y-auto px-5 py-5">
-                  <BillsFilter
-                    statusFilter={pendingFilters.status}
-                    introducedDateFilter={pendingFilters.introducedDate}
-                    lastActionDateFilter={pendingFilters.lastActionDate}
-                    sponsorFilter={pendingFilters.sponsor}
-                    titleFilter={pendingFilters.title}
-                    stateFilter={pendingFilters.state}
-                    policyAreaFilter={pendingFilters.policyArea}
-                    billTypeFilter={pendingFilters.billType}
-                    billNumberFilter={pendingFilters.billNumber}
-                    congressFilter={pendingFilters.congress}
-                    onStatusChange={(v) => handlePendingFilterChange('status', v)}
-                    onIntroducedDateChange={(v) => handlePendingFilterChange('introducedDate', v)}
-                    onLastActionDateChange={(v) => handlePendingFilterChange('lastActionDate', v)}
-                    onSponsorChange={(v) => handlePendingFilterChange('sponsor', v)}
-                    onTitleChange={(v) => handlePendingFilterChange('title', v)}
-                    onStateChange={(v) => handlePendingFilterChange('state', v)}
-                    onPolicyAreaChange={(v) => handlePendingFilterChange('policyArea', v)}
-                    onBillTypeChange={(v) => handlePendingFilterChange('billType', v)}
-                    onBillNumberChange={(v) => handlePendingFilterChange('billNumber', v)}
-                    onCongressChange={(v) => handlePendingFilterChange('congress', v)}
-                    onClearAllFilters={handleClearAllFilters}
-                    isMobile={true}
-                  />
-                </div>
-                <div className="border-t border-border px-5 py-4">
-                  <Button className="w-full" onClick={handleApplyFilters} disabled={!hasFilterChanges}>
-                    Apply filters
-                  </Button>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
+        {/* Quick-access filters — always visible, all screens */}
+        {mounted && (
+          <div className="mb-5">
+            <FilterQuickAccess
+              statusFilter={statusFilter}
+              introducedDateFilter={introducedDateFilter}
+              lastActionDateFilter={lastActionDateFilter}
+              sponsorFilter={sponsorFilter}
+              titleFilter={titleFilter}
+              stateFilter={stateFilter}
+              policyAreaFilter={policyAreaFilter}
+              billTypeFilter={billTypeFilter}
+              billNumberFilter={billNumberFilter}
+              congressFilter={congressFilter}
+              onStatusChange={setStatusFilter}
+              onIntroducedDateChange={setIntroducedDateFilter}
+              onLastActionDateChange={setLastActionDateFilter}
+              onSponsorChange={setSponsorFilter}
+              onTitleChange={setTitleFilter}
+              onStateChange={setStateFilter}
+              onPolicyAreaChange={setPolicyAreaFilter}
+              onBillTypeChange={setBillTypeFilter}
+              onBillNumberChange={setBillNumberFilter}
+              onCongressChange={setCongressFilter}
+              onClearAllFilters={handleClearAllFilters}
+              filtersActive={filtersActive}
+            />
+          </div>
+        )}
 
-        <div className="flex flex-col lg:flex-row gap-10 lg:gap-12">
-          {/* Desktop sidebar */}
-          <aside className="hidden lg:block lg:w-[260px] shrink-0">
-            <div className="sticky top-24 space-y-6">
-              <BillsFilter
-                statusFilter={pendingFilters.status}
-                introducedDateFilter={pendingFilters.introducedDate}
-                lastActionDateFilter={pendingFilters.lastActionDate}
-                sponsorFilter={pendingFilters.sponsor}
-                titleFilter={pendingFilters.title}
-                stateFilter={pendingFilters.state}
-                policyAreaFilter={pendingFilters.policyArea}
-                billTypeFilter={pendingFilters.billType}
-                billNumberFilter={pendingFilters.billNumber}
-                congressFilter={pendingFilters.congress}
-                onStatusChange={(v) => handlePendingFilterChange('status', v)}
-                onIntroducedDateChange={(v) => handlePendingFilterChange('introducedDate', v)}
-                onLastActionDateChange={(v) => handlePendingFilterChange('lastActionDate', v)}
-                onSponsorChange={(v) => handlePendingFilterChange('sponsor', v)}
-                onTitleChange={(v) => handlePendingFilterChange('title', v)}
-                onStateChange={(v) => handlePendingFilterChange('state', v)}
-                onPolicyAreaChange={(v) => handlePendingFilterChange('policyArea', v)}
-                onBillTypeChange={(v) => handlePendingFilterChange('billType', v)}
-                onBillNumberChange={(v) => handlePendingFilterChange('billNumber', v)}
-                onCongressChange={(v) => handlePendingFilterChange('congress', v)}
-                onClearAllFilters={handleClearAllFilters}
-                isMobile={false}
-              />
-              <Button className="w-full" onClick={handleApplyFilters} disabled={!hasFilterChanges}>
-                Apply filters
-              </Button>
-            </div>
-          </aside>
-
+        <div className="flex flex-col gap-10 lg:gap-12">
           {/* Results column */}
           <div className="flex-1 min-w-0">
             <div className="mb-5 flex items-baseline justify-between gap-3 border-b border-border pb-3">
