@@ -5,7 +5,6 @@ import type { Bill } from '@/lib/types/bill';
 import { useEffect, useState } from 'react';
 import {
   getStageDescription,
-  getStagePercentage,
   getProgressDots,
   isValidStage,
   BillStages,
@@ -92,11 +91,35 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bill.id]);
 
-  const progressPercentage = getStagePercentage(progressStage);
+  // Passive: record when the committee base-rate context is actually shown.
+  useEffect(() => {
+    if (
+      bill.base_rate_percent !== undefined &&
+      bill.base_rate_sample !== undefined &&
+      bill.days_in_committee !== undefined
+    ) {
+      analytics.billBaseRateViewed({
+        bill_id: String(bill.id),
+        chamber: bill.bill_type?.startsWith('s') ? 'senate' : 'house',
+        days_in_committee: bill.days_in_committee,
+        base_rate_percent: bill.base_rate_percent,
+        base_rate_sample: bill.base_rate_sample,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bill.id]);
+
   const displayDescription = getStageDescription(progressStage);
   const progressDots = isValidStage(progressStage)
     ? getProgressDots(progressStage)
     : getProgressDots(BillStages.INTRODUCED);
+  // Length of the pipeline's progress line: reaches the furthest completed
+  // step. Derived from the steps themselves — NOT an invented "percent done".
+  const completedDots = progressDots.filter((d) => d.isComplete).length;
+  const lineFraction =
+    progressDots.length > 1
+      ? (completedDots - 1) / (progressDots.length - 1)
+      : 0;
 
   const stateName = STATE_NAMES[bill.sponsor_state] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party] || bill.sponsor_party;
@@ -195,13 +218,32 @@ export default function BillDetails({ bill }: BillDetailsProps) {
               <p className="font-serif text-2xl font-semibold tracking-tight leading-tight">
                 {displayDescription}
               </p>
-              <p className="mt-1 font-mono text-sm text-muted-foreground tabular">
-                {progressPercentage}% through the legislative process
-              </p>
+              {bill.base_rate_percent !== undefined &&
+                bill.base_rate_sample !== undefined &&
+                bill.days_in_committee !== undefined && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-sm text-muted-foreground leading-snug">
+                      In committee for{' '}
+                      <span className="text-foreground font-medium">
+                        {bill.days_in_committee.toLocaleString()} days
+                      </span>
+                      . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'}{' '}
+                      bills from past Congresses still in committee this long, about{' '}
+                      <span className="text-foreground font-medium">
+                        {bill.base_rate_percent}%
+                      </span>{' '}
+                      ever advanced further.
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/80 leading-snug">
+                      Based on {bill.base_rate_sample.toLocaleString()} past bills —
+                      a description of that group, not a prediction for this bill.
+                    </p>
+                  </div>
+                )}
             </div>
 
             <div className="lg:col-span-2">
-              <ProgressPipeline dots={progressDots} percentage={progressPercentage} />
+              <ProgressPipeline dots={progressDots} fraction={lineFraction} />
             </div>
           </div>
         </div>
@@ -283,10 +325,10 @@ export default function BillDetails({ bill }: BillDetailsProps) {
 /* Editorial pipeline visualisation: dots on a horizontal line */
 function ProgressPipeline({
   dots,
-  percentage,
+  fraction,
 }: {
   dots: Array<{ stage: string; isComplete: boolean }>;
-  percentage: number;
+  fraction: number;
 }) {
   return (
     <div>
@@ -298,7 +340,7 @@ function ProgressPipeline({
           {/* progress line */}
           <div
             className="absolute left-2 top-2 h-px bg-foreground transition-all duration-500"
-            style={{ width: `calc((100% - 1rem) * ${percentage / 100})` }}
+            style={{ width: `calc((100% - 1rem) * ${fraction})` }}
             aria-hidden="true"
           />
           <div className="flex items-start justify-between gap-1">

@@ -33,18 +33,6 @@ export const BillStageOrder: BillStage[] = [
   BillStages.BECAME_LAW,
 ];
 
-// Map of stage numbers to their visual percentage on the progress bar
-const StagePercentages: Record<BillStage, number> = {
-  [BillStages.INTRODUCED]: 0,              // Start at 0%
-  [BillStages.IN_COMMITTEE]: 14.29,        // 1/7
-  [BillStages.PASSED_ONE_CHAMBER]: 28.57,  // 2/7
-  [BillStages.PASSED_BOTH_CHAMBERS]: 42.86, // 3/7
-  [BillStages.VETOED]: 57.14,              // 4/7
-  [BillStages.TO_PRESIDENT]: 57.14,        // 4/7 (same as vetoed — parallel paths)
-  [BillStages.SIGNED_BY_PRESIDENT]: 71.43, // 5/7
-  [BillStages.BECAME_LAW]: 100,            // 7/7
-} as const;
-
 /**
  * Gets the description for a given bill stage
  * @param stage - The bill stage number
@@ -62,18 +50,6 @@ export function getStageDescription(stage: number): string {
 export function getStageFromDescription(description: string): BillStage | undefined {
   const entry = Object.entries(BillStageDescriptions).find(([_, desc]) => desc === description);
   return entry ? parseInt(entry[0], 10) as BillStage : undefined;
-}
-
-/**
- * Gets the visual percentage for the progress bar based on the current stage
- * @param stage - The bill stage number
- * @returns The percentage to show on the progress bar
- */
-export function getStagePercentage(stage: number): number {
-  if (!isValidStage(stage)) {
-    return 0;
-  }
-  return StagePercentages[stage];
 }
 
 /**

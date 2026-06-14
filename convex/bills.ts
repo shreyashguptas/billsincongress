@@ -3,7 +3,8 @@ import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { billsByChamber, billsByStage } from "./aggregates";
-import { calculateBillStage } from "./billStage";
+import { calculateBillStage, BillStages } from "./billStage";
+import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 
 // Bounds for reading a single bill's child rows. Real bills have only a handful
 // of summaries / text versions, so these caps are generous safety limits.
@@ -117,6 +118,45 @@ export const getById = query({
     const summary = pickLatestSummary(summaries);
     const text = pickCurrentText(texts);
 
+    // Committee base-rate context: only for bills still sitting in committee.
+    // Look up the matching precomputed bucket for this bill's chamber + how long
+    // it's been in committee, and only surface it when the bucket is backed by
+    // enough past bills to be honest.
+    const stage = bill.progressStage ?? BillStages.INTRODUCED;
+    let baseRate:
+      | {
+          base_rate_percent: number;
+          base_rate_sample: number;
+          days_in_committee: number;
+        }
+      | Record<string, never> = {};
+
+    if (stage === BillStages.IN_COMMITTEE) {
+      const chamber = bill.billType.startsWith("s") ? "senate" : "house";
+      const introMs = Date.parse(bill.introducedDate);
+      const daysInCommittee = Number.isNaN(introMs)
+        ? null
+        : Math.max(0, Math.floor((Date.now() - introMs) / MS_PER_DAY));
+
+      if (daysInCommittee !== null) {
+        const rows = await ctx.db
+          .query("committeeBaseRates")
+          .withIndex("by_chamber", (q) => q.eq("chamber", chamber))
+          .collect();
+        const row = rows.find(
+          (r) =>
+            daysInCommittee >= r.bucketStart && daysInCommittee < r.bucketEnd,
+        );
+        if (row && row.sampleSize >= MIN_BASE_RATE_SAMPLE) {
+          baseRate = {
+            base_rate_percent: row.ratePercent,
+            base_rate_sample: row.sampleSize,
+            days_in_committee: daysInCommittee,
+          };
+        }
+      }
+    }
+
     return {
       ...bill,
       bill_subjects: subjects
@@ -124,6 +164,7 @@ export const getById = query({
         : { policy_area_name: "" },
       latest_summary: summary?.text || "",
       pdf_url: text?.formatsUrlPdf || "",
+      ...baseRate,
     };
   },
 });

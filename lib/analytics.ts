@@ -177,6 +177,19 @@ export const analytics = {
     has_pdf: boolean;
   }) => capture('bill_viewed', props),
 
+  /**
+   * Fired when the committee base-rate context line is shown on a bill detail
+   * page (passive — once per bill view). Lets us see how often the stat appears
+   * and the historical odds visitors are actually seeing.
+   */
+  billBaseRateViewed: (props: {
+    bill_id: string;
+    chamber: 'house' | 'senate';
+    days_in_committee: number;
+    base_rate_percent: number;
+    base_rate_sample: number;
+  }) => capture('bill_base_rate_viewed', props),
+
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
 
   billSaveToggled: (props: {

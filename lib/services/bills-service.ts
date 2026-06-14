@@ -83,6 +83,9 @@ function transformConvexBill(doc: any): Bill {
     bill_subjects: doc.bill_subjects || { policy_area_name: '' },
     latest_summary: doc.latest_summary || '',
     pdf_url: doc.pdf_url || '',
+    base_rate_percent: doc.base_rate_percent,
+    base_rate_sample: doc.base_rate_sample,
+    days_in_committee: doc.days_in_committee,
   };
 }
 
