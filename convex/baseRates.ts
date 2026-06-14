@@ -40,6 +40,9 @@ export const BUCKET_STARTS = [0, 90, 180, 365] as const;
 /** Don't surface a bucket's rate unless it's backed by at least this many bills. */
 export const MIN_BASE_RATE_SAMPLE = 100;
 
+/** Milliseconds in a day — shared day-math constant. */
+export const MS_PER_DAY = 86_400_000;
+
 const CHAMBERS: Chamber[] = ["house", "senate"];
 
 function bucketEndFor(start: number): number {
@@ -94,13 +97,4 @@ export function computeBaseRateBuckets(
   }
 
   return rows;
-}
-
-/** Which bucket start does a given days-in-committee fall into? */
-export function bucketStartForDays(days: number): number {
-  let result: number = BUCKET_STARTS[0];
-  for (const start of BUCKET_STARTS) {
-    if (days >= start) result = start;
-  }
-  return result;
 }

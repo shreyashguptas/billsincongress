@@ -11,7 +11,7 @@ import {
   SENATE_BILL_TYPES,
 } from "./aggregates";
 import { calculateBillStage, passedChamber, BillStages } from "./billStage";
-import { computeBaseRateBuckets } from "./baseRates";
+import { computeBaseRateBuckets, MS_PER_DAY } from "./baseRates";
 import type { BaseRateSample, Chamber } from "./baseRates";
 
 /**
@@ -1223,8 +1223,6 @@ export const getBillActionsForBaseRate = internalQuery({
     }));
   },
 });
-
-const MS_PER_DAY = 86_400_000;
 
 /**
  * Recompute the committeeBaseRates table from every finished Congress's bills.

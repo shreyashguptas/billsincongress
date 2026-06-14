@@ -4,9 +4,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage, BillStages } from "./billStage";
-import { MIN_BASE_RATE_SAMPLE } from "./baseRates";
-
-const MS_PER_DAY = 86_400_000;
+import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 
 // Bounds for reading a single bill's child rows. Real bills have only a handful
 // of summaries / text versions, so these caps are generous safety limits.
@@ -120,10 +118,10 @@ export const getById = query({
     const summary = pickLatestSummary(summaries);
     const text = pickCurrentText(texts);
 
-    // Committee base-rate context: only for bills still sitting in committee
-    // (or just introduced). Look up the matching precomputed bucket for this
-    // bill's chamber + how long it's been in committee, and only surface it
-    // when the bucket is backed by enough past bills to be honest.
+    // Committee base-rate context: only for bills still sitting in committee.
+    // Look up the matching precomputed bucket for this bill's chamber + how long
+    // it's been in committee, and only surface it when the bucket is backed by
+    // enough past bills to be honest.
     const stage = bill.progressStage ?? BillStages.INTRODUCED;
     let baseRate:
       | {
@@ -133,7 +131,7 @@ export const getById = query({
         }
       | Record<string, never> = {};
 
-    if (stage === BillStages.IN_COMMITTEE || stage === BillStages.INTRODUCED) {
+    if (stage === BillStages.IN_COMMITTEE) {
       const chamber = bill.billType.startsWith("s") ? "senate" : "house";
       const introMs = Date.parse(bill.introducedDate);
       const daysInCommittee = Number.isNaN(introMs)

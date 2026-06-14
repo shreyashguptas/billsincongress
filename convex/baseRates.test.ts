@@ -8,7 +8,6 @@
 import assert from "node:assert/strict";
 import {
   computeBaseRateBuckets,
-  bucketStartForDays,
   OPEN_BUCKET_END,
   type BaseRateSample,
   type BaseRateBucket,
@@ -58,18 +57,6 @@ it("passedChamber returns null for committee / referral actions", () => {
   assert.equal(passedChamber({ text: "Referred to the Committee on Finance." }), null);
   assert.equal(passedChamber({ text: "Introduced in House" }), null);
   assert.equal(passedChamber({ text: "" }), null);
-});
-
-// ── bucketStartForDays mapping ─────────────────────────────────────────
-it("bucketStartForDays maps days to the right bucket start", () => {
-  assert.equal(bucketStartForDays(0), 0);
-  assert.equal(bucketStartForDays(89), 0);
-  assert.equal(bucketStartForDays(90), 90);
-  assert.equal(bucketStartForDays(179), 90);
-  assert.equal(bucketStartForDays(180), 180);
-  assert.equal(bucketStartForDays(364), 180);
-  assert.equal(bucketStartForDays(365), 365);
-  assert.equal(bucketStartForDays(5000), 365);
 });
 
 // ── computeBaseRateBuckets: the worked example ─────────────────────────
