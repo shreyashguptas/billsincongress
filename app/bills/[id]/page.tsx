@@ -35,6 +35,7 @@ function billJsonLd(bill: Bill, id: string): object {
     name: bill.title,
     legislationIdentifier: identifier,
     legislationType: legislationTypeLabel(bill.bill_type),
+    legislationJurisdiction: 'United States',
     inLanguage: 'en',
     isPartOf: { '@id': `${SITE_URL}/#website` },
   };
@@ -57,9 +58,12 @@ function billJsonLd(bill: Bill, id: string): object {
       name: 'United States Congress',
     };
   }
-  if (bill.progress_stage === 100) {
-    legislation.legislationLegalForce = 'https://schema.org/InForce';
-  }
+  // Signed-into-law bills are in force; everything still moving (introduced, in
+  // committee, passed one/both chambers) has no legal force yet.
+  legislation.legislationLegalForce =
+    bill.progress_stage === 100
+      ? 'https://schema.org/InForce'
+      : 'https://schema.org/NotInForce';
   if (officialUrl) {
     legislation.sameAs = officialUrl;
   }
