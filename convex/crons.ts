@@ -54,4 +54,13 @@ crons.cron(
   {},
 );
 
+// Run weekly on Friday at 4:30 AM UTC - recompute committee "base rates" from
+// finished congresses. Historical data barely moves, so weekly is plenty.
+crons.weekly(
+  "weekly-committee-base-rates",
+  { dayOfWeek: "friday", hourUTC: 4, minuteUTC: 30 },
+  internal.mutations.recomputeCommitteeBaseRates,
+  {},
+);
+
 export default crons;

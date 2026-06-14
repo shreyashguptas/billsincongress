@@ -14,6 +14,7 @@ import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
 import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
+import type * as baseRates from "../baseRates.js";
 import type * as billStage from "../billStage.js";
 import type * as bills from "../bills.js";
 import type * as chatAnalytics from "../chatAnalytics.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   aggregates: typeof aggregates;
   audit: typeof audit;
   auth: typeof auth;
+  baseRates: typeof baseRates;
   billStage: typeof billStage;
   bills: typeof bills;
   chatAnalytics: typeof chatAnalytics;

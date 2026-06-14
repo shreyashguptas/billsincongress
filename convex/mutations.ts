@@ -10,7 +10,9 @@ import {
   HOUSE_BILL_TYPES,
   SENATE_BILL_TYPES,
 } from "./aggregates";
-import { calculateBillStage } from "./billStage";
+import { calculateBillStage, passedChamber, BillStages } from "./billStage";
+import { computeBaseRateBuckets } from "./baseRates";
+import type { BaseRateSample, Chamber } from "./baseRates";
 
 /**
  * Upsert a bill record. If a bill with the same billId exists, update it.
@@ -1177,5 +1179,161 @@ export const deleteCongressStats = internalMutation({
       congressPolicyAreas: policyAreas.length,
       congressSponsors: sponsors.length,
     };
+  },
+});
+
+/*
+ * ─────────────────────────────────────────────────────────────────────
+ * Committee base rates
+ *
+ * Precompute, from FINISHED Congresses only, the share of bills that —
+ * having sat in committee a given number of days — ever advanced past
+ * committee. Mirrors the recomputeCongressStats pattern: an internalAction
+ * paginates bills (and reads actions only for the minority that advanced),
+ * aggregates in memory via the pure helper, and hands the result to a single
+ * internalMutation for an atomic table swap. Math + definitions live in
+ * `./baseRates` and are unit-tested in `baseRates.test.ts`.
+ * ─────────────────────────────────────────────────────────────────────
+ */
+
+type BaseRatePageResult = {
+  page: Array<{
+    billId: string;
+    billType: string;
+    introducedDate: string;
+    progressStage?: number;
+  }>;
+  isDone: boolean;
+  continueCursor: string;
+};
+
+/** A single bill's actions, reduced to what base-rate timing needs. */
+export const getBillActionsForBaseRate = internalQuery({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const actions = await ctx.db
+      .query("billActions")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .collect();
+    return actions.map((a) => ({
+      text: a.text,
+      type: a.type,
+      actionCode: a.actionCode,
+      actionDate: a.actionDate,
+    }));
+  },
+});
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Recompute the committeeBaseRates table from every finished Congress's bills.
+ * Run weekly by cron, and on demand for the initial backfill:
+ *   npx convex run --prod mutations:recomputeCommitteeBaseRates
+ */
+export const recomputeCommitteeBaseRates = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ finishedCongresses: number[]; samples: number }> => {
+    // Current congress by year (mirrors recomputeAllStats); only strictly
+    // earlier congresses are "finished" and safe to learn base rates from.
+    const currentCongress =
+      Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
+
+    const finishedCongresses: number[] = [];
+    for (let c = 93; c < currentCongress; c++) {
+      const has = await ctx.runQuery(internal.bills.hasBillsForCongress, {
+        congress: c,
+      });
+      if (has) finishedCongresses.push(c);
+    }
+
+    const samples: BaseRateSample[] = [];
+
+    for (const congress of finishedCongresses) {
+      let cursor: string | null = null;
+      for (;;) {
+        // Explicit type (like StatsBillPageResult) breaks the recursive-inference
+        // cycle, but widened with the fields the base-rate timing needs.
+        const page: BaseRatePageResult = await ctx.runQuery(
+          internal.mutations.getBillsPageByCongress,
+          { congress, cursor, numItems: 2000 },
+        );
+
+        for (const bill of page.page) {
+          const stage = bill.progressStage ?? BillStages.INTRODUCED;
+          // Reference group: bills that reached committee.
+          if (stage < BillStages.IN_COMMITTEE) continue;
+
+          const chamber: Chamber = bill.billType.startsWith("s")
+            ? "senate"
+            : "house";
+          const advanced = stage >= BillStages.PASSED_ONE_CHAMBER;
+
+          if (!advanced) {
+            samples.push({ chamber, advanced: false, firstAdvanceDays: null });
+            continue;
+          }
+
+          // Advanced: find the EARLIEST chamber-passage action to time it.
+          const actions = await ctx.runQuery(
+            internal.mutations.getBillActionsForBaseRate,
+            { billId: bill.billId },
+          );
+          const introMs = Date.parse(bill.introducedDate);
+          let firstAdvanceMs: number | null = null;
+          for (const a of actions) {
+            if (passedChamber(a) === null) continue;
+            const ms = Date.parse(a.actionDate);
+            if (Number.isNaN(ms)) continue;
+            if (firstAdvanceMs === null || ms < firstAdvanceMs) firstAdvanceMs = ms;
+          }
+
+          const firstAdvanceDays =
+            firstAdvanceMs !== null && !Number.isNaN(introMs)
+              ? Math.max(0, Math.floor((firstAdvanceMs - introMs) / MS_PER_DAY))
+              : null;
+
+          samples.push({ chamber, advanced: true, firstAdvanceDays });
+        }
+
+        if (page.isDone) break;
+        cursor = page.continueCursor;
+      }
+    }
+
+    await ctx.runMutation(internal.mutations.writeCommitteeBaseRates, {
+      buckets: computeBaseRateBuckets(samples),
+    });
+
+    console.log(
+      `committee base rates: ${samples.length} bills across congresses ${finishedCongresses.join(", ")}`,
+    );
+    return { finishedCongresses, samples: samples.length };
+  },
+});
+
+/** Atomically replace the committeeBaseRates table with a fresh set of rows. */
+export const writeCommitteeBaseRates = internalMutation({
+  args: {
+    buckets: v.array(
+      v.object({
+        chamber: v.union(v.literal("house"), v.literal("senate")),
+        bucketStart: v.number(),
+        bucketEnd: v.number(),
+        advancedCount: v.number(),
+        totalCount: v.number(),
+        ratePercent: v.number(),
+        sampleSize: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query("committeeBaseRates").collect();
+    for (const row of existing) await ctx.db.delete(row._id);
+
+    const updatedAt = new Date().toISOString();
+    for (const b of args.buckets) {
+      await ctx.db.insert("committeeBaseRates", { ...b, updatedAt });
+    }
   },
 });

@@ -48,6 +48,36 @@ export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> 
   ].map((stage) => ({ stage, description: BillStageDescriptions[stage] }));
 
 /**
+ * Pure predicate: does this action record a chamber *passing* the bill?
+ * Returns "house" / "senate" / null. Shared by {@link calculateBillStage} and
+ * the committee base-rate job so both agree on what "passed a chamber" means.
+ */
+export function passedChamber(action: {
+  text?: string;
+  type?: string;
+  actionCode?: string;
+}): "house" | "senate" | null {
+  const text = (action.text || "").toLowerCase();
+  const type = (action.type || "").toLowerCase();
+  const code = action.actionCode || "";
+  if (
+    text.includes("passed house") ||
+    type === "passedhouse" ||
+    code === "H32500"
+  ) {
+    return "house";
+  }
+  if (
+    text.includes("passed senate") ||
+    type === "passedsenate" ||
+    code === "S32500"
+  ) {
+    return "senate";
+  }
+  return null;
+}
+
+/**
  * Derive a bill's progress stage from its actions.
  *
  * Flag-based with post-loop precedence — there are NO early returns inside the
@@ -129,20 +159,9 @@ export function calculateBillStage(
       toPresident = true;
     }
 
-    if (
-      text.includes("passed house") ||
-      type === "passedhouse" ||
-      code === "H32500"
-    ) {
-      passedHouse = true;
-    }
-    if (
-      text.includes("passed senate") ||
-      type === "passedsenate" ||
-      code === "S32500"
-    ) {
-      passedSenate = true;
-    }
+    const chamber = passedChamber(action);
+    if (chamber === "house") passedHouse = true;
+    if (chamber === "senate") passedSenate = true;
 
     if (
       text.includes("referred to") ||

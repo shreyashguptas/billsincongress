@@ -17,6 +17,11 @@ export interface Bill {
   };
   latest_summary?: string;
   pdf_url?: string;
+  // Committee base-rate context (detail page only; present only for bills still
+  // in committee with enough historical data). See convex/baseRates.ts.
+  base_rate_percent?: number;
+  base_rate_sample?: number;
+  days_in_committee?: number;
 }
 
 export interface BillQueryParams {

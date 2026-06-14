@@ -263,6 +263,21 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_congress_and_chamber", ["congress", "chamber"]),
 
+  // Precomputed committee "base rates": for bills from FINISHED Congresses that
+  // were still in committee N days after introduction, what share ever advanced
+  // past committee. ~8 rows (chamber × day-bucket). Read by the bill detail page
+  // to show honest historical context, never a per-bill prediction.
+  committeeBaseRates: defineTable({
+    chamber: v.union(v.literal("house"), v.literal("senate")),
+    bucketStart: v.number(), // days in committee (inclusive lower bound)
+    bucketEnd: v.number(), // exclusive upper bound; OPEN_BUCKET_END for 365+
+    advancedCount: v.number(),
+    totalCount: v.number(),
+    ratePercent: v.number(),
+    sampleSize: v.number(),
+    updatedAt: v.string(),
+  }).index("by_chamber", ["chamber"]),
+
   // Bill chat sessions — one per signed-in user and bill. `sessionId` is kept
   // only for compatibility with rows created before chat required sign-in.
   billChats: defineTable({
