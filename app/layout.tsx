@@ -42,6 +42,51 @@ const SITE_GRAPH = {
         'query-input': 'required name=search_term_string',
       },
     },
+    {
+      // Declares the whole bill corpus as a structured dataset — eligible for
+      // Google Dataset Search and a strong "authoritative data source" signal.
+      // `creator` is the data's origin (U.S. Congress); `publisher` is us, the
+      // aggregator. Data are U.S. Government works (public domain), sourced from
+      // Congress.gov. A real `distribution` (DataDownload) can be added later if a
+      // public data export / API ships.
+      '@type': 'Dataset',
+      '@id': `${SITE_URL}/#dataset`,
+      name: 'United States Congressional Bills',
+      description:
+        'A structured, continually updated record of every bill introduced in the United States Congress — including sponsor, current status and legislative stage, full text, subjects, and complete action history — covering recent Congresses. Sourced from the official Congress.gov API.',
+      url: `${SITE_URL}/bills`,
+      keywords: [
+        'United States Congress',
+        'legislation',
+        'bills',
+        'lawmaking',
+        'Congress.gov',
+        'legislative tracking',
+      ],
+      isAccessibleForFree: true,
+      creator: {
+        '@type': 'GovernmentOrganization',
+        name: 'United States Congress',
+        url: 'https://www.congress.gov',
+      },
+      publisher: { '@id': `${SITE_URL}/#org` },
+      isBasedOn: 'https://api.congress.gov',
+      sameAs: 'https://www.congress.gov',
+      creditText:
+        'Bill data are U.S. Government works (public domain), sourced from Congress.gov.',
+      license: 'https://creativecommons.org/publicdomain/mark/1.0/',
+      spatialCoverage: { '@type': 'Place', name: 'United States' },
+      temporalCoverage: '2021-01-03/..',
+      variableMeasured: [
+        'bill title',
+        'sponsor',
+        'legislative status',
+        'progress stage',
+        'policy area',
+        'actions',
+        'full text',
+      ],
+    },
   ],
 };
 
