@@ -120,6 +120,7 @@ export default defineSchema({
     // Convex orders undefined < numbers, so the range also returns legacy bills
     // (field missing). Complete bills (31) are never read.
     .index("by_syncedEndpoints", ["syncedEndpoints"])
+    .index("by_congress_and_bill_number", ["congress", "billNumber"])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["congress", "billType", "progressStage", "sponsorState"],
