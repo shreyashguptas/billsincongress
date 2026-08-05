@@ -1,5 +1,7 @@
 import posthog from 'posthog-js';
 
+import { safeSessionStorage } from '@/lib/safe-storage';
+
 // Typed PostHog event helpers — the code counterpart of ANALYTICS.md.
 //
 // RULES (see ANALYTICS.md "The contract"):
@@ -97,8 +99,7 @@ export const analytics = {
    * the click handler. Mark the intent before redirecting…
    */
   markPendingGoogleAuth(intent: AuthIntent) {
-    if (typeof window === 'undefined') return;
-    window.sessionStorage.setItem(PENDING_GOOGLE_AUTH_KEY, intent);
+    safeSessionStorage.setItem(PENDING_GOOGLE_AUTH_KEY, intent);
   },
 
   /**
@@ -107,10 +108,9 @@ export const analytics = {
    * Returns true if a pending Google auth was consumed.
    */
   consumePendingGoogleAuth(isFreshAccount: boolean): boolean {
-    if (typeof window === 'undefined') return false;
-    const pending = window.sessionStorage.getItem(PENDING_GOOGLE_AUTH_KEY);
+    const pending = safeSessionStorage.getItem(PENDING_GOOGLE_AUTH_KEY);
     if (!pending) return false;
-    window.sessionStorage.removeItem(PENDING_GOOGLE_AUTH_KEY);
+    safeSessionStorage.removeItem(PENDING_GOOGLE_AUTH_KEY);
     if (isFreshAccount) {
       analytics.signupCompleted('google');
     } else {

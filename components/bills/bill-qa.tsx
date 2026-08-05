@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import { usePathname } from 'next/navigation';
 import { billsService, type ChatUsageResult } from '@/lib/services/bills-service';
 import { analytics } from '@/lib/analytics';
+import { safeLocalStorage, safeSessionStorage } from '@/lib/safe-storage';
 import ReactMarkdown from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -47,8 +48,7 @@ function canRefocusChatInput() {
 }
 
 function debugChatScroll(reason: string, element: HTMLDivElement | null) {
-  if (typeof window === 'undefined') return;
-  if (window.localStorage.getItem(CHAT_SCROLL_DEBUG_KEY) !== '1') return;
+  if (safeLocalStorage.getItem(CHAT_SCROLL_DEBUG_KEY) !== '1') return;
 
   console.debug('[bill-chat-scroll]', reason, element ? {
     scrollTop: Math.round(element.scrollTop),
@@ -69,7 +69,7 @@ function getBillChatClientSessionId() {
   if (typeof window === 'undefined') return createClientSessionId();
 
   const now = Date.now();
-  const raw = window.sessionStorage.getItem(CHAT_CLIENT_SESSION_KEY);
+  const raw = safeSessionStorage.getItem(CHAT_CLIENT_SESSION_KEY);
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as StoredChatClientSession;
@@ -78,19 +78,19 @@ function getBillChatClientSessionId() {
         typeof parsed.lastSeenAt === 'number' &&
         now - parsed.lastSeenAt < CHAT_CLIENT_SESSION_IDLE_MS
       ) {
-        window.sessionStorage.setItem(
+        safeSessionStorage.setItem(
           CHAT_CLIENT_SESSION_KEY,
           JSON.stringify({ id: parsed.id, lastSeenAt: now }),
         );
         return parsed.id;
       }
     } catch {
-      window.sessionStorage.removeItem(CHAT_CLIENT_SESSION_KEY);
+      safeSessionStorage.removeItem(CHAT_CLIENT_SESSION_KEY);
     }
   }
 
   const next = createClientSessionId();
-  window.sessionStorage.setItem(
+  safeSessionStorage.setItem(
     CHAT_CLIENT_SESSION_KEY,
     JSON.stringify({ id: next, lastSeenAt: now }),
   );
