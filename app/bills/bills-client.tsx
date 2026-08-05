@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import { analytics } from '@/lib/analytics';
+import { safeLocalStorage } from '@/lib/safe-storage';
 import { formatCongressOrdinalSpan, formatCongressYearSpan } from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
@@ -65,19 +66,20 @@ export default function BillsClient({
   const [currentPage, setCurrentPage] = useState(initialPage);
   // Filter precedence: URL param (server-applied) > localStorage > default.
   // URL values come in as props so server HTML and first client render agree.
+  // `safeLocalStorage` returns null on the server (and when the browser blocks
+  // storage), so each initializer falls through to its default there.
   const [statusFilter, setStatusFilter] = useState<string>(() =>
-    urlFilters.status ?? (typeof window !== 'undefined' ? localStorage.getItem('billsStatusFilter') || 'all' : 'all')
+    urlFilters.status ?? (safeLocalStorage.getItem('billsStatusFilter') || 'all')
   );
   const [introducedDateFilter, setIntroducedDateFilter] = useState<string>(() =>
-    urlFilters.introducedDate ?? (typeof window !== 'undefined' ? localStorage.getItem('billsIntroducedDateFilter') || 'all' : 'all')
+    urlFilters.introducedDate ?? (safeLocalStorage.getItem('billsIntroducedDateFilter') || 'all')
   );
   const [lastActionDateFilter, setLastActionDateFilter] = useState<string>(() =>
-    urlFilters.lastActionDate ?? (typeof window !== 'undefined' ? localStorage.getItem('billsLastActionDateFilter') || 'all' : 'all')
+    urlFilters.lastActionDate ?? (safeLocalStorage.getItem('billsLastActionDateFilter') || 'all')
   );
   const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => {
     if (urlFilters.sponsor && urlFilters.sponsor.length > 0) return urlFilters.sponsor;
-    if (typeof window === 'undefined') return [];
-    const raw = localStorage.getItem('billsSponsorFilter');
+    const raw = safeLocalStorage.getItem('billsSponsorFilter');
     if (!raw) return [];
     try {
       const parsed = JSON.parse(raw);
@@ -91,26 +93,26 @@ export default function BillsClient({
     return [];
   });
   const [titleFilter, setTitleFilter] = useState(() =>
-    urlFilters.title ?? (typeof window !== 'undefined' ? localStorage.getItem('billsTitleFilter') || '' : '')
+    urlFilters.title ?? (safeLocalStorage.getItem('billsTitleFilter') || '')
   );
   const [stateFilter, setStateFilter] = useState<string>(() =>
-    urlFilters.state ?? (typeof window !== 'undefined' ? localStorage.getItem('billsStateFilter') || 'all' : 'all')
+    urlFilters.state ?? (safeLocalStorage.getItem('billsStateFilter') || 'all')
   );
   const [policyAreaFilter, setPolicyAreaFilter] = useState<string>(() =>
-    urlFilters.policyArea ?? (typeof window !== 'undefined' ? localStorage.getItem('billsPolicyAreaFilter') || 'all' : 'all')
+    urlFilters.policyArea ?? (safeLocalStorage.getItem('billsPolicyAreaFilter') || 'all')
   );
   const [billTypeFilter, setBillTypeFilter] = useState<string>(() =>
-    urlFilters.billType ?? (typeof window !== 'undefined' ? localStorage.getItem('billsTypeFilter') || 'all' : 'all')
+    urlFilters.billType ?? (safeLocalStorage.getItem('billsTypeFilter') || 'all')
   );
   const [billNumberFilter, setBillNumberFilter] = useState(() =>
-    urlFilters.billNumber ?? (typeof window !== 'undefined' ? localStorage.getItem('billsNumberFilter') || '' : '')
+    urlFilters.billNumber ?? (safeLocalStorage.getItem('billsNumberFilter') || '')
   );
   const [isLoading, setIsLoading] = useState(initialBills === null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [congressRange, setCongressRange] = useState<{ oldest: number; newest: number } | null>(initialCongressRange);
   const [congressFilter, setCongressFilter] = useState<string>(() =>
-    urlFilters.congress ?? (typeof window !== 'undefined' ? localStorage.getItem('billsCongressFilter') || 'all' : 'all')
+    urlFilters.congress ?? (safeLocalStorage.getItem('billsCongressFilter') || 'all')
   );
   // The filter state above falls back to localStorage in its initializers, so
   // on the server (no localStorage) it is URL params/defaults, while a returning
@@ -153,18 +155,16 @@ export default function BillsClient({
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('billsStatusFilter', statusFilter);
-      localStorage.setItem('billsIntroducedDateFilter', introducedDateFilter);
-      localStorage.setItem('billsLastActionDateFilter', lastActionDateFilter);
-      localStorage.setItem('billsSponsorFilter', JSON.stringify(sponsorFilter));
-      localStorage.setItem('billsTitleFilter', titleFilter);
-      localStorage.setItem('billsStateFilter', stateFilter);
-      localStorage.setItem('billsPolicyAreaFilter', policyAreaFilter);
-      localStorage.setItem('billsTypeFilter', billTypeFilter);
-      localStorage.setItem('billsNumberFilter', billNumberFilter);
-      localStorage.setItem('billsCongressFilter', congressFilter);
-    }
+    safeLocalStorage.setItem('billsStatusFilter', statusFilter);
+    safeLocalStorage.setItem('billsIntroducedDateFilter', introducedDateFilter);
+    safeLocalStorage.setItem('billsLastActionDateFilter', lastActionDateFilter);
+    safeLocalStorage.setItem('billsSponsorFilter', JSON.stringify(sponsorFilter));
+    safeLocalStorage.setItem('billsTitleFilter', titleFilter);
+    safeLocalStorage.setItem('billsStateFilter', stateFilter);
+    safeLocalStorage.setItem('billsPolicyAreaFilter', policyAreaFilter);
+    safeLocalStorage.setItem('billsTypeFilter', billTypeFilter);
+    safeLocalStorage.setItem('billsNumberFilter', billNumberFilter);
+    safeLocalStorage.setItem('billsCongressFilter', congressFilter);
   }, [
     statusFilter, introducedDateFilter, lastActionDateFilter, sponsorFilter,
     titleFilter, stateFilter, policyAreaFilter, billTypeFilter,
@@ -185,13 +185,11 @@ export default function BillsClient({
     setBillNumberFilter('');
     setCongressFilter('all');
 
-    if (typeof window !== 'undefined') {
-      [
-        'billsStatusFilter','billsIntroducedDateFilter','billsLastActionDateFilter',
-        'billsSponsorFilter','billsTitleFilter','billsStateFilter',
-        'billsPolicyAreaFilter','billsTypeFilter','billsNumberFilter','billsCongressFilter',
-      ].forEach((k) => localStorage.removeItem(k));
-    }
+    [
+      'billsStatusFilter','billsIntroducedDateFilter','billsLastActionDateFilter',
+      'billsSponsorFilter','billsTitleFilter','billsStateFilter',
+      'billsPolicyAreaFilter','billsTypeFilter','billsNumberFilter','billsCongressFilter',
+    ].forEach((k) => safeLocalStorage.removeItem(k));
   };
 
   // Count of filters that differ from their defaults (for analytics properties).

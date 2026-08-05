@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
+import { safeLocalStorage, safeSessionStorage } from "@/lib/safe-storage";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useConvexEnabled } from "@/app/ConvexClientProvider";
@@ -15,8 +16,7 @@ const SIGNUP_CELEBRATION_PENDING_KEY = "bic_signup_celebration_pending";
 const SIGNUP_CELEBRATION_WINDOW_MS = 10 * 60 * 1000;
 
 export function markSignupCelebrationPending() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(SIGNUP_CELEBRATION_PENDING_KEY, "1");
+  safeSessionStorage.setItem(SIGNUP_CELEBRATION_PENDING_KEY, "1");
 }
 
 export function WelcomeNewUser() {
@@ -27,19 +27,19 @@ export function WelcomeNewUser() {
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
-    if (!user || typeof window === "undefined") return;
+    if (!user) return;
 
     const hasPendingCelebration =
-      window.sessionStorage.getItem(SIGNUP_CELEBRATION_PENDING_KEY) === "1";
+      safeSessionStorage.getItem(SIGNUP_CELEBRATION_PENDING_KEY) === "1";
     if (!hasPendingCelebration) return;
 
-    window.sessionStorage.removeItem(SIGNUP_CELEBRATION_PENDING_KEY);
+    safeSessionStorage.removeItem(SIGNUP_CELEBRATION_PENDING_KEY);
 
     const seenKey = `bic_joined_celebration_seen:${user._id}`;
     const isFreshAccount = Date.now() - user._creationTime < SIGNUP_CELEBRATION_WINDOW_MS;
-    if (!isFreshAccount || window.localStorage.getItem(seenKey) === "1") return;
+    if (!isFreshAccount || safeLocalStorage.getItem(seenKey) === "1") return;
 
-    window.localStorage.setItem(seenKey, "1");
+    safeLocalStorage.setItem(seenKey, "1");
     analytics.welcomeModalShown();
     setOpen(true);
   }, [user]);
