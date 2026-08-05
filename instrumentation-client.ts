@@ -12,8 +12,10 @@ const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
 if (POSTHOG_KEY) {
   posthog.init(POSTHOG_KEY, {
-    // Direct US Cloud ingestion. Do NOT switch this to a Next.js rewrite proxy:
-    // external rewrites have known bugs on OpenNext/Cloudflare (see ANALYTICS.md).
+    // Ingestion goes through PostHog's managed reverse proxy on our own domain
+    // (`t.billsincongress.com`) so ad-blockers don't drop events. Do NOT switch
+    // this to a Next.js rewrite proxy: external rewrites have known bugs on
+    // OpenNext/Cloudflare (see ANALYTICS.md).
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
     ui_host: 'https://us.posthog.com',
     // Pin PostHog's recommended defaults snapshot (history-API pageviews,

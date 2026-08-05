@@ -503,6 +503,36 @@ export const list = query({
     const { matchesNone, match } = await buildBillPredicate(ctx, args);
     if (matchesNone) return { data: [], hasMore: false };
 
+    // Fast path: bill number is an exact indexed lookup — skip the scan cap entirely.
+    // A congress typically has at most ~8 bills with the same number (one per bill type),
+    // so collect() is safe here.
+    if (args.billNumber) {
+      const hits = await ctx.db
+        .query("bills")
+        .withIndex("by_congress_and_bill_number", (q) =>
+          q.eq("congress", congressFilter).eq("billNumber", args.billNumber!)
+        )
+        .collect();
+      const filtered = hits.filter(match);
+      const hasMore = filtered.length > offset + limit;
+      const page = filtered.slice(offset, offset + limit);
+      const enrichedPage = await Promise.all(
+        page.map(async (bill) => {
+          const subject = await ctx.db
+            .query("billSubjects")
+            .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+            .first();
+          return {
+            ...bill,
+            bill_subjects: subject
+              ? { policy_area_name: subject.policyAreaName || "" }
+              : { policy_area_name: "" },
+          };
+        })
+      );
+      return { data: enrichedPage, hasMore };
+    }
+
     const needed = offset + limit + 1;
     const matches: Doc<"bills">[] = [];
     let scanned = 0;
