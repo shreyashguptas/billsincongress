@@ -197,23 +197,42 @@ These are the saved insights the project should maintain in the PostHog UI:
 
 | Env var | Value | Where it lives |
 |---|---|---|
-| `NEXT_PUBLIC_POSTHOG_KEY` | The project's public API key (`phc_…`) | `.env.local` (build-time; deploys are run from this machine, so this also covers production) |
-| `NEXT_PUBLIC_POSTHOG_HOST` | `https://us.i.posthog.com` | `.env.local` |
+| `NEXT_PUBLIC_POSTHOG_KEY` | The project's public API key (`phc_…`) | `.env.local` for local dev **and** a GitHub Actions repo secret for deploys |
+| `NEXT_PUBLIC_POSTHOG_HOST` | `https://t.billsincongress.com` (reverse proxy — see below) | `.env.local` for local dev **and** a GitHub Actions repo secret for deploys |
 
 - The key is a **public** client key (it ships in the JS bundle by design); it is not a secret.
 - If PostHog env vars are missing, all analytics code no-ops — the site works fine without them.
-- If deploys ever move to CI (GitHub Actions / Cloudflare Workers Builds), these two vars
-  must be added to that build environment too.
+- Both vars are **build-time**, and deploys run in CI (`.github/workflows/deploy.yml`, and
+  `ci.yml` for builds). Changing either one means updating **both** `.env.local` and the
+  GitHub repo secret (`gh secret set <NAME>`) — updating only the local file has no effect
+  on production.
 
-### Known limitation / future upgrade: reverse proxy
+### Reverse proxy (managed by PostHog)
 
-Events currently go directly to `us.i.posthog.com`, which some ad-blockers block.
-The standard fix (Next.js `/ingest` rewrites) is **not safe on OpenNext/Cloudflare**
-(known bugs: ETag/304 breakage, redirect mishandling). The right upgrade later is a
-small dedicated Cloudflare Worker proxy per
-[PostHog's Cloudflare proxy docs](https://posthog.com/docs/advanced/proxy/cloudflare),
-then pointing `NEXT_PUBLIC_POSTHOG_HOST` at it. Until then expect slight undercounting
-of ad-blocker users.
+Events are sent to `https://t.billsincongress.com`, a **PostHog managed reverse proxy**
+on our own domain, so ad-blockers that blocklist `*.posthog.com` don't silently drop
+events. Set up 2026-08-05.
+
+How it works:
+
+- A `CNAME` record for `t` in the `billsincongress.com` Cloudflare zone points at a
+  PostHog-issued target (`…​.cf-prod-us-proxy.proxyhog.com`).
+- The record **must stay "DNS only" (grey cloud)** in Cloudflare. Turning the orange
+  cloud on breaks PostHog's SSL provisioning.
+- PostHog issues and renews the certificate; there is nothing for us to maintain and it
+  is free on PostHog Cloud.
+- The subdomain is deliberately generic (`t`, not `analytics`/`ph`/`posthog`) because
+  ad-blockers blocklist those words.
+- Managed in PostHog under Settings → Managed reverse proxy.
+
+Notes:
+
+- `ui_host` stays `https://us.posthog.com` so toolbar/replay links point at the real app.
+- Both browser events and server-side events (`lib/posthog-server.ts`) go through the
+  proxy, since both read `NEXT_PUBLIC_POSTHOG_HOST`.
+- This replaces the previously-planned custom Cloudflare Worker proxy — no Worker needed.
+  A Next.js `/ingest` rewrite is still **not safe** on OpenNext/Cloudflare (known
+  ETag/304 and redirect bugs), so don't reintroduce one.
 
 ### PostHog CLI
 
