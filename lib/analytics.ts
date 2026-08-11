@@ -155,6 +155,17 @@ export const analytics = {
   billsNoResults: (activeFilterCount: number, titleQuery: string) =>
     capture('bills_no_results', { active_filter_count: activeFilterCount, title_query: titleQuery }),
 
+  /**
+   * A reader dropped one filter from the empty-result state's chip row. Tells us
+   * whether the escape hatch out of a dead end is actually being used, and which
+   * filter people blame first. `filterKind` is the filter's key, never its value.
+   */
+  billsNoResultsFilterRemoved: (filterKind: string, activeFilterCount: number) =>
+    capture('bills_no_results_filter_removed', {
+      filter_kind: filterKind,
+      active_filter_count: activeFilterCount,
+    }),
+
   billCardClicked: (props: {
     bill_id: string;
     bill_type: string;

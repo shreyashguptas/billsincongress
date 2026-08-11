@@ -4,17 +4,77 @@ import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { billsService } from '@/lib/services/bills-service';
 import { analytics } from '@/lib/analytics';
-import { safeLocalStorage } from '@/lib/safe-storage';
-import { formatCongressOrdinalSpan, formatCongressYearSpan } from '@/lib/congress';
+import {
+  formatCongressOrdinal,
+  formatCongressOrdinalSpan,
+  formatCongressYearSpan,
+} from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import BillCard from '@/components/bills/bill-card';
 import { FilterQuickAccess } from '@/components/bills/mobile-filter-bar';
-import { filterSignature } from './filter-signature';
+import {
+  DEFAULT_FILTER_VALUES,
+  filterSignature,
+  type BillsFilterValues,
+} from './filter-signature';
+import {
+  BILL_TYPES,
+  DATE_OPTIONS,
+  STATE_NAMES,
+  STATUS_OPTIONS,
+} from '@/lib/constants/filters';
+
+/** Chip labels reuse the filter controls' own wording, so the empty state names
+ * a filter the same way the control that set it does. Falls back to the raw
+ * value rather than hiding an unrecognised one. */
+const labelFor = (
+  options: ReadonlyArray<{ value: string; label: string }>,
+  value: string,
+) => options.find((o) => o.value === value)?.label ?? value;
 
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
 const ITEMS_PER_PAGE = 10;
+
+/**
+ * Serialise a filter set back into a query string, omitting anything still at
+ * its default. Param names match what `app/bills/page.tsx` parses, so a URL
+ * built here server-renders the same results it shows on the client.
+ */
+function buildFilterQuery(f: BillsFilterValues): string {
+  const p = new URLSearchParams();
+  if (f.status !== 'all') p.set('status', f.status);
+  if (f.introducedDate !== 'all') p.set('introducedDate', f.introducedDate);
+  if (f.lastActionDate !== 'all') p.set('lastActionDate', f.lastActionDate);
+  if (f.title !== '') p.set('title', f.title);
+  if (f.state !== 'all') p.set('state', f.state);
+  if (f.policyArea !== 'all') p.set('policyArea', f.policyArea);
+  if (f.billType !== 'all') p.set('billType', f.billType);
+  if (f.billNumber !== '') p.set('billNumber', f.billNumber);
+  if (f.congress !== 'all') p.set('congress', f.congress);
+  for (const s of f.sponsor) p.append('sponsor', s);
+  const qs = p.toString();
+  return qs ? `?${qs}` : '';
+}
+
+/** Inverse of `buildFilterQuery` — used when the user navigates back/forward. */
+function filtersFromQuery(search: string): BillsFilterValues {
+  const p = new URLSearchParams(search);
+  const one = (key: string, fallback: string) => p.get(key) ?? fallback;
+  return {
+    status: one('status', DEFAULT_FILTER_VALUES.status),
+    introducedDate: one('introducedDate', DEFAULT_FILTER_VALUES.introducedDate),
+    lastActionDate: one('lastActionDate', DEFAULT_FILTER_VALUES.lastActionDate),
+    sponsor: p.getAll('sponsor').filter((s) => s !== ''),
+    title: one('title', DEFAULT_FILTER_VALUES.title),
+    state: one('state', DEFAULT_FILTER_VALUES.state),
+    policyArea: one('policyArea', DEFAULT_FILTER_VALUES.policyArea),
+    billType: one('billType', DEFAULT_FILTER_VALUES.billType),
+    billNumber: one('billNumber', DEFAULT_FILTER_VALUES.billNumber),
+    congress: one('congress', DEFAULT_FILTER_VALUES.congress),
+  };
+}
 
 /** Filter values the server derived from URL search params (absent = not in URL). */
 export interface UrlFilters {
@@ -43,7 +103,6 @@ export interface BillsClientProps {
    * is skipped — the server-rendered results are already correct.
    */
   serverFilterSignature: string;
-  hadUrlParams: boolean;
   /** Oldest/newest Congress with data — drives the header's year span. */
   congressRange: { oldest: number; newest: number } | null;
 }
@@ -55,7 +114,6 @@ export default function BillsClient({
   initialPage,
   urlFilters,
   serverFilterSignature,
-  hadUrlParams,
   congressRange: initialCongressRange,
 }: BillsClientProps) {
   const [bills, setBills] = useState<Bill[]>(initialBills ?? []);
@@ -64,67 +122,60 @@ export default function BillsClient({
   // so bills appear fast. `null` means "still loading / unknown".
   const [totalBills, setTotalBills] = useState<number | null>(initialTotal);
   const [currentPage, setCurrentPage] = useState(initialPage);
-  // Filter precedence: URL param (server-applied) > localStorage > default.
-  // URL values come in as props so server HTML and first client render agree.
-  // `safeLocalStorage` returns null on the server (and when the browser blocks
-  // storage), so each initializer falls through to its default there.
-  const [statusFilter, setStatusFilter] = useState<string>(() =>
-    urlFilters.status ?? (safeLocalStorage.getItem('billsStatusFilter') || 'all')
+  // The URL is the single source of truth for filters. Values arrive as props
+  // the server already applied, so server HTML and the first client render
+  // always agree — and a filtered view can be shared, bookmarked, and walked
+  // back through. Filters are deliberately NOT persisted to browser storage:
+  // silently re-applying a previous visit's filters produced an unexplained
+  // "No bills found" for 358 people a month.
+  const [statusFilter, setStatusFilter] = useState<string>(
+    () => urlFilters.status ?? DEFAULT_FILTER_VALUES.status
   );
-  const [introducedDateFilter, setIntroducedDateFilter] = useState<string>(() =>
-    urlFilters.introducedDate ?? (safeLocalStorage.getItem('billsIntroducedDateFilter') || 'all')
+  const [introducedDateFilter, setIntroducedDateFilter] = useState<string>(
+    () => urlFilters.introducedDate ?? DEFAULT_FILTER_VALUES.introducedDate
   );
-  const [lastActionDateFilter, setLastActionDateFilter] = useState<string>(() =>
-    urlFilters.lastActionDate ?? (safeLocalStorage.getItem('billsLastActionDateFilter') || 'all')
+  const [lastActionDateFilter, setLastActionDateFilter] = useState<string>(
+    () => urlFilters.lastActionDate ?? DEFAULT_FILTER_VALUES.lastActionDate
   );
-  const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => {
-    if (urlFilters.sponsor && urlFilters.sponsor.length > 0) return urlFilters.sponsor;
-    const raw = safeLocalStorage.getItem('billsSponsorFilter');
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.filter((s): s is string => typeof s === 'string');
-    } catch {
-      // Legacy single-string value — treat it as one pre-selected sponsor only
-      // if it looks like a full name ("First Last"). Otherwise drop it; the old
-      // fuzzy filter would have matched anything, and we no longer support that.
-      if (/^[\p{L} .'\-]+\s+[\p{L} .'\-]+$/u.test(raw)) return [raw];
-    }
-    return [];
-  });
-  const [titleFilter, setTitleFilter] = useState(() =>
-    urlFilters.title ?? (safeLocalStorage.getItem('billsTitleFilter') || '')
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>(
+    () => urlFilters.sponsor ?? DEFAULT_FILTER_VALUES.sponsor
   );
-  const [stateFilter, setStateFilter] = useState<string>(() =>
-    urlFilters.state ?? (safeLocalStorage.getItem('billsStateFilter') || 'all')
+  const [titleFilter, setTitleFilter] = useState(
+    () => urlFilters.title ?? DEFAULT_FILTER_VALUES.title
   );
-  const [policyAreaFilter, setPolicyAreaFilter] = useState<string>(() =>
-    urlFilters.policyArea ?? (safeLocalStorage.getItem('billsPolicyAreaFilter') || 'all')
+  const [stateFilter, setStateFilter] = useState<string>(
+    () => urlFilters.state ?? DEFAULT_FILTER_VALUES.state
   );
-  const [billTypeFilter, setBillTypeFilter] = useState<string>(() =>
-    urlFilters.billType ?? (safeLocalStorage.getItem('billsTypeFilter') || 'all')
+  const [policyAreaFilter, setPolicyAreaFilter] = useState<string>(
+    () => urlFilters.policyArea ?? DEFAULT_FILTER_VALUES.policyArea
   );
-  const [billNumberFilter, setBillNumberFilter] = useState(() =>
-    urlFilters.billNumber ?? (safeLocalStorage.getItem('billsNumberFilter') || '')
+  const [billTypeFilter, setBillTypeFilter] = useState<string>(
+    () => urlFilters.billType ?? DEFAULT_FILTER_VALUES.billType
+  );
+  const [billNumberFilter, setBillNumberFilter] = useState(
+    () => urlFilters.billNumber ?? DEFAULT_FILTER_VALUES.billNumber
   );
   const [isLoading, setIsLoading] = useState(initialBills === null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [congressRange, setCongressRange] = useState<{ oldest: number; newest: number } | null>(initialCongressRange);
-  const [congressFilter, setCongressFilter] = useState<string>(() =>
-    urlFilters.congress ?? (safeLocalStorage.getItem('billsCongressFilter') || 'all')
+  const [congressFilter, setCongressFilter] = useState<string>(
+    () => urlFilters.congress ?? DEFAULT_FILTER_VALUES.congress
   );
-  // The filter state above falls back to localStorage in its initializers, so
-  // on the server (no localStorage) it is URL params/defaults, while a returning
-  // user's browser restores their saved filters. Any markup that depends on
-  // filter state therefore differs between the server HTML and the first client
-  // render, which throws React hydration error #418. Gate such markup on
-  // `mounted` so it only renders after hydration, when client and server agree.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
+  const filterValues: BillsFilterValues = {
+    status: statusFilter,
+    introducedDate: introducedDateFilter,
+    lastActionDate: lastActionDateFilter,
+    sponsor: sponsorFilter,
+    title: titleFilter,
+    state: stateFilter,
+    policyArea: policyAreaFilter,
+    billType: billTypeFilter,
+    billNumber: billNumberFilter,
+    congress: congressFilter,
+  };
+  const currentSignature = filterSignature(filterValues);
   useEffect(() => {
     if (congressRange) return;
     const fetchCongressRange = async () => {
@@ -144,32 +195,54 @@ export default function BillsClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // URL params are one-shot drill-down seeds (homepage → /bills?congress=119…).
-  // The server already applied them; strip them so refresh/back doesn't re-pin
-  // the filters. Invisible to crawlers (no JS).
-  useEffect(() => {
-    if (hadUrlParams && typeof window !== 'undefined' && window.location.search) {
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Mirror filter state into the address bar. Uses the History API directly
+  // rather than the Next router: the results are already fetched client-side, so
+  // a router navigation would re-render the server component and fetch the same
+  // page twice.
+  const syncedSignature = useRef(serverFilterSignature);
+  const syncedText = useRef(`${titleFilter} ${billNumberFilter}`);
 
   useEffect(() => {
-    safeLocalStorage.setItem('billsStatusFilter', statusFilter);
-    safeLocalStorage.setItem('billsIntroducedDateFilter', introducedDateFilter);
-    safeLocalStorage.setItem('billsLastActionDateFilter', lastActionDateFilter);
-    safeLocalStorage.setItem('billsSponsorFilter', JSON.stringify(sponsorFilter));
-    safeLocalStorage.setItem('billsTitleFilter', titleFilter);
-    safeLocalStorage.setItem('billsStateFilter', stateFilter);
-    safeLocalStorage.setItem('billsPolicyAreaFilter', policyAreaFilter);
-    safeLocalStorage.setItem('billsTypeFilter', billTypeFilter);
-    safeLocalStorage.setItem('billsNumberFilter', billNumberFilter);
-    safeLocalStorage.setItem('billsCongressFilter', congressFilter);
-  }, [
-    statusFilter, introducedDateFilter, lastActionDateFilter, sponsorFilter,
-    titleFilter, stateFilter, policyAreaFilter, billTypeFilter,
-    billNumberFilter, congressFilter,
-  ]);
+    if (typeof window === 'undefined') return;
+    if (currentSignature === syncedSignature.current) return;
+
+    const text = `${titleFilter} ${billNumberFilter}`;
+    const textChanged = text !== syncedText.current;
+    syncedSignature.current = currentSignature;
+    syncedText.current = text;
+
+    const url = `${window.location.pathname}${buildFilterQuery(filterValues)}`;
+    // Typing replaces the current entry, so Back doesn't have to walk through
+    // every keystroke. Choosing a dropdown value pushes a real entry, so Back
+    // returns to the previous filter set.
+    if (textChanged) window.history.replaceState({}, '', url);
+    else window.history.pushState({}, '', url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSignature]);
+
+  // Back/forward: re-read the filters out of the URL we just walked to. The
+  // signature refs are updated first so the sync effect above treats this as
+  // already-current and doesn't push the entry straight back on.
+  useEffect(() => {
+    const onPopState = () => {
+      const f = filtersFromQuery(window.location.search);
+      syncedSignature.current = filterSignature(f);
+      syncedText.current = `${f.title} ${f.billNumber}`;
+      setCurrentPage(1);
+      setStatusFilter(f.status);
+      setIntroducedDateFilter(f.introducedDate);
+      setLastActionDateFilter(f.lastActionDate);
+      setSponsorFilter(f.sponsor);
+      setTitleFilter(f.title);
+      setStateFilter(f.state);
+      setPolicyAreaFilter(f.policyArea);
+      setBillTypeFilter(f.billType);
+      setBillNumberFilter(f.billNumber);
+      setCongressFilter(f.congress);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const handleClearAllFilters = () => {
     analytics.billsFiltersCleared();
@@ -184,29 +257,86 @@ export default function BillsClient({
     setBillTypeFilter('all');
     setBillNumberFilter('');
     setCongressFilter('all');
-
-    [
-      'billsStatusFilter','billsIntroducedDateFilter','billsLastActionDateFilter',
-      'billsSponsorFilter','billsTitleFilter','billsStateFilter',
-      'billsPolicyAreaFilter','billsTypeFilter','billsNumberFilter','billsCongressFilter',
-    ].forEach((k) => safeLocalStorage.removeItem(k));
   };
 
-  // Count of filters that differ from their defaults (for analytics properties).
-  const countActiveFilters = () => {
-    let n = 0;
-    if (statusFilter !== 'all') n++;
-    if (introducedDateFilter !== 'all') n++;
-    if (lastActionDateFilter !== 'all') n++;
-    if (sponsorFilter.length > 0) n++;
-    if (titleFilter !== '') n++;
-    if (stateFilter !== 'all') n++;
-    if (policyAreaFilter !== 'all') n++;
-    if (billTypeFilter !== 'all') n++;
-    if (billNumberFilter !== '') n++;
-    if (congressFilter !== 'all') n++;
-    return n;
-  };
+  /**
+   * One chip per active filter, so an empty result can name exactly what is
+   * narrowing it and let the reader drop constraints one at a time.
+   */
+  const activeFilterChips: Array<{ kind: string; label: string; clear: () => void }> = [];
+  if (congressFilter !== 'all') {
+    activeFilterChips.push({
+      kind: 'congress',
+      label: `${formatCongressOrdinal(Number(congressFilter))} Congress`,
+      clear: () => setCongressFilter('all'),
+    });
+  }
+  if (titleFilter !== '') {
+    activeFilterChips.push({
+      kind: 'title',
+      label: `Title contains “${titleFilter}”`,
+      clear: () => setTitleFilter(''),
+    });
+  }
+  if (billNumberFilter !== '') {
+    activeFilterChips.push({
+      kind: 'bill_number',
+      label: `Bill number ${billNumberFilter}`,
+      clear: () => setBillNumberFilter(''),
+    });
+  }
+  if (statusFilter !== 'all') {
+    activeFilterChips.push({
+      kind: 'status',
+      label: labelFor(STATUS_OPTIONS, statusFilter),
+      clear: () => setStatusFilter('all'),
+    });
+  }
+  if (billTypeFilter !== 'all') {
+    activeFilterChips.push({
+      kind: 'bill_type',
+      label: BILL_TYPES[billTypeFilter as keyof typeof BILL_TYPES] ?? billTypeFilter,
+      clear: () => setBillTypeFilter('all'),
+    });
+  }
+  if (policyAreaFilter !== 'all') {
+    activeFilterChips.push({
+      kind: 'policy_area',
+      label: `Policy area: ${policyAreaFilter}`,
+      clear: () => setPolicyAreaFilter('all'),
+    });
+  }
+  if (stateFilter !== 'all') {
+    activeFilterChips.push({
+      kind: 'state',
+      label: STATE_NAMES[stateFilter] ?? stateFilter,
+      clear: () => setStateFilter('all'),
+    });
+  }
+  if (sponsorFilter.length > 0) {
+    activeFilterChips.push({
+      kind: 'sponsor',
+      label:
+        sponsorFilter.length === 1
+          ? `Sponsor: ${sponsorFilter[0]}`
+          : `${sponsorFilter.length} sponsors`,
+      clear: () => setSponsorFilter([]),
+    });
+  }
+  if (introducedDateFilter !== 'all') {
+    activeFilterChips.push({
+      kind: 'introduced_date',
+      label: `Introduced: ${labelFor(DATE_OPTIONS, introducedDateFilter).toLowerCase()}`,
+      clear: () => setIntroducedDateFilter('all'),
+    });
+  }
+  if (lastActionDateFilter !== 'all') {
+    activeFilterChips.push({
+      kind: 'last_action_date',
+      label: `Acted on: ${labelFor(DATE_OPTIONS, lastActionDateFilter).toLowerCase()}`,
+      clear: () => setLastActionDateFilter('all'),
+    });
+  }
 
   const handleLoadMore = async () => {
     setIsLoadingMore(true);
@@ -240,27 +370,14 @@ export default function BillsClient({
     }
   };
 
-  // Skip the initial fetch when the server already rendered these exact
-  // results (no localStorage divergence). When a returning user's saved
-  // filters differ from what the server applied, fall through and refetch —
-  // same UX as before SSR.
+  // Skip the initial fetch: filters now come only from the URL, so the
+  // server-rendered results always match the first client render. The signature
+  // check stays as a cheap guard in case a future prop path diverges.
   const isFirstFetchRun = useRef(true);
 
   useEffect(() => {
     if (isFirstFetchRun.current) {
       isFirstFetchRun.current = false;
-      const currentSignature = filterSignature({
-        status: statusFilter,
-        introducedDate: introducedDateFilter,
-        lastActionDate: lastActionDateFilter,
-        sponsor: sponsorFilter,
-        title: titleFilter,
-        state: stateFilter,
-        policyArea: policyAreaFilter,
-        billType: billTypeFilter,
-        billNumber: billNumberFilter,
-        congress: congressFilter,
-      });
       if (initialBills !== null && currentSignature === serverFilterSignature) {
         return;
       }
@@ -300,12 +417,8 @@ export default function BillsClient({
         setHasMore(response.hasMore);
         setCurrentPage(1);
         // UX friction signal: an active filter combination matched nothing.
-        if (response.data.length === 0 && hasFiltersActive(
-          statusFilter, introducedDateFilter, lastActionDateFilter,
-          sponsorFilter, titleFilter, stateFilter, policyAreaFilter,
-          billTypeFilter, billNumberFilter, congressFilter,
-        )) {
-          analytics.billsNoResults(countActiveFilters(), titleFilter);
+        if (response.data.length === 0 && activeFilterChips.length > 0) {
+          analytics.billsNoResults(activeFilterChips.length, titleFilter);
         }
       })
       .catch((e) => {
@@ -337,20 +450,12 @@ export default function BillsClient({
     billNumberFilter, congressFilter,
   ]);
 
-  const filtersActive = hasFiltersActive(
-    statusFilter, introducedDateFilter, lastActionDateFilter,
-    sponsorFilter, titleFilter, stateFilter, policyAreaFilter,
-    billTypeFilter, billNumberFilter, congressFilter,
-  );
+  const filtersActive = activeFilterChips.length > 0;
 
-  // Signature of the active filter set. Re-keying the results grid on this
-  // makes the new cards cross-fade/stagger in when filters change, while a
-  // "load more" (same signature) leaves the existing cards untouched.
-  const resultsKey = [
-    statusFilter, introducedDateFilter, lastActionDateFilter,
-    sponsorFilter.join(','), titleFilter, stateFilter, policyAreaFilter,
-    billTypeFilter, billNumberFilter, congressFilter,
-  ].join('|');
+  // Re-keying the results grid on the filter signature makes new cards
+  // cross-fade/stagger in when filters change, while a "load more" (same
+  // signature) leaves the existing cards untouched.
+  const resultsKey = currentSignature;
 
   return (
     <div>
@@ -382,34 +487,32 @@ export default function BillsClient({
 
       <div className="container-editorial py-8 lg:py-10">
         {/* Quick-access filters — always visible, all screens */}
-        {mounted && (
-          <div className="mb-5">
-            <FilterQuickAccess
-              statusFilter={statusFilter}
-              introducedDateFilter={introducedDateFilter}
-              lastActionDateFilter={lastActionDateFilter}
-              sponsorFilter={sponsorFilter}
-              titleFilter={titleFilter}
-              stateFilter={stateFilter}
-              policyAreaFilter={policyAreaFilter}
-              billTypeFilter={billTypeFilter}
-              billNumberFilter={billNumberFilter}
-              congressFilter={congressFilter}
-              onStatusChange={setStatusFilter}
-              onIntroducedDateChange={setIntroducedDateFilter}
-              onLastActionDateChange={setLastActionDateFilter}
-              onSponsorChange={setSponsorFilter}
-              onTitleChange={setTitleFilter}
-              onStateChange={setStateFilter}
-              onPolicyAreaChange={setPolicyAreaFilter}
-              onBillTypeChange={setBillTypeFilter}
-              onBillNumberChange={setBillNumberFilter}
-              onCongressChange={setCongressFilter}
-              onClearAllFilters={handleClearAllFilters}
-              filtersActive={filtersActive}
-            />
-          </div>
-        )}
+        <div className="mb-5">
+          <FilterQuickAccess
+            statusFilter={statusFilter}
+            introducedDateFilter={introducedDateFilter}
+            lastActionDateFilter={lastActionDateFilter}
+            sponsorFilter={sponsorFilter}
+            titleFilter={titleFilter}
+            stateFilter={stateFilter}
+            policyAreaFilter={policyAreaFilter}
+            billTypeFilter={billTypeFilter}
+            billNumberFilter={billNumberFilter}
+            congressFilter={congressFilter}
+            onStatusChange={setStatusFilter}
+            onIntroducedDateChange={setIntroducedDateFilter}
+            onLastActionDateChange={setLastActionDateFilter}
+            onSponsorChange={setSponsorFilter}
+            onTitleChange={setTitleFilter}
+            onStateChange={setStateFilter}
+            onPolicyAreaChange={setPolicyAreaFilter}
+            onBillTypeChange={setBillTypeFilter}
+            onBillNumberChange={setBillNumberFilter}
+            onCongressChange={setCongressFilter}
+            onClearAllFilters={handleClearAllFilters}
+            filtersActive={filtersActive}
+          />
+        </div>
 
         <div className="flex flex-col gap-10 lg:gap-12">
           {/* Results column */}
@@ -431,7 +534,7 @@ export default function BillsClient({
                       </>
                     )}
                     {' '}bills
-                    {mounted && filtersActive && <span className="ml-1">· filtered</span>}
+                    {filtersActive && <span className="ml-1">· filtered</span>}
                   </>
                 ) : isLoading ? (
                   'Loading…'
@@ -468,11 +571,50 @@ export default function BillsClient({
                   </div>
                 ))
               ) : (
-                <div className="col-span-full border border-dashed border-border rounded-sm p-12 text-center">
+                <div className="col-span-full border border-dashed border-border rounded-sm p-8 sm:p-12 text-center">
                   <p className="font-serif text-xl tracking-tight mb-2">No bills found</p>
-                  <p className="text-sm text-muted-foreground">
-                    Try removing some filters to broaden the search.
-                  </p>
+                  {filtersActive ? (
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        No bill matches{' '}
+                        {activeFilterChips.length === 1
+                          ? 'this filter'
+                          : `all ${activeFilterChips.length} of these filters`}
+                        . Remove one to widen the search.
+                      </p>
+                      <div className="mt-5 flex flex-wrap justify-center gap-2">
+                        {activeFilterChips.map((chip) => (
+                          <button
+                            key={chip.label}
+                            type="button"
+                            onClick={() => {
+                              analytics.billsNoResultsFilterRemoved(
+                                chip.kind,
+                                activeFilterChips.length,
+                              );
+                              chip.clear();
+                            }}
+                            className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <span className="truncate">{chip.label}</span>
+                            <span aria-hidden="true" className="text-muted-foreground group-hover:text-foreground">
+                              ×
+                            </span>
+                            <span className="sr-only">Remove this filter</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-5">
+                        <Button onClick={handleClearAllFilters} variant="outline" size="sm">
+                          Clear all filters
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No bills are available right now. Please try again shortly.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -491,28 +633,3 @@ export default function BillsClient({
   );
 }
 
-function hasFiltersActive(
-  statusFilter: string,
-  introducedDateFilter: string,
-  lastActionDateFilter: string,
-  sponsorFilter: string[],
-  titleFilter: string,
-  stateFilter: string,
-  policyAreaFilter: string,
-  billTypeFilter: string,
-  billNumberFilter: string,
-  congressFilter: string,
-) {
-  return (
-    statusFilter !== 'all' ||
-    introducedDateFilter !== 'all' ||
-    lastActionDateFilter !== 'all' ||
-    sponsorFilter.length > 0 ||
-    titleFilter !== '' ||
-    stateFilter !== 'all' ||
-    policyAreaFilter !== 'all' ||
-    billTypeFilter !== 'all' ||
-    billNumberFilter !== '' ||
-    congressFilter !== 'all'
-  );
-}

@@ -52,7 +52,6 @@ function parseRequest(params: SearchParams): {
   urlFilters: UrlFilters;
   applied: BillsFilterValues;
   page: number;
-  hadUrlParams: boolean;
 } {
   const urlFilters: UrlFilters = {
     status: firstValue(params.status),
@@ -84,14 +83,12 @@ function parseRequest(params: SearchParams): {
   const rawPage = Number.parseInt(firstValue(params.page) ?? '1', 10);
   const page = Math.min(Math.max(Number.isNaN(rawPage) ? 1 : rawPage, 1), MAX_PAGE);
 
-  const hadUrlParams = Object.keys(params).length > 0;
-
-  return { urlFilters, applied, page, hadUrlParams };
+  return { urlFilters, applied, page };
 }
 
 export default async function BillsPage({ searchParams }: PageProps): Promise<ReactElement> {
   const params = await searchParams;
-  const { urlFilters, applied, page, hadUrlParams } = parseRequest(params);
+  const { urlFilters, applied, page } = parseRequest(params);
 
   const serviceArgs = {
     status: applied.status,
@@ -144,7 +141,6 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
       initialPage={page}
       urlFilters={urlFilters}
       serverFilterSignature={filterSignature(applied)}
-      hadUrlParams={hadUrlParams}
       congressRange={congressRange}
     />
   );
