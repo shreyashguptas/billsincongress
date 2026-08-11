@@ -404,7 +404,6 @@ async function resolveCongress(
 async function buildBillPredicate(
   ctx: QueryCtx,
   args: BillsFilterArgs,
-  options: { skipTitleFilter?: boolean } = {},
 ): Promise<{
   matchesNone: boolean;
   match: (bill: Doc<"bills">) => boolean;
@@ -424,17 +423,19 @@ async function buildBillPredicate(
     }
   }
 
-  // When the caller resolves the text query through the `search_title` index,
-  // the substring check here must not run: it would undo the index's typo
-  // tolerance and trailing-prefix matching (a search for "sunshin" finds
-  // "Sunshine Protection Act", which no `includes()` check would keep).
-  const titleWords =
-    args.titleFilter && !options.skipTitleFilter
-      ? args.titleFilter
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length > 0)
-      : null;
+  // Every word must appear in the title. On the `search_title` path this narrows
+  // the index's relevance-ranked OR into an AND, which it has to: Convex text
+  // search matches documents containing *any* term, so "sunshine protection act"
+  // matches all 1,024 bills with "act" in the title and the result count stops
+  // meaning anything. Prefix typing still resolves — "sunshine protection act of
+  // 2025" contains "sunshin" — and the index's relevance ranking puts
+  // every-term matches at the top, so they survive the 1,024-result ceiling.
+  const titleWords = args.titleFilter
+    ? args.titleFilter
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 0)
+    : null;
 
   // Exact full-name match against a normalised set (lowercase, collapsed
   // whitespace). Matches the semantics of the multi-select sponsor combobox.
@@ -503,8 +504,15 @@ async function enrichWithSubjects(ctx: QueryCtx, page: Doc<"bills">[]) {
  * recently a bill was introduced. Results come back relevance-ordered rather
  * than newest-first, which is the right ordering for a query.
  *
- * `capped` reports that the result hit SEARCH_LIMIT, so callers know the count
- * is a floor and not an exact total.
+ * Convex text search is an OR across terms, so `match` (which requires every
+ * word to appear in the title) does the narrowing afterwards. That ordering
+ * matters for the count: without it, "sunshine protection act" reports the
+ * 1,024-result ceiling because every bill with "act" in its title is a hit.
+ *
+ * `capped` therefore reports whether the *narrowed* set filled the ceiling.
+ * Convex ranks documents matching more terms higher, so every-term matches sit
+ * at the top of the window — if fewer than SEARCH_LIMIT survive the filter, the
+ * count is a real total rather than a floor.
  */
 async function searchBillsByTitle(
   ctx: QueryCtx,
@@ -535,10 +543,8 @@ async function searchBillsByTitle(
     })
     .take(SEARCH_LIMIT);
 
-  return {
-    matches: hits.filter(match),
-    capped: hits.length >= SEARCH_LIMIT,
-  };
+  const matches = hits.filter(match);
+  return { matches, capped: matches.length >= SEARCH_LIMIT };
 }
 
 /**
@@ -573,9 +579,7 @@ export const list = query({
     if (congressFilter === null) return { data: [], hasMore: false };
 
     const searchQuery = args.titleFilter?.trim() || null;
-    const { matchesNone, match } = await buildBillPredicate(ctx, args, {
-      skipTitleFilter: searchQuery !== null,
-    });
+    const { matchesNone, match } = await buildBillPredicate(ctx, args);
     if (matchesNone) return { data: [], hasMore: false };
 
     // Fast path: a text query goes through the search index, which reaches the
@@ -691,9 +695,7 @@ export const listCount = query({
 
     const searchQuery = args.titleFilter?.trim() || null;
     if (searchQuery !== null) {
-      const { matchesNone, match } = await buildBillPredicate(ctx, args, {
-        skipTitleFilter: true,
-      });
+      const { matchesNone, match } = await buildBillPredicate(ctx, args);
       if (matchesNone) return { count: 0, exact: true };
       const { matches, capped } = await searchBillsByTitle(
         ctx,
