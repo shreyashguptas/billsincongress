@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect, useRef } from 'react';
-import { billsService } from '@/lib/services/bills-service';
+import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import { analytics } from '@/lib/analytics';
 import {
   formatCongressOrdinal,
@@ -94,7 +94,8 @@ export interface BillsClientProps {
   /** First page of results fetched on the server; null if the server fetch failed. */
   initialBills: Bill[] | null;
   initialHasMore: boolean;
-  initialTotal: number | null;
+  /** Null when the server couldn't count; `exact: false` means "at least this many". */
+  initialTotal: BillsCountResult | null;
   initialPage: number;
   urlFilters: UrlFilters;
   /**
@@ -120,7 +121,7 @@ export default function BillsClient({
   const [hasMore, setHasMore] = useState(initialHasMore);
   // `totalBills` is loaded asynchronously — kept off the critical render path
   // so bills appear fast. `null` means "still loading / unknown".
-  const [totalBills, setTotalBills] = useState<number | null>(initialTotal);
+  const [totalBills, setTotalBills] = useState<BillsCountResult | null>(initialTotal);
   const [currentPage, setCurrentPage] = useState(initialPage);
   // The URL is the single source of truth for filters. Values arrive as props
   // the server already applied, so server HTML and the first client render
@@ -433,7 +434,7 @@ export default function BillsClient({
       .fetchBillsCount(filterArgs)
       .then((result) => {
         if (cancelled) return;
-        setTotalBills(result.exact ? result.count : null);
+        setTotalBills(result);
       })
       .catch((e) => {
         // Count failures are non-fatal — bills still render without a total.
@@ -525,11 +526,14 @@ export default function BillsClient({
                     <span className="font-mono font-medium text-foreground tabular">
                       {bills.length}
                     </span>
-                    {totalBills !== null && (
+                    {totalBills?.count != null && (
                       <>
                         {' '}of{' '}
                         <span className="font-mono font-medium text-foreground tabular">
-                          {totalBills.toLocaleString()}
+                          {/* A capped search knows only a floor, so show "1,024+"
+                              rather than presenting it as the full total. */}
+                          {totalBills.count.toLocaleString()}
+                          {totalBills.exact ? '' : '+'}
                         </span>
                       </>
                     )}

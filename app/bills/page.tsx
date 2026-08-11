@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
-import { billsService } from '@/lib/services/bills-service';
+import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
 import BillsClient, { type UrlFilters } from './bills-client';
 import {
@@ -108,7 +108,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   // null — the client component then fetches exactly as it did pre-SSR.
   let initialBills: Bill[] | null = null;
   let initialHasMore = false;
-  let initialTotal: number | null = null;
+  let initialTotal: BillsCountResult | null = null;
   // Oldest/newest Congress with data — drives the header's "(2021–2026 ·
   // 117th–119th)" span. Null until known (or if nothing is available).
   let congressRange: { oldest: number; newest: number } | null = null;
@@ -122,7 +122,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
     ]);
     initialBills = billsResponse.data;
     initialHasMore = billsResponse.hasMore;
-    initialTotal = countResult.exact ? countResult.count : null;
+    initialTotal = countResult;
     if (congressNumbers.length > 0) {
       congressRange = {
         oldest: Math.min(...congressNumbers),
