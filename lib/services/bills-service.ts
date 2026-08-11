@@ -1,6 +1,6 @@
 import { Bill } from '@/lib/types/bill';
 import { ConvexHttpClient } from 'convex/browser';
-import { parseBillReference } from '@/lib/bill-query';
+import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
 
 /**
  * Bills service that fetches data from Convex backend.
@@ -84,8 +84,11 @@ function resolveTextQuery(
   // An explicit bill-number filter is already unambiguous; leave it alone.
   const reference = billNumber ? null : parseBillReference(titleFilter);
   if (!reference) {
+    // "NDAA" matches no title; its bill is called "National Defense
+    // Authorization Act". Expand before searching.
+    const expanded = expandSearchAcronym(titleFilter) ?? titleFilter;
     return {
-      titleFilter: titleFilter || undefined,
+      titleFilter: expanded || undefined,
       billNumber: billNumber || undefined,
       billType: explicitType,
     };

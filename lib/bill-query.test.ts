@@ -9,7 +9,7 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from "node:assert/strict";
-import { parseBillReference } from "./bill-query";
+import { parseBillReference, expandSearchAcronym, KNOWN_ACRONYMS } from "./bill-query";
 
 let passed = 0;
 const failures: string[] = [];
@@ -119,6 +119,69 @@ it("does not swallow digit strings longer than five", () => {
 recognises("hr 1", "hr", "1");
 recognises("hr 99999", "hr", "99999");
 recognises("5", null, "5");
+
+// --- acronym expansion ----------------------------------------------------
+
+it("expands NDAA, which matches no bill title", () => {
+  assert.equal(expandSearchAcronym("NDAA"), "national defense authorization act");
+});
+
+it("expands KOSA", () => {
+  assert.equal(expandSearchAcronym("KOSA"), "kids online safety act");
+});
+
+it("is case- and punctuation-insensitive", () => {
+  for (const typed of ["ndaa", "Ndaa", "N.D.A.A.", " NDAA ", "n d a a"]) {
+    assert.equal(
+      expandSearchAcronym(typed),
+      "national defense authorization act",
+      `failed for ${JSON.stringify(typed)}`,
+    );
+  }
+});
+
+it("only expands a whole query, never an acronym inside a phrase", () => {
+  // "kosa bill" -> "kids online safety act bill" would then require the word
+  // "bill" in the title, finding less than before rather than more.
+  assert.equal(expandSearchAcronym("kosa bill"), null);
+  assert.equal(expandSearchAcronym("ndaa 2027"), null);
+  assert.equal(expandSearchAcronym("the ndaa"), null);
+});
+
+it("leaves unknown acronyms and ordinary words alone", () => {
+  for (const typed of ["NNDA", "XYZ", "student", "medicare", "act", ""]) {
+    assert.equal(expandSearchAcronym(typed), null, `failed for ${JSON.stringify(typed)}`);
+  }
+});
+
+it("excludes acronyms whose bare form already returns bills", () => {
+  // Measured against production: expanding these replaced a working query with
+  // a worse one (CHIP 20 results -> 0, IRA 95 -> 1, SNAP 49 -> 4, CRA 23 -> 8,
+  // FOIA 2 -> 0). The admission rule exists to keep them out.
+  for (const acronym of ["chip", "ira", "snap", "cra", "aca", "ada", "foia"]) {
+    assert.equal(
+      expandSearchAcronym(acronym),
+      null,
+      `${acronym} must not be expanded — its bare form already finds bills`,
+    );
+  }
+});
+
+it("excludes acronyms whose expansion finds nothing", () => {
+  for (const acronym of ["hipaa", "nafta"]) {
+    assert.equal(expandSearchAcronym(acronym), null);
+  }
+});
+
+it("expands to lowercase words only, so nothing collides with the number parser", () => {
+  for (const acronym of KNOWN_ACRONYMS) {
+    const expanded = expandSearchAcronym(acronym);
+    assert.ok(expanded, `${acronym} should expand`);
+    assert.equal(expanded, expanded!.toLowerCase());
+    assert.ok(!/\d/.test(expanded!), `${acronym} expansion must not contain digits`);
+    assert.equal(parseBillReference(expanded!), null);
+  }
+});
 
 if (failures.length > 0) {
   console.error(`\nbillQuery: ${passed} passed, ${failures.length} FAILED\n`);

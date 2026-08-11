@@ -13,6 +13,55 @@
  * server render and in the browser.
  */
 
+/**
+ * Acronyms readers search for that appear in no bill title.
+ *
+ * "NDAA" is the clearest case: the bill is titled "National Defense
+ * Authorization Act for Fiscal Year 2027" and the letters N-D-A-A occur nowhere
+ * in it, so no amount of search-index work could ever match. 41 people typed it
+ * in 30 days and 34 typed "KOSA"; both got nothing.
+ *
+ * Expansion happens at query time, which is why this is a curated list rather
+ * than a derived field: it needs no schema change and no backfill.
+ *
+ * ADMISSION RULE, and it is not optional: an acronym belongs here only if the
+ * acronym alone currently returns *zero* bills while its expansion returns some.
+ * Expansion replaces the query, so adding one that already works destroys
+ * results. Measured against production, a plausible-looking longer list did
+ * exactly that — CHIP went 20 results to 0, IRA 95 to 1, SNAP 49 to 4, CRA 23 to
+ * 8, FOIA 2 to 0. Every candidate must be checked both ways before it is added.
+ *
+ * Consequently absent: acronyms that appear in titles verbatim (CHIPS, CARES,
+ * DREAM, SAVE, SNAP, IRA, CRA, ACA, ADA), and ones whose expansion finds nothing
+ * (HIPAA, NAFTA). Also absent are ESA and SSA: their bare forms do return a
+ * result or two, but only as incidental substring hits inside longer words, so
+ * whether expansion helps is a judgement call rather than a measurement — left
+ * out until it can be made deliberately.
+ */
+const ACRONYM_EXPANSIONS: Readonly<Record<string, string>> = {
+  ndaa: 'national defense authorization act', // 0 -> 14
+  kosa: 'kids online safety act', //             0 -> 2
+  flsa: 'fair labor standards act', //           0 -> 4
+  vawa: 'violence against women act', //         0 -> 2
+  esea: 'elementary and secondary education act', // 0 -> 6
+};
+
+/**
+ * Expand a search that is entirely a known acronym, or null when it isn't one.
+ *
+ * Deliberately only matches a whole query. Expanding an acronym inside a longer
+ * phrase would fight the every-term-must-match rule — "kosa bill" would become
+ * "kids online safety act bill" and then require the word "bill" in the title,
+ * finding less than before rather than more.
+ */
+export function expandSearchAcronym(raw: string): string | null {
+  const key = raw.trim().toLowerCase().replace(/[.\s]/g, '');
+  return ACRONYM_EXPANSIONS[key] ?? null;
+}
+
+/** Acronyms this module knows how to expand — for tests and diagnostics. */
+export const KNOWN_ACRONYMS = Object.keys(ACRONYM_EXPANSIONS);
+
 export interface BillReference {
   /** Convex `billType`, or null when only a number was given. */
   billType: string | null;
