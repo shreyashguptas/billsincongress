@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
+import { parseBillReference } from '@/lib/bill-query';
 import { analytics } from '@/lib/analytics';
 import {
   formatCongressOrdinal,
@@ -273,9 +274,15 @@ export default function BillsClient({
     });
   }
   if (titleFilter !== '') {
+    // A search that is entirely a bill reference is run as a number lookup, not
+    // a title search, so the chip has to say so — otherwise an empty result
+    // claims we looked somewhere we didn't.
+    const reference = billNumberFilter === '' ? parseBillReference(titleFilter) : null;
     activeFilterChips.push({
-      kind: 'title',
-      label: `Title contains “${titleFilter}”`,
+      kind: reference ? 'bill_reference' : 'title',
+      label: reference
+        ? `Bill ${reference.billType ? `${BILL_TYPES[reference.billType as keyof typeof BILL_TYPES] ?? reference.billType} ` : 'number '}${reference.billNumber}`
+        : `Title contains “${titleFilter}”`,
       clear: () => setTitleFilter(''),
     });
   }
