@@ -26,6 +26,7 @@ import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as savedBills from "../savedBills.js";
+import type * as searchQuery from "../searchQuery.js";
 import type * as sync from "../sync.js";
 import type * as syncStatus from "../syncStatus.js";
 import type * as users from "../users.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   mutations: typeof mutations;
   rateLimits: typeof rateLimits;
   savedBills: typeof savedBills;
+  searchQuery: typeof searchQuery;
   sync: typeof sync;
   syncStatus: typeof syncStatus;
   users: typeof users;
