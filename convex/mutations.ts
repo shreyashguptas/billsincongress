@@ -109,6 +109,10 @@ export const upsertBillActions = internalMutation({
 
 /**
  * Upsert bill subject/policy area.
+ *
+ * Also mirrors the policy area onto the bill itself, which is what the topic
+ * filter reads (see the `policyAreaName` note in schema.ts). Writing both here
+ * keeps them from drifting apart as bills are synced.
  */
 export const upsertBillSubject = internalMutation({
   args: {
@@ -129,6 +133,14 @@ export const upsertBillSubject = internalMutation({
       });
     } else {
       await ctx.db.insert("billSubjects", args);
+    }
+
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (bill && bill.policyAreaName !== args.policyAreaName) {
+      await ctx.db.patch(bill._id, { policyAreaName: args.policyAreaName });
     }
   },
 });

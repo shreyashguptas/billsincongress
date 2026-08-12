@@ -6,6 +6,7 @@ import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage, BillStages } from "./billStage";
 import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
+import { chamberBounds, chamberOf } from "./chamber";
 
 // Bounds for reading a single bill's child rows. Real bills have only a handful
 // of summaries / text versions, so these caps are generous safety limits.
@@ -133,7 +134,7 @@ export const getById = query({
       | Record<string, never> = {};
 
     if (stage === BillStages.IN_COMMITTEE) {
-      const chamber = bill.billType.startsWith("s") ? "senate" : "house";
+      const chamber = chamberOf(bill.billType);
       const introMs = Date.parse(bill.introducedDate);
       const daysInCommittee = Number.isNaN(introMs)
         ? null
@@ -287,6 +288,10 @@ const BILLS_FILTER_ARGS = {
   progressStage: v.optional(v.number()),
   sponsorState: v.optional(v.string()),
   billType: v.optional(v.string()),
+  // Whole originating chamber, i.e. all four House types or all four Senate
+  // types. Distinct from `billType`, which is a single one of them — a caller
+  // wanting "House bills" should not have to ask four times and merge.
+  chamber: v.optional(v.union(v.literal("house"), v.literal("senate"))),
   titleFilter: v.optional(v.string()),
   // Exact full names ("First Last"). Empty or missing = no sponsor filter.
   // A bill matches if "sponsorFirstName sponsorLastName" is in the list.
@@ -302,6 +307,7 @@ type BillsFilterArgs = {
   progressStage?: number;
   sponsorState?: string;
   billType?: string;
+  chamber?: "house" | "senate";
   titleFilter?: string;
   sponsorFilter?: string[];
   billNumber?: string;
@@ -323,7 +329,9 @@ const normaliseName = (s: string) =>
 const MAX_LIST_LIMIT = 50;
 const MAX_LIST_OFFSET = 500;
 const MAX_LIST_SCAN = 1200;
-const MAX_POLICY_SUBJECTS_FOR_LIST = 2000;
+// Congress defines 33 policy areas, so this only needs to be comfortably above
+// that to read them all.
+const MAX_POLICY_AREAS_PER_CONGRESS = 1000;
 const MAX_SPONSOR_FILTERS = 10;
 const MAX_TEXT_FILTER_LENGTH = 120;
 
@@ -395,34 +403,19 @@ async function resolveCongress(
 /**
  * Build an in-memory predicate that matches bills against all filter args.
  *
- * We pre-resolve the policy-area billId set once (rather than on each bill),
- * and pre-tokenise the title / sponsor filters. The returned predicate is a
- * tight per-bill check used by both the streaming list query and the count
- * query. `matchesNone` short-circuits when the policy-area filter has zero
- * subjects — no bill can possibly match, so the caller can skip iterating.
+ * Pre-tokenises the title / sponsor filters so the returned predicate is a
+ * tight per-bill check, used by both the streaming list query and the count
+ * query. It performs no database reads of its own.
+ *
+ * The policy-area check reads `bill.policyAreaName` directly. It used to
+ * pre-resolve a billId set from `billSubjects` capped at 2,000 rows, which was
+ * the bug: those 2,000 were the oldest-created rows across every congress, while
+ * the list scanned the newest 1,200 bills of one congress, so the intersection
+ * was usually empty — `policyArea=Health` returned 0 of 2,070 real matches.
  */
-async function buildBillPredicate(
-  ctx: QueryCtx,
+function buildBillPredicate(
   args: BillsFilterArgs,
-): Promise<{
-  matchesNone: boolean;
-  match: (bill: Doc<"bills">) => boolean;
-}> {
-  let policyBillIds: Set<string> | null = null;
-  if (args.policyArea) {
-    const policyArea = args.policyArea;
-    const subjectDocs = await ctx.db
-      .query("billSubjects")
-      .withIndex("by_policy_area", (q) =>
-        q.eq("policyAreaName", policyArea),
-      )
-      .take(MAX_POLICY_SUBJECTS_FOR_LIST);
-    policyBillIds = new Set(subjectDocs.map((s) => s.billId));
-    if (policyBillIds.size === 0) {
-      return { matchesNone: true, match: () => false };
-    }
-  }
-
+): (bill: Doc<"bills">) => boolean {
   // Every word must appear in the title. On the `search_title` path this narrows
   // the index's relevance-ranked OR into an AND, which it has to: Convex text
   // search matches documents containing *any* term, so "sunshine protection act"
@@ -448,6 +441,7 @@ async function buildBillPredicate(
     if (args.progressStage !== undefined && bill.progressStage !== args.progressStage) return false;
     if (args.sponsorState && bill.sponsorState !== args.sponsorState) return false;
     if (args.billType && bill.billType !== args.billType) return false;
+    if (args.chamber && chamberOf(bill.billType) !== args.chamber) return false;
     if (args.billNumber && bill.billNumber !== args.billNumber) return false;
     const introducedCutoff = cutoffDateForFilter(args.introducedDateFilter);
     if (introducedCutoff && bill.introducedDate < introducedCutoff) return false;
@@ -470,11 +464,11 @@ async function buildBillPredicate(
       );
       if (!wantedSponsors.has(fullName)) return false;
     }
-    if (policyBillIds && !policyBillIds.has(bill.billId)) return false;
+    if (args.policyArea && bill.policyAreaName !== args.policyArea) return false;
     return true;
   };
 
-  return { matchesNone: false, match };
+  return match;
 }
 
 /** Attach each bill's policy area, the one enrichment the list UI needs. */
@@ -548,6 +542,74 @@ async function searchBillsByTitle(
 }
 
 /**
+ * Exact number of bills in one policy area of one congress, from the precomputed
+ * table.
+ *
+ * Returns null only when the table holds no rows at all for that congress, i.e.
+ * it has never been built — which is a different answer from a topic that is
+ * present with no bills, and the caller must not conflate them. A topic absent
+ * from a table that *is* built genuinely has zero bills, so that returns 0.
+ *
+ * Note that this count comes from `congressPolicyAreas` (derived from
+ * `billSubjects`) while the list it is displayed beside filters on
+ * `bills.policyAreaName`. Two sources for one number is the shape of the bug this
+ * whole path exists to fix, so it is worth stating why they cannot drift:
+ * `upsertBillSubject` writes both in one transaction, and it runs after the bill
+ * row exists (the sync upserts the bill before fetching its subjects), so the
+ * bill-side patch is never skipped for a missing bill. Re-syncing a bill uses a
+ * shallow `patch`, not `replace`, so it cannot quietly drop the field either. The
+ * one state where they *did* disagree was between deploying this field and
+ * `policyAreaBackfill` finishing — during which the topic filter returned nothing,
+ * exactly as it had before the field existed.
+ */
+async function policyAreaSize(
+  ctx: QueryCtx,
+  congress: number,
+  policyArea: string,
+): Promise<number | null> {
+  const rows = await ctx.db
+    .query("congressPolicyAreas")
+    .withIndex("by_congress", (q) => q.eq("congress", congress))
+    .take(MAX_POLICY_AREAS_PER_CONGRESS);
+  if (rows.length === 0) return null;
+  return rows.find((r) => r.policyAreaName === policyArea)?.count ?? 0;
+}
+
+/**
+ * Which index `list` should iterate for these filters.
+ *
+ * Only matters when both a policy area and a progress stage are filtered, since
+ * each has its own index and either can be the smaller set. Both sizes are
+ * already precomputed, so asking is two cheap reads and removes the guesswork —
+ * see the comment at the call site for the case that made this necessary.
+ */
+async function narrowestIndexFor(
+  ctx: QueryCtx,
+  congress: number,
+  args: BillsFilterArgs,
+): Promise<"policyArea" | "progressStage" | "congress"> {
+  const topic = args.policyArea;
+  const stage = args.progressStage;
+
+  if (topic === undefined && stage === undefined) return "congress";
+  if (stage === undefined) return "policyArea";
+  if (topic === undefined) return "progressStage";
+
+  const [stageSize, topicSize] = await Promise.all([
+    billsByStage
+      .countBatch(ctx, [{ namespace: congress, bounds: { eq: stage } }])
+      .then(([n]) => n),
+    policyAreaSize(ctx, congress, topic),
+  ]);
+
+  // A missing topic size means the precomputed table has no row for it. The
+  // stage size is always available from the aggregate, so prefer that index
+  // rather than iterate a set of unknown size.
+  if (topicSize === null) return "progressStage";
+  return stageSize <= topicSize ? "progressStage" : "policyArea";
+}
+
+/**
  * List bills with filtering and offset-based pagination.
  *
  * Streams the `by_congress` index newest-first and stops as soon as we've
@@ -579,8 +641,7 @@ export const list = query({
     if (congressFilter === null) return { data: [], hasMore: false };
 
     const searchQuery = args.titleFilter?.trim() || null;
-    const { matchesNone, match } = await buildBillPredicate(ctx, args);
-    if (matchesNone) return { data: [], hasMore: false };
+    const match = buildBillPredicate(args);
 
     // Fast path: a text query goes through the search index, which reaches the
     // whole Congress instead of stopping at the scan cap below.
@@ -619,20 +680,42 @@ export const list = query({
     const matches: Doc<"bills">[] = [];
     let scanned = 0;
 
+    // Iterate the narrowest index the filters allow. This is a correctness
+    // matter, not an optimisation: the loop below stops at MAX_LIST_SCAN, so
+    // whichever set is iterated, matches sitting past the cap are never seen.
+    //
+    // Policy area and progress stage each have a dedicated index, and neither is
+    // reliably the smaller one — "Health" holds 2,070 bills in the 119th while
+    // only 104 bills became law. Picking by a fixed priority got this wrong in
+    // exactly one direction: iterating Health newest-first hit the cap 870 bills
+    // short and reported *no* enacted health bills, when there is one. Iterating
+    // the stage instead finds it after 104 rows. So size both and take the
+    // smaller. Whichever is chosen, `match` still applies every other filter.
+    const iterateBy = await narrowestIndexFor(ctx, congressFilter, args);
+
     const iter =
-      args.progressStage !== undefined
+      iterateBy === "policyArea"
         ? ctx.db
             .query("bills")
-            .withIndex("by_congress_and_progress_stage", (q) =>
+            .withIndex("by_congress_and_policy_area", (q) =>
               q
                 .eq("congress", congressFilter)
-                .eq("progressStage", args.progressStage),
+                .eq("policyAreaName", args.policyArea),
             )
             .order("desc")
-        : ctx.db
-            .query("bills")
-            .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-            .order("desc");
+        : iterateBy === "progressStage"
+          ? ctx.db
+              .query("bills")
+              .withIndex("by_congress_and_progress_stage", (q) =>
+                q
+                  .eq("congress", congressFilter)
+                  .eq("progressStage", args.progressStage),
+              )
+              .order("desc")
+          : ctx.db
+              .query("bills")
+              .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+              .order("desc");
 
     for await (const bill of iter) {
       scanned++;
@@ -652,6 +735,7 @@ export const list = query({
           progressStage: args.progressStage ?? null,
           sponsorState: args.sponsorState ?? null,
           billType: args.billType ?? null,
+          chamber: args.chamber ?? null,
           // Text queries never reach this scan — they return via the search
           // index above, which has no cap to trip.
           sponsorFilterCount: args.sponsorFilter?.length ?? 0,
@@ -695,14 +779,12 @@ export const listCount = query({
 
     const searchQuery = args.titleFilter?.trim() || null;
     if (searchQuery !== null) {
-      const { matchesNone, match } = await buildBillPredicate(ctx, args);
-      if (matchesNone) return { count: 0, exact: true };
       const { matches, capped } = await searchBillsByTitle(
         ctx,
         args,
         congressFilter,
         searchQuery,
-        match,
+        buildBillPredicate(args),
       );
       return { count: matches.length, exact: !capped };
     }
@@ -711,6 +793,7 @@ export const listCount = query({
       args.progressStage !== undefined,
       args.sponsorState !== undefined,
       args.billType !== undefined,
+      args.chamber !== undefined,
       args.titleFilter !== undefined && args.titleFilter.trim() !== "",
       args.sponsorFilter !== undefined && args.sponsorFilter.length > 0,
       args.billNumber !== undefined && args.billNumber.trim() !== "",
@@ -728,20 +811,8 @@ export const listCount = query({
 
       const ns = { namespace: congressFilter };
       const [houseCount, senateCount] = await billsByChamber.countBatch(ctx, [
-        {
-          ...ns,
-          bounds: {
-            lower: { key: "h", inclusive: true },
-            upper: { key: "i", inclusive: false },
-          },
-        },
-        {
-          ...ns,
-          bounds: {
-            lower: { key: "s", inclusive: true },
-            upper: { key: "t", inclusive: false },
-          },
-        },
+        { ...ns, bounds: chamberBounds("house") },
+        { ...ns, bounds: chamberBounds("senate") },
       ]);
       if (houseCount + senateCount === 0) {
         const bill = await ctx.db
@@ -763,6 +834,15 @@ export const listCount = query({
       return { count, exact: true };
     }
 
+    if (activeFilters === 1 && args.chamber !== undefined) {
+      // The aggregate is keyed by billType, and every type in a chamber shares
+      // its first letter, so one prefix range covers the whole chamber.
+      const [count] = await billsByChamber.countBatch(ctx, [
+        { namespace: congressFilter, bounds: chamberBounds(args.chamber) },
+      ]);
+      return { count, exact: true };
+    }
+
     if (activeFilters === 1 && args.progressStage !== undefined) {
       const [count] = await billsByStage.countBatch(ctx, [
         {
@@ -774,13 +854,8 @@ export const listCount = query({
     }
 
     if (activeFilters === 1 && args.policyArea !== undefined) {
-      const rows = await ctx.db
-        .query("congressPolicyAreas")
-        .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-        .take(1000);
-      if (rows.length === 0) return unknownCount();
-      const match = rows.find((r) => r.policyAreaName === args.policyArea);
-      return { count: match?.count ?? 0, exact: true };
+      const size = await policyAreaSize(ctx, congressFilter, args.policyArea);
+      return size === null ? unknownCount() : { count: size, exact: true };
     }
 
     if (

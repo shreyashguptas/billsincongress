@@ -133,20 +133,6 @@ export const analytics = {
 
   // ── Bills browse ─────────────────────────────────────────────────────────
 
-  billsFiltersApplied: (props: {
-    status: string;
-    bill_type: string;
-    congress: string;
-    state: string;
-    policy_area: string;
-    introduced_date: string;
-    last_action_date: string;
-    title_query: string;
-    bill_number: string;
-    sponsor_count: number;
-    active_filter_count: number;
-  }) => capture('bills_filters_applied', props),
-
   billsFiltersCleared: () => capture('bills_filters_cleared'),
 
   billsLoadMoreClicked: (nextPage: number, loadedCount: number) =>
