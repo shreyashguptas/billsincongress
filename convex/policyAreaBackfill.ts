@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import {
   internalAction,
   internalMutation,
-  query,
+  internalQuery,
 } from "./_generated/server";
 
 /**
@@ -128,8 +128,14 @@ export const backfillBatch = internalMutation({
  * `missingOnBothSides` is the benign case: no policy area in either place,
  * because the bill's subjects have never synced. Those bills are absent from the
  * count and the list alike, so they cost nothing in consistency.
+ *
+ * Deliberately an `internalQuery`. It reads ~1,000 bills per congress plus a
+ * `billSubjects` lookup for each bill missing a topic — several thousand
+ * documents per call — which as a public query would be an unauthenticated way
+ * to burn read bandwidth for no user-facing benefit. `npx convex run` reaches
+ * internal functions with the deploy key, which is the only caller it needs.
  */
-export const status = query({
+export const status = internalQuery({
   args: {},
   handler: async (ctx) => {
     const congresses = [117, 118, 119];

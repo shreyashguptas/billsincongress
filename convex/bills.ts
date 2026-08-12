@@ -326,7 +326,6 @@ const unknownCount = (): BillsCountResult => ({ count: null, exact: false });
 const normaliseName = (s: string) =>
   s.trim().toLowerCase().replace(/\s+/g, " ");
 
-
 const MAX_LIST_LIMIT = 50;
 const MAX_LIST_OFFSET = 500;
 const MAX_LIST_SCAN = 1200;
