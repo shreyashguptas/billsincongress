@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
-import { billsService } from '@/lib/services/bills-service';
+import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
 import BillsClient, { type UrlFilters } from './bills-client';
 import {
@@ -52,7 +52,6 @@ function parseRequest(params: SearchParams): {
   urlFilters: UrlFilters;
   applied: BillsFilterValues;
   page: number;
-  hadUrlParams: boolean;
 } {
   const urlFilters: UrlFilters = {
     status: firstValue(params.status),
@@ -84,14 +83,12 @@ function parseRequest(params: SearchParams): {
   const rawPage = Number.parseInt(firstValue(params.page) ?? '1', 10);
   const page = Math.min(Math.max(Number.isNaN(rawPage) ? 1 : rawPage, 1), MAX_PAGE);
 
-  const hadUrlParams = Object.keys(params).length > 0;
-
-  return { urlFilters, applied, page, hadUrlParams };
+  return { urlFilters, applied, page };
 }
 
 export default async function BillsPage({ searchParams }: PageProps): Promise<ReactElement> {
   const params = await searchParams;
-  const { urlFilters, applied, page, hadUrlParams } = parseRequest(params);
+  const { urlFilters, applied, page } = parseRequest(params);
 
   const serviceArgs = {
     status: applied.status,
@@ -111,7 +108,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   // null — the client component then fetches exactly as it did pre-SSR.
   let initialBills: Bill[] | null = null;
   let initialHasMore = false;
-  let initialTotal: number | null = null;
+  let initialTotal: BillsCountResult | null = null;
   // Oldest/newest Congress with data — drives the header's "(2021–2026 ·
   // 117th–119th)" span. Null until known (or if nothing is available).
   let congressRange: { oldest: number; newest: number } | null = null;
@@ -125,7 +122,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
     ]);
     initialBills = billsResponse.data;
     initialHasMore = billsResponse.hasMore;
-    initialTotal = countResult.exact ? countResult.count : null;
+    initialTotal = countResult;
     if (congressNumbers.length > 0) {
       congressRange = {
         oldest: Math.min(...congressNumbers),
@@ -144,7 +141,6 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
       initialPage={page}
       urlFilters={urlFilters}
       serverFilterSignature={filterSignature(applied)}
-      hadUrlParams={hadUrlParams}
       congressRange={congressRange}
     />
   );

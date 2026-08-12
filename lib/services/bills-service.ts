@@ -1,5 +1,6 @@
 import { Bill } from '@/lib/types/bill';
 import { ConvexHttpClient } from 'convex/browser';
+import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
 
 /**
  * Bills service that fetches data from Convex backend.
@@ -59,6 +60,45 @@ export interface BillsResponse {
 export interface BillsCountResult {
   count: number | null;
   exact: boolean;
+}
+
+/**
+ * Convex args for the text/number part of a query.
+ *
+ * A search box entry that is entirely a bill reference ("HR 7540", "s.4784",
+ * bare "9244") becomes an indexed number lookup instead of a title search,
+ * because a bill number appears in no title and so can never match there.
+ * Anything else stays a title search.
+ *
+ * An explicit bill-type dropdown selection wins over the type in the typed
+ * reference — the visible control should not be silently overridden — so a
+ * contradictory pair simply returns nothing, which the empty state explains.
+ */
+function resolveTextQuery(
+  titleFilter: string,
+  billNumber: string,
+  billType: string | null,
+): { titleFilter?: string; billNumber?: string; billType?: string } {
+  const explicitType = billType && billType !== 'all' ? billType : undefined;
+
+  // An explicit bill-number filter is already unambiguous; leave it alone.
+  const reference = billNumber ? null : parseBillReference(titleFilter);
+  if (!reference) {
+    // "NDAA" matches no title; its bill is called "National Defense
+    // Authorization Act". Expand before searching.
+    const expanded = expandSearchAcronym(titleFilter) ?? titleFilter;
+    return {
+      titleFilter: expanded || undefined,
+      billNumber: billNumber || undefined,
+      billType: explicitType,
+    };
+  }
+
+  return {
+    titleFilter: undefined,
+    billNumber: reference.billNumber,
+    billType: explicitType ?? reference.billType ?? undefined,
+  };
 }
 
 /**
@@ -138,10 +178,8 @@ export const billsService = {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
-        billType: billType && billType !== 'all' ? billType : undefined,
-        titleFilter: titleFilter || undefined,
         sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
-        billNumber: billNumber || undefined,
+        ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
         introducedDateFilter:
           introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,
@@ -191,10 +229,8 @@ export const billsService = {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
-        billType: billType && billType !== 'all' ? billType : undefined,
-        titleFilter: titleFilter || undefined,
         sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
-        billNumber: billNumber || undefined,
+        ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
         introducedDateFilter:
           introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,

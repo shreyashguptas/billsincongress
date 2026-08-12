@@ -90,9 +90,10 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 | `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `app/components/dashboard/DashboardClient.tsx` |
 | `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into /bills (status bar, policy area, sponsor, state, metric) | `filter_type`, `filter_value`, `congress` | `app/components/dashboard/DashboardClient.tsx` |
 | `bills_filters_applied` | User clicks "Apply filters" on the bills page | `status`, `bill_type`, `congress`, `state`, `policy_area`, `introduced_date`, `last_action_date`, `title_query`, `bill_number`, `sponsor_count`, `active_filter_count` | `app/bills/page.tsx` |
-| `bills_filters_cleared` | User clicks "Clear all" filters | — | `app/bills/page.tsx` |
-| `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/page.tsx` |
-| `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `title_query` | `app/bills/page.tsx` |
+| `bills_filters_cleared` | User clicks "Clear all" filters | — | `app/bills/bills-client.tsx` |
+| `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
+| `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `title_query` | `app/bills/bills-client.tsx` |
+| `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill card in the results grid | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
 
 ### Bill detail & AI chat

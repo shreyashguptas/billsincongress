@@ -5,6 +5,7 @@ import { paginationOptsValidator } from "convex/server";
 import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage, BillStages } from "./billStage";
 import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
+import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
 
 // Bounds for reading a single bill's child rows. Real bills have only a handful
 // of summaries / text versions, so these caps are generous safety limits.
@@ -422,6 +423,13 @@ async function buildBillPredicate(
     }
   }
 
+  // Every word must appear in the title. On the `search_title` path this narrows
+  // the index's relevance-ranked OR into an AND, which it has to: Convex text
+  // search matches documents containing *any* term, so "sunshine protection act"
+  // matches all 1,024 bills with "act" in the title and the result count stops
+  // meaning anything. Prefix typing still resolves — "sunshine protection act of
+  // 2025" contains "sunshin" — and the index's relevance ranking puts
+  // every-term matches at the top, so they survive the 1,024-result ceiling.
   const titleWords = args.titleFilter
     ? args.titleFilter
         .toLowerCase()
@@ -469,6 +477,76 @@ async function buildBillPredicate(
   return { matchesNone: false, match };
 }
 
+/** Attach each bill's policy area, the one enrichment the list UI needs. */
+async function enrichWithSubjects(ctx: QueryCtx, page: Doc<"bills">[]) {
+  return Promise.all(
+    page.map(async (bill) => {
+      const subject = await ctx.db
+        .query("billSubjects")
+        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+        .first();
+      return {
+        ...bill,
+        bill_subjects: subject
+          ? { policy_area_name: subject.policyAreaName || "" }
+          : { policy_area_name: "" },
+      };
+    }),
+  );
+}
+
+/**
+ * Whole-corpus text search over bill titles via the `search_title` index.
+ *
+ * Replaces a substring match applied during the newest-first `by_congress`
+ * scan, which stopped at MAX_LIST_SCAN and so never examined roughly 93% of an
+ * 18,000-bill Congress — text searches failed or succeeded based on how
+ * recently a bill was introduced. Results come back relevance-ordered rather
+ * than newest-first, which is the right ordering for a query.
+ *
+ * Convex text search is an OR across terms, so `match` (which requires every
+ * word to appear in the title) does the narrowing afterwards. That ordering
+ * matters for the count: without it, "sunshine protection act" reports the
+ * 1,024-result ceiling because every bill with "act" in its title is a hit.
+ *
+ * `capped` therefore reports whether the *narrowed* set filled the ceiling.
+ * Convex ranks documents matching more terms higher, so every-term matches sit
+ * at the top of the window — if fewer than SEARCH_LIMIT survive the filter, the
+ * count is a real total rather than a floor.
+ */
+async function searchBillsByTitle(
+  ctx: QueryCtx,
+  args: BillsFilterArgs,
+  congressFilter: number,
+  titleFilter: string,
+  match: (bill: Doc<"bills">) => boolean,
+): Promise<{ matches: Doc<"bills">[]; capped: boolean }> {
+  const query = sanitizeSearchQuery(titleFilter);
+  if (query === "") return { matches: [], capped: false };
+
+  const hits = await ctx.db
+    .query("bills")
+    .withSearchIndex("search_title", (q) => {
+      let search = q.search("title", query).eq("congress", congressFilter);
+      // These three are filterFields on the index, so they narrow inside the
+      // search rather than afterwards.
+      if (args.billType !== undefined) {
+        search = search.eq("billType", args.billType);
+      }
+      if (args.progressStage !== undefined) {
+        search = search.eq("progressStage", args.progressStage);
+      }
+      if (args.sponsorState !== undefined) {
+        search = search.eq("sponsorState", args.sponsorState);
+      }
+      return search;
+    })
+    .take(SEARCH_LIMIT);
+
+  const matches = hits.filter(match);
+  return { matches, capped: matches.length >= SEARCH_LIMIT };
+}
+
 /**
  * List bills with filtering and offset-based pagination.
  *
@@ -500,8 +578,25 @@ export const list = query({
     const congressFilter = await resolveCongress(ctx, args.congress);
     if (congressFilter === null) return { data: [], hasMore: false };
 
+    const searchQuery = args.titleFilter?.trim() || null;
     const { matchesNone, match } = await buildBillPredicate(ctx, args);
     if (matchesNone) return { data: [], hasMore: false };
+
+    // Fast path: a text query goes through the search index, which reaches the
+    // whole Congress instead of stopping at the scan cap below.
+    if (searchQuery !== null) {
+      const { matches } = await searchBillsByTitle(
+        ctx,
+        args,
+        congressFilter,
+        searchQuery,
+        match,
+      );
+      return {
+        data: await enrichWithSubjects(ctx, matches.slice(offset, offset + limit)),
+        hasMore: matches.length > offset + limit,
+      };
+    }
 
     // Fast path: bill number is an exact indexed lookup — skip the scan cap entirely.
     // A congress typically has at most ~8 bills with the same number (one per bill type),
@@ -514,23 +609,10 @@ export const list = query({
         )
         .collect();
       const filtered = hits.filter(match);
-      const hasMore = filtered.length > offset + limit;
-      const page = filtered.slice(offset, offset + limit);
-      const enrichedPage = await Promise.all(
-        page.map(async (bill) => {
-          const subject = await ctx.db
-            .query("billSubjects")
-            .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
-            .first();
-          return {
-            ...bill,
-            bill_subjects: subject
-              ? { policy_area_name: subject.policyAreaName || "" }
-              : { policy_area_name: "" },
-          };
-        })
-      );
-      return { data: enrichedPage, hasMore };
+      return {
+        data: await enrichWithSubjects(ctx, filtered.slice(offset, offset + limit)),
+        hasMore: filtered.length > offset + limit,
+      };
     }
 
     const needed = offset + limit + 1;
@@ -570,7 +652,8 @@ export const list = query({
           progressStage: args.progressStage ?? null,
           sponsorState: args.sponsorState ?? null,
           billType: args.billType ?? null,
-          hasTitleFilter: Boolean(args.titleFilter?.trim()),
+          // Text queries never reach this scan — they return via the search
+          // index above, which has no cap to trip.
           sponsorFilterCount: args.sponsorFilter?.length ?? 0,
           billNumber: args.billNumber ?? null,
           policyArea: args.policyArea ?? null,
@@ -584,26 +667,10 @@ export const list = query({
       });
     }
 
-    const hasMore = matches.length > offset + limit;
-    const page = matches.slice(offset, offset + limit);
-
-    // Enrich each bill with its policy area (parallel indexed lookups).
-    const enrichedPage = await Promise.all(
-      page.map(async (bill) => {
-        const subject = await ctx.db
-          .query("billSubjects")
-          .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
-          .first();
-        return {
-          ...bill,
-          bill_subjects: subject
-            ? { policy_area_name: subject.policyAreaName || "" }
-            : { policy_area_name: "" },
-        };
-      }),
-    );
-
-    return { data: enrichedPage, hasMore };
+    return {
+      data: await enrichWithSubjects(ctx, matches.slice(offset, offset + limit)),
+      hasMore: matches.length > offset + limit,
+    };
   },
 });
 
@@ -613,6 +680,11 @@ export const list = query({
  *
  * Complex filter combinations return `{ count: null, exact: false }` instead
  * of scanning an entire congress and tripping Convex's read limit.
+ *
+ * Text queries are the exception: the search index returns the full matching
+ * set in one read, so the count is free. It is exact unless the search hit
+ * SEARCH_LIMIT, in which case `exact: false` tells the UI to present the number
+ * as a floor rather than a total.
  */
 export const listCount = query({
   args: BILLS_FILTER_ARGS,
@@ -620,6 +692,20 @@ export const listCount = query({
     validatePublicFilters(args);
     const congressFilter = await resolveCongress(ctx, args.congress);
     if (congressFilter === null) return { count: 0, exact: true };
+
+    const searchQuery = args.titleFilter?.trim() || null;
+    if (searchQuery !== null) {
+      const { matchesNone, match } = await buildBillPredicate(ctx, args);
+      if (matchesNone) return { count: 0, exact: true };
+      const { matches, capped } = await searchBillsByTitle(
+        ctx,
+        args,
+        congressFilter,
+        searchQuery,
+        match,
+      );
+      return { count: matches.length, exact: !capped };
+    }
 
     const activeFilters = [
       args.progressStage !== undefined,
