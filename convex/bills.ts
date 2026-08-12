@@ -550,6 +550,18 @@ async function searchBillsByTitle(
  * it has never been built — which is a different answer from a topic that is
  * present with no bills, and the caller must not conflate them. A topic absent
  * from a table that *is* built genuinely has zero bills, so that returns 0.
+ *
+ * Note that this count comes from `congressPolicyAreas` (derived from
+ * `billSubjects`) while the list it is displayed beside filters on
+ * `bills.policyAreaName`. Two sources for one number is the shape of the bug this
+ * whole path exists to fix, so it is worth stating why they cannot drift:
+ * `upsertBillSubject` writes both in one transaction, and it runs after the bill
+ * row exists (the sync upserts the bill before fetching its subjects), so the
+ * bill-side patch is never skipped for a missing bill. Re-syncing a bill uses a
+ * shallow `patch`, not `replace`, so it cannot quietly drop the field either. The
+ * one state where they *did* disagree was between deploying this field and
+ * `policyAreaBackfill` finishing — during which the topic filter returned nothing,
+ * exactly as it had before the field existed.
  */
 async function policyAreaSize(
   ctx: QueryCtx,

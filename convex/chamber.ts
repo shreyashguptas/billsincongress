@@ -51,14 +51,3 @@ export function chamberBounds(chamber: Chamber): ChamberBounds {
         upper: { key: "t", inclusive: false },
       };
 }
-
-/** Whether a bill type falls inside the given bounds. Mirrors the aggregate. */
-export function withinBounds(billType: string, bounds: ChamberBounds): boolean {
-  const aboveLower = bounds.lower.inclusive
-    ? billType >= bounds.lower.key
-    : billType > bounds.lower.key;
-  const belowUpper = bounds.upper.inclusive
-    ? billType <= bounds.upper.key
-    : billType < bounds.upper.key;
-  return aboveLower && belowUpper;
-}

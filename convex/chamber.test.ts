@@ -15,8 +15,30 @@ import {
   SENATE_BILL_TYPES,
   chamberBounds,
   chamberOf,
-  withinBounds,
+  type ChamberBounds,
 } from "./chamber";
+
+/**
+ * Test oracle: a local model of how the aggregate component compares a key
+ * against range bounds. It lives here rather than in the module under test
+ * because nothing in production calls it — production passes the bounds
+ * straight to `billsByChamber.countBatch`.
+ *
+ * Being a model, it cannot prove the aggregate behaves this way. What the tests
+ * below actually establish is the property that matters and that a reader would
+ * otherwise have to verify by hand: that the two ranges and the bill-type lists
+ * are mutually consistent, so adding a bill type that breaks the h/s prefix rule
+ * fails loudly here instead of silently miscounting a chamber.
+ */
+function withinBounds(billType: string, bounds: ChamberBounds): boolean {
+  const aboveLower = bounds.lower.inclusive
+    ? billType >= bounds.lower.key
+    : billType > bounds.lower.key;
+  const belowUpper = bounds.upper.inclusive
+    ? billType <= bounds.upper.key
+    : billType < bounds.upper.key;
+  return aboveLower && belowUpper;
+}
 
 let passed = 0;
 const failures: string[] = [];
