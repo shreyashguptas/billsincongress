@@ -660,19 +660,6 @@ export const getBillNumbersForCongressType = internalQuery({
   },
 });
 
-/** Paginated fetch of billSubjects (global). */
-export const getBillSubjectsPage = internalQuery({
-  args: {
-    cursor: v.union(v.string(), v.null()),
-    numItems: v.number(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("billSubjects")
-      .paginate({ cursor: args.cursor, numItems: args.numItems });
-  },
-});
-
 /** Replace the congressPolicyAreas rows for a congress in one transaction. */
 export const writeCongressPolicyAreas = internalMutation({
   args: {
@@ -731,6 +718,7 @@ export const writeCongressSponsors = internalMutation({
 type BillPageResult = {
   page: Array<{
     billId: string;
+    policyAreaName?: string;
     sponsorFirstName?: string;
     sponsorLastName?: string;
     sponsorParty?: string;
@@ -740,44 +728,45 @@ type BillPageResult = {
   continueCursor: string;
 };
 
-type SubjectPageResult = {
-  page: Array<{ billId: string; policyAreaName?: string }>;
-  isDone: boolean;
-  continueCursor: string;
-};
-
 /**
- * Recompute the congressPolicyAreas table for a single congress.
- * Paginates through all bills for the congress and all billSubjects
- * globally — no silent cap.
+ * Recompute the congressPolicyAreas table for a single congress, counting each
+ * bill's own `policyAreaName`.
+ *
+ * These counts are displayed beside a list that filters on
+ * `bills.policyAreaName`. Deriving them from anywhere else means one number with
+ * two sources, which is the failure this whole path exists to fix: the topic
+ * filter used to show an accurate "2,070 bills" above zero rows. Counting the
+ * same field the list filters on makes agreement structural rather than
+ * something to verify — the count cannot claim a bill the list cannot render,
+ * because it is counting the very field that decides whether it renders.
+ *
+ * It also removes real work. The previous version paginated the *entire*
+ * billSubjects table — every congress, not just this one — to intersect it with
+ * this congress's billIds, and did so once per congress recomputed. Now it is a
+ * single pass over the congress's own bills.
+ *
+ * The tradeoff, stated plainly: a bill whose subjects have synced but whose
+ * `policyAreaName` somehow did not would now be missing from the count as well
+ * as the list, where before it was counted but unrenderable. That is the better
+ * failure — an understated total is invisible to a reader, while a total that
+ * contradicts the rows beneath it is exactly the bug people hit.
+ * `policyAreaBackfill:status` measures that gap (`drifted`) and it is 0.
  */
 export const recomputeCongressPolicyAreas = internalAction({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
-    const billIds = new Set<string>();
+    const counts = new Map<string, number>();
     let cursor: string | null = null;
     for (;;) {
       const page: BillPageResult = await ctx.runQuery(
         internal.mutations.getBillsPageByCongress,
         { congress: args.congress, cursor, numItems: 2000 },
       );
-      for (const b of page.page) billIds.add(b.billId);
-      if (page.isDone) break;
-      cursor = page.continueCursor;
-    }
-
-    const counts = new Map<string, number>();
-    cursor = null;
-    for (;;) {
-      const page: SubjectPageResult = await ctx.runQuery(
-        internal.mutations.getBillSubjectsPage,
-        { cursor, numItems: 2000 },
-      );
-      for (const s of page.page) {
-        if (s.policyAreaName && billIds.has(s.billId)) {
+      for (const b of page.page) {
+        if (b.policyAreaName) {
           counts.set(
-            s.policyAreaName,
-            (counts.get(s.policyAreaName) ?? 0) + 1,
+            b.policyAreaName,
+            (counts.get(b.policyAreaName) ?? 0) + 1,
           );
         }
       }
