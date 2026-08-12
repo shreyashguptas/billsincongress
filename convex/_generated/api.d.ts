@@ -24,6 +24,7 @@ import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
+import type * as policyAreaBackfill from "../policyAreaBackfill.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as savedBills from "../savedBills.js";
 import type * as searchQuery from "../searchQuery.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   llm: typeof llm;
   mutations: typeof mutations;
+  policyAreaBackfill: typeof policyAreaBackfill;
   rateLimits: typeof rateLimits;
   savedBills: typeof savedBills;
   searchQuery: typeof searchQuery;

@@ -89,7 +89,6 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 |---|---|---|---|
 | `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `app/components/dashboard/DashboardClient.tsx` |
 | `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into /bills (status bar, policy area, sponsor, state, metric) | `filter_type`, `filter_value`, `congress` | `app/components/dashboard/DashboardClient.tsx` |
-| `bills_filters_applied` | User clicks "Apply filters" on the bills page | `status`, `bill_type`, `congress`, `state`, `policy_area`, `introduced_date`, `last_action_date`, `title_query`, `bill_number`, `sponsor_count`, `active_filter_count` | `app/bills/page.tsx` |
 | `bills_filters_cleared` | User clicks "Clear all" filters | — | `app/bills/bills-client.tsx` |
 | `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `title_query` | `app/bills/bills-client.tsx` |
@@ -245,4 +244,12 @@ Authenticate once with `npx posthog-cli login`.
 
 ## Retired events
 
-_None yet. When a feature is removed, move its registry rows here with the removal date._
+| Event | Properties | Retired | Why |
+| --- | --- | --- | --- |
+| `bills_filters_applied` | `status`, `bill_type`, `congress`, `state`, `policy_area`, `introduced_date`, `last_action_date`, `title_query`, `bill_number`, `sponsor_count`, `active_filter_count` | 2026-08-12 | The "Apply filters" button it fired from was removed when the mobile filter sheet became an always-visible inline filter bar, and filters now apply as they change. The event had no call site from that commit onward, so no data has been collected since — this row only formalises a removal that already happened in the code. Historic data before then is still in PostHog. |
+
+**Known gap this leaves:** filter *usage* is no longer instrumented at all, so
+there is no way to see which filters people apply (only `bills_no_results` when
+a combination returns nothing). That blind spot is how a completely broken topic
+filter went unnoticed. Re-instrumenting it belongs with the next change to the
+bills filter UI rather than with a backend fix.

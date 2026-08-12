@@ -100,6 +100,16 @@ export default defineSchema({
     progressStage: v.optional(v.number()), // 20, 40, 60, 80, 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
+    // Denormalised copy of billSubjects.policyAreaName, so a topic filter is an
+    // indexed lookup rather than a cross-table set intersection.
+    //
+    // The intersection approach was silently broken: it read the first 2,000
+    // billSubjects rows for a topic (oldest-created, all congresses) and then
+    // looked for those among the newest 1,200 bills of one congress. The two
+    // sets barely overlapped, so `policyArea=Health` returned 0 of 2,070 real
+    // matches in the 119th. Kept in sync by `upsertBillSubject`; populated for
+    // existing rows by `policyAreaBackfill`.
+    policyAreaName: v.optional(v.string()),
     syncedEndpoints: v.optional(v.number()), // bitmask: 1=detail, 2=actions, 4=subjects, 8=summaries, 16=text
     // Enrichment progress, kept SEPARATE from syncedEndpoints so the existing
     // repair logic / SYNC_COMPLETE checks are untouched. Bits:
@@ -112,6 +122,7 @@ export default defineSchema({
     .index("by_congress", ["congress"])
     .index("by_congress_and_type", ["congress", "billType"])
     .index("by_congress_and_progress_stage", ["congress", "progressStage"])
+    .index("by_congress_and_policy_area", ["congress", "policyAreaName"])
     .index("by_progress_stage", ["progressStage"])
     .index("by_sponsor_state", ["sponsorState"])
     .index("by_updated_at", ["updatedAt"])
