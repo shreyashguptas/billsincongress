@@ -17,6 +17,7 @@ import type * as auth from "../auth.js";
 import type * as baseRates from "../baseRates.js";
 import type * as billStage from "../billStage.js";
 import type * as bills from "../bills.js";
+import type * as chamber from "../chamber.js";
 import type * as chatAnalytics from "../chatAnalytics.js";
 import type * as congressApi from "../congressApi.js";
 import type * as crons from "../crons.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   baseRates: typeof baseRates;
   billStage: typeof billStage;
   bills: typeof bills;
+  chamber: typeof chamber;
   chatAnalytics: typeof chatAnalytics;
   congressApi: typeof congressApi;
   crons: typeof crons;

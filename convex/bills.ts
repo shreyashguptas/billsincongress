@@ -330,6 +330,9 @@ const normaliseName = (s: string) =>
 const MAX_LIST_LIMIT = 50;
 const MAX_LIST_OFFSET = 500;
 const MAX_LIST_SCAN = 1200;
+// Congress defines 33 policy areas, so this only needs to be comfortably above
+// that to read them all.
+const MAX_POLICY_AREAS_PER_CONGRESS = 1000;
 const MAX_SPONSOR_FILTERS = 10;
 const MAX_TEXT_FILTER_LENGTH = 120;
 
@@ -540,6 +543,62 @@ async function searchBillsByTitle(
 }
 
 /**
+ * Exact number of bills in one policy area of one congress, from the precomputed
+ * table.
+ *
+ * Returns null only when the table holds no rows at all for that congress, i.e.
+ * it has never been built — which is a different answer from a topic that is
+ * present with no bills, and the caller must not conflate them. A topic absent
+ * from a table that *is* built genuinely has zero bills, so that returns 0.
+ */
+async function policyAreaSize(
+  ctx: QueryCtx,
+  congress: number,
+  policyArea: string,
+): Promise<number | null> {
+  const rows = await ctx.db
+    .query("congressPolicyAreas")
+    .withIndex("by_congress", (q) => q.eq("congress", congress))
+    .take(MAX_POLICY_AREAS_PER_CONGRESS);
+  if (rows.length === 0) return null;
+  return rows.find((r) => r.policyAreaName === policyArea)?.count ?? 0;
+}
+
+/**
+ * Which index `list` should iterate for these filters.
+ *
+ * Only matters when both a policy area and a progress stage are filtered, since
+ * each has its own index and either can be the smaller set. Both sizes are
+ * already precomputed, so asking is two cheap reads and removes the guesswork —
+ * see the comment at the call site for the case that made this necessary.
+ */
+async function narrowestIndexFor(
+  ctx: QueryCtx,
+  congress: number,
+  args: BillsFilterArgs,
+): Promise<"policyArea" | "progressStage" | "congress"> {
+  const topic = args.policyArea;
+  const stage = args.progressStage;
+
+  if (topic === undefined && stage === undefined) return "congress";
+  if (stage === undefined) return "policyArea";
+  if (topic === undefined) return "progressStage";
+
+  const [stageSize, topicSize] = await Promise.all([
+    billsByStage
+      .countBatch(ctx, [{ namespace: congress, bounds: { eq: stage } }])
+      .then(([n]) => n),
+    policyAreaSize(ctx, congress, topic),
+  ]);
+
+  // A missing topic size means the precomputed table has no row for it. The
+  // stage size is always available from the aggregate, so prefer that index
+  // rather than iterate a set of unknown size.
+  if (topicSize === null) return "progressStage";
+  return stageSize <= topicSize ? "progressStage" : "policyArea";
+}
+
+/**
  * List bills with filtering and offset-based pagination.
  *
  * Streams the `by_congress` index newest-first and stops as soon as we've
@@ -610,13 +669,21 @@ export const list = query({
     const matches: Doc<"bills">[] = [];
     let scanned = 0;
 
-    // Iterate the narrowest index the filters allow, so the scan cap below is
-    // spent on candidate bills rather than on rejects. Policy area comes first
-    // because it is the most selective of the three — the largest topic is
-    // roughly a ninth of a congress, where a stage can be over half of it.
-    // Whichever index is chosen, `match` still applies every other filter.
+    // Iterate the narrowest index the filters allow. This is a correctness
+    // matter, not an optimisation: the loop below stops at MAX_LIST_SCAN, so
+    // whichever set is iterated, matches sitting past the cap are never seen.
+    //
+    // Policy area and progress stage each have a dedicated index, and neither is
+    // reliably the smaller one — "Health" holds 2,070 bills in the 119th while
+    // only 104 bills became law. Picking by a fixed priority got this wrong in
+    // exactly one direction: iterating Health newest-first hit the cap 870 bills
+    // short and reported *no* enacted health bills, when there is one. Iterating
+    // the stage instead finds it after 104 rows. So size both and take the
+    // smaller. Whichever is chosen, `match` still applies every other filter.
+    const iterateBy = await narrowestIndexFor(ctx, congressFilter, args);
+
     const iter =
-      args.policyArea !== undefined
+      iterateBy === "policyArea"
         ? ctx.db
             .query("bills")
             .withIndex("by_congress_and_policy_area", (q) =>
@@ -625,7 +692,7 @@ export const list = query({
                 .eq("policyAreaName", args.policyArea),
             )
             .order("desc")
-        : args.progressStage !== undefined
+        : iterateBy === "progressStage"
           ? ctx.db
               .query("bills")
               .withIndex("by_congress_and_progress_stage", (q) =>
@@ -776,13 +843,8 @@ export const listCount = query({
     }
 
     if (activeFilters === 1 && args.policyArea !== undefined) {
-      const rows = await ctx.db
-        .query("congressPolicyAreas")
-        .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-        .take(1000);
-      if (rows.length === 0) return unknownCount();
-      const match = rows.find((r) => r.policyAreaName === args.policyArea);
-      return { count: match?.count ?? 0, exact: true };
+      const size = await policyAreaSize(ctx, congressFilter, args.policyArea);
+      return size === null ? unknownCount() : { count: size, exact: true };
     }
 
     if (
