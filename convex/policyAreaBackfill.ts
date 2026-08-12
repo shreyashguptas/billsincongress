@@ -110,14 +110,24 @@ export const backfillBatch = internalMutation({
 });
 
 /**
- * Diagnostic: how far the backfill has got, per congress.
+ * Diagnostic: backfill progress and, more importantly, whether the two sources
+ * of a topic disagree.
  *
  *     npx convex run --prod policyAreaBackfill:status '{}'
  *
- * `withPolicyArea` counts bills reachable through the new index; `probe`
- * samples the bills table over the same congress. Equal-ish numbers on a
- * finished backfill mean the topic filter can see the corpus; a `withPolicyArea`
- * of 0 means the backfill has not run (or not reached that congress yet).
+ * The count shown beside a filtered list comes from `congressPolicyAreas`, which
+ * is derived from `billSubjects`, while the list itself filters on
+ * `bills.policyAreaName`. Two sources for one number is the exact shape of the
+ * bug this module exists to fix, so "are they equal?" deserves a measurement
+ * rather than an argument — which is what `drifted` is.
+ *
+ * `drifted` counts probed bills that have a policy area in `billSubjects` but
+ * not on the bill. Every one of those is a bill the count includes and the list
+ * cannot show. **It must be 0.** If it isn't, re-run `policyAreaBackfill:run`.
+ *
+ * `missingOnBothSides` is the benign case: no policy area in either place,
+ * because the bill's subjects have never synced. Those bills are absent from the
+ * count and the list alike, so they cost nothing in consistency.
  */
 export const status = query({
   args: {},
@@ -127,6 +137,9 @@ export const status = query({
       congress: number;
       probe: number;
       missingPolicyAreaInProbe: number;
+      drifted: number;
+      missingOnBothSides: number;
+      driftExamples: string[];
       sampleTopics: Array<{ topic: string; reachable: number }>;
     }> = [];
 
@@ -147,12 +160,33 @@ export const status = query({
         sampleTopics.push({ topic, reachable: hits.length });
       }
 
+      // For every probed bill with no topic on it, ask whether billSubjects has
+      // one anyway. That difference is the drift, and it is the only case where
+      // the count could exceed what the list can render.
+      const missing = probe.filter((b) => b.policyAreaName === undefined);
+      let drifted = 0;
+      let missingOnBothSides = 0;
+      const driftExamples: string[] = [];
+      for (const bill of missing) {
+        const subject = await ctx.db
+          .query("billSubjects")
+          .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+          .first();
+        if (subject?.policyAreaName) {
+          drifted++;
+          if (driftExamples.length < 5) driftExamples.push(bill.billId);
+        } else {
+          missingOnBothSides++;
+        }
+      }
+
       out.push({
         congress,
         probe: probe.length,
-        missingPolicyAreaInProbe: probe.filter(
-          (b) => b.policyAreaName === undefined,
-        ).length,
+        missingPolicyAreaInProbe: missing.length,
+        drifted,
+        missingOnBothSides,
+        driftExamples,
         sampleTopics,
       });
     }
