@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
+import { ALL_HUBS } from '@/lib/hubs';
 
 const SITE_URL = 'https://billsincongress.com';
 
@@ -39,6 +40,15 @@ export default async function sitemap(props: {
     return [
       { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1 },
       { url: `${SITE_URL}/bills`, changeFrequency: 'daily', priority: 0.9 },
+      // Hub pages sit above individual bills in the hierarchy, so they rank
+      // between /bills and a bill page. They are linked from the footer and the
+      // /bills directory too — a sitemap entry declares them, links make them
+      // discoverable, and the indexing problem needs both.
+      ...ALL_HUBS.map((hub) => ({
+        url: `${SITE_URL}${hub.path}`,
+        changeFrequency: 'daily' as const,
+        priority: 0.8,
+      })),
       { url: `${SITE_URL}/learn`, changeFrequency: 'monthly', priority: 0.6 },
       { url: `${SITE_URL}/about`, changeFrequency: 'monthly', priority: 0.5 },
     ];

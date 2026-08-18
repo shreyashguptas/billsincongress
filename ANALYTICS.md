@@ -94,6 +94,8 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `title_query` | `app/bills/bills-client.tsx` |
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill card in the results grid | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
+| `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
+| `hub_link_clicked` | User clicks a link from one hub to a sibling hub | `from_path`, `to_path`, `hub_kind` | `app/bills/_hub/hub-view-tracker.tsx` |
 
 ### Bill detail & AI chat
 

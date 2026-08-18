@@ -41,6 +41,8 @@ export interface BillQueryParams {
   stateFilter?: string | null;
   policyArea?: string | null;
   billType?: string | null;
+  /** Whole originating chamber — distinct from billType, which is one of four per chamber. */
+  chamber?: 'house' | 'senate' | null;
   billNumber?: string;
   congress?: string | null;
 }
@@ -161,6 +163,7 @@ export const billsService = {
       stateFilter = 'all',
       policyArea = 'all',
       billType = 'all',
+      chamber = null,
       billNumber = '',
       congress = 'all',
     } = params;
@@ -179,6 +182,7 @@ export const billsService = {
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
+        chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
         introducedDateFilter:
@@ -216,6 +220,7 @@ export const billsService = {
       stateFilter = 'all',
       policyArea = 'all',
       billType = 'all',
+      chamber = null,
       billNumber = '',
       congress = 'all',
     } = params;
@@ -230,6 +235,7 @@ export const billsService = {
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
+        chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
         introducedDateFilter:
