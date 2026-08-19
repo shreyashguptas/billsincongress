@@ -1,6 +1,7 @@
 import { ModeToggle } from '@/components/theme/mode-toggle';
 import { Github } from 'lucide-react';
 import Link from 'next/link';
+import { hubsOfKind } from '@/lib/hubs';
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -27,6 +28,20 @@ export function Footer() {
               <li><Link href="/bills" className="text-muted-foreground hover:text-foreground">All bills</Link></li>
               <li><Link href="/learn" className="text-muted-foreground hover:text-foreground">How Congress works</Link></li>
               <li><Link href="/about" className="text-muted-foreground hover:text-foreground">About</Link></li>
+            </ul>
+            {/* Chamber and status hubs live in the footer so they are reachable
+                from every page — including the homepage, which is the only page
+                Google currently indexes. The full set, topics included, is on
+                /bills. */}
+            <p className="label-eyebrow mb-3 mt-6">By chamber &amp; stage</p>
+            <ul className="space-y-2 text-sm">
+              {[...hubsOfKind('chamber'), ...hubsOfKind('status')].map((hub) => (
+                <li key={hub.path}>
+                  <Link href={hub.path} className="text-muted-foreground hover:text-foreground">
+                    {hub.heading}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 

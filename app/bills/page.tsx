@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
 import BillsClient, { type UrlFilters } from './bills-client';
+import { HubDirectory } from './_hub/hub-directory';
 import {
   DEFAULT_FILTER_VALUES,
   filterSignature,
@@ -134,14 +135,19 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   }
 
   return (
-    <BillsClient
-      initialBills={initialBills}
-      initialHasMore={initialHasMore}
-      initialTotal={initialTotal}
-      initialPage={page}
-      urlFilters={urlFilters}
-      serverFilterSignature={filterSignature(applied)}
-      congressRange={congressRange}
-    />
+    <>
+      <BillsClient
+        initialBills={initialBills}
+        initialHasMore={initialHasMore}
+        initialTotal={initialTotal}
+        initialPage={page}
+        urlFilters={urlFilters}
+        serverFilterSignature={filterSignature(applied)}
+        congressRange={congressRange}
+      />
+      <div className="container mx-auto px-4 max-w-5xl">
+        <HubDirectory />
+      </div>
+    </>
   );
 }

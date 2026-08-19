@@ -161,6 +161,28 @@ export const analytics = {
     progress_stage: number | string;
   }) => capture('bill_card_clicked', props),
 
+  // ── Hub pages (topic / chamber / status browse pages) ────────────────────
+
+  /**
+   * A hub page was rendered. Passive, once per view. `bill_count` is the exact
+   * total for that hub, or null when the backend could not answer exactly — a
+   * hub that reports 0 is worth noticing, since an empty hub is the doorway
+   * page the design set out to avoid.
+   */
+  hubViewed: (props: {
+    hub_kind: 'chamber' | 'status' | 'topic';
+    hub_path: string;
+    bill_count: number | null;
+    page: number;
+  }) => capture('hub_viewed', props),
+
+  /** A link from one hub to a sibling hub, or from /bills into a hub. */
+  hubLinkClicked: (props: {
+    from_path: string;
+    to_path: string;
+    hub_kind: 'chamber' | 'status' | 'topic';
+  }) => capture('hub_link_clicked', props),
+
   // ── Bill detail & AI chat ────────────────────────────────────────────────
 
   billViewed: (props: {
