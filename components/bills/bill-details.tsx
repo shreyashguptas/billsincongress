@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { Bill } from '@/lib/types/bill';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   getStageDescription,
   getProgressDots,
@@ -15,6 +15,7 @@ import {
   formatCongressProse,
   formatCongressYears,
 } from '@/lib/congress';
+import { billAnswerParagraph, billSummaryText } from '@/lib/seo';
 import BillQA from './bill-qa';
 import SaveBillButton from './save-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
@@ -54,20 +55,14 @@ interface BillDetailsProps {
 }
 
 export default function BillDetails({ bill }: BillDetailsProps) {
-  const [summary, setSummary] = useState<string>(bill.latest_summary || 'No summary available.');
-
-  useEffect(() => {
-    try {
-      if (bill.latest_summary) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = bill.latest_summary;
-        setSummary(tmp.textContent || tmp.innerText || 'No summary available.');
-      }
-    } catch (e) {
-      console.error('Error parsing bill summary:', e);
-      setSummary('Error loading summary.');
-    }
-  }, [bill.latest_summary]);
+  // Derived, not state: stripping the CRS markup used to happen in an effect via
+  // document.createElement, which meant the server-rendered HTML shipped the raw
+  // "&lt;p&gt;&lt;strong&gt;…" tag soup and only became readable once JS ran.
+  // billSummaryText is pure, so the clean text is now in the first response —
+  // which is all a crawler without JS ever sees. It also drops the CRS habit of
+  // opening with an echo of the bill's own title.
+  const summary = billSummaryText(bill);
+  const answer = billAnswerParagraph(bill);
 
   const progressStage =
     typeof bill.progress_stage === 'string'
@@ -253,10 +248,20 @@ export default function BillDetails({ bill }: BillDetailsProps) {
       <section className="container-editorial py-12 sm:py-16">
         <div className="grid lg:grid-cols-12 gap-10 lg:gap-16">
           <div className="lg:col-span-8">
-            <p className="label-eyebrow mb-3">Plain-English summary</p>
-            <div className="font-serif text-lg leading-[1.7] text-foreground whitespace-pre-wrap">
-              {summary}
-            </div>
+            {/* The one-paragraph answer: what this bill is and where it stands.
+                For bills Congress has not summarised yet this is the page's only
+                substantive prose, so it always renders. */}
+            <p className="label-eyebrow mb-3">At a glance</p>
+            <p className="font-serif text-lg leading-[1.7] text-foreground">{answer}</p>
+
+            {summary && (
+              <div className="mt-10">
+                <p className="label-eyebrow mb-3">Plain-English summary</p>
+                <div className="font-serif text-lg leading-[1.7] text-foreground whitespace-pre-wrap">
+                  {summary}
+                </div>
+              </div>
+            )}
           </div>
 
           <aside className="lg:col-span-4 space-y-8 lg:border-l lg:border-border lg:pl-10">

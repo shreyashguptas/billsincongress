@@ -2,7 +2,6 @@ import { Suspense, cache } from 'react';
 import { notFound } from 'next/navigation';
 import BillDetails from '../../../components/bills/bill-details';
 import { billsService } from '@/lib/services/bills-service';
-import { formatCongressYears } from '@/lib/congress';
 import type { Bill } from '@/lib/types/bill';
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
@@ -11,10 +10,11 @@ import {
   SITE_URL,
   DEFAULT_OG_IMAGE,
   billSeoDescription,
+  billSeoTitle,
+  billSummaryText,
   congressOrdinal,
   congressGovUrl,
   legislationTypeLabel,
-  stripHtml,
   truncateAtWord,
 } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/json-ld';
@@ -25,7 +25,7 @@ import { JsonLd } from '@/components/seo/json-ld';
 function billJsonLd(bill: Bill, id: string): object {
   const url = `${SITE_URL}/bills/${id}`;
   const identifier = `${bill.bill_type_label} ${bill.bill_number}`;
-  const summary = bill.latest_summary ? stripHtml(bill.latest_summary) : '';
+  const summary = billSummaryText(bill);
   const officialUrl = congressGovUrl(bill);
 
   const legislation: Record<string, unknown> = {
@@ -120,8 +120,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Bill Not Found' };
   }
 
-  const identifier = `${bill.bill_type_label} ${bill.bill_number}`;
-  const title = `${identifier} (${congressOrdinal(bill.congress)} Congress, ${formatCongressYears(bill.congress)}): ${truncateAtWord(bill.title, 70)}`;
+  const title = billSeoTitle(bill);
   const description = billSeoDescription(bill);
   const canonical = `/bills/${id}`;
 

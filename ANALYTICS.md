@@ -103,6 +103,12 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 |---|---|---|---|
 | `bill_viewed` | Bill detail page rendered (top of the chat funnel) | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage`, `has_summary`, `has_pdf` | `components/bills/bill-details.tsx` |
 | `bill_base_rate_viewed` | Committee base-rate context line shown on a bill detail page (passive, once per bill view) | `bill_id`, `chamber`, `days_in_committee`, `base_rate_percent`, `base_rate_sample` | `components/bills/bill-details.tsx` |
+
+> **Reading `has_summary`.** It means "Congress has published a CRS summary for
+> this bill" — nothing more. Since 18 Aug 2026 every bill page also renders an
+> "At a glance" paragraph built from the bill's own fields, so `has_summary:
+> false` no longer implies the page had no prose on it. The property is
+> deliberately unrenamed: existing insights and funnels are built on it.
 | `bill_pdf_opened` | User clicks "Read full text (PDF)" | `bill_id` | `components/bills/bill-details.tsx` |
 | `bill_save_toggled` | Signed-in user saves or unsaves a bill on the detail page | `bill_id`, `action: "saved" \| "unsaved"`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/save-bill-button.tsx` |
 | `bill_save_signin_redirected` | Signed-out user clicked Save and was sent to sign-in (conversion moment) | `bill_id` | `components/bills/save-bill-button.tsx` |
