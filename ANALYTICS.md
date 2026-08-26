@@ -113,6 +113,12 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 | `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
 | `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
 
+> **Reading `has_summary`.** It means "Congress has published a CRS summary for
+> this bill" — nothing more. Since 18 Aug 2026 every bill page also renders an
+> "At a glance" paragraph built from the bill's own fields, so `has_summary:
+> false` no longer implies the page had no prose on it. The property is
+> deliberately unrenamed: existing insights and funnels are built on it.
+
 ### Learn page (interactive civics guide)
 
 The Learn page is an illustrated, interactive explainer of how Congress works. Each
