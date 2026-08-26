@@ -1,0 +1,132 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# One review per pull request. Pushing three commits in a minute used to start
+# three paid runs racing each other; now the newest wins and the rest are
+# cancelled before they cost anything.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      # **Required, and not an over-broad grant.** The action mints its GitHub
+      # token by exchanging an OIDC token, so without this it fails before it
+      # reads a single line: "Could not fetch an OIDC token". Removing it on the
+      # theory that a reviewer only needs to comment is exactly the mistake that
+      # broke the previous version of this file.
+      id-token: write
+    steps:
+      # Pinned to a commit rather than a tag. A tag is mutable, and whoever
+      # controls it controls what runs in this repository with a token in
+      # scope. This is `actions/checkout` v4.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          # Full history rather than a shallow clone, so `git log` and
+          # `git blame` work. The review is markedly better when it can see why
+          # a line came to be the way it is, not only that it changed.
+          fetch-depth: 0
+
+      # Likewise. This is `anthropics/claude-code-action` v1. Re-resolve the
+      # tag and update this line deliberately when picking up a new version.
+      - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Leaves a checklist comment that fills in as the review proceeds, so
+          # a twelve-minute run shows its work instead of looking hung.
+          track_progress: true
+
+          # Only `github.repository` and the PR number are interpolated here.
+          # Titles and bodies are author-controlled text and are deliberately
+          # not pasted into the prompt; the action reads them itself.
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request for correctness, security, and obvious bugs.
+
+            **Read the codebase, not just the diff.** The whole repository is
+            checked out and you have read access to all of it. A diff read on
+            its own produces shallow review: it cannot tell you whether a
+            changed function has other callers, whether a constant is
+            duplicated somewhere that now disagrees, whether an existing test
+            already covers the case, or whether the change contradicts a
+            decision already recorded. Go and look before you comment.
+
+            Worth reading for context:
+            - `CLAUDE.md` — the house rules, which are enforceable here.
+            - `ANALYTICS.md` — the registry of every product event we send.
+            - `convex/_generated/ai/guidelines.md` — the Convex rules, which
+              override general Convex knowledge.
+            - `README.md` — what the project claims to do.
+
+            This site serves roughly 55,000 public bill pages to search engines
+            and to people looking up real legislation, so a wrong statement of
+            fact ships at that scale. What this repository cares about, in
+            rough priority order:
+
+            1. **Statements about legislation must be true.** Copy generated
+               from bill fields is rendered on every page. Calling a resolution
+               a "bill", asserting a status the data does not support, or
+               composing a sentence that reads wrong for some inputs is a
+               correctness defect, not a wording nit. Check the degenerate
+               cases: missing sponsor, missing policy area, missing summary,
+               missing date.
+            2. **The analytics contract.** A user-facing feature added, removed
+               or reshaped without a matching change to BOTH `ANALYTICS.md` and
+               `lib/analytics.ts` is an incomplete change. Flag any
+               `posthog.capture()` called with a raw event-name string from a
+               component instead of going through `lib/analytics.ts`, and flag
+               any rename of an existing event — renames silently break saved
+               insights and funnels. Server-side events must use
+               `lib/posthog-server.ts` and forward the browser's distinct-id
+               headers.
+            3. **Convex visibility and cost.** A diagnostic or admin function
+               exported as a public `query`/`mutation` is readable by anyone on
+               the internet; that has already happened once in this repository.
+               Check that anything not meant for the client is `internalQuery`/
+               `internalMutation`. Also check index selectivity: where a scan
+               cap can truncate results, choosing the wrong index is a
+               correctness bug, not a performance one.
+            4. **Tests that actually run.** `pnpm test` runs an explicit list of
+               files in `package.json`. A new `*.test.ts` that is not added to
+               that list never executes, and a green CI badge then means
+               nothing. Check the list was updated.
+            5. **The Cloudflare Workers constraints.** Next.js Cache Components,
+               the `'use cache'` directive and PPR must stay disabled — they
+               crash on Workers. Flag any change that re-enables them.
+            6. **Secrets and configuration.** Flag any credential, token or key
+               added to a tracked file, any `.env*` or credentials file that
+               became tracked, and any new sensitive file type that
+               `.gitignore` does not already cover.
+            7. **Plan and spec markdown must never be committed.** If a plan,
+               spec or scratch document appears in the diff, say so.
+
+            Leave inline comments on the specific lines that need attention.
+            Anchor each to the line it is about, say what goes wrong and under
+            what input, and prefer one well-evidenced comment to five
+            speculative ones. If you looked at something and it is fine, do not
+            comment on it.
+
+            Finish with a brief top-level summary.
+
+          # `--allowedTools`, camelCase, per the action's own examples. The
+          # kebab-case spelling is silently not the flag it parses.
+          #
+          # **Genuinely read-only.** Notably absent: `find`, `sed`, `cat` and
+          # friends. `find -exec` runs arbitrary commands and `sed -i` writes
+          # files, so an allowlist containing them is a shell in two disguises.
+          # `gh api` is absent for the same reason — that verb takes POST and
+          # DELETE. `Read`, `Grep` and `Glob` already do everything those tools
+          # would be there for, and they cannot execute or write.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*)"
+            --max-turns 120
