@@ -1,18 +1,22 @@
 /**
  * Tests for the third-party exception filter.
  *
- * Every "drops" case below is a verbatim message from production, taken from
- * the ten weeks to 26 Aug 2026 with its recorded volume in the comment. Every
- * "keeps" case is a message from the same window that must survive, because
- * this codebase could produce it.
+ * These build a real `$exception` properties payload — `$exception_list` with
+ * `{ type, value, stacktrace }` entries — rather than a convenient shape, and
+ * pass it through the same function the `before_send` hook calls. That is
+ * deliberate: the first version of this filter read `$exception_values`, which
+ * does not exist on a browser-side event, so it would have dropped nothing in
+ * production while every test passed. Testing the extraction is the point.
  *
- * A filter is only as good as what it refuses to drop, so the second group is
- * the one that earns its keep.
+ * Every "drops" case is a verbatim message from production in the ten weeks to
+ * 26 Aug 2026, with its recorded volume in the comment. Every "keeps" case is
+ * a message from the same window that must survive because this codebase could
+ * produce it — that group is the one that earns the filter its keep.
  *
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from "node:assert/strict";
-import { shouldDropException, thirdPartySource } from "./error-filter";
+import { exceptionList, shouldDropException, thirdPartySource } from "./error-filter";
 
 let passed = 0;
 const failures: string[] = [];
@@ -28,10 +32,45 @@ function it(name: string, fn: () => void) {
   }
 }
 
-const exception = (message: string, hasStack = true) => ({
-  values: [message],
-  types: ["Error"],
-  hasStack,
+/** A captured `$exception` event's properties, shaped as posthog-js sends it. */
+function event(value: string, opts: { type?: string; frames?: number } = {}) {
+  const frames = opts.frames ?? 3;
+  return {
+    $exception_level: "error",
+    $exception_list: [
+      {
+        type: opts.type ?? "Error",
+        value,
+        mechanism: { handled: false, type: "onerror" },
+        stacktrace:
+          frames > 0
+            ? { type: "raw", frames: Array.from({ length: frames }, () => ({ filename: "app.js" })) }
+            : { type: "raw", frames: [] },
+      },
+    ],
+  };
+}
+
+// ── The event shape itself ─────────────────────────────────────────────────
+
+it("reads the list posthog-js actually sends", () => {
+  assert.equal(exceptionList(event("boom")).length, 1);
+  assert.equal(exceptionList(event("boom"))[0].value, "boom");
+});
+
+it("ignores the properties that only exist after ingestion", () => {
+  // $exception_values / $exception_types are queryable in HogQL but are not on
+  // the browser-side event. Reading them was the bug this test group exists for.
+  const ingestedOnly = {
+    $exception_values: ["Object Not Found Matching Id:2, MethodName:update, ParamCount:4"],
+    $exception_types: ["UnhandledRejection"],
+  };
+  assert.deepEqual(exceptionList(ingestedOnly), []);
+  assert.equal(
+    shouldDropException(ingestedOnly),
+    false,
+    "must not depend on properties the browser never sends",
+  );
 });
 
 // ── Drops: verbatim third-party messages from production ───────────────────
@@ -39,37 +78,34 @@ const exception = (message: string, hasStack = true) => ({
 it("drops the Outlook link scanner, every id in the family", () => {
   // 142 events across ids 1,2,3,4,5,7,9 — the largest single source.
   for (const id of [1, 2, 3, 4, 5, 7, 9]) {
-    const m = `Non-Error promise rejection captured with value: Object Not Found Matching Id:${id}, MethodName:update, ParamCount:4`;
-    assert.equal(shouldDropException(exception(m)), true, `id ${id}`);
+    const message = `Non-Error promise rejection captured with value: Object Not Found Matching Id:${id}, MethodName:update, ParamCount:4`;
+    assert.equal(shouldDropException(event(message, { type: "UnhandledRejection" })), true, `id ${id}`);
   }
   assert.match(
-    thirdPartySource(exception("Object Not Found Matching Id:2, MethodName:update")) ?? "",
+    thirdPartySource(event("Object Not Found Matching Id:2, MethodName:update")) ?? "",
     /Outlook/,
   );
 });
 
-it("drops opaque cross-origin errors, which carry no stack", () => {
+it("drops opaque cross-origin errors, which arrive with no frames", () => {
   // 133 events, 104 of them Firefox on iOS.
-  assert.equal(shouldDropException(exception("Script error.", false)), true);
+  assert.equal(shouldDropException(event("Script error.", { frames: 0 })), true);
 });
 
 it("drops browser-extension messaging failures", () => {
   assert.equal(
-    shouldDropException(exception("Invalid call to runtime.sendMessage(). Tab not found.")),
+    shouldDropException(event("Invalid call to runtime.sendMessage(). Tab not found.")),
     true,
   );
-  assert.equal(
-    shouldDropException(exception("feature named `pageContext` was not found")),
-    true,
-  );
+  assert.equal(shouldDropException(event("feature named `pageContext` was not found")), true);
 });
 
 // ── Keeps: the group that matters ──────────────────────────────────────────
 
-it("keeps a 'Script error.' that came with a stack", () => {
+it("keeps a 'Script error.' that came with frames", () => {
   // Without the stack condition this rule would swallow a real error that
   // happened to carry a bare message.
-  assert.equal(shouldDropException(exception("Script error.", true)), false);
+  assert.equal(shouldDropException(event("Script error.", { frames: 4 })), false);
 });
 
 it("keeps everything that could be this app's own fault", () => {
@@ -82,38 +118,42 @@ it("keeps everything that could be this app's own fault", () => {
     "NetworkError when attempting to fetch resource.",
     "error code: 520",
   ];
-  for (const m of ours) {
-    assert.equal(shouldDropException(exception(m)), false, m.slice(0, 50));
+  for (const message of ours) {
+    assert.equal(shouldDropException(event(message)), false, message.slice(0, 50));
   }
 });
 
 it("keeps an unrecognised message rather than guessing", () => {
-  assert.equal(shouldDropException(exception("Cannot read properties of undefined")), false);
+  assert.equal(shouldDropException(event("Cannot read properties of undefined")), false);
 });
 
-// ── Shape handling ─────────────────────────────────────────────────────────
+// ── Malformed payloads must never throw inside before_send ─────────────────
 
 it("survives a missing or oddly shaped payload", () => {
+  assert.equal(shouldDropException(undefined), false);
+  assert.equal(shouldDropException(null), false);
   assert.equal(shouldDropException({}), false);
-  assert.equal(shouldDropException({ values: undefined }), false);
-  assert.equal(shouldDropException({ values: [] }), false);
-  assert.equal(shouldDropException({ values: [null, 42] as unknown }), false);
+  assert.equal(shouldDropException({ $exception_list: null }), false);
+  assert.equal(shouldDropException({ $exception_list: "not a list" }), false);
+  assert.equal(shouldDropException({ $exception_list: [null, 42, {}] }), false);
+  assert.equal(shouldDropException({ $exception_list: [{ value: 42 }] }), false);
 });
 
-it("reads a bare string as well as the array form", () => {
-  assert.equal(
-    shouldDropException({ values: "Object Not Found Matching Id:2, MethodName:update" }),
-    true,
-  );
+it("handles an entry with no stacktrace at all as having no stack", () => {
+  const noStack = {
+    $exception_list: [{ type: "Error", value: "Script error." }],
+  };
+  assert.equal(shouldDropException(noStack), true);
 });
 
-it("drops when any one of several messages matches", () => {
-  assert.equal(
-    shouldDropException({
-      values: ["something ordinary", "Object Not Found Matching Id:3, MethodName:update"],
-    }),
-    true,
-  );
+it("drops when any exception in a chain matches", () => {
+  const chained = {
+    $exception_list: [
+      { type: "Error", value: "something ordinary", stacktrace: { frames: [{}] } },
+      { type: "Error", value: "Object Not Found Matching Id:3, MethodName:update" },
+    ],
+  };
+  assert.equal(shouldDropException(chained), true);
 });
 
 if (failures.length) {

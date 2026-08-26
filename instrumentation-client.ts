@@ -35,23 +35,13 @@ if (POSTHOG_KEY) {
     //
     // Only exceptions are filtered. Every other event passes through
     // untouched, so no product event in ANALYTICS.md is affected.
+    // The whole payload goes to the filter rather than fields picked out here,
+    // so that reading the event is part of what `lib/error-filter.test.ts`
+    // exercises. Picking fields at the call site is how the first version came
+    // to read `$exception_values`, which a browser-side event does not carry.
     before_send: (event) => {
       if (!event || event.event !== '$exception') return event;
-      const props = event.properties ?? {};
-      const list = props.$exception_list;
-      const dropped = shouldDropException({
-        values: props.$exception_values,
-        types: props.$exception_types,
-        // A real frame from a real file. `$exception_list` is absent or
-        // frameless exactly when the browser refused to describe the error.
-        hasStack: Array.isArray(list)
-          ? list.some(
-              (e: { stacktrace?: { frames?: unknown[] } }) =>
-                (e?.stacktrace?.frames?.length ?? 0) > 0,
-            )
-          : false,
-      });
-      return dropped ? null : event;
+      return shouldDropException(event.properties) ? null : event;
     },
   });
 }

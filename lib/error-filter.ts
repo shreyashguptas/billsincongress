@@ -8,11 +8,26 @@
  * an unreadable one — a genuine regression would have to be spotted inside a
  * column of noise fifteen times its size.
  *
- * The rule for adding an entry here is deliberately strict: the pattern must
- * be attributable to a named third party, and no plausible bug in this
- * codebase may produce the same string. Anything merely *probably* external
- * stays, because a dropped event cannot be investigated later. In particular
- * these are NOT dropped:
+ * ── Reading the event ──────────────────────────────────────────────────────
+ *
+ * A browser-side `$exception` event carries `$exception_list` and
+ * `$exception_level`, and nothing else describing the error. It does NOT carry
+ * `$exception_values` or `$exception_types`, even though both are queryable in
+ * HogQL: posthog-js derives those two locally inside its suppression-rule
+ * matcher, and PostHog derives them again during ingestion for storage. Reading
+ * them in `before_send` yields `undefined` and silently disables the filter —
+ * which is what the first version of this module did, and what its tests failed
+ * to catch by constructing the shape by hand instead of the event.
+ *
+ * `$exception_list` is an array of `{ type, value, mechanism, stacktrace }`,
+ * one entry per exception in a chain.
+ *
+ * ── The rule for adding an entry ───────────────────────────────────────────
+ *
+ * Deliberately strict: the pattern must be attributable to a named third party,
+ * and no plausible bug in this codebase may produce the same string. Anything
+ * merely *probably* external stays, because a dropped event cannot be
+ * investigated later. In particular these are NOT dropped:
  *
  *   `SecurityError: The operation is insecure.` — iOS Safari with storage
  *   blocked. This app's storage access is guarded (see lib/safe-storage.ts),
@@ -26,18 +41,17 @@
  *   extension mutating the DOM under React, but React can also produce it.
  */
 
-/** The properties of a captured `$exception` event that identify it. */
-export interface ExceptionShape {
-  values?: unknown;
-  types?: unknown;
-  /** Whether the browser gave us a stack trace with a real frame in it. */
-  hasStack?: boolean;
+/** One entry of `$exception_list`, as posthog-js builds it. */
+export interface CapturedException {
+  type?: unknown;
+  value?: unknown;
+  stacktrace?: { frames?: unknown[] } | null;
 }
 
 interface DropRule {
   /** Who this belongs to, for the reader of a dropped-events question. */
   readonly source: string;
-  readonly matches: (message: string, shape: ExceptionShape) => boolean;
+  readonly matches: (message: string, hasStack: boolean) => boolean;
 }
 
 const RULES: readonly DropRule[] = [
@@ -56,7 +70,7 @@ const RULES: readonly DropRule[] = [
     // The no-stack condition matters: an error genuinely raised by this app
     // would carry frames.
     source: 'browser cross-origin reporting (opaque)',
-    matches: (m, shape) => m.trim() === 'Script error.' && !shape.hasStack,
+    matches: (m, hasStack) => m.trim() === 'Script error.' && !hasStack,
   },
   {
     // Extension messaging, raised when an extension's background page has gone
@@ -69,28 +83,39 @@ const RULES: readonly DropRule[] = [
   },
 ];
 
-function messagesOf(shape: ExceptionShape): string[] {
-  const raw = shape.values;
-  if (typeof raw === 'string') return [raw];
-  if (Array.isArray(raw)) return raw.filter((v): v is string => typeof v === 'string');
-  return [];
+/** The `$exception_list` array, or [] when the payload is not one. */
+export function exceptionList(properties: unknown): CapturedException[] {
+  if (!properties || typeof properties !== 'object') return [];
+  const list = (properties as Record<string, unknown>).$exception_list;
+  if (!Array.isArray(list)) return [];
+  return list.filter((e): e is CapturedException => !!e && typeof e === 'object');
+}
+
+/** Whether the browser gave us a real frame, rather than refusing to say. */
+function hasRealStack(list: CapturedException[]): boolean {
+  return list.some((e) => (e.stacktrace?.frames?.length ?? 0) > 0);
 }
 
 /**
  * The third party this exception belongs to, or null when it is ours to look
- * at. Returning the source rather than a boolean keeps the reason available at
- * the call site instead of discarding it.
+ * at. Takes the event's properties, so the extraction is part of what the
+ * tests exercise rather than something the call site does unobserved.
  */
-export function thirdPartySource(shape: ExceptionShape): string | null {
-  const messages = messagesOf(shape);
+export function thirdPartySource(properties: unknown): string | null {
+  const list = exceptionList(properties);
+  const messages = list
+    .map((e) => e.value)
+    .filter((v): v is string => typeof v === 'string');
   if (messages.length === 0) return null;
+
+  const stack = hasRealStack(list);
   for (const rule of RULES) {
-    if (messages.some((m) => rule.matches(m, shape))) return rule.source;
+    if (messages.some((m) => rule.matches(m, stack))) return rule.source;
   }
   return null;
 }
 
 /** True when this exception should not be recorded. */
-export function shouldDropException(shape: ExceptionShape): boolean {
-  return thirdPartySource(shape) !== null;
+export function shouldDropException(properties: unknown): boolean {
+  return thirdPartySource(properties) !== null;
 }
