@@ -5,6 +5,8 @@ import { billsService } from '@/lib/services/bills-service';
 import BillCard from '@/components/bills/bill-card';
 import { JsonLd } from '@/components/seo/json-ld';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
+import { formatCount } from '@/lib/utils';
+import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { hubsOfKind, type HubDefinition } from '@/lib/hubs';
 import { HubViewTracker, HubLink } from './hub-view-tracker';
 
@@ -163,7 +165,7 @@ export async function HubView({
         ) : (
           <>
             <span className="font-mono font-medium text-foreground tabular-nums">
-              {total.toLocaleString()}
+              {formatCount(total)}
             </span>{' '}
             {total === 1 ? 'bill' : 'bills'}
             {congress !== null && (
@@ -187,40 +189,12 @@ export async function HubView({
         </div>
       )}
 
-      {lastPage > 1 && (
-        <nav aria-label="Pagination" className="flex flex-wrap items-center gap-2 mb-12">
-          {page > 1 && (
-            <Link
-              href={page === 2 ? hub.path : `${hub.path}?page=${page - 1}`}
-              rel="prev"
-              className="px-3 py-2 text-sm border rounded-md hover:bg-muted"
-            >
-              Previous
-            </Link>
-          )}
-          {Array.from({ length: lastPage }, (_, i) => i + 1).map((n) => (
-            <Link
-              key={n}
-              href={n === 1 ? hub.path : `${hub.path}?page=${n}`}
-              aria-current={n === page ? 'page' : undefined}
-              className={`px-3 py-2 text-sm border rounded-md hover:bg-muted ${
-                n === page ? 'bg-muted font-medium' : ''
-              }`}
-            >
-              {n}
-            </Link>
-          ))}
-          {page < lastPage && (
-            <Link
-              href={`${hub.path}?page=${page + 1}`}
-              rel="next"
-              className="px-3 py-2 text-sm border rounded-md hover:bg-muted"
-            >
-              Next
-            </Link>
-          )}
-        </nav>
-      )}
+      <CrawlablePagination
+        page={page}
+        lastPage={lastPage}
+        hrefForPage={(n) => (n === 1 ? hub.path : `${hub.path}?page=${n}`)}
+        className="mb-12"
+      />
 
       {siblings.length > 0 && (
         <section className="border-t pt-6">

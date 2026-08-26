@@ -1,4 +1,4 @@
-import { Suspense, cache } from 'react';
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import BillDetails from '../../../components/bills/bill-details';
 import { billsService } from '@/lib/services/bills-service';
@@ -154,22 +154,25 @@ export default async function BillPage({ params }: PageProps): Promise<ReactElem
     notFound();
   }
 
+  // No Suspense boundary here, deliberately. `bill` is already awaited above,
+  // and nothing inside BillDetails suspends, so a boundary could never do the
+  // one thing a boundary is for — let the page paint while something loads.
+  // What it did instead was defer the whole article into a streaming segment:
+  // the shell (header, a ~150px skeleton, footer) painted first, then the real
+  // page was swapped in underneath. Two costs, both measured:
+  //
+  //   Layout shift. Bill pages scored 0.304 at the 75th percentile against
+  //   Google's 0.25 "poor" threshold, and 0.521 at the 90th, while the
+  //   homepage and hubs — which have no such boundary — scored 0.000.
+  //
+  //   Crawlers. The article was delivered inside `<div hidden id="S:0">` and
+  //   only revealed when a script ran. Verified against a real Bingbot
+  //   user-agent, and Bing is the engine sending this site nearly all of its
+  //   traffic.
   return (
     <>
       <JsonLd data={billJsonLd(bill, id)} />
-      <Suspense
-        fallback={
-          <div className="container-editorial py-16">
-            <div className="space-y-3">
-              <div className="h-3 w-24 bg-secondary rounded-sm animate-pulse" />
-              <div className="h-10 w-2/3 bg-secondary rounded-sm animate-pulse" />
-              <div className="h-4 w-1/2 bg-secondary rounded-sm animate-pulse" />
-            </div>
-          </div>
-        }
-      >
-        <BillDetails bill={bill} />
-      </Suspense>
+      <BillDetails bill={bill} />
     </>
   );
 }

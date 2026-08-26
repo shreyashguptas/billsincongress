@@ -1,5 +1,7 @@
 import posthog from 'posthog-js';
 
+import { shouldDropException } from '@/lib/error-filter';
+
 // Client-side PostHog initialization (Next.js 15.3+ `instrumentation-client.ts`
 // convention — runs once in the browser before the app hydrates).
 //
@@ -24,5 +26,22 @@ if (POSTHOG_KEY) {
     // Error tracking: capture uncaught exceptions + unhandled promise rejections.
     capture_exceptions: true,
     debug: process.env.NODE_ENV === 'development',
+
+    // Drop exceptions raised by software that is not this site — Outlook's
+    // link scanner, browser extensions, and the browser's own opaque
+    // cross-origin reports. They were roughly 300 of the ~320 exceptions
+    // recorded in the ten weeks to 26 Aug 2026, which made the error count
+    // unreadable rather than merely wrong.
+    //
+    // Only exceptions are filtered. Every other event passes through
+    // untouched, so no product event in ANALYTICS.md is affected.
+    // The whole payload goes to the filter rather than fields picked out here,
+    // so that reading the event is part of what `lib/error-filter.test.ts`
+    // exercises. Picking fields at the call site is how the first version came
+    // to read `$exception_values`, which a browser-side event does not carry.
+    before_send: (event) => {
+      if (!event || event.event !== '$exception') return event;
+      return shouldDropException(event.properties) ? null : event;
+    },
   });
 }

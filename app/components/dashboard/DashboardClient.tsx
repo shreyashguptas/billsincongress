@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useConvexEnabled } from '../../ConvexClientProvider';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatCount } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import {
   formatCongressOrdinal,
@@ -519,7 +519,7 @@ function StatsOverview({ stats, dashboardData, onDrillDown }: StatsOverviewProps
           >
             <dt className="label-eyebrow mb-2">{item.label}</dt>
             <dd className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight tabular text-foreground">
-              {item.value.toLocaleString()}
+              {formatCount(item.value)}
             </dd>
           </Tag>
         );
@@ -603,7 +603,7 @@ function StatusBar({ data, totalBills, onSegmentClick }: StatusBarProps) {
                   {pct}%
                 </span>
                 <span className="col-span-2 text-right font-mono text-sm font-medium text-foreground tabular">
-                  {s.value.toLocaleString()}
+                  {formatCount(s.value)}
                 </span>
               </button>
             </li>
@@ -644,7 +644,7 @@ function PolicyAreaList({ data, onItemClick }: PolicyAreaListProps) {
                   {item.name}
                 </span>
                 <span className="font-mono text-xs text-muted-foreground tabular shrink-0">
-                  {item.count.toLocaleString()}
+                  {formatCount(item.count)}
                 </span>
               </div>
               <div className="h-[3px] w-full bg-secondary overflow-hidden">
@@ -710,7 +710,7 @@ function SponsorTable({ data, onSponsorClick }: SponsorTableProps) {
                 {s.state || '—'}
               </td>
               <td className="py-2.5 pl-3 text-right font-mono text-sm font-medium text-foreground tabular">
-                {s.count.toLocaleString()}
+                {formatCount(s.count)}
               </td>
             </tr>
           ))}
@@ -764,7 +764,7 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
               onClick={() => onCongressClick(item.congress)}
               className="group flex-1 flex flex-col items-center gap-2 min-w-0"
               title={formatCongressProse(item.congress)}
-              aria-label={`${formatCongressProse(item.congress)}: ${item.totalCount.toLocaleString()} bills`}
+              aria-label={`${formatCongressProse(item.congress)}: ${formatCount(item.totalCount)} bills`}
             >
               <span
                 className={cn(
@@ -772,7 +772,7 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
                   isSelected ? 'text-foreground font-semibold' : 'text-muted-foreground'
                 )}
               >
-                {item.totalCount.toLocaleString()}
+                {formatCount(item.totalCount)}
               </span>
               <div
                 className={cn(
@@ -871,10 +871,10 @@ function PartyChamberChart({ house, senate, onStateClick }: PartyChamberChartPro
 
         {/* Footnote: totals & passage rate */}
         <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
-          <span className="tabular">{totalBills.toLocaleString()}</span> bills
+          <span className="tabular">{formatCount(totalBills)}</span> bills
           introduced in total;{' '}
           <span className="tabular font-medium text-foreground">
-            {totalLaws.toLocaleString()}
+            {formatCount(totalLaws)}
           </span>{' '}
           became law
           {totalBills > 0 && (
@@ -910,7 +910,7 @@ function PartyChamberChart({ house, senate, onStateClick }: PartyChamberChartPro
                         {state}
                       </span>
                       <span className="font-mono text-xs text-muted-foreground tabular shrink-0">
-                        {count.toLocaleString()}
+                        {formatCount(count)}
                       </span>
                     </div>
                     <div className="h-[3px] w-full bg-secondary overflow-hidden">
@@ -969,7 +969,7 @@ function ChamberPartyRow({
       <div className="flex items-baseline justify-between mb-2.5">
         <h3 className="font-serif text-lg font-semibold tracking-tight">{label}</h3>
         <p className="font-mono text-xs text-muted-foreground tabular">
-          {total.toLocaleString()} introduced · {lawsTotal.toLocaleString()} became law
+          {formatCount(total)} introduced · {formatCount(lawsTotal)} became law
         </p>
       </div>
 
@@ -981,7 +981,7 @@ function ChamberPartyRow({
           return (
             <div
               key={p}
-              aria-label={`${partyLabel[p]}: ${parties[p].toLocaleString()} bills`}
+              aria-label={`${partyLabel[p]}: ${formatCount(parties[p])} bills`}
               className="block h-full"
               style={{ width: `${w}%`, backgroundColor: partyColor[p] }}
             />
@@ -1009,7 +1009,7 @@ function ChamberPartyRow({
                   {pct.toFixed(1)}%
                 </span>
                 <span className="col-span-4 sm:col-span-3 text-right font-mono text-sm font-medium text-foreground tabular">
-                  {parties[p].toLocaleString()}
+                  {formatCount(parties[p])}
                 </span>
                 <span className="hidden sm:block col-span-3 text-right font-mono text-xs text-muted-foreground tabular">
                   {laws[p]} law{laws[p] === 1 ? '' : 's'}{' '}
@@ -1089,11 +1089,11 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
               <div
                 key={`intro-${m.month}`}
                 className="group flex-1 flex flex-col items-center gap-2 min-w-0 h-full"
-                aria-label={`${m.month}: ${m.count.toLocaleString()} bills introduced, ${m.becameLaw} became law`}
-                title={`${m.month} · ${m.count.toLocaleString()} introduced · ${m.becameLaw} became law`}
+                aria-label={`${m.month}: ${formatCount(m.count)} bills introduced, ${m.becameLaw} became law`}
+                title={`${m.month} · ${formatCount(m.count)} introduced · ${m.becameLaw} became law`}
               >
                 <span className="font-mono text-[10px] tabular text-muted-foreground group-hover:text-foreground transition-colors">
-                  {m.count.toLocaleString()}
+                  {formatCount(m.count)}
                 </span>
                 <div className="flex-1 w-full flex justify-center items-end min-h-0">
                   <div
@@ -1187,13 +1187,13 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
             <span className="font-mono tabular text-foreground">
               {formatMonth(peak.month)}
             </span>{' '}
-            ({peak.count.toLocaleString()}). Quietest:{' '}
+            ({formatCount(peak.count)}). Quietest:{' '}
             <span className="font-mono tabular text-foreground">
               {formatMonth(quietest.month)}
             </span>{' '}
-            ({quietest.count.toLocaleString()}).{' '}
+            ({formatCount(quietest.count)}).{' '}
             <span className="tabular text-foreground">
-              {totalLaws.toLocaleString()}
+              {formatCount(totalLaws)}
             </span>{' '}
             bills became law
             {lawPeak && (
