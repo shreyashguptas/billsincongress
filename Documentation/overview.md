@@ -129,7 +129,7 @@ For performance, analytics data is precomputed during sync:
 
 ## Overview
 
-Each bill detail page includes a full **chat panel** powered by the Groq Compound Mini model. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
+Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
 
 ## Architecture
 
@@ -143,7 +143,7 @@ Convex action: api.llm.sendChatMessage
   1. Get/create billChats row for (billId, sessionId)
   2. Fetch prior turns from billChatMessages
   3. Save user message to billChatMessages
-  4. Call Groq API with:
+  4. Call the OpenRouter chat-completions API with:
        - system prompt (bill context)
        - full conversation history
        - current user question
@@ -172,7 +172,6 @@ Each browser retains its own private history per bill — there is no shared glo
 | `getOrCreateBillChat` | internal mutation | Get or create a chat session row |
 | `addChatMessage` | internal mutation | Append a message to a session |
 | `getMessagesForChat` | internal query | Read all messages for a session |
-| `askBillQuestion` | public action (legacy) | Single-turn Q&A (kept for backward compat) |
 
 ## Database Tables
 
@@ -193,7 +192,7 @@ Analytics rows do not duplicate transcript text. They store `userMessageId` and 
 
 ## LLM Prompt Strategy
 
-The conversation history is passed to Groq using the standard `messages` array format:
+The conversation history is passed to OpenRouter using the standard OpenAI-compatible `messages` array format:
 
 ```
 [system]   → bill metadata + instructions (rebuilt each request)
@@ -395,8 +394,9 @@ Do not use `npx convex dev` for this project. Local frontend development should 
 ## Optional
 
 ```env
-# AI Bill Chat (required for chat feature)
-GROQ_API_KEY=   # Get from https://console.groq.com/
+# AI Bill Chat (required for chat feature) — set on the Convex deployment
+OPENROUTER_API_KEY=   # Get from https://openrouter.ai/keys
+OPENROUTER_MODEL=     # Optional. Overrides the default model without a code deploy.
 ```
 
 ---

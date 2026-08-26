@@ -63,7 +63,7 @@ The rest of this document is for people who want to read, run, or change the cod
 | Backend      | Convex (database, queries, mutations, actions, scheduled jobs)           |
 | Auth         | `@convex-dev/auth` with email OTP via Resend, plus Google OAuth          |
 | Rate limits  | `@convex-dev/rate-limiter` — 5 chat messages/day anon, 100/day signed-in |
-| AI chat      | Groq Compound Mini, with per-session history persisted in Convex         |
+| AI chat      | OpenRouter (model set per deployment), history persisted in Convex       |
 | Hosting      | Cloudflare Workers via OpenNext (frontend) + Convex Cloud (backend)       |
 
 ### Architecture at a glance
@@ -106,7 +106,7 @@ convex/                  # Backend logic
   mutations.ts           # Data writes (mostly internal)
   congressApi.ts         # Sync orchestration with Congress.gov
   sync.ts                # Sync helpers
-  llm.ts                 # AI chat (Groq) + history persistence
+  llm.ts                 # AI chat (OpenRouter) + history persistence
   auth.ts, ResendOTP.ts  # Authentication
   crons.ts               # Scheduled jobs
   rateLimits.ts          # Per-user / per-IP rate limit config
@@ -138,8 +138,9 @@ NEXT_PUBLIC_CONVEX_URL=https://industrious-llama-331.convex.cloud
 # Required for sync to pull bill data
 CONGRESS_API_KEY=        # https://api.congress.gov/sign-up/
 
-# Required for the AI chat panel
-GROQ_API_KEY=            # https://console.groq.com/
+# Required for the AI chat panel (set on the Convex deployment, not in .env.local)
+OPENROUTER_API_KEY=      # https://openrouter.ai/keys
+OPENROUTER_MODEL=        # optional override, e.g. z-ai/glm-5.3-flash
 
 # Optional
 NEXT_PUBLIC_ANALYTICS_ID=
