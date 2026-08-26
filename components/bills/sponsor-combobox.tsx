@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatCount } from '@/lib/utils';
 import { billsService, type SponsorOption } from '@/lib/services/bills-service';
 
 export function SponsorCombobox({
@@ -161,7 +161,7 @@ export function SponsorCombobox({
                     )}
                   </span>
                   <span className="shrink-0 font-mono text-xs text-muted-foreground tabular">
-                    {s.billCount.toLocaleString()}
+                    {formatCount(s.billCount)}
                   </span>
                 </button>
               );

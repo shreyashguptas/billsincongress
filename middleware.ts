@@ -4,6 +4,7 @@ import {
   createRouteMatcher,
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
+import { isPubliclyCacheable } from "./lib/cacheable-routes";
 
 // Kept as "middleware.ts" (not Next.js 16's "proxy.ts") on purpose: proxy.ts is
 // locked to the Node.js runtime, which the Cloudflare/OpenNext adapter doesn't
@@ -75,14 +76,25 @@ export default convexAuthNextjsMiddleware(
     // `Access-Control-Allow-*` headers here — adding `Origin: *` would only
     // broaden the surface for any future authenticated `/api/foo` route.
 
-    // `/bills` is rendered below ConvexAuthNextjsServerProvider. Authenticated
-    // responses can contain user-specific auth bootstrap state, so those must
-    // never be cached. Anonymous responses are identical for everyone — let
-    // shared caches and crawlers treat them as cacheable. Cookie *presence* is
-    // the signal (no JWT validation needed): the refresh-token cookie matters
-    // too, since an expired JWT + valid refresh token still re-auths
-    // mid-request and yields an authed response.
-    if (pathname.startsWith("/bills") && !pathname.includes("api")) {
+    // Every page is rendered below ConvexAuthNextjsServerProvider, whose own
+    // response default is `no-store`. That is the right default for a page
+    // that might be personalised and the wrong one for a page that never is:
+    // `/learn` is the heaviest document on the site and was being rebuilt for
+    // every single visitor, measuring 5.2s at the 75th percentile for largest
+    // contentful paint against Google's 2.5s "good" threshold.
+    //
+    // Authenticated responses can carry user-specific auth bootstrap state and
+    // must never reach a shared cache. Anonymous responses are byte-identical
+    // for everyone. Cookie *presence* is the signal — no JWT validation needed
+    // — and the refresh-token cookie counts too, since an expired JWT plus a
+    // valid refresh token still re-auths mid-request and yields an authed
+    // response.
+    //
+    // This is an allowlist rather than "everything except the private routes",
+    // deliberately. A page missing from the list is merely uncached, which is
+    // today's behaviour; a personalised page wrongly matching a denylist gap
+    // would be a correctness bug. New public routes must be added here.
+    if (isPubliclyCacheable(pathname)) {
       const hasAuthCookie =
         request.cookies.has("__Host-__convexAuthJWT") ||
         request.cookies.has("__convexAuthJWT") ||

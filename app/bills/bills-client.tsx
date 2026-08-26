@@ -5,6 +5,7 @@ import { Suspense, useState, useEffect, useRef } from 'react';
 import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import { parseBillReference } from '@/lib/bill-query';
 import { analytics } from '@/lib/analytics';
+import { formatCount } from '@/lib/utils';
 import {
   formatCongressOrdinal,
   formatCongressOrdinalSpan,
@@ -539,7 +540,7 @@ export default function BillsClient({
                         <span className="font-mono font-medium text-foreground tabular">
                           {/* A capped search knows only a floor, so show "1,024+"
                               rather than presenting it as the full total. */}
-                          {totalBills.count.toLocaleString()}
+                          {formatCount(totalBills.count)}
                           {totalBills.exact ? '' : '+'}
                         </span>
                       </>

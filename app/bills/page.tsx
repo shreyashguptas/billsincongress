@@ -4,6 +4,8 @@ import { billsService, type BillsCountResult } from '@/lib/services/bills-servic
 import type { Bill } from '@/lib/types/bill';
 import BillsClient, { type UrlFilters } from './bills-client';
 import { HubDirectory } from './_hub/hub-directory';
+import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
+import { lastPageFor } from '@/lib/pagination';
 import {
   DEFAULT_FILTER_VALUES,
   filterSignature,
@@ -41,6 +43,26 @@ interface PageProps {
 function firstValue(v: string | string[] | undefined): string | undefined {
   const value = Array.isArray(v) ? v[0] : v;
   return value === '' ? undefined : value;
+}
+
+/**
+ * URL for another page of the current view, keeping whatever filters are
+ * already applied. Rebuilt from the incoming search params rather than from
+ * the parsed filters, so a parameter this page does not model is carried
+ * across rather than silently dropped when someone clicks page 2.
+ */
+function hrefForPage(params: SearchParams, page: number): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === 'page') continue;
+    if (Array.isArray(value)) value.forEach((v) => v !== '' && query.append(key, v));
+    else if (value !== undefined && value !== '') query.set(key, value);
+  }
+  // Page 1 is the canonical form and carries no page parameter, matching the
+  // canonical URL generateMetadata emits.
+  if (page > 1) query.set('page', String(page));
+  const qs = query.toString();
+  return qs ? `/bills?${qs}` : '/bills';
 }
 
 function allValues(v: string | string[] | undefined): string[] {
@@ -146,6 +168,17 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
         congressRange={congressRange}
       />
       <div className="container mx-auto px-4 max-w-5xl">
+        {/* Server-rendered page links. The list above is a client component
+            whose "Load more" button a crawler cannot press, which is why depth
+            on this page was unreachable while the hub pages were not. Filters
+            are carried through, so these work as controls and not only as
+            crawl paths. */}
+        <CrawlablePagination
+          page={page}
+          lastPage={lastPageFor(initialTotal?.count ?? 0, ITEMS_PER_PAGE, MAX_PAGE)}
+          hrefForPage={(n) => hrefForPage(params, n)}
+          className="mb-12 justify-center"
+        />
         <HubDirectory />
       </div>
     </>

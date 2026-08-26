@@ -54,8 +54,26 @@ These are enabled by `posthog.init` config in `instrumentation-client.ts`:
 | `$autocapture` | Every click on links/buttons/inputs across the whole site (incl. nav, footer, Learn/About CTAs) |
 | Session replay | Video-style recordings of real sessions, console logs, network perf |
 | Web vitals | LCP, CLS, FCP, INP per page |
-| `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) |
+| `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) |
+
+> **`$exception` is filtered before it is sent.** Since 26 Aug 2026,
+> `instrumentation-client.ts` passes a `before_send` hook that drops exceptions
+> raised by software that is not this site: Microsoft Outlook's link scanner,
+> browser-extension messaging failures, and the browser's own opaque
+> `Script error.` reports that arrive with no stack frames. Those were roughly
+> 300 of the ~320 exceptions recorded in the preceding ten weeks, which made the
+> error count unreadable rather than merely wrong.
+>
+> The rules live in `lib/error-filter.ts` with the reasoning for each, and are
+> tested against verbatim production messages in `lib/error-filter.test.ts`.
+> Anything that this codebase could plausibly have caused is deliberately kept,
+> including `SecurityError: The operation is insecure.` and
+> `TypeError: Failed to fetch` — a dropped event cannot be investigated later.
+>
+> Two consequences when reading error charts: exception counts before and after
+> 26 Aug 2026 are not comparable, and **only `$exception` is filtered** — every
+> product event in the tables below is sent exactly as it was.
 
 Server-rendered pages with no interactivity (the About page and the legal pages — `/terms`,
 `/privacy`) intentionally have **no custom

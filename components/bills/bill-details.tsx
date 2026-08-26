@@ -20,7 +20,7 @@ import BillQA from './bill-qa';
 import SaveBillButton from './save-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
 import { ArrowLeft, FileText, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatCount } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 const STATE_NAMES: Record<string, string> = {
@@ -220,7 +220,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                     <p className="text-sm text-muted-foreground leading-snug">
                       In committee for{' '}
                       <span className="text-foreground font-medium">
-                        {bill.days_in_committee.toLocaleString()} days
+                        {formatCount(bill.days_in_committee)} days
                       </span>
                       . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'}{' '}
                       bills from past Congresses still in committee this long, about{' '}
@@ -230,7 +230,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                       ever advanced further.
                     </p>
                     <p className="text-[11px] text-muted-foreground/80 leading-snug">
-                      Based on {bill.base_rate_sample.toLocaleString()} past bills —
+                      Based on {formatCount(bill.base_rate_sample)} past bills —
                       a description of that group, not a prediction for this bill.
                     </p>
                   </div>
