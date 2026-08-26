@@ -168,6 +168,23 @@ it("answer paragraph omits the summary caveat once a summary exists", () => {
   assert.ok(!/not published/i.test(billAnswerParagraph(bill)));
 });
 
+it("a summary that is only the bill's title still counts as published", () => {
+  // CRS opens its summaries with the bill's short title, so a summary that has
+  // been created but not yet written is exactly that title and nothing else.
+  // billSummaryText strips the echo and returns '', which is correct for
+  // deciding whether to render a summary — but saying "Congress has not
+  // published" about it is a false statement of fact, on a page whose whole
+  // purpose is stating facts about legislation.
+  const bill = bareBill({
+    latest_summary: "<p><strong>SMASH 2.0 Act</strong></p>",
+  });
+  assert.equal(billSummaryText(bill), "", "precondition: the echo strips to nothing");
+  assert.ok(
+    !/not published/i.test(billAnswerParagraph(bill)),
+    "must not claim Congress published nothing when it published a title-only summary",
+  );
+});
+
 it("House bills are described as House bills", () => {
   const bill = bareBill({ bill_type: "hr", bill_type_label: "H.R.", bill_number: "9237" });
   assert.match(billAnswerParagraph(bill), /House/);

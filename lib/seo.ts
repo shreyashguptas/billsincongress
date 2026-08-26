@@ -229,7 +229,13 @@ export function billAnswerParagraph(bill: Bill): string {
   if (sponsor) text += ` by ${sponsor}`;
   text += `. Its current status is: ${status}.`;
 
-  if (!billSummaryText(bill)) {
+  // Gated on the raw field, not on billSummaryText(). Those answer two
+  // different questions and this sentence is a claim about the first one.
+  // billSummaryText() returns '' both when Congress has published nothing and
+  // when it has published a summary consisting only of the bill's own title —
+  // a real pattern for freshly numbered bills — so gating on it stated
+  // "Congress has not published…" about bills where Congress had.
+  if (!bill.latest_summary) {
     text +=
       ' Congress has not published a plain-language summary of this bill yet;' +
       ' summaries are usually written some time after introduction.';
