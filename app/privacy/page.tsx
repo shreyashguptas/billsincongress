@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'June 10, 2026';
+const LAST_UPDATED = 'August 26, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -79,9 +79,13 @@ export default function PrivacyPage() {
                 When you ask a question about a bill, your question — together
                 with the bill&rsquo;s public information (title, sponsor,
                 status, official summary) — is sent to{' '}
-                <ExternalLink href="https://groq.com">Groq</ExternalLink>, the
-                AI provider that generates the answer. Groq receives your
-                question text but not your name or email address.
+                <ExternalLink href="https://openrouter.ai">
+                  OpenRouter
+                </ExternalLink>
+                , which routes it to the AI model that writes the answer. We
+                restrict that routing to providers running in United States
+                datacenters. OpenRouter and the model provider it routes to
+                receive your question text but not your name or email address.
               </p>
               <p>
                 We store chat questions and answers in our database. If you are
@@ -347,7 +351,7 @@ const summary = [
   'We never sell your data. No ads, no ad trackers, no data brokers.',
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
-  'AI chat questions are answered by Groq and stored so your conversation works; they are never tied to your identity unless you sign in.',
+  'AI chat questions are answered through OpenRouter and stored so your conversation works; they are never tied to your identity unless you sign in.',
   'We email you only for account reasons — never marketing.',
   'No payment data: the site is free.',
 ];
@@ -392,8 +396,8 @@ const providers = [
     role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports.',
   },
   {
-    name: 'Groq',
-    role: 'Generates the AI answers in bill chat. Receives your question and the bill’s public details — not your identity.',
+    name: 'OpenRouter',
+    role: 'Routes bill-chat questions to the AI model that generates the answer, restricted to providers in US datacenters. Receives your question and the bill’s public details — not your identity.',
   },
   {
     name: 'Resend',

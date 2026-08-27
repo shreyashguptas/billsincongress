@@ -5,8 +5,35 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { rateLimiter } from "./rateLimits";
 import { BillStageDescriptions as STAGE_DESCRIPTIONS } from "./billStage";
 
-const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "groq/compound-mini";
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+/**
+ * Baked-in chat model. Override it per-deployment with the OPENROUTER_MODEL
+ * Convex environment variable so swapping models needs no code deploy.
+ *
+ * Pinned to a dated release rather than a `~…-latest` alias: a floating alias
+ * can resolve to a version that no US-datacenter provider carries yet, which
+ * the allowlist below would turn into a chat outage. Moving to a newer release
+ * is a deliberate env-var change after checking its providers.
+ */
+const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
+/**
+ * Provider allowlist, so questions are only served from US datacenters.
+ * Comma-separated OpenRouter provider slugs; override with OPENROUTER_PROVIDERS.
+ *
+ * An empty or unset override falls back to this default rather than removing
+ * the pin. The privacy page tells readers their questions stay in US
+ * datacenters, so dropping the allowlist has to be a deliberate code change,
+ * not something a blank environment variable can do by accident.
+ */
+const DEFAULT_PROVIDERS = "coreweave,gmicloud";
+/**
+ * Runaway-cost guard, in USD per million tokens. Not the target price — the
+ * allowlisted providers sit well under this today ($0.112–0.130 in,
+ * $0.224–0.280 out). It exists so that a provider repricing, or a careless
+ * OPENROUTER_MODEL change, fails loudly instead of multiplying the bill.
+ */
+const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
+const SITE_URL = "https://billsincongress.com";
 const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
 const AUTHED_CHAT_DAILY_LIMIT = 100;
 
@@ -175,7 +202,7 @@ export const getBillChatHistory = query({
  *
  * - Persists the full conversation (user + assistant turns) in Convex so
  *   returning visitors pick up where they left off.
- * - Passes prior turns as Groq `messages` for proper multi-turn context.
+ * - Passes prior turns as OpenRouter `messages` for proper multi-turn context.
  */
 export const sendChatMessage = action({
   args: {
@@ -206,10 +233,15 @@ export const sendChatMessage = action({
       };
     }
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
-      return { answer: "", error: "Groq API key not configured." };
+      return { answer: "", error: "AI chat is not configured." };
     }
+    const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+    const providers = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
+      .split(",")
+      .map((slug) => slug.trim())
+      .filter(Boolean);
 
     const userId = await getAuthUserId(ctx);
     const isAuthed = userId !== null;
@@ -226,8 +258,8 @@ export const sendChatMessage = action({
       };
     }
 
-    // Consume the token before calling Groq. If Groq fails after, the user
-    // loses that question; keep this simple unless upstream errors get noisy.
+    // Consume the token before calling the model. If the call fails after, the
+    // user loses that question; keep this simple unless upstream errors get noisy.
     const limitStatus = isAuthed
       ? await rateLimiter.limit(ctx, "chatAuthedPerDay", {
           key: userId,
@@ -316,18 +348,31 @@ export const sendChatMessage = action({
         { role: "user", content: question },
       ];
 
-      // Call Groq
-      const response = await fetch(GROQ_API_URL, {
+      // Call OpenRouter
+      const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          // Attribution for the OpenRouter dashboard; both are optional.
+          "HTTP-Referer": SITE_URL,
+          "X-OpenRouter-Title": "Bills in Congress",
         },
         body: JSON.stringify({
-          model: MODEL,
+          model,
+          // Pin routing to the allowlist. OpenRouter's own region-locked
+          // routing is enterprise-only, so this is the strongest control we
+          // have over where a question gets processed.
+          provider: {
+            ...(providers.length > 0 && { only: providers }),
+            max_price: MAX_PRICE,
+          },
           messages: llmMessages,
           max_tokens: 2048,
           temperature: 0.3,
+          // Grounded Q&A over a supplied context: thinking tokens add latency
+          // and output cost without improving the answer.
+          reasoning: { enabled: false },
         }),
       });
 
@@ -339,13 +384,25 @@ export const sendChatMessage = action({
           .slice(0, 500)
           .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
         console.error(
-          `Groq API error ${response.status} ${response.statusText}: ${body}`,
+          `OpenRouter API error ${response.status} ${response.statusText}: ${body}`,
         );
         return { answer: "", error: "Failed to get response from AI." };
       }
 
       const data = await response.json();
+      // OpenRouter can answer HTTP 200 with an error payload when no upstream
+      // provider could serve the request.
+      if (data.error) {
+        console.error(
+          `OpenRouter error for ${model}: ${JSON.stringify(data.error).slice(0, 500)}`,
+        );
+        return { answer: "", error: "Failed to get response from AI." };
+      }
       const answer = data.choices?.[0]?.message?.content || "No response generated.";
+      // OpenRouter reports the upstream that served the request; read it
+      // defensively so a missing field never breaks a turn.
+      const servedBy =
+        typeof data.provider === "string" ? data.provider : undefined;
       const answeredAtUtc = Date.now();
       const answeredAtIso = new Date(answeredAtUtc).toISOString();
 
@@ -396,7 +453,8 @@ export const sendChatMessage = action({
               summaryLength: billContext.summary.length,
               hasPdf: billContext.pdfUrl.length > 0,
             },
-            model: MODEL,
+            model,
+            provider: servedBy,
             createdAtUtc: askedAtUtc,
             createdAtIso: askedAtIso,
             answeredAtUtc,
