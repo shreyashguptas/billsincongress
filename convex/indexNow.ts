@@ -95,8 +95,18 @@ export async function queueForIndexNow(
 
   if (existing) {
     // A real change outranks a seed row already sitting in the queue.
+    //
+    // `queuedAt` is restamped along with the priority. It records when this
+    // entry became what it now is, so leaving the seed's original timestamp
+    // would sort a bill first announced weeks ago ahead of changes that
+    // happened this morning. Harmless while change volume stays under one
+    // batch, wrong as soon as it does not.
     if (priority < existing.priority) {
-      await ctx.db.patch(existing._id, { priority, reason });
+      await ctx.db.patch(existing._id, {
+        priority,
+        reason,
+        queuedAt: new Date().toISOString(),
+      });
     }
     return;
   }
