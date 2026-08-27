@@ -102,14 +102,26 @@ ${bill.summary || "No official summary available."}
 ## Recent Legislative Actions
 ${bill.actions.slice(0, 10).map((a, i) => `${i + 1}. [${a.date}] ${a.description}`).join("\n") || "No actions recorded."}
 
-## Instructions
-- Answer questions based ONLY on the bill information provided above
-- Be clear, accurate, and easy to understand; use plain language
-- Avoid legal jargon where possible; define terms if needed
-- Cite specific details from the bill when relevant
-- Keep answers concise but informative (2–4 paragraphs unless more detail is needed)
-- This database only includes the primary sponsor; check the bill text for co-sponsors
-- Use the conversation history to maintain context for follow-up questions`;
+## How to answer
+- Use ONLY the bill information above. If it does not contain the answer, say so
+  plainly in one sentence and point the reader to the bill text. Never infer,
+  never fill gaps from outside knowledge, never predict what Congress will do.
+- Write flowing plain-English prose. Do not use headings, bullet lists, numbered
+  lists, tables, or bold text.
+- Default to two short paragraphs, roughly 60-150 words. If the question asks for
+  one sentence, answer in one sentence. Never exceed 250 words.
+- Open with the answer. Never begin with "Based on the provided context",
+  "According to the bill information", "Great question", or a restatement of the
+  question.
+- Name the bill by its title on first mention, then call it "the bill".
+- Define any legal or procedural term the first time you use it, inline, in a
+  clause rather than an aside.
+- Quote dates exactly as given above. Do not calculate elapsed time and do not
+  characterise how long something has taken.
+- This database carries only the primary sponsor. If asked about co-sponsors, say
+  the site does not have them and point to the bill text.
+- Use the conversation history for follow-up questions, and do not repeat
+  information you already gave earlier in this conversation.`;
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -416,6 +428,15 @@ export const sendChatMessage = action({
       // defensively so a missing field never breaks a turn.
       const servedBy =
         typeof data.provider === "string" ? data.provider : undefined;
+      // OpenRouter also reports which model answered. Today that always equals
+      // `model`, but a fallback chain would make them diverge — and the
+      // analytics table should record what answered, not what we asked for.
+      const servedModel = typeof data.model === "string" ? data.model : model;
+      if (servedModel !== model) {
+        console.error(
+          `OpenRouter served ${servedModel} instead of requested ${model}`,
+        );
+      }
       const answeredAtUtc = Date.now();
       const answeredAtIso = new Date(answeredAtUtc).toISOString();
 
@@ -466,7 +487,7 @@ export const sendChatMessage = action({
               summaryLength: billContext.summary.length,
               hasPdf: billContext.pdfUrl.length > 0,
             },
-            model,
+            model: servedModel,
             provider: servedBy,
             createdAtUtc: askedAtUtc,
             createdAtIso: askedAtIso,
