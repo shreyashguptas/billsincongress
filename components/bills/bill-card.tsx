@@ -10,6 +10,8 @@ import { ArrowRight } from 'lucide-react';
 
 interface BillCardProps {
   bill: Bill;
+  /** `compact` is the in-answer density: fits a 400px panel. */
+  variant?: 'full' | 'compact';
 }
 
 const PARTY_DOT_COLOR: Record<string, string> = {
@@ -18,7 +20,74 @@ const PARTY_DOT_COLOR: Record<string, string> = {
   I: 'bg-party-i',
 };
 
-export default function BillCard({ bill }: BillCardProps) {
+export const STAGE_LABEL: Record<number, string> = {
+  20: 'Introduced',
+  40: 'In committee',
+  60: 'Passed one chamber',
+  80: 'Passed both',
+  90: 'To president',
+  95: 'Signed',
+  100: 'Became law',
+};
+
+/**
+ * The compact card body, taking primitives rather than a `Bill`.
+ *
+ * Answers name bills by id and carry only a small display projection, never a
+ * full row — so this takes what an answer actually has. `BillCard`'s compact
+ * variant and the in-answer entity cards both render through here, which is
+ * what stops the two densities drifting apart.
+ */
+export function CompactBillCard({
+  href,
+  label,
+  title,
+  sponsorLastName,
+  sponsorParty,
+  stage,
+  onClick,
+}: {
+  href: string;
+  label: string;
+  title?: string;
+  sponsorLastName?: string;
+  sponsorParty?: string;
+  stage?: number;
+  onClick?: () => void;
+}) {
+  const partyDot = PARTY_DOT_COLOR[sponsorParty ?? ''] ?? 'bg-party-u';
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="group block rounded-sm border border-border bg-card px-3 py-2.5 hover:border-foreground/40 transition-colors"
+    >
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground tabular">
+        {label}
+      </p>
+      {title ? (
+        <p className="font-serif text-[13px] leading-snug mt-1 line-clamp-2 text-foreground">
+          {title}
+        </p>
+      ) : (
+        <p className="font-serif text-[13px] leading-snug mt-1 text-foreground">
+          Open this bill →
+        </p>
+      )}
+      {(sponsorLastName || stage !== undefined) && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${partyDot}`} aria-hidden="true" />
+          <span className="truncate">
+            {sponsorLastName ? `${sponsorLastName} · ` : ''}
+            {stage !== undefined ? (STAGE_LABEL[stage] ?? 'Unknown') : ''}
+          </span>
+        </p>
+      )}
+    </Link>
+  );
+}
+
+export default function BillCard({ bill, variant = 'full' }: BillCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString + 'T00:00:00Z');
     return new Intl.DateTimeFormat('en-US', {
@@ -36,6 +105,30 @@ export default function BillCard({ bill }: BillCardProps) {
 
   const billNumberLabel = formatBillNumber(bill);
   const partyDot = PARTY_DOT_COLOR[bill.sponsor_party] ?? 'bg-party-u';
+
+  const track = () =>
+    analytics.billCardClicked({
+      bill_id: String(bill.id),
+      bill_type: bill.bill_type,
+      bill_number: bill.bill_number,
+      congress: bill.congress,
+      policy_area: bill.bill_subjects?.policy_area_name ?? '',
+      progress_stage: stage,
+    });
+
+  if (variant === 'compact') {
+    return (
+      <CompactBillCard
+        href={`/bills/${bill.id}`}
+        label={`${bill.bill_type_label || bill.bill_type?.toUpperCase()} ${bill.bill_number}`}
+        title={bill.title}
+        sponsorLastName={bill.sponsor_last_name}
+        sponsorParty={bill.sponsor_party}
+        stage={stage}
+        onClick={track}
+      />
+    );
+  }
 
   return (
     <Link

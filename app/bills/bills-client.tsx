@@ -14,6 +14,8 @@ import {
 import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import BillCard from '@/components/bills/bill-card';
+import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
+import { scopeFromFilters } from '@/lib/answer-scope';
 import { FilterQuickAccess } from '@/components/bills/mobile-filter-bar';
 import {
   DEFAULT_FILTER_VALUES,
@@ -554,6 +556,16 @@ export default function BillsClient({
                   'No matching bills'
                 )}
               </p>
+              {/*
+                The highest-intent surface on the site (spec §6.3): the reader
+                has already said exactly what they care about and is looking at
+                more rows than they want to read. Renders nothing on an
+                unfiltered list — "explain all 19,000 bills" is not a question.
+              */}
+              <ScopeAskBar
+                scope={scopeFromFilters(filterValues)}
+                count={totalBills?.count ?? bills.length}
+              />
             </div>
 
             {error && (

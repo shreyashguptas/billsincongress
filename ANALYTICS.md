@@ -124,10 +124,6 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 | `bill_pdf_opened` | User clicks "Read full text (PDF)" | `bill_id` | `components/bills/bill-details.tsx` |
 | `bill_save_toggled` | Signed-in user saves or unsaves a bill on the detail page | `bill_id`, `action: "saved" \| "unsaved"`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/save-bill-button.tsx` |
 | `bill_save_signin_redirected` | Signed-out user clicked Save and was sent to sign-in (conversion moment) | `bill_id` | `components/bills/save-bill-button.tsx` |
-| `bill_chat_question_submitted` | User submits a question to bill chat | `bill_id`, `question`, `question_length`, `source: "typed" \| "example"`, `question_number`, `user_type: "anonymous" \| "authed"` | `components/bills/bill-qa.tsx` |
-| `bill_chat_answer_received` | AI answer came back successfully | `bill_id`, `response_ms`, `answer_length` | `components/bills/bill-qa.tsx` |
-| `bill_chat_failed` | Chat request errored (not rate limit) | `bill_id`, `error` | `components/bills/bill-qa.tsx` |
-| `bill_chat_rate_limited` | User hit the daily question limit | `bill_id`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/bills/bill-qa.tsx` |
 | `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
 | `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
 
@@ -136,6 +132,36 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 > "At a glance" paragraph built from the bill's own fields, so `has_summary:
 > false` no longer implies the page had no prose on it. The property is
 > deliberately unrenamed: existing insights and funnels are built on it.
+
+### Grounded answers
+
+The answer engine that replaces prompt-stuffed bill chat. `surface` names where the
+question was asked (`bill`, `home`, `panel`, `list`), so one funnel covers every place
+the thread is mounted rather than one funnel per page.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-thread.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial` | `components/answers/answer-thread.tsx` |
+| `answer_failed` | Request errored (not rate limit) | `surface`, `error` | `components/answers/answer-thread.tsx` |
+| `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
+| `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` | `components/answers/answer-thread.tsx` |
+| `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-thread.tsx` |
+| `answer_entity_clicked` | A bill card or chip inside an answer was clicked | `surface`, `entity_kind: "bill" \| "sponsor" \| "topic" \| "state"`, `position`, `entity_id` | `components/answers/entity-block.tsx` |
+| `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger` | `components/answers/answer-panel.tsx` |
+| `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
+| `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/history-list.tsx` |
+| `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
+| `answer_thread_deleted` | Reader deleted one conversation or all of them | `scope: "one" \| "all"`, `thread_count` | `components/answers/history-list.tsx` |
+| `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
+| `answer_starter_clicked` | A generated starter or chart question was used | `surface`, `starter_text` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` |
+| `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
+
+> **`dropped` is the grounding-health number.** It counts citations the model
+> produced for rows it was never handed, which the server deletes before display.
+> Zero is the expected value. A rising line means the catalog's `gotchas` in
+> `convex/catalog/datasets.ts` need strengthening — that is the fix, not a prompt
+> patch elsewhere.
 
 ### Learn page (interactive civics guide)
 
@@ -205,17 +231,27 @@ These are the saved insights the project should maintain in the PostHog UI:
 
 1. **Sign-up funnel** — `$pageview (/sign-up)` → `signup_form_submitted` → `signup_completed`.
    Where do people abandon account creation?
-2. **Rate-limit conversion funnel** — `bill_chat_rate_limited` → `rate_limit_signup_clicked`
+2. **Rate-limit conversion funnel** — `answer_rate_limited` → `rate_limit_signup_clicked`
    → `signup_completed`. Does hitting the free limit convert visitors into accounts?
 3. **Discovery-to-engagement funnel** — `$pageview (/bills)` → `bill_card_clicked` →
-   `bill_viewed` → `bill_chat_question_submitted`. Where does interest drop off?
-4. **Activation** — `signup_completed` → `bill_chat_question_submitted` within 1 day.
-5. **Trends**: daily `signup_completed` (by method), daily `bill_chat_question_submitted`
-   (by user_type), daily unique visitors, `bills_no_results` rate.
+   `bill_viewed` → `answer_question_submitted`. Where does interest drop off?
+4. **Activation** — `signup_completed` → `answer_question_submitted` within 1 day.
+5. **Trends**: daily `signup_completed` (by method), daily `answer_question_submitted`
+   (by surface), daily unique visitors, `bills_no_results` rate.
    Also: `podcast_promo_clicked` broken down by `placement` (and against page views of
    each placement's page) — decides whether each promo placement keeps its spot.
-6. **Retention**: weekly retention on `bill_chat_question_submitted`.
-7. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+6. **Retention**: weekly retention on `answer_question_submitted`.
+7. **Grounding health** — daily `answer_citation_unresolved`, and `dropped` on
+   `answer_received`. This is the metric that says whether answers are actually
+   anchored to our data. A rising line means the catalog's gotchas need
+   strengthening. Give it a dashboard tile.
+8. **Fallback discipline** — `answer_web_search_used` as a share of `answer_received`.
+   It should be a small minority. A rising share means our catalog has a real gap,
+   or the fallback-only rule has stopped holding.
+9. **Where intent actually lives** — `answer_question_submitted` split by `surface`.
+   The spec's bet is that `filtered` converts best per impression. If it does not,
+   the ask bar is in the wrong place.
+10. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
 
 ---
 
@@ -272,6 +308,10 @@ Authenticate once with `npx posthog-cli login`.
 
 | Event | Properties | Retired | Why |
 | --- | --- | --- | --- |
+| `bill_chat_question_submitted` | `bill_id`, `question`, `question_length`, `source`, `question_number`, `user_type` | 2026-08-26 | Replaced by `answer_question_submitted` when bill chat became the grounded answer panel. Deliberately not renamed — renaming breaks saved insights and funnels. `surface: "bill"` is the closest equivalent of the old `bill_id`-scoped view. |
+| `bill_chat_answer_received` | `bill_id`, `response_ms`, `answer_length` | 2026-08-26 | Replaced by `answer_received`, which adds source counts and the grounding-health `dropped` property. |
+| `bill_chat_failed` | `bill_id`, `error` | 2026-08-26 | Replaced by `answer_failed`. |
+| `bill_chat_rate_limited` | `bill_id`, `limit_kind`, `max` | 2026-08-26 | Replaced by `answer_rate_limited`. The rate-limit dialog and its two conversion events (`rate_limit_signup_clicked`, `rate_limit_signin_clicked`) are unchanged and still live. |
 | `bills_filters_applied` | `status`, `bill_type`, `congress`, `state`, `policy_area`, `introduced_date`, `last_action_date`, `title_query`, `bill_number`, `sponsor_count`, `active_filter_count` | 2026-08-12 | The "Apply filters" button it fired from was removed when the mobile filter sheet became an always-visible inline filter bar, and filters now apply as they change. The event had no call site from that commit onward, so no data has been collected since — this row only formalises a removal that already happened in the code. Historic data before then is still in PostHog. |
 
 **Known gap this leaves:** filter *usage* is no longer instrumented at all, so

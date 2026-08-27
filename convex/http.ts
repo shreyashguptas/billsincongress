@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
+import { stream as answerStream } from "./answer";
 
 const http = httpRouter();
 
@@ -19,6 +20,15 @@ http.route({
       status: 200,
     });
   }),
+});
+
+// Grounded answers, streamed as Server-Sent Events. Fronted by the Next.js
+// route at app/api/answer/route.ts, which holds the httpOnly cookies this
+// deployment cannot see.
+http.route({
+  path: "/answer/stream",
+  method: "POST",
+  handler: answerStream,
 });
 
 export default http;

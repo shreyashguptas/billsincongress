@@ -132,6 +132,15 @@ export default defineSchema({
     // (field missing). Complete bills (31) are never read.
     .index("by_syncedEndpoints", ["syncedEndpoints"])
     .index("by_congress_and_bill_number", ["congress", "billNumber"])
+    // Congress-scoped sponsor lookups for the answer engine's `bills` dataset.
+    //
+    // `by_sponsor_state` above is NOT congress-scoped, so answering "bills from
+    // Maryland this Congress" without these meant scanning the newest 200 rows
+    // of ~18,000 and filtering in memory — roughly a 1% sample presented to the
+    // reader as a complete answer. Same class of silent-miss bug as the
+    // policyArea intersection documented above.
+    .index("by_congress_and_sponsor_state", ["congress", "sponsorState"])
+    .index("by_congress_and_sponsor_last", ["congress", "sponsorLastName"])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["congress", "billType", "progressStage", "sponsorState"],
@@ -329,6 +338,58 @@ export default defineSchema({
     content: v.string(),
     createdAt: v.string(),
   }).index("by_chatId", ["chatId"]),
+
+  // Saved conversations for signed-in readers (spec §4.7).
+  //
+  // `userId` is REQUIRED, not optional, and that is the point: an anonymous
+  // conversation cannot be represented in this table at all, so it cannot be
+  // leaked, mis-keyed, or exposed by a forgotten ownership check. Anonymous
+  // transcripts live in the browser's session storage and are never sent here.
+  //
+  // Distinct from `billChats`, which is bill-scoped and stays as it is — old
+  // bill threads keep working on the old tables.
+  chats: defineTable({
+    userId: v.id("users"),
+    title: v.string(), // first question, truncated
+    createdAt: v.number(),
+    lastActivityAt: v.number(),
+    messageCount: v.number(),
+  }).index("by_user_and_lastActivity", ["userId", "lastActivityAt"]),
+
+  // Turns within a saved conversation.
+  //
+  // Resolved citations, entities and the work log are stored WITH the message
+  // so reopening a thread re-renders identically without re-running any tool or
+  // re-resolving any handle. It also freezes the answer as it was given, which
+  // matters once the underlying bill changes status.
+  //
+  // `userId` is denormalised here as defence in depth (spec §4.8 Rule 4). The
+  // primary control is always resolving the parent chat through
+  // requireOwnedChat first — this is the belt to that pair of braces.
+  chatMessages: defineTable({
+    chatId: v.id("chats"),
+    userId: v.id("users"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    citations: v.optional(v.array(v.string())),
+    allowed: v.optional(v.array(v.string())),
+    entities: v.optional(v.any()),
+    webReason: v.optional(v.string()),
+    webSources: v.optional(
+      v.array(
+        v.object({
+          handle: v.string(),
+          url: v.string(),
+          title: v.string(),
+          excerpt: v.string(),
+        }),
+      ),
+    ),
+    workLog: v.optional(v.array(v.object({ tool: v.string(), detail: v.string() }))),
+    createdAt: v.number(),
+  })
+    .index("by_chat_and_createdAt", ["chatId", "createdAt"])
+    .index("by_user", ["userId"]),
 
   // Signed-in bill chat analytics. Times are recorded by Convex in UTC as both
   // epoch milliseconds and ISO strings so analysis is timezone-independent.

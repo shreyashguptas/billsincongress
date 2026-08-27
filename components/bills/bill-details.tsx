@@ -16,7 +16,7 @@ import {
   formatCongressYears,
 } from '@/lib/congress';
 import { billAnswerParagraph, billSummaryText } from '@/lib/seo';
-import BillQA from './bill-qa';
+import { AskAboutBill } from './ask-about-bill';
 import SaveBillButton from './save-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
 import { ArrowLeft, FileText, Check } from 'lucide-react';
@@ -306,9 +306,10 @@ export default function BillDetails({ bill }: BillDetailsProps) {
               Have a question about this bill?
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-              Get plain-English answers grounded in the bill's full text.
+              Every answer cites the records it came from, and the conversation
+              follows you as you read.
             </p>
-            <BillQA billId={bill.id} />
+            <AskAboutBill title={bill.title} />
           </div>
         </div>
       </section>

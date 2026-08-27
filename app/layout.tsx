@@ -5,6 +5,8 @@ import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
+import { AnswerProvider } from '@/components/answers/answer-provider';
+import { AnswerPanel } from '@/components/answers/answer-panel';
 import { Toaster } from '@/components/ui/toaster';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
@@ -174,22 +176,33 @@ export default function RootLayout({
         <ConvexAuthNextjsServerProvider>
           <ConvexClientProvider>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-              <a
-                href="#main"
-                className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
-              >
-                Skip to content
-              </a>
-              <div className="flex min-h-screen flex-col">
-                <Navigation />
-                <main id="main" className="flex-1">
-                  {children}
-                </main>
-                <Footer />
-              </div>
-              <WelcomeNewUser />
-              <PostHogAuthSync />
-              <Toaster />
+              {/*
+                AnswerProvider holds the conversation, and AnswerPanel is a
+                SIBLING of {children} — never inside it. Client-side navigation
+                swaps the page underneath while the conversation survives, which
+                is the whole point of the persistent panel (spec §6.2). Moving
+                the panel inside <main> would silently destroy it on every link
+                click.
+              */}
+              <AnswerProvider>
+                <a
+                  href="#main"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
+                >
+                  Skip to content
+                </a>
+                <div className="flex min-h-screen flex-col">
+                  <Navigation />
+                  <main id="main" className="flex-1">
+                    {children}
+                  </main>
+                  <Footer />
+                </div>
+                <AnswerPanel />
+                <WelcomeNewUser />
+                <PostHogAuthSync />
+                <Toaster />
+              </AnswerProvider>
             </ThemeProvider>
           </ConvexClientProvider>
         </ConvexAuthNextjsServerProvider>
