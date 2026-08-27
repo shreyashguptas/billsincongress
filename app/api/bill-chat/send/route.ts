@@ -3,10 +3,10 @@ import { api } from "@/convex/_generated/api";
 import {
   MAX_QUESTION_LENGTH,
   debugBillChatAuth,
-  getConvexClient,
   getOrCreateAnonymousChatSessionId,
   setConvexAuth,
 } from "../_shared";
+import { getConvexHttpClient } from "@/lib/convex-client";
 import {
   captureServerEvent,
   captureServerException,
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     return badRequest("Invalid clientSessionId.");
   }
 
-  const client = getConvexClient();
+  const client = getConvexHttpClient();
   if (!client) {
     return NextResponse.json(
       { answer: "", error: "Service not available" },

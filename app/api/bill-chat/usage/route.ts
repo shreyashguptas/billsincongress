@@ -3,14 +3,14 @@ import { calculateRateLimit } from "@convex-dev/rate-limiter";
 import { api } from "@/convex/_generated/api";
 import {
   debugBillChatAuth,
-  getConvexClient,
   getOrCreateAnonymousChatSessionId,
   setConvexAuth,
 } from "../_shared";
+import { getConvexHttpClient } from "@/lib/convex-client";
 import { captureServerException } from "@/lib/posthog-server";
 
 export async function GET() {
-  const client = getConvexClient();
+  const client = getConvexHttpClient();
   if (!client) {
     return NextResponse.json(
       {

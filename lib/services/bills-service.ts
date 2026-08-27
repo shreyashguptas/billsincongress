@@ -1,6 +1,6 @@
 import { Bill } from '@/lib/types/bill';
 import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
-import { getConvexHttpClient as getConvexClient } from '@/lib/convex-client';
+import { getConvexHttpClient } from '@/lib/convex-client';
 
 /**
  * Bills service that fetches data from Convex backend.
@@ -127,7 +127,7 @@ function transformConvexBill(doc: any): Bill {
 
 export const billsService = {
   async fetchBillById(id: string): Promise<Bill> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) {
       throw new Error('Convex not configured');
     }
@@ -162,7 +162,7 @@ export const billsService = {
       congress = 'all',
     } = params;
 
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) {
       return { data: [], hasMore: false };
     }
@@ -219,7 +219,7 @@ export const billsService = {
       congress = 'all',
     } = params;
 
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return { count: null, exact: false };
 
     try {
@@ -250,7 +250,7 @@ export const billsService = {
     totalSuccess: number | undefined;
     totalFailed: number | undefined;
   } | null> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return null;
 
     try {
@@ -263,7 +263,7 @@ export const billsService = {
   },
 
   async fetchAllSponsors(): Promise<SponsorOption[]> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return [];
 
     try {
@@ -277,7 +277,7 @@ export const billsService = {
   },
 
   async getAvailableCongressNumbers(): Promise<number[]> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) {
       return [];
     }
@@ -298,7 +298,7 @@ export const billsService = {
   async getBillChatHistory(
     billId: string
   ): Promise<Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return [];
 
     try {

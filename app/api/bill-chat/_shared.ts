@@ -1,7 +1,6 @@
 import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import type { ConvexHttpClient } from "convex/browser";
 import { cookies } from "next/headers";
-import { getConvexHttpClient } from "@/lib/convex-client";
 
 export const MAX_QUESTION_LENGTH = 2000;
 export const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
@@ -11,7 +10,6 @@ const ANONYMOUS_CHAT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 60; // 60 days
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const getConvexClient = getConvexHttpClient;
 
 export function debugBillChatAuth(
   context: string,
