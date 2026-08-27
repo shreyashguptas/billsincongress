@@ -36,7 +36,6 @@ const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
  * probe. Re-verify before adding to this list — an entry that fails the
  * retention filters is silently unreachable, not loudly broken.
  *
- *
  * The first entry is deliberately a FLOATING alias, which is the opposite of
  * the rule stated for DEFAULT_MODEL above — and on purpose. The two pins hedge
  * against opposite failures. The primary is dated so a DeepSeek release cannot
