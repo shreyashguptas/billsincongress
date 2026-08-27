@@ -83,8 +83,8 @@ export default function PrivacyPage() {
                   OpenRouter
                 </ExternalLink>
                 , which routes it to the AI model that writes the answer. We
-                restrict that routing to providers running in United States
-                datacenters. OpenRouter and the model provider it routes to
+                restrict that routing to providers that process data in the
+                United States. OpenRouter and the model provider it routes to
                 receive your question text but not your name or email address.
               </p>
               <p>
@@ -397,7 +397,7 @@ const providers = [
   },
   {
     name: 'OpenRouter',
-    role: 'Routes bill-chat questions to the AI model that generates the answer, restricted to providers in US datacenters. Receives your question and the bill’s public details — not your identity.',
+    role: 'Routes bill-chat questions to the AI model that generates the answer, restricted to providers that process data in the United States. Receives your question and the bill’s public details — not your identity.',
   },
   {
     name: 'Resend',

@@ -17,20 +17,26 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
  */
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
 /**
- * Provider allowlist, so questions are only served from US datacenters.
- * Comma-separated OpenRouter provider slugs; override with OPENROUTER_PROVIDERS.
+ * Provider allowlist, so questions are only served from providers that process
+ * data in the US. Comma-separated OpenRouter provider slugs; override with
+ * OPENROUTER_PROVIDERS.
  *
  * An empty or unset override falls back to this default rather than removing
- * the pin. The privacy page tells readers their questions stay in US
- * datacenters, so dropping the allowlist has to be a deliberate code change,
+ * the pin. The privacy page tells readers their questions are processed in the
+ * United States, so dropping the allowlist has to be a deliberate code change,
  * not something a blank environment variable can do by accident.
+ *
+ * Every slug here must ALSO be permitted by the OpenRouter account's own
+ * allowed-providers setting. If the two lists do not overlap, OpenRouter
+ * rejects every request with a 404 rather than falling back — which is exactly
+ * how this default previously took chat down in production.
  */
-const DEFAULT_PROVIDERS = "coreweave,gmicloud";
+const DEFAULT_PROVIDERS = "deepinfra";
 /**
  * Runaway-cost guard, in USD per million tokens. Not the target price — the
- * allowlisted providers sit well under this today ($0.112–0.130 in,
- * $0.224–0.280 out). It exists so that a provider repricing, or a careless
- * OPENROUTER_MODEL change, fails loudly instead of multiplying the bill.
+ * allowlisted provider sits well under this today ($0.080 in, $0.180 out).
+ * It exists so that a provider repricing, or a careless OPENROUTER_MODEL
+ * change, fails loudly instead of multiplying the bill.
  */
 const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
 const SITE_URL = "https://billsincongress.com";
