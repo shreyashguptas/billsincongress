@@ -36,6 +36,19 @@ const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
  * probe. Re-verify before adding to this list — an entry that fails the
  * retention filters is silently unreachable, not loudly broken.
  *
+ *
+ * The first entry is deliberately a FLOATING alias, which is the opposite of
+ * the rule stated for DEFAULT_MODEL above — and on purpose. The two pins hedge
+ * against opposite failures. The primary is dated so a DeepSeek release cannot
+ * change our answers without us choosing it. The fallback is floating so that
+ * when the dated release is eventually retired, something in the same family
+ * is still reachable; a second dated pin would die at exactly the same moment
+ * as the first and leave the family tier empty when it is most needed.
+ *
+ * The cost of that choice is real: if the alias ever resolves to a release
+ * DeepInfra has not picked up, this hop 404s and the chain skips to Nova. That
+ * is a degraded answer rather than an outage, which is the trade we want here
+ * but not for the primary. Verified reachable on DeepInfra 2026-08-27.
  * Unlike OPENROUTER_PROVIDERS, a blank override here DISABLES fallbacks rather
  * than restoring this default. Blank means "behave as before this existed",
  * which is a safe direction. Blanking the provider pin would quietly weaken a
