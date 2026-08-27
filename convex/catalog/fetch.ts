@@ -22,10 +22,23 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 /** How many rows we scan before filtering in memory. */
 const SCAN_LIMIT = 200;
+/** Distinct sponsor surnames looked up per call, so one request stays bounded. */
+const MAX_SPONSOR_LOOKUPS = 10;
 
 type Row = Record<string, unknown>;
 type FetchResult =
-  | { ok: true; rows: Row[]; truncated: boolean; count: number }
+  | {
+      ok: true;
+      rows: Row[];
+      truncated: boolean;
+      count: number;
+      /**
+       * True when the scan hit its window, so `count` is a FLOOR rather than a
+       * total. Surfaced to the model as `total_is_at_least` so it never states
+       * a capped scan's count as if it were the real number.
+       */
+      countIsLowerBound?: boolean;
+    }
   | { ok: false; error: string };
 
 export const fetchDataset = internalQuery({
@@ -72,7 +85,11 @@ const SENATE_TYPES = ["s", "sjres", "sconres", "sres"];
 async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchResult> {
   const congress = (f.congress as number) ?? 119;
   const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter) : "";
+  const sponsorNames = Array.isArray(f.sponsorFilter) ? (f.sponsorFilter as string[]) : null;
 
+  // Pick the most selective index available for this filter set. Order matters:
+  // every filter NOT enforced by the chosen index has to be applied in memory
+  // over a capped window, and anything outside that window is invisible.
   let candidates;
   if (title !== "") {
     candidates = await ctx.db
@@ -93,6 +110,37 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
       )
       .order("desc")
       .take(SCAN_LIMIT);
+  } else if (sponsorNames && sponsorNames.length > 0) {
+    // Query by LAST name through the index, then match the full name in memory.
+    // The alternative — scanning the newest 200 bills and hoping this sponsor's
+    // work is among them — returns a near-random subset of what they filed.
+    const lastNames = [
+      ...new Set(
+        sponsorNames
+          .map((n) => n.trim().split(/\s+/).slice(-1)[0])
+          .filter((n) => n.length > 0),
+      ),
+    ].slice(0, MAX_SPONSOR_LOOKUPS);
+    const perName = await Promise.all(
+      lastNames.map((last) =>
+        ctx.db
+          .query("bills")
+          .withIndex("by_congress_and_sponsor_last", (q) =>
+            q.eq("congress", congress).eq("sponsorLastName", last),
+          )
+          .order("desc")
+          .take(SCAN_LIMIT),
+      ),
+    );
+    candidates = perName.flat();
+  } else if (typeof f.sponsorState === "string") {
+    candidates = await ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_sponsor_state", (q) =>
+        q.eq("congress", congress).eq("sponsorState", f.sponsorState as string),
+      )
+      .order("desc")
+      .take(SCAN_LIMIT);
   } else if (typeof f.progressStage === "number") {
     candidates = await ctx.db
       .query("bills")
@@ -100,6 +148,21 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
         q.eq("congress", congress).eq("progressStage", f.progressStage as number),
       )
       .order("desc")
+      .take(SCAN_LIMIT);
+  } else if (typeof f.billType === "string") {
+    candidates = await ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_type", (q) =>
+        q.eq("congress", congress).eq("billType", f.billType as string),
+      )
+      .order("desc")
+      .take(SCAN_LIMIT);
+  } else if (typeof f.billNumber === "string") {
+    candidates = await ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_bill_number", (q) =>
+        q.eq("congress", congress).eq("billNumber", f.billNumber as string),
+      )
       .take(SCAN_LIMIT);
   } else {
     candidates = await ctx.db
@@ -109,8 +172,18 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
       .take(SCAN_LIMIT);
   }
 
-  const sponsors = Array.isArray(f.sponsorFilter)
-    ? new Set((f.sponsorFilter as string[]).map((s) => s.toLowerCase()))
+  /**
+   * Did we read all the way to the end of the window?
+   *
+   * If so there are almost certainly rows we never looked at, and any count
+   * derived from `matched` is a FLOOR, not a total. Reporting `truncated:false`
+   * here would tell the model its partial answer was complete — the exact way a
+   * capped scan turns into a confident falsehood.
+   */
+  const scanCapped = candidates.length >= SCAN_LIMIT;
+
+  const sponsors = sponsorNames
+    ? new Set(sponsorNames.map((s) => s.trim().toLowerCase()))
     : null;
   const chamberTypes =
     f.chamber === "house" ? HOUSE_TYPES : f.chamber === "senate" ? SENATE_TYPES : null;
@@ -144,7 +217,13 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
     latestActionDate: b.latestActionDate ?? "",
   }));
 
-  return { ok: true, rows, truncated: matched.length > rows.length, count: matched.length };
+  return {
+    ok: true,
+    rows,
+    truncated: scanCapped || matched.length > rows.length,
+    count: matched.length,
+    countIsLowerBound: scanCapped,
+  };
 }
 
 async function fetchActions(ctx: QueryCtx, f: Row, limit: number): Promise<FetchResult> {

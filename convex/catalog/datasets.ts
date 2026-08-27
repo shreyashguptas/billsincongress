@@ -52,6 +52,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "policyAreaName is ONE policy area per bill. Bills also carry a much richer list of legislative subjects, which this dataset does not expose.",
       "Most bills never leave committee. A bill at stage 40 is in the normal case, not a stalled one — do not describe it as stalled or failing.",
       "A bill missing from a Congress is not proof it does not exist. Congresses before the earliest synced one are simply not loaded.",
+      "NEVER report a count of bills from this dataset as a total. It returns a capped page. If a result carries total_is_at_least, say 'at least N' — never a bare N. For real totals use the `stats` and `topics` datasets.",
     ],
     notCovered: [
       "Vote tallies and roll-call results",

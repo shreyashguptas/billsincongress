@@ -132,6 +132,15 @@ export default defineSchema({
     // (field missing). Complete bills (31) are never read.
     .index("by_syncedEndpoints", ["syncedEndpoints"])
     .index("by_congress_and_bill_number", ["congress", "billNumber"])
+    // Congress-scoped sponsor lookups for the answer engine's `bills` dataset.
+    //
+    // `by_sponsor_state` above is NOT congress-scoped, so answering "bills from
+    // Maryland this Congress" without these meant scanning the newest 200 rows
+    // of ~18,000 and filtering in memory — roughly a 1% sample presented to the
+    // reader as a complete answer. Same class of silent-miss bug as the
+    // policyArea intersection documented above.
+    .index("by_congress_and_sponsor_state", ["congress", "sponsorState"])
+    .index("by_congress_and_sponsor_last", ["congress", "sponsorLastName"])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["congress", "billType", "progressStage", "sponsorState"],

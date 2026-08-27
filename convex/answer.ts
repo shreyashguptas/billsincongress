@@ -6,7 +6,7 @@
  * in `allowed`; at the end, any handle it cited that is not in `allowed` is
  * deleted (see catalog/cite.ts). That is the whole anti-hallucination design.
  */
-import { action, httpAction } from "./_generated/server";
+import { httpAction, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { ActionCtx } from "./_generated/server";
@@ -295,6 +295,7 @@ async function runLoop(
           rows: seeded.rows,
           truncated: seeded.truncated,
           total_matching: seeded.count,
+          ...(seeded.countIsLowerBound ? { total_is_at_least: true } : {}),
         }),
       });
       note({ tool: "fetch", detail: `${opts.scope.label} · ${seeded.count} matches` });
@@ -373,6 +374,10 @@ async function runLoop(
             rows: fetched.rows,
             truncated: fetched.truncated,
             total_matching: fetched.count,
+            // When the scan hit its window, total_matching counts only what we
+            // read, not what exists. Saying so is the difference between "at
+            // least 12" and a confidently wrong "12".
+            ...(fetched.countIsLowerBound ? { total_is_at_least: true } : {}),
           });
           note({
             tool: "fetch",
@@ -430,7 +435,17 @@ async function runLoop(
   };
 }
 
-export const ask = action({
+/**
+ * Non-streaming entry point, for `npx convex run answer:ask '{...}'`.
+ *
+ * INTERNAL on purpose. A public action here would be reachable by anyone with
+ * the deployment URL, and this path has no rate limiter — the daily cap lives
+ * in `stream` below. Exporting it publicly would leave an unmetered door
+ * straight through to OpenRouter at our expense, which is exactly the spend cap
+ * `stream` exists to enforce. `convex run` calls internal functions as admin,
+ * so CLI testing is unaffected.
+ */
+export const ask = internalAction({
   args: {
     question: v.string(),
     focusBillId: v.optional(v.string()),
