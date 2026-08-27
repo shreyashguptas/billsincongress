@@ -4,6 +4,7 @@ import { api } from '@/convex/_generated/api';
 import DashboardClient, {
   type InitialDashboardData,
 } from './components/dashboard/DashboardClient';
+import WavingFlag from '@/components/waving-flag';
 
 export const metadata: Metadata = {
   title: {
@@ -27,7 +28,18 @@ export default async function Home({
   const params = await searchParams;
   const congress = Number(params.congress) || 119;
   const data = await loadDashboardData(congress);
-  return <DashboardClient initialCongress={congress} initialData={data} />;
+  return (
+    <>
+      <DashboardClient initialCongress={congress} initialData={data} />
+      {/* Closing note before the footer. Rendered here rather than inside the
+          dashboard so it stays server-only and costs no client JavaScript. */}
+      <section className="border-t border-border bg-background">
+        <div className="container-editorial py-16 sm:py-24">
+          <WavingFlag className="mx-auto max-w-4xl" />
+        </div>
+      </section>
+    </>
+  );
 }
 
 // Fetches all dashboard data for a given Congress directly from Convex and is
