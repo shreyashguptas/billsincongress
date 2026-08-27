@@ -82,12 +82,14 @@ const SEED_ENQUEUE_PAGE = 500;
  * function rather than a Convex mutation so it joins the caller's transaction
  * instead of racing it.
  */
+export type QueueOutcome = "inserted" | "promoted" | "unchanged";
+
 export async function queueForIndexNow(
   ctx: MutationCtx,
   billId: string,
   reason: string,
   priority: number = CHANGE_PRIORITY,
-): Promise<void> {
+): Promise<QueueOutcome> {
   const existing = await ctx.db
     .query("indexNowQueue")
     .withIndex("by_billId", (q) => q.eq("billId", billId))
@@ -107,8 +109,9 @@ export async function queueForIndexNow(
         reason,
         queuedAt: new Date().toISOString(),
       });
+      return "promoted";
     }
-    return;
+    return "unchanged";
   }
 
   await ctx.db.insert("indexNowQueue", {
@@ -117,6 +120,7 @@ export async function queueForIndexNow(
     reason,
     priority,
   });
+  return "inserted";
 }
 
 /** Public URL of a bill page — what actually gets announced. */
@@ -164,29 +168,81 @@ export const clearBatch = internalMutation({
 });
 
 /**
- * Queue depth, split by priority.
+ * Fast health check: how many *real changes* are waiting.
  *
- * Worth checking periodically: if submissions start failing on a rejected key
- * the queue grows and nothing else says so. Counts are capped because a count
- * that scans an unbounded table is itself a hazard.
+ * Only the change lane, deliberately. That is the number that answers "is
+ * anything broken" — it should sit near zero, and a few hundred means
+ * submissions are failing. It stays exact because the lane is small.
+ *
+ * An earlier version also counted the seed lane, capped at 20,000 each. It
+ * reported "20000, capped" for the entire two weeks of a 55,576-row backlog,
+ * which is useless for the one thing a depth gauge is for, and two 20,000-row
+ * scans in one query would have exceeded Convex's 32,000-document limit had
+ * both lanes ever filled. Use `queueDepth` for an exact total.
  */
 export const pendingCount = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const CAP = 20_000;
+    const CAP = 5_000;
     const changes = await ctx.db
       .query("indexNowQueue")
       .withIndex("by_priority_and_queuedAt", (q) => q.eq("priority", CHANGE_PRIORITY))
       .take(CAP);
-    const seeds = await ctx.db
-      .query("indexNowQueue")
-      .withIndex("by_priority_and_queuedAt", (q) => q.eq("priority", SEED_PRIORITY))
-      .take(CAP);
     return {
       changes: changes.length,
-      seed: seeds.length,
-      capped: changes.length === CAP || seeds.length === CAP,
+      capped: changes.length === CAP,
+      note: "change lane only — run indexNow:queueDepth for the seed backlog too",
     };
+  },
+});
+
+/** One page of the queue, counted by lane. */
+export const queueDepthPage = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ changes: number; seed: number; cursor: string; isDone: boolean }> => {
+    const page = await ctx.db
+      .query("indexNowQueue")
+      .paginate({ numItems: 2000, cursor: args.cursor });
+
+    let changes = 0;
+    let seed = 0;
+    for (const row of page.page) {
+      if (row.priority === CHANGE_PRIORITY) changes++;
+      else seed++;
+    }
+    return { changes, seed, cursor: page.continueCursor, isDone: page.isDone };
+  },
+});
+
+/**
+ * Exact queue depth, by lane.
+ *
+ * An action that pages rather than a query that scans, because a single query
+ * cannot read 55,000 documents — Convex caps a transaction at 32,000. Same
+ * shape as `audit:auditCensus`, which counts the whole bills table the same way.
+ *
+ *   npx convex run --prod internal.indexNow.queueDepth '{}'
+ */
+export const queueDepth = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ changes: number; seed: number; total: number }> => {
+    let cursor: string | null = null;
+    let changes = 0;
+    let seed = 0;
+
+    for (;;) {
+      const page: { changes: number; seed: number; cursor: string; isDone: boolean } =
+        await ctx.runQuery(internal.indexNow.queueDepthPage, { cursor });
+      changes += page.changes;
+      seed += page.seed;
+      if (page.isDone) break;
+      cursor = page.cursor;
+    }
+
+    return { changes, seed, total: changes + seed };
   },
 });
 
@@ -280,19 +336,27 @@ export const seedEnqueuePage = internalMutation({
   handler: async (
     ctx,
     args,
-  ): Promise<{ queued: number; cursor: string; isDone: boolean }> => {
+  ): Promise<{ inserted: number; walked: number; cursor: string; isDone: boolean }> => {
     const page = await ctx.db
       .query("bills")
       .withIndex("by_congress")
       .order("desc")
       .paginate({ numItems: SEED_ENQUEUE_PAGE, cursor: args.cursor });
 
+    // Rows added, not bills looked at. An earlier version reported the page
+    // length, so a re-run of an already-seeded backlog reported the same
+    // figures as the first run — misleading in exactly the situation where
+    // someone is re-running it to find out whether it worked.
+    let inserted = 0;
     for (const bill of page.page) {
-      await queueForIndexNow(ctx, bill.billId, "seed", SEED_PRIORITY);
+      if ((await queueForIndexNow(ctx, bill.billId, "seed", SEED_PRIORITY)) === "inserted") {
+        inserted++;
+      }
     }
 
     return {
-      queued: page.page.length,
+      inserted,
+      walked: page.page.length,
       cursor: page.continueCursor,
       isDone: page.isDone,
     };
@@ -314,24 +378,86 @@ export const seedEnqueuePage = internalMutation({
  */
 export const seedBacklog = internalAction({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
-  handler: async (ctx, args): Promise<{ queued: number; done: boolean }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ inserted: number; walked: number; done: boolean }> => {
     let cursor: string | null = args.cursor ?? null;
-    let queued = 0;
+    let inserted = 0;
+    let walked = 0;
 
     // Bounded so one invocation cannot run away; it self-schedules to continue.
     for (let step = 0; step < 20; step++) {
-      const result: { queued: number; cursor: string; isDone: boolean } =
-        await ctx.runMutation(internal.indexNow.seedEnqueuePage, { cursor });
-      queued += result.queued;
+      const result: {
+        inserted: number;
+        walked: number;
+        cursor: string;
+        isDone: boolean;
+      } = await ctx.runMutation(internal.indexNow.seedEnqueuePage, { cursor });
+      inserted += result.inserted;
+      walked += result.walked;
       cursor = result.cursor;
       if (result.isDone) {
-        console.log(`IndexNow seed complete: ${queued} bills queued in this run.`);
-        return { queued, done: true };
+        console.log(
+          `IndexNow seed complete: ${inserted} rows added from ${walked} bills walked in this run.`,
+        );
+        return { inserted, walked, done: true };
       }
     }
 
     await ctx.scheduler.runAfter(0, internal.indexNow.seedBacklog, { cursor });
-    console.log(`IndexNow seed: ${queued} bills queued so far, continuing.`);
-    return { queued, done: false };
+    console.log(
+      `IndexNow seed: ${inserted} rows added from ${walked} bills walked so far, continuing.`,
+    );
+    return { inserted, walked, done: false };
+  },
+});
+
+// ── Aborting the seed ──────────────────────────────────────────────────────
+
+/** Delete one batch of seed rows. Change-lane rows are never touched. */
+export const clearSeedQueueBatch = internalMutation({
+  args: { limit: v.number() },
+  handler: async (ctx, args): Promise<{ deleted: number }> => {
+    const rows = await ctx.db
+      .query("indexNowQueue")
+      .withIndex("by_priority_and_queuedAt", (q) => q.eq("priority", SEED_PRIORITY))
+      .take(args.limit);
+
+    for (const row of rows) {
+      await ctx.db.delete(row._id);
+    }
+    return { deleted: rows.length };
+  },
+});
+
+/**
+ * Abandon the backlog seed, leaving real changes queued.
+ *
+ * The seed is the only part of this that is a judgement call — announcing
+ * 55,000 pages a domain has never announced before is what the spec calls
+ * spam, and if that turns out to have been a mistake there needs to be a way
+ * back that is not "remove the cron and redeploy". Without this, stopping also
+ * stopped real change announcements, which is the opposite of what anyone
+ * would want.
+ *
+ *   npx convex run --prod internal.indexNow.clearSeedQueue '{}'
+ */
+export const clearSeedQueue = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ deleted: number }> => {
+    let deleted = 0;
+    // 2,000 deletes a batch, well inside Convex's 16,000-writes-per-transaction
+    // limit; 40 batches covers 80,000 rows, more than the whole corpus.
+    for (let batch = 0; batch < 40; batch++) {
+      const result: { deleted: number } = await ctx.runMutation(
+        internal.indexNow.clearSeedQueueBatch,
+        { limit: 2000 },
+      );
+      deleted += result.deleted;
+      if (result.deleted === 0) break;
+    }
+    console.log(`IndexNow seed abandoned: ${deleted} seed rows deleted. Real changes untouched.`);
+    return { deleted };
   },
 });
