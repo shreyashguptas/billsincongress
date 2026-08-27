@@ -150,7 +150,7 @@ the thread is mounted rather than one funnel per page.
 | `answer_entity_clicked` | A bill card or chip inside an answer was clicked | `surface`, `entity_kind: "bill" \| "sponsor" \| "topic" \| "state"`, `position`, `entity_id` | `components/answers/entity-block.tsx` |
 | `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger` | `components/answers/answer-panel.tsx` |
 | `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
-| `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/answer-panel.tsx` |
+| `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/history-list.tsx` |
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
 | `answer_thread_deleted` | Reader deleted one conversation or all of them | `scope: "one" \| "all"`, `thread_count` | `components/answers/history-list.tsx` |
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |

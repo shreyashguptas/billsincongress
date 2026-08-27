@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -25,6 +25,14 @@ export function HistoryList({
   const remove = useMutation(api.chats.remove);
   const removeAll = useMutation(api.chats.removeAll);
   const [confirmingAll, setConfirmingAll] = useState(false);
+
+  // Fired here rather than from the panel's button: only this component knows
+  // how many conversations there actually are, and `chat_count` is the whole
+  // point of the event. Keyed on the loaded length so it fires once per open,
+  // not on every render.
+  useEffect(() => {
+    if (chats !== undefined) analytics.answerHistoryOpened({ chat_count: chats.length });
+  }, [chats?.length]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (chats === undefined) {
     return (

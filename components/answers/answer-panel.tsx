@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { useConvexAuth } from 'convex/react';
 import { X, History, Plus, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { analytics } from '@/lib/analytics';
 import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
 import { useAnswers } from './answer-provider';
 import AnswerThread from './answer-thread';
@@ -98,10 +97,7 @@ export function AnswerPanel() {
             {isAuthenticated && (
               <button
                 type="button"
-                onClick={() => {
-                  setShowHistory((v) => !v);
-                  if (!showHistory) analytics.answerHistoryOpened({ chat_count: 0 });
-                }}
+                onClick={() => setShowHistory((v) => !v)}
                 aria-label={showHistory ? 'Back to conversation' : 'Your conversations'}
                 className="hover:text-foreground transition-colors"
               >
