@@ -90,7 +90,14 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
   // Pick the most selective index available for this filter set. Order matters:
   // every filter NOT enforced by the chosen index has to be applied in memory
   // over a capped window, and anything outside that window is invisible.
+  //
+  // Each branch is responsible for saying whether it saw everything it should
+  // have. Getting this wrong in the optimistic direction is how a sample gets
+  // reported to a reader as a total.
   let candidates;
+  let scanCapped = false;
+  /** The sponsor branch computes its own capping, per surname. */
+  let sponsorBranch = false;
   if (title !== "") {
     candidates = await ctx.db
       .query("bills")
@@ -114,13 +121,14 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
     // Query by LAST name through the index, then match the full name in memory.
     // The alternative — scanning the newest 200 bills and hoping this sponsor's
     // work is among them — returns a near-random subset of what they filed.
-    const lastNames = [
+    const allLastNames = [
       ...new Set(
         sponsorNames
           .map((n) => n.trim().split(/\s+/).slice(-1)[0])
           .filter((n) => n.length > 0),
       ),
-    ].slice(0, MAX_SPONSOR_LOOKUPS);
+    ];
+    const lastNames = allLastNames.slice(0, MAX_SPONSOR_LOOKUPS);
     const perName = await Promise.all(
       lastNames.map((last) =>
         ctx.db
@@ -133,6 +141,15 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
       ),
     );
     candidates = perName.flat();
+    sponsorBranch = true;
+    // Capped if ANY single surname filled its own window — not if the names
+    // merely sum past it, which would over-report truncation for three
+    // complete 70-row lookups. Also capped if we declined to look up some of
+    // the names at all: searching 10 of 15 and reporting the result as
+    // complete is the same silent-sample bug in a different costume.
+    scanCapped =
+      perName.some((rows) => rows.length >= SCAN_LIMIT) ||
+      allLastNames.length > lastNames.length;
   } else if (typeof f.sponsorState === "string") {
     candidates = await ctx.db
       .query("bills")
@@ -179,8 +196,14 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
    * derived from `matched` is a FLOOR, not a total. Reporting `truncated:false`
    * here would tell the model its partial answer was complete — the exact way a
    * capped scan turns into a confident falsehood.
+   *
+   * The sponsor branch sets this itself, per-surname; every other branch is a
+   * single query, so filling the window is the signal.
    */
-  const scanCapped = candidates.length >= SCAN_LIMIT;
+  // Deliberately NOT `scanCapped || candidates.length >= SCAN_LIMIT`: the
+  // sponsor branch concatenates several complete per-surname results, which can
+  // sum past the limit without any single query having been capped.
+  if (!sponsorBranch) scanCapped = candidates.length >= SCAN_LIMIT;
 
   const sponsors = sponsorNames
     ? new Set(sponsorNames.map((s) => s.trim().toLowerCase()))
