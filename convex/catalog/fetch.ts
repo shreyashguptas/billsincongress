@@ -109,6 +109,19 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
         return s;
       })
       .take(SCAN_LIMIT);
+  } else if (typeof f.billNumber === "string") {
+    // MUST come before billType. `{billType:"hr", billNumber:"1"}` taken by the
+    // billType branch reads the 200 NEWEST H.R. bills (numbers ~9000+) and then
+    // looks for number "1" in memory — which finds nothing, because H.R. 1 is
+    // the oldest. "What is H.R. 1?" answered "we have no record of it".
+    // congress+billNumber is the most selective index we have; order these
+    // branches by selectivity, not by convenience.
+    candidates = await ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_bill_number", (q) =>
+        q.eq("congress", congress).eq("billNumber", f.billNumber as string),
+      )
+      .take(SCAN_LIMIT);
   } else if (typeof f.policyArea === "string") {
     candidates = await ctx.db
       .query("bills")
@@ -173,13 +186,6 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
         q.eq("congress", congress).eq("billType", f.billType as string),
       )
       .order("desc")
-      .take(SCAN_LIMIT);
-  } else if (typeof f.billNumber === "string") {
-    candidates = await ctx.db
-      .query("bills")
-      .withIndex("by_congress_and_bill_number", (q) =>
-        q.eq("congress", congress).eq("billNumber", f.billNumber as string),
-      )
       .take(SCAN_LIMIT);
   } else {
     candidates = await ctx.db
