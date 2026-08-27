@@ -322,7 +322,7 @@ export const billsService = {
    * Persists both the user message and the assistant reply in Convex.
    *
    * On rate-limit hit, returns `error: "RATE_LIMITED"` with a `rateLimit`
-   * object describing the cap and reset time. Caller (bill-qa.tsx) is
+   * object describing the cap and reset time. Caller is
    * expected to render a dialog from those fields.
    */
   async sendChatMessage(

@@ -225,27 +225,6 @@ export const analytics = {
   billSaveSigninRedirected: (billId: string) =>
     capture('bill_save_signin_redirected', { bill_id: billId }),
 
-  billChatQuestionSubmitted: (props: {
-    bill_id: string;
-    question: string;
-    question_length: number;
-    source: 'typed' | 'example';
-    question_number: number;
-    user_type: LimitKind;
-  }) => capture('bill_chat_question_submitted', props),
-
-  billChatAnswerReceived: (props: {
-    bill_id: string;
-    response_ms: number;
-    answer_length: number;
-  }) => capture('bill_chat_answer_received', props),
-
-  billChatFailed: (billId: string, error: string) =>
-    capture('bill_chat_failed', { bill_id: billId, error }),
-
-  billChatRateLimited: (billId: string, kind: LimitKind, max: number) =>
-    capture('bill_chat_rate_limited', { bill_id: billId, limit_kind: kind, max }),
-
   // ── Grounded answers ─────────────────────────────────────────────────────
   //
   // `surface` says where the question was asked from ('bill', 'home', 'panel',

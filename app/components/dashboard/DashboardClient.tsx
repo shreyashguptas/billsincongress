@@ -9,6 +9,8 @@ import { useConvexEnabled } from '../../ConvexClientProvider';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
+import { HeroAsk } from '@/components/answers/hero-ask';
+import { AskAbout } from '@/components/answers/ask-about';
 import { analytics } from '@/lib/analytics';
 import {
   formatCongressOrdinal,
@@ -214,23 +216,34 @@ function DashboardInner({
                 States Congress — sourced live from Congress.gov, made readable
                 for citizens, journalists and researchers.
               </p>
-              <div className="mt-7 flex flex-wrap gap-3">
+              {/*
+                The masthead leads with a question (spec §6.1). The eyebrow, h1
+                and paragraph above stay server-rendered — they are the page's
+                indexable body — and this is a client island beside them.
+
+                The browse link survives as quiet text rather than a button:
+                measured 2026-08-26, "Browse all bills" took 461 clicks against
+                3,505 home views over 30 days (13.2%), which is far too much
+                traffic to drop. "How a bill becomes law" took 33 (0.9%) and is
+                already in the footer, so its button goes.
+              */}
+              <HeroAsk
+                starters={{
+                  congress: viewCongress,
+                  totalBills: congressDashboard?.totalBills ?? 0,
+                  topPolicyAreas: congressDashboard?.topPolicyAreas ?? [],
+                  statusBreakdown: congressDashboard?.statusBreakdown ?? null,
+                }}
+              />
+              <p className="mt-4 text-sm">
                 <Link
                   href="/bills"
                   data-ph-capture-attribute-cta="home-browse-bills"
-                  className="inline-flex items-center gap-2 rounded-sm bg-foreground px-4 py-2.5 text-sm font-medium text-background hover:bg-foreground/85 transition-colors"
+                  className="text-muted-foreground hover:text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground transition-colors"
                 >
-                  Browse all bills
-                  <ArrowRight className="h-4 w-4" />
+                  Or browse all bills →
                 </Link>
-                <Link
-                  href="/learn"
-                  data-ph-capture-attribute-cta="home-learn"
-                  className="inline-flex items-center gap-2 rounded-sm border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                >
-                  How a bill becomes law
-                </Link>
-              </div>
+              </p>
             </div>
 
             {/* Congress selector — quiet sidebar */}
@@ -285,6 +298,17 @@ function DashboardInner({
         )}
       >
         <div key={viewCongress} className="animate-fade-in">
+      {/* ── "The evidence" divider ───────────────────────────────── */}
+      <section className="border-b border-border">
+        <div className="container-editorial pt-10 pb-2">
+          <p className="label-eyebrow">The evidence</p>
+          <p className="mt-1 text-sm text-muted-foreground max-w-2xl leading-relaxed">
+            Everything below is the record the answers above are drawn from — the same
+            numbers, unfiltered.
+          </p>
+        </div>
+      </section>
+
       {/* ── KEY METRICS row ───────────────────────────────────────── */}
       <section className="border-b border-border">
         <div className="container-editorial py-8">
@@ -303,6 +327,7 @@ function DashboardInner({
             <SectionHeader
               eyebrow="Where bills stand"
               title="Status distribution"
+            askQuestion={`Why do most bills never leave committee in the ${formatCongressOrdinal(viewCongress)} Congress?`}
               description="Most introduced bills never leave committee. The bar shows how this Congress's introduced bills are distributed across the legislative pipeline."
             />
             {congressDashboard && (
@@ -317,6 +342,7 @@ function DashboardInner({
             <SectionHeader
               eyebrow="By subject"
               title="Top policy areas"
+            askQuestion={`What are the biggest policy areas in the ${formatCongressOrdinal(viewCongress)} Congress and what do those bills do?`}
               description="The most common policy areas tagged on bills introduced this Congress."
             />
             {congressDashboard && (
@@ -335,6 +361,7 @@ function DashboardInner({
           <SectionHeader
             eyebrow="The most prolific"
             title="Leading sponsors"
+            askQuestion={`Who introduces the most bills in the ${formatCongressOrdinal(viewCongress)} Congress, and does that mean anything?`}
             description="Members who have introduced the most bills this Congress."
           />
           {congressDashboard && (
@@ -352,6 +379,7 @@ function DashboardInner({
           <SectionHeader
             eyebrow="Across the aisle"
             title="Who's writing the bills"
+            askQuestion={`How does bill sponsorship split by party and chamber in the ${formatCongressOrdinal(viewCongress)} Congress?`}
             description="How sponsorship and passage split by party and chamber this Congress. The left column shows who introduces; the right shows whose bills actually become law."
           />
           <PartyChamberChart
@@ -368,6 +396,7 @@ function DashboardInner({
           <SectionHeader
             eyebrow="Session rhythm"
             title="Introductions, month by month"
+            askQuestion={`When during the ${formatCongressOrdinal(viewCongress)} Congress were bills actually introduced?`}
             description="The pulse of the legislative calendar — when bills are actually filed, and how many of them eventually became law."
           />
           <MonthlyCadenceChart
@@ -383,6 +412,7 @@ function DashboardInner({
           <SectionHeader
             eyebrow="In context"
             title="Volume across recent Congresses"
+            askQuestion={`How does the ${formatCongressOrdinal(viewCongress)} Congress compare to recent ones by volume?`}
             description="Total bills introduced in each two-year session of Congress on record. Click a bar to switch the view."
           />
           <HistoricalChart
@@ -413,17 +443,32 @@ function SectionHeader({
   eyebrow,
   title,
   description,
+  askQuestion,
 }: {
   eyebrow: string;
   title: string;
   description?: string;
+  /**
+   * When set, the section offers to answer its own question (spec §6.5). This
+   * is what stops each chart being a dead end — it hands the reader their next
+   * question instead. Sits ALONGSIDE the existing drill-down, never replacing
+   * it: browsing and asking are different intents.
+   */
+  askQuestion?: string;
 }) {
   return (
     <header className="mb-6">
       <p className="label-eyebrow mb-2">{eyebrow}</p>
-      <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">
-        {title}
-      </h2>
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">
+          {title}
+        </h2>
+        {askQuestion && (
+          <div className="shrink-0 pt-1.5">
+            <AskAbout question={askQuestion} />
+          </div>
+        )}
+      </div>
       {description && (
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground leading-relaxed">
           {description}
