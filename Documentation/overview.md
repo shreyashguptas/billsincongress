@@ -397,7 +397,7 @@ Do not use `npx convex dev` for this project. Local frontend development should 
 # AI Bill Chat (required for chat feature) — set on the Convex deployment
 OPENROUTER_API_KEY=   # Get from https://openrouter.ai/keys
 OPENROUTER_MODEL=     # Optional. Overrides the default model without a code deploy.
-OPENROUTER_PROVIDERS= # Optional. Comma-separated provider allowlist; empty disables the pin.
+OPENROUTER_PROVIDERS= # Optional. Comma-separated provider allowlist; blank falls back to the US default.
 ```
 
 ---

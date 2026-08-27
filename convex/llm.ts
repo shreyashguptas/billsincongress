@@ -19,7 +19,11 @@ const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
 /**
  * Provider allowlist, so questions are only served from US datacenters.
  * Comma-separated OpenRouter provider slugs; override with OPENROUTER_PROVIDERS.
- * Empty string disables the allowlist and lets OpenRouter route anywhere.
+ *
+ * An empty or unset override falls back to this default rather than removing
+ * the pin. The privacy page tells readers their questions stay in US
+ * datacenters, so dropping the allowlist has to be a deliberate code change,
+ * not something a blank environment variable can do by accident.
  */
 const DEFAULT_PROVIDERS = "coreweave,gmicloud";
 /**
@@ -234,7 +238,7 @@ export const sendChatMessage = action({
       return { answer: "", error: "AI chat is not configured." };
     }
     const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
-    const providers = (process.env.OPENROUTER_PROVIDERS ?? DEFAULT_PROVIDERS)
+    const providers = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
       .split(",")
       .map((slug) => slug.trim())
       .filter(Boolean);
