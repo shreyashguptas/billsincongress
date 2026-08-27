@@ -9,7 +9,7 @@
     "start": "next start",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "optimize-images": "tsx scripts/optimize-images.ts",
-    "test": "tsx convex/billStage.test.ts && tsx convex/syncStatus.test.ts && tsx convex/baseRates.test.ts && tsx convex/searchQuery.test.ts && tsx convex/chamber.test.ts && tsx lib/bill-query.test.ts && tsx lib/hubs.test.ts && tsx lib/seo.test.ts && tsx lib/analytics-registry.test.ts && tsx lib/format.test.ts && tsx lib/pagination.test.ts && tsx lib/cacheable-routes.test.ts && tsx lib/error-filter.test.ts && tsx lib/indexnow.test.ts && tsx convex/indexNowStatus.test.ts && tsx convex/catalog/datasets.test.ts && tsx convex/catalog/cite.test.ts && tsx convex/catalog/filters.test.ts",
+    "test": "tsx convex/billStage.test.ts && tsx convex/syncStatus.test.ts && tsx convex/baseRates.test.ts && tsx convex/searchQuery.test.ts && tsx convex/chamber.test.ts && tsx lib/bill-query.test.ts && tsx lib/hubs.test.ts && tsx lib/seo.test.ts && tsx lib/analytics-registry.test.ts && tsx lib/format.test.ts && tsx lib/pagination.test.ts && tsx lib/cacheable-routes.test.ts && tsx lib/error-filter.test.ts && tsx lib/indexnow.test.ts && tsx convex/indexNowStatus.test.ts && tsx convex/catalog/datasets.test.ts && tsx convex/catalog/cite.test.ts && tsx convex/catalog/filters.test.ts && tsx lib/answer-format.test.ts && tsx lib/answer-entities.test.ts && tsx lib/transcript-cap.test.ts && tsx lib/search-query-guard.test.ts && tsx lib/answer-scope.test.ts && tsx lib/starter-questions.test.ts",
     "cf:build": "pnpm generate-icons && opennextjs-cloudflare build",
     "preview": "pnpm cf:build && opennextjs-cloudflare preview",
     "deploy": "pnpm cf:build && opennextjs-cloudflare deploy",

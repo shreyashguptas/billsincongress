@@ -137,6 +137,36 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 > false` no longer implies the page had no prose on it. The property is
 > deliberately unrenamed: existing insights and funnels are built on it.
 
+### Grounded answers
+
+The answer engine that replaces prompt-stuffed bill chat. `surface` names where the
+question was asked (`bill`, `home`, `panel`, `list`), so one funnel covers every place
+the thread is mounted rather than one funnel per page.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-thread.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial` | `components/answers/answer-thread.tsx` |
+| `answer_failed` | Request errored (not rate limit) | `surface`, `error` | `components/answers/answer-thread.tsx` |
+| `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
+| `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` | `components/answers/answer-thread.tsx` |
+| `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-thread.tsx` |
+| `answer_entity_clicked` | A bill card or chip inside an answer was clicked | `surface`, `entity_kind: "bill" \| "sponsor" \| "topic" \| "state"`, `position`, `entity_id` | `components/answers/entity-block.tsx` |
+| `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger` | `components/answers/answer-panel.tsx` |
+| `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
+| `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/answer-panel.tsx` |
+| `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
+| `answer_thread_deleted` | Reader deleted one conversation or all of them | `scope: "one" \| "all"`, `thread_count` | `components/answers/history-list.tsx` |
+| `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
+| `answer_starter_clicked` | A generated starter or chart question was used | `surface`, `starter_text` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` |
+| `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
+
+> **`dropped` is the grounding-health number.** It counts citations the model
+> produced for rows it was never handed, which the server deletes before display.
+> Zero is the expected value. A rising line means the catalog's `gotchas` in
+> `convex/catalog/datasets.ts` need strengthening — that is the fix, not a prompt
+> patch elsewhere.
+
 ### Learn page (interactive civics guide)
 
 The Learn page is an illustrated, interactive explainer of how Congress works. Each
@@ -215,7 +245,17 @@ These are the saved insights the project should maintain in the PostHog UI:
    Also: `podcast_promo_clicked` broken down by `placement` (and against page views of
    each placement's page) — decides whether each promo placement keeps its spot.
 6. **Retention**: weekly retention on `bill_chat_question_submitted`.
-7. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+7. **Grounding health** — daily `answer_citation_unresolved`, and `dropped` on
+   `answer_received`. This is the metric that says whether answers are actually
+   anchored to our data. A rising line means the catalog's gotchas need
+   strengthening. Give it a dashboard tile.
+8. **Fallback discipline** — `answer_web_search_used` as a share of `answer_received`.
+   It should be a small minority. A rising share means our catalog has a real gap,
+   or the fallback-only rule has stopped holding.
+9. **Where intent actually lives** — `answer_question_submitted` split by `surface`.
+   The spec's bet is that `filtered` converts best per impression. If it does not,
+   the ask bar is in the wrong place.
+10. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
 
 ---
 

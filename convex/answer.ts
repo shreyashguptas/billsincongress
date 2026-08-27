@@ -41,6 +41,17 @@ export interface AnswerResult {
   workLog: WorkLogEntry[];
   dropped: number;
   partial: boolean;
+  /**
+   * Every handle the model was given this turn. The client needs it to resolve
+   * entity directives (spec §6.6). NOT the same as `sources`, which is only
+   * what it actually cited.
+   */
+  allowed: string[];
+  /**
+   * A small display projection per bill handle, so entity cards can show a
+   * title without a per-card request storm. Keyed by handle.
+   */
+  entities: Record<string, Record<string, unknown>>;
   error?: string;
 }
 
@@ -132,6 +143,8 @@ async function runLoop(
   },
 ): Promise<AnswerResult> {
   const allowed = new Set<string>();
+  /** Display projection per bill handle — see AnswerResult.entities. */
+  const display = new Map<string, Record<string, unknown>>();
   const workLog: WorkLogEntry[] = [];
   const note = (entry: WorkLogEntry) => {
     workLog.push(entry);
@@ -158,7 +171,13 @@ async function runLoop(
     const toolCalls = message?.tool_calls ?? [];
     if (toolCalls.length === 0) {
       const resolved = resolveAnswer(message?.content ?? "", allowed);
-      return { ...resolved, workLog, partial };
+      return {
+        ...resolved,
+        workLog,
+        partial,
+        allowed: [...allowed],
+        entities: Object.fromEntries(display),
+      };
     }
 
     if (round === MAX_TOOL_ROUNDS) partial = true;
@@ -190,7 +209,17 @@ async function runLoop(
         });
         if (fetched.ok) {
           for (const row of fetched.rows) {
-            if (typeof row._cite === "string") allowed.add(row._cite);
+            if (typeof row._cite !== "string") continue;
+            allowed.add(row._cite);
+            if (args.name === "bills") {
+              display.set(row._cite, {
+                label: row.label,
+                title: row.title,
+                sponsor: row.sponsor,
+                sponsorParty: row.sponsorParty,
+                progressStage: row.progressStage,
+              });
+            }
           }
           result = JSON.stringify({
             rows: fetched.rows,
@@ -219,6 +248,8 @@ async function runLoop(
     workLog,
     dropped: 0,
     partial: true,
+    allowed: [...allowed],
+    entities: Object.fromEntries(display),
   };
 }
 
@@ -236,7 +267,14 @@ export const ask = action({
     ),
   },
   handler: async (ctx, args): Promise<AnswerResult> => {
-    const empty = { sources: [], workLog: [], dropped: 0, partial: false };
+    const empty = {
+      sources: [],
+      workLog: [],
+      dropped: 0,
+      partial: false,
+      allowed: [],
+      entities: {},
+    };
     if (args.question.trim().length === 0 || args.question.length > MAX_QUESTION_LENGTH) {
       return { text: "", ...empty, error: "Question must be between 1 and 2000 characters." };
     }
@@ -333,6 +371,8 @@ export const stream = httpAction(async (ctx, request) => {
           sources: result.sources,
           dropped: result.dropped,
           partial: result.partial,
+          allowed: result.allowed,
+          entities: result.entities,
         });
       } catch (error) {
         console.error("answer stream failed:", error);

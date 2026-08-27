@@ -246,6 +246,102 @@ export const analytics = {
   billChatRateLimited: (billId: string, kind: LimitKind, max: number) =>
     capture('bill_chat_rate_limited', { bill_id: billId, limit_kind: kind, max }),
 
+  // ── Grounded answers ─────────────────────────────────────────────────────
+  //
+  // `surface` says where the question was asked from ('bill', 'home', 'panel',
+  // 'list'), so one funnel covers every place the answer thread is mounted.
+
+  answerQuestionSubmitted: (props: {
+    surface: string;
+    question: string;
+    question_length: number;
+    source: 'typed' | 'starter';
+    question_number: number;
+    /** Present only when asked from a filtered list (spec §6.3). */
+    scope_label?: string;
+  }) => capture('answer_question_submitted', props),
+
+  answerReceived: (props: {
+    surface: string;
+    response_ms: number;
+    answer_length: number;
+    db_source_count: number;
+    web_source_count: number;
+    dropped: number;
+    partial: boolean;
+  }) => capture('answer_received', props),
+
+  answerFailed: (props: { surface: string; error: string }) =>
+    capture('answer_failed', props),
+
+  answerSourceClicked: (props: {
+    surface: string;
+    source_kind: 'db' | 'web';
+    position: number;
+  }) => capture('answer_source_clicked', props),
+
+  /**
+   * The grounding-health metric. A rising line means the model is citing rows
+   * it was never given, and the fix is stronger `gotchas` in the catalog.
+   */
+  answerCitationUnresolved: (props: {
+    surface: string;
+    marker_count: number;
+    model: string;
+  }) => capture('answer_citation_unresolved', props),
+
+  answerRateLimited: (props: {
+    surface: string;
+    limit_kind: LimitKind;
+    max: number;
+  }) => capture('answer_rate_limited', props),
+
+  answerEntityClicked: (props: {
+    surface: string;
+    entity_kind: 'bill' | 'sponsor' | 'topic' | 'state';
+    position: number;
+    entity_id: string;
+  }) => capture('answer_entity_clicked', props),
+
+  answerPanelOpened: (props: { surface: string; trigger: string }) =>
+    capture('answer_panel_opened', props),
+
+  /**
+   * Whether the persistent panel is earning its complexity: a reader who kept
+   * asking after moving to a different page.
+   */
+  answerSurvivedNavigation: (props: {
+    from_surface: string;
+    to_surface: string;
+    turn_number: number;
+  }) => capture('answer_survived_navigation', props),
+
+  answerHistoryOpened: (props: { chat_count: number }) =>
+    capture('answer_history_opened', props),
+
+  answerHistoryThreadResumed: (props: {
+    thread_id: string;
+    age_days: number;
+    message_count: number;
+  }) => capture('answer_history_thread_resumed', props),
+
+  answerThreadDeleted: (props: { scope: 'one' | 'all'; thread_count: number }) =>
+    capture('answer_thread_deleted', props),
+
+  /** A conversation started signed-out, kept on request after signing in. */
+  answerAnonThreadSaved: (props: { turn_count: number }) =>
+    capture('answer_anon_thread_saved', props),
+
+  answerStarterClicked: (props: { surface: string; starter_text: string }) =>
+    capture('answer_starter_clicked', props),
+
+  answerWebSearchUsed: (props: {
+    surface: string;
+    reason: string;
+    result_count: number;
+    engine: string;
+  }) => capture('answer_web_search_used', props),
+
   rateLimitSignupClicked: (kind: LimitKind) =>
     capture('rate_limit_signup_clicked', { limit_kind: kind }),
 
