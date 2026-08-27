@@ -41,6 +41,11 @@ jobs:
       # others are.
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
         with:
+          # MUST equal `packageManager` in package.json. The action does not
+          # take the newer of the two — it throws "Multiple versions of pnpm
+          # specified" and every review fails at this step, with the cause
+          # sitting in a different file from the one that changed. Stated
+          # explicitly here to match ci.yml and deploy.yml, which do the same.
           version: 10.33.0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -48,30 +53,45 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # Tolerated on purpose. An out-of-sync lockfile is the most common CI
+      # failure there is, and before these steps existed it could not stop a
+      # review. Without this, `--frozen-lockfile` rejecting a lockfile would
+      # skip every later step and the pull request would get no review at all —
+      # only a red check that reads as infrastructure noise.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        continue-on-error: true
+        run: pnpm install --frozen-lockfile 2>&1 | tee /tmp/install-output.txt
 
-      # Run both checks up front and keep going regardless, so the reviewer
-      # always opens with the branch's actual state instead of guessing at it.
-      # `continue-on-error` is the point: a red branch is exactly when the
-      # review is most worth having, so a failure here must not cancel it.
+      # Run both checks up front so the reviewer always opens with the branch's
+      # actual state instead of guessing at it.
       - name: Capture check results
+        if: ${{ !cancelled() }}
         run: |
-          # `set +e` is load-bearing. GitHub runs this under `bash -e`, so a
-          # failing `pnpm test` would abort the step and the typecheck file
-          # would never be written — precisely in the case where the reviewer
-          # most needs both. Exit 0 for the same reason: a red branch is when
-          # the review is most worth having, so this must never cancel it.
+          # `set +e` and the trailing `exit 0` are what keep this step green —
+          # there is no `continue-on-error` key here. GitHub runs this under
+          # `bash -e`, so without `set +e` a failing `pnpm test` would abort the
+          # step and the typecheck file would never be written, precisely in the
+          # case where the reviewer most needs both. Keeping going is the point:
+          # a red branch is when a review is most worth having.
+          #
+          # `tee` so the output lands in the job log as well as the file; a
+          # maintainer debugging a silent review should not have to guess what
+          # these printed. PIPESTATUS[0] is the command's status, not tee's.
           set +e
-          pnpm test > /tmp/test-output.txt 2>&1
-          echo "test exit: $?" >> /tmp/test-output.txt
-          ./node_modules/.bin/tsc --noEmit > /tmp/typecheck-output.txt 2>&1
-          echo "typecheck exit: $?" >> /tmp/typecheck-output.txt
+          pnpm test 2>&1 | tee /tmp/test-output.txt
+          echo "test exit: ${PIPESTATUS[0]}" >> /tmp/test-output.txt
+          ./node_modules/.bin/tsc --noEmit 2>&1 | tee /tmp/typecheck-output.txt
+          echo "typecheck exit: ${PIPESTATUS[0]}" >> /tmp/typecheck-output.txt
           exit 0
 
       # Likewise. This is `anthropics/claude-code-action` v1. Re-resolve the
       # tag and update this line deliberately when picking up a new version.
       - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678
+        # Runs even if a step above failed, so a broken install or a red test
+        # run still gets reviewed. Deliberately NOT `always()`: that would also
+        # run this paid review for jobs the concurrency group cancelled, undoing
+        # the saving described at the top of this file.
+        if: ${{ !cancelled() }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -109,7 +129,10 @@ jobs:
 
             The branch has already been installed and both checks have been run
             for you. Read `/tmp/test-output.txt` and `/tmp/typecheck-output.txt`
-            first — each ends with its exit status. If either is non-zero, that
+            first — each ends with its exit status. If they read as though
+            nothing could run, check `/tmp/install-output.txt`: dependency
+            installation is allowed to fail without stopping this review, and a
+            rejected lockfile is itself the finding. If either is non-zero, that
             is the most important thing in this review; find the cause and say
             what it is. You can re-run `pnpm test` and
             `./node_modules/.bin/tsc --noEmit` yourself to test a hypothesis,
@@ -129,8 +152,9 @@ jobs:
                cases: missing sponsor, missing policy area, missing summary,
                missing date.
             2. **The analytics contract.** A user-facing feature added, removed
-               or reshaped without a matching change to BOTH `ANALYTICS.md` and
-               `lib/analytics.ts` is an incomplete change. Flag any
+               or reshaped without a matching change to BOTH the analytics
+               registry named in `AGENTS.md` and `lib/analytics.ts` is an
+               incomplete change. Flag any
                `posthog.capture()` called with a raw event-name string from a
                component instead of going through `lib/analytics.ts`, and flag
                any rename of an existing event — renames silently break saved
@@ -144,10 +168,11 @@ jobs:
                `internalMutation`. Also check index selectivity: where a scan
                cap can truncate results, choosing the wrong index is a
                correctness bug, not a performance one.
-            4. **Tests that actually run.** `pnpm test` runs an explicit list of
-               files in `package.json`. A new `*.test.ts` that is not added to
-               that list never executes, and a green CI badge then means
-               nothing. Check the list was updated.
+            4. **Tests that actually run.** `pnpm test` discovers every
+               `*.test.ts` in the repository, so a new test file runs without
+               being registered anywhere — there is no list to police. What
+               discovery cannot check is whether a test asserts anything: flag
+               a test that would still pass with the implementation deleted.
             5. **The Cloudflare Workers constraints.** Next.js Cache Components,
                the `'use cache'` directive and PPR must stay disabled — they
                crash on Workers. Flag any change that re-enables them.
@@ -169,26 +194,35 @@ jobs:
           # `--allowedTools`, camelCase, per the action's own examples. The
           # kebab-case spelling is silently not the flag it parses.
           #
-          # Read-only, with two deliberate exceptions: `pnpm test` and the local
-          # `tsc`. Both execute this repository's own code, which is a real
-          # widening, and it is bounded by the event type rather than by the
-          # allowlist. This workflow runs on `pull_request`, so a fork's pull
-          # request is given no secrets — `claude_code_oauth_token` arrives
-          # empty and the action stops before reaching any of this. Only a
-          # branch pushed to this repository by someone who can already push to
-          # it gets this far, and such a person can run anything in CI anyway.
+          # Read-only, with two deliberate exceptions: `pnpm test` and
+          # `tsc --noEmit`. Both execute this repository's own code.
+          #
+          # Be precise about what bounds this, because the obvious summary is
+          # wrong. On `pull_request` a fork gets no secrets, a read-only
+          # GITHUB_TOKEN and no usable OIDC identity, so the *action* halts —
+          # no token ever reaches a fork's code. But the install and capture
+          # steps sit ABOVE the action with no such gate, so a fork's own
+          # package.json and test script DO run on the runner. That is the same
+          # exposure ci.yml already accepts on the same trigger, and it is
+          # survivable only because those steps hold no secrets.
+          # **Never add a secret to their `env:`.**
           #
           # Scope matters more than the count. `Bash(pnpm:*)` would be a shell
-          # in disguise, because it permits `pnpm dlx <anything>`; the two
-          # entries below name one script and one binary. `pnpm install` is not
-          # here either — it is a workflow step above, so a dependency's install
-          # scripts run under `--frozen-lockfile` and the `allowBuilds`
-          # allowlist in pnpm-workspace.yaml rather than at the agent's
-          # discretion.
+          # in disguise, because it permits `pnpm dlx <anything>`. `tsc` is
+          # pinned to `--noEmit` because bare `tsc` takes `--outFile` and is
+          # therefore a file writer, which is the same objection that keeps
+          # `sed` off this list.
+          #
+          # Residual risk, stated honestly: re-running these inside the action
+          # step means dependency code runs in a process holding the OAuth and
+          # app tokens, so a compromised transitive dependency could read them.
+          # `pnpm install` is a workflow step rather than a granted tool, and
+          # `allowBuilds` in pnpm-workspace.yaml gates dependencies' build
+          # scripts — though not this repository's own lifecycle scripts.
           #
           # Still absent, and for the original reasons: `find`, `sed`, `cat`.
           # `find -exec` runs arbitrary commands and `sed -i` writes files.
           # `gh api` is absent because that verb takes POST and DELETE.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*),Bash(pnpm test:*),Bash(./node_modules/.bin/tsc:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*),Bash(pnpm test:*),Bash(./node_modules/.bin/tsc --noEmit:*)"
             --max-turns 120
