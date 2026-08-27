@@ -57,6 +57,14 @@
     --party-i: 42 45% 42%;       /* muted ochre          */
     --party-u: 220 5% 55%;       /* neutral grey         */
 
+    /* Waving flag (home page) — the flag drawn in the site palette rather
+       than literal red/white/blue, so it belongs to the page. The field is
+       deliberately a shade below the page background so the white stripes
+       read as cloth against newsprint instead of disappearing. */
+    --flag-canton: 220 28% 22%;
+    --flag-stripe: 358 60% 42%;
+    --flag-field: 40 22% 91%;
+
     --radius: 0.25rem;
   }
 
@@ -103,6 +111,10 @@
     --party-r: 358 60% 62%;
     --party-i: 42 55% 62%;
     --party-u: 220 6% 55%;
+
+    --flag-canton: 220 30% 26%;
+    --flag-stripe: 358 52% 46%;
+    --flag-field: 40 14% 76%;
   }
 }
 
@@ -196,11 +208,322 @@
   animation: rise-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* ── Waving flag ──────────────────────────────────────────────────────────
+   Decorative flag that closes the home page. Drawn entirely from the theme
+   tokens above so it re-tints in dark mode instead of glaring.
+
+   The cloth is cut into vertical strips that each rise and fall on the same
+   slow cycle, staggered so a wave travels from the hoist to the fly end.
+   Strips further from the hoist swing wider, the way real cloth does. Each
+   strip also shears by the local slope of the wave, which is what stops the
+   strips reading as a staircase: sheared, neighbouring strips meet edge to
+   edge and the stripes flow through as continuous lines.
+
+   Only `transform` animates, so the whole thing stays on the compositor even
+   at full-bleed size — the alternative (an SVG turbulence/displacement filter)
+   looks better frozen but repaints the entire band every frame.
+
+   `--amp`, `--lean`, `--delay`, `--rest`, `--rest-lean` and `--i` are set per
+   strip by components/waving-flag.tsx. */
+.flag {
+  /* Half the vertical swing at the fly end. Sized in container units so it
+     stays a fixed fraction of the flag's width at every viewport — the strips'
+     lean is derived from that fraction, so it must not drift. */
+  --peak: 2.1cqw;
+  --wave: 6.5s;
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 19 / 10;
+}
+
+.flag-cloth,
+.flag-canton {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+}
+
+.flag-cloth {
+  inset: 0;
+}
+
+/* The canton covers 2/5 of the flag's width and the top 7 of its 13 stripes. */
+.flag-canton {
+  --canton-width: 40cqw;
+  width: var(--canton-width);
+  height: 53.846%;
+}
+
+.flag-strip {
+  position: relative;
+  height: 100%;
+  /* `flex: 1 1 0` rather than a percentage width so the browser distributes
+     sub-pixel remainders instead of leaving a gap at the fly end. */
+  flex: 1 1 0;
+  min-width: 0;
+  /* Bleed half a pixel into both neighbours. Strips are separate composited
+     layers, and antialiasing along their edges otherwise leaves hairline seams
+     of bare page showing through the cloth.
+
+     Nothing is painted behind the strips on purpose. An earlier version parked
+     a still copy of the flag back there to swallow those seams, but a still
+     copy is a rectangle: wherever the cloth lifted away from it, its flat edge
+     showed as a dead-straight bar running the full width of the flag, top and
+     bottom. The strips have to be the only flag there is. */
+  margin-inline: -0.5px;
+  animation: flag-wave var(--wave) linear infinite;
+  animation-delay: var(--delay);
+}
+
+/* The 13 stripes. One gradient period covers two stripes and 13 is odd, so the
+   flag correctly starts and ends on a stripe. Horizontally uniform, so the
+   bleed above costs them nothing. */
+.flag-cloth .flag-strip {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    hsl(var(--flag-stripe)) 0 7.6923%,
+    hsl(var(--flag-field)) 7.6923% 15.3846%
+  );
+}
+
+/* Every canton strip carries the whole star field and slides it left to its own
+   slice, so the stars stay continuous across the cuts. Sized and offset in
+   container units — a fixed fraction of the flag — rather than as a percentage
+   of the strip, which the half-pixel bleed would otherwise walk out of register
+   a little further with every strip.
+
+   The stars are baked into the image at a fixed warm off-white: they only ever
+   sit on the dark canton, so they need no light/dark variant. */
+.flag-canton .flag-strip {
+  background-color: hsl(var(--flag-canton));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1411 1000' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpath id='s' d='M0.0,-57.0L12.8,-17.6L54.2,-17.6L20.7,6.7L33.5,46.1L0.0,21.8L-33.5,46.1L-20.7,6.7L-54.2,-17.6L-12.8,-17.6Z' fill='%23F0EBE0'/%3E%3C/defs%3E%3Cuse href='%23s' x='118' y='100'/%3E%3Cuse href='%23s' x='353' y='100'/%3E%3Cuse href='%23s' x='588' y='100'/%3E%3Cuse href='%23s' x='823' y='100'/%3E%3Cuse href='%23s' x='1058' y='100'/%3E%3Cuse href='%23s' x='1293' y='100'/%3E%3Cuse href='%23s' x='235' y='200'/%3E%3Cuse href='%23s' x='470' y='200'/%3E%3Cuse href='%23s' x='706' y='200'/%3E%3Cuse href='%23s' x='941' y='200'/%3E%3Cuse href='%23s' x='1176' y='200'/%3E%3Cuse href='%23s' x='118' y='300'/%3E%3Cuse href='%23s' x='353' y='300'/%3E%3Cuse href='%23s' x='588' y='300'/%3E%3Cuse href='%23s' x='823' y='300'/%3E%3Cuse href='%23s' x='1058' y='300'/%3E%3Cuse href='%23s' x='1293' y='300'/%3E%3Cuse href='%23s' x='235' y='400'/%3E%3Cuse href='%23s' x='470' y='400'/%3E%3Cuse href='%23s' x='706' y='400'/%3E%3Cuse href='%23s' x='941' y='400'/%3E%3Cuse href='%23s' x='1176' y='400'/%3E%3Cuse href='%23s' x='118' y='500'/%3E%3Cuse href='%23s' x='353' y='500'/%3E%3Cuse href='%23s' x='588' y='500'/%3E%3Cuse href='%23s' x='823' y='500'/%3E%3Cuse href='%23s' x='1058' y='500'/%3E%3Cuse href='%23s' x='1293' y='500'/%3E%3Cuse href='%23s' x='235' y='600'/%3E%3Cuse href='%23s' x='470' y='600'/%3E%3Cuse href='%23s' x='706' y='600'/%3E%3Cuse href='%23s' x='941' y='600'/%3E%3Cuse href='%23s' x='1176' y='600'/%3E%3Cuse href='%23s' x='118' y='700'/%3E%3Cuse href='%23s' x='353' y='700'/%3E%3Cuse href='%23s' x='588' y='700'/%3E%3Cuse href='%23s' x='823' y='700'/%3E%3Cuse href='%23s' x='1058' y='700'/%3E%3Cuse href='%23s' x='1293' y='700'/%3E%3Cuse href='%23s' x='235' y='800'/%3E%3Cuse href='%23s' x='470' y='800'/%3E%3Cuse href='%23s' x='706' y='800'/%3E%3Cuse href='%23s' x='941' y='800'/%3E%3Cuse href='%23s' x='1176' y='800'/%3E%3Cuse href='%23s' x='118' y='900'/%3E%3Cuse href='%23s' x='353' y='900'/%3E%3Cuse href='%23s' x='588' y='900'/%3E%3Cuse href='%23s' x='823' y='900'/%3E%3Cuse href='%23s' x='1058' y='900'/%3E%3Cuse href='%23s' x='1293' y='900'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: var(--canton-width) 100%;
+  background-position-x: calc(var(--i) * var(--canton-width) / -24);
+}
+
+/* Sampled from the true wave rather than eased between a handful of
+   keyframes: the lean has to stay the exact slope of the lift at every
+   instant, and an easing curve applied to both breaks that relationship —
+   which shows up as a sawtooth along every stripe edge. Hence `linear`
+   timing and many samples. Generated, not hand-written. */
+@keyframes flag-wave {
+  0% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -1.0))
+      skewY(calc(var(--lean) * 0.0deg));
+  }
+  2.0833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.9914))
+      skewY(calc(var(--lean) * 0.1305deg));
+  }
+  4.1667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.9659))
+      skewY(calc(var(--lean) * 0.2588deg));
+  }
+  6.25% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.9239))
+      skewY(calc(var(--lean) * 0.3827deg));
+  }
+  8.3333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.866))
+      skewY(calc(var(--lean) * 0.5deg));
+  }
+  10.4167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.7934))
+      skewY(calc(var(--lean) * 0.6088deg));
+  }
+  12.5% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.7071))
+      skewY(calc(var(--lean) * 0.7071deg));
+  }
+  14.5833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.6088))
+      skewY(calc(var(--lean) * 0.7934deg));
+  }
+  16.6667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.5))
+      skewY(calc(var(--lean) * 0.866deg));
+  }
+  18.75% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.3827))
+      skewY(calc(var(--lean) * 0.9239deg));
+  }
+  20.8333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.2588))
+      skewY(calc(var(--lean) * 0.9659deg));
+  }
+  22.9167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.1305))
+      skewY(calc(var(--lean) * 0.9914deg));
+  }
+  25% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.0))
+      skewY(calc(var(--lean) * 1.0deg));
+  }
+  27.0833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.1305))
+      skewY(calc(var(--lean) * 0.9914deg));
+  }
+  29.1667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.2588))
+      skewY(calc(var(--lean) * 0.9659deg));
+  }
+  31.25% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.3827))
+      skewY(calc(var(--lean) * 0.9239deg));
+  }
+  33.3333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.5))
+      skewY(calc(var(--lean) * 0.866deg));
+  }
+  35.4167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.6088))
+      skewY(calc(var(--lean) * 0.7934deg));
+  }
+  37.5% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.7071))
+      skewY(calc(var(--lean) * 0.7071deg));
+  }
+  39.5833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.7934))
+      skewY(calc(var(--lean) * 0.6088deg));
+  }
+  41.6667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.866))
+      skewY(calc(var(--lean) * 0.5deg));
+  }
+  43.75% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.9239))
+      skewY(calc(var(--lean) * 0.3827deg));
+  }
+  45.8333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.9659))
+      skewY(calc(var(--lean) * 0.2588deg));
+  }
+  47.9167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.9914))
+      skewY(calc(var(--lean) * 0.1305deg));
+  }
+  50% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 1.0))
+      skewY(calc(var(--lean) * 0.0deg));
+  }
+  52.0833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.9914))
+      skewY(calc(var(--lean) * -0.1305deg));
+  }
+  54.1667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.9659))
+      skewY(calc(var(--lean) * -0.2588deg));
+  }
+  56.25% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.9239))
+      skewY(calc(var(--lean) * -0.3827deg));
+  }
+  58.3333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.866))
+      skewY(calc(var(--lean) * -0.5deg));
+  }
+  60.4167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.7934))
+      skewY(calc(var(--lean) * -0.6088deg));
+  }
+  62.5% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.7071))
+      skewY(calc(var(--lean) * -0.7071deg));
+  }
+  64.5833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.6088))
+      skewY(calc(var(--lean) * -0.7934deg));
+  }
+  66.6667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.5))
+      skewY(calc(var(--lean) * -0.866deg));
+  }
+  68.75% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.3827))
+      skewY(calc(var(--lean) * -0.9239deg));
+  }
+  70.8333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.2588))
+      skewY(calc(var(--lean) * -0.9659deg));
+  }
+  72.9167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.1305))
+      skewY(calc(var(--lean) * -0.9914deg));
+  }
+  75% {
+    transform: translateY(calc(var(--amp) * var(--peak) * 0.0))
+      skewY(calc(var(--lean) * -1.0deg));
+  }
+  77.0833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.1305))
+      skewY(calc(var(--lean) * -0.9914deg));
+  }
+  79.1667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.2588))
+      skewY(calc(var(--lean) * -0.9659deg));
+  }
+  81.25% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.3827))
+      skewY(calc(var(--lean) * -0.9239deg));
+  }
+  83.3333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.5))
+      skewY(calc(var(--lean) * -0.866deg));
+  }
+  85.4167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.6088))
+      skewY(calc(var(--lean) * -0.7934deg));
+  }
+  87.5% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.7071))
+      skewY(calc(var(--lean) * -0.7071deg));
+  }
+  89.5833% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.7934))
+      skewY(calc(var(--lean) * -0.6088deg));
+  }
+  91.6667% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.866))
+      skewY(calc(var(--lean) * -0.5deg));
+  }
+  93.75% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.9239))
+      skewY(calc(var(--lean) * -0.3827deg));
+  }
+  95.8333% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.9659))
+      skewY(calc(var(--lean) * -0.2588deg));
+  }
+  97.9167% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -0.9914))
+      skewY(calc(var(--lean) * -0.1305deg));
+  }
+  100% {
+    transform: translateY(calc(var(--amp) * var(--peak) * -1.0))
+      skewY(calc(var(--lean) * -0.0deg));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Reduced motion: freeze the flag into the still wave it would be holding
+   mid-cycle rather than snapping it flat. Overrides the blanket rule above,
+   which would otherwise collapse every strip to the same resting position. */
+@media (prefers-reduced-motion: reduce) {
+  .flag-strip {
+    animation: none !important;
+    transform: translateY(calc(var(--rest) * var(--peak)))
+      skewY(calc(var(--rest-lean) * 1deg));
   }
 }
