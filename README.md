@@ -140,7 +140,7 @@ CONGRESS_API_KEY=        # https://api.congress.gov/sign-up/
 
 # Required for the AI chat panel (set on the Convex deployment, not in .env.local)
 OPENROUTER_API_KEY=      # https://openrouter.ai/keys
-OPENROUTER_MODEL=        # optional override, default ~deepseek/deepseek-v4-flash-latest
+OPENROUTER_MODEL=        # optional override, default deepseek/deepseek-v4-flash-0731
 OPENROUTER_PROVIDERS=    # optional override, default coreweave,gmicloud (US datacenters)
 
 # Optional

@@ -129,7 +129,7 @@ For performance, analytics data is precomputed during sync:
 
 ## Overview
 
-Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). The default is the `~deepseek/deepseek-v4-flash-latest` alias, which floats to DeepSeek's newest V4 Flash release. Routing is pinned to an allowlist of providers that declare US datacenters (`OPENROUTER_PROVIDERS`, default `coreweave,gmicloud`) so questions are never processed outside the US, and a `max_price` ceiling keeps a future release from silently costing more. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
+Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). The default is `deepseek/deepseek-v4-flash-0731`, a pinned release rather than a floating `~…-latest` alias — an alias can resolve to a version no US-datacenter provider carries yet, which the allowlist would turn into an outage. Routing is pinned to an allowlist of providers that declare US datacenters (`OPENROUTER_PROVIDERS`, default `coreweave,gmicloud`) so questions are never processed outside the US, and a `max_price` ceiling keeps a repricing or a careless model change from silently costing more. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
 
 ## Architecture
 

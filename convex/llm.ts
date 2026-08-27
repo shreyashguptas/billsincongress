@@ -10,12 +10,12 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
  * Baked-in chat model. Override it per-deployment with the OPENROUTER_MODEL
  * Convex environment variable so swapping models needs no code deploy.
  *
- * The `~…-latest` alias floats to DeepSeek's newest V4 Flash release. That
- * keeps us current without a deploy, but it also means the resolved version,
- * its price, and which providers carry it can all change under us — hence the
- * provider allowlist and price ceiling below.
+ * Pinned to a dated release rather than a `~…-latest` alias: a floating alias
+ * can resolve to a version that no US-datacenter provider carries yet, which
+ * the allowlist below would turn into a chat outage. Moving to a newer release
+ * is a deliberate env-var change after checking its providers.
  */
-const DEFAULT_MODEL = "~deepseek/deepseek-v4-flash-latest";
+const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
 /**
  * Provider allowlist, so questions are only served from US datacenters.
  * Comma-separated OpenRouter provider slugs; override with OPENROUTER_PROVIDERS.
@@ -24,9 +24,9 @@ const DEFAULT_MODEL = "~deepseek/deepseek-v4-flash-latest";
 const DEFAULT_PROVIDERS = "coreweave,gmicloud";
 /**
  * Runaway-cost guard, in USD per million tokens. Not the target price — the
- * allowlisted providers currently sit well under this. It exists so that a
- * future release served at a much higher rate fails loudly instead of
- * quietly multiplying the bill.
+ * allowlisted providers sit well under this today ($0.112–0.130 in,
+ * $0.224–0.280 out). It exists so that a provider repricing, or a careless
+ * OPENROUTER_MODEL change, fails loudly instead of multiplying the bill.
  */
 const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
 const SITE_URL = "https://billsincongress.com";
