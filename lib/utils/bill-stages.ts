@@ -33,30 +33,10 @@ export const BillStageOrder: BillStage[] = [
   BillStages.BECAME_LAW,
 ];
 
-/**
- * Gets the description for a given bill stage
- * @param stage - The bill stage number
- * @returns The description of the stage
- */
 export function getStageDescription(stage: number): string {
   return BillStageDescriptions[stage as BillStage] || 'Unknown';
 }
 
-/**
- * Gets the stage number for a given description
- * @param description - The stage description
- * @returns The stage number or undefined if not found
- */
-export function getStageFromDescription(description: string): BillStage | undefined {
-  const entry = Object.entries(BillStageDescriptions).find(([_, desc]) => desc === description);
-  return entry ? parseInt(entry[0], 10) as BillStage : undefined;
-}
-
-/**
- * Checks if a given number is a valid bill stage
- * @param stage - The number to check
- * @returns True if the number is a valid bill stage
- */
 export function isValidStage(stage: number): stage is BillStage {
   return Object.values(BillStages).includes(stage as BillStage);
 }
@@ -76,11 +56,6 @@ const StageSteps: Record<BillStage, number> = {
 
 export const TOTAL_STAGE_STEPS = 7;
 
-/**
- * Gets a bill's position on the 7-step main path (Introduced → Became Law)
- * @param stage - The bill stage number
- * @returns The step reached (1–7), the total, and whether the bill was vetoed
- */
 export function getStageStep(stage: number): {
   step: number;
   total: number;
@@ -96,15 +71,9 @@ export function getStageStep(stage: number): {
   };
 }
 
-/**
- * Gets the progress dots configuration for a given stage
- * @param currentStage - The current bill stage
- * @returns Array of progress dots with their completion status
- */
 export function getProgressDots(currentStage: number): { stage: string; isComplete: boolean; isVetoed?: boolean }[] {
   const shortLabels = ['Introduced', 'Committee', 'One Chamber', 'Both Chambers', 'Vetoed', 'To President', 'Signed', 'Law'];
 
-  // If not a valid stage, show all dots as incomplete
   if (!isValidStage(currentStage)) {
     return shortLabels.map(stage => ({
       stage,
@@ -112,11 +81,9 @@ export function getProgressDots(currentStage: number): { stage: string; isComple
     }));
   }
 
-  // Get the index of the current stage in the order array
   const currentIndex = BillStageOrder.indexOf(currentStage);
   const isVetoedBill = currentStage === BillStages.VETOED;
 
-  // Map each label to its completion status based on index comparison
   return shortLabels.map((label, index) => ({
     stage: label,
     isComplete: index <= currentIndex,

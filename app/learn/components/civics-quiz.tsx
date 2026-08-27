@@ -6,10 +6,8 @@ import { ArrowRight, Check, RotateCcw, X } from 'lucide-react';
 import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // "Think you've got it?" — a five-question civics quiz with instant feedback
 // and a congressional rank for a score.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const QUESTIONS = [
   {
@@ -111,7 +109,7 @@ export function CivicsQuiz() {
     <div className="border border-border bg-card">
       <AnimatePresence mode="wait" initial={false}>
         {finished ? (
-          // ── Results ────────────────────────────────────────────────────────
+          // Results
           <motion.div
             key="results"
             initial={{ opacity: 0, y: 16 }}
@@ -140,7 +138,7 @@ export function CivicsQuiz() {
             </button>
           </motion.div>
         ) : (
-          // ── Question ───────────────────────────────────────────────────────
+          // Question
           <motion.div
             key={questionIndex}
             initial={{ opacity: 0, x: 24 }}

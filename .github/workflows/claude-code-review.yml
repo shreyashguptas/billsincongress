@@ -62,8 +62,9 @@ jobs:
             decision already recorded. Go and look before you comment.
 
             Worth reading for context:
-            - `CLAUDE.md` — the house rules, which are enforceable here.
-            - `ANALYTICS.md` — the registry of every product event we send.
+            - `AGENTS.md` — the house rules, which are enforceable here.
+            - `Documentation/ANALYTICS.md` — the registry of every product event
+              we send.
             - `convex/_generated/ai/guidelines.md` — the Convex rules, which
               override general Convex knowledge.
             - `README.md` — what the project claims to do.
@@ -81,7 +82,8 @@ jobs:
                cases: missing sponsor, missing policy area, missing summary,
                missing date.
             2. **The analytics contract.** A user-facing feature added, removed
-               or reshaped without a matching change to BOTH `ANALYTICS.md` and
+               or reshaped without a matching change to BOTH
+               `Documentation/ANALYTICS.md` and
                `lib/analytics.ts` is an incomplete change. Flag any
                `posthog.capture()` called with a raw event-name string from a
                component instead of going through `lib/analytics.ts`, and flag
@@ -96,10 +98,11 @@ jobs:
                `internalMutation`. Also check index selectivity: where a scan
                cap can truncate results, choosing the wrong index is a
                correctness bug, not a performance one.
-            4. **Tests that actually run.** `pnpm test` runs an explicit list of
-               files in `package.json`. A new `*.test.ts` that is not added to
-               that list never executes, and a green CI badge then means
-               nothing. Check the list was updated.
+            4. **Tests that actually run.** `pnpm test` discovers every
+               `*.test.ts` in the repository, so a new test file runs without
+               being registered anywhere. What it cannot check is whether the
+               test asserts anything: flag a test that would pass with the
+               implementation deleted.
             5. **The Cloudflare Workers constraints.** Next.js Cache Components,
                the `'use cache'` directive and PPR must stay disabled — they
                crash on Workers. Flag any change that re-enables them.

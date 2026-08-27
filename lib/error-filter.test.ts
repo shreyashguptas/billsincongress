@@ -51,7 +51,7 @@ function event(value: string, opts: { type?: string; frames?: number } = {}) {
   };
 }
 
-// ── The event shape itself ─────────────────────────────────────────────────
+// The event shape itself
 
 it("reads the list posthog-js actually sends", () => {
   assert.equal(exceptionList(event("boom")).length, 1);
@@ -73,7 +73,7 @@ it("ignores the properties that only exist after ingestion", () => {
   );
 });
 
-// ── Drops: verbatim third-party messages from production ───────────────────
+// Drops: verbatim third-party messages from production
 
 it("drops the Outlook link scanner, every id in the family", () => {
   // 142 events across ids 1,2,3,4,5,7,9 — the largest single source.
@@ -100,7 +100,7 @@ it("drops browser-extension messaging failures", () => {
   assert.equal(shouldDropException(event("feature named `pageContext` was not found")), true);
 });
 
-// ── Keeps: the group that matters ──────────────────────────────────────────
+// Keeps: the group that matters
 
 it("keeps a 'Script error.' that came with frames", () => {
   // Without the stack condition this rule would swallow a real error that
@@ -127,7 +127,7 @@ it("keeps an unrecognised message rather than guessing", () => {
   assert.equal(shouldDropException(event("Cannot read properties of undefined")), false);
 });
 
-// ── Malformed payloads must never throw inside before_send ─────────────────
+// Malformed payloads must never throw inside before_send
 
 it("survives a missing or oddly shaped payload", () => {
   assert.equal(shouldDropException(undefined), false);

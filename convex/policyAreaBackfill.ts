@@ -7,28 +7,17 @@ import {
 } from "./_generated/server";
 
 /**
- * One-time backfill of `bills.policyAreaName` from the existing `billSubjects`
- * table.
+ * One-time backfill of `bills.policyAreaName` from the `billSubjects` table, so
+ * the topic filter is an indexed lookup instead of an intersection of two capped
+ * reads (see the note in convex/schema.ts). Reads only data already in Convex —
+ * no Congress.gov API calls.
  *
- * Why this exists: the topic filter used to intersect two capped reads — the
- * first 2,000 `billSubjects` rows for a policy area (oldest-created, spanning
- * every congress) against the newest 1,200 bills of one congress. Those sets
- * barely overlapped, so `policyArea=Health` returned 0 results despite 2,070
- * matching bills in the 119th Congress, and small topics returned 1 of 65.
- * Storing the policy area on the bill turns that into an indexed lookup with no
- * cap on either side.
- *
- * Reads only data already in Convex — no Congress.gov API calls.
- *
- *     # default batch size (200):
  *     npx convex run --prod policyAreaBackfill:run '{}'
  *     # smaller batches if the logs show transaction-limit errors:
  *     npx convex run --prod policyAreaBackfill:run '{"batchSize": 100}'
  *
- * Check progress with `policyAreaBackfill:status`.
- *
- * Idempotent: a bill whose stored value already matches is skipped, so
- * re-running is safe and a re-run after a sync only touches what changed.
+ * Idempotent: a bill whose stored value already matches is skipped. Check
+ * progress with `policyAreaBackfill:status`.
  */
 const BACKFILL_BATCH_SIZE = 200;
 
@@ -50,13 +39,10 @@ export const run = internalAction({
 });
 
 /**
- * Process one page of bills and self-schedule the next.
- *
- * Uses the raw `internalMutation` rather than the trigger-wrapped one from
- * `./functions` on purpose: the bill aggregates are keyed on `billType` and
+ * Uses the RAW `internalMutation` rather than the trigger-wrapped one from
+ * `./functions` on purpose: the bill aggregates key on `billType` and
  * `progressStage`, neither of which this backfill touches, so firing them for
- * every one of ~55,000 bills would be pure write amplification with no effect
- * on the stored counts.
+ * ~55,000 bills is pure write amplification with no effect on the counts.
  */
 export const backfillBatch = internalMutation({
   args: {
@@ -78,8 +64,7 @@ export const backfillBatch = internalMutation({
         .query("billSubjects")
         .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
         .first();
-      // A bill with no subjects row yet keeps an absent policy area, which
-      // simply leaves it out of the topic index until its subjects sync.
+      // No subjects row yet: leave the policy area absent until subjects sync.
       const policyAreaName = subject?.policyAreaName;
       if (policyAreaName !== undefined && bill.policyAreaName !== policyAreaName) {
         await ctx.db.patch(bill._id, { policyAreaName });
@@ -110,30 +95,17 @@ export const backfillBatch = internalMutation({
 });
 
 /**
- * Diagnostic: backfill progress and, more importantly, whether the two sources
- * of a topic disagree.
+ * Diagnostic: backfill progress, and whether the two sources of a topic count
+ * disagree — the count comes from `congressPolicyAreas` (derived from
+ * `billSubjects`), the list filters on `bills.policyAreaName`.
  *
  *     npx convex run --prod policyAreaBackfill:status '{}'
  *
- * The count shown beside a filtered list comes from `congressPolicyAreas`, which
- * is derived from `billSubjects`, while the list itself filters on
- * `bills.policyAreaName`. Two sources for one number is the exact shape of the
- * bug this module exists to fix, so "are they equal?" deserves a measurement
- * rather than an argument — which is what `drifted` is.
- *
- * `drifted` counts probed bills that have a policy area in `billSubjects` but
- * not on the bill. Every one of those is a bill the count includes and the list
- * cannot show. **It must be 0.** If it isn't, re-run `policyAreaBackfill:run`.
- *
- * `missingOnBothSides` is the benign case: no policy area in either place,
- * because the bill's subjects have never synced. Those bills are absent from the
- * count and the list alike, so they cost nothing in consistency.
- *
- * Deliberately an `internalQuery`. It reads ~1,000 bills per congress plus a
- * `billSubjects` lookup for each bill missing a topic — several thousand
- * documents per call — which as a public query would be an unauthenticated way
- * to burn read bandwidth for no user-facing benefit. `npx convex run` reaches
- * internal functions with the deploy key, which is the only caller it needs.
+ * `drifted` counts probed bills with a policy area in `billSubjects` but not on
+ * the bill — counted but not listable, so it MUST be 0; if it isn't, re-run
+ * `policyAreaBackfill:run`. `missingOnBothSides` is benign (subjects never
+ * synced). Deliberately an `internalQuery`: it reads several thousand documents
+ * per call, which as a public query would be unauthenticated read burn.
  */
 export const status = internalQuery({
   args: {},
@@ -166,9 +138,6 @@ export const status = internalQuery({
         sampleTopics.push({ topic, reachable: hits.length });
       }
 
-      // For every probed bill with no topic on it, ask whether billSubjects has
-      // one anyway. That difference is the drift, and it is the only case where
-      // the count could exceed what the list can render.
       const missing = probe.filter((b) => b.policyAreaName === undefined);
       let drifted = 0;
       let missingOnBothSides = 0;

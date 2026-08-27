@@ -3,21 +3,18 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Run daily at 1:00 AM UTC - incremental sync (only recently updated bills)
 crons.daily(
   "daily-incremental-sync",
   { hourUTC: 1, minuteUTC: 0 },
   internal.congressApi.incrementalSync,
 );
 
-// Run weekly on Sunday at 2:00 AM UTC - full 7-day sync (safety net)
 crons.weekly(
   "weekly-full-sync",
   { dayOfWeek: "sunday", hourUTC: 2, minuteUTC: 0 },
   internal.congressApi.fullSync,
 );
 
-// Run weekly on Wednesday at 3:00 AM UTC - repair incomplete bills
 crons.weekly(
   "weekly-repair-incomplete",
   { dayOfWeek: "wednesday", hourUTC: 3, minuteUTC: 0 },
@@ -25,7 +22,6 @@ crons.weekly(
   {},
 );
 
-// Run daily at 4:00 AM UTC - recompute homepage stats (safety net after syncs)
 crons.daily(
   "daily-recompute-stats",
   { hourUTC: 4, minuteUTC: 0 },
@@ -33,10 +29,9 @@ crons.daily(
   {},
 );
 
-// Run monthly on the 1st at 5:00 AM UTC - full re-pull of the current congress.
-// The most reliable freshness mechanism: re-derives stage + latestActionDate,
-// refreshes enrichment, inserts missing bills, and corrects present-but-stale
-// bills (closed congresses are final, so only the current one needs this).
+// Monthly full re-pull of the current congress: re-derives stage +
+// latestActionDate, refreshes enrichment, inserts missing bills and corrects
+// stale ones. Closed congresses are final, so only the current one needs it.
 crons.cron(
   "monthly-current-congress-repull",
   "0 5 1 * *",
@@ -44,9 +39,8 @@ crons.cron(
   {},
 );
 
-// Run weekly on Monday at 6:00 AM UTC - completeness reconciliation across the
-// current + 2 most recent congresses. Inserts never-synced bills the bounded
-// daily/weekly lookback windows can't discover.
+// Completeness reconciliation across the current + 2 most recent congresses:
+// inserts never-synced bills the bounded lookback windows can't discover.
 crons.cron(
   "weekly-reconcile-recent-congresses",
   "0 6 * * 1",
@@ -54,8 +48,7 @@ crons.cron(
   {},
 );
 
-// Run weekly on Friday at 4:30 AM UTC - recompute committee "base rates" from
-// finished congresses. Historical data barely moves, so weekly is plenty.
+// Committee "base rates" from finished congresses; historical data barely moves.
 crons.weekly(
   "weekly-committee-base-rates",
   { dayOfWeek: "friday", hourUTC: 4, minuteUTC: 30 },
@@ -63,13 +56,10 @@ crons.weekly(
   {},
 );
 
-// Drain the IndexNow queue twice a day. 01:30 UTC sits 30 minutes after the
-// incremental sync above, so a bill that changed status overnight is announced
-// to Bing the same morning rather than waiting to be re-crawled.
-//
-// Two runs of up to 2,000 URLs is ~4,000 a day, which is the pacing that keeps
-// the one-time backlog seed from looking like a dump. The seed itself is never
-// on a cron — it is started once, by hand.
+// Drain the IndexNow queue twice a day. 01:30 UTC is 30 minutes after the
+// incremental sync, so an overnight status change is announced the same morning.
+// Two runs of up to 2,000 URLs (~4,000/day) is the pacing that keeps the
+// one-time backlog seed from looking like a dump; the seed is never on a cron.
 crons.cron(
   "indexnow-submit-morning",
   "30 1 * * *",

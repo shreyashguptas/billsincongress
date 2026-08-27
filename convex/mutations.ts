@@ -11,14 +11,11 @@ import {
   SENATE_BILL_TYPES,
 } from "./aggregates";
 import { calculateBillStage, passedChamber, BillStages } from "./billStage";
+import { chamberOf } from "./chamber";
 import { queueForIndexNow } from "./indexNow";
 import { computeBaseRateBuckets, MS_PER_DAY } from "./baseRates";
 import type { BaseRateSample, Chamber } from "./baseRates";
 
-/**
- * Upsert a bill record. If a bill with the same billId exists, update it.
- * Otherwise, insert a new record.
- */
 export const upsertBill = internalMutation({
   args: {
     billId: v.string(),
@@ -48,26 +45,17 @@ export const upsertBill = internalMutation({
     };
 
     if (existing) {
-      // Nothing to write. Worth checking every field rather than patching
-      // blindly, because the monthly re-pull re-sends every bill of the current
-      // congress with byte-identical values and almost none of them have
-      // actually moved. A blind patch would still be a real write, and a real
-      // write means:
-      //   - the aggregate triggers run (see convex/functions.ts) — historically
-      //     the source of the btreeNode write-conflict retries;
-      //   - `updatedAt` is restamped, and that field is the <lastmod> the
-      //     sitemap hands search engines (app/sitemap.ts), so a no-op re-pull
-      //     was telling Google 18,000 pages had changed when none had.
+      // Skip no-op patches: any real write fires the aggregate triggers
+      // (convex/functions.ts) and restamps `updatedAt`, which is the <lastmod>
+      // the sitemap gives search engines (app/sitemap.ts). The monthly re-pull
+      // resends every bill unchanged, so blind patching announces fake updates.
       const changed = (Object.keys(args) as Array<keyof typeof args>).some(
         (key) => (existing as Record<string, unknown>)[key] !== args[key],
       );
       if (!changed) return existing._id;
 
-      // Announce only what changes the page a reader sees. The <title>, the
-      // meta description and the status sentence are all built from these
-      // three; everything else here is metadata nobody reads. The monthly
-      // re-pull rewrites every bill with identical values, and this comparison
-      // is what stops that becoming 18,000 pointless announcements.
+      // Only ping IndexNow for fields a reader actually sees; everything else
+      // here is metadata the monthly re-pull rewrites unchanged.
       if (
         existing.progressStage !== args.progressStage ||
         existing.progressDescription !== args.progressDescription ||
@@ -79,16 +67,13 @@ export const upsertBill = internalMutation({
       return existing._id;
     } else {
       const id = await ctx.db.insert("bills", data);
-      // A page that did not exist before — exactly what IndexNow is for.
       await queueForIndexNow(ctx, args.billId, "new");
       return id;
     }
   },
 });
 
-/**
- * Upsert bill actions. Replaces all actions for a given bill.
- */
+/** Replaces (not merges) all stored actions for a bill. */
 export const upsertBillActions = internalMutation({
   args: {
     billId: v.string(),
@@ -111,7 +96,6 @@ export const upsertBillActions = internalMutation({
           : latest;
       }, null) ?? undefined;
 
-    // Delete existing actions for this bill
     const existing = await ctx.db
       .query("billActions")
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
@@ -120,7 +104,6 @@ export const upsertBillActions = internalMutation({
       await ctx.db.delete(doc._id);
     }
 
-    // Insert new actions
     for (const action of args.actions) {
       await ctx.db.insert("billActions", {
         billId: args.billId,
@@ -142,11 +125,9 @@ export const upsertBillActions = internalMutation({
 });
 
 /**
- * Upsert bill subject/policy area.
- *
- * Also mirrors the policy area onto the bill itself, which is what the topic
- * filter reads (see the `policyAreaName` note in schema.ts). Writing both here
- * keeps them from drifting apart as bills are synced.
+ * Mirrors the policy area onto the bill itself — that copy is what the topic
+ * filter reads (see the `policyAreaName` note in schema.ts). Both must be
+ * written here or they drift apart.
  */
 export const upsertBillSubject = internalMutation({
   args: {
@@ -174,16 +155,12 @@ export const upsertBillSubject = internalMutation({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
     if (bill && bill.policyAreaName !== args.policyAreaName) {
-      // The policy area feeds the meta description and the topic hub.
       await queueForIndexNow(ctx, args.billId, "topic");
       await ctx.db.patch(bill._id, { policyAreaName: args.policyAreaName });
     }
   },
 });
 
-/**
- * Upsert bill summary. Keeps the latest summary per bill.
- */
 export const upsertBillSummary = internalMutation({
   args: {
     billId: v.string(),
@@ -194,7 +171,6 @@ export const upsertBillSummary = internalMutation({
     versionCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check if this exact version already exists
     const existing = await ctx.db
       .query("billSummaries")
       .withIndex("by_billId_and_date", (q) =>
@@ -209,17 +185,11 @@ export const upsertBillSummary = internalMutation({
       await ctx.db.patch(existing._id, args);
     } else {
       await ctx.db.insert("billSummaries", args);
-      // The largest content change a bill page ever has: roughly four in five
-      // bills have no summary when Congress first publishes them, so the page
-      // goes from composed facts to real prose.
       await queueForIndexNow(ctx, args.billId, "summary");
     }
   },
 });
 
-/**
- * Upsert bill text/PDF info.
- */
 export const upsertBillText = internalMutation({
   args: {
     billId: v.string(),
@@ -242,50 +212,6 @@ export const upsertBillText = internalMutation({
   },
 });
 
-/**
- * Upsert bill titles. Replaces all titles for a given bill.
- */
-export const upsertBillTitles = internalMutation({
-  args: {
-    billId: v.string(),
-    titles: v.array(
-      v.object({
-        title: v.string(),
-        titleType: v.optional(v.string()),
-        titleTypeCode: v.optional(v.number()),
-        updateDate: v.optional(v.string()),
-        billTextVersionCode: v.optional(v.string()),
-        billTextVersionName: v.optional(v.string()),
-        chamberCode: v.optional(v.string()),
-        chamberName: v.optional(v.string()),
-      })
-    ),
-  },
-  handler: async (ctx, args) => {
-    // Delete existing titles for this bill
-    const existing = await ctx.db
-      .query("billTitles")
-      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-      .collect();
-    for (const doc of existing) {
-      await ctx.db.delete(doc._id);
-    }
-
-    // Insert new titles
-    for (const titleObj of args.titles) {
-      await ctx.db.insert("billTitles", {
-        billId: args.billId,
-        ...titleObj,
-      });
-    }
-  },
-});
-
-/**
- * Replace ALL detailed legislative subjects for a bill (one-to-many). Distinct
- * from upsertBillSubject, which stores the single policy area. Called by the
- * sync and the enrichment backfill after paginating the /subjects endpoint.
- */
 export const replaceBillLegislativeSubjects = internalMutation({
   args: {
     billId: v.string(),
@@ -315,9 +241,8 @@ export const replaceBillLegislativeSubjects = internalMutation({
 });
 
 /**
- * Replace ALL text versions for a bill (one-to-many). The sync used to keep
- * only the single last array element; this stores every version so the
- * current-text selection in `getById` can pick by finality/date.
+ * Replaces ALL text versions for a bill; `getById` picks the current one by
+ * finality/date, so every version must be stored, not just the last.
  */
 export const replaceBillTextVersions = internalMutation({
   args: {
@@ -349,9 +274,8 @@ export const replaceBillTextVersions = internalMutation({
 });
 
 /**
- * OR-in enrichment progress bits on a bill (1 = legislativeSubjects stored,
- * 2 = all text versions stored). Kept separate from `syncedEndpoints` so the
- * existing repair / SYNC_COMPLETE logic is untouched.
+ * OR-in enrichment bits (1 = legislativeSubjects, 2 = text versions), kept
+ * separate from `syncedEndpoints` so repair / SYNC_COMPLETE logic is untouched.
  */
 export const setBillExtraSyncedBits = internalMutation({
   args: {
@@ -371,10 +295,7 @@ export const setBillExtraSyncedBits = internalMutation({
   },
 });
 
-/**
- * Update the sync status bitmask for a bill.
- * Uses bitwise OR so bits are only ever added, never removed.
- */
+/** Sync-status bitmask: OR only, so bits are added and never removed. */
 export const updateBillSyncStatus = internalMutation({
   args: {
     billId: v.string(),
@@ -446,9 +367,8 @@ type StatsBillPageResult = {
 };
 
 /**
- * Recompute the congressStats row for a single congress from the bills table.
- * This runs as an action and paginates every bill, so it has an exact source of
- * truth and cannot accept partially backfilled aggregate component counts.
+ * Recomputes congressStats for one congress by paginating every bill in an
+ * action, so the counts are exact rather than aggregate-derived.
  */
 export const recomputeCongressStats = internalAction({
   args: { congress: v.number() },
@@ -496,24 +416,14 @@ export const recomputeCongressStats = internalAction({
 });
 
 /*
- * ─────────────────────────────────────────────────────────────────────
- * Paginated policy-area / sponsor recomputes
+ * Paginated policy-area / sponsor recomputes.
  *
- * Previous versions used `.take(10000)` on both the bills table (per
- * congress) and the global billSubjects table. Both limits were too
- * tight: c119 alone has 15k bills and billSubjects globally has ~50k
- * rows, so the top-policy-areas counts were undercounting by an order
- * of magnitude (e.g. Taxation for c119 showed 65 when the true count
- * is 1,020).
- *
- * The fix paginates via internal queries. Single-mutation doc limits
- * still apply, so we run the aggregation inside an internal action
- * that chains many queries (actions have no doc limit), then hands the
- * final top-50 list to a single mutation to write atomically.
- * ─────────────────────────────────────────────────────────────────────
+ * Per-transaction doc limits truncate these counts (an earlier `.take(10000)`
+ * undercounted c119 by ~10x), so aggregation runs in an internal action
+ * chaining paginated queries (actions have no doc limit) and one mutation
+ * writes the result atomically.
  */
 
-/** Paginated fetch of bills for a given congress. */
 export const getBillsPageByCongress = internalQuery({
   args: {
     congress: v.number(),
@@ -528,12 +438,7 @@ export const getBillsPageByCongress = internalQuery({
   },
 });
 
-/**
- * Paginated fetch of the whole bills table, returning just the fields the
- * backfills / status checks need. Shared by `backfillBillFieldsFromActions`
- * (stage + latestActionDate re-derivation), `backfillBillEnrichment` (subjects
- * + text), and `backfillEnrichmentStatus` (progress counts).
- */
+/** Paginated fetch of the whole bills table, projected to the backfill fields. */
 export const getBillBackfillPage = internalQuery({
   args: {
     cursor: v.union(v.string(), v.null()),
@@ -562,10 +467,9 @@ export const getBillBackfillPage = internalQuery({
 });
 
 /**
- * Same projection as getBillBackfillPage but scoped to one congress via the
- * by_congress index, so a per-congress field backfill processes only that
- * congress instead of paginating the whole bills table (where the current
- * congress sorts last and is reached only after ~37k other bills).
+ * Same projection scoped to one congress via by_congress, so a per-congress
+ * backfill does not paginate the whole table (the current congress sorts last,
+ * behind ~37k older bills).
  */
 export const getBillBackfillPageByCongress = internalQuery({
   args: {
@@ -597,20 +501,15 @@ export const getBillBackfillPageByCongress = internalQuery({
 });
 
 /**
- * Re-derive a batch of bills' action-derived fields from their stored actions
- * (no API calls) and patch only those that actually changed:
- *   - progressStage / progressDescription (corrected stage calculator), and
- *   - latestActionDate (max stored actionDate — same reducer as
- *     upsertBillActions, so a backfilled value is identical to what a fresh
- *     sync would store).
+ * Re-derives progressStage / progressDescription / latestActionDate from the
+ * stored actions and patches only what changed.
  *
  * Uses the trigger-wrapped internalMutation so the billsByStage / billsByChamber
- * aggregates stay in sync automatically. Bills with no stored actions are
- * skipped — correctly leaving latestActionDate unset, which is the intended
- * "excluded from recency filters" state.
+ * aggregates stay in sync. Bills with no stored actions are skipped, correctly
+ * leaving latestActionDate unset ("excluded from recency filters").
  *
- * numItems at the call site is kept small (≤40) so reading up to 250 actions
- * per bill stays within Convex's per-transaction read limit.
+ * Call sites must keep numItems small (≤40): reading up to 250 actions per bill
+ * must stay within Convex's per-transaction read limit.
  */
 export const rederiveBillFieldsFromActions = internalMutation({
   args: {
@@ -676,10 +575,9 @@ export const rederiveBillFieldsFromActions = internalMutation({
 });
 
 /**
- * Paginated fetch of the stored bill numbers for one (congress, billType).
- * Used by reconcileMissingBills to diff the DB against the live API list.
- * Lives here (a permanent module) rather than in the temporary audit module so
- * the recurring reconciliation cron has no dependency on audit.ts's lifecycle.
+ * Paginated bill numbers for one (congress, billType); reconcileMissingBills
+ * diffs them against the live API list. Lives here, in a permanent module, so
+ * the recurring cron has no dependency on that module.
  */
 export const getBillNumbersForCongressType = internalQuery({
   args: {
@@ -772,28 +670,10 @@ type BillPageResult = {
 };
 
 /**
- * Recompute the congressPolicyAreas table for a single congress, counting each
- * bill's own `policyAreaName`.
- *
- * These counts are displayed beside a list that filters on
- * `bills.policyAreaName`. Deriving them from anywhere else means one number with
- * two sources, which is the failure this whole path exists to fix: the topic
- * filter used to show an accurate "2,070 bills" above zero rows. Counting the
- * same field the list filters on makes agreement structural rather than
- * something to verify — the count cannot claim a bill the list cannot render,
- * because it is counting the very field that decides whether it renders.
- *
- * It also removes real work. The previous version paginated the *entire*
- * billSubjects table — every congress, not just this one — to intersect it with
- * this congress's billIds, and did so once per congress recomputed. Now it is a
- * single pass over the congress's own bills.
- *
- * The tradeoff, stated plainly: a bill whose subjects have synced but whose
- * `policyAreaName` somehow did not would now be missing from the count as well
- * as the list, where before it was counted but unrenderable. That is the better
- * failure — an understated total is invisible to a reader, while a total that
- * contradicts the rows beneath it is exactly the bug people hit.
- * `policyAreaBackfill:status` measures that gap (`drifted`) and it is 0.
+ * Recomputes congressPolicyAreas for one congress by counting each bill's own
+ * `policyAreaName` — the same field the topic list filters on, so a count can
+ * never claim bills the list cannot render (incident: see the `policyAreaName`
+ * note in schema.ts).
  */
 export const recomputeCongressPolicyAreas = internalAction({
   args: { congress: v.number() },
@@ -830,9 +710,8 @@ export const recomputeCongressPolicyAreas = internalAction({
 });
 
 /**
- * Recompute the congressSponsors table for a single congress.
- * Paginates through all bills so every sponsor is counted — previous
- * `take(10000)` version dropped ~5k bills for c119.
+ * Recomputes congressSponsors for one congress, paginating all bills so the
+ * counts are never truncated.
  */
 export const recomputeCongressSponsors = internalAction({
   args: { congress: v.number() },
@@ -862,9 +741,8 @@ export const recomputeCongressSponsors = internalAction({
       cursor = page.continueCursor;
     }
 
-    // Store every unique sponsor for this congress (~500 members — tiny table).
-    // The homepage slices to top 10 on read; the /bills sponsor filter needs
-    // the full list so every member is selectable in the dropdown.
+    // Store EVERY sponsor (~500 members): the homepage slices to top 10, but
+    // the /bills sponsor filter needs the full list. Do not truncate here.
     const sponsors = [...sponsorMap.entries()]
       .map(([sponsorName, d]) => ({
         sponsorName,
@@ -881,16 +759,12 @@ export const recomputeCongressSponsors = internalAction({
   },
 });
 
-/* ─────────────────────────────────────────────────────────────────────
- * Chamber deep breakdown precompute
- *
- * Mirrors the policy-areas / sponsors pattern: paginate the bills table to
- * dodge the 16K-doc per-mutation read limit, aggregate party / state /
- * monthly counts in an action, then write the result atomically.
- *
- * The homepage `getChamberDeepBreakdown` query reads the resulting row in
- * O(1), replacing a 6-7K-doc scan that dominated cold-load latency.
- * ───────────────────────────────────────────────────────────────────── */
+/*
+ * Chamber deep breakdown precompute. Paginates the bills table to dodge the
+ * 16K-doc per-mutation read limit, aggregates in an action, then writes the row
+ * atomically; `getChamberDeepBreakdown` reads it in O(1) instead of scanning
+ * 6-7K docs.
+ */
 
 function normaliseParty(raw: string | undefined): "D" | "R" | "I" | "U" {
   if (!raw) return "U";
@@ -901,7 +775,6 @@ function normaliseParty(raw: string | undefined): "D" | "R" | "I" | "U" {
   return "U";
 }
 
-/** Paginated fetch of bills for a single (congress, billType). */
 export const getChamberBillsPage = internalQuery({
   args: {
     congress: v.number(),
@@ -987,10 +860,8 @@ type ChamberBillPageResult = {
 };
 
 /**
- * Recompute the chamber breakdown for one (congress, chamber).
- * Paginates through every bill type in the chamber so total bill count is
- * never silently truncated. The aggregation runs in an action (no doc cap)
- * and the write happens in one mutation.
+ * Recomputes one (congress, chamber) breakdown, paginating every bill type in
+ * the chamber so the total is never silently truncated.
  */
 export const recomputeCongressChamberBreakdown = internalAction({
   args: {
@@ -1036,9 +907,8 @@ export const recomputeCongressChamberBreakdown = internalAction({
           partyCounts[party] += 1;
           if (isLaw) partyLawCounts[party] += 1;
 
-          // Only aggregate valid ASCII state codes — keeps the homepage
-          // top-states list clean and avoids polluting the table with
-          // "Unknown".
+          // Only valid ASCII state codes, so the top-states list gets no
+          // "Unknown" bucket.
           if (
             bill.sponsorState &&
             /^[A-Z]{2,3}$/.test(bill.sponsorState)
@@ -1092,9 +962,6 @@ export const recomputeCongressChamberBreakdown = internalAction({
   },
 });
 
-/**
- * Create a sync snapshot to track a data sync operation
- */
 export const createSyncSnapshot = internalMutation({
   args: {
     syncType: v.string(),
@@ -1110,9 +977,6 @@ export const createSyncSnapshot = internalMutation({
   },
 });
 
-/**
- * Update a sync snapshot with progress/completion info
- */
 export const updateSyncSnapshot = internalMutation({
   args: {
     snapshotId: v.id("syncSnapshots"),
@@ -1188,12 +1052,8 @@ export const deleteCongressBills = internalMutation({
 });
 
 /**
- * Delete the precomputed stats rows (congressStats, congressPolicyAreas,
- * congressSponsors) for a specific congress. Intended for cleaning up
- * congresses that were never fully synced or are no longer displayed.
- *
- * Does NOT touch the bills table — run `deleteCongressBills` first if the
- * congress has actual bill rows.
+ * Deletes the precomputed stats rows for a congress. Does NOT touch the bills
+ * table — run `deleteCongressBills` first if it still has bill rows.
  *
  *     npx convex run --prod mutations:deleteCongressStats '{"congress": 108}'
  */
@@ -1227,17 +1087,10 @@ export const deleteCongressStats = internalMutation({
 });
 
 /*
- * ─────────────────────────────────────────────────────────────────────
- * Committee base rates
- *
- * Precompute, from FINISHED Congresses only, the share of bills that —
- * having sat in committee a given number of days — ever advanced past
- * committee. Mirrors the recomputeCongressStats pattern: an internalAction
- * paginates bills (and reads actions only for the minority that advanced),
- * aggregates in memory via the pure helper, and hands the result to a single
- * internalMutation for an atomic table swap. Math + definitions live in
- * `./baseRates` and are unit-tested in `baseRates.test.ts`.
- * ─────────────────────────────────────────────────────────────────────
+ * Committee base rates: from FINISHED congresses only, the share of bills that,
+ * having sat in committee N days, ever advanced past committee. Paginate in an
+ * action, aggregate via the pure helper, swap the table in one mutation.
+ * Math + definitions live in `./baseRates` (unit-tested in baseRates.test.ts).
  */
 
 type BaseRatePageResult = {
@@ -1251,7 +1104,6 @@ type BaseRatePageResult = {
   continueCursor: string;
 };
 
-/** A single bill's actions, reduced to what base-rate timing needs. */
 export const getBillActionsForBaseRate = internalQuery({
   args: { billId: v.string() },
   handler: async (ctx, args) => {
@@ -1306,9 +1158,7 @@ export const recomputeCommitteeBaseRates = internalAction({
           // Reference group: bills that reached committee.
           if (stage < BillStages.IN_COMMITTEE) continue;
 
-          const chamber: Chamber = bill.billType.startsWith("s")
-            ? "senate"
-            : "house";
+          const chamber: Chamber = chamberOf(bill.billType);
           const advanced = stage >= BillStages.PASSED_ONE_CHAMBER;
 
           if (!advanced) {

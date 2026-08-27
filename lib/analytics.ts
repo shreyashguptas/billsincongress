@@ -2,13 +2,13 @@ import posthog from 'posthog-js';
 
 import { safeSessionStorage } from '@/lib/safe-storage';
 
-// Typed PostHog event helpers — the code counterpart of ANALYTICS.md.
+// Typed PostHog event helpers — the code counterpart of Documentation/ANALYTICS.md.
 //
-// RULES (see ANALYTICS.md "The contract"):
+// RULES (see Documentation/ANALYTICS.md "The contract"):
 //  - Every custom event the app sends lives here as a named helper.
 //  - Components never call posthog.capture() with raw strings.
 //  - Adding/removing a feature means adding/removing its helpers here AND
-//    updating the registry table in ANALYTICS.md, in the same commit.
+//    updating the registry table in Documentation/ANALYTICS.md, in the same commit.
 //
 // Every helper is safe to call anywhere: it no-ops during SSR and when
 // PostHog isn't configured (missing env vars).
@@ -29,7 +29,7 @@ export type AuthIntent = 'sign_in' | 'sign_up';
 export type LimitKind = 'anonymous' | 'authed';
 
 export const analytics = {
-  // ── Identity ─────────────────────────────────────────────────────────────
+  // Identity
 
   /** Tie all events (past anonymous + future) to the signed-in user. Idempotent. */
   identify(
@@ -71,7 +71,7 @@ export const analytics = {
     };
   },
 
-  // ── Auth events ──────────────────────────────────────────────────────────
+  // Auth events
 
   signupFormSubmitted: () => capture('signup_form_submitted', { method: 'password' }),
   signupVerificationSubmitted: () => capture('signup_verification_submitted'),
@@ -119,7 +119,7 @@ export const analytics = {
     return true;
   },
 
-  // ── Dashboard (home page) ────────────────────────────────────────────────
+  // Dashboard (home page)
 
   dashboardCongressSelected: (congress: number) =>
     capture('dashboard_congress_selected', { congress }),
@@ -131,7 +131,7 @@ export const analytics = {
       congress,
     }),
 
-  // ── Bills browse ─────────────────────────────────────────────────────────
+  // Bills browse
 
   billsFiltersCleared: () => capture('bills_filters_cleared'),
 
@@ -161,7 +161,7 @@ export const analytics = {
     progress_stage: number | string;
   }) => capture('bill_card_clicked', props),
 
-  // ── Hub pages (topic / chamber / status browse pages) ────────────────────
+  // Hub pages (topic / chamber / status browse pages)
 
   /**
    * A hub page was rendered. Passive, once per view. `bill_count` is the exact
@@ -183,7 +183,7 @@ export const analytics = {
     hub_kind: 'chamber' | 'status' | 'topic';
   }) => capture('hub_link_clicked', props),
 
-  // ── Bill detail & AI chat ────────────────────────────────────────────────
+  // Bill detail & AI chat
 
   billViewed: (props: {
     bill_id: string;
@@ -225,7 +225,7 @@ export const analytics = {
   billSaveSigninRedirected: (billId: string) =>
     capture('bill_save_signin_redirected', { bill_id: billId }),
 
-  // ── Grounded answers ─────────────────────────────────────────────────────
+  // Grounded answers
   //
   // `surface` says where the question was asked from ('bill', 'home', 'panel',
   // 'list'), so one funnel covers every place the answer thread is mounted.
@@ -327,7 +327,7 @@ export const analytics = {
   rateLimitSigninClicked: (kind: LimitKind) =>
     capture('rate_limit_signin_clicked', { limit_kind: kind }),
 
-  // ── Podcast cross-promotion ──────────────────────────────────────────────
+  // Podcast cross-promotion
 
   podcastPromoClicked: (props: {
     placement: 'home' | 'learn' | 'bill';
@@ -335,7 +335,7 @@ export const analytics = {
     bill_id?: string;
   }) => capture('podcast_promo_clicked', props),
 
-  // ── Learn page (interactive civics guide) ────────────────────────────────
+  // Learn page (interactive civics guide)
 
   /** User picked their state in the "two chambers" seat-chart explorer. */
   learnStateSelected: (state: string, representatives: number) =>

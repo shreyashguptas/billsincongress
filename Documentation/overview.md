@@ -8,9 +8,8 @@ The Congressional Bill Tracker makes Congress accessible to everyone by providin
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 15, React 19, TypeScript |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript |
 | Backend | Convex (serverless functions + database) |
-| Charts | Recharts |
 | Styling | Tailwind CSS |
 | Deployment | Cloudflare Workers + Convex Cloud |
 
@@ -45,14 +44,13 @@ project/
 │   ├── bills/                 # Bills listing page
 │   │   ├── [id]/             # Individual bill detail
 │   │   └── page.tsx          # Bills list with filters
-│   ├── learn/                 # Learn page with US map
-│   ├── about/                 # About page
-│   └── components/
-│       └── dashboard/         # Dashboard components
+│   ├── learn/                 # Learn page with the interactive civics guide
+│   └── about/                 # About page
 │
-├── components/               # Shared React components
+├── components/               # All shared React components
 │   ├── ui/                   # shadcn/ui components (button, card, input, select, etc.)
 │   ├── bills/                # Bill-related components
+│   ├── dashboard/            # Home-page Congress dashboard
 │   └── navigation.tsx        # Site navigation
 │
 ├── lib/                      # Client-side utilities
@@ -68,7 +66,7 @@ project/
 │   ├── sync.ts               # Sync orchestration
 │   └── crons.ts              # Scheduled jobs
 │
-└── Documentation/            # This folder
+└── Documentation/            # This folder, plus ANALYTICS.md
 ```
 
 ---
@@ -134,7 +132,7 @@ Each bill detail page includes a full **chat panel** powered by an OpenRouter-ho
 ## Architecture
 
 ```
-User types question (components/bills/bill-qa.tsx)
+User types question (components/bills/ask-about-bill.tsx)
     ↓
 billsService.sendChatMessage(billId, sessionId, question)
     ↓
@@ -489,4 +487,3 @@ If a Congress appears with 0 bills (like Congress 108), it means:
 - [Convex Docs](https://docs.convex.dev)
 - [Congress.gov API](https://api.congress.gov/)
 - [Next.js Docs](https://nextjs.org/docs)
-- [Recharts](https://recharts.org/)

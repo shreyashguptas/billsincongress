@@ -20,18 +20,6 @@ import { isPubliclyCacheable } from "./lib/cacheable-routes";
 // `convex/auth.ts`. The cookie's maxAge needs to be ≥ the refresh-token's
 // `inactiveDurationMs`, otherwise the browser drops the cookie before the
 // server-side session expires and the user is signed out for no good reason.
-//
-// Cookie attributes set by `@convex-dev/auth/nextjs/server` (verified in lib
-// source `dist/nextjs/server/cookies.js`):
-//   - httpOnly: true   (XSS-safe — JS can't read tokens)
-//   - sameSite: lax    (CSRF-safe, still works across OAuth redirects)
-//   - secure:   true on prod, false on localhost
-//   - path:     /
-//   - prefix:   __Host- on prod (pins cookie to exact host, no subdomains)
-//
-// Three cookies are set: __Host-__convexAuthJWT (1h access token, rotates
-// transparently), __Host-__convexAuthRefreshToken (60d, used to mint new
-// access tokens), __Host-__convexAuthOAuthVerifier (short-lived, OAuth flow).
 const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 60; // 60 days
 
 const isAuthPage = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)"]);
@@ -41,10 +29,9 @@ export default convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
     const { pathname, search } = request.nextUrl;
 
-    // 0. Canonical host: 301 www → apex. `www.billsincongress.com` is attached
-    //    to this Worker as a custom domain; this redirect keeps a single
-    //    canonical hostname so search engines never see duplicate content.
-    //    Fires only for the www host, so the bare apex is untouched.
+    // Canonical host: 301 www → apex. `www.billsincongress.com` is attached to
+    // this Worker as a custom domain; a single canonical hostname keeps search
+    // engines from seeing duplicate content. The bare apex is untouched.
     if (request.headers.get("host") === "www.billsincongress.com") {
       const url = request.nextUrl.clone();
       url.host = "billsincongress.com";
@@ -52,18 +39,15 @@ export default convexAuthNextjsMiddleware(
       return NextResponse.redirect(url, 301);
     }
 
-    // 1. Bounce authed users away from sign-in/sign-up
     if (isAuthPage(request) && (await convexAuth.isAuthenticated())) {
       return nextjsMiddlewareRedirect(request, "/account");
     }
 
-    // 2. Gate /account/* behind auth
     if (isProtectedRoute(request) && !(await convexAuth.isAuthenticated())) {
       const next = encodeURIComponent(pathname + search);
       return nextjsMiddlewareRedirect(request, `/sign-in?redirect=${next}`);
     }
 
-    // 3. Default: proceed and apply cache headers
     const response = NextResponse.next({
       request: {
         headers: request.headers,
@@ -77,11 +61,9 @@ export default convexAuthNextjsMiddleware(
     // broaden the surface for any future authenticated `/api/foo` route.
 
     // Every page is rendered below ConvexAuthNextjsServerProvider, whose own
-    // response default is `no-store`. That is the right default for a page
-    // that might be personalised and the wrong one for a page that never is:
-    // `/learn` is the heaviest document on the site and was being rebuilt for
-    // every single visitor, measuring 5.2s at the 75th percentile for largest
-    // contentful paint against Google's 2.5s "good" threshold.
+    // response default is `no-store`. That is the right default for a page that
+    // might be personalised and the wrong one for a page that never is — it was
+    // costing `/learn`, the heaviest document on the site, a 5.2s p75 LCP.
     //
     // Authenticated responses can carry user-specific auth bootstrap state and
     // must never reach a shared cache. Anonymous responses are byte-identical

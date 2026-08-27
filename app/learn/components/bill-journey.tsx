@@ -15,10 +15,8 @@ import {
   LawIllustration,
 } from './stage-illustrations';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // "From idea to law" — the interactive heart of the Learn page. Seven steps,
 // each with its own animated illustration, walked through at the reader's pace.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const STEPS = [
   {

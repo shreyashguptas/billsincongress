@@ -34,7 +34,7 @@ function it(name: string, fn: () => void) {
   }
 }
 
-// ── The formatter ──────────────────────────────────────────────────────────
+// The formatter
 
 it("groups digits the American way, whatever the runtime default is", () => {
   assert.equal(formatCount(17607), "17,607");
@@ -52,7 +52,7 @@ it("agrees with an explicitly constructed en-US formatter", () => {
   }
 });
 
-// ── The guard: no unpinned locale formatting in rendered code ──────────────
+// The guard: no unpinned locale formatting in rendered code
 
 /** `.toLocaleString()` with no arguments — the runtime decides, so it varies. */
 const UNPINNED = /\.toLocaleString\(\s*\)/g;

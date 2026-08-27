@@ -1,10 +1,7 @@
 /**
- * The grounded answer loop (spec §5).
- *
- * The model is given a dataset index, two tools, and no ability to write a
- * query. It describes, fetches, and answers. Every row it receives is recorded
- * in `allowed`; at the end, any handle it cited that is not in `allowed` is
- * deleted (see catalog/cite.ts). That is the whole anti-hallucination design.
+ * The grounded answer loop (spec §5). Every row the model is given is recorded
+ * in `allowed`; any handle it cites that is not in `allowed` is deleted (see
+ * catalog/cite.ts). That is the whole anti-hallucination design.
  */
 import { httpAction, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -22,37 +19,7 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /** Kept in step with convex/llm.ts — both are overridden by the same env vars. */
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
 const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
-/**
- * Automatic failover chain, tried in order when the primary errors. Any error
- * qualifies — rate limits, downtime, context-length rejections.
- *
- * Same family first, because it is the closest writing style; then a genuinely
- * independent provider, so a DeepInfra outage degrades the answer instead of
- * ending it.
- *
- * Every entry must satisfy the same constraints as the primary: US provider,
- * zero retention, no training on our readers, and inside MAX_PRICE. Verified
- * 2026-08-27 with scripts/check-provider-retention.ts plus a live tool-calling
- * probe. Re-verify before adding to this list — an entry that fails the
- * retention filters is silently unreachable, not loudly broken.
- *
- * The first entry is deliberately a FLOATING alias, which is the opposite of
- * the rule stated for DEFAULT_MODEL above — and on purpose. The two pins hedge
- * against opposite failures. The primary is dated so a DeepSeek release cannot
- * change our answers without us choosing it. The fallback is floating so that
- * when the dated release is eventually retired, something in the same family
- * is still reachable; a second dated pin would die at exactly the same moment
- * as the first and leave the family tier empty when it is most needed.
- *
- * The cost of that choice is real: if the alias ever resolves to a release
- * DeepInfra has not picked up, this hop 404s and the chain skips to Nova. That
- * is a degraded answer rather than an outage, which is the trade we want here
- * but not for the primary. Verified reachable on DeepInfra 2026-08-27.
- * Unlike OPENROUTER_PROVIDERS, a blank override here DISABLES fallbacks rather
- * than restoring this default. Blank means "behave as before this existed",
- * which is a safe direction. Blanking the provider pin would quietly weaken a
- * privacy promise, which is not — hence the different operators.
- */
+/** Failover chain. Rules live on DEFAULT_FALLBACK_MODELS in convex/llm.ts. */
 const DEFAULT_FALLBACK_MODELS =
   "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
 const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
@@ -93,20 +60,15 @@ export interface AnswerResult {
   dropped: number;
   partial: boolean;
   /**
-   * Every handle the model was given this turn. The client needs it to resolve
-   * entity directives (spec §6.6). NOT the same as `sources`, which is only
-   * what it actually cited.
+   * Every handle the model was given this turn; the client resolves entity
+   * directives from it (spec §6.6). NOT `sources`, which is only what it cited.
    */
   allowed: string[];
-  /**
-   * A small display projection per bill handle, so entity cards can show a
-   * title without a per-card request storm. Keyed by handle.
-   */
+  /** Display projection per bill handle, so entity cards avoid a request storm. */
   entities: Record<string, Record<string, unknown>>;
   /**
-   * The model's own one-sentence explanation of what we do not hold, shown to
-   * the reader verbatim above the web sources (spec §4.6). Empty when the
-   * answer came entirely from our data — which is the expected case.
+   * The model's one-sentence explanation of what we do not hold, shown to the
+   * reader verbatim above the web sources (spec §4.6). Usually empty.
    */
   webReason: string;
   webSources: WebSource[];
@@ -121,9 +83,8 @@ type ChatMessage = {
 };
 
 /**
- * Trim client-supplied history. Anonymous transcripts arrive from the browser
- * (spec §4.7), so an unbounded one is a cost attack. Oldest turns go first and
- * a turn is never split from its role.
+ * Trim client-supplied history: it arrives from the browser (spec §4.7), so an
+ * unbounded transcript is a cost attack. Oldest turns go first.
  */
 export function capHistory(
   history: Array<{ role: "user" | "assistant"; content: string }>,
@@ -141,10 +102,9 @@ export function capHistory(
 }
 
 /**
- * The failover chain for the main answer loop. Deliberately NOT applied to the
- * web-search helper below: that call parses provider-specific citation
- * annotations, so silently swapping the model there could return a shape we do
- * not read. A failed web search already degrades gracefully to no sources.
+ * For the main answer loop only. Do NOT apply fallbacks to searchWeb: that call
+ * parses provider-specific citation annotations, so swapping the model could
+ * return a shape we do not read.
  */
 function fallbackModels(): string[] {
   // `??` not `||`: a blank value here deliberately turns fallbacks off.
@@ -162,9 +122,8 @@ function providerConfig() {
   return {
     ...(providers.length > 0 && { only: providers }),
     max_price: MAX_PRICE,
-    // Verified compatible with the provider pin by
-    // scripts/check-provider-retention.ts. Re-run that probe on any model or
-    // provider change — these flags are filters and can empty the pool.
+    // These flags are FILTERS and can empty the provider pool; re-run
+    // scripts/check-provider-retention.ts on any model or provider change.
     data_collection: "deny",
     zdr: true,
   };
@@ -203,9 +162,8 @@ async function callModel(messages: ChatMessage[], apiKey: string) {
   const data = await response.json();
   // OpenRouter can answer 200 with an error payload when no provider could serve.
   if (data.error) throw new Error(`OpenRouter error: ${JSON.stringify(data.error).slice(0, 500)}`);
-  // A fallback served this turn. This loop keeps no analytics of its own, so
-  // the log is the only place it would ever surface — say it loudly rather
-  // than let a degraded model answer readers unnoticed.
+  // No analytics on this path, so this log is the only place a degraded
+  // fallback answer would ever surface.
   const servedModel = typeof data.model === "string" ? data.model : model;
   if (servedModel !== model) {
     console.error(
@@ -216,14 +174,9 @@ async function callModel(messages: ChatMessage[], apiKey: string) {
 }
 
 /**
- * The fallback lookup (spec §3.2).
- *
- * A SEPARATE request rather than OpenRouter's server tool. That matters: the
- * server tool's schema belongs to OpenRouter, so we could not make `reason` a
- * required argument on it. Defining our own tool means the model cannot search
- * without telling the reader why — and web results flow through the same
- * provenance path as database rows. Costs one extra request, on the fallback
- * path only.
+ * The fallback lookup (spec §3.2). A SEPARATE request rather than OpenRouter's
+ * server-side web tool: their schema cannot make `reason` a required argument,
+ * and the model must not search without telling the reader why.
  */
 async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
   const response = await fetch(OPENROUTER_API_URL, {
@@ -247,9 +200,8 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
   const data = await response.json().catch(() => ({}));
   if (data.error) return [];
 
-  // Verified 2026-08-26 against the pinned model + DeepInfra: annotations come
-  // back as { type: "url_citation", url_citation: { url, title, content } }.
-  // The flat fallbacks below cover a shape change without breaking citations.
+  // Annotations come back as { type: "url_citation", url_citation: { url,
+  // title, content } }; the flat fallbacks below survive a shape change.
   const annotations = data.choices?.[0]?.message?.annotations ?? [];
   type Annotation = {
     type?: string;
@@ -282,7 +234,6 @@ async function runLoop(
   },
 ): Promise<AnswerResult> {
   const allowed = new Set<string>();
-  /** Display projection per bill handle — see AnswerResult.entities. */
   const display = new Map<string, Record<string, unknown>>();
   const workLog: WorkLogEntry[] = [];
   let webReason = "";
@@ -292,9 +243,8 @@ async function runLoop(
     opts.onWork?.(entry);
   };
 
-  // System prompt and history first. The scope block (below) has to land
-  // BETWEEN the history and the reader's question, so the model sees the rows
-  // as context it already has rather than as an answer to the question.
+  // The scope block below must land BETWEEN the history and the question, so
+  // the model reads those rows as prior context, not as the answer.
   const messages: ChatMessage[] = [
     {
       role: "system",
@@ -306,10 +256,8 @@ async function runLoop(
     ...capHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  // A pre-applied scope (spec §6.3): the reader already filtered to exactly the
-  // set they care about, so hand the model the ROWS rather than a sentence
-  // describing them. Describing invites it to re-derive a slightly different
-  // set and answer about the wrong one.
+  // Pre-applied scope (spec §6.3): hand the model the ROWS, not a sentence
+  // describing them — describing invites it to re-derive a different set.
   if (opts.scope) {
     const seeded = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
       name: opts.scope.dataset,
@@ -365,7 +313,6 @@ async function runLoop(
   let partial = false;
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    // On the last permitted round, tell the model to stop looking and answer.
     const message = await callModel(
       round === MAX_TOOL_ROUNDS
         ? [...messages, { role: "user", content: "Answer now with what you have." }]
@@ -496,12 +443,10 @@ async function runLoop(
 /**
  * Non-streaming entry point, for `npx convex run answer:ask '{...}'`.
  *
- * INTERNAL on purpose. A public action here would be reachable by anyone with
- * the deployment URL, and this path has no rate limiter — the daily cap lives
- * in `stream` below. Exporting it publicly would leave an unmetered door
- * straight through to OpenRouter at our expense, which is exactly the spend cap
- * `stream` exists to enforce. `convex run` calls internal functions as admin,
- * so CLI testing is unaffected.
+ * INTERNAL on purpose: this path has no rate limiter — the daily spend cap
+ * lives in `stream` below — so a public export would be an unmetered door to
+ * OpenRouter for anyone holding the deployment URL. `convex run` calls internal
+ * functions as admin, so CLI testing is unaffected.
  */
 export const ask = internalAction({
   args: {
@@ -552,9 +497,7 @@ export const ask = internalAction({
 });
 
 /**
- * SSE entry point (spec §7.3). Same loop as `ask`, but tool progress and answer
- * text are emitted as they happen — which is what makes the extra round trips
- * feel like visible work rather than dead time.
+ * SSE entry point (spec §7.3). Same loop as `ask`, streamed as it happens.
  *
  * Events: work {tool,detail} · delta {text} · done {sources,dropped,partial}
  *         · rate_limited {kind,max,resetAt} · error {message}
@@ -591,9 +534,8 @@ export const stream = httpAction(async (ctx, request) => {
         return;
       }
 
-      // Consume the daily token BEFORE calling the model (spec §9). Without
-      // this the new engine would have no spend cap at all — the old cap lives
-      // inside convex/llm.ts, which this path deliberately bypasses.
+      // Consume the daily token BEFORE calling the model (spec §9): this is the
+      // only spend cap on this path, which bypasses the one in convex/llm.ts.
       const limitStatus = userId
         ? await rateLimiter.limit(ctx, "chatAuthedPerDay", { key: userId })
         : await rateLimiter.limit(ctx, "chatAnonPerDay", { key: anonymousSessionId! });
@@ -621,9 +563,8 @@ export const stream = httpAction(async (ctx, request) => {
           apiKey,
           onWork: (entry) => send("work", entry),
         });
-        // Citations can only be resolved once the whole answer exists, so text
-        // is emitted after resolution rather than token-by-token from the
-        // model. Deltas are chunked to keep the reading experience live.
+        // Citations resolve only once the whole answer exists, so text is
+        // emitted after resolution, chunked — never token-by-token.
         for (const chunk of result.text.match(/[\s\S]{1,60}/g) ?? []) {
           send("delta", { text: chunk });
         }

@@ -1,4 +1,4 @@
-import { internalAction, internalMutation } from "./_generated/server";
+import { internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -36,17 +36,22 @@ type BillBackfillPage = {
 };
 
 const BASE_URL = "https://api.congress.gov/v3";
+
+/** Fail fast with one message when the sync key is absent. */
+function requireApiKey(): string {
+  const apiKey = process.env.CONGRESS_API_KEY;
+  if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
+  return apiKey;
+}
 const BATCH_SIZE = 50; // 50 bills per batch keeps well within Convex's 10-min action timeout
 const DELAY_BETWEEN_REQUESTS_MS = 750; // delay between each API call (not per bill)
 const MAX_RETRIES = 3; // max retries per API call on rate limit
 const RATE_LIMIT_BACKOFF_MS = 10000; // initial backoff on 429 (10s), doubles each retry
 const CONSECUTIVE_FAIL_LIMIT = 5; // abort batch after this many consecutive failures
 const RATE_LIMIT_RESUME_DELAY_MS = 300000; // 5 min backoff before resuming after circuit breaker
-// Proactive floor on the live x-ratelimit-remaining header. When a heavy
-// re-pull or reconciliation drives the remaining hourly budget below this, the
-// batch pauses and resumes after a cooldown rather than starving the daily
-// incremental sync. Set below the enrichment backfill's floor (3000) so the
-// small daily sync keeps comfortable headroom.
+// Floor on the live x-ratelimit-remaining header: below this the batch pauses
+// and resumes after a cooldown. Must stay under the enrichment backfill's floor
+// (3000) so the daily incremental sync keeps headroom.
 const SYNC_RATE_FLOOR = 2000;
 const BILL_TYPES = [
   "hr",
@@ -59,11 +64,8 @@ const BILL_TYPES = [
   "sres",
 ];
 
-// Lookup for resolving chamber from billType when scheduling per-chamber
-// breakdown recomputes after each bill type finishes syncing.
 const HOUSE_TYPES_SET = new Set(["hr", "hjres", "hconres", "hres"]);
 
-// Incremental sync constants
 const INCREMENTAL_LOOKBACK_HOURS = 26; // covers 24-hour cron + 2-hour buffer
 const FULL_SYNC_LOOKBACK_DAYS = 7; // weekly safety net catches anything missed
 const INCREMENTAL_STAGGER_MS = 120000; // 2 minutes between bill types (fewer bills)
@@ -88,43 +90,31 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * Most recent value of the Congress.gov `x-ratelimit-remaining` response
- * header, updated on every successful (non-429) fetch. The enrichment backfill
- * reads this to throttle adaptively — pausing before it ever exhausts the
- * 20,000-requests/hour budget rather than relying solely on 429 backoff.
- * `null` until the first response carrying the header is seen.
+ * Most recent `x-ratelimit-remaining` from Congress.gov, updated on every
+ * non-429 fetch (`null` until the first one). Backfills read it to throttle
+ * before exhausting the 20,000-requests/hour budget.
  */
 let lastRateLimitRemaining: number | null = null;
 
-export function getLastRateLimitRemaining(): number | null {
-  return lastRateLimitRemaining;
-}
-
 /**
- * Fetch a Congress.gov URL with retry on rate limit (429). Authenticates
- * via the `X-Api-Key` header rather than a `?api_key=…` query string so the
- * key never lands in URLs that might be captured by Convex platform logs,
- * downstream tracing breadcrumbs, or upstream caches.
- *
- * Returns the Response on success, or null if all retries exhausted.
+ * Fetch a Congress.gov URL with retry on rate limit (429). Authenticates via the
+ * `X-Api-Key` header, never a `?api_key=…` query string, so the key never lands
+ * in URLs captured by Convex logs, tracing breadcrumbs, or upstream caches.
+ * Returns the Response, or null if all retries are exhausted.
  */
 async function fetchWithRetry(
   url: string,
   label: string
 ): Promise<Response | null> {
-  const apiKey = process.env.CONGRESS_API_KEY;
-  if (!apiKey) {
-    throw new Error("CONGRESS_API_KEY not configured");
-  }
+  const apiKey = requireApiKey();
   const init = { headers: { "X-Api-Key": apiKey } };
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     let response: Response;
     try {
       response = await fetch(url, init);
     } catch (err: any) {
-      // Transient network failure (e.g. "TypeError: fetch failed" — a dropped
-      // connection). Treat like a retryable error so a single blip never kills
-      // a long-running backfill mid-flight.
+      // Transient network failure — retry like a 429 so one blip can't kill a
+      // long-running backfill.
       if (attempt === MAX_RETRIES) {
         console.error(
           `Network error on ${label} after ${MAX_RETRIES + 1} attempts (${err?.message ?? err}), giving up`
@@ -168,14 +158,10 @@ type BillSubjectsResult = {
 };
 
 /**
- * Fetch a bill's subjects, paginating the `legislativeSubjects` list (its
- * `count` can exceed the 250-per-page limit; the original sync read only the
- * first page's policy area and discarded the rest). Returns null only if the
- * FIRST page fails; a later-page failure returns what was collected so far.
- *
- * The caller is expected to have just delayed before the first call, so page 0
- * does not delay; subsequent pages delay between requests to respect the rate
- * limit.
+ * Fetch a bill's subjects, paginating `legislativeSubjects` (its `count` can
+ * exceed the 250-per-page limit). Returns null only if the FIRST page fails; a
+ * later-page failure returns what was collected so far. The caller must already
+ * have delayed before the call — page 0 does not delay.
  */
 async function fetchBillSubjects(
   congress: number,
@@ -214,10 +200,6 @@ async function fetchBillSubjects(
   return { policyArea, legislativeSubjects };
 }
 
-/**
- * Map the Library of Congress `textVersions` array to billText rows, pulling
- * the PDF and Formatted Text URLs out of each version's `formats`.
- */
 function textVersionsToRows(
   textVersions: any[],
 ): Array<{
@@ -239,17 +221,14 @@ function textVersionsToRows(
 }
 
 /**
- * Sync a single bill end-to-end and persist everything the batch sync does:
- * detail, actions + derived stage, subjects (policy area + ALL legislative
- * subjects), summaries, ALL text versions, the endpoint sync-status bitmask and
- * the enrichment bitmask. Extracted verbatim from syncBillBatch's per-bill loop
- * body so it can be reused for targeted single-bill remediation
- * (syncOneBill / reconcileMissingBills).
+ * Sync one bill end-to-end, persisting everything the batch sync does: detail,
+ * actions + derived stage, subjects (policy area + ALL legislative subjects),
+ * summaries, ALL text versions, and both sync bitmasks. Shared by syncOneBill
+ * and reconcileMissingBills.
  *
- * Returns `{ detailOk }`: the detail fetch is the only critical call (everything
- * else is best-effort and non-fatal). The caller owns batch-level accounting
- * (success/fail counters, circuit breaker). Behavior-preserving: a thrown error
- * propagates to the caller exactly as the original inline body did.
+ * Only the detail fetch is critical (everything else is best-effort and
+ * non-fatal); thrown errors propagate, and the caller owns batch-level
+ * accounting (success/fail counters, circuit breaker).
  */
 async function syncSingleBill(
   ctx: ActionCtx,
@@ -261,7 +240,6 @@ async function syncSingleBill(
   let endpointBits = 0;
   let extraBits = 0;
 
-  // 1. Fetch detailed bill info
   await delay(DELAY_BETWEEN_REQUESTS_MS);
   const detailUrl = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}?format=json`;
   const detailResponse = await fetchWithRetry(detailUrl, `detail ${billId}`);
@@ -278,7 +256,6 @@ async function syncSingleBill(
   const detailData = await detailResponse.json();
   const billDetail = detailData.bill;
 
-  // 2. Fetch actions to calculate progress stage
   await delay(DELAY_BETWEEN_REQUESTS_MS);
   let actions: any[] = [];
   try {
@@ -295,14 +272,12 @@ async function syncSingleBill(
 
   const { stage, description } = calculateBillStage(actions);
 
-  // Remove number prefix from title
   const titleWithoutNumber =
     billDetail.title?.replace(
       /^(H\.R\.|S\.|H\.J\.Res\.|S\.J\.Res\.|H\.Con\.Res\.|S\.Con\.Res\.|H\.Res\.|S\.Res\.)\s*\d+\s*[-–]\s*/,
       ""
     ) || "";
 
-  // Upsert the bill
   await ctx.runMutation(internal.mutations.upsertBill, {
     billId,
     congress,
@@ -320,7 +295,6 @@ async function syncSingleBill(
     progressDescription: description,
   });
 
-  // Store actions
   if (actions.length > 0) {
     await ctx.runMutation(internal.mutations.upsertBillActions, {
       billId,
@@ -335,7 +309,6 @@ async function syncSingleBill(
     });
   }
 
-  // 3. Fetch and store subjects (policy area + ALL legislative subjects)
   await delay(DELAY_BETWEEN_REQUESTS_MS);
   try {
     const subjects = await fetchBillSubjects(
@@ -353,8 +326,7 @@ async function syncSingleBill(
           policyAreaUpdateDate: subjects.policyArea.updateDate,
         });
       }
-      // Replace-all, even when empty (a legitimately-empty list is a
-      // valid "fully synced" state for minor bills).
+      // Replace-all even when empty: an empty list is a valid fully-synced state.
       await ctx.runMutation(
         internal.mutations.replaceBillLegislativeSubjects,
         { billId, subjects: subjects.legislativeSubjects },
@@ -365,7 +337,6 @@ async function syncSingleBill(
     // Non-critical
   }
 
-  // 4. Fetch and store summaries
   await delay(DELAY_BETWEEN_REQUESTS_MS);
   try {
     const summariesUrl = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/summaries?format=json`;
@@ -389,7 +360,6 @@ async function syncSingleBill(
     // Non-critical
   }
 
-  // 5. Fetch and store text/PDF info (ALL versions, replace-all)
   await delay(DELAY_BETWEEN_REQUESTS_MS);
   try {
     const textUrl = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/text?format=json`;
@@ -407,14 +377,12 @@ async function syncSingleBill(
     // Non-critical
   }
 
-  // Track which endpoints succeeded for this bill
   await ctx.runMutation(internal.mutations.updateBillSyncStatus, {
     billId,
     endpointBits,
     lastSyncAttempt: new Date().toISOString(),
   });
 
-  // Track enrichment progress separately (subjects + text versions).
   if (extraBits > 0) {
     await ctx.runMutation(internal.mutations.setBillExtraSyncedBits, {
       billId,
@@ -425,10 +393,8 @@ async function syncSingleBill(
   return { detailOk: true };
 }
 
-/**
- * Fetch a batch of bills for a congress/type and schedule the next batch.
- * Uses ctx.scheduler.runAfter to chain batches (handles 10-min action timeout).
- */
+// Fetches one page of bills and chains the next batch through the scheduler,
+// which keeps each run under the 10-min action timeout.
 export const syncBillBatch = internalAction({
   args: {
     congress: v.number(),
@@ -438,8 +404,7 @@ export const syncBillBatch = internalAction({
     fromDateTime: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const apiKey = process.env.CONGRESS_API_KEY;
-    if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
+    requireApiKey();
 
     let listUrl = `${BASE_URL}/bill/${args.congress}/${args.billType}?offset=${args.offset}&limit=${BATCH_SIZE}&format=json`;
     if (args.fromDateTime) {
@@ -496,7 +461,6 @@ export const syncBillBatch = internalAction({
     for (const bill of bills) {
       const billId = `${bill.number}${args.billType}${args.congress}`;
 
-      // Circuit breaker: abort batch if too many consecutive failures
       if (consecutiveFailures >= CONSECUTIVE_FAIL_LIMIT) {
         console.error(
           `Circuit breaker tripped: ${consecutiveFailures} consecutive failures. Aborting batch for ${args.billType} at offset ${args.offset}.`
@@ -505,9 +469,8 @@ export const syncBillBatch = internalAction({
         break;
       }
 
-      // Proactive rate-limit floor: if the live remaining-budget header has
-      // dropped below the floor, pause and resume after a cooldown (reusing the
-      // circuit-breaker reschedule below) rather than starving the daily sync.
+      // Rate-limit floor: pause here and resume after a cooldown, reusing the
+      // circuit-breaker reschedule below.
       if (
         lastRateLimitRemaining !== null &&
         lastRateLimitRemaining < SYNC_RATE_FLOOR
@@ -531,7 +494,6 @@ export const syncBillBatch = internalAction({
           consecutiveFailures++;
           continue;
         }
-        // Reset consecutive failures on a successful (detail-fetched) bill.
         consecutiveFailures = 0;
         successCount++;
       } catch (error: any) {
@@ -545,12 +507,9 @@ export const syncBillBatch = internalAction({
       `Batch complete: ${successCount} success, ${failCount} failed out of ${bills.length}${rateLimitAborted ? " (aborted by circuit breaker)" : ""}`
     );
 
-    // If circuit breaker tripped, reschedule the SAME offset after a long
-    // backoff rather than abandoning pagination. Previously this returned
-    // early, which silently stranded any remaining bills at higher offsets
-    // until the next historical sync — the root cause of Congress 119 drifting
-    // ~8.8K bills behind. We advance offset by successCount so the next run
-    // retries the failed bills as well as the unseen ones.
+    // On a circuit-breaker/rate-floor stop, reschedule the SAME offset after a
+    // long backoff instead of returning early (that stranded bills at higher
+    // offsets). Advance by successCount so failed bills are retried too.
     if (rateLimitAborted) {
       const resumeOffset = args.offset + successCount;
       if (args.snapshotId) {
@@ -576,7 +535,6 @@ export const syncBillBatch = internalAction({
       return { processed: successCount, hasMore: true, successCount, failCount, rateLimitAborted: true };
     }
 
-    // Update sync snapshot with batch progress
     if (args.snapshotId) {
       await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
         snapshotId: args.snapshotId,
@@ -586,7 +544,6 @@ export const syncBillBatch = internalAction({
       });
     }
 
-    // Schedule next batch if there are more bills
     const hasMore = bills.length >= BATCH_SIZE;
     if (hasMore) {
       await ctx.scheduler.runAfter(
@@ -601,7 +558,6 @@ export const syncBillBatch = internalAction({
         }
       );
     } else if (args.snapshotId) {
-      // This bill type is done — mark snapshot completed
       await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
         snapshotId: args.snapshotId,
         status: "completed",
@@ -611,7 +567,6 @@ export const syncBillBatch = internalAction({
         totalFailed: failCount,
       });
 
-      // Refresh precomputed homepage stats for this congress
       await ctx.runAction(internal.mutations.recomputeCongressStats, {
         congress: args.congress,
       });
@@ -622,9 +577,8 @@ export const syncBillBatch = internalAction({
         congress: args.congress,
       });
 
-      // Refresh the per-chamber deep breakdown for the chamber this bill
-      // type belongs to. The other chamber will be recomputed when its own
-      // bill types finish; the daily 4 AM cron does a full sweep regardless.
+      // Only this bill type's chamber; the other recomputes when its own types
+      // finish, and the daily cron sweeps both.
       const chamber: "house" | "senate" = HOUSE_TYPES_SET.has(args.billType)
         ? "house"
         : "senate";
@@ -639,12 +593,10 @@ export const syncBillBatch = internalAction({
 });
 
 /**
- * Sync a single bill end-to-end — a thin wrapper around syncSingleBill for
- * targeted remediation of an individual bill. Run from the CLI, e.g.
+ * Sync a single bill for targeted remediation:
  *   npx convex run congressApi:syncOneBill '{"congress":118,"billType":"hr","billNumber":"5193"}'
  *
- * Does NOT refresh the precomputed congressStats rollups (one bill rarely
- * warrants a full-congress recompute); the bill aggregates update
+ * Does NOT refresh the congressStats rollups; bill aggregates still update
  * transactionally via the trigger-wrapped upsertBill. Run recomputeAllStats
  * afterward if a rollup refresh is needed.
  */
@@ -658,8 +610,7 @@ export const syncOneBill = internalAction({
     ctx,
     args,
   ): Promise<{ billId: string; detailOk: boolean }> => {
-    const apiKey = process.env.CONGRESS_API_KEY;
-    if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
+    requireApiKey();
 
     const { detailOk } = await syncSingleBill(
       ctx,
@@ -674,10 +625,6 @@ export const syncOneBill = internalAction({
   },
 });
 
-/**
- * Start syncing all bill types for a given congress.
- * Schedules a batch sync for each bill type with staggered starts.
- */
 export const syncCongress = internalAction({
   args: {
     congress: v.number(),
@@ -689,7 +636,6 @@ export const syncCongress = internalAction({
     const syncType = args.syncType || "daily";
     const staggerMs = args.staggerMs || FULL_SYNC_STAGGER_MS;
 
-    // Create a sync snapshot
     const snapshotId = await ctx.runMutation(
       internal.mutations.createSyncSnapshot,
       {
@@ -702,7 +648,6 @@ export const syncCongress = internalAction({
       `Starting ${syncType} sync for Congress ${args.congress} (snapshot: ${snapshotId})${args.fromDateTime ? ` from ${args.fromDateTime}` : ""}`
     );
 
-    // Schedule sync for each bill type with configurable stagger
     for (let i = 0; i < BILL_TYPES.length; i++) {
       await ctx.scheduler.runAfter(
         i * staggerMs,
@@ -719,10 +664,8 @@ export const syncCongress = internalAction({
   },
 });
 
-/**
- * Incremental sync - fetches only bills updated in the last INCREMENTAL_LOOKBACK_HOURS.
- * Uses shorter stagger since fewer bills are expected.
- */
+// Fetches only bills updated in the last INCREMENTAL_LOOKBACK_HOURS, with a
+// shorter stagger since fewer bills are expected.
 export const incrementalSync = internalAction({
   handler: async (ctx) => {
     const currentYear = new Date().getFullYear();
@@ -745,10 +688,8 @@ export const incrementalSync = internalAction({
   },
 });
 
-/**
- * Full sync - fetches bills updated in the last FULL_SYNC_LOOKBACK_DAYS.
- * Weekly safety net to catch anything the incremental sync may have missed.
- */
+// Weekly safety net: bills updated in the last FULL_SYNC_LOOKBACK_DAYS, to
+// catch anything the incremental sync missed.
 export const fullSync = internalAction({
   handler: async (ctx) => {
     const currentYear = new Date().getFullYear();
@@ -771,10 +712,8 @@ export const fullSync = internalAction({
   },
 });
 
-/**
- * Daily sync - backward compatible entry point, now delegates to incrementalSync.
- * Called by the cron job.
- */
+// Legacy entry point (documented in Documentation/interactive-dashboard.md);
+// delegates to incrementalSync. Not wired to any cron.
 export const dailySync = internalAction({
   handler: async (ctx) => {
     console.log("Daily sync delegating to incrementalSync");
@@ -816,7 +755,6 @@ export const initialHistoricalPull = internalAction({
   },
 });
 
-// ─── Completeness + freshness ────────────────────────────────────────────────
 const RECONCILE_LIST_PAGE = 250; // API list page size (max allowed)
 const RECONCILE_MAX_LIST_PAGES = 500; // 125k bills/type — far beyond any congress
 const RECONCILE_MAX_RUN_MS = 8 * 60 * 1000; // stop before the 10-min action kill
@@ -824,17 +762,13 @@ const RECONCILE_TYPE_STAGGER_MS = 30 * 1000; // gap between bill types in a cong
 const RECONCILE_CONGRESS_STAGGER_MS = 20 * 60 * 1000; // gap between congresses
 
 /**
- * Completeness reconciliation for one congress: for each bill type, paginate the
- * FULL live API list (no fromDateTime), diff against the bill numbers already in
- * the DB, and sync each genuinely-missing bill via syncSingleBill. Walks bill
- * types one at a time via self-scheduling (billTypeIndex). On a rate-limit
- * floor / circuit-breaker / time-budget stop it reschedules the SAME type — the
- * re-diff skips bills inserted in the interrupted run, so it resumes cleanly.
- * After the last type, refreshes the congress's precomputed rollups.
+ * Completeness reconciliation for one congress: per bill type, paginate the FULL
+ * live API list (no fromDateTime), diff against the bill numbers in the DB, and
+ * sync each genuinely-missing bill. Walks types one at a time via
+ * self-scheduling (billTypeIndex); on a rate-floor / circuit-breaker /
+ * time-budget stop it reschedules the SAME type, because the re-diff skips bills
+ * inserted in the interrupted run. Refreshes the rollups after the last type.
  *
- * Cheap in steady state (usually 0 missing). Recurs weekly across the current +
- * 2 recent congresses via reconcileRecentCongresses, and is the one-time fix for
- * never-synced closed-congress bills (e.g. 5193hr118):
  *   npx convex run congressApi:reconcileMissingBills '{"congress":118}'
  */
 export const reconcileMissingBills = internalAction({
@@ -854,12 +788,10 @@ export const reconcileMissingBills = internalAction({
     done: boolean;
     aborted: boolean;
   }> => {
-    const apiKey = process.env.CONGRESS_API_KEY;
-    if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
+    requireApiKey();
 
     const idx = args.billTypeIndex ?? 0;
 
-    // All bill types processed → run the end-of-congress recompute cascade.
     if (idx >= BILL_TYPES.length) {
       console.log(
         `reconcileMissingBills: congress ${args.congress} complete; refreshing rollups`,
@@ -893,7 +825,6 @@ export const reconcileMissingBills = internalAction({
     const startedAt = Date.now();
     const billType = BILL_TYPES[idx];
 
-    // 1. Collect the bill numbers already stored for this (congress, billType).
     const dbSet = new Set<string>();
     let cursor: string | null = null;
     for (;;) {
@@ -910,7 +841,6 @@ export const reconcileMissingBills = internalAction({
       cursor = page.continueCursor;
     }
 
-    // 2. Paginate the full live API list for this (congress, billType).
     const apiNumbers: string[] = [];
     let offset = 0;
     for (let p = 0; p < RECONCILE_MAX_LIST_PAGES; p++) {
@@ -933,7 +863,6 @@ export const reconcileMissingBills = internalAction({
       `reconcileMissingBills ${args.congress}/${billType}: api=${apiNumbers.length} db=${dbSet.size} missing=${missing.length}`,
     );
 
-    // 3. Sync each missing bill, with the same protections as the batch sync.
     let inserted = 0;
     let consecutiveFailures = 0;
     let aborted = false;
@@ -983,8 +912,6 @@ export const reconcileMissingBills = internalAction({
       }
     }
 
-    // Resume the SAME type (re-diff skips inserted bills) on an interrupted run;
-    // otherwise advance to the next type.
     if (aborted) {
       await ctx.scheduler.runAfter(
         RATE_LIMIT_RESUME_DELAY_MS,
@@ -1012,12 +939,10 @@ export const reconcileMissingBills = internalAction({
 });
 
 /**
- * Weekly completeness sweep: reconcile missing bills for the current + 2 most
- * recent congresses, staggered so they never overlap. Closed congresses are
- * effectively final, so finding anything here is rare — this is the safety net
- * for never-synced bills the bounded daily/weekly lookback windows can't
- * discover (the daily/weekly sync only sees bills updated in the last 26h/7d,
- * and only for the current congress).
+ * Weekly completeness sweep across the current + 2 most recent congresses,
+ * staggered so they never overlap. The daily/weekly syncs only see bills updated
+ * in the last 26h/7d of the current congress, so this is the only path that
+ * finds never-synced bills.
  */
 export const reconcileRecentCongresses = internalAction({
   args: {},
@@ -1043,11 +968,9 @@ export const reconcileRecentCongresses = internalAction({
 });
 
 /**
- * Monthly full re-pull of the current congress: re-fetch every bill (no
- * fromDateTime) so stage + latestActionDate are re-derived, enrichment is
- * refreshed, missing bills are inserted, and present-but-stale bills (e.g. a
- * bill the live API has since advanced to "Became Law") are corrected. The most
- * reliable freshness mechanism for the only congress whose data still changes.
+ * Monthly full re-pull of the current congress (no fromDateTime): re-derives
+ * stage + latestActionDate, refreshes enrichment, inserts missing bills, and
+ * corrects present-but-stale ones.
  */
 export const monthlyCurrentCongressRepull = internalAction({
   args: {},
@@ -1068,10 +991,8 @@ export const monthlyCurrentCongressRepull = internalAction({
 
 const REPAIR_BATCH_SIZE = 20; // fewer bills per batch since we're targeted
 
-/**
- * Repair incomplete bills by fetching only their missing endpoints.
- * Self-schedules next batch if more incomplete bills remain.
- */
+// Repairs incomplete bills by fetching only their missing endpoints,
+// self-scheduling until the incomplete range is drained.
 export const repairIncompleteBills = internalAction({
   args: {
     congress: v.optional(v.number()),
@@ -1080,8 +1001,7 @@ export const repairIncompleteBills = internalAction({
     cursor: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args): Promise<{ repaired: number; remaining: boolean }> => {
-    const apiKey = process.env.CONGRESS_API_KEY;
-    if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
+    requireApiKey();
 
     // Read ONE page of incomplete bills from the by_syncedEndpoints index range.
     // Only incomplete bills are ever read (complete bills are skipped by the
@@ -1093,15 +1013,13 @@ export const repairIncompleteBills = internalAction({
     });
     const incompleteBills = page.bills;
 
-    // Nothing left in the whole incomplete range → done.
     if (incompleteBills.length === 0 && page.isDone) {
       console.log("No incomplete bills to repair");
       return { repaired: 0, remaining: false };
     }
 
-    // Always log page progress (incl. congress scope) so a multi-page drain is
-    // observable — a congress-filtered page can legitimately be empty while more
-    // pages remain, and silent empty reschedules are hard to debug in prod.
+    // A congress-filtered page can legitimately be empty while more pages
+    // remain, so always log page progress — silent reschedules are undebuggable.
     const scope = args.congress !== undefined ? ` (congress ${args.congress})` : "";
     console.log(
       `Repair page${scope}: ${incompleteBills.length} incomplete bills to process` +
@@ -1116,14 +1034,12 @@ export const repairIncompleteBills = internalAction({
         break;
       }
 
-      // For legacy bills, first compute the bitmask from existing data
       let currentMask = bill.syncedEndpoints || 0;
       if (bill.isLegacy) {
         const completeness = await ctx.runQuery(internal.sync.checkBillCompleteness, {
           billId: bill.billId,
         });
         currentMask = completeness.syncedEndpoints;
-        // Save the computed bitmask even if we can't repair further
         await ctx.runMutation(internal.mutations.updateBillSyncStatus, {
           billId: bill.billId,
           endpointBits: currentMask,
@@ -1138,10 +1054,7 @@ export const repairIncompleteBills = internalAction({
 
       let newBits = 0;
 
-      // Fetch only missing endpoints
       if ((currentMask & SYNC_DETAIL) === 0) {
-        // Detail is missing — we need it to know bill number/type for other calls
-        // but we already have billType and billNumber from the query
         await delay(DELAY_BETWEEN_REQUESTS_MS);
         const detailUrl = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}?format=json`;
         const resp = await fetchWithRetry(detailUrl, `repair detail ${bill.billId}`);
@@ -1293,7 +1206,6 @@ export const repairIncompleteBills = internalAction({
         }
       }
 
-      // Update bitmask with newly fetched endpoints
       if (newBits > 0) {
         await ctx.runMutation(internal.mutations.updateBillSyncStatus, {
           billId: bill.billId,
@@ -1307,9 +1219,8 @@ export const repairIncompleteBills = internalAction({
 
     console.log(`Repair batch complete: ${repairedCount} bills processed`);
 
-    // Advance through the incomplete range by cursor until it's exhausted, as
-    // long as the circuit breaker hasn't tripped. When the range is drained
-    // (page.isDone) we stop — next week's cron starts a fresh drain from the top.
+    // Drain the incomplete range page by page unless the breaker tripped; when
+    // it's drained we stop and next week's cron starts a fresh drain.
     const moreToScan =
       !page.isDone && consecutiveFailures < CONSECUTIVE_FAIL_LIMIT;
     if (moreToScan) {
@@ -1321,10 +1232,8 @@ export const repairIncompleteBills = internalAction({
       console.log("Scheduled next repair page");
     }
 
-    // `remaining` means "more pages of the incomplete index remain to scan"
-    // (not "more bills still need repair"): with a congress filter it can be true
-    // while zero bills for that congress remain. Callers (CLI/cron) treat it as a
-    // progress signal only.
+    // `remaining` means "more index pages left to scan", not "more bills need
+    // repair" — with a congress filter it can be true while zero bills remain.
     return { repaired: repairedCount, remaining: !page.isDone };
   },
 });
@@ -1333,20 +1242,15 @@ const STAGE_BACKFILL_PAGE = 40; // bills per mutation (≤250 actions each → r
 const STAGE_BACKFILL_BILLS_PER_RUN = 5000; // bills per invocation before self-scheduling
 
 /**
- * Re-derive existing bills' action-derived fields from their stored actions
- * (no API calls): the corrected progress stage AND latestActionDate (max stored
- * actionDate). Patches only bills whose values changed; the trigger-wrapped
- * mutation keeps the aggregates in sync. Self-schedules across batches and, on
- * completion, refreshes the precomputed homepage stats. Idempotent.
+ * Re-derive bills' action-derived fields (progress stage, latestActionDate) from
+ * their stored actions — no API calls. Patches only changed bills; the
+ * trigger-wrapped mutation keeps the aggregates in sync. Idempotent,
+ * self-scheduling, and refreshes the homepage stats on completion. A transient
+ * platform / write-conflict error MUST reschedule from the current cursor, or
+ * the chain dies mid-sweep.
  *
- * Hardened: any transient platform / write-conflict error reschedules the chain
- * from the current cursor rather than letting it die mid-sweep — an earlier
- * unhardened pass silently died on a write conflict and left most of the
- * current congress unpatched.
- *
- * Pass `congress` to scope the sweep to one congress (via the by_congress
- * index) instead of the whole table — much faster when only one congress needs
- * fixing, since the current congress otherwise sorts last:
+ * Pass `congress` to scope the sweep to the by_congress index instead of the
+ * whole table — much faster, since the current congress otherwise sorts last:
  *   npx convex run congressApi:backfillBillFieldsFromActions '{}'
  *   npx convex run congressApi:backfillBillFieldsFromActions '{"congress":119}'
  */
@@ -1398,7 +1302,6 @@ export const backfillBillFieldsFromActions = internalAction({
           processedThisRun += page.bills.length;
         }
       } catch (err: any) {
-        // Don't let a transient blip kill the chain — resume from this cursor.
         console.error(
           `backfillBillFieldsFromActions: transient error, rescheduling from cursor: ${err?.message ?? err}`,
         );
@@ -1414,7 +1317,6 @@ export const backfillBillFieldsFromActions = internalAction({
         console.log(
           `backfillBillFieldsFromActions: pass complete${args.congress !== undefined ? ` (congress ${args.congress})` : ""}, ${changedThisRun} bills changed this run; refreshing rollups`,
         );
-        // Refresh precomputed homepage stats so corrected stages show.
         await ctx.scheduler.runAfter(0, internal.congressApi.recomputeAllStats, {});
         return { done: true, processedThisRun, changedThisRun };
       }
@@ -1444,25 +1346,19 @@ const ENRICHMENT_COOLDOWN_MS = 15 * 60 * 1000; // wait when the rate floor is hi
 const ENRICHMENT_RESCHEDULE_MS = 2000; // gap between self-scheduled continuations
 
 /**
- * Managed historical backfill of the richer LoC data that the original sync
- * discarded: all legislative subjects (paginated) and all text versions. Visits
- * each bill missing an enrichment bit and fetches only the endpoints it needs,
- * marking progress via `extraSyncedBits` so it always resumes where it stopped
- * and no-ops once everything is stored.
+ * Historical backfill of the richer LoC data: all legislative subjects
+ * (paginated) and all text versions. Fetches only the endpoints each bill is
+ * missing and records progress in `extraSyncedBits`, so it resumes where it
+ * stopped and no-ops once everything is stored.
  *
- * "Never hit the limit": a ~350ms per-call delay holds throughput near
- * ~10k req/hr (half the 20k/hr cap), and an adaptive throttle pauses for a
- * cooldown the moment the live `x-ratelimit-remaining` header drops below a
- * safety floor. Each invocation stops after ~8 minutes (well under the 10-min
- * action limit) and self-schedules a continuation.
+ * Rate safety: the ~350ms per-call delay holds throughput near half the 20k/hr
+ * cap, an adaptive throttle pauses when the live `x-ratelimit-remaining` drops
+ * below the floor, and each run stops after ~8 min (under the 10-min action
+ * limit) and self-schedules. Per-bill failures are skipped and retried on a
+ * later pass; a pass that enriched anything starts another, and the loop ends
+ * once a full pass enriches nothing.
  *
- * Resilient by design: transient per-bill failures are caught and skipped
- * (the bill keeps its missing bit and is retried on a later pass), and on
- * reaching the end the action starts a fresh pass whenever the previous pass
- * enriched at least one bill — so anything skipped due to a network blip is
- * picked up automatically. The loop stops once a full pass enriches nothing.
- *
- * Run from the CLI: `npx convex run congressApi:backfillBillEnrichment '{}'`.
+ *   npx convex run congressApi:backfillBillEnrichment '{}'
  */
 export const backfillBillEnrichment = internalAction({
   args: {
@@ -1479,8 +1375,7 @@ export const backfillBillEnrichment = internalAction({
     enrichedThisRun: number;
     pausedForRateLimit: boolean;
   }> => {
-    const apiKey = process.env.CONGRESS_API_KEY;
-    if (!apiKey) throw new Error("CONGRESS_API_KEY not configured");
+    requireApiKey();
 
     const startedAt = Date.now();
     let cursor: string | null = args.cursor ?? null;
@@ -1516,8 +1411,6 @@ export const backfillBillEnrichment = internalAction({
           return { done: false, enrichedThisRun, pausedForRateLimit: true };
         }
 
-        // Per-bill work is isolated: a thrown error (network blip, bad JSON)
-        // skips just this bill — it keeps its missing bit and is retried later.
         try {
           let bits = 0;
 
@@ -1587,9 +1480,6 @@ export const backfillBillEnrichment = internalAction({
       }
 
       if (page.isDone) {
-        // Self-heal: if this pass enriched anything, run another full pass to
-        // pick up bills that were skipped due to transient errors. A pass that
-        // enriches nothing means everything reachable is done — stop.
         if (passEnriched > 0) {
           console.log(
             `backfillBillEnrichment: pass complete (enriched ${passEnriched}); starting another pass to catch any skipped bills`,
@@ -1682,11 +1572,8 @@ export const backfillEnrichmentStatus = internalAction({
   },
 });
 
-/**
- * Recompute congressStats for all congresses that have bills.
- * Reads the bills table per-congress and writes precomputed counts.
- * Called after syncs and by the daily stats cron.
- */
+// Recomputes congressStats for every congress that has bills. Called after
+// syncs and by the daily stats cron.
 export const recomputeAllStats = internalAction({
   args: {},
   handler: async (ctx): Promise<{ congresses: number[] }> => {
@@ -1702,14 +1589,12 @@ export const recomputeAllStats = internalAction({
       if (bills) congressesToUpdate.push(c);
     }
 
-    // Recompute stats for each congress
     for (const congress of congressesToUpdate) {
       await ctx.runAction(internal.mutations.recomputeCongressStats, { congress });
     }
 
-    // Recompute the per-chamber deep breakdown (party / state / monthly).
-    // Each call paginates through ~6-7K bills, so we run them sequentially
-    // to stay polite to the database.
+    // Per-chamber deep breakdown (party / state / monthly). Each call paginates
+    // ~6-7K bills, so keep these sequential rather than parallel.
     for (const congress of congressesToUpdate) {
       for (const chamber of ["house", "senate"] as const) {
         await ctx.runAction(
@@ -1740,20 +1625,14 @@ export const triggerRecomputeStats = internalAction({
 });
 
 /**
- * Rebuild the congressSponsors table for every congress that has bills.
- * Mirrors recomputeAllStats — probes the index for each congress in range
- * and recomputes sponsors only where data exists. Every sponsor is stored,
- * including members who sponsored a single bill.
- *
- * New congresses self-populate via the regular sync flow
- * (syncBillBatch → recomputeCongressSponsors at end-of-batch), so this
- * action is primarily for one-off backfills and manual refreshes.
+ * Rebuild congressSponsors for every congress that has bills. Every sponsor is
+ * stored, including members with a single bill. New congresses self-populate via
+ * the regular sync flow (syncBillBatch → recomputeCongressSponsors), so this is
+ * for one-off backfills and manual refreshes.
  */
 export const recomputeAllSponsors = internalAction({
   args: {},
   handler: async (ctx): Promise<{ congresses: number[] }> => {
-    // Upper bound tracks the current congress (never below 120) so a
-    // newly-seated congress self-populates without a code change.
     const currentCongress =
       Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
     const upperCongress = Math.max(120, currentCongress);
@@ -1782,9 +1661,7 @@ export const recomputeAllSponsors = internalAction({
  * Kick off the sponsor backfill from the CLI:
  *   npx convex run congressApi:triggerRecomputeAllSponsors
  *
- * Internal-only — `npx convex run` works for both `action` and
- * `internalAction`, so the documented workflow is unchanged. Not exposed
- * to clients because the cascade paginates every bill in every congress.
+ * Internal-only — the cascade paginates every bill in every congress.
  */
 export const triggerRecomputeAllSponsors = internalAction({
   args: {},

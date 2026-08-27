@@ -11,8 +11,7 @@ import {
   classifySyncState,
 } from "./syncStatus";
 
-// Re-export the bitmask constants + helpers so existing importers
-// (congressApi.ts, audit.ts) keep importing them from "./sync" unchanged.
+// Re-exported so congressApi.ts keeps importing these from "./sync".
 export {
   SYNC_DETAIL,
   SYNC_ACTIONS,
@@ -26,11 +25,9 @@ export {
   getMissingEndpoints,
 } from "./syncStatus";
 
-/**
- * For a single bill, checks all 4 sub-tables for existence and returns a computed bitmask.
- * Used by the repair path to derive the bitmask for legacy bills that have no
- * syncedEndpoints value (the `isLegacy` branch of repairIncompleteBills).
- */
+// Derives the bitmask by probing all 4 sub-tables. Used by the repair path for
+// legacy bills with no `syncedEndpoints` (`isLegacy` branch of
+// repairIncompleteBills).
 export const checkBillCompleteness = internalQuery({
   args: {
     billId: v.string(),

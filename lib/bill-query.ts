@@ -3,40 +3,30 @@
  *
  * The search box feeds the title index, and a bill number appears in no bill's
  * title — so "HR 7540" could never match anything no matter how good the search
- * got. Roughly 170 of the zero-result searches recorded in 30 days were bill
- * references, typed in every format people actually use: "HR 7540",
- * "H.R. 6662", "h.r 7865", "Hb 2611", "Hr88", "s 29", "S.935", "H B 8344",
- * "h. con. res. 113", and bare numbers like "9244". Every one of those has an
- * exact indexed lookup waiting for it; nothing was routing them there.
+ * got. People type them in every format: "H.R. 6662", "h.r 7865", "Hb 2611",
+ * "Hr88", "S.935", "h. con. res. 113", and bare numbers like "9244". Each has
+ * an exact indexed lookup waiting for it.
  *
  * Pure module (no imports) so it can carry unit tests and run unchanged on the
  * server render and in the browser.
  */
 
 /**
- * Acronyms readers search for that appear in no bill title.
- *
- * "NDAA" is the clearest case: the bill is titled "National Defense
- * Authorization Act for Fiscal Year 2027" and the letters N-D-A-A occur nowhere
- * in it, so no amount of search-index work could ever match. 41 people typed it
- * in 30 days and 34 typed "KOSA"; both got nothing.
- *
- * Expansion happens at query time, which is why this is a curated list rather
- * than a derived field: it needs no schema change and no backfill.
+ * Acronyms readers search for that appear in no bill title. "NDAA" is the
+ * clearest case: the bill is titled "National Defense Authorization Act for
+ * Fiscal Year 2027" and those letters occur nowhere in it. Expansion happens at
+ * query time, so this is a curated list rather than a derived field.
  *
  * ADMISSION RULE, and it is not optional: an acronym belongs here only if the
  * acronym alone currently returns *zero* bills while its expansion returns some.
  * Expansion replaces the query, so adding one that already works destroys
- * results. Measured against production, a plausible-looking longer list did
- * exactly that — CHIP went 20 results to 0, IRA 95 to 1, SNAP 49 to 4, CRA 23 to
- * 8, FOIA 2 to 0. Every candidate must be checked both ways before it is added.
+ * results — measured against production, CHIP went 20 results to 0, IRA 95 to 1,
+ * SNAP 49 to 4. Check every candidate both ways before adding it.
  *
  * Consequently absent: acronyms that appear in titles verbatim (CHIPS, CARES,
- * DREAM, SAVE, SNAP, IRA, CRA, ACA, ADA), and ones whose expansion finds nothing
- * (HIPAA, NAFTA). Also absent are ESA and SSA: their bare forms do return a
- * result or two, but only as incidental substring hits inside longer words, so
- * whether expansion helps is a judgement call rather than a measurement — left
- * out until it can be made deliberately.
+ * DREAM, SAVE, SNAP, IRA, CRA, ACA, ADA), ones whose expansion finds nothing
+ * (HIPAA, NAFTA), and ESA/SSA, whose bare forms return incidental substring
+ * hits so the benefit is a judgement call rather than a measurement.
  */
 const ACRONYM_EXPANSIONS: Readonly<Record<string, string>> = {
   ndaa: 'national defense authorization act', // 0 -> 14

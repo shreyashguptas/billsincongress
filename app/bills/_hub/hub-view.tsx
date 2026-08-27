@@ -8,9 +8,9 @@ import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { formatCount } from '@/lib/utils';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { hubsOfKind, type HubDefinition } from '@/lib/hubs';
+import { SITE_URL } from '@/lib/seo';
 import { HubViewTracker, HubLink } from './hub-view-tracker';
 
-const SITE_URL = 'https://billsincongress.com';
 
 /** Bills per hub page. Larger than /bills' ten, because a hub's job is partly
  *  to hand a crawler a lot of real links in one document. */

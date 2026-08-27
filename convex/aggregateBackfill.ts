@@ -7,27 +7,18 @@ import { billsByChamber, billsByStage } from "./aggregates";
 const BACKFILL_BATCH_SIZE = 50;
 
 /**
- * Public action to backfill the bill aggregates from the existing `bills`
- * table. Run this once after deploying the aggregate components — without it
- * the aggregate component queries used by the public bill filters have data.
+ * Backfills the bill aggregates from the existing `bills` table. Run once
+ * after deploying the aggregate components, or the aggregate-backed public
+ * bill filters have no data. Idempotent (`insertIfDoesNotExist`).
  *
- * Idempotent: uses `insertIfDoesNotExist` so re-running on already-populated
- * aggregates is safe.
- *
- *     # default batch size (50):
  *     npx convex run --prod aggregateBackfill:run '{}'
- *     # custom batch size — lower if you see transaction-limit errors in logs:
+ *     # lower the batch size if you see transaction-limit errors in the logs:
  *     npx convex run --prod aggregateBackfill:run '{"batchSize": 25}'
  *
- * The action only kicks off the first batch and returns immediately. Each
- * batch self-schedules the next via the scheduler so we never exceed Convex's
- * per-mutation document limit, and the final batch triggers a recompute of
- * every congressStats row.
- *
- * Sizing note: each bill causes two nested `ctx.runMutation` calls into the
- * aggregate component (one per aggregate), each of which writes a handful of
- * btree nodes. 50 bills/batch keeps us well under the 8,192 write and 16,384
- * read per-mutation limits even in the worst case.
+ * Each batch self-schedules the next so no single mutation exceeds Convex's
+ * per-transaction document limits; the final batch recomputes every
+ * congressStats row. 50 bills/batch is sized for that: each bill runs two
+ * nested aggregate mutations, each writing a handful of btree nodes.
  */
 export const run = internalAction({
   args: { batchSize: v.optional(v.number()) },
@@ -45,9 +36,6 @@ export const run = internalAction({
   },
 });
 
-/**
- * Process one page of bills and self-schedule the next page.
- */
 export const backfillBatch = internalMutation({
   args: {
     cursor: v.union(v.string(), v.null()),
@@ -61,8 +49,7 @@ export const backfillBatch = internalMutation({
     });
 
     for (const bill of result.page) {
-      // Idempotent so we don't blow up if the aggregate already has the doc
-      // (e.g. when a sync ran between batches and the trigger inserted it).
+      // Idempotent: a sync between batches may already have inserted the doc.
       await billsByChamber.insertIfDoesNotExist(ctx, bill);
       await billsByStage.insertIfDoesNotExist(ctx, bill);
     }
@@ -91,11 +78,6 @@ export const backfillBatch = internalMutation({
   },
 });
 
-/**
- * After the backfill finishes, refresh `congressStats` for every congress
- * that has bills so the homepage cache reflects the now-correct aggregate
- * values.
- */
 export const recomputeAll = internalAction({
   args: {},
   handler: async (ctx): Promise<{ congresses: number[] }> => {
@@ -115,11 +97,8 @@ export const recomputeAll = internalAction({
   },
 });
 
-/**
- * Returns every distinct `congress` that appears in the bills table. Used by
- * the post-backfill recompute step. Probes a fixed range so we don't have to
- * scan the bills table — historical sync only writes congresses 93-120.
- */
+// Probes a fixed congress range rather than scanning the bills table — sync
+// only ever writes congresses 93-120.
 export const distinctCongresses = internalQuery({
   args: {},
   handler: async (ctx): Promise<number[]> => {
@@ -158,26 +137,12 @@ export const clearAggregates = internalMutation({
 });
 
 /**
- * Diagnostic: return the current aggregate counts and a bills-table probe
- * side-by-side for each interesting congress. Runs as a public query so it
- * can be called from the CLI or curl without auth:
- *
- *     npx convex run --prod aggregateBackfill:status '{}'
- *
- *     # or via HTTP:
- *     curl -sX POST https://industrious-llama-331.convex.cloud/api/query \
- *       -H 'Content-Type: application/json' \
- *       -d '{"path":"aggregateBackfill:status","args":{},"format":"json"}'
- *
- * Use this to tell whether the aggregate is empty, partially populated,
- * or complete — compared to the actual bills table.
- */
-/**
- * Diagnostic: per-bill-type counts for a single congress. Use this when the
- * chamber-level totals don't match Congress.gov to find which specific
- * bill-type sync is short.
+ * Diagnostics. `countsByType` gives per-bill-type counts for one congress (use
+ * when chamber totals don't match Congress.gov); `status` below compares the
+ * aggregate counts against a direct bills-table probe.
  *
  *     npx convex run --prod aggregateBackfill:countsByType '{"congress": 119}'
+ *     npx convex run --prod aggregateBackfill:status '{}'
  */
 export const countsByType = query({
   args: { congress: v.number() },

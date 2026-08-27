@@ -2,11 +2,9 @@
 
 import { motion } from 'framer-motion';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // One hand-drawn, animated illustration per stage of a bill's journey.
 // Each plays when mounted (the journey stepper remounts them on navigation).
 // All strokes use currentColor; accent red and law green mark the key moments.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const VIEWBOX = '0 0 240 200';
 
@@ -33,7 +31,7 @@ function DocLines({ x, y, width, count = 4 }: { x: number; y: number; width: num
   );
 }
 
-// ── Stage 1: Introduced — the bill drops into the hopper ────────────────────
+// Stage 1: Introduced — the bill drops into the hopper
 
 export function IntroducedIllustration() {
   return (
@@ -95,7 +93,7 @@ export function IntroducedIllustration() {
   );
 }
 
-// ── Stage 2: In committee — experts around the table ────────────────────────
+// Stage 2: In committee — experts around the table
 
 export function CommitteeIllustration() {
   const members = [
@@ -167,7 +165,7 @@ export function CommitteeIllustration() {
   );
 }
 
-// ── Stage 3: The first vote — yea beats nay ─────────────────────────────────
+// Stage 3: The first vote — yea beats nay
 
 export function VoteIllustration() {
   return (
@@ -245,7 +243,7 @@ export function VoteIllustration() {
   );
 }
 
-// ── Stage 4: The other chamber — both rooms must agree ──────────────────────
+// Stage 4: The other chamber — both rooms must agree
 
 function MiniBuilding({ cx, label }: { cx: number; label: string }) {
   return (
@@ -321,7 +319,7 @@ export function BothChambersIllustration() {
   );
 }
 
-// ── Stage 5: To the President — the bill travels to the White House ─────────
+// Stage 5: To the President — the bill travels to the White House
 
 export function ToPresidentIllustration() {
   return (
@@ -380,7 +378,7 @@ export function ToPresidentIllustration() {
   );
 }
 
-// ── Stage 6: Signed (or vetoed) — the signature draws itself ────────────────
+// Stage 6: Signed (or vetoed) — the signature draws itself
 
 export function SignedIllustration() {
   return (
@@ -430,7 +428,7 @@ export function SignedIllustration() {
   );
 }
 
-// ── Stage 7: It becomes law — the seal comes down ────────────────────────────
+// Stage 7: It becomes law — the seal comes down
 
 export function LawIllustration() {
   return (

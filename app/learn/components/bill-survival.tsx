@@ -5,10 +5,8 @@ import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // "Watch what happens to 100 bills" — a grid of 100 documents pops in, then
 // nearly all of them fade away. Only ~3 survive and turn law-green.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const TOTAL = 100;
 /** The lucky few, scattered across the grid so survival looks random. */

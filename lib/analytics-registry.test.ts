@@ -1,5 +1,5 @@
 /**
- * Structural tests for ANALYTICS.md.
+ * Structural tests for Documentation/ANALYTICS.md.
  *
  * CLAUDE.md makes that file the registry of every event we send and requires it
  * to change in the same commit as any feature change, so it is edited often, by
@@ -69,7 +69,7 @@ export function orphanedTableRows(markdown: string): { line: number; text: strin
   return orphans;
 }
 
-// ── The checker itself, so a green result below means something ────────────
+// The checker itself, so a green result below means something
 
 it("flags rows separated from their header by a blank line", () => {
   const broken = [
@@ -114,10 +114,10 @@ it("accepts consecutive tables, each with its own header", () => {
   assert.deepEqual(orphanedTableRows(fine), []);
 });
 
-// ── The real file ──────────────────────────────────────────────────────────
+// The real file
 
 it("every table row in ANALYTICS.md renders as part of a table", () => {
-  const path = join(dirname(fileURLToPath(import.meta.url)), "..", "ANALYTICS.md");
+  const path = join(dirname(fileURLToPath(import.meta.url)), "..", "Documentation", "ANALYTICS.md");
   const orphans = orphanedTableRows(readFileSync(path, "utf8"));
   assert.deepEqual(
     orphans,

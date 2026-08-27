@@ -23,17 +23,3 @@ export interface Bill {
   base_rate_sample?: number;
   days_in_committee?: number;
 }
-
-export interface BillQueryParams {
-  page?: number;
-  itemsPerPage?: number;
-  status?: string;
-  introducedDateFilter?: string;
-  lastActionDateFilter?: string;
-  sponsorFilter?: string[];
-  titleFilter?: string;
-  stateFilter?: string;
-  policyArea?: string;
-  billType?: string;
-  billNumber?: string;
-} 

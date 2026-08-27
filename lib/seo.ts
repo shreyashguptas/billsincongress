@@ -35,7 +35,7 @@ export function truncateAtWord(text: string, maxLength: number): string {
   return `${cut.slice(0, lastSpace > maxLength * 0.6 ? lastSpace : maxLength).trimEnd()}…`;
 }
 
-// ─── Bill page prose ──────────────────────────────────────────────────────
+// Bill page prose
 //
 // Search data (Bing, Aug 2026) showed bill pages ranking in the top five for
 // "<bill id> current status" queries and taking ZERO clicks across thousands of
@@ -219,8 +219,6 @@ export function billAnswerParagraph(bill: Bill): string {
   const when = introducedPhrase(bill);
   const status = billStatusPhrase(bill).toLowerCase();
 
-  // "resolution" / "joint resolution" where that is what it is — an H.Res. is
-  // not a bill, and saying so on 55,000 pages would be plainly wrong.
   const kind = legislationTypeLabel(bill.bill_type ?? '').toLowerCase();
   let text = `${id} is ${withArticle(area ? `${area} ${kind}` : kind)}`;
   text += ` in the ${congressOrdinal(bill.congress)} Congress`;

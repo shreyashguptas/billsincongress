@@ -27,15 +27,8 @@ import {
   DATE_OPTIONS,
   STATE_NAMES,
   STATUS_OPTIONS,
+  labelFor,
 } from '@/lib/constants/filters';
-
-/** Chip labels reuse the filter controls' own wording, so the empty state names
- * a filter the same way the control that set it does. Falls back to the raw
- * value rather than hiding an unrecognised one. */
-const labelFor = (
-  options: ReadonlyArray<{ value: string; label: string }>,
-  value: string,
-) => options.find((o) => o.value === value)?.label ?? value;
 
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
@@ -205,13 +198,15 @@ export default function BillsClient({
   // a router navigation would re-render the server component and fetch the same
   // page twice.
   const syncedSignature = useRef(serverFilterSignature);
-  const syncedText = useRef(`${titleFilter} ${billNumberFilter}`);
+  // NUL-joined so the pair round-trips unambiguously: a title may contain
+  // spaces or any printable separator, but never a NUL.
+  const syncedText = useRef(`${titleFilter}\u0000${billNumberFilter}`);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (currentSignature === syncedSignature.current) return;
 
-    const text = `${titleFilter} ${billNumberFilter}`;
+    const text = `${titleFilter}\u0000${billNumberFilter}`;
     const textChanged = text !== syncedText.current;
     syncedSignature.current = currentSignature;
     syncedText.current = text;
@@ -232,7 +227,7 @@ export default function BillsClient({
     const onPopState = () => {
       const f = filtersFromQuery(window.location.search);
       syncedSignature.current = filterSignature(f);
-      syncedText.current = `${f.title} ${f.billNumber}`;
+      syncedText.current = `${f.title}\u0000${f.billNumber}`;
       setCurrentPage(1);
       setStatusFilter(f.status);
       setIntroducedDateFilter(f.introducedDate);

@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useConvexEnabled } from "@/app/ConvexClientProvider";
+import { useConvexEnabled } from "@/components/convex-client-provider";
 
 function initialsFor(nameOrEmail: string | undefined | null): string {
   if (!nameOrEmail) return "·";

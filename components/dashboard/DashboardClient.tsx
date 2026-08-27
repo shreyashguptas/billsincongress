@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
-import { api } from '../../../convex/_generated/api';
+import { api } from '@/convex/_generated/api';
 import { useRouter } from 'next/navigation';
-import { useConvexEnabled } from '../../ConvexClientProvider';
+import { useConvexEnabled } from '@/components/convex-client-provider';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
 import { HeroAsk } from '@/components/answers/hero-ask';
 import { AskAbout } from '@/components/answers/ask-about';
@@ -21,8 +20,6 @@ import {
 } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
 
-// Shape of the SSR-loaded data passed through from app/page.tsx.
-// Each field mirrors the return type of its Convex query.
 export type InitialDashboardData = {
   allCongress: FunctionReturnType<typeof api.bills.getAllCongressOverview>;
   dashboard: FunctionReturnType<typeof api.bills.getCongressDashboard>;
@@ -30,9 +27,9 @@ export type InitialDashboardData = {
   senate: FunctionReturnType<typeof api.bills.getChamberDeepBreakdown>;
 };
 
-// The fully-loaded report for a single Congress. We keep the last loaded view
-// on screen (dimmed) while a newly-selected Congress loads, then cross-fade to
-// the new numbers — so switching Congress never blanks the page to a skeleton.
+// The fully-loaded report for a single Congress. The last loaded view stays on
+// screen (dimmed) while a newly-selected Congress loads, then cross-fades to the
+// new numbers — so switching Congress never blanks the page to a skeleton.
 type DashboardView = {
   congress: number;
   dashboard: NonNullable<InitialDashboardData['dashboard']>;
@@ -119,15 +116,11 @@ function DashboardInner({
   // back to the SSR snapshot until the websocket replies.
   const allCongressData = liveAll ?? initialData?.allCongress;
 
-  // Data for whichever Congress the user has currently selected. Each is
   // `undefined` while a freshly-selected Congress is still loading over the wire.
   const resolvedDashboard = isInitial ? initialData?.dashboard : liveDashboard;
   const resolvedHouse = isInitial ? initialData?.house : liveHouse;
   const resolvedSenate = isInitial ? initialData?.senate : liveSenate;
 
-  // The last Congress whose data fully loaded. We keep showing it (dimmed)
-  // while a newly-selected Congress loads, then cross-fade to the new numbers
-  // once all of them have arrived — so switching never blanks to a skeleton.
   const [view, setView] = useState<DashboardView | null>(() =>
     initialData?.dashboard
       ? {
@@ -150,8 +143,7 @@ function DashboardInner({
     }
   }, [selectedCongress, resolvedDashboard, resolvedHouse, resolvedSenate]);
 
-  // True while the user has picked a Congress whose data hasn't arrived yet —
-  // we keep the previous report visible but dimmed until it does.
+  // True while the picked Congress has not arrived yet; see DashboardView.
   const isSwitching = view !== null && view.congress !== selectedCongress;
 
   const congressNumbers =
@@ -172,8 +164,7 @@ function DashboardInner({
     router.push(`/bills?${params.toString()}`);
   };
 
-  // Cold start only — nothing has ever loaded. Once we have a view, switching
-  // Congress keeps the previous report on screen instead of dropping to this.
+  // Cold start only — nothing has ever loaded.
   if (!allCongressData || !view) {
     return <DashboardSkeleton />;
   }
@@ -196,7 +187,7 @@ function DashboardInner({
 
   return (
     <div>
-      {/* ── HERO / Editorial masthead ─────────────────────────────── */}
+      {/* HERO / Editorial masthead */}
       <section className="border-b border-border">
         <div className="container-editorial py-10 sm:py-14">
           <div className="flex flex-wrap items-end justify-between gap-6">
@@ -216,17 +207,9 @@ function DashboardInner({
                 States Congress — sourced live from Congress.gov, made readable
                 for citizens, journalists and researchers.
               </p>
-              {/*
-                The masthead leads with a question (spec §6.1). The eyebrow, h1
-                and paragraph above stay server-rendered — they are the page's
-                indexable body — and this is a client island beside them.
-
-                The browse link survives as quiet text rather than a button:
-                measured 2026-08-26, "Browse all bills" took 461 clicks against
-                3,505 home views over 30 days (13.2%), which is far too much
-                traffic to drop. "How a bill becomes law" took 33 (0.9%) and is
-                already in the footer, so its button goes.
-              */}
+              {/* The eyebrow, h1 and paragraph above stay server-rendered —
+                  they are the page's indexable body — and this is a client
+                  island beside them. */}
               <HeroAsk
                 starters={{
                   congress: viewCongress,
@@ -298,7 +281,7 @@ function DashboardInner({
         )}
       >
         <div key={viewCongress} className="animate-fade-in">
-      {/* ── "The evidence" divider ───────────────────────────────── */}
+      {/* "The evidence" divider */}
       <section className="border-b border-border">
         <div className="container-editorial pt-10 pb-2">
           <p className="label-eyebrow">The evidence</p>
@@ -309,7 +292,7 @@ function DashboardInner({
         </div>
       </section>
 
-      {/* ── KEY METRICS row ───────────────────────────────────────── */}
+      {/* KEY METRICS row */}
       <section className="border-b border-border">
         <div className="container-editorial py-8">
           <StatsOverview
@@ -320,7 +303,7 @@ function DashboardInner({
         </div>
       </section>
 
-      {/* ── Status distribution + Policy areas ────────────────────── */}
+      {/* Status distribution + Policy areas */}
       <section className="border-b border-border">
         <div className="container-editorial py-12 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
           <div className="lg:col-span-7">
@@ -355,7 +338,7 @@ function DashboardInner({
         </div>
       </section>
 
-      {/* ── Sponsors ──────────────────────────────────────────────── */}
+      {/* Sponsors */}
       <section className="border-b border-border">
         <div className="container-editorial py-12">
           <SectionHeader
@@ -373,7 +356,7 @@ function DashboardInner({
         </div>
       </section>
 
-      {/* ── Party & chamber breakdown ─────────────────────────────── */}
+      {/* Party & chamber breakdown */}
       <section className="border-b border-border">
         <div className="container-editorial py-12">
           <SectionHeader
@@ -390,7 +373,7 @@ function DashboardInner({
         </div>
       </section>
 
-      {/* ── Monthly introduction cadence ─────────────────────────── */}
+      {/* Monthly introduction cadence */}
       <section className="border-b border-border">
         <div className="container-editorial py-12">
           <SectionHeader
@@ -406,7 +389,7 @@ function DashboardInner({
         </div>
       </section>
 
-      {/* ── Historical comparison ─────────────────────────────────── */}
+      {/* Historical comparison */}
       <section>
         <div className="container-editorial py-12">
           <SectionHeader
@@ -425,7 +408,7 @@ function DashboardInner({
         </div>
       </div>
 
-      {/* ── Podcast cross-promotion ───────────────────────────────── */}
+      {/* Podcast cross-promotion */}
       <section className="border-t border-border bg-secondary/30">
         <div className="container-editorial py-12 sm:py-16">
           <PodcastPromo placement="home" />
@@ -435,9 +418,7 @@ function DashboardInner({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Section header — used throughout
- * ───────────────────────────────────────────────────────────────────── */
+// Section header — used throughout
 
 function SectionHeader({
   eyebrow,
@@ -478,9 +459,7 @@ function SectionHeader({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Helpers
- * ───────────────────────────────────────────────────────────────────── */
+// Helpers
 
 function DashboardSkeleton() {
   return (
@@ -504,9 +483,7 @@ function DashboardSkeleton() {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Stats overview — borderless metric grid
- * ───────────────────────────────────────────────────────────────────── */
+// Stats overview — borderless metric grid
 
 interface StatsOverviewProps {
   stats?: {
@@ -573,9 +550,7 @@ function StatsOverview({ stats, dashboardData, onDrillDown }: StatsOverviewProps
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Status distribution — horizontal stacked bar (Tufte-style)
- * ───────────────────────────────────────────────────────────────────── */
+// Status distribution — horizontal stacked bar (Tufte-style)
 
 interface StatusBarProps {
   data: {
@@ -659,9 +634,7 @@ function StatusBar({ data, totalBills, onSegmentClick }: StatusBarProps) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Top policy areas — minimal horizontal bar list
- * ───────────────────────────────────────────────────────────────────── */
+// Top policy areas — minimal horizontal bar list
 
 interface PolicyAreaListProps {
   data: Array<{ name: string; count: number }>;
@@ -706,9 +679,7 @@ function PolicyAreaList({ data, onItemClick }: PolicyAreaListProps) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Sponsor leaderboard — proper editorial table
- * ───────────────────────────────────────────────────────────────────── */
+// Sponsor leaderboard — proper editorial table
 
 interface SponsorTableProps {
   data: Array<{ name: string; count: number; party?: string; state?: string }>;
@@ -765,9 +736,7 @@ function SponsorTable({ data, onSponsorClick }: SponsorTableProps) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Historical comparison — quiet bar chart
- * ───────────────────────────────────────────────────────────────────── */
+// Historical comparison — quiet bar chart
 
 interface HistoricalChartProps {
   data: Array<{
@@ -844,14 +813,8 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Party & chamber — stacked bars + laws-passed sidebar
- *
- * Two narratives in one view:
- *  1. Sponsorship share — how many bills each party introduces per chamber
- *  2. Passage gap       — the same breakdown, but filtered to laws that
- *                         actually made it onto the books
- * ───────────────────────────────────────────────────────────────────── */
+// Party & chamber — sponsorship share per chamber, beside the same breakdown
+// filtered to bills that actually became law.
 
 type ChamberBreakdown = {
   chamber: 'house' | 'senate';
@@ -1071,10 +1034,8 @@ function ChamberPartyRow({
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────
- * Monthly cadence — vertical bars for bills introduced each month, with
- * a thin inline marker showing how many of those eventually became law.
- * ───────────────────────────────────────────────────────────────────── */
+// Monthly cadence — vertical bars for bills introduced each month, with
+// a thin inline marker showing how many of those eventually became law.
 
 interface MonthlyCadenceChartProps {
   house: ChamberBreakdown | undefined;

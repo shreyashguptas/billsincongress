@@ -1,17 +1,11 @@
 import { Bill } from '@/lib/types/bill';
-import { ConvexHttpClient } from 'convex/browser';
 import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
+import { getConvexHttpClient as getConvexClient } from '@/lib/convex-client';
 
 /**
  * Bills service that fetches data from Convex backend.
  * Falls back to empty results if Convex is not configured.
  */
-
-function getConvexClient(): ConvexHttpClient | null {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) return null;
-  return new ConvexHttpClient(url);
-}
 
 /**
  * PostHog distinct/session ID headers so server-side captures in API routes

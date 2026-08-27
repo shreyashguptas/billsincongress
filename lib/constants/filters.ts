@@ -65,3 +65,10 @@ export const DATE_OPTIONS = [
   { value: '6months', label: 'Last 6 months' },
   { value: 'year', label: 'Last year' },
 ];
+
+/** Label a filter value the same way the control that set it does. Falls back to
+ *  the raw value rather than hiding an unrecognised one. */
+export const labelFor = (
+  options: ReadonlyArray<{ value: string; label: string }>,
+  value: string,
+) => options.find((o) => o.value === value)?.label ?? value;

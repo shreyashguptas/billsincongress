@@ -7,69 +7,45 @@ import { BillStageDescriptions as STAGE_DESCRIPTIONS } from "./billStage";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
- * Baked-in chat model. Override it per-deployment with the OPENROUTER_MODEL
- * Convex environment variable so swapping models needs no code deploy.
- *
- * Pinned to a dated release rather than a `~…-latest` alias: a floating alias
- * can resolve to a version that no US-datacenter provider carries yet, which
- * the allowlist below would turn into a chat outage. Moving to a newer release
- * is a deliberate env-var change after checking its providers.
+ * Baked-in chat model; override per-deployment with the OPENROUTER_MODEL
+ * environment variable. Pinned to a dated release rather than a floating alias:
+ * an alias can resolve to a version no US-datacenter provider carries yet,
+ * which the allowlist below turns into a chat outage.
  */
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
 /**
  * Provider allowlist, so questions are only served from providers that process
  * data in the US. Comma-separated OpenRouter provider slugs; override with
- * OPENROUTER_PROVIDERS.
- *
- * An empty or unset override falls back to this default rather than removing
- * the pin. The privacy page tells readers their questions are processed in the
- * United States, so dropping the allowlist has to be a deliberate code change,
- * not something a blank environment variable can do by accident.
+ * OPENROUTER_PROVIDERS. `||` not `??`: a blank override falls back to this
+ * default rather than dropping the pin, because the privacy page promises
+ * readers US processing.
  *
  * Every slug here must ALSO be permitted by the OpenRouter account's own
  * allowed-providers setting. If the two lists do not overlap, OpenRouter
- * rejects every request with a 404 rather than falling back — which is exactly
- * how this default previously took chat down in production.
+ * rejects every request with a 404 rather than falling back — which is how this
+ * default once took chat down in production.
  */
 const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
 /**
- * Automatic failover chain, tried in order when the primary errors. Any error
- * qualifies — rate limits, downtime, context-length rejections.
+ * Automatic failover chain, tried in order when the primary errors. Every entry
+ * must meet the primary's constraints — US provider, zero retention, no
+ * training on our readers, inside MAX_PRICE — so re-verify with
+ * scripts/check-provider-retention.ts before adding one: an entry that fails
+ * the retention filters is silently unreachable, not loudly broken.
  *
- * Same family first, because it is the closest writing style; then a genuinely
- * independent provider, so a DeepInfra outage degrades the answer instead of
- * ending it.
+ * The first entry is a FLOATING alias on purpose, so the family tier outlives
+ * the dated primary; if it resolves to a release DeepInfra has not picked up,
+ * that hop 404s and the chain skips to Nova.
  *
- * Every entry must satisfy the same constraints as the primary: US provider,
- * zero retention, no training on our readers, and inside MAX_PRICE. Verified
- * 2026-08-27 with scripts/check-provider-retention.ts plus a live tool-calling
- * probe. Re-verify before adding to this list — an entry that fails the
- * retention filters is silently unreachable, not loudly broken.
- *
- * The first entry is deliberately a FLOATING alias, which is the opposite of
- * the rule stated for DEFAULT_MODEL above — and on purpose. The two pins hedge
- * against opposite failures. The primary is dated so a DeepSeek release cannot
- * change our answers without us choosing it. The fallback is floating so that
- * when the dated release is eventually retired, something in the same family
- * is still reachable; a second dated pin would die at exactly the same moment
- * as the first and leave the family tier empty when it is most needed.
- *
- * The cost of that choice is real: if the alias ever resolves to a release
- * DeepInfra has not picked up, this hop 404s and the chain skips to Nova. That
- * is a degraded answer rather than an outage, which is the trade we want here
- * but not for the primary. Verified reachable on DeepInfra 2026-08-27.
- * Unlike OPENROUTER_PROVIDERS, a blank override here DISABLES fallbacks rather
- * than restoring this default. Blank means "behave as before this existed",
- * which is a safe direction. Blanking the provider pin would quietly weaken a
- * privacy promise, which is not — hence the different operators.
+ * `??` not `||` on the override: a blank OPENROUTER_FALLBACK_MODELS DISABLES
+ * fallbacks rather than restoring this default.
  */
 const DEFAULT_FALLBACK_MODELS =
   "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
 /**
- * Runaway-cost guard, in USD per million tokens. Not the target price — the
- * allowlisted provider sits well under this today ($0.080 in, $0.180 out).
- * It exists so that a provider repricing, or a careless OPENROUTER_MODEL
- * change, fails loudly instead of multiplying the bill.
+ * Runaway-cost guard, USD per million tokens — not the target price. It exists
+ * so a provider repricing or a careless OPENROUTER_MODEL change fails loudly
+ * instead of multiplying the bill.
  */
 const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
 const SITE_URL = "https://billsincongress.com";
@@ -106,7 +82,6 @@ function getStageDescription(stage: number): string {
   return STAGE_DESCRIPTIONS[stage] || "Unknown";
 }
 
-/** Build a system prompt containing all bill context for the AI. */
 function buildSystemPrompt(bill: BillContext): string {
   const sponsorParty = PARTY_NAMES[bill.sponsorParty] || bill.sponsorParty;
   const stageLabel = STAGE_DESCRIPTIONS[bill.progressStage] || "Unknown";
@@ -157,9 +132,6 @@ ${bill.actions.slice(0, 10).map((a, i) => `${i + 1}. [${a.date}] ${a.description
   information you already gave earlier in this conversation.`;
 }
 
-// ─── Internal helpers ────────────────────────────────────────────────────────
-
-/** Get or create a chat session for a signed-in user and bill. */
 export const getOrCreateBillChat = internalMutation({
   args: {
     billId: v.string(),
@@ -190,7 +162,6 @@ export const getOrCreateBillChat = internalMutation({
   },
 });
 
-/** Append a message to an existing chat session. */
 export const addChatMessage = internalMutation({
   args: {
     chatId: v.id("billChats"),
@@ -207,7 +178,6 @@ export const addChatMessage = internalMutation({
   },
 });
 
-/** Fetch all messages for a chat session in chronological order. */
 export const getMessagesForChat = internalQuery({
   args: { chatId: v.id("billChats") },
   handler: async (ctx, args) => {
@@ -219,12 +189,6 @@ export const getMessagesForChat = internalQuery({
   },
 });
 
-// ─── Public queries ───────────────────────────────────────────────────────────
-
-/**
- * Fetch persisted chat history for the signed-in user and bill.
- * Returns an empty array when no chat exists yet.
- */
 export const getBillChatHistory = query({
   args: { billId: v.string() },
   handler: async (ctx, args) => {
@@ -246,15 +210,6 @@ export const getBillChatHistory = query({
   },
 });
 
-// ─── Public actions ───────────────────────────────────────────────────────────
-
-/**
- * Send a chat message about a bill and return the AI response.
- *
- * - Persists the full conversation (user + assistant turns) in Convex so
- *   returning visitors pick up where they left off.
- * - Passes prior turns as OpenRouter `messages` for proper multi-turn context.
- */
 export const sendChatMessage = action({
   args: {
     billId: v.string(),
@@ -316,8 +271,7 @@ export const sendChatMessage = action({
       };
     }
 
-    // Consume the token before calling the model. If the call fails after, the
-    // user loses that question; keep this simple unless upstream errors get noisy.
+    // Consume the token before calling the model; a failure after costs the user that question.
     const limitStatus = isAuthed
       ? await rateLimiter.limit(ctx, "chatAuthedPerDay", {
           key: userId,
@@ -347,7 +301,6 @@ export const sendChatMessage = action({
         : null;
       const planAtTime = user?.plan === "pro" ? "pro" : "free";
 
-      // Fetch bill data
       const bill = await ctx.runQuery(api.bills.getById, { billId });
       if (!bill) return { answer: "", error: "Bill not found." };
 
@@ -373,7 +326,6 @@ export const sendChatMessage = action({
         actions: actions || [],
       };
 
-      // Get or create chat session
       const chatId = await ctx.runMutation(
         internal.llm.getOrCreateBillChat,
         isAuthed
@@ -388,17 +340,14 @@ export const sendChatMessage = action({
             },
       );
 
-      // Fetch existing conversation history (before this turn)
       const history = await ctx.runQuery(internal.llm.getMessagesForChat, { chatId });
 
-      // Persist user message
       const userMessageId = await ctx.runMutation(internal.llm.addChatMessage, {
         chatId,
         role: "user",
         content: question,
       });
 
-      // Build messages array: system prompt + full history + current question
       const systemPrompt = buildSystemPrompt(billContext);
       const llmMessages = [
         { role: "system", content: systemPrompt },
@@ -406,7 +355,6 @@ export const sendChatMessage = action({
         { role: "user", content: question },
       ];
 
-      // Call OpenRouter
       const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
@@ -418,21 +366,17 @@ export const sendChatMessage = action({
         },
         body: JSON.stringify({
           model,
-          // Automatic failover, tried in order if `model` errors. OpenRouter
-          // prices the request against whichever one answered, and reports it
-          // back as `data.model` — which is what we record.
+          // Failover chain, tried in order if `model` errors; OpenRouter prices
+          // against whichever model answered and reports it as `data.model`.
           ...(fallbackModels.length > 0 && { models: fallbackModels }),
-          // Pin routing to the allowlist. OpenRouter's own region-locked
-          // routing is enterprise-only, so this is the strongest control we
-          // have over where a question gets processed.
+          // Pin routing to the allowlist: OpenRouter's own region-locked
+          // routing is enterprise-only, so this is our strongest control.
           provider: {
             ...(providers.length > 0 && { only: providers }),
             max_price: MAX_PRICE,
-            // Retention controls (spec §3.1). These are FILTERS: they narrow
-            // the eligible provider set, so they are verified against the
-            // `only` pin by scripts/check-provider-retention.ts. Re-run that
-            // probe whenever OPENROUTER_MODEL or OPENROUTER_PROVIDERS changes
-            // — a model swap can silently change which providers qualify.
+            // Retention controls (spec §3.1). These are FILTERS — they narrow
+            // the eligible provider set, so re-run
+            // scripts/check-provider-retention.ts on any model/provider change.
             data_collection: "deny",
             zdr: true,
           },
@@ -446,9 +390,8 @@ export const sendChatMessage = action({
       });
 
       if (!response.ok) {
-        // Redact any echoed Authorization header before logging — defends
-        // against future upstream changes that might surface the bearer
-        // in error responses. Truncate to keep log lines bounded.
+        // Redact any echoed bearer token before logging, and truncate to keep
+        // log lines bounded.
         const body = (await response.text())
           .slice(0, 500)
           .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
@@ -468,13 +411,9 @@ export const sendChatMessage = action({
         return { answer: "", error: "Failed to get response from AI." };
       }
       const answer = data.choices?.[0]?.message?.content || "No response generated.";
-      // OpenRouter reports the upstream that served the request; read it
-      // defensively so a missing field never breaks a turn.
       const servedBy =
         typeof data.provider === "string" ? data.provider : undefined;
-      // OpenRouter also reports which model answered. Today that always equals
-      // `model`, but a fallback chain would make them diverge — and the
-      // analytics table should record what answered, not what we asked for.
+      // Record what actually answered, not what we asked for.
       const servedModel = typeof data.model === "string" ? data.model : model;
       if (servedModel !== model) {
         console.error(
@@ -484,7 +423,6 @@ export const sendChatMessage = action({
       const answeredAtUtc = Date.now();
       const answeredAtIso = new Date(answeredAtUtc).toISOString();
 
-      // Persist assistant response
       const assistantMessageId = await ctx.runMutation(internal.llm.addChatMessage, {
         chatId,
         role: "assistant",

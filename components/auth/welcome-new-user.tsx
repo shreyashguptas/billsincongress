@@ -10,7 +10,7 @@ import { analytics } from "@/lib/analytics";
 import { safeLocalStorage, safeSessionStorage } from "@/lib/safe-storage";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useConvexEnabled } from "@/app/ConvexClientProvider";
+import { useConvexEnabled } from "@/components/convex-client-provider";
 
 const SIGNUP_CELEBRATION_PENDING_KEY = "bic_signup_celebration_pending";
 const SIGNUP_CELEBRATION_WINDOW_MS = 10 * 60 * 1000;

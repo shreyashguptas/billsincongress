@@ -8,21 +8,17 @@ import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
 import { chamberBounds, chamberOf } from "./chamber";
 
-// Bounds for reading a single bill's child rows. Real bills have only a handful
-// of summaries / text versions, so these caps are generous safety limits.
+// Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
 const MAX_TEXT_VERSIONS_PER_BILL = 50;
 
-/** Effective date for ordering a summary: prefer actionDate, fall back to updateDate. */
 function summaryEffectiveDate(s: Doc<"billSummaries">): string {
   return s.actionDate || s.updateDate || "";
 }
 
 /**
- * Pick the summary describing the most advanced action — the one with the
- * latest effective date. The Library of Congress returns summaries in an order
- * that is NOT chronological, so we must select by date rather than by array
- * position / `_creationTime`.
+ * The Library of Congress does NOT return summaries in chronological order, so
+ * select by effective date, never by array position / `_creationTime`.
  */
 function pickLatestSummary(
   summaries: Doc<"billSummaries">[],
@@ -35,11 +31,7 @@ function pickLatestSummary(
   })[0];
 }
 
-/**
- * Rank a bill-text version by how final it is. The "current" text is the most
- * advanced version that exists (a signed Public Law supersedes the Enrolled
- * copy, which supersedes Engrossed, etc.).
- */
+/** Rank a text version by finality: Public Law > Enrolled > Engrossed > ... */
 function textVersionRank(type: string | undefined): number {
   const t = (type || "").toLowerCase();
   if (t.includes("public law") || t.includes("private law")) return 100;
@@ -54,11 +46,7 @@ function textVersionRank(type: string | undefined): number {
   return 10;
 }
 
-/**
- * Pick the current text version: most final by rank, then most recent by date.
- * Works on the single legacy row stored today and improves automatically once
- * the sync stores every text version.
- */
+/** Current text version: most final by rank, then most recent by date. */
 function pickCurrentText(texts: Doc<"billText">[]): Doc<"billText"> | null {
   if (texts.length === 0) return null;
   return [...texts].sort((a, b) => {
@@ -71,10 +59,7 @@ function pickCurrentText(texts: Doc<"billText">[]): Doc<"billText"> | null {
   })[0];
 }
 
-/**
- * Internal helper: check if any bills exist for a given congress.
- * Used by recomputeAllStats to discover which congresses to process.
- */
+/** Used by recomputeAllStats to discover which congresses to process. */
 export const hasBillsForCongress = internalQuery({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
@@ -86,9 +71,6 @@ export const hasBillsForCongress = internalQuery({
   },
 });
 
-/**
- * Get a single bill by its composite ID, including related data
- */
 export const getById = query({
   args: { billId: v.string() },
   handler: async (ctx, args) => {
@@ -99,9 +81,8 @@ export const getById = query({
 
     if (!bill) return null;
 
-    // Fetch related data in parallel. Summaries and text versions are selected
-    // by date / finality (see helpers above), NOT by array position — the
-    // Library of Congress does not return them in chronological order.
+    // Summaries / text versions are picked by date and finality, not array
+    // position — the Library of Congress does not return them in order.
     const [subjects, summaries, texts] = await Promise.all([
       ctx.db
         .query("billSubjects")
@@ -120,10 +101,7 @@ export const getById = query({
     const summary = pickLatestSummary(summaries);
     const text = pickCurrentText(texts);
 
-    // Committee base-rate context: only for bills still sitting in committee.
-    // Look up the matching precomputed bucket for this bill's chamber + how long
-    // it's been in committee, and only surface it when the bucket is backed by
-    // enough past bills to be honest.
+    // Committee base-rate context, only when the bucket has enough past bills.
     const stage = bill.progressStage ?? BillStages.INTRODUCED;
     let baseRate:
       | {
@@ -172,9 +150,8 @@ export const getById = query({
 });
 
 /**
- * Read-only diagnostic: dump a bill's stored actions (code/type/text/date) and
- * compare its stored stage against the freshly-computed one. Used to verify the
- * veto-detection fix against production data without any API calls, e.g.
+ * Read-only diagnostic: a bill's stored actions, plus stored vs freshly
+ * computed stage.
  *   npx convex run bills:debugBillStage '{"billId":"4199s118"}'
  */
 export const debugBillStage = internalQuery({
@@ -214,10 +191,9 @@ export const debugBillStage = internalQuery({
 });
 
 /**
- * Read-only spot-check for the enrichment backfill: reports a bill's
- * extraSyncedBits, how many legislative subjects and text versions are stored,
- * and small samples. Compare the subject count against the live
- * `/subjects` `pagination.count` (e.g. 1hr119 ≈ 239) to confirm fidelity.
+ * Read-only spot-check for the enrichment backfill. Compare the subject count
+ * against the live `/subjects` `pagination.count` (1hr119 ≈ 239) to confirm
+ * fidelity.
  *   npx convex run bills:debugBillEnrichment '{"billId":"1hr119"}'
  */
 export const debugBillEnrichment = internalQuery({
@@ -251,15 +227,12 @@ const MAX_BILL_ACTIONS = 250;
 const RECENT_ACTIONS_LIMIT = 20;
 
 /**
- * Get a bill's most-recent actions (internal query, feeds the AI chatbot).
+ * A bill's most-recent actions (internal query, feeds the AI chatbot).
  *
- * Actions are stored newest-first (the sync deletes + re-inserts in the order
- * the Library of Congress API returns them), so reading the index by
- * `_creationTime` does NOT give chronological order — the previous
- * `.order("desc").take(20)` returned the 20 *oldest* actions and the chatbot
- * presented them as "Recent." We instead read the bounded set and sort by
- * `actionDate` descending. The sort is stable, so actions sharing a date keep
- * their stored order (the API's own newest-first ordering within a day).
+ * Rows are stored in Library-of-Congress API order, so `_creationTime` is NOT
+ * chronological — `.order("desc")` here returns the OLDEST actions. Read the
+ * bounded set and sort by `actionDate` descending; the sort is stable, so
+ * same-day actions keep the API's own newest-first order.
  */
 export const getBillActions = internalQuery({
   args: { billId: v.string() },
@@ -280,17 +253,14 @@ export const getBillActions = internalQuery({
   },
 });
 
-/**
- * Shared filter args for the bills list + count queries.
- */
+/** Shared filter args for the bills list + count queries. */
 const BILLS_FILTER_ARGS = {
   congress: v.optional(v.number()),
   progressStage: v.optional(v.number()),
   sponsorState: v.optional(v.string()),
   billType: v.optional(v.string()),
-  // Whole originating chamber, i.e. all four House types or all four Senate
-  // types. Distinct from `billType`, which is a single one of them — a caller
-  // wanting "House bills" should not have to ask four times and merge.
+  // Whole originating chamber (all four House or all four Senate types), as
+  // opposed to `billType`, which is a single one of them.
   chamber: v.optional(v.union(v.literal("house"), v.literal("senate"))),
   titleFilter: v.optional(v.string()),
   // Exact full names ("First Last"). Empty or missing = no sponsor filter.
@@ -383,10 +353,7 @@ function cutoffDateForFilter(filter: string | undefined): string | null {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Resolve the congress to filter by, defaulting to the latest one.
- * Returns `null` when the bills table is empty.
- */
+/** Congress to filter by, defaulting to the latest; `null` if no bills exist. */
 async function resolveCongress(
   ctx: QueryCtx,
   requested: number | undefined,
@@ -401,28 +368,19 @@ async function resolveCongress(
 }
 
 /**
- * Build an in-memory predicate that matches bills against all filter args.
+ * In-memory predicate matching a bill against every filter arg; no DB reads.
  *
- * Pre-tokenises the title / sponsor filters so the returned predicate is a
- * tight per-bill check, used by both the streaming list query and the count
- * query. It performs no database reads of its own.
- *
- * The policy-area check reads `bill.policyAreaName` directly. It used to
- * pre-resolve a billId set from `billSubjects` capped at 2,000 rows, which was
- * the bug: those 2,000 were the oldest-created rows across every congress, while
- * the list scanned the newest 1,200 bills of one congress, so the intersection
- * was usually empty — `policyArea=Health` returned 0 of 2,070 real matches.
+ * The policy-area check reads `bill.policyAreaName` directly — see the note on
+ * that field in schema.ts for why the old cross-table intersection was broken.
  */
 function buildBillPredicate(
   args: BillsFilterArgs,
 ): (bill: Doc<"bills">) => boolean {
-  // Every word must appear in the title. On the `search_title` path this narrows
-  // the index's relevance-ranked OR into an AND, which it has to: Convex text
-  // search matches documents containing *any* term, so "sunshine protection act"
-  // matches all 1,024 bills with "act" in the title and the result count stops
-  // meaning anything. Prefix typing still resolves — "sunshine protection act of
-  // 2025" contains "sunshin" — and the index's relevance ranking puts
-  // every-term matches at the top, so they survive the 1,024-result ceiling.
+  // Every word must appear in the title, narrowing the `search_title` index's
+  // relevance-ranked OR into an AND: Convex text search matches *any* term, so
+  // "sunshine protection act" would otherwise match all 1,024 bills containing
+  // "act". Relevance ranking puts every-term matches at the top, so they survive
+  // the 1,024-result ceiling; prefix typing still resolves.
   const titleWords = args.titleFilter
     ? args.titleFilter
         .toLowerCase()
@@ -430,8 +388,6 @@ function buildBillPredicate(
         .filter((w) => w.length > 0)
     : null;
 
-  // Exact full-name match against a normalised set (lowercase, collapsed
-  // whitespace). Matches the semantics of the multi-select sponsor combobox.
   const wantedSponsors =
     args.sponsorFilter && args.sponsorFilter.length > 0
       ? new Set(args.sponsorFilter.map(normaliseName))
@@ -471,7 +427,6 @@ function buildBillPredicate(
   return match;
 }
 
-/** Attach each bill's policy area, the one enrichment the list UI needs. */
 async function enrichWithSubjects(ctx: QueryCtx, page: Doc<"bills">[]) {
   return Promise.all(
     page.map(async (bill) => {
@@ -490,23 +445,17 @@ async function enrichWithSubjects(ctx: QueryCtx, page: Doc<"bills">[]) {
 }
 
 /**
- * Whole-corpus text search over bill titles via the `search_title` index.
+ * Whole-corpus text search over bill titles via the `search_title` index. Unlike
+ * the scan below it reaches the whole Congress (no MAX_LIST_SCAN cut-off) and
+ * returns relevance order rather than newest-first.
  *
- * Replaces a substring match applied during the newest-first `by_congress`
- * scan, which stopped at MAX_LIST_SCAN and so never examined roughly 93% of an
- * 18,000-bill Congress — text searches failed or succeeded based on how
- * recently a bill was introduced. Results come back relevance-ordered rather
- * than newest-first, which is the right ordering for a query.
- *
- * Convex text search is an OR across terms, so `match` (which requires every
- * word to appear in the title) does the narrowing afterwards. That ordering
- * matters for the count: without it, "sunshine protection act" reports the
+ * Convex text search is an OR across terms, so `match` (every word must appear)
+ * narrows afterwards; without that, "sunshine protection act" reports the
  * 1,024-result ceiling because every bill with "act" in its title is a hit.
  *
  * `capped` therefore reports whether the *narrowed* set filled the ceiling.
- * Convex ranks documents matching more terms higher, so every-term matches sit
- * at the top of the window — if fewer than SEARCH_LIMIT survive the filter, the
- * count is a real total rather than a floor.
+ * Convex ranks documents matching more terms higher, so if fewer than
+ * SEARCH_LIMIT survive the filter, the count is a real total, not a floor.
  */
 async function searchBillsByTitle(
   ctx: QueryCtx,
@@ -543,24 +492,16 @@ async function searchBillsByTitle(
 
 /**
  * Exact number of bills in one policy area of one congress, from the precomputed
- * table.
+ * `congressPolicyAreas` table.
  *
- * Returns null only when the table holds no rows at all for that congress, i.e.
- * it has never been built — which is a different answer from a topic that is
- * present with no bills, and the caller must not conflate them. A topic absent
- * from a table that *is* built genuinely has zero bills, so that returns 0.
+ * Returns null ONLY when that congress has no rows at all, i.e. the table was
+ * never built. A topic absent from a built table genuinely has zero bills and
+ * returns 0 — callers must not conflate the two.
  *
- * Note that this count comes from `congressPolicyAreas` (derived from
- * `billSubjects`) while the list it is displayed beside filters on
- * `bills.policyAreaName`. Two sources for one number is the shape of the bug this
- * whole path exists to fix, so it is worth stating why they cannot drift:
- * `upsertBillSubject` writes both in one transaction, and it runs after the bill
- * row exists (the sync upserts the bill before fetching its subjects), so the
- * bill-side patch is never skipped for a missing bill. Re-syncing a bill uses a
- * shallow `patch`, not `replace`, so it cannot quietly drop the field either. The
- * one state where they *did* disagree was between deploying this field and
- * `policyAreaBackfill` finishing — during which the topic filter returned nothing,
- * exactly as it had before the field existed.
+ * This count comes from `congressPolicyAreas` while the list beside it filters
+ * on `bills.policyAreaName`. They cannot drift because `upsertBillSubject`
+ * writes both in one transaction, after the bill row exists, with a shallow
+ * `patch` (not `replace`).
  */
 async function policyAreaSize(
   ctx: QueryCtx,
@@ -612,16 +553,12 @@ async function narrowestIndexFor(
 /**
  * List bills with filtering and offset-based pagination.
  *
- * Streams the `by_congress` index newest-first and stops as soon as we've
- * collected `offset + limit + 1` matching bills (the +1 tells us whether
- * more pages exist). Previously this query did `.collect()` on the full
- * congress (up to ~19K docs) and filtered in-memory, which dominated the
- * 4–5s drill-through latency. The common happy-path (no filters, or a
- * selective filter like sponsor) now reads ~10 docs instead.
+ * Streams an index newest-first and stops as soon as `offset + limit + 1` bills
+ * match (the +1 is what `hasMore` reads). Do not `.collect()` a whole congress
+ * here — that is ~19K docs.
  *
- * Total count is intentionally NOT returned from this query — computing it
- * still requires a full filter scan, which would re-introduce the same
- * latency. Callers that need the total should use `listCount` in parallel.
+ * A total count is intentionally NOT returned: computing it needs a full filter
+ * scan. Callers that need the total should call `listCount` in parallel.
  */
 export const list = query({
   args: {
@@ -682,15 +619,11 @@ export const list = query({
 
     // Iterate the narrowest index the filters allow. This is a correctness
     // matter, not an optimisation: the loop below stops at MAX_LIST_SCAN, so
-    // whichever set is iterated, matches sitting past the cap are never seen.
-    //
-    // Policy area and progress stage each have a dedicated index, and neither is
-    // reliably the smaller one — "Health" holds 2,070 bills in the 119th while
-    // only 104 bills became law. Picking by a fixed priority got this wrong in
-    // exactly one direction: iterating Health newest-first hit the cap 870 bills
-    // short and reported *no* enacted health bills, when there is one. Iterating
-    // the stage instead finds it after 104 rows. So size both and take the
-    // smaller. Whichever is chosen, `match` still applies every other filter.
+    // matches sitting past the cap in whichever set is iterated are never seen.
+    // Neither index is reliably smaller — "Health" holds 2,070 bills in the
+    // 119th while only 104 became law, and iterating Health newest-first hit the
+    // cap 870 bills short and reported *no* enacted health bills. So size both
+    // and take the smaller; `match` still applies every other filter.
     const iterateBy = await narrowestIndexFor(ctx, congressFilter, args);
 
     const iter =
@@ -907,9 +840,6 @@ export const listCount = query({
   },
 });
 
-/**
- * Get the latest congress info (congress number, start year, end year)
- */
 export const getCongressInfo = query({
   handler: async (ctx) => {
     const latestBill = await ctx.db
@@ -931,10 +861,8 @@ export const getCongressInfo = query({
 });
 
 /**
- * Every unique sponsor across every congress, deduped by full name.
- * Powers the sponsor dropdown on /bills. Party / state / billCount come from
- * the row with the highest bill count for that name (so a member who served
- * in multiple congresses is represented by their most-active record).
+ * Every unique sponsor across every congress, deduped by full name. Powers the
+ * sponsor dropdown on /bills.
  */
 export const listAllSponsors = query({
   handler: async (ctx) => {
@@ -956,7 +884,6 @@ export const listAllSponsors = query({
         continue;
       }
       existing.billCount += r.billCount;
-      // Keep the latest non-empty party/state we see.
       if (!existing.party && r.sponsorParty) existing.party = r.sponsorParty;
       if (!existing.state && r.sponsorState) existing.state = r.sponsorState;
     }
@@ -967,10 +894,7 @@ export const listAllSponsors = query({
   },
 });
 
-/**
- * Get all distinct congress numbers from the precomputed stats table.
- * Reads ~3-5 tiny rows instead of probing the bills table.
- */
+/** Distinct congress numbers from precomputed stats (~5 tiny rows). */
 export const getCongressNumbers = query({
   handler: async (ctx) => {
     const stats = await ctx.db.query("congressStats").collect();
@@ -1050,9 +974,6 @@ export const latestCongressStatus = query({
   },
 });
 
-/**
- * Get all unique policy areas for the filter dropdown
- */
 export const getPolicyAreas = query({
   handler: async (ctx) => {
     const rows = await ctx.db.query("congressPolicyAreas").take(1000);
@@ -1065,9 +986,6 @@ export const getPolicyAreas = query({
   },
 });
 
-/**
- * Get the latest completed sync snapshot for frontend display.
- */
 export const getSyncStatus = query({
   handler: async (ctx) => {
     const completedSnapshot = await ctx.db
@@ -1090,14 +1008,10 @@ export const getSyncStatus = query({
   },
 });
 
-/**
- * Get comprehensive stats for a specific congress.
- * Uses ONLY precomputed tables - no heavy queries.
- */
+/** Stats for one congress. Uses ONLY precomputed tables — no heavy queries. */
 export const getCongressDashboard = query({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
-    // Get precomputed stats - single fast query
     const stats = await ctx.db
       .query("congressStats")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
@@ -1107,7 +1021,6 @@ export const getCongressDashboard = query({
       return null;
     }
 
-    // Get precomputed policy areas
     const policyAreas = await ctx.db
       .query("congressPolicyAreas")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
@@ -1118,7 +1031,6 @@ export const getCongressDashboard = query({
       count: p.count,
     }));
 
-    // Get precomputed sponsors
     const sponsors = await ctx.db
       .query("congressSponsors")
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
@@ -1131,7 +1043,6 @@ export const getCongressDashboard = query({
       state: s.sponsorState,
     }));
 
-    // Build status breakdown from precomputed stageCounts
     const statusBreakdown = {
       introduced: 0,
       inCommittee: 0,
@@ -1168,9 +1079,6 @@ export const getCongressDashboard = query({
   },
 });
 
-/**
- * Get overview stats for all congresses at once
- */
 export const getAllCongressOverview = query({
   handler: async (ctx) => {
     const stats = await ctx.db.query("congressStats").collect();
@@ -1191,14 +1099,9 @@ export const getAllCongressOverview = query({
 /**
  * Per-chamber deep breakdown for one Congress (party / state / monthly).
  *
- * Reads a single precomputed row from `congressChamberBreakdowns` —
- * populated by `recomputeCongressChamberBreakdown` after each sync and by
- * the daily 4 AM stats cron. Replaces a previous implementation that
- * scanned 6-7K bill documents per call, which dominated homepage cold-load
- * latency.
- *
- * Returns an empty-shape response if the precomputed row hasn't been
- * built yet — the homepage tolerates zero counts.
+ * Reads one precomputed `congressChamberBreakdowns` row, written by
+ * `recomputeCongressChamberBreakdown` after each sync and by the daily stats
+ * cron. Returns an empty-shape response when that row isn't built yet.
  */
 export const getChamberDeepBreakdown = query({
   args: {

@@ -28,7 +28,7 @@ function it(name: string, fn: () => void) {
   }
 }
 
-// ── Public pages ───────────────────────────────────────────────────────────
+// Public pages
 
 it("caches the public pages", () => {
   for (const path of ["/", "/about", "/learn", "/privacy", "/terms"]) {
@@ -48,7 +48,7 @@ it("caches the whole bills tree, as it did before", () => {
   }
 });
 
-// ── The group that matters ─────────────────────────────────────────────────
+// The group that matters
 
 it("never caches a personalised or auth-flow route", () => {
   for (const path of [
@@ -86,7 +86,7 @@ it("does not cache an unknown route", () => {
   assert.equal(isPubliclyCacheable("/whatever-this-is"), false);
 });
 
-// ── The list must not drift from the routes that exist ─────────────────────
+// The list must not drift from the routes that exist
 
 it("every page route is a deliberate yes or no, none forgotten", () => {
   // A new route added to app/ without a decision here is the failure mode an

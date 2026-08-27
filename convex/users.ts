@@ -9,8 +9,6 @@ import {
 } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 
-// ─── Public queries ────────────────────────────────────────────────────────
-
 /**
  * Returns the current user's row, scoped to the caller. Never accepts a
  * userId arg — identity always comes from `getAuthUserId(ctx)`.
@@ -24,14 +22,9 @@ export const currentUser = query({
   },
 });
 
-// ─── Server-side helpers (not registered as functions) ─────────────────────
-
 type AnyDbCtx = QueryCtx | MutationCtx;
 
-/**
- * Throws UNAUTHENTICATED if the caller is not signed in. Returns the user doc.
- * Use inside any query/mutation that requires a user.
- */
+// Throws UNAUTHENTICATED / USER_MISSING. Use in anything that requires a user.
 export async function requireUser(ctx: AnyDbCtx): Promise<Doc<"users">> {
   const userId = await getAuthUserId(ctx);
   if (!userId) throw new ConvexError("UNAUTHENTICATED");
@@ -40,25 +33,6 @@ export async function requireUser(ctx: AnyDbCtx): Promise<Doc<"users">> {
   return user;
 }
 
-/**
- * Like `requireUser` but additionally requires the email is verified.
- * Used to gate Stripe checkout — Google OAuth users are auto-verified.
- */
-export async function requireVerifiedUser(
-  ctx: AnyDbCtx,
-): Promise<Doc<"users">> {
-  const user = await requireUser(ctx);
-  if (!user.emailVerificationTime) {
-    throw new ConvexError("EMAIL_NOT_VERIFIED");
-  }
-  return user;
-}
-
-// (Action-context variants will be added in PR 2 alongside `convex/stripe.ts`,
-// once the generated `internal.users._getUserById` reference exists.)
-
-// ─── Internal lookups (called from Stripe webhook in PR 2) ─────────────────
-
 export const _getUserById = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {
@@ -66,37 +40,6 @@ export const _getUserById = internalQuery({
   },
 });
 
-export const _getByStripeCustomerId = internalQuery({
-  args: { stripeCustomerId: v.string() },
-  handler: async (ctx, { stripeCustomerId }) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_stripeCustomerId", (q) =>
-        q.eq("stripeCustomerId", stripeCustomerId),
-      )
-      .unique();
-  },
-});
-
-export const _getByStripeSubscriptionId = internalQuery({
-  args: { stripeSubscriptionId: v.string() },
-  handler: async (ctx, { stripeSubscriptionId }) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_stripeSubscriptionId", (q) =>
-        q.eq("stripeSubscriptionId", stripeSubscriptionId),
-      )
-      .unique();
-  },
-});
-
-// ─── Admin / debug helpers (internal-only) ─────────────────────────────────
-
-/**
- * Inspect auth state for a given email — used during PR 1 testing to find
- * orphaned authAccounts left over from earlier deploys with stricter schema
- * validation. Safe to keep around: internal-only, read-only.
- */
 export const _inspectAuthState = internalQuery({
   args: { email: v.string() },
   handler: async (ctx, { email }) => {
@@ -151,16 +94,9 @@ export const _deletePasswordAccount = internalMutation({
 });
 
 /**
- * Delete duplicate user rows for a given email that have no auth accounts
- * pointing at them. Created during PR 1 testing when the `email` index on
- * users was briefly absent (after main wiped indexes mid-flight, before our
- * branch redeployed). Without the index, the auth library couldn't dedupe
- * by email and created multiple `users` rows for the same address.
- *
- * Safety: only deletes user rows that have ZERO authAccounts referencing
- * them. The active user (with the password authAccount) is preserved.
- * Also deletes any dangling authSessions / authRefreshTokens that point at
- * the deleted users.
+ * Deletes duplicate user rows for an email that have ZERO authAccounts
+ * pointing at them (the live user, which owns the password account, is kept),
+ * plus any dangling authSessions / authRefreshTokens for the deleted users.
  */
 export const _deleteOrphanUsers = internalMutation({
   args: { email: v.string() },
@@ -182,7 +118,6 @@ export const _deleteOrphanUsers = internalMutation({
         (a) => (a as any).userId === u._id,
       );
       if (hasAccounts) continue; // keep — this is the live user
-      // Cascade: delete sessions + refresh tokens pointing at this user
       const userSessions = allSessions.filter(
         (s) => (s as any).userId === u._id,
       );
@@ -201,39 +136,3 @@ export const _deleteOrphanUsers = internalMutation({
   },
 });
 
-// ─── Internal billing-column mutation (webhook-only) ───────────────────────
-
-const billingPatchValidator = v.object({
-  plan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
-  stripeCustomerId: v.optional(v.string()),
-  stripeSubscriptionId: v.optional(v.string()),
-  stripeSubscriptionStatus: v.optional(
-    v.union(
-      v.literal("active"),
-      v.literal("trialing"),
-      v.literal("past_due"),
-      v.literal("canceled"),
-      v.literal("incomplete"),
-      v.literal("incomplete_expired"),
-      v.literal("unpaid"),
-      v.literal("paused"),
-    ),
-  ),
-  stripePriceId: v.optional(v.string()),
-  stripeCurrentPeriodEnd: v.optional(v.number()),
-  cancelAtPeriodEnd: v.optional(v.boolean()),
-});
-
-/**
- * Patches billing-related columns on a user. Internal-only — never exposed
- * to the client. The Stripe webhook is the only call site.
- */
-export const _updateBillingColumns = internalMutation({
-  args: {
-    userId: v.id("users"),
-    patch: billingPatchValidator,
-  },
-  handler: async (ctx, { userId, patch }) => {
-    await ctx.db.patch(userId, patch);
-  },
-});
