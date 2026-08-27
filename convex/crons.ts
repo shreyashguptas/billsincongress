@@ -63,4 +63,25 @@ crons.weekly(
   {},
 );
 
+// Drain the IndexNow queue twice a day. 01:30 UTC sits 30 minutes after the
+// incremental sync above, so a bill that changed status overnight is announced
+// to Bing the same morning rather than waiting to be re-crawled.
+//
+// Two runs of up to 2,000 URLs is ~4,000 a day, which is the pacing that keeps
+// the one-time backlog seed from looking like a dump. The seed itself is never
+// on a cron — it is started once, by hand.
+crons.cron(
+  "indexnow-submit-morning",
+  "30 1 * * *",
+  internal.indexNow.submitBatch,
+  {},
+);
+
+crons.cron(
+  "indexnow-submit-evening",
+  "30 13 * * *",
+  internal.indexNow.submitBatch,
+  {},
+);
+
 export default crons;

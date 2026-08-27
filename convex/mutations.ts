@@ -11,6 +11,7 @@ import {
   SENATE_BILL_TYPES,
 } from "./aggregates";
 import { calculateBillStage, passedChamber, BillStages } from "./billStage";
+import { queueForIndexNow } from "./indexNow";
 import { computeBaseRateBuckets, MS_PER_DAY } from "./baseRates";
 import type { BaseRateSample, Chamber } from "./baseRates";
 
@@ -47,10 +48,25 @@ export const upsertBill = internalMutation({
     };
 
     if (existing) {
+      // Announce only what changes the page a reader sees. The <title>, the
+      // meta description and the status sentence are all built from these
+      // three; everything else here is metadata nobody reads. The monthly
+      // re-pull rewrites every bill with identical values, and this comparison
+      // is what stops that becoming 18,000 pointless announcements.
+      if (
+        existing.progressStage !== args.progressStage ||
+        existing.progressDescription !== args.progressDescription ||
+        existing.title !== args.title
+      ) {
+        await queueForIndexNow(ctx, args.billId, "status");
+      }
       await ctx.db.patch(existing._id, data);
       return existing._id;
     } else {
-      return await ctx.db.insert("bills", data);
+      const id = await ctx.db.insert("bills", data);
+      // A page that did not exist before — exactly what IndexNow is for.
+      await queueForIndexNow(ctx, args.billId, "new");
+      return id;
     }
   },
 });
@@ -102,6 +118,9 @@ export const upsertBillActions = internalMutation({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
     if (bill && latestActionDate) {
+      if (bill.latestActionDate !== latestActionDate) {
+        await queueForIndexNow(ctx, args.billId, "action");
+      }
       await ctx.db.patch(bill._id, { latestActionDate });
     }
   },
@@ -140,6 +159,8 @@ export const upsertBillSubject = internalMutation({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
     if (bill && bill.policyAreaName !== args.policyAreaName) {
+      // The policy area feeds the meta description and the topic hub.
+      await queueForIndexNow(ctx, args.billId, "topic");
       await ctx.db.patch(bill._id, { policyAreaName: args.policyAreaName });
     }
   },
@@ -167,9 +188,16 @@ export const upsertBillSummary = internalMutation({
       .first();
 
     if (existing) {
+      if (existing.text !== args.text) {
+        await queueForIndexNow(ctx, args.billId, "summary");
+      }
       await ctx.db.patch(existing._id, args);
     } else {
       await ctx.db.insert("billSummaries", args);
+      // The largest content change a bill page ever has: roughly four in five
+      // bills have no summary when Congress first publishes them, so the page
+      // goes from composed facts to real prose.
+      await queueForIndexNow(ctx, args.billId, "summary");
     }
   },
 });

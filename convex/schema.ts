@@ -220,6 +220,26 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_congress", ["congress"]),
 
+  // Bills whose page has meaningfully changed and that IndexNow has not been
+  // told about yet. Drained twice a day by `convex/indexNow.ts`.
+  //
+  // A separate table rather than a field on `bills`: every mutation in
+  // mutations.ts uses the trigger-wrapped `internalMutation` from functions.ts,
+  // so marking and unmarking a bill would fire both bill aggregates' triggers
+  // twice per change — tens of thousands of pointless trigger writes the day
+  // after the monthly re-pull.
+  indexNowQueue: defineTable({
+    billId: v.string(),
+    queuedAt: v.string(), // ISO
+    reason: v.string(), // "new" | "status" | "action" | "summary" | "topic" | "seed"
+    // 0 = a change a reader would see, 1 = the one-time backlog seed. Without
+    // this, 55,000 seed rows draining at ~4,000/day would put every real
+    // announcement two weeks behind a queue of pages that had not changed.
+    priority: v.number(),
+  })
+    .index("by_billId", ["billId"]) // dedupe
+    .index("by_priority_and_queuedAt", ["priority", "queuedAt"]), // drain order
+
   // Precomputed policy areas per congress
   congressPolicyAreas: defineTable({
     congress: v.number(),
