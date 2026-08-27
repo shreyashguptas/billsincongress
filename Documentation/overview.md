@@ -129,7 +129,7 @@ For performance, analytics data is precomputed during sync:
 
 ## Overview
 
-Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). The default is `deepseek/deepseek-v4-flash-0731`, a pinned release rather than a floating `~…-latest` alias — an alias can resolve to a version no US-datacenter provider carries yet, which the allowlist would turn into an outage. Routing is pinned to an allowlist of providers that declare US datacenters (`OPENROUTER_PROVIDERS`, default `coreweave,gmicloud`) so questions are never processed outside the US, and a `max_price` ceiling keeps a repricing or a careless model change from silently costing more. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
+Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). The default is `deepseek/deepseek-v4-flash-0731`, a pinned release rather than a floating `~…-latest` alias — an alias can resolve to a version no allowlisted provider carries yet, which would turn a model release into a chat outage. Routing is pinned to an allowlist of providers that process data in the US (`OPENROUTER_PROVIDERS`, default `deepinfra`), and a `max_price` ceiling keeps a repricing or a careless model change from silently costing more. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
 
 ## Architecture
 
@@ -152,6 +152,22 @@ Convex action: api.llm.sendChatMessage
     ↓
 Answer rendered as Markdown in the chat UI
 ```
+
+## Provider Routing
+
+Two independent allowlists have to agree for a request to succeed:
+
+1. **Per-request** — `OPENROUTER_PROVIDERS` (default `deepinfra`), sent as `provider.only`.
+2. **Account-level** — the allowed-providers setting on the OpenRouter account itself.
+
+OpenRouter serves a request only from providers present in *both*. If they do not
+overlap it returns a `404` for every request rather than falling back to anything —
+which is how a previously-shipped default (`coreweave,gmicloud`, neither permitted by
+the account) took production chat down until the allowlist was corrected.
+
+So when changing `OPENROUTER_PROVIDERS` or `OPENROUTER_MODEL`, confirm the slugs are
+permitted on the account *and* that the provider actually serves the chosen model.
+`https://openrouter.ai/api/v1/models/<model>/endpoints` lists who serves what.
 
 ## Session Persistence
 
@@ -398,6 +414,7 @@ Do not use `npx convex dev` for this project. Local frontend development should 
 OPENROUTER_API_KEY=   # Get from https://openrouter.ai/keys
 OPENROUTER_MODEL=     # Optional. Overrides the default model without a code deploy.
 OPENROUTER_PROVIDERS= # Optional. Comma-separated provider allowlist; blank falls back to the US default.
+                      # Slugs must also be permitted by the OpenRouter account's allowed-providers setting.
 ```
 
 ---
