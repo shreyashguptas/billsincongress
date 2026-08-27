@@ -34,6 +34,41 @@ jobs:
           # a line came to be the way it is, not only that it changed.
           fetch-depth: 0
 
+      # The reviewer used to have no toolchain at all — checkout straight to the
+      # action — so it could not typecheck or run a test even when that was the
+      # only way to settle a question, and it said so in its own review. These
+      # three steps exist to fix that. Pinned to commits for the same reason the
+      # others are.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Run both checks up front and keep going regardless, so the reviewer
+      # always opens with the branch's actual state instead of guessing at it.
+      # `continue-on-error` is the point: a red branch is exactly when the
+      # review is most worth having, so a failure here must not cancel it.
+      - name: Capture check results
+        run: |
+          # `set +e` is load-bearing. GitHub runs this under `bash -e`, so a
+          # failing `pnpm test` would abort the step and the typecheck file
+          # would never be written — precisely in the case where the reviewer
+          # most needs both. Exit 0 for the same reason: a red branch is when
+          # the review is most worth having, so this must never cancel it.
+          set +e
+          pnpm test > /tmp/test-output.txt 2>&1
+          echo "test exit: $?" >> /tmp/test-output.txt
+          ./node_modules/.bin/tsc --noEmit > /tmp/typecheck-output.txt 2>&1
+          echo "typecheck exit: $?" >> /tmp/typecheck-output.txt
+          exit 0
+
       # Likewise. This is `anthropics/claude-code-action` v1. Re-resolve the
       # tag and update this line deliberately when picking up a new version.
       - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678
@@ -62,11 +97,24 @@ jobs:
             decision already recorded. Go and look before you comment.
 
             Worth reading for context:
-            - `CLAUDE.md` — the house rules, which are enforceable here.
-            - `ANALYTICS.md` — the registry of every product event we send.
+            - `AGENTS.md` — the house rules, which are enforceable here. It
+              names the other documents that matter, including the analytics
+              registry; follow those pointers rather than assuming paths. This
+              indirection is deliberate: this workflow file cannot be edited by
+              a pull request without that pull request forfeiting its own
+              review, so it must not hardcode paths that move.
             - `convex/_generated/ai/guidelines.md` — the Convex rules, which
               override general Convex knowledge.
             - `README.md` — what the project claims to do.
+
+            The branch has already been installed and both checks have been run
+            for you. Read `/tmp/test-output.txt` and `/tmp/typecheck-output.txt`
+            first — each ends with its exit status. If either is non-zero, that
+            is the most important thing in this review; find the cause and say
+            what it is. You can re-run `pnpm test` and
+            `./node_modules/.bin/tsc --noEmit` yourself to test a hypothesis,
+            and you should when a claim turns on whether something compiles or
+            passes. Do not report a check as passing without having seen it.
 
             This site serves roughly 55,000 public bill pages to search engines
             and to people looking up real legislation, so a wrong statement of
@@ -121,12 +169,26 @@ jobs:
           # `--allowedTools`, camelCase, per the action's own examples. The
           # kebab-case spelling is silently not the flag it parses.
           #
-          # **Genuinely read-only.** Notably absent: `find`, `sed`, `cat` and
-          # friends. `find -exec` runs arbitrary commands and `sed -i` writes
-          # files, so an allowlist containing them is a shell in two disguises.
-          # `gh api` is absent for the same reason — that verb takes POST and
-          # DELETE. `Read`, `Grep` and `Glob` already do everything those tools
-          # would be there for, and they cannot execute or write.
+          # Read-only, with two deliberate exceptions: `pnpm test` and the local
+          # `tsc`. Both execute this repository's own code, which is a real
+          # widening, and it is bounded by the event type rather than by the
+          # allowlist. This workflow runs on `pull_request`, so a fork's pull
+          # request is given no secrets — `claude_code_oauth_token` arrives
+          # empty and the action stops before reaching any of this. Only a
+          # branch pushed to this repository by someone who can already push to
+          # it gets this far, and such a person can run anything in CI anyway.
+          #
+          # Scope matters more than the count. `Bash(pnpm:*)` would be a shell
+          # in disguise, because it permits `pnpm dlx <anything>`; the two
+          # entries below name one script and one binary. `pnpm install` is not
+          # here either — it is a workflow step above, so a dependency's install
+          # scripts run under `--frozen-lockfile` and the `allowBuilds`
+          # allowlist in pnpm-workspace.yaml rather than at the agent's
+          # discretion.
+          #
+          # Still absent, and for the original reasons: `find`, `sed`, `cat`.
+          # `find -exec` runs arbitrary commands and `sed -i` writes files.
+          # `gh api` is absent because that verb takes POST and DELETE.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*),Bash(pnpm test:*),Bash(./node_modules/.bin/tsc:*)"
             --max-turns 120
