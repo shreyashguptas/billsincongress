@@ -23,6 +23,8 @@ import type * as congressApi from "../congressApi.js";
 import type * as crons from "../crons.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
+import type * as indexNow from "../indexNow.js";
+import type * as indexNowStatus from "../indexNowStatus.js";
 import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
 import type * as policyAreaBackfill from "../policyAreaBackfill.js";
@@ -55,6 +57,8 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   functions: typeof functions;
   http: typeof http;
+  indexNow: typeof indexNow;
+  indexNowStatus: typeof indexNowStatus;
   llm: typeof llm;
   mutations: typeof mutations;
   policyAreaBackfill: typeof policyAreaBackfill;
