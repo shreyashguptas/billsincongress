@@ -9,8 +9,26 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
  * Baked-in chat model. Override it per-deployment with the OPENROUTER_MODEL
  * Convex environment variable so swapping models needs no code deploy.
+ *
+ * The `~…-latest` alias floats to DeepSeek's newest V4 Flash release. That
+ * keeps us current without a deploy, but it also means the resolved version,
+ * its price, and which providers carry it can all change under us — hence the
+ * provider allowlist and price ceiling below.
  */
-const DEFAULT_MODEL = "z-ai/glm-5.3-flash";
+const DEFAULT_MODEL = "~deepseek/deepseek-v4-flash-latest";
+/**
+ * Provider allowlist, so questions are only served from US datacenters.
+ * Comma-separated OpenRouter provider slugs; override with OPENROUTER_PROVIDERS.
+ * Empty string disables the allowlist and lets OpenRouter route anywhere.
+ */
+const DEFAULT_PROVIDERS = "coreweave,gmicloud";
+/**
+ * Runaway-cost guard, in USD per million tokens. Not the target price — the
+ * allowlisted providers currently sit well under this. It exists so that a
+ * future release served at a much higher rate fails loudly instead of
+ * quietly multiplying the bill.
+ */
+const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
 const SITE_URL = "https://billsincongress.com";
 const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
 const AUTHED_CHAT_DAILY_LIMIT = 100;
@@ -216,6 +234,10 @@ export const sendChatMessage = action({
       return { answer: "", error: "AI chat is not configured." };
     }
     const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+    const providers = (process.env.OPENROUTER_PROVIDERS ?? DEFAULT_PROVIDERS)
+      .split(",")
+      .map((slug) => slug.trim())
+      .filter(Boolean);
 
     const userId = await getAuthUserId(ctx);
     const isAuthed = userId !== null;
@@ -334,6 +356,13 @@ export const sendChatMessage = action({
         },
         body: JSON.stringify({
           model,
+          // Pin routing to the allowlist. OpenRouter's own region-locked
+          // routing is enterprise-only, so this is the strongest control we
+          // have over where a question gets processed.
+          provider: {
+            ...(providers.length > 0 && { only: providers }),
+            max_price: MAX_PRICE,
+          },
           messages: llmMessages,
           max_tokens: 2048,
           temperature: 0.3,
@@ -366,6 +395,10 @@ export const sendChatMessage = action({
         return { answer: "", error: "Failed to get response from AI." };
       }
       const answer = data.choices?.[0]?.message?.content || "No response generated.";
+      // OpenRouter reports the upstream that served the request; read it
+      // defensively so a missing field never breaks a turn.
+      const servedBy =
+        typeof data.provider === "string" ? data.provider : undefined;
       const answeredAtUtc = Date.now();
       const answeredAtIso = new Date(answeredAtUtc).toISOString();
 
@@ -417,6 +450,7 @@ export const sendChatMessage = action({
               hasPdf: billContext.pdfUrl.length > 0,
             },
             model,
+            provider: servedBy,
             createdAtUtc: askedAtUtc,
             createdAtIso: askedAtIso,
             answeredAtUtc,

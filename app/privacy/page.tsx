@@ -82,9 +82,10 @@ export default function PrivacyPage() {
                 <ExternalLink href="https://openrouter.ai">
                   OpenRouter
                 </ExternalLink>
-                , which routes it to the AI model that writes the answer.
-                OpenRouter and the model provider it routes to receive your
-                question text but not your name or email address.
+                , which routes it to the AI model that writes the answer. We
+                restrict that routing to providers running in United States
+                datacenters. OpenRouter and the model provider it routes to
+                receive your question text but not your name or email address.
               </p>
               <p>
                 We store chat questions and answers in our database. If you are
@@ -396,7 +397,7 @@ const providers = [
   },
   {
     name: 'OpenRouter',
-    role: 'Routes bill-chat questions to the AI model that generates the answer. Receives your question and the bill’s public details — not your identity.',
+    role: 'Routes bill-chat questions to the AI model that generates the answer, restricted to providers in US datacenters. Receives your question and the bill’s public details — not your identity.',
   },
   {
     name: 'Resend',

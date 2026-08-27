@@ -361,6 +361,8 @@ export default defineSchema({
       hasPdf: v.boolean(),
     }),
     model: v.string(),
+    // Which OpenRouter upstream actually served the turn, when it reports one.
+    provider: v.optional(v.string()),
     createdAtUtc: v.number(),
     createdAtIso: v.string(),
     answeredAtUtc: v.number(),

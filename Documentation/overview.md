@@ -129,7 +129,7 @@ For performance, analytics data is precomputed during sync:
 
 ## Overview
 
-Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
+Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). The default is the `~deepseek/deepseek-v4-flash-latest` alias, which floats to DeepSeek's newest V4 Flash release. Routing is pinned to an allowlist of providers that declare US datacenters (`OPENROUTER_PROVIDERS`, default `coreweave,gmicloud`) so questions are never processed outside the US, and a `max_price` ceiling keeps a future release from silently costing more. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
 
 ## Architecture
 
@@ -143,7 +143,7 @@ Convex action: api.llm.sendChatMessage
   1. Get/create billChats row for (billId, sessionId)
   2. Fetch prior turns from billChatMessages
   3. Save user message to billChatMessages
-  4. Call the OpenRouter chat-completions API with:
+  4. Call the OpenRouter chat-completions API — restricted to the US provider allowlist — with:
        - system prompt (bill context)
        - full conversation history
        - current user question
@@ -188,7 +188,7 @@ Canonical transcript storage. One row per user or assistant message:
 ```
 
 ### `billChatAnalyticsTurns`
-Analytics rows do not duplicate transcript text. They store `userMessageId` and `assistantMessageId` references back to `billChatMessages`, plus bill snapshot, model, timing, latency, and plan metadata.
+Analytics rows do not duplicate transcript text. They store `userMessageId` and `assistantMessageId` references back to `billChatMessages`, plus bill snapshot, model, the OpenRouter provider that served the turn, timing, latency, and plan metadata.
 
 ## LLM Prompt Strategy
 
@@ -397,6 +397,7 @@ Do not use `npx convex dev` for this project. Local frontend development should 
 # AI Bill Chat (required for chat feature) — set on the Convex deployment
 OPENROUTER_API_KEY=   # Get from https://openrouter.ai/keys
 OPENROUTER_MODEL=     # Optional. Overrides the default model without a code deploy.
+OPENROUTER_PROVIDERS= # Optional. Comma-separated provider allowlist; empty disables the pin.
 ```
 
 ---
