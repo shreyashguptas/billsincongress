@@ -13,7 +13,10 @@
     "cf:build": "pnpm generate-icons && opennextjs-cloudflare build",
     "preview": "pnpm cf:build && opennextjs-cloudflare preview",
     "deploy": "pnpm cf:build && opennextjs-cloudflare deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "check:retention": "tsx scripts/check-provider-retention.ts",
+    "check:web-citations": "tsx scripts/check-web-citations.ts",
+    "check:grounding": "tsx scripts/check-grounding.ts"
   },
   "dependencies": {
     "@auth/core": "0.37.0",
