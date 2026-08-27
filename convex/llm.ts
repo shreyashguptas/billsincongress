@@ -372,6 +372,13 @@ export const sendChatMessage = action({
           provider: {
             ...(providers.length > 0 && { only: providers }),
             max_price: MAX_PRICE,
+            // Retention controls (spec §3.1). These are FILTERS: they narrow
+            // the eligible provider set, so they are verified against the
+            // `only` pin by scripts/check-provider-retention.ts. Re-run that
+            // probe whenever OPENROUTER_MODEL or OPENROUTER_PROVIDERS changes
+            // — a model swap can silently change which providers qualify.
+            data_collection: "deny",
+            zdr: true,
           },
           messages: llmMessages,
           max_tokens: 2048,
