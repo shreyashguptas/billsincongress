@@ -224,6 +224,10 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       // Accumulated outside React state so `done` can report a real length
       // without waiting for a re-render.
       let answerText = '';
+      // A stream that ends without one of these has failed in a way no event
+      // described — a dropped connection, or a proxy that returned something
+      // that was not SSE at all. Without this the turn sits spinning forever.
+      let settled = false;
 
       try {
         const res = await fetch('/api/answer', {
@@ -264,6 +268,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
               answerText += data.text;
               patch((t) => ({ ...t, content: t.content + data.text }));
             } else if (event === 'done') {
+              settled = true;
               patch((t) => ({
                 ...t,
                 sources: data.sources ?? [],
@@ -303,6 +308,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 });
               }
             } else if (event === 'rate_limited') {
+              settled = true;
               drop();
               setRateLimit({ kind: data.kind, max: data.max, resetAt: data.resetAt });
               analytics.answerRateLimited({
@@ -311,11 +317,17 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 max: data.max,
               });
             } else if (event === 'error') {
+              settled = true;
               setError(data.message);
               drop();
               analytics.answerFailed({ surface, error: data.message });
             }
           }
+        }
+        if (!settled) {
+          setError('The answer ended unexpectedly. Please try again.');
+          drop();
+          analytics.answerFailed({ surface, error: 'stream_incomplete' });
         }
       } catch {
         setError('Failed to get a response. Please try again.');

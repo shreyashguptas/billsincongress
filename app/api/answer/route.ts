@@ -52,8 +52,30 @@ export async function POST(request: Request) {
     }),
   });
 
-  if (!upstream.body) {
-    return new Response('Failed to get a response.', { status: 502 });
+  // An upstream failure does not produce SSE frames — it produces a plain
+  // body like Convex's "No matching routes found" when the deployment has not
+  // been pushed yet. Piping that through as text/event-stream leaves the
+  // client parsing for events that never arrive, so the answer hangs as a
+  // spinner forever instead of reporting a failure. Convert it into one
+  // well-formed error frame the client already knows how to handle.
+  if (!upstream.ok || !upstream.body) {
+    const detail = await upstream.text().catch(() => '');
+    console.error(
+      `answer upstream ${upstream.status} ${upstream.statusText}: ${detail.slice(0, 300)}`,
+    );
+    const message =
+      upstream.status === 404
+        ? 'The answer service is not deployed yet. Run `npx convex deploy`.'
+        : 'Failed to get a response.';
+    return new Response(
+      `event: error\ndata: ${JSON.stringify({ message })}\n\n`,
+      {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+        },
+      },
+    );
   }
 
   return new Response(upstream.body, {
