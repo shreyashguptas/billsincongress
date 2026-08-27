@@ -105,8 +105,8 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `app/components/dashboard/DashboardClient.tsx` |
-| `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into /bills (status bar, policy area, sponsor, state, metric) | `filter_type`, `filter_value`, `congress` | `app/components/dashboard/DashboardClient.tsx` |
+| `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `components/dashboard/DashboardClient.tsx` |
+| `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into /bills (status bar, policy area, sponsor, state, metric) | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` |
 | `bills_filters_cleared` | User clicks "Clear all" filters | — | `app/bills/bills-client.tsx` |
 | `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `title_query` | `app/bills/bills-client.tsx` |
@@ -186,7 +186,7 @@ property exists to settle, with data, which placements earn their spot.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `podcast_promo_clicked` | User clicks "Listen on Spotify" / "Listen on Apple Podcasts" in any podcast promo | `placement: "home" \| "learn" \| "bill"`, `platform: "spotify" \| "apple"`, `bill_id` (bill pages only) | `components/podcast-promo.tsx` (rendered by `app/components/dashboard/DashboardClient.tsx`, `app/learn/page.tsx`, `components/bills/bill-details.tsx`) |
+| `podcast_promo_clicked` | User clicks "Listen on Spotify" / "Listen on Apple Podcasts" in any podcast promo | `placement: "home" \| "learn" \| "bill"`, `platform: "spotify" \| "apple"`, `bill_id` (bill pages only) | `components/podcast-promo.tsx` (rendered by `components/dashboard/DashboardClient.tsx`, `app/learn/page.tsx`, `components/bills/bill-details.tsx`) |
 
 ### Server-side events (source of truth)
 
