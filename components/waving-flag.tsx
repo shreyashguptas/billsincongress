@@ -16,8 +16,7 @@ import { cn } from '@/lib/utils';
 
 /** Vertical strips the cloth is cut into. More strips, smoother wave. */
 const STRIPS = 60;
-/** The canton spans 2/5 of the flag, so it must divide evenly into the strips.
- *  Keep `--cols` on `.flag-canton .flag-strip` in globals.css equal to this. */
+/** The canton spans 2/5 of the flag, so it must divide evenly into the strips. */
 const CANTON_STRIPS = (STRIPS * 2) / 5;
 /** Full wave cycles visible across the flag at any instant. */
 const WAVES = 1.4;
@@ -64,13 +63,13 @@ const STRIPS_DATA: Strip[] = Array.from({ length: STRIPS }, (_, index) => {
   };
 });
 
-function round(n: number): number {
-  return Math.round(n * 1000) / 1000;
+function round(n: number, decimals = 3): number {
+  const scale = 10 ** decimals;
+  return Math.round(n * scale) / scale;
 }
 
 function stripStyle(strip: Strip): React.CSSProperties {
   return {
-    '--i': strip.index,
     '--amp': strip.amp,
     '--lean': strip.lean,
     '--delay': strip.delay,
@@ -89,7 +88,22 @@ export default function WavingFlag({ className }: { className?: string }) {
       </div>
       <div className="flag-canton">
         {STRIPS_DATA.slice(0, CANTON_STRIPS).map((strip) => (
-          <span key={strip.index} className="flag-strip" style={stripStyle(strip)} />
+          <span
+            key={strip.index}
+            className="flag-strip"
+            style={
+              {
+                ...stripStyle(strip),
+                // How far left to slide the star field, as a fraction of the
+                // canton's width, so this strip shows its own slice of it.
+                // Derived here rather than divided in the stylesheet so the
+                // strip count lives in exactly one place; carried at six
+                // decimals because three leaves the stars a fifth of a pixel
+                // out by the far end of the canton.
+                '--slice': round(-strip.index / CANTON_STRIPS, 6),
+              } as React.CSSProperties
+            }
+          />
         ))}
       </div>
     </div>
