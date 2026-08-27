@@ -26,6 +26,7 @@ import type * as catalog_tools from "../catalog/tools.js";
 import type * as catalog_types from "../catalog/types.js";
 import type * as chamber from "../chamber.js";
 import type * as chatAnalytics from "../chatAnalytics.js";
+import type * as chats from "../chats.js";
 import type * as congressApi from "../congressApi.js";
 import type * as crons from "../crons.js";
 import type * as functions from "../functions.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "catalog/types": typeof catalog_types;
   chamber: typeof chamber;
   chatAnalytics: typeof chatAnalytics;
+  chats: typeof chats;
   congressApi: typeof congressApi;
   crons: typeof crons;
   functions: typeof functions;

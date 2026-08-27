@@ -55,9 +55,40 @@ export const ANSWER_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "search_web",
+      description:
+        "Look something up on the open web. ONLY permitted when a fetch_dataset returned " +
+        "no rows, or the question is about something a dataset's 'NOT IN THIS DATASET' " +
+        "list names. Never use it to add colour to something our data already answers.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "A NEUTRAL factual search phrase. Never the reader's own sentence, and never " +
+              "first-person words (I, my, we, our). Describe the fact you need, not the " +
+              "reader's situation.",
+          },
+          reason: {
+            type: "string",
+            description:
+              "One sentence naming the specific gap in our data, in the reader's language. " +
+              'Shown to them verbatim. Example: "We don\'t track committee hearing schedules."',
+          },
+        },
+        required: ["query", "reason"],
+      },
+    },
+  },
 ];
 
-export function buildSystemPrompt(opts: { focusBillId?: string } = {}): string {
+export function buildSystemPrompt(
+  opts: { focusBillId?: string; scopeLabel?: string } = {},
+): string {
   return `You explain the United States Congress to ordinary readers, using ONLY data you retrieve from the datasets below.
 
 DATASETS YOU CAN READ
@@ -92,11 +123,24 @@ HONESTY
 - Never state co-sponsor counts, vote tallies, or hearing schedules. We do not hold them.
 - Counts come from the "stats" and "topics" datasets, never from counting rows yourself.
 
+WHEN OUR DATA CANNOT ANSWER
+Our data is the source of truth. Only after a fetch_dataset comes back empty, or the
+question is about something a dataset's NOT IN THIS DATASET list names, you may call
+search_web. Both arguments are required.
+- query: a neutral factual phrase. Never the reader's sentence. Never "I", "my", "we", "our".
+- reason: one plain sentence naming what we don't hold. The reader sees it word for word.
+Cite web results with [[cite:web:1]] exactly as you cite our rows.
+Never use search_web for something our datasets already cover.
+
 VOICE
 Plain language for a curious adult who does not follow procedure. Explain jargon in passing.
 Two to four short paragraphs unless more is genuinely needed. No preamble — answer directly.${
     opts.focusBillId
       ? `\n\nCURRENT CONTEXT\nThe reader is looking at bill ${opts.focusBillId}. Assume "this bill" means that one.`
+      : ""
+  }${
+    opts.scopeLabel
+      ? `\n\nCURRENT VIEW\nThe reader is looking at a filtered list: ${opts.scopeLabel}. Those rows are already in your context — use them. Only fetch again if the question needs something outside that set, and say so when you do.`
       : ""
   }`;
 }

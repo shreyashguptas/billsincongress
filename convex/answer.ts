@@ -15,6 +15,8 @@ import { rateLimiter } from "./rateLimits";
 import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "./catalog/tools";
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
+import { checkSearchQuery } from "../lib/search-query-guard";
+import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /** Kept in step with convex/llm.ts — both are overridden by the same env vars. */
@@ -29,10 +31,25 @@ const MAX_QUESTION_LENGTH = 2000;
 /** Mirrors convex/rateLimits.ts. Shown to the reader, so it must match. */
 const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
 const AUTHED_CHAT_DAILY_LIMIT = 100;
+/** Search engine behind the web fallback. Named on the privacy page. */
+const WEB_ENGINE = "exa";
+const WEB_MAX_RESULTS = 5;
 
 export interface WorkLogEntry {
   tool: string;
   detail: string;
+}
+
+export interface WebSource {
+  handle: string;
+  url: string;
+  excerpt: string;
+}
+
+export interface AnswerScope {
+  dataset: string;
+  filters: Record<string, unknown>;
+  label: string;
 }
 
 export interface AnswerResult {
@@ -52,6 +69,13 @@ export interface AnswerResult {
    * title without a per-card request storm. Keyed by handle.
    */
   entities: Record<string, Record<string, unknown>>;
+  /**
+   * The model's own one-sentence explanation of what we do not hold, shown to
+   * the reader verbatim above the web sources (spec §4.6). Empty when the
+   * answer came entirely from our data — which is the expected case.
+   */
+  webReason: string;
+  webSources: WebSource[];
   error?: string;
 }
 
@@ -132,6 +156,55 @@ async function callModel(messages: ChatMessage[], apiKey: string) {
   return data.choices?.[0]?.message;
 }
 
+/**
+ * The fallback lookup (spec §3.2).
+ *
+ * A SEPARATE request rather than OpenRouter's server tool. That matters: the
+ * server tool's schema belongs to OpenRouter, so we could not make `reason` a
+ * required argument on it. Defining our own tool means the model cannot search
+ * without telling the reader why — and web results flow through the same
+ * provenance path as database rows. Costs one extra request, on the fallback
+ * path only.
+ */
+async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": SITE_URL,
+      "X-OpenRouter-Title": "Bills in Congress",
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+      messages: [{ role: "user", content: query }],
+      max_tokens: 512,
+      plugins: [{ id: "web", engine: WEB_ENGINE, max_results: WEB_MAX_RESULTS }],
+      provider: providerConfig(),
+    }),
+  });
+
+  if (!response.ok) return [];
+  const data = await response.json().catch(() => ({}));
+  if (data.error) return [];
+
+  const annotations = data.choices?.[0]?.message?.annotations ?? [];
+  return annotations
+    .filter((a: { type?: string }) => a?.type === "url_citation")
+    .slice(0, WEB_MAX_RESULTS)
+    .map(
+      (
+        a: { url?: string; url_citation?: { url?: string; content?: string }; content?: string },
+        i: number,
+      ) => ({
+        handle: `web:${i + 1}`,
+        url: a.url ?? a.url_citation?.url ?? "",
+        excerpt: (a.content ?? a.url_citation?.content ?? "").slice(0, 500),
+      }),
+    )
+    .filter((s: WebSource) => s.url !== "");
+}
+
 async function runLoop(
   ctx: ActionCtx,
   opts: {
@@ -139,6 +212,7 @@ async function runLoop(
     focusBillId?: string;
     history: Array<{ role: "user" | "assistant"; content: string }>;
     apiKey: string;
+    scope?: AnswerScope;
     onWork?: (entry: WorkLogEntry) => void;
   },
 ): Promise<AnswerResult> {
@@ -146,16 +220,81 @@ async function runLoop(
   /** Display projection per bill handle — see AnswerResult.entities. */
   const display = new Map<string, Record<string, unknown>>();
   const workLog: WorkLogEntry[] = [];
+  let webReason = "";
+  const webSources: WebSource[] = [];
   const note = (entry: WorkLogEntry) => {
     workLog.push(entry);
     opts.onWork?.(entry);
   };
 
+  // System prompt and history first. The scope block (below) has to land
+  // BETWEEN the history and the reader's question, so the model sees the rows
+  // as context it already has rather than as an answer to the question.
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSystemPrompt({ focusBillId: opts.focusBillId }) },
+    {
+      role: "system",
+      content: buildSystemPrompt({
+        focusBillId: opts.focusBillId,
+        scopeLabel: opts.scope?.label,
+      }),
+    },
     ...capHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
-    { role: "user", content: opts.question },
   ];
+
+  // A pre-applied scope (spec §6.3): the reader already filtered to exactly the
+  // set they care about, so hand the model the ROWS rather than a sentence
+  // describing them. Describing invites it to re-derive a slightly different
+  // set and answer about the wrong one.
+  if (opts.scope) {
+    const seeded = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
+      name: opts.scope.dataset,
+      filters: opts.scope.filters,
+    });
+    if (seeded.ok) {
+      for (const row of seeded.rows) {
+        if (typeof row._cite !== "string") continue;
+        allowed.add(row._cite);
+        if (opts.scope.dataset === "bills") {
+          display.set(row._cite, {
+            label: row.label,
+            title: row.title,
+            sponsor: row.sponsor,
+            sponsorParty: row.sponsorParty,
+            progressStage: row.progressStage,
+          });
+        }
+      }
+      messages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [
+          {
+            id: "scope_0",
+            type: "function",
+            function: {
+              name: "fetch_dataset",
+              arguments: JSON.stringify({
+                name: opts.scope.dataset,
+                filters: opts.scope.filters,
+              }),
+            },
+          },
+        ],
+      });
+      messages.push({
+        role: "tool",
+        tool_call_id: "scope_0",
+        content: JSON.stringify({
+          rows: seeded.rows,
+          truncated: seeded.truncated,
+          total_matching: seeded.count,
+        }),
+      });
+      note({ tool: "fetch", detail: `${opts.scope.label} · ${seeded.count} matches` });
+    }
+  }
+
+  messages.push({ role: "user", content: opts.question });
 
   let partial = false;
 
@@ -177,6 +316,8 @@ async function runLoop(
         partial,
         allowed: [...allowed],
         entities: Object.fromEntries(display),
+        webReason,
+        webSources,
       };
     }
 
@@ -234,6 +375,33 @@ async function runLoop(
           result = `ERROR: ${fetched.error}`;
           note({ tool: "fetch", detail: `${String(args.name)} · rejected` });
         }
+      } else if (call.function.name === "search_web") {
+        const query = String(args.query ?? "");
+        const reason = String(args.reason ?? "");
+
+        if (reason.trim().length === 0) {
+          result =
+            "ERROR: 'reason' is required. Name the specific gap in our data in one sentence.";
+        } else {
+          // The privacy control (spec §4.6): the reader's own words never
+          // leave our servers. A rejection here is recoverable — the model
+          // rephrases and calls again.
+          const guard = checkSearchQuery(query, opts.question);
+          if (!guard.ok) {
+            result = `ERROR: ${guard.error}`;
+          } else {
+            const hits = await searchWeb(query, opts.apiKey);
+            for (const h of hits) {
+              allowed.add(h.handle);
+              webSources.push(h);
+            }
+            webReason = reason;
+            result = JSON.stringify({
+              results: hits.map((h) => ({ _cite: h.handle, url: h.url, excerpt: h.excerpt })),
+            });
+            note({ tool: "web", detail: reason });
+          }
+        }
       } else {
         result = `Unknown tool '${call.function.name}'.`;
       }
@@ -250,6 +418,8 @@ async function runLoop(
     partial: true,
     allowed: [...allowed],
     entities: Object.fromEntries(display),
+    webReason,
+    webSources,
   };
 }
 
@@ -257,6 +427,9 @@ export const ask = action({
   args: {
     question: v.string(),
     focusBillId: v.optional(v.string()),
+    scope: v.optional(
+      v.object({ dataset: v.string(), filters: v.any(), label: v.string() }),
+    ),
     history: v.optional(
       v.array(
         v.object({
@@ -274,6 +447,8 @@ export const ask = action({
       partial: false,
       allowed: [],
       entities: {},
+      webReason: "",
+      webSources: [],
     };
     if (args.question.trim().length === 0 || args.question.length > MAX_QUESTION_LENGTH) {
       return { text: "", ...empty, error: "Question must be between 1 and 2000 characters." };
@@ -285,6 +460,7 @@ export const ask = action({
       return await runLoop(ctx, {
         question: args.question,
         focusBillId: args.focusBillId,
+        scope: args.scope as AnswerScope | undefined,
         history: args.history ?? [],
         apiKey,
       });
@@ -357,6 +533,10 @@ export const stream = httpAction(async (ctx, request) => {
         const result = await runLoop(ctx, {
           question,
           focusBillId: typeof body.focusBillId === "string" ? body.focusBillId : undefined,
+          scope:
+            body.scope && typeof body.scope.dataset === "string"
+              ? (body.scope as AnswerScope)
+              : undefined,
           history: Array.isArray(body.history) ? body.history : [],
           apiKey,
           onWork: (entry) => send("work", entry),
@@ -367,12 +547,41 @@ export const stream = httpAction(async (ctx, request) => {
         for (const chunk of result.text.match(/[\s\S]{1,60}/g) ?? []) {
           send("delta", { text: chunk });
         }
+        // Persist ONLY when signed in. Anonymous conversations are never
+        // written (spec §4.7); this branch is the whole of that guarantee on
+        // the write path — do not add an `else`.
+        let savedChatId = typeof body.chatId === "string" ? body.chatId : undefined;
+        if (userId) {
+          try {
+            savedChatId = await ctx.runMutation(internal.chats.appendTurn, {
+              ...(savedChatId ? { chatId: savedChatId as Id<"chats"> } : {}),
+              userId,
+              question,
+              answer: result.text,
+              citations: result.sources,
+              allowed: result.allowed,
+              entities: result.entities,
+              ...(result.webReason ? { webReason: result.webReason } : {}),
+              ...(result.webSources.length > 0 ? { webSources: result.webSources } : {}),
+              workLog: result.workLog,
+              now: Date.now(),
+            });
+          } catch (error) {
+            // A failed save must not cost the reader their answer.
+            console.error("failed to persist chat turn:", error);
+            savedChatId = undefined;
+          }
+        }
+
         send("done", {
           sources: result.sources,
           dropped: result.dropped,
           partial: result.partial,
           allowed: result.allowed,
           entities: result.entities,
+          webReason: result.webReason,
+          webSources: result.webSources,
+          chatId: savedChatId ?? null,
         });
       } catch (error) {
         console.error("answer stream failed:", error);
