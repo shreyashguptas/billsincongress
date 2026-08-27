@@ -48,6 +48,21 @@ export const upsertBill = internalMutation({
     };
 
     if (existing) {
+      // Nothing to write. Worth checking every field rather than patching
+      // blindly, because the monthly re-pull re-sends every bill of the current
+      // congress with byte-identical values and almost none of them have
+      // actually moved. A blind patch would still be a real write, and a real
+      // write means:
+      //   - the aggregate triggers run (see convex/functions.ts) — historically
+      //     the source of the btreeNode write-conflict retries;
+      //   - `updatedAt` is restamped, and that field is the <lastmod> the
+      //     sitemap hands search engines (app/sitemap.ts), so a no-op re-pull
+      //     was telling Google 18,000 pages had changed when none had.
+      const changed = (Object.keys(args) as Array<keyof typeof args>).some(
+        (key) => (existing as Record<string, unknown>)[key] !== args[key],
+      );
+      if (!changed) return existing._id;
+
       // Announce only what changes the page a reader sees. The <title>, the
       // meta description and the status sentence are all built from these
       // three; everything else here is metadata nobody reads. The monthly

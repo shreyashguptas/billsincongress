@@ -15,7 +15,13 @@ const components = componentsGeneric() as unknown as {
   billsByStage: any;
 };
 
-const DEFAULT_STAGE = 20; // "Introduced" — used when progressStage is missing
+/**
+ * Stage used when a bill has no `progressStage`. Exported because
+ * `convex/functions.ts` needs to compute the exact same sort key this file
+ * gives the aggregate — a mismatched fallback there would skip a trigger that
+ * should have fired.
+ */
+export const DEFAULT_STAGE = 20; // "Introduced" — used when progressStage is missing
 
 /**
  * Aggregate over the `bills` table partitioned by `congress`, sorted by
