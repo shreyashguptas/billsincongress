@@ -168,11 +168,12 @@ jobs:
                `internalMutation`. Also check index selectivity: where a scan
                cap can truncate results, choosing the wrong index is a
                correctness bug, not a performance one.
-            4. **Tests that actually run.** `pnpm test` discovers every
-               `*.test.ts` in the repository, so a new test file runs without
-               being registered anywhere — there is no list to police. What
-               discovery cannot check is whether a test asserts anything: flag
-               a test that would still pass with the implementation deleted.
+            4. **Tests that actually run.** Read `package.json`'s `test`
+               script and work out from it whether a new `*.test.ts` actually
+               executes — do not assume, the discovery mechanism has changed
+               before. What no mechanism can check is whether a test asserts
+               anything: flag a test that would still pass with the
+               implementation deleted.
             5. **The Cloudflare Workers constraints.** Next.js Cache Components,
                the `'use cache'` directive and PPR must stay disabled — they
                crash on Workers. Flag any change that re-enables them.
