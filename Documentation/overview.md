@@ -129,7 +129,7 @@ For performance, analytics data is precomputed during sync:
 
 ## Overview
 
-Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). The default is `deepseek/deepseek-v4-flash-0731`, a pinned release rather than a floating `~…-latest` alias — an alias can resolve to a version no allowlisted provider carries yet, which would turn a model release into a chat outage. Routing is pinned to an allowlist of providers that process data in the US (`OPENROUTER_PROVIDERS`, default `deepinfra`), and a `max_price` ceiling keeps a repricing or a careless model change from silently costing more. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
+Each bill detail page includes a full **chat panel** powered by an OpenRouter-hosted model (set with the `OPENROUTER_MODEL` Convex environment variable). The default is `deepseek/deepseek-v4-flash-0731`, a pinned release rather than a floating `~…-latest` alias — an alias can resolve to a version no allowlisted provider carries yet, which would turn a model release into a chat outage. Routing is pinned to an allowlist of providers that process data in the US (`OPENROUTER_PROVIDERS`, default `deepinfra,amazon-bedrock`), and a `max_price` ceiling keeps a repricing or a careless model change from silently costing more. If the primary errors for any reason — rate limit, downtime, a retired release — OpenRouter automatically tries `OPENROUTER_FALLBACK_MODELS` in order (default `deepseek/deepseek-v4-flash`, then `amazon/nova-lite-v1` on Amazon Bedrock). Same family first because it writes most alike; the Bedrock entry exists so an outage at a single provider degrades the answer rather than ending it. Users can ask questions in natural language and have a multi-turn conversation — follow-up questions have full context from prior turns.
 
 ## Architecture
 
@@ -157,7 +157,7 @@ Answer rendered as Markdown in the chat UI
 
 Two independent allowlists have to agree for a request to succeed:
 
-1. **Per-request** — `OPENROUTER_PROVIDERS` (default `deepinfra`), sent as `provider.only`.
+1. **Per-request** — `OPENROUTER_PROVIDERS` (default `deepinfra,amazon-bedrock`), sent as `provider.only`. It applies to *every* model in the fallback chain, so a fallback whose provider is missing here is silently unreachable.
 2. **Account-level** — the allowed-providers setting on the OpenRouter account itself.
 
 OpenRouter serves a request only from providers present in *both*. If they do not
@@ -414,6 +414,8 @@ Do not use `npx convex dev` for this project. Local frontend development should 
 OPENROUTER_API_KEY=   # Get from https://openrouter.ai/keys
 OPENROUTER_MODEL=     # Optional. Overrides the default model without a code deploy.
 OPENROUTER_PROVIDERS= # Optional. Comma-separated provider allowlist; blank falls back to the US default.
+OPENROUTER_FALLBACK_MODELS= # Optional. Comma-separated failover chain. Unlike the two
+                      # above, blank DISABLES fallbacks rather than restoring the default.
                       # Slugs must also be permitted by the OpenRouter account's allowed-providers setting.
 ```
 

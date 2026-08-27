@@ -141,7 +141,9 @@ CONGRESS_API_KEY=        # https://api.congress.gov/sign-up/
 # Required for the AI chat panel (set on the Convex deployment, not in .env.local)
 OPENROUTER_API_KEY=      # https://openrouter.ai/keys
 OPENROUTER_MODEL=        # optional override, default deepseek/deepseek-v4-flash-0731
-OPENROUTER_PROVIDERS=    # optional override, default deepinfra (US-processed)
+OPENROUTER_PROVIDERS=    # optional override, default deepinfra,amazon-bedrock (US, zero-retention)
+OPENROUTER_FALLBACK_MODELS= # optional; blank DISABLES failover. Default:
+                         #   deepseek/deepseek-v4-flash,amazon/nova-lite-v1
 
 # Optional
 NEXT_PUBLIC_ANALYTICS_ID=

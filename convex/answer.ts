@@ -21,7 +21,40 @@ import type { Id } from "./_generated/dataModel";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /** Kept in step with convex/llm.ts — both are overridden by the same env vars. */
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
-const DEFAULT_PROVIDERS = "deepinfra";
+const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
+/**
+ * Automatic failover chain, tried in order when the primary errors. Any error
+ * qualifies — rate limits, downtime, context-length rejections.
+ *
+ * Same family first, because it is the closest writing style; then a genuinely
+ * independent provider, so a DeepInfra outage degrades the answer instead of
+ * ending it.
+ *
+ * Every entry must satisfy the same constraints as the primary: US provider,
+ * zero retention, no training on our readers, and inside MAX_PRICE. Verified
+ * 2026-08-27 with scripts/check-provider-retention.ts plus a live tool-calling
+ * probe. Re-verify before adding to this list — an entry that fails the
+ * retention filters is silently unreachable, not loudly broken.
+ *
+ * The first entry is deliberately a FLOATING alias, which is the opposite of
+ * the rule stated for DEFAULT_MODEL above — and on purpose. The two pins hedge
+ * against opposite failures. The primary is dated so a DeepSeek release cannot
+ * change our answers without us choosing it. The fallback is floating so that
+ * when the dated release is eventually retired, something in the same family
+ * is still reachable; a second dated pin would die at exactly the same moment
+ * as the first and leave the family tier empty when it is most needed.
+ *
+ * The cost of that choice is real: if the alias ever resolves to a release
+ * DeepInfra has not picked up, this hop 404s and the chain skips to Nova. That
+ * is a degraded answer rather than an outage, which is the trade we want here
+ * but not for the primary. Verified reachable on DeepInfra 2026-08-27.
+ * Unlike OPENROUTER_PROVIDERS, a blank override here DISABLES fallbacks rather
+ * than restoring this default. Blank means "behave as before this existed",
+ * which is a safe direction. Blanking the provider pin would quietly weaken a
+ * privacy promise, which is not — hence the different operators.
+ */
+const DEFAULT_FALLBACK_MODELS =
+  "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
 const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
 const SITE_URL = "https://billsincongress.com";
 /** Cap on client-supplied history (spec §4.7). */
@@ -107,6 +140,20 @@ export function capHistory(
   return out;
 }
 
+/**
+ * The failover chain for the main answer loop. Deliberately NOT applied to the
+ * web-search helper below: that call parses provider-specific citation
+ * annotations, so silently swapping the model there could return a shape we do
+ * not read. A failed web search already degrades gracefully to no sources.
+ */
+function fallbackModels(): string[] {
+  // `??` not `||`: a blank value here deliberately turns fallbacks off.
+  return (process.env.OPENROUTER_FALLBACK_MODELS ?? DEFAULT_FALLBACK_MODELS)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function providerConfig() {
   const providers = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
     .split(",")
@@ -125,6 +172,7 @@ function providerConfig() {
 
 async function callModel(messages: ChatMessage[], apiKey: string) {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const fallbacks = fallbackModels();
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
@@ -136,6 +184,7 @@ async function callModel(messages: ChatMessage[], apiKey: string) {
     },
     body: JSON.stringify({
       model,
+      ...(fallbacks.length > 0 && { models: fallbacks }),
       messages,
       tools: ANSWER_TOOLS,
       max_tokens: 2048,
@@ -154,6 +203,15 @@ async function callModel(messages: ChatMessage[], apiKey: string) {
   const data = await response.json();
   // OpenRouter can answer 200 with an error payload when no provider could serve.
   if (data.error) throw new Error(`OpenRouter error: ${JSON.stringify(data.error).slice(0, 500)}`);
+  // A fallback served this turn. This loop keeps no analytics of its own, so
+  // the log is the only place it would ever surface — say it loudly rather
+  // than let a degraded model answer readers unnoticed.
+  const servedModel = typeof data.model === "string" ? data.model : model;
+  if (servedModel !== model) {
+    console.error(
+      `OpenRouter served ${servedModel} instead of requested ${model}`,
+    );
+  }
   return data.choices?.[0]?.message;
 }
 
