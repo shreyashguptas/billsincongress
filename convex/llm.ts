@@ -31,7 +31,28 @@ const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
  * rejects every request with a 404 rather than falling back — which is exactly
  * how this default previously took chat down in production.
  */
-const DEFAULT_PROVIDERS = "deepinfra";
+const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
+/**
+ * Automatic failover chain, tried in order when the primary errors. Any error
+ * qualifies — rate limits, downtime, context-length rejections.
+ *
+ * Same family first, because it is the closest writing style; then a genuinely
+ * independent provider, so a DeepInfra outage degrades the answer instead of
+ * ending it.
+ *
+ * Every entry must satisfy the same constraints as the primary: US provider,
+ * zero retention, no training on our readers, and inside MAX_PRICE. Verified
+ * 2026-08-27 with scripts/check-provider-retention.ts plus a live tool-calling
+ * probe. Re-verify before adding to this list — an entry that fails the
+ * retention filters is silently unreachable, not loudly broken.
+ *
+ * Unlike OPENROUTER_PROVIDERS, a blank override here DISABLES fallbacks rather
+ * than restoring this default. Blank means "behave as before this existed",
+ * which is a safe direction. Blanking the provider pin would quietly weaken a
+ * privacy promise, which is not — hence the different operators.
+ */
+const DEFAULT_FALLBACK_MODELS =
+  "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
 /**
  * Runaway-cost guard, in USD per million tokens. Not the target price — the
  * allowlisted provider sits well under this today ($0.080 in, $0.180 out).
@@ -260,6 +281,13 @@ export const sendChatMessage = action({
       .split(",")
       .map((slug) => slug.trim())
       .filter(Boolean);
+    // `??` not `||`: a blank value here deliberately turns fallbacks off.
+    const fallbackModels = (
+      process.env.OPENROUTER_FALLBACK_MODELS ?? DEFAULT_FALLBACK_MODELS
+    )
+      .split(",")
+      .map((slug) => slug.trim())
+      .filter(Boolean);
 
     const userId = await getAuthUserId(ctx);
     const isAuthed = userId !== null;
@@ -378,6 +406,10 @@ export const sendChatMessage = action({
         },
         body: JSON.stringify({
           model,
+          // Automatic failover, tried in order if `model` errors. OpenRouter
+          // prices the request against whichever one answered, and reports it
+          // back as `data.model` — which is what we record.
+          ...(fallbackModels.length > 0 && { models: fallbackModels }),
           // Pin routing to the allowlist. OpenRouter's own region-locked
           // routing is enterprise-only, so this is the strongest control we
           // have over where a question gets processed.
