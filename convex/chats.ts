@@ -201,7 +201,14 @@ export const appendTurn = internalMutation({
     entities: v.optional(v.any()),
     webReason: v.optional(v.string()),
     webSources: v.optional(
-      v.array(v.object({ handle: v.string(), url: v.string(), excerpt: v.string() })),
+      v.array(
+        v.object({
+          handle: v.string(),
+          url: v.string(),
+          title: v.string(),
+          excerpt: v.string(),
+        }),
+      ),
     ),
     workLog: v.optional(v.array(v.object({ tool: v.string(), detail: v.string() }))),
     now: v.number(),

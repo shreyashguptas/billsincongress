@@ -26,6 +26,7 @@ import type { WorkEntry } from './work-log';
 export interface WebSource {
   handle: string;
   url: string;
+  title?: string;
   excerpt: string;
 }
 

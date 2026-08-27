@@ -7,6 +7,7 @@ import { analytics } from '@/lib/analytics';
 export interface WebSource {
   handle: string;
   url: string;
+  title?: string;
   excerpt: string;
 }
 
@@ -109,10 +110,11 @@ export function SourceList({
                   }
                   className="text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground"
                 >
-                  {hostOf(s.url)}
-                  <span className="text-muted-foreground" aria-hidden="true">
-                    {' '}
-                    ↗
+                  {s.title || hostOf(s.url)}
+                  <span className="text-muted-foreground">
+                    {' · '}
+                    {hostOf(s.url)}
+                    <span aria-hidden="true"> ↗</span>
                   </span>
                 </a>
               </li>

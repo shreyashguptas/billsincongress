@@ -71,3 +71,9 @@ async function main() {
 }
 
 void main();
+
+// Marks this file as a module so its top-level consts are scoped to it —
+// otherwise every script in this directory shares one global namespace and
+// two probes declaring `MODEL` collide at build time.
+export {};
+

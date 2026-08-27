@@ -74,27 +74,52 @@ export default function PrivacyPage() {
 
             <div className="rule" />
 
-            <Section number={3} title="The AI bill chat">
+            <Section number={3} title="The AI assistant">
               <p>
-                When you ask a question about a bill, your question — together
-                with the bill&rsquo;s public information (title, sponsor,
-                status, official summary) — is sent to{' '}
+                When you ask a question, your question — together with the public
+                bill information the assistant looked up to answer it (title,
+                sponsor, status, official summary) — is sent to{' '}
                 <ExternalLink href="https://openrouter.ai">
                   OpenRouter
                 </ExternalLink>
                 , which routes it to the AI model that writes the answer. We
                 restrict that routing to providers that process data in the
-                United States. OpenRouter and the model provider it routes to
-                receive your question text but not your name or email address.
+                United States. We also require that routing go only to
+                providers that do not retain your question or use it to train
+                models. OpenRouter and the model provider it routes to receive
+                your question text but not your name or email address.
               </p>
               <p>
-                We store chat questions and answers in our database. If you are
-                signed in, they are tied to your account so your conversation
-                history survives a refresh. If you are signed out, they are
-                keyed to a random identifier stored in a cookie on your device
-                — we have no way to connect them to who you are. Question text
-                is also included in our product analytics so we can understand
-                what people want to know about legislation.
+                If you are signed in, your conversations are saved to your
+                account so you can return to them, and they are listed only to
+                you. You can delete any single conversation, or all of them,
+                from the history list in the ask panel.
+              </p>
+              <p>
+                If you are not signed in, your conversation is never stored on
+                our servers at all — it lives in your browser and disappears
+                when you close the tab.
+              </p>
+              <p>
+                If our own records cannot answer your question, the assistant
+                may look the answer up on the web. When that happens we send a
+                rewritten, neutral search phrase — not your question in your own
+                words — to our search provider, and the answer shows you exactly
+                which parts did not come from our database. The
+                no-retention requirement above covers the AI model providers; it
+                does not extend to the search provider, which is why we rewrite
+                the query rather than forwarding it.
+              </p>
+              <p>
+                Question text is also included in our product analytics so we
+                can understand what people want to know about legislation.
+              </p>
+              <p>
+                To delete your whole account, email us at{' '}
+                <ExternalLink href="mailto:hi@billsincongress.com">
+                  hi@billsincongress.com
+                </ExternalLink>{' '}
+                and we will remove it.
               </p>
             </Section>
 
@@ -351,7 +376,8 @@ const summary = [
   'We never sell your data. No ads, no ad trackers, no data brokers.',
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
-  'AI chat questions are answered through OpenRouter and stored so your conversation works; they are never tied to your identity unless you sign in.',
+  'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
+  'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
   'We email you only for account reasons — never marketing.',
   'No payment data: the site is free.',
 ];
@@ -397,7 +423,11 @@ const providers = [
   },
   {
     name: 'OpenRouter',
-    role: 'Routes bill-chat questions to the AI model that generates the answer, restricted to providers that process data in the United States. Receives your question and the bill’s public details — not your identity.',
+    role: 'Routes your questions to the AI model that generates the answer, restricted to US providers that do not retain them or train on them. Receives your question and the relevant public bill details — not your identity.',
+  },
+  {
+    name: 'Exa',
+    role: 'Web search, used only when our own records cannot answer. Receives a rewritten neutral search phrase, never your question in your own words and never your identity.',
   },
   {
     name: 'Resend',

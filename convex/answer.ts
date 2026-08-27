@@ -43,6 +43,7 @@ export interface WorkLogEntry {
 export interface WebSource {
   handle: string;
   url: string;
+  title: string;
   excerpt: string;
 }
 
@@ -188,20 +189,26 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
   const data = await response.json().catch(() => ({}));
   if (data.error) return [];
 
+  // Verified 2026-08-26 against the pinned model + DeepInfra: annotations come
+  // back as { type: "url_citation", url_citation: { url, title, content } }.
+  // The flat fallbacks below cover a shape change without breaking citations.
   const annotations = data.choices?.[0]?.message?.annotations ?? [];
+  type Annotation = {
+    type?: string;
+    url?: string;
+    title?: string;
+    content?: string;
+    url_citation?: { url?: string; title?: string; content?: string };
+  };
   return annotations
-    .filter((a: { type?: string }) => a?.type === "url_citation")
+    .filter((a: Annotation) => a?.type === "url_citation")
     .slice(0, WEB_MAX_RESULTS)
-    .map(
-      (
-        a: { url?: string; url_citation?: { url?: string; content?: string }; content?: string },
-        i: number,
-      ) => ({
-        handle: `web:${i + 1}`,
-        url: a.url ?? a.url_citation?.url ?? "",
-        excerpt: (a.content ?? a.url_citation?.content ?? "").slice(0, 500),
-      }),
-    )
+    .map((a: Annotation, i: number) => ({
+      handle: `web:${i + 1}`,
+      url: a.url_citation?.url ?? a.url ?? "",
+      title: a.url_citation?.title ?? a.title ?? "",
+      excerpt: (a.url_citation?.content ?? a.content ?? "").slice(0, 500),
+    }))
     .filter((s: WebSource) => s.url !== "");
 }
 
