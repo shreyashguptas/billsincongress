@@ -9,7 +9,7 @@
     "start": "next start",
     "generate-icons": "tsx scripts/generate-icons.ts",
     "optimize-images": "tsx scripts/optimize-images.ts",
-    "test": "for f in $(git ls-files --cached --others --exclude-standard '*.test.ts' | sort); do tsx \"$f\" || exit 1; done && tsx scripts/check-no-userid-args.ts && tsx scripts/check-metered-model-calls.ts",
+    "test": "tsx scripts/run-tests.ts",
     "cf:build": "pnpm generate-icons && opennextjs-cloudflare build",
     "preview": "pnpm cf:build && opennextjs-cloudflare preview",
     "deploy": "pnpm cf:build && opennextjs-cloudflare deploy",

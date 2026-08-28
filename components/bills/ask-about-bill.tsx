@@ -14,11 +14,14 @@ import { analytics } from '@/lib/analytics';
  * resolves without this component passing it — and keeps resolving correctly
  * after the reader navigates to a different bill.
  */
-export function AskAboutBill({ title }: { title: string }) {
+export function AskAboutBill({ title, noun }: { title: string; noun: string }) {
   const { ask, setOpen, busy } = useAnswers();
 
+  // `noun` rather than a hardcoded "bill": on an H.Res. page the heading above
+  // already reads "resolution", and a starter that asks about "this bill" both
+  // contradicts it and puts the wrong word into the question the reader sends.
   const starters = [
-    'What does this bill actually do?',
+    `What does this ${noun} actually do?`,
     'Where does it stand right now, and what happens next?',
     'Who wrote it, and what else have they introduced?',
   ];
@@ -32,7 +35,7 @@ export function AskAboutBill({ title }: { title: string }) {
           onClick={() => setOpen(true, 'bill_page')}
           className="inline-flex items-center gap-2 rounded-sm bg-foreground px-4 py-2.5 text-sm font-medium text-background hover:bg-foreground/85 transition-colors disabled:opacity-50"
         >
-          Ask about this bill
+          Ask about this {noun}
         </button>
       </div>
       <div className="flex flex-col gap-1.5 items-start pt-1">

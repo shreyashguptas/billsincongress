@@ -235,7 +235,7 @@ export function billAnswerParagraph(bill: Bill): string {
   // "Congress has not published…" about bills where Congress had.
   if (!bill.latest_summary) {
     text +=
-      ' Congress has not published a plain-language summary of this bill yet;' +
+      ` Congress has not published a plain-language summary of this ${kind} yet;` +
       ' summaries are usually written some time after introduction.';
   }
   return text;
@@ -269,4 +269,17 @@ export function legislationTypeLabel(billType: string): string {
   if (type === 'hconres' || type === 'sconres') return 'Concurrent Resolution';
   if (type === 'hres' || type === 'sres') return 'Resolution';
   return 'Bill';
+}
+
+/**
+ * The same word, lowercased for running prose: "bill", "resolution", "joint
+ * resolution", "concurrent resolution".
+ *
+ * Exported because the page chrome around the generated prose has to agree with
+ * it. billAnswerParagraph() already says "H.Res. 1486 is a resolution", so a
+ * heading beside it reading "Have a question about this bill?" contradicts the
+ * page's own opening line.
+ */
+export function billNoun(billType: string | null | undefined): string {
+  return legislationTypeLabel(billType ?? '').toLowerCase();
 }

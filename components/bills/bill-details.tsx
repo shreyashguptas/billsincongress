@@ -15,7 +15,7 @@ import {
   formatCongressProse,
   formatCongressYears,
 } from '@/lib/congress';
-import { billAnswerParagraph, billSummaryText } from '@/lib/seo';
+import { billAnswerParagraph, billNoun, billSummaryText } from '@/lib/seo';
 import { AskAboutBill } from './ask-about-bill';
 import SaveBillButton from './save-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
@@ -48,6 +48,11 @@ export default function BillDetails({ bill }: BillDetailsProps) {
   // opening with an echo of the bill's own title.
   const summary = billSummaryText(bill);
   const answer = billAnswerParagraph(bill);
+
+  // "bill" / "resolution" / "joint resolution". The chrome around `answer` has
+  // to agree with it: that paragraph already opens "H.Res. 1486 is a
+  // resolution", so headings beside it cannot go on saying "this bill".
+  const noun = billNoun(bill.bill_type);
 
   const progressStage =
     typeof bill.progress_stage === 'string'
@@ -208,15 +213,17 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                         {formatCount(bill.days_in_committee)} days
                       </span>
                       . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'}{' '}
-                      bills from past Congresses still in committee this long, about{' '}
+                      bills and resolutions from past Congresses still in
+                      committee this long, about{' '}
                       <span className="text-foreground font-medium">
                         {bill.base_rate_percent}%
                       </span>{' '}
                       ever advanced further.
                     </p>
                     <p className="text-[11px] text-muted-foreground/80 leading-snug">
-                      Based on {formatCount(bill.base_rate_sample)} past bills —
-                      a description of that group, not a prediction for this bill.
+                      Based on {formatCount(bill.base_rate_sample)} past bills
+                      and resolutions — a description of that group, not a
+                      prediction for this {noun}.
                     </p>
                   </div>
                 )}
@@ -288,13 +295,13 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           <div className="max-w-3xl">
             <p className="label-eyebrow mb-3">Ask the record</p>
             <h2 className="font-serif text-display-sm font-semibold tracking-tight mb-2">
-              Have a question about this bill?
+              Have a question about this {noun}?
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-6">
               Every answer cites the records it came from, and the conversation
               follows you as you read.
             </p>
-            <AskAboutBill title={bill.title} />
+            <AskAboutBill title={bill.title} noun={noun} />
           </div>
         </div>
       </section>
