@@ -18,7 +18,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 
-/** Raise when tests are added; lower only when deliberately deleting one. */
+/** Lower only when deliberately deleting a test. Adding one needs no change. */
 const MIN_TEST_FILES = 24;
 
 /** Guards that assert repo-wide invariants rather than testing one module. */
