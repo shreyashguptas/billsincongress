@@ -3,11 +3,9 @@
 import { motion } from 'framer-motion';
 import { Users, Vote, Landmark, Home, ArrowRight, ArrowDown, RotateCcw } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // "Who makes the rules?" — the loop between the people and their laws,
 // drawn as four steps that light up in sequence as they scroll into view.
 // Reduced motion is handled globally by LearnMotionProvider.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const STEPS = [
   {

@@ -2,8 +2,7 @@ import { TableAggregate } from "@convex-dev/aggregate";
 import { componentsGeneric } from "convex/server";
 import { DataModel } from "./_generated/dataModel";
 
-// Re-export the homepage status-chart stage list from the single source of
-// truth so callers (e.g. convex/mutations.ts) keep importing it from here.
+// Re-exported so callers (e.g. convex/mutations.ts) keep importing it from here.
 export { BILL_STAGES } from "./billStage";
 
 // Component handles. We resolve them via `componentsGeneric()` rather than the
@@ -24,13 +23,10 @@ const components = componentsGeneric() as unknown as {
 export const DEFAULT_STAGE = 20; // "Introduced" — used when progressStage is missing
 
 /**
- * Aggregate over the `bills` table partitioned by `congress`, sorted by
- * `billType`. Lets us compute totalCount/houseCount/senateCount per congress
- * in O(log n) without scanning the table.
- *
- * House bill types start with "h" (hr, hjres, hconres, hres) and Senate bill
- * types start with "s" (s, sjres, sconres, sres). We use `prefix: ["h"]` and
- * `prefix: ["s"]` ranges via lexicographic bounds to slice the aggregate.
+ * Bills partitioned by `congress`, sorted by `billType`, so chamber counts are
+ * O(log n) instead of a table scan. House types start with "h" (hr, hjres,
+ * hconres, hres) and Senate types with "s" (s, sjres, sconres, sres), so each
+ * chamber is a lexicographic prefix range over this aggregate.
  */
 export const billsByChamber = new TableAggregate<{
   Namespace: number;
@@ -42,11 +38,8 @@ export const billsByChamber = new TableAggregate<{
   sortKey: (doc) => doc.billType,
 });
 
-/**
- * Aggregate over the `bills` table partitioned by `congress`, sorted by
- * `progressStage`. Lets us compute the per-stage breakdown for the homepage
- * status chart in O(log n).
- */
+// Bills partitioned by `congress`, sorted by `progressStage` — the homepage
+// status chart's per-stage breakdown in O(log n).
 export const billsByStage = new TableAggregate<{
   Namespace: number;
   Key: number;
@@ -57,9 +50,5 @@ export const billsByStage = new TableAggregate<{
   sortKey: (doc) => doc.progressStage ?? DEFAULT_STAGE,
 });
 
-/**
- * Bill type prefixes for each chamber. Used to derive house/senate counts
- * from `billsByChamber` via lexicographic prefix bounds.
- */
 export const HOUSE_BILL_TYPES = ["hr", "hjres", "hconres", "hres"] as const;
 export const SENATE_BILL_TYPES = ["s", "sjres", "sconres", "sres"] as const;

@@ -35,7 +35,7 @@ export default function LearnPage() {
   return (
     <LearnMotionProvider>
       <article className="animate-fade-in">
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      {/* Hero */}
       <header className="border-b border-border overflow-hidden">
         <div className="container-editorial pt-12 sm:pt-16">
           <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
@@ -79,7 +79,7 @@ export default function LearnPage() {
         </div>
       </header>
 
-      {/* ── § 01 — The big idea ──────────────────────────────────────────── */}
+      {/* § 01 — The big idea */}
       <section id="idea" className="scroll-mt-24">
         <div className="container-editorial py-16 sm:py-20">
           <Reveal className="max-w-2xl">
@@ -106,7 +106,7 @@ export default function LearnPage() {
         <hr className="rule" />
       </div>
 
-      {/* ── § 02 — The two rooms ─────────────────────────────────────────── */}
+      {/* § 02 — The two rooms */}
       <section id="chambers" className="scroll-mt-24">
         <div className="container-editorial py-16 sm:py-20">
           <Reveal className="max-w-2xl">
@@ -133,7 +133,7 @@ export default function LearnPage() {
         <hr className="rule" />
       </div>
 
-      {/* ── § 03 — The paperwork ─────────────────────────────────────────── */}
+      {/* § 03 — The paperwork */}
       <section id="bills" className="scroll-mt-24">
         <div className="container-editorial py-16 sm:py-20">
           <Reveal className="max-w-2xl">
@@ -155,7 +155,7 @@ export default function LearnPage() {
         </div>
       </section>
 
-      {/* ── § 04 — The journey (centerpiece, full-bleed band) ───────────── */}
+      {/* § 04 — The journey (centerpiece, full-bleed band) */}
       <section id="journey" className="scroll-mt-24 border-y border-border bg-secondary/40">
         <div className="container-editorial py-16 sm:py-20">
           <Reveal className="max-w-2xl">
@@ -176,7 +176,7 @@ export default function LearnPage() {
         </div>
       </section>
 
-      {/* ── § 05 — Pop quiz ──────────────────────────────────────────────── */}
+      {/* § 05 — Pop quiz */}
       <section id="quiz" className="scroll-mt-24">
         <div className="container-editorial py-16 sm:py-20">
           <Reveal className="max-w-2xl">
@@ -199,7 +199,7 @@ export default function LearnPage() {
         <hr className="rule" />
       </div>
 
-      {/* ── § 06 — Go deeper (podcast) ───────────────────────────────────── */}
+      {/* § 06 — Go deeper (podcast) */}
       <section id="podcast" className="scroll-mt-24">
         <div className="container-editorial py-16 sm:py-20">
           <Reveal>
@@ -208,7 +208,7 @@ export default function LearnPage() {
         </div>
       </section>
 
-      {/* ── Closing CTA ──────────────────────────────────────────────────── */}
+      {/* Closing CTA */}
       <section className="border-t border-border bg-secondary/40">
         <div className="container-editorial py-16 sm:py-20 text-center">
           <Reveal>

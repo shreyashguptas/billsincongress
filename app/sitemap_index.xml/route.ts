@@ -1,7 +1,6 @@
-import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
-
-const SITE_URL = 'https://billsincongress.com';
+import { SITE_URL } from '@/lib/seo';
+import { getConvexHttpClient } from '@/lib/convex-client';
 
 // Next's generateSitemaps emits /sitemap/<id>.xml chunks but no index file,
 // so this route hand-rolls the <sitemapindex> that robots.txt and Search
@@ -11,10 +10,9 @@ export const revalidate = 86400;
 
 export async function GET(): Promise<Response> {
   let congresses: number[] = [];
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (convexUrl) {
+  const client = getConvexHttpClient();
+  if (client) {
     try {
-      const client = new ConvexHttpClient(convexUrl);
       congresses = await client.query(api.bills.getCongressNumbers, {});
     } catch (error) {
       console.error('sitemap_index: failed to list congresses:', error);

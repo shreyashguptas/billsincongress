@@ -15,10 +15,26 @@ next-env.d.ts
 .env*.local
 .env*.bak
 
-# Local agent / Claude Code config
+# Local agent / coding-assistant scratch. These are per-machine tool state,
+# not project source; they kept getting committed by accident.
 .agents/
 .claude/
+.codex/
+.deepsec/
 skills-lock.json
+# Per-tool copy of the house rules. The committed, tool-neutral copy is AGENTS.md.
+CLAUDE.md
+
+# Plans and specs are never committed — write them to disk untracked.
+/docs/
+/*-plan.md
+
+# Credentials, in whatever shape a tool decides to write them.
+credentials*.json
+service-account*.json
+*.pem
+*.key
+id_rsa*
 
 # IDE
 .cursorignore

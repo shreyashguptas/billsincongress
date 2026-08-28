@@ -1,11 +1,7 @@
 /**
- * Single source of truth for bill progress stages and the logic that derives a
- * stage from a bill's legislative actions.
- *
- * This module is intentionally PURE (no Convex imports) so it can be unit
- * tested in isolation and imported anywhere on the backend. The sync pipeline,
- * the repair/backfill jobs, and the precomputed-stats aggregates all derive
- * their notion of "stage" from here — keep it the only definition.
+ * Single source of truth for bill progress stages and stage derivation.
+ * Intentionally PURE (no Convex imports) so it can be unit tested and imported
+ * anywhere on the backend — keep it the only definition of "stage".
  */
 
 export const BillStages = {
@@ -30,11 +26,8 @@ export const BillStageDescriptions: Record<number, string> = {
   [BillStages.BECAME_LAW]: "Became Law",
 };
 
-/**
- * Stages that appear on the homepage status chart, in display order. The chart
- * segments are sorted by this array's order. Used by the precomputed-stats
- * aggregates (`convex/aggregates.ts`).
- */
+// Homepage status-chart stages, in display order — chart segments follow this
+// array's order.
 export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> =
   [
     BillStages.INTRODUCED,
@@ -47,11 +40,8 @@ export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> 
     BillStages.BECAME_LAW,
   ].map((stage) => ({ stage, description: BillStageDescriptions[stage] }));
 
-/**
- * Pure predicate: does this action record a chamber *passing* the bill?
- * Returns "house" / "senate" / null. Shared by {@link calculateBillStage} and
- * the committee base-rate job so both agree on what "passed a chamber" means.
- */
+// Returns "house" / "senate" / null. Shared by calculateBillStage and the
+// committee base-rate job so both agree on what "passed a chamber" means.
 export function passedChamber(action: {
   text?: string;
   type?: string;
@@ -80,16 +70,12 @@ export function passedChamber(action: {
 /**
  * Derive a bill's progress stage from its actions.
  *
- * Flag-based with post-loop precedence — there are NO early returns inside the
- * scan. This is deliberate and fixes a real production bug: the Library of
- * Congress API attaches the SAME action code (`E30000`) to both "Signed by
- * President" and "Vetoed by President". The previous implementation early-
- * returned "Signed" the moment it saw `E30000`, so genuine vetoes (e.g. the
- * 118th Congress JUDGES Act and the CRA disapproval resolutions) were
- * mislabeled as signed-into-law. Here we scan every action, set independent
- * booleans, then pick the most advanced stage — and `E30000` is no longer used
- * to detect a signing at all (a signing is recognised only by its unambiguous
- * "Signed by President" text).
+ * Flag-based with post-loop precedence — there are deliberately NO early
+ * returns inside the scan. Library of Congress quirk: action code `E30000` is
+ * attached to BOTH "Signed by President" and "Vetoed by President", so an early
+ * return on it mislabeled real vetoes as signed into law. `E30000` is never
+ * used to detect a signing; a signing is recognised only by its unambiguous
+ * "Signed by President" text.
  *
  * Precedence (most advanced first): became law > vetoed > signed > to
  * president > passed both > passed one > in committee > introduced. Vetoed

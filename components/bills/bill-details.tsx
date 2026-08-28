@@ -22,22 +22,7 @@ import PodcastPromo from '@/components/podcast-promo';
 import { ArrowLeft, FileText, Check } from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-
-const STATE_NAMES: Record<string, string> = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas',
-  CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
-  FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
-  IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas',
-  KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
-  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada',
-  NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York',
-  NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma',
-  OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
-  VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia',
-  WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia',
-};
+import { STATE_NAMES } from '@/lib/constants/filters';
 
 const PARTY_NAMES: Record<string, string> = {
   R: 'Republican',
@@ -133,7 +118,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
 
   return (
     <article className="animate-fade-in">
-      {/* ── Article header ──────────────────────────────────────── */}
+      {/* Article header */}
       <header className="border-b border-border">
         <div className="container-editorial pt-6 pb-10 sm:pt-8 sm:pb-14">
           <Link
@@ -204,7 +189,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
         </div>
       </header>
 
-      {/* ── Status pipeline ─────────────────────────────────────── */}
+      {/* Status pipeline */}
       <section className="border-b border-border bg-secondary/30">
         <div className="container-editorial py-8">
           <div className="grid lg:grid-cols-3 gap-8 items-start">
@@ -244,7 +229,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
         </div>
       </section>
 
-      {/* ── Body: summary + sponsor sidebar ─────────────────────── */}
+      {/* Body: summary + sponsor sidebar */}
       <section className="container-editorial py-12 sm:py-16">
         <div className="grid lg:grid-cols-12 gap-10 lg:gap-16">
           <div className="lg:col-span-8">
@@ -297,7 +282,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
         </div>
       </section>
 
-      {/* ── Q&A ────────────────────────────────────────────────── */}
+      {/* Q&A */}
       <section className="border-t border-border bg-secondary/30">
         <div className="container-editorial py-12 sm:py-16">
           <div className="max-w-3xl">
@@ -314,7 +299,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
         </div>
       </section>
 
-      {/* ── Podcast cross-promotion (end of page — never mid-read) ── */}
+      {/* Podcast cross-promotion (end of page — never mid-read) */}
       <section className="border-t border-border">
         <div className="container-editorial py-10 sm:py-12">
           <PodcastPromo

@@ -1,46 +1,34 @@
 /**
  * Which captured exceptions are somebody else's software.
  *
- * Of ~320 exceptions recorded in the ten weeks to 26 Aug 2026, around 300 did
- * not come from this codebase. They came from software running inside the
- * visitor's browser: Outlook's link scanner, browser extensions, and WebKit's
- * opaque cross-origin reporting. The effect was not a wrong number so much as
- * an unreadable one — a genuine regression would have to be spotted inside a
- * column of noise fifteen times its size.
+ * Most recorded exceptions do not come from this codebase — they come from
+ * software running inside the visitor's browser: Outlook's link scanner,
+ * browser extensions, and WebKit's opaque cross-origin reporting. The problem
+ * is legibility: a genuine regression has to be spotted inside a column of
+ * noise many times its size.
  *
- * ── Reading the event ──────────────────────────────────────────────────────
+ * Reading the event
  *
  * A browser-side `$exception` event carries `$exception_list` and
  * `$exception_level`, and nothing else describing the error. It does NOT carry
  * `$exception_values` or `$exception_types`, even though both are queryable in
- * HogQL: posthog-js derives those two locally inside its suppression-rule
- * matcher, and PostHog derives them again during ingestion for storage. Reading
- * them in `before_send` yields `undefined` and silently disables the filter —
- * which is what the first version of this module did, and what its tests failed
- * to catch by constructing the shape by hand instead of the event.
+ * HogQL: posthog-js derives those locally inside its suppression-rule matcher,
+ * and PostHog derives them again during ingestion. Reading them in
+ * `before_send` yields `undefined` and silently disables the filter.
  *
  * `$exception_list` is an array of `{ type, value, mechanism, stacktrace }`,
  * one entry per exception in a chain.
  *
- * ── The rule for adding an entry ───────────────────────────────────────────
+ * The rule for adding an entry
  *
  * Deliberately strict: the pattern must be attributable to a named third party,
  * and no plausible bug in this codebase may produce the same string. Anything
  * merely *probably* external stays, because a dropped event cannot be
- * investigated later. In particular these are NOT dropped:
- *
- *   `SecurityError: The operation is insecure.` — iOS Safari with storage
- *   blocked. This app's storage access is guarded (see lib/safe-storage.ts),
- *   so the remaining ones come from the analytics SDK's own persistence, but
- *   the same string would appear if a new unguarded access were introduced.
- *
- *   `TypeError: Failed to fetch` — usually a request cancelled by navigation,
- *   but indistinguishable from a real API failure.
- *
- *   `NotFoundError: Failed to execute 'removeChild'` — the signature of an
- *   extension mutating the DOM under React, but React can also produce it.
+ * investigated later. `SecurityError: The operation is insecure.` is the
+ * instructive case — it is iOS Safari with storage blocked, and this app's
+ * storage access is guarded (see lib/safe-storage.ts), but the same string
+ * would appear if a new unguarded access were introduced. So it stays.
  */
-
 /** One entry of `$exception_list`, as posthog-js builds it. */
 export interface CapturedException {
   type?: unknown;

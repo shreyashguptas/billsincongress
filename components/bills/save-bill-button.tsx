@@ -8,7 +8,7 @@ import { Bookmark } from 'lucide-react';
 
 import { api } from '@/convex/_generated/api';
 import { analytics } from '@/lib/analytics';
-import { useConvexEnabled } from '@/app/ConvexClientProvider';
+import { useConvexEnabled } from '@/components/convex-client-provider';
 
 interface SaveBillButtonProps {
   billId: string;

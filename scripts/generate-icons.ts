@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir } from 'fs/promises';
 import { join } from 'path';
 
 const sizes = [16, 32, 48, 64, 96, 128, 192, 384, 512];

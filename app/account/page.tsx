@@ -11,7 +11,7 @@ import { formatCongressProse } from "@/lib/congress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useConvexEnabled } from "@/app/ConvexClientProvider";
+import { useConvexEnabled } from "@/components/convex-client-provider";
 import { billsService, type ChatUsageResult } from "@/lib/services/bills-service";
 
 export default function AccountPage() {
@@ -134,15 +134,6 @@ function AccountInner() {
               <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
               <p className="text-xl font-serif">{user.plan === "pro" ? "Pro" : "Free"}</p>
             </div>
-            {user.plan === "pro" ? (
-              <p className="text-xs text-muted-foreground">
-                Billing is managed in the Stripe Customer Portal. (Coming in PR 2.)
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Pro adds daily bill digests, generated bill audio, and more. Pricing page coming in PR 2.
-              </p>
-            )}
           </CardContent>
         </Card>
 

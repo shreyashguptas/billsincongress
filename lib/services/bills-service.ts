@@ -1,17 +1,11 @@
 import { Bill } from '@/lib/types/bill';
-import { ConvexHttpClient } from 'convex/browser';
 import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
+import { getConvexHttpClient } from '@/lib/convex-client';
 
 /**
  * Bills service that fetches data from Convex backend.
  * Falls back to empty results if Convex is not configured.
  */
-
-function getConvexClient(): ConvexHttpClient | null {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) return null;
-  return new ConvexHttpClient(url);
-}
 
 /**
  * PostHog distinct/session ID headers so server-side captures in API routes
@@ -133,7 +127,7 @@ function transformConvexBill(doc: any): Bill {
 
 export const billsService = {
   async fetchBillById(id: string): Promise<Bill> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) {
       throw new Error('Convex not configured');
     }
@@ -168,7 +162,7 @@ export const billsService = {
       congress = 'all',
     } = params;
 
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) {
       return { data: [], hasMore: false };
     }
@@ -225,7 +219,7 @@ export const billsService = {
       congress = 'all',
     } = params;
 
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return { count: null, exact: false };
 
     try {
@@ -256,7 +250,7 @@ export const billsService = {
     totalSuccess: number | undefined;
     totalFailed: number | undefined;
   } | null> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return null;
 
     try {
@@ -269,7 +263,7 @@ export const billsService = {
   },
 
   async fetchAllSponsors(): Promise<SponsorOption[]> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return [];
 
     try {
@@ -283,7 +277,7 @@ export const billsService = {
   },
 
   async getAvailableCongressNumbers(): Promise<number[]> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) {
       return [];
     }
@@ -304,7 +298,7 @@ export const billsService = {
   async getBillChatHistory(
     billId: string
   ): Promise<Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>> {
-    const client = getConvexClient();
+    const client = getConvexHttpClient();
     if (!client) return [];
 
     try {

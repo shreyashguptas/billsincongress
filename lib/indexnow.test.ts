@@ -41,7 +41,7 @@ function keyFiles(): string[] {
   return readdirSync(PUBLIC_DIR).filter((f) => /^[A-Za-z0-9-]{16,128}\.txt$/.test(f));
 }
 
-// ── The three copies must agree ────────────────────────────────────────────
+// The three copies must agree
 
 it("the served file is named for the key", () => {
   assert.ok(
@@ -80,7 +80,7 @@ it("there is exactly one key file, so a rotated key leaves nothing behind", () =
   );
 });
 
-// ── The key and URLs must satisfy the protocol ─────────────────────────────
+// The key and URLs must satisfy the protocol
 
 it("the key satisfies the protocol's character and length rules", () => {
   // 8–128 characters of a-z, A-Z, 0-9 and dashes.
@@ -102,7 +102,7 @@ it("the key file is on the same host as the pages it vouches for", () => {
   assert.equal(new URL(indexNowKeyUrl()).host, INDEXNOW_HOST);
 });
 
-// ── The key must not be mistaken for a secret, or vice versa ───────────────
+// The key must not be mistaken for a secret, or vice versa
 
 it("the key is documented as published rather than secret", () => {
   // A 32-character hex string in a committed file is exactly what a secret

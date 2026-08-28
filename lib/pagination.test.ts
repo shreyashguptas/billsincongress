@@ -26,7 +26,7 @@ function it(name: string, fn: () => void) {
 
 const numbers = (slots: PaginationSlot[]) => slots.filter((s): s is number => s !== GAP);
 
-// ── Small sets stay whole ──────────────────────────────────────────────────
+// Small sets stay whole
 
 it("lists every page when there are few, as the hub pages already did", () => {
   assert.deepEqual(paginationWindow(1, 10), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -39,7 +39,7 @@ it("returns nothing when there are no pages", () => {
   assert.deepEqual(paginationWindow(1, -3), []);
 });
 
-// ── Large sets collapse, without losing the anchors ────────────────────────
+// Large sets collapse, without losing the anchors
 
 it("collapses the middle of a long set", () => {
   assert.deepEqual(paginationWindow(25, 51), [1, GAP, 24, 25, 26, GAP, 51]);
@@ -84,7 +84,7 @@ it("clamps a page outside the range rather than producing nonsense", () => {
   assert.ok(numbers(paginationWindow(999, 51)).includes(51));
 });
 
-// ── Page count ─────────────────────────────────────────────────────────────
+// Page count
 
 it("counts pages, and respects the backend's ceiling", () => {
   assert.equal(lastPageFor(100, 10, 51), 10);

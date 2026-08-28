@@ -5,25 +5,14 @@ import { ConvexError } from "convex/values";
 import { ResendOTP } from "./ResendOTP";
 import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
 
-// ─── Session lifetime ──────────────────────────────────────────────────────
-// We want users to stay signed in for a long time across browser restarts —
-// "set it and forget it" UX, no surprise sign-outs. 60 days is the chosen
-// upper bound (longer than the industry default of 30, still reasonable for
-// a low-risk public bills tracker; banking-grade apps would pick 15 min, we
-// are explicitly the opposite).
+// Sessions last 60 days: the library transparently refreshes the JWT every hour
+// off the long-lived refresh token, so a user is only signed out after 60 days
+// with no requests (inactiveDurationMs) or 60 days since sign-in
+// (totalDurationMs), whichever fires first.
 //
-// The library refreshes the JWT access token transparently every hour using
-// the long-lived refresh token, so the only thing the user sees is "still
-// signed in" until either:
-//   (a) 60 days pass with no requests at all (inactiveDurationMs), OR
-//   (b) 60 days pass since the original sign-in (totalDurationMs)
-// whichever fires first. Refresh-token rotation with a 10s reuse window is
-// already on by default — old tokens are invalidated on use.
-//
-// This MUST stay in sync with `cookieConfig.maxAge` in `proxy.ts`. The
-// cookie expiry ≥ refresh-token expiry, otherwise users get signed out
-// every time the cookie expires even though the server-side session is
-// still valid. We use the same constant in both places.
+// MUST stay in sync with `cookieConfig.maxAge` in `proxy.ts`: cookie expiry has
+// to be >= refresh-token expiry, or users get signed out on cookie expiry even
+// though the server-side session is still valid.
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 60; // 60 days
 
 function decodeRedirect(value: string): string | null {
@@ -75,7 +64,6 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     Google,
 
     // Email + password with scrypt hashing (library default).
-    // Email verification + password reset are routed through Resend OTP helpers.
     Password({
       verify: ResendOTP,
       reset: ResendOTPPasswordReset,
@@ -96,11 +84,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     }),
   ],
   session: {
-    // Total time a session can live before forced re-auth. Hard cap.
     totalDurationMs: SESSION_DURATION_MS,
-    // Time without any request before the session expires. Practically the
-    // same as the total cap for our usage (active users won't go 60 days
-    // silent), but the library treats them as separate gates.
     inactiveDurationMs: SESSION_DURATION_MS,
   },
   callbacks: {

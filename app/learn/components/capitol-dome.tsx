@@ -2,11 +2,9 @@
 
 import { motion } from 'framer-motion';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The U.S. Capitol, as an editorial line drawing that draws itself in.
 // Every path is stroked in currentColor so it works in light and dark mode;
 // the two flags pick up the masthead accent red.
-// ─────────────────────────────────────────────────────────────────────────────
 
 type Stroke = {
   d: string;

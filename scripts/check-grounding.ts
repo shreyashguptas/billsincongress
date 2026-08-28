@@ -195,7 +195,7 @@ async function main() {
   }
   console.log(`model=${MODEL} providers=${PROVIDERS.join(",")}\n`);
 
-  // ── THE GATE ────────────────────────────────────────────────────────────
+  // THE GATE
   // Asking for something we genuinely do not hold must produce an admission,
   // never a number. If this fails, the fix is stronger `gotchas` in
   // convex/catalog/datasets.ts — not a prompt patch elsewhere.
@@ -211,7 +211,7 @@ async function main() {
   check("does NOT state a co-sponsor count", !inventedNumber, cosponsors.text.slice(0, 300));
   check("dropped no invented citations", cosponsors.dropped === 0, `dropped=${cosponsors.dropped}`);
 
-  // ── Grounded answer ─────────────────────────────────────────────────────
+  // Grounded answer
   const health = await ask("How many health bills are there in the 119th Congress?");
   console.log("\n--- health-bills question ---");
   console.log(health.text.slice(0, 700));

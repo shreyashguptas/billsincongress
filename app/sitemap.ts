@@ -1,9 +1,8 @@
 import type { MetadataRoute } from 'next';
-import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
 import { ALL_HUBS } from '@/lib/hubs';
-
-const SITE_URL = 'https://billsincongress.com';
+import { SITE_URL } from '@/lib/seo';
+import { getConvexHttpClient } from '@/lib/convex-client';
 
 // Sitemap id 0 = static pages; ids 117/118/119/… = one sitemap per congress
 // (each well under the 50k-URL spec limit). Served at /sitemap/<id>.xml and
@@ -13,14 +12,8 @@ export const revalidate = 86400;
 
 const SITEMAP_PAGE_SIZE = 2500;
 
-function getClient(): ConvexHttpClient | null {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) return null;
-  return new ConvexHttpClient(url);
-}
-
 export async function generateSitemaps(): Promise<Array<{ id: number }>> {
-  const client = getClient();
+  const client = getConvexHttpClient();
   if (!client) return [{ id: 0 }];
   try {
     const congresses = await client.query(api.bills.getCongressNumbers, {});
@@ -54,7 +47,7 @@ export default async function sitemap(props: {
     ];
   }
 
-  const client = getClient();
+  const client = getConvexHttpClient();
   if (!client) return [];
 
   const entries: MetadataRoute.Sitemap = [];

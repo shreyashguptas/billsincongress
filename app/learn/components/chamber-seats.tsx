@@ -12,10 +12,8 @@ import {
 import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // "Congress is two rooms" — parliament-style seat charts for the House (435)
 // and Senate (100), with a state picker that lights up your state's seats.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** House seats per state, 2020-census apportionment. Sums to 435. */
 const STATE_HOUSE_SEATS: Record<string, number> = {

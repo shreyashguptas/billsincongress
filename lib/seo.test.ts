@@ -60,7 +60,7 @@ function bareBill(over: Partial<Bill> = {}): Bill {
   } as Bill;
 }
 
-// ── The regression this change exists to prevent ───────────────────────────
+// The regression this change exists to prevent
 
 it("description is not merely the bill title", () => {
   const bill = bareBill();
@@ -108,7 +108,7 @@ it("an unknown stage falls back to the backend's own description", () => {
   assert.equal(billStatusPhrase(bill), "Reported by Committee");
 });
 
-// ── The CRS title echo ─────────────────────────────────────────────────────
+// The CRS title echo
 
 it("summary text drops the CRS echo of the bill's own title", () => {
   const bill = bareBill({
@@ -147,7 +147,7 @@ it("no summary yields empty text, so the caller can branch", () => {
   assert.equal(billSummaryText(bareBill({ latest_summary: "" })), "");
 });
 
-// ── The on-page paragraph ──────────────────────────────────────────────────
+// The on-page paragraph
 
 it("answer paragraph says what the bill is and where it stands", () => {
   const p = billAnswerParagraph(bareBill());
@@ -191,7 +191,7 @@ it("House bills are described as House bills", () => {
   assert.ok(!/Senate/.test(billAnswerParagraph(bill)));
 });
 
-// ── Keeping the descriptive long title, which is real content ──────────────
+// Keeping the descriptive long title, which is real content
 
 it("a formal long title is kept and prefixed with the status", () => {
   const bill = bareBill({
@@ -249,7 +249,7 @@ it("the policy area still qualifies a resolution", () => {
   assert.match(billSeoDescription(res), /is an Immigration resolution/);
 });
 
-// ── Degrading gracefully on incomplete records ─────────────────────────────
+// Degrading gracefully on incomplete records
 
 it("a bill with no sponsor still produces prose", () => {
   const bill = bareBill({

@@ -43,7 +43,7 @@ When you load a bill page, the timestamp at the top tells you exactly when its d
 Yes. Every line of code, every database transformation, and every prompt sent to the AI model is in this repository, free to read, copy, host yourself, or contribute back.
 
 - **Source code:** [github.com/shreyashguptas/billsincongress](https://github.com/shreyashguptas/billsincongress)
-- **Project docs:** [`Documentation/overview.md`](./Documentation/overview.md), [`Documentation/interactive-dashboard.md`](./Documentation/interactive-dashboard.md)
+- **Project docs:** [`Documentation/`](./Documentation) — architecture overview, the dashboard deep-dive, and the analytics event registry
 
 If something looks incorrect, or you have an idea, please [open an issue](https://github.com/shreyashguptas/billsincongress/issues) — you don't need to know how to code to file one. A description of what you saw and what you expected is enough.
 
@@ -59,7 +59,6 @@ The rest of this document is for people who want to read, run, or change the cod
 | ------------ | ------------------------------------------------------------------------ |
 | Frontend     | Next.js 16 (App Router), React 19, TypeScript                            |
 | Styling      | Tailwind CSS, shadcn/ui (Radix primitives), Framer Motion                |
-| Charts       | Recharts                                                                 |
 | Backend      | Convex (database, queries, mutations, actions, scheduled jobs)           |
 | Auth         | `@convex-dev/auth` with email OTP via Resend, plus Google OAuth          |
 | Rate limits  | `@convex-dev/rate-limiter` — 5 chat messages/day anon, 100/day signed-in |
@@ -94,11 +93,12 @@ app/                     # Next.js App Router
   account/               # Signed-in user account page
   sign-in/, sign-up/, forgot-password/
 
-components/              # Shared React components
+components/              # All shared React components live here
   ui/                    # shadcn/ui primitives
   bills/                 # Bill card, filters, progress, AI chat panel, sync status
+  dashboard/             # The home-page Congress dashboard
   auth/                  # Sign-in / sign-up forms, user menu, Google button
-  navigation.tsx, footer.tsx, theme/
+  answers/, legal/, seo/, theme/, navigation.tsx, footer.tsx
 
 convex/                  # Backend logic
   schema.ts              # Database schema (bills, billActions, billChats, etc.)
@@ -113,9 +113,12 @@ convex/                  # Backend logic
 
 lib/                     # Client-side utilities, types, service wrappers
 public/                  # Static assets, icons, optimized images
-Documentation/           # Project docs (overview + dashboard deep-dive)
+Documentation/           # Project docs (overview, dashboard deep-dive, ANALYTICS.md)
 scripts/                 # Build-time helpers (icon generation, image optimisation)
 ```
+
+Components that belong to exactly one route stay beside it (`app/learn/components`,
+`app/bills/_hub`). Anything shared lives under `components/`.
 
 ### Running it locally
 

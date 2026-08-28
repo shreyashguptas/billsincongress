@@ -3,7 +3,7 @@ import { fetchQuery } from 'convex/nextjs';
 import { api } from '@/convex/_generated/api';
 import DashboardClient, {
   type InitialDashboardData,
-} from './components/dashboard/DashboardClient';
+} from '@/components/dashboard/DashboardClient';
 import WavingFlag from '@/components/waving-flag';
 
 export const metadata: Metadata = {

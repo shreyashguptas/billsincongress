@@ -5,7 +5,7 @@ import { useConvexAuth, useQuery } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
 import { analytics } from '@/lib/analytics';
-import { useConvexEnabled } from '@/app/ConvexClientProvider';
+import { useConvexEnabled } from '@/components/convex-client-provider';
 
 // How recently an account must have been created for a Google OAuth return to
 // count as a sign-UP rather than a sign-IN. Mirrors the welcome-modal window.

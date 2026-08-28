@@ -3,9 +3,8 @@ import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // ─── Auth + billing ─────────────────────────────────────────────────────────
-  // `authTables` provides: authAccounts, authSessions, authRefreshTokens,
-  // authVerificationCodes, authRateLimits. We override `users` below to add
+  // `authTables` provides authAccounts, authSessions, authRefreshTokens,
+  // authVerificationCodes and authRateLimits. `users` is overridden below to add
   // app-managed billing columns alongside the auth-managed identity fields.
   ...authTables,
 
@@ -17,11 +16,8 @@ export default defineSchema({
     emailVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
 
-    // App-managed billing. `plan` is optional in the schema because the
-    // @convex-dev/auth library inserts new users with only the auth fields
-    // (email/name/image) — it doesn't know about our app fields. Anywhere we
-    // read `plan`, treat undefined as "free". The `requirePro` helper checks
-    // for === "pro" so undefined is correctly excluded from Pro access.
+    // App-managed billing. `plan` is optional because @convex-dev/auth inserts
+    // new users with only the auth fields; every read treats undefined as "free".
     plan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
@@ -82,8 +78,6 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_and_bill", ["userId", "billId"]),
 
-  // ─── Bills domain ──────────────────────────────────────────────────────────
-  // Main bill info table
   bills: defineTable({
     billId: v.string(), // Composite key: "{number}{type}{congress}" e.g. "1234hr119"
     congress: v.number(),
@@ -100,15 +94,11 @@ export default defineSchema({
     progressStage: v.optional(v.number()), // 20, 40, 60, 80, 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
-    // Denormalised copy of billSubjects.policyAreaName, so a topic filter is an
-    // indexed lookup rather than a cross-table set intersection.
-    //
-    // The intersection approach was silently broken: it read the first 2,000
-    // billSubjects rows for a topic (oldest-created, all congresses) and then
-    // looked for those among the newest 1,200 bills of one congress. The two
-    // sets barely overlapped, so `policyArea=Health` returned 0 of 2,070 real
-    // matches in the 119th. Kept in sync by `upsertBillSubject`; populated for
-    // existing rows by `policyAreaBackfill`.
+    // Denormalised copy of billSubjects.policyAreaName: a topic filter must be
+    // an indexed lookup. The cross-table intersection it replaced matched the
+    // oldest 2,000 subject rows against the newest 1,200 bills of one congress
+    // and silently returned 0 of 2,070 real Health matches. Kept in sync by
+    // `upsertBillSubject`; populated for existing rows by `policyAreaBackfill`.
     policyAreaName: v.optional(v.string()),
     syncedEndpoints: v.optional(v.number()), // bitmask: 1=detail, 2=actions, 4=subjects, 8=summaries, 16=text
     // Enrichment progress, kept SEPARATE from syncedEndpoints so the existing
@@ -132,13 +122,10 @@ export default defineSchema({
     // (field missing). Complete bills (31) are never read.
     .index("by_syncedEndpoints", ["syncedEndpoints"])
     .index("by_congress_and_bill_number", ["congress", "billNumber"])
-    // Congress-scoped sponsor lookups for the answer engine's `bills` dataset.
-    //
-    // `by_sponsor_state` above is NOT congress-scoped, so answering "bills from
-    // Maryland this Congress" without these meant scanning the newest 200 rows
-    // of ~18,000 and filtering in memory — roughly a 1% sample presented to the
-    // reader as a complete answer. Same class of silent-miss bug as the
-    // policyArea intersection documented above.
+    // Congress-scoped sponsor lookups for the answer engine. `by_sponsor_state`
+    // above is NOT congress-scoped: without these, "bills from Maryland this
+    // Congress" scanned only the newest 200 of ~18,000 rows and filtered in
+    // memory — the same class of silent miss as the policyArea note above.
     .index("by_congress_and_sponsor_state", ["congress", "sponsorState"])
     .index("by_congress_and_sponsor_last", ["congress", "sponsorLastName"])
     .searchIndex("search_title", {
@@ -146,7 +133,6 @@ export default defineSchema({
       filterFields: ["congress", "billType", "progressStage", "sponsorState"],
     }),
 
-  // Bill actions (one-to-many: bill -> actions)
   billActions: defineTable({
     billId: v.string(), // References bills.billId
     actionCode: v.optional(v.string()),
@@ -166,7 +152,6 @@ export default defineSchema({
     .index("by_billId", ["billId"])
     .index("by_policy_area", ["policyAreaName"]),
 
-  // Bill summaries (one-to-many: bill -> summaries)
   billSummaries: defineTable({
     billId: v.string(),
     actionDate: v.optional(v.string()),
@@ -178,7 +163,6 @@ export default defineSchema({
     .index("by_billId", ["billId"])
     .index("by_billId_and_date", ["billId", "updateDate"]),
 
-  // Bill text versions (one-to-many: bill -> text versions)
   billText: defineTable({
     billId: v.string(),
     date: v.optional(v.string()),
@@ -200,7 +184,6 @@ export default defineSchema({
     .index("by_billId", ["billId"])
     .index("by_name", ["name"]),
 
-  // Bill title variations (one-to-many: bill -> titles)
   billTitles: defineTable({
     billId: v.string(),
     title: v.string(),
@@ -232,18 +215,15 @@ export default defineSchema({
   // Bills whose page has meaningfully changed and that IndexNow has not been
   // told about yet. Drained twice a day by `convex/indexNow.ts`.
   //
-  // A separate table rather than a field on `bills`: every mutation in
-  // mutations.ts uses the trigger-wrapped `internalMutation` from functions.ts,
-  // so marking and unmarking a bill would fire both bill aggregates' triggers
-  // twice per change — tens of thousands of pointless trigger writes the day
-  // after the monthly re-pull.
+  // A separate table rather than a field on `bills`: mutations.ts writes through
+  // the trigger-wrapped `internalMutation`, so marking and unmarking a bill
+  // would fire both bill aggregates' triggers twice per change.
   indexNowQueue: defineTable({
     billId: v.string(),
     queuedAt: v.string(), // ISO
     reason: v.string(), // "new" | "status" | "action" | "summary" | "topic" | "seed"
-    // 0 = a change a reader would see, 1 = the one-time backlog seed. Without
-    // this, 55,000 seed rows draining at ~4,000/day would put every real
-    // announcement two weeks behind a queue of pages that had not changed.
+    // 0 = a change a reader would see, 1 = the one-time backlog seed. Changes
+    // must never queue behind the seed; see `convex/indexNow.ts`.
     priority: v.number(),
   })
     .index("by_billId", ["billId"]) // dedupe
@@ -331,7 +311,6 @@ export default defineSchema({
     .index("by_billId_and_userId", ["billId", "userId"])
     .index("by_userId", ["userId"]),
 
-  // Bill chat messages — individual turns in a chat session
   billChatMessages: defineTable({
     chatId: v.id("billChats"),
     role: v.union(v.literal("user"), v.literal("assistant")),
@@ -339,15 +318,13 @@ export default defineSchema({
     createdAt: v.string(),
   }).index("by_chatId", ["chatId"]),
 
-  // Saved conversations for signed-in readers (spec §4.7).
+  // Saved conversations for signed-in readers (spec §4.7). Distinct from the
+  // bill-scoped `billChats`.
   //
   // `userId` is REQUIRED, not optional, and that is the point: an anonymous
-  // conversation cannot be represented in this table at all, so it cannot be
-  // leaked, mis-keyed, or exposed by a forgotten ownership check. Anonymous
-  // transcripts live in the browser's session storage and are never sent here.
-  //
-  // Distinct from `billChats`, which is bill-scoped and stays as it is — old
-  // bill threads keep working on the old tables.
+  // conversation cannot be represented here at all, so it cannot be leaked or
+  // exposed by a forgotten ownership check. Anonymous transcripts stay in the
+  // browser's session storage and are never sent here.
   chats: defineTable({
     userId: v.id("users"),
     title: v.string(), // first question, truncated
@@ -356,16 +333,13 @@ export default defineSchema({
     messageCount: v.number(),
   }).index("by_user_and_lastActivity", ["userId", "lastActivityAt"]),
 
-  // Turns within a saved conversation.
+  // Turns within a saved conversation. Citations, entities and the work log are
+  // stored WITH the message so reopening re-renders identically without
+  // re-running any tool, freezing the answer as it was given even after the
+  // bill's status changes.
   //
-  // Resolved citations, entities and the work log are stored WITH the message
-  // so reopening a thread re-renders identically without re-running any tool or
-  // re-resolving any handle. It also freezes the answer as it was given, which
-  // matters once the underlying bill changes status.
-  //
-  // `userId` is denormalised here as defence in depth (spec §4.8 Rule 4). The
-  // primary control is always resolving the parent chat through
-  // requireOwnedChat first — this is the belt to that pair of braces.
+  // `userId` is denormalised as defence in depth (spec §4.8 Rule 4); the primary
+  // control is always resolving the parent chat through `requireOwnedChat`.
   chatMessages: defineTable({
     chatId: v.id("chats"),
     userId: v.id("users"),

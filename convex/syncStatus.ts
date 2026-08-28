@@ -1,7 +1,7 @@
 /**
  * Pure, dependency-free sync-status helpers. NO Convex imports, so this module
  * is unit-testable under plain `tsx` (see syncStatus.test.ts) and safe to share
- * between Convex functions (sync.ts, congressApi.ts, audit.ts).
+ * between Convex functions (sync.ts, congressApi.ts).
  */
 
 // Bitmask constants for endpoint tracking

@@ -7,14 +7,10 @@ import { v } from "convex/values";
 const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
 const AUTHED_CHAT_DAILY_LIMIT = 100;
 
-// ─── Limit definitions ─────────────────────────────────────────────────────
-// `start: 5 * HOUR` aligns the 24h fixed window to Unix-epoch + 5h, which is
-// midnight US Eastern (EST). During EDT (mid-March → early November) the
-// reset will land 1h later (1 AM ET) — the UI surfaces the actual reset time
-// so users always see something accurate. See plan file for the DST trade-off.
-//
-// `kind: "fixed window"` grants all tokens at once at the start of each
-// window; no token-bucket carry-over.
+// `start: 5 * HOUR` aligns the 24h fixed window to Unix-epoch + 5h = midnight
+// US Eastern (EST); during EDT the reset lands at 1 AM ET, and the UI shows the
+// actual reset time either way. `kind: "fixed window"` grants all tokens at the
+// start of each window — no token-bucket carry-over.
 export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // Anonymous visitors — keyed by an HTTP-only browser session cookie minted by
   // the Next.js route handler. This keeps casual use available without exposing
@@ -26,8 +22,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     start: 5 * HOUR,
   },
   // Logged-in users — keyed by userId. Email-verification status is
-  // intentionally NOT a factor; that gate is reserved for the Pro upgrade
-  // (PR 3+).
+  // intentionally NOT a factor here.
   chatAuthedPerDay: {
     kind: "fixed window",
     rate: AUTHED_CHAT_DAILY_LIMIT,
@@ -47,14 +42,9 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 });
 
-// ─── Public query: current chat quota status ───────────────────────────────
-// The chat UI calls this only AFTER hitting RATE_LIMITED (to render the
-// dialog with up-to-the-second reset time) and on initial load (so a
-// disabled state survives a refresh). It never consumes a token.
-//
-// We don't expose a remaining-count number here on purpose — the chosen UX
-// only shows anything when the user is already blocked, so we just need
-// (a) "are you blocked?" and (b) "when does it reset?".
+// Read-only chat quota status — never consumes a token. The UI calls it after
+// a RATE_LIMITED response (to show the reset time) and on initial load, so a
+// blocked state survives a refresh.
 export const getChatUsage = query({
   args: {
     anonymousSessionId: v.optional(v.string()),

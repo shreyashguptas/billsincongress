@@ -7,10 +7,9 @@ import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
 import { AnswerProvider } from '@/components/answers/answer-provider';
 import { AnswerPanel } from '@/components/answers/answer-panel';
-import { Toaster } from '@/components/ui/toaster';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
-import { ConvexClientProvider } from './ConvexClientProvider';
+import { ConvexClientProvider } from '@/components/convex-client-provider';
 import { sharedViewport, sharedThemeColor } from './shared-metadata';
 import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/json-ld';
@@ -201,7 +200,6 @@ export default function RootLayout({
                 <AnswerPanel />
                 <WelcomeNewUser />
                 <PostHogAuthSync />
-                <Toaster />
               </AnswerProvider>
             </ThemeProvider>
           </ConvexClientProvider>
