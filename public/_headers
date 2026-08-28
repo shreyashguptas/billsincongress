@@ -1,0 +1,20 @@
+# Response headers for files served by Cloudflare's static-asset layer.
+#
+# Cloudflare parses this file rather than serving it, and Next copies it from
+# public/ into the build output, which becomes .open-next/assets.
+#
+# These rules reach ONLY the static-asset layer. Pages rendered by the Worker
+# never see them -- their headers come from next.config.mjs. Anything that must
+# apply site-wide has to be set in both places.
+
+# Workers serve static assets as "public, max-age=0, must-revalidate" by
+# default, so every repeat visitor re-checked every chunk on every page load.
+# Safe to override here because Next fingerprints these filenames with a hash
+# of their contents: the URL changes whenever the bytes do, so a cached copy
+# can never be stale and there is nothing to revalidate.
+#
+# Deliberately scoped to /_next/static only. Files in public/ (images, icons)
+# keep stable URLs across content changes, so caching those for a year would
+# pin a stale logo with no way to bust it.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
