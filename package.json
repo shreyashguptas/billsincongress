@@ -19,9 +19,9 @@
     "check:grounding": "tsx scripts/check-grounding.ts"
   },
   "dependencies": {
-    "@auth/core": "0.37.0",
+    "@auth/core": "0.41.3",
     "@convex-dev/aggregate": "^0.2.1",
-    "@convex-dev/auth": "0.0.91",
+    "@convex-dev/auth": "0.0.95",
     "@convex-dev/rate-limiter": "0.3.2",
     "@opennextjs/cloudflare": "^1.19.11",
     "@radix-ui/react-dialog": "^1.1.15",
