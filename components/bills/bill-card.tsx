@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bill } from '@/lib/types/bill';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
+import { billNoun } from '@/lib/seo';
 import { BillProgress } from './bill-progress';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
@@ -46,6 +47,7 @@ export function CompactBillCard({
   sponsorParty,
   stage,
   onClick,
+  noun = 'bill',
 }: {
   href: string;
   label: string;
@@ -54,6 +56,12 @@ export function CompactBillCard({
   sponsorParty?: string;
   stage?: number;
   onClick?: () => void;
+  /**
+   * What to call this in the no-title fallback below. Defaults to "bill"
+   * because the in-answer entity cards carry a display projection that has no
+   * bill_type to derive it from; BillCard passes the real noun.
+   */
+  noun?: string;
 }) {
   const partyDot = PARTY_DOT_COLOR[sponsorParty ?? ''] ?? 'bg-party-u';
   return (
@@ -71,7 +79,7 @@ export function CompactBillCard({
         </p>
       ) : (
         <p className="font-serif text-[13px] leading-snug mt-1 text-foreground">
-          Open this bill →
+          Open this {noun} →
         </p>
       )}
       {(sponsorLastName || stage !== undefined) && (
@@ -126,6 +134,7 @@ export default function BillCard({ bill, variant = 'full' }: BillCardProps) {
         sponsorParty={bill.sponsor_party}
         stage={stage}
         onClick={track}
+        noun={billNoun(bill.bill_type)}
       />
     );
   }
