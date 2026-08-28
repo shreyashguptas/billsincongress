@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import {
   billAnswerParagraph,
   billIdentifier,
+  billNoun,
   billSeoDescription,
   billSeoTitle,
   billStatusPhrase,
@@ -247,6 +248,58 @@ it("the policy area still qualifies a resolution", () => {
     bill_subjects: { policy_area_name: "Immigration" },
   });
   assert.match(billSeoDescription(res), /is an Immigration resolution/);
+});
+
+// The noun the page chrome uses. billAnswerParagraph already said "resolution"
+// while the headings around it said "bill", so the page contradicted itself.
+
+it("billNoun names each legislation type", () => {
+  assert.equal(billNoun("s"), "bill");
+  assert.equal(billNoun("hr"), "bill");
+  assert.equal(billNoun("hres"), "resolution");
+  assert.equal(billNoun("sres"), "resolution");
+  assert.equal(billNoun("hjres"), "joint resolution");
+  assert.equal(billNoun("sjres"), "joint resolution");
+  assert.equal(billNoun("hconres"), "concurrent resolution");
+  assert.equal(billNoun("sconres"), "concurrent resolution");
+});
+
+it("billNoun falls back to bill for missing or unknown types", () => {
+  // The chrome must render something sane rather than throw or print "undefined".
+  assert.equal(billNoun(undefined), "bill");
+  assert.equal(billNoun(null), "bill");
+  assert.equal(billNoun(""), "bill");
+  assert.equal(billNoun("nonsense"), "bill");
+});
+
+it("billNoun is case-insensitive, matching ids stored uppercase", () => {
+  assert.equal(billNoun("HRES"), "resolution");
+  assert.equal(billNoun("SJRes"), "joint resolution");
+});
+
+it("the missing-summary sentence does not call a resolution a bill", () => {
+  const res = bareBill({
+    bill_type: "hres",
+    bill_type_label: "H.Res.",
+    latest_summary: undefined,
+  });
+  const prose = billAnswerParagraph(res);
+  assert.match(prose, /summary of this resolution yet/);
+  assert.ok(!/of this bill/.test(prose), prose);
+});
+
+it("the missing-summary sentence still says bill for an actual bill", () => {
+  const bill = bareBill({ latest_summary: undefined });
+  assert.match(billAnswerParagraph(bill), /summary of this bill yet/);
+});
+
+it("a joint resolution is named as one in the missing-summary sentence", () => {
+  const joint = bareBill({
+    bill_type: "sjres",
+    bill_type_label: "S.J.Res.",
+    latest_summary: undefined,
+  });
+  assert.match(billAnswerParagraph(joint), /summary of this joint resolution yet/);
 });
 
 // Degrading gracefully on incomplete records

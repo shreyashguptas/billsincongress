@@ -154,7 +154,7 @@ the thread is mounted rather than one funnel per page.
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
 | `answer_thread_deleted` | Reader deleted one conversation or all of them | `scope: "one" \| "all"`, `thread_count` | `components/answers/history-list.tsx` |
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
-| `answer_starter_clicked` | A generated starter or chart question was used | `surface`, `starter_text` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` |
+| `answer_starter_clicked` | A generated starter or chart question was used | `surface: "home" \| "filtered" \| "bill"`, `starter_text` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx`, `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
 | `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
 
 > **`dropped` is the grounding-health number.** It counts citations the model
