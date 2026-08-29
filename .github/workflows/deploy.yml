@@ -5,6 +5,24 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Deploys run one at a time. Merging four pull requests inside a minute
+# started four deploys at once and they raced; the newest code won only
+# because they happened to finish in the order they started. Had they not,
+# an older build would have been left serving with nothing to flag it.
+#
+# cancel-in-progress is deliberately FALSE here, unlike the review workflow.
+# Cancelling a review wastes nothing, but cancelling a half-finished upload
+# to Cloudflare could leave the site mid-swap. Queueing is also what makes
+# the result correct: GitHub keeps only ONE run pending per group, so a burst
+# of merges collapses to "finish the current deploy, then deploy the newest
+# commit" -- which is the one that should end up live.
+#
+# The group is a fixed name rather than per-ref so a manual run and a push
+# cannot deploy over each other either.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
