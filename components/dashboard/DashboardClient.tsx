@@ -187,7 +187,10 @@ function DashboardInner({
   };
 
   const handleDrillDown = (filterType: string, filterValue: string | number) => {
-    // Single chokepoint for every dashboard stat/chart click that drills into /bills.
+    // Every dashboard stat/chart click that navigates by script goes through
+    // here. Policy-area rows do NOT: they are real links, so they report the
+    // same event directly and let the href do the navigating. If you are
+    // looking for where a drilldown is measured, check both.
     analytics.dashboardDrilldownClicked(filterType, filterValue, selectedCongress);
     const params = new URLSearchParams();
     params.set('congress', selectedCongress.toString());
