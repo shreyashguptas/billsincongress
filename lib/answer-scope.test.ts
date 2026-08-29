@@ -101,6 +101,16 @@ it('maps a title search to titleFilter', () => {
   assert.ok(s?.label.includes('veterans housing'));
 });
 
+it('maps a chamber, which the catalog validates as house or senate', () => {
+  const s = scopeFromFilters({ congress: '119', chamber: 'senate' });
+  assert.equal(s?.filters.chamber, 'senate');
+  assert.ok(s?.label.includes('Senate'), `label was "${s?.label}"`);
+});
+
+it('does not treat a chamber sentinel as a filter', () => {
+  assert.equal(scopeFromFilters({ congress: '119', chamber: 'all' }), null);
+});
+
 console.log(`\nanswer-scope: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));

@@ -43,7 +43,21 @@ export const STATE_NAMES: Record<string, string> = {
   SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
   VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia',
   WI: 'Wisconsin', WY: 'Wyoming', DC: 'District of Columbia',
+  // Non-state jurisdictions that send a voting or non-voting member to the
+  // House. Their sponsors' bills were unreachable by the state filter until
+  // these were added.
+  PR: 'Puerto Rico', GU: 'Guam', VI: 'U.S. Virgin Islands',
+  AS: 'American Samoa', MP: 'Northern Mariana Islands',
 };
+
+/**
+ * States as picker options, ordered by NAME rather than by abbreviation.
+ * Ordering by the key put District of Columbia after Wyoming, which reads as
+ * a bug in an alphabetical list.
+ */
+export const STATE_OPTIONS = Object.entries(STATE_NAMES)
+  .map(([value, label]) => ({ value, label }))
+  .sort((a, b) => a.label.localeCompare(b.label));
 
 export const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -72,3 +86,73 @@ export const labelFor = (
   options: ReadonlyArray<{ value: string; label: string }>,
   value: string,
 ) => options.find((o) => o.value === value)?.label ?? value;
+
+/**
+ * Statuses offered in the picker, in reader-interest order rather than
+ * pipeline order — "did it become law" is the question people arrive with.
+ *
+ * Stages 80 (passed both chambers), 90 (to President) and 95 (signed) are
+ * absent because they hold zero bills in every Congress we carry: the ingest
+ * pipeline records those transitions as "became law" instead. `lib/hubs.ts`
+ * documents the same measurement and refuses to build hub pages for them.
+ *
+ * They stay in `STATUS_OPTIONS` above, because a bookmarked `?status=90` must
+ * still be labelled rather than shown as a bare number.
+ */
+export const LIVE_STATUS_OPTIONS = [
+  { value: 'all', label: 'Any outcome' },
+  { value: '100', label: 'Became law' },
+  { value: '85', label: 'Vetoed' },
+  { value: '60', label: 'Passed one chamber' },
+  { value: '40', label: 'Still in committee' },
+  { value: '20', label: 'Just introduced' },
+];
+
+/** The chamber a bill originated in. Distinct from bill type, which is one of
+ *  four kinds within a chamber. */
+export const CHAMBER_OPTIONS = [
+  { value: 'all', label: 'Either chamber' },
+  { value: 'house', label: 'House' },
+  { value: 'senate', label: 'Senate' },
+];
+
+/**
+ * Bill types grouped by what they actually do, because "House Concurrent
+ * Resolution" tells a non-expert nothing. Ordinary bills are ~84% of the
+ * corpus and come first.
+ */
+export const BILL_TYPE_GROUPS: Array<{
+  label: string;
+  options: Array<{ value: string; label: string }>;
+}> = [
+  {
+    label: 'Bills',
+    options: [
+      { value: 'hr', label: 'House Bill' },
+      { value: 's', label: 'Senate Bill' },
+    ],
+  },
+  {
+    label: 'Joint resolutions (can become law)',
+    options: [
+      { value: 'hjres', label: 'House Joint Resolution' },
+      { value: 'sjres', label: 'Senate Joint Resolution' },
+    ],
+  },
+  {
+    label: 'Simple and concurrent resolutions',
+    options: [
+      { value: 'hres', label: 'House Resolution' },
+      { value: 'hconres', label: 'House Concurrent Resolution' },
+      { value: 'sres', label: 'Senate Resolution' },
+      { value: 'sconres', label: 'Senate Concurrent Resolution' },
+    ],
+  },
+];
+
+/** Which chamber each bill type belongs to, so picking a chamber can narrow the
+ *  kind list instead of offering four impossible combinations. */
+export const CHAMBER_OF_BILL_TYPE: Record<string, 'house' | 'senate'> = {
+  hr: 'house', hres: 'house', hjres: 'house', hconres: 'house',
+  s: 'senate', sres: 'senate', sjres: 'senate', sconres: 'senate',
+};
