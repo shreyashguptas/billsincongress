@@ -153,10 +153,22 @@ app/
 
 ### Drill-Down Navigation
 
-Clicking any chart element navigates to `/bills` with filters:
+Most chart elements navigate to `/bills` with filters applied:
 ```typescript
 router.push(`/bills?congress=${congress}&status=${statusCode}`);
 ```
+
+**Policy-area rows are the exception, and are real `<a href>` links, not
+scripted jumps.** The home page is the only page search engines currently index,
+so a `router.push` there passed no link equity to the topic hub pages at all.
+
+- Newest Congress → the topic hub, e.g. `/bills/topic/health`.
+- Any older Congress → the filtered `/bills?congress=…&policyArea=…` URL,
+  because hub pages always show the latest Congress; sending a reader looking at
+  the 117th to a page of 119th bills would answer a different question.
+
+`dashboard_drilldown_clicked` still fires on click with the same properties in
+both cases — see `Documentation/ANALYTICS.md`.
 
 ## How to Add New Dashboard Features
 
