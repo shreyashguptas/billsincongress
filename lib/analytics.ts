@@ -227,8 +227,13 @@ export const analytics = {
 
   // Grounded answers
   //
-  // `surface` says where the question was asked from ('bill', 'home', 'panel',
-  // 'list'), so one funnel covers every place the answer thread is mounted.
+  // `surface` says where the question was asked from, so one funnel covers every
+  // place the answer thread is mounted. `surfaceFor()` — now in lib/page-context.ts,
+  // where it is unit-tested — emits exactly four values: 'home', 'bill', 'filtered'
+  // and 'other'. A fifth, 'panel', is passed literally by the two click events
+  // fired from inside the panel ('answer_source_clicked', 'answer_entity_clicked'),
+  // which describe a place rather than a page. There is no 'list' surface; it was
+  // in an early draft and never shipped.
 
   answerQuestionSubmitted: (props: {
     surface: string;

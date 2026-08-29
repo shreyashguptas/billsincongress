@@ -50,6 +50,9 @@
     --status-president: 18 70% 42%;
     --status-signed: 358 65% 38%;
     --status-law: 145 40% 32%;
+    /* Vetoed is a dead end, not a rung on the warm advancing ramp: a cool,
+       desaturated slate so it reads as "stopped" rather than "nearly there". */
+    --status-vetoed: 222 12% 42%;
 
     /* Party colours — muted to match editorial palette, not saturated. */
     --party-d: 214 45% 42%;      /* muted editorial blue */
@@ -105,6 +108,7 @@
     --status-president: 18 65% 58%;
     --status-signed: 358 70% 60%;
     --status-law: 145 40% 55%;
+    --status-vetoed: 222 12% 62%;
 
     /* Party colours — slightly brighter in dark mode for contrast. */
     --party-d: 214 55% 62%;

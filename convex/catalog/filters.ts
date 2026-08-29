@@ -13,14 +13,16 @@ import { DATASETS } from "./datasets";
 import type { DatasetName } from "./types";
 
 /**
- * Mirrored by CATALOG_STAGES in `lib/answer-scope.ts`, which builds the scopes
- * that arrive here; `lib/answer-scope.test.ts` asserts the two lists match.
+ * 85 (vetoed) belongs here: it is real stored data (13 bills in the 118th, 2 in
+ * the 119th) and the site has a /bills/vetoed hub. Omitting it meant the answer
+ * engine REFUSED any question about vetoed bills — a filter the site itself
+ * offers must be one the assistant can use.
  *
- * 85 (vetoed) was missing, and the bills list has a "Vetoed" filter — see
- * `lib/constants/filters.ts` — so "Ask about these" on a vetoed list built a
- * scope this function rejected. The rejection is silent to the reader: the
- * answer still arrived, about every bill in the Congress, under a heading
- * promising otherwise.
+ * Mirrored by CATALOG_STAGES in `lib/answer-scope.ts`, which builds the scopes
+ * that arrive here; `lib/answer-scope.test.ts` asserts the two lists match, so
+ * the omission cannot come back on one side only. The reader-facing symptom was
+ * silent: "Ask about these" on a vetoed list still produced an answer, about
+ * every bill in the Congress, under a heading promising otherwise.
  */
 export const VALID_STAGES = [20, 40, 60, 80, 85, 90, 95, 100];
 const VALID_CHAMBERS = ["house", "senate"];

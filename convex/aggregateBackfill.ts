@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalAction, internalQuery, query } from "./_generated/server";
+import { internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { billsByChamber, billsByStage } from "./aggregates";
 
@@ -143,8 +143,15 @@ export const clearAggregates = internalMutation({
  *
  *     npx convex run --prod aggregateBackfill:countsByType '{"congress": 119}'
  *     npx convex run --prod aggregateBackfill:status '{}'
+ *
+ * Both are internalQuery on purpose. They are operator tools with no caller in
+ * the app, and `status` alone reads several thousand documents per call — as
+ * public queries they were an unauthenticated read-burn door for anyone holding
+ * the deployment URL, which is exactly why `policyAreaBackfill.status` is
+ * internal. `npx convex run` calls internal functions as admin, so the CLI
+ * usage above is unaffected.
  */
-export const countsByType = query({
+export const countsByType = internalQuery({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
     const ns = { namespace: args.congress };
@@ -155,7 +162,7 @@ export const countsByType = query({
   },
 });
 
-export const status = query({
+export const status = internalQuery({
   args: {},
   handler: async (ctx) => {
     const congresses = [117, 118, 119];

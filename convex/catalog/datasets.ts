@@ -39,7 +39,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "congress", type: "number", allowed: "A Congress number.", example: "119" },
       { name: "titleFilter", type: "string", allowed: "Words to match in the TITLE only.", example: "veterans housing" },
       { name: "policyArea", type: "string", allowed: "Use the `topics` dataset to find exact names.", example: "Health" },
-      { name: "progressStage", type: "number", allowed: "20, 40, 60, 80, 90, 95 or 100.", example: "40" },
+      { name: "progressStage", type: "number", allowed: "20, 40, 60, 80, 85, 90, 95 or 100.", example: "40" },
       { name: "sponsorState", type: "string", allowed: "Two-letter state code.", example: "MD" },
       { name: "sponsorFilter", type: "string[]", allowed: "Exact 'First Last' names. Use `sponsors` to find them.", example: '["John Sarbanes"]' },
       { name: "chamber", type: "string", allowed: "'house' or 'senate'.", example: "senate" },
@@ -48,7 +48,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
     ],
     gotchas: [
       "When you already know a bill's id — because the reader has it open, or a previous result gave it to you — fetch it with {\"billId\": \"...\"} rather than decomposing it into congress, billType and billNumber. It is one exact lookup instead of a scan.",
-      "progressStage is a STAGE CODE, one of 20/40/60/80/85/90/95/100. It is NOT a percentage and NOT a probability of passing. 20=introduced, 40=in committee, 60=passed one chamber, 80=passed both, 85=vetoed, 90=to president, 95=signed, 100=became law.",
+      "progressStage is a STAGE CODE, one of 20/40/60/80/85/90/95/100. It is NOT a percentage and NOT a probability of passing. 20=introduced, 40=in committee, 60=passed one chamber, 80=passed both, 85=vetoed, 90=to president, 95=signed, 100=became law. 85 sits off the main path: a vetoed bill reached the President and stopped there — it did not advance to 90 or 95.",
       "We store only the PRIMARY sponsor. Co-sponsors are not in our data at all — never state or imply how many co-sponsors a bill has.",
       "titleFilter searches BILL TITLES ONLY, never the text of the bill. A bill about a subject whose title does not mention it will not be found this way. Prefer policyArea for subject questions.",
       "policyAreaName is ONE policy area per bill. Bills also carry a much richer list of legislative subjects, which this dataset does not expose.",

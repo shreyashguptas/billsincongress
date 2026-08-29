@@ -82,7 +82,7 @@ export default function AboutPage() {
               </h2>
               <p className="text-base text-muted-foreground leading-relaxed mb-5">
                 Every line of code, every data transformation, and every
-                AI-generated summary prompt is available to inspect. If you find
+                prompt we send to the AI assistant is available to inspect. If you find
                 something incorrect or have an idea, please open an issue or
                 pull request on GitHub.
               </p>
@@ -145,11 +145,11 @@ const steps = [
   },
   {
     title: 'Continuous synchronisation',
-    body: 'A scheduled job keeps our database in step with the public record. Every bill page shows when its data was last refreshed.',
+    body: 'Scheduled jobs keep our database in step with the public record — nightly, with weekly and monthly safety nets. The bills index shows how long ago the last sync finished.',
   },
   {
     title: 'Plain-English summaries',
-    body: 'Long-form bill text is condensed into clear summaries by an AI model — never replacing the original, only making it easier to enter.',
+    body: "The plain-English summary on a bill page is Congress's own, written by the nonpartisan Congressional Research Service. We strip the markup and change nothing else — no rewriting, no AI.",
   },
   {
     title: 'Open data, open code',
