@@ -71,22 +71,62 @@ export function getStageStep(stage: number): {
   };
 }
 
-export function getProgressDots(currentStage: number): { stage: string; isComplete: boolean; isVetoed?: boolean }[] {
-  const shortLabels = ['Introduced', 'Committee', 'One Chamber', 'Both Chambers', 'Vetoed', 'To President', 'Signed', 'Law'];
+/**
+ * The dots shown on a bill page's pipeline.
+ *
+ * Vetoed is NOT a step on the main path — it is where a bill stops. Rendering
+ * it inline meant every bill that became law displayed a completed, check-marked
+ * "Vetoed" step it had never been through, which is the opposite of true. So a
+ * vetoed bill gets its own shorter path ending in Vetoed, and every other bill
+ * gets the seven-step main path. This mirrors `StageSteps` above, where VETOED
+ * and TO_PRESIDENT share step 5: a vetoed bill reached the President and stopped.
+ */
+const MAIN_PATH_LABELS = [
+  'Introduced',
+  'Committee',
+  'One Chamber',
+  'Both Chambers',
+  'To President',
+  'Signed',
+  'Law',
+] as const;
 
+/** Where each stage sits on MAIN_PATH_LABELS. Vetoed is absent by design. */
+const MAIN_PATH_INDEX: Partial<Record<BillStage, number>> = {
+  [BillStages.INTRODUCED]: 0,
+  [BillStages.IN_COMMITTEE]: 1,
+  [BillStages.PASSED_ONE_CHAMBER]: 2,
+  [BillStages.PASSED_BOTH_CHAMBERS]: 3,
+  [BillStages.TO_PRESIDENT]: 4,
+  [BillStages.SIGNED_BY_PRESIDENT]: 5,
+  [BillStages.BECAME_LAW]: 6,
+};
+
+/** The path a vetoed bill actually travelled: it stopped at the veto. */
+const VETOED_PATH_LABELS = [
+  'Introduced',
+  'Committee',
+  'One Chamber',
+  'Both Chambers',
+  'Vetoed',
+] as const;
+
+export function getProgressDots(currentStage: number): { stage: string; isComplete: boolean; isVetoed?: boolean }[] {
   if (!isValidStage(currentStage)) {
-    return shortLabels.map(stage => ({
+    return MAIN_PATH_LABELS.map((stage) => ({ stage, isComplete: false }));
+  }
+
+  if (currentStage === BillStages.VETOED) {
+    return VETOED_PATH_LABELS.map((stage, index) => ({
       stage,
-      isComplete: false
+      isComplete: true,
+      ...(index === VETOED_PATH_LABELS.length - 1 ? { isVetoed: true } : {}),
     }));
   }
 
-  const currentIndex = BillStageOrder.indexOf(currentStage);
-  const isVetoedBill = currentStage === BillStages.VETOED;
-
-  return shortLabels.map((label, index) => ({
-    stage: label,
+  const currentIndex = MAIN_PATH_INDEX[currentStage] ?? 0;
+  return MAIN_PATH_LABELS.map((stage, index) => ({
+    stage,
     isComplete: index <= currentIndex,
-    ...(label === 'Vetoed' && isVetoedBill ? { isVetoed: true } : {}),
   }));
 } 

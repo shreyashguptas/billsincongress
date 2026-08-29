@@ -46,10 +46,9 @@ should not exist in the code — and if it's in this file, it must exist in the 
    `answer_question_submitted.question` (the whole question), `bills_no_results.title_query`
    (the raw search box), and — less obviously — `answer_question_submitted.scope_label` and
    `answer_starter_clicked.starter_text`, both of which interpolate the reader's typed title
-   search into a label. Only the AI question is currently disclosed in the Privacy Policy
-   (`app/privacy/page.tsx`, §3); **the search-box paths are not disclosed and should be.**
-   Adding another free-text property is a privacy decision, not a routine one: raise it
-   explicitly and update the Privacy Policy in the same change.
+   search into a label. Both are disclosed in the Privacy Policy — the AI question in §3,
+   the no-results search text in §2. Adding another free-text property is a privacy decision,
+   not a routine one: raise it explicitly and update the Privacy Policy in the same change.
 
 ---
 

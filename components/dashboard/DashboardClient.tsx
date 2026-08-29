@@ -149,9 +149,13 @@ function DashboardInner({
   const congressNumbers =
     allCongressData?.filter((d) => d.totalCount > 0).map((d) => d.congress) || [];
 
+  // Fall back to the NEWEST Congress when the requested one has no data
+  // (e.g. `?congress=999`). Take the max explicitly rather than trusting the
+  // array's order: the picker below used to sort this same array in place,
+  // which would have silently made this the OLDEST Congress instead.
   useEffect(() => {
     if (congressNumbers.length > 0 && !congressNumbers.includes(selectedCongress)) {
-      setSelectedCongress(congressNumbers[congressNumbers.length - 1]);
+      setSelectedCongress(Math.max(...congressNumbers));
     }
   }, [congressNumbers, selectedCongress]);
 
@@ -233,7 +237,7 @@ function DashboardInner({
             <div className="min-w-[180px]">
               <p className="label-eyebrow mb-2">Congress</p>
               <div className="flex flex-wrap gap-1">
-                {congressNumbers
+                {[...congressNumbers]
                   .sort((a, b) => b - a)
                   .map((c) => (
                     <button
@@ -575,6 +579,11 @@ function StatusBar({ data, totalBills, onSegmentClick }: StatusBarProps) {
     { key: 'passedBothChambers',  label: 'Passed both chambers', color: 'hsl(var(--status-passed-both))', value: data.passedBothChambers, stage: 80 },
     { key: 'toPresident',         label: 'To the President',     color: 'hsl(var(--status-president))',  value: data.toPresident,         stage: 90 },
     { key: 'signed',              label: 'Signed',               color: 'hsl(var(--status-signed))',     value: data.signed,              stage: 95 },
+    // Vetoed (85) must be here even though it sits off the main path. Omitting it
+    // hid 13 vetoed bills in the 118th and 2 in the 119th, and — because the
+    // denominator below is every bill — made the visible shares silently fail to
+    // sum to 100%. A status chart that quietly drops a status is worse than no chart.
+    { key: 'vetoed',              label: 'Vetoed',               color: 'hsl(var(--status-vetoed))',     value: data.vetoed,              stage: 85 },
     { key: 'becameLaw',           label: 'Became law',           color: 'hsl(var(--status-law))',        value: data.becameLaw,           stage: 100 },
   ].filter((s) => s.value > 0);
 

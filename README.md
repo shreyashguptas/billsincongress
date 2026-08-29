@@ -215,9 +215,9 @@ Stated plainly, because they affect what you can trust:
 - **Search matches titles and bill numbers only**, never the text of a bill. A bill about a subject whose title does not mention it will not turn up that way.
 - **Older Congresses are not actively refreshed.** The nightly, weekly and monthly jobs track the current Congress only; the Monday reconciliation adds bills that were never synced but does not re-check ones already stored. An upstream correction to a 2022 bill may not be picked up.
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.
-- **There is no notification or "follow this bill" feature**, despite what the sign-in page says. That copy is stale.
+- **There is no notification or "follow this bill" feature.** Saving a bill bookmarks it; it does not alert you when it moves.
 - **Password reset is not self-serve yet.** Email hi@billsincongress.com and it gets done by hand.
-- **Sign-up, sign-in, the account page and the user menu all mention a "Pro" plan.** It does not exist, nothing is for sale, and the site is free.
+- **The site is free and has no paid tier.** No payment details are collected anywhere.
 
 If you spot something wrong, that is the most useful thing you can send. See below.
 

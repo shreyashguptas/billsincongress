@@ -583,8 +583,7 @@ Deliberate hardening worth preserving:
 `reset: ResendOTPPasswordReset`, which emails a 6-digit reset code on the same rate-limit
 bucket — but no page ever starts the flow, so `/forgot-password` is a static "coming soon"
 page asking people to email. Self-serve account deletion does not exist at all; deletion is
-handled by emailing `hi@billsincongress.com`. The Privacy Policy currently tells readers they
-can change their password "through the password-reset flow", which they cannot.
+handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly.
 
 ---
 
@@ -887,21 +886,10 @@ Recorded so nobody rediscovers them as bugs.
    *refused* if it tries to look up vetoed bills — even though a `/bills/vetoed` hub exists
    and the data is real (13 in the 118th, 2 in the 119th). The schema comment and the dataset
    catalog omit 85 too.
-3. **The home-page status chart omits stage 85**, so its percentages do not sum to 100%.
-4. **The bill-page pipeline always renders eight steps including "Vetoed"** and marks every
-   step at or before the current stage complete — so a bill that became law shows a completed
-   "Vetoed" step it never went through. The bill *card* gets this right ("Stage N of 7").
-5. **`/?congress=<bogus>` snaps to the oldest Congress**, not the newest, because the
-   ascending array is sorted in place before the guard effect runs.
-6. **The live answer path has no server-side analytics** and does not forward the PostHog
+3. **The live answer path has no server-side analytics** and does not forward the PostHog
    identity headers, so a failure before the browser sees a response is invisible.
-7. **Actions are fetched as a single 250-item page** with no pagination loop, unlike subjects
+4. **Actions are fetched as a single 250-item page** with no pagination loop, unlike subjects
    — a bill with more actions is stored truncated, and stage derivation reads that truncation.
-8. **The site advertises a "Pro" plan** on sign-up, sign-in, the account page and the user
-   menu, and promises "follow bills" on the sign-in page. Neither exists.
-9. **The About page claims summaries are AI-generated** and that every bill page shows a
-   last-refreshed timestamp. Both are false — summaries are the government's own CRS text,
-   and only `/bills` shows a freshness indicator.
-10. **The three manual AI probe scripts have drifted**: two default `OPENROUTER_PROVIDERS` to
+5. **The three manual AI probe scripts have drifted**: two default `OPENROUTER_PROVIDERS` to
     `deepinfra` alone while the shipped default is `deepinfra,amazon-bedrock` — so they can
     bless a configuration that is not what production runs.

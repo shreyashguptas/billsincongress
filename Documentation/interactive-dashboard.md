@@ -68,9 +68,10 @@ warms as it advances and only law is green:
 | `--status-president` | 90 To President |
 | `--status-signed` | 95 Signed by President |
 | `--status-law` | 100 Became Law |
+| `--status-vetoed` | 85 Vetoed |
 
-**There is no `--status-vetoed` token for stage 85.** The rest of the site paints a vetoed
-bill with `bg-accent`; the dashboard does not paint it at all — see [Known gaps](#known-gaps).
+`--status-vetoed` is a cool desaturated slate, deliberately outside the warm advancing ramp,
+because a veto is a dead end rather than a rung further up the ladder.
 
 Party colours are `--party-d` (muted editorial blue), `--party-r` (muted editorial red),
 `--party-i` (muted ochre) and `--party-u` (neutral grey). The three party hues brighten in
@@ -271,34 +272,21 @@ the right filter, so a correct target is available today — the cards just do n
 
 Recorded so they are decisions rather than surprises.
 
-1. **The status chart omits stage 85 (Vetoed).** The `stages` array lists 20, 40, 60, 80, 90,
-   95 and 100. `data.vetoed` is declared in the props type and never read. Today that hides
-   **13 vetoed bills in the 118th and 2 in the 119th**, and because the denominator is total
-   bills, the visible percentages do not sum to 100%. Fixing it also needs a new colour token
-   — there is no `--status-vetoed`. The data is reachable everywhere else, including the
-   `/bills/vetoed` hub.
-2. **A latent in-place-sort hazard in the Congress guard.** The guard reads
-   `congressNumbers[length - 1]` from an array built ascending, but the selector JSX sorts
-   that same array descending **in place**. It is correct today only by luck: a bogus
-   `?congress=` leaves `view` null, so the component early-returns the skeleton before the
-   selector renders and the sort never runs. Any change that renders the selector before the
-   guard fires would silently snap visitors to the oldest Congress. Copy the array before
-   sorting.
-3. **~550 sponsor rows are read to render 10.** `getCongressDashboard` collects then slices.
+1. **~550 sponsor rows are read to render 10.** `getCongressDashboard` collects then slices.
    The `by_congress_and_count` index that would make this `.order('desc').take(10)` exists and
    is used by the answer engine, but not here.
-4. **"Top" ordering is an artifact of insertion order.** Neither top list applies an
+2. **"Top" ordering is an artifact of insertion order.** Neither top list applies an
    `order()`. A future writer that inserted unsorted rows would produce a silently wrong
    "top 10" with no error.
-5. **Two policy areas are fetched and discarded** on every load — the query returns 10 and the
+3. **Two policy areas are fetched and discarded** on every load — the query returns 10 and the
    list renders 8.
-6. **The monthly chart has no drill-through** — it is the only data section with neither a
+4. **The monthly chart has no drill-through** — it is the only data section with neither a
    click target nor a link.
-7. **Policy areas and sponsors have no independent refresh** — they only update when a sync
+5. **Policy areas and sponsors have no independent refresh** — they only update when a sync
    or reconcile completes its last page (see the recompute table above).
-8. **`getAllCongressOverview` is never skipped**, so a websocket subscription opens on every
+6. **`getAllCongressOverview` is never skipped**, so a websocket subscription opens on every
    cold load even though the server-rendered payload already contains the answer.
-9. **Nothing tests the dashboard itself.** No test renders `DashboardClient` or exercises
+7. **Nothing tests the dashboard itself.** No test renders `DashboardClient` or exercises
    `getCongressDashboard` / `getChamberDeepBreakdown`. The pure modules underneath *are*
    tested — `convex/billStage.test.ts` for the stage constants,
    `lib/starter-questions.test.ts` for the hero starters — but the rendering and the query
