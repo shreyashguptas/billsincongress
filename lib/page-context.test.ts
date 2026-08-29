@@ -11,7 +11,7 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from 'node:assert/strict';
-import { billIdFor, pageContextFor, routeFor, surfaceFor } from './page-context';
+import { billIdFor, pageContextFor, routeFor, surfaceFor, validCongress } from './page-context';
 
 let passed = 0;
 const failures: string[] = [];
@@ -102,6 +102,21 @@ it('lets the path win over a stale published context', () => {
   const ctx = pageContextFor('/bills/1234hr119', { congress: 117 });
   assert.equal(ctx.route, 'bill');
   assert.equal(ctx.billId, '1234hr119');
+});
+
+it('reads the list page\'s Congress, which is a string with an all sentinel', () => {
+  // The bills list holds every filter as a string; 'all' means not set. Parsing
+  // it produces NaN, and NaN must be dropped HERE rather than a layer further
+  // down happening to serialise it away.
+  assert.equal(validCongress('119'), 119);
+  assert.equal(validCongress('all'), undefined);
+  assert.equal(validCongress(''), undefined);
+  assert.equal(validCongress('abc'), undefined);
+  assert.equal(validCongress('0'), undefined);
+  assert.equal(validCongress('9999'), undefined);
+  assert.equal(validCongress(Number.NaN), undefined);
+  assert.equal(validCongress(undefined), undefined);
+  assert.equal(validCongress(119), 119);
 });
 
 it('never emits null or undefined into the payload', () => {

@@ -93,11 +93,17 @@ export function surfaceFor(pathname: string): AskSurface {
  * A Congress number is only believable inside the range Congress has actually
  * reached. Anything else is dropped rather than rejected — a bad hint should
  * degrade the answer, never fail the question.
+ *
+ * Exported because the bills list holds its Congress as a STRING with `'all'`
+ * as the not-set sentinel (see `app/bills/filter-signature.ts`), so its call
+ * site needs the same rule rather than a parse that yields NaN and trusts
+ * something further down to drop it.
  */
-function validCongress(value: unknown): number | undefined {
-  if (typeof value !== 'number' || !Number.isInteger(value)) return undefined;
-  if (value < 1 || value > 200) return undefined;
-  return value;
+export function validCongress(value: unknown): number | undefined {
+  const n = typeof value === 'string' ? Number.parseInt(value, 10) : value;
+  if (typeof n !== 'number' || !Number.isInteger(n)) return undefined;
+  if (n < 1 || n > 200) return undefined;
+  return n;
 }
 
 /**

@@ -92,7 +92,7 @@ export function ResizeHandle({ surface }: { surface: string }) {
   }, []);
 
   const commit = useCallback(
-    (px: number, method: 'drag' | 'keyboard') => {
+    (px: number, method: 'drag' | 'keyboard' | 'reset') => {
       const vw = viewportWidth();
       const next = clampPanelWidth(px, vw);
       document.documentElement.style.setProperty('--ask-w', `${next}px`);
@@ -178,7 +178,7 @@ export function ResizeHandle({ surface }: { surface: string }) {
         delete document.documentElement.dataset.askDrag;
       }}
       onKeyDown={onKeyDown}
-      onDoubleClick={() => enabled && commit(DEFAULT_PANEL_PX, 'drag')}
+      onDoubleClick={() => enabled && commit(DEFAULT_PANEL_PX, 'reset')}
       className={cn(
         'absolute inset-y-0 left-0 z-10 hidden w-px touch-none bg-transparent',
         // Only the docked band can be resized at all; below it the panel width

@@ -159,7 +159,7 @@ which pass the literal `panel`.
 | `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger: "launcher" \| "bill_page" \| "hero" \| "starter" \| "ask" \| "manual"`, `has_conversation` | `components/answers/answer-provider.tsx` |
 | `answer_panel_closed` | The panel was dismissed, or stepped aside for a page the reader opened from it | `surface`, `reason: "manual" \| "escape" \| "swipe" \| "entity_navigation" \| "navigation"`, `turn_count`, `dwell_ms` | `components/answers/answer-provider.tsx` |
 | `answer_panel_restored` | A set-aside conversation was reopened from the launcher | `surface`, `trigger: "launcher"`, `turn_count`, `away_ms` | `components/answers/answer-provider.tsx` |
-| `answer_panel_resized` | The docked panel's width was changed by drag or keyboard | `surface`, `width_px`, `width_pct`, `viewport_width`, `method: "drag" \| "keyboard"` | `components/answers/resize-handle.tsx` |
+| `answer_panel_resized` | The docked panel's width was changed by drag or keyboard | `surface`, `width_px`, `width_pct`, `viewport_width`, `method: "drag" \| "keyboard" \| "reset"` | `components/answers/resize-handle.tsx` |
 | `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
 | `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/history-list.tsx` |
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |

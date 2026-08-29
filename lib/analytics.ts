@@ -323,7 +323,7 @@ export const analytics = {
     width_px: number;
     width_pct: number;
     viewport_width: number;
-    method: 'drag' | 'keyboard';
+    method: 'drag' | 'keyboard' | 'reset';
   }) => capture('answer_panel_resized', props),
 
   /**
