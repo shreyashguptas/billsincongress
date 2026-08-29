@@ -19,6 +19,7 @@ import {
   formatCongressYearsShort,
 } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
+import { topicSlug } from '@/lib/hubs';
 
 export type InitialDashboardData = {
   allCongress: FunctionReturnType<typeof api.bills.getAllCongressOverview>;
@@ -154,6 +155,27 @@ function DashboardInner({
       setSelectedCongress(congressNumbers[congressNumbers.length - 1]);
     }
   }, [congressNumbers, selectedCongress]);
+
+  /**
+   * Where a policy-area row points.
+   *
+   * For the newest Congress this is the topic hub — a real page with an
+   * explanation of what the grouping means. That matters beyond navigation:
+   * the homepage is the only page Google currently indexes, and these rows
+   * were `<button onClick={router.push}>`, so they passed no link equity to
+   * the 33 topic pages at all.
+   *
+   * For any older Congress it stays a filtered /bills URL, because hub pages
+   * always show the latest Congress — sending a reader looking at the 117th to
+   * a page of 119th bills would silently answer a different question.
+   */
+  const newestCongress =
+    congressNumbers.length > 0 ? Math.max(...congressNumbers) : null;
+
+  const policyAreaHref = (area: string) =>
+    newestCongress !== null && selectedCongress === newestCongress
+      ? `/bills/topic/${topicSlug(area)}`
+      : `/bills?congress=${selectedCongress}&policyArea=${encodeURIComponent(area)}`;
 
   const handleDrillDown = (filterType: string, filterValue: string | number) => {
     // Single chokepoint for every dashboard stat/chart click that drills into /bills.
@@ -331,7 +353,10 @@ function DashboardInner({
             {congressDashboard && (
               <PolicyAreaList
                 data={congressDashboard.topPolicyAreas}
-                onItemClick={(area) => handleDrillDown('policyArea', area)}
+                hrefFor={policyAreaHref}
+                onItemClick={(area) =>
+                  analytics.dashboardDrilldownClicked('policyArea', area, selectedCongress)
+                }
               />
             )}
           </div>
@@ -638,10 +663,12 @@ function StatusBar({ data, totalBills, onSegmentClick }: StatusBarProps) {
 
 interface PolicyAreaListProps {
   data: Array<{ name: string; count: number }>;
+  /** Real destination, so these rows are crawlable links and not scripted jumps. */
+  hrefFor: (area: string) => string;
   onItemClick: (area: string) => void;
 }
 
-function PolicyAreaList({ data, onItemClick }: PolicyAreaListProps) {
+function PolicyAreaList({ data, hrefFor, onItemClick }: PolicyAreaListProps) {
   if (!data || data.length === 0) {
     return <p className="text-sm text-muted-foreground">No policy area data available.</p>;
   }
@@ -653,9 +680,10 @@ function PolicyAreaList({ data, onItemClick }: PolicyAreaListProps) {
         const w = (item.count / max) * 100;
         return (
           <li key={item.name}>
-            <button
+            <Link
+              href={hrefFor(item.name)}
               onClick={() => onItemClick(item.name)}
-              className="w-full text-left group"
+              className="block w-full text-left group"
             >
               <div className="flex items-baseline justify-between gap-3 mb-1">
                 <span className="text-sm text-foreground group-hover:underline underline-offset-2 decoration-border truncate">
@@ -671,7 +699,7 @@ function PolicyAreaList({ data, onItemClick }: PolicyAreaListProps) {
                   style={{ width: `${w}%` }}
                 />
               </div>
-            </button>
+            </Link>
           </li>
         );
       })}

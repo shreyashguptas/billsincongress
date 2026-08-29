@@ -106,7 +106,7 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `components/dashboard/DashboardClient.tsx` |
-| `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into /bills (status bar, policy area, sponsor, state, metric) | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` |
+| `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into the bills data (status bar, policy area, sponsor, state, metric). Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` |
 | `bills_filters_cleared` | User clicks "Clear all" filters | — | `app/bills/bills-client.tsx` |
 | `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `title_query` | `app/bills/bills-client.tsx` |

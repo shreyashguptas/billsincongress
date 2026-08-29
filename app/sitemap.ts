@@ -34,9 +34,12 @@ export default async function sitemap(props: {
       { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1 },
       { url: `${SITE_URL}/bills`, changeFrequency: 'daily', priority: 0.9 },
       // Hub pages sit above individual bills in the hierarchy, so they rank
-      // between /bills and a bill page. They are linked from the footer and the
-      // /bills directory too — a sitemap entry declares them, links make them
-      // discoverable, and the indexing problem needs both.
+      // between /bills and a bill page. A sitemap entry declares them, links
+      // make them discoverable, and the indexing problem needs both. The
+      // internal links are: the footer (chamber and stage only, sitewide), the
+      // browse disclosure in the /bills filter band (all 40, and the ONLY
+      // internal link to the 33 topic hubs), and the homepage policy-area list
+      // (the top 8 topics, and the only ones linked from an indexed page).
       ...ALL_HUBS.map((hub) => ({
         url: `${SITE_URL}${hub.path}`,
         changeFrequency: 'daily' as const,
