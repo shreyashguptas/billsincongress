@@ -120,6 +120,17 @@ it("names the open bill and how to read more of it", () => {
   assert.ok(block.includes("bill_summaries"));
 });
 
+it("keeps telling the model not to call a resolution a bill", () => {
+  // Landed on main as its own fix while this branch was in flight, and the
+  // block it lived in was rewritten here. Asserting it survives the move is
+  // cheaper than rediscovering the bug.
+  const block = renderContextBlock({ route: "bill", billId: "1234hres119" });
+  assert.ok(block.includes("Never call a resolution a bill."));
+  assert.ok(block.includes("H.Res. and S.Res. are resolutions"));
+  // ...and the sentence above it must not presume "bill" either.
+  assert.ok(!block.includes("has bill 1234hres119 open"));
+});
+
 it("passes on the Congress the reader actually has selected", () => {
   // Every catalog fetch defaults to the 119th, so this line is what stops a
   // reader studying the 117th being answered about a different Congress.

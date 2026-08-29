@@ -11,6 +11,7 @@
 import assert from "node:assert/strict";
 import {
   ALL_BILL_TYPES,
+  billNoun,
   HOUSE_BILL_TYPES,
   SENATE_BILL_TYPES,
   chamberBounds,
@@ -137,6 +138,38 @@ it("excludes neighbouring keys that are not bill types", () => {
   assert.ok(!withinBounds("t", senate));
   assert.ok(!withinBounds("g", house));
   assert.ok(!withinBounds("r", senate));
+});
+
+// The word the assistant uses for a piece of legislation. An H.Res. is not a
+// bill, and the chat sits beside page prose that already says so.
+
+it("billNoun names every type Congress issues", () => {
+  assert.equal(billNoun("hr"), "bill");
+  assert.equal(billNoun("s"), "bill");
+  assert.equal(billNoun("hres"), "resolution");
+  assert.equal(billNoun("sres"), "resolution");
+  assert.equal(billNoun("hjres"), "joint resolution");
+  assert.equal(billNoun("sjres"), "joint resolution");
+  assert.equal(billNoun("hconres"), "concurrent resolution");
+  assert.equal(billNoun("sconres"), "concurrent resolution");
+});
+
+it("billNoun covers every type in ALL_BILL_TYPES", () => {
+  // Guards the pairing: a type added to the list without a noun would silently
+  // fall through to "bill", which is the exact defect this function exists to
+  // prevent. Only hr and s may answer "bill".
+  for (const t of ALL_BILL_TYPES) {
+    const noun = billNoun(t);
+    if (t === "hr" || t === "s") assert.equal(noun, "bill", t);
+    else assert.ok(noun.endsWith("resolution"), `${t} -> ${noun}`);
+  }
+});
+
+it("billNoun is case-insensitive and falls back safely", () => {
+  assert.equal(billNoun("HRES"), "resolution");
+  assert.equal(billNoun("SJRes"), "joint resolution");
+  assert.equal(billNoun(""), "bill");
+  assert.equal(billNoun("nonsense"), "bill");
 });
 
 if (failures.length > 0) {

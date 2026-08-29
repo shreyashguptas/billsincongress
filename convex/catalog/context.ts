@@ -82,6 +82,16 @@ export function sanitizeLabel(raw: unknown): string {
   return flat.slice(0, MAX_LABEL_CHARS);
 }
 
+/**
+ * Roughly half of what Congress files is not a bill, and the assistant used to
+ * call all of it one. Kept as its own constant so it is obvious that removing
+ * it re-opens a fixed bug rather than trimming a long prompt.
+ */
+const NAME_IT_CORRECTLY =
+  "Call it what it actually is: H.R. and S. are bills, H.Res. and S.Res. are resolutions, " +
+  "H.J.Res. and S.J.Res. are joint resolutions, H.Con.Res. and S.Con.Res. are concurrent " +
+  "resolutions. Never call a resolution a bill.";
+
 /** What each route is, in the model's own terms. Constants, never client text. */
 const ROUTE_SENTENCE: Record<AskRoute, string> = {
   home: "The reader is on the home dashboard: totals for one Congress, how far bills have got, the biggest policy areas and the busiest sponsors.",
@@ -102,10 +112,11 @@ export function renderContextBlock(ctx: PageContext | null, scopeLabel?: unknown
 
   if (ctx?.billId) {
     lines.push(
-      `The reader has bill ${ctx.billId} open. "this bill", "it" and "this" mean that one. ` +
-        `Its row is already in the context above, so do not look it up again. ` +
-        `For its timeline call bill_actions with {"billId":"${ctx.billId}"}; ` +
+      `The reader has ${ctx.billId} open. "this bill", "this resolution" or a bare "it" ` +
+        `refers to that one. Its row is already in the context above, so do not look it up ` +
+        `again. For its timeline call bill_actions with {"billId":"${ctx.billId}"}; ` +
         `for the official summary call bill_summaries with the same.`,
+      NAME_IT_CORRECTLY,
     );
   } else if (ctx && ROUTE_SENTENCE[ctx.route]) {
     lines.push(ROUTE_SENTENCE[ctx.route]);

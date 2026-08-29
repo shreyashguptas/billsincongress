@@ -51,3 +51,23 @@ export function chamberBounds(chamber: Chamber): ChamberBounds {
         upper: { key: "t", inclusive: false },
       };
 }
+
+/**
+ * What to call a piece of legislation in prose a reader will see.
+ *
+ * An H.Res. is not a bill. The site says so correctly on the page itself, so
+ * the assistant answering questions beside that page has to agree with it —
+ * otherwise the prose and the chat contradict each other on the same screen.
+ *
+ * This repeats legislationTypeLabel() in lib/seo.ts, which the pages use,
+ * rather than importing it: Convex bundles convex/ by relative path, and
+ * lib/seo.ts resolves its own imports through the "@/" alias. Both are covered
+ * by tests, and the underlying mapping is fixed by Congress, not by us.
+ */
+export function billNoun(billType: string): string {
+  const type = billType.toLowerCase();
+  if (type === "hjres" || type === "sjres") return "joint resolution";
+  if (type === "hconres" || type === "sconres") return "concurrent resolution";
+  if (type === "hres" || type === "sres") return "resolution";
+  return "bill";
+}
