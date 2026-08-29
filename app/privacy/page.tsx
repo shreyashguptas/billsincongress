@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'August 26, 2026';
+const LAST_UPDATED = 'August 29, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -66,6 +66,12 @@ export default function PrivacyPage() {
                 find confusing design and bugs.
               </p>
               <p>
+                One thing you type is included in that analytics data: when a
+                search of the bills list returns no results, we record the text
+                you searched for, so we can see what people expect to find and
+                cannot. Your other filter choices are not recorded.
+              </p>
+              <p>
                 Your IP address is processed by our hosting provider
                 (Cloudflare) to deliver the site and protect it from abuse, and
                 by our analytics provider to estimate an approximate, city-level
@@ -98,8 +104,12 @@ export default function PrivacyPage() {
               </p>
               <p>
                 If you are not signed in, your conversation is never stored on
-                our servers at all — it lives in your browser and disappears
-                when you close the tab.
+                our servers — it lives in your browser and disappears when you
+                close the tab. To be exact: each question is sent to our server
+                along with the conversation so far, so the assistant can follow
+                the thread, but none of it is written to our database. The table
+                that holds saved conversations requires an account, so an
+                anonymous one cannot be recorded even by mistake.
               </p>
               <p>
                 If our own records cannot answer your question, the assistant
@@ -242,8 +252,9 @@ export default function PrivacyPage() {
               <p>
                 You can read everything on this site without an account. You
                 can block or clear cookies at any time — the site keeps working
-                (you would be signed out, and analytics simply stops). You can
-                change your password through the password-reset flow.
+                (you would be signed out, and analytics simply stops). Self-serve
+                password reset is not built yet; email us and we will reset it
+                for you.
               </p>
               <p>
                 To delete your account — along with your saved bills and chat

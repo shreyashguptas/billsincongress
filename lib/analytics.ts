@@ -227,8 +227,11 @@ export const analytics = {
 
   // Grounded answers
   //
-  // `surface` says where the question was asked from ('bill', 'home', 'panel',
-  // 'list'), so one funnel covers every place the answer thread is mounted.
+  // `surface` says where the question was asked from, so one funnel covers every
+  // place the answer thread is mounted. `surfaceFor()` in answer-provider.tsx
+  // emits exactly four values — 'home', 'bill', 'filtered' and 'other' — plus
+  // 'panel' on the panel-scoped events. There is no 'list' surface; it was in an
+  // early draft and never shipped.
 
   answerQuestionSubmitted: (props: {
     surface: string;

@@ -19,7 +19,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 
 /** Lower only when deliberately deleting a test. Adding one needs no change. */
-const MIN_TEST_FILES = 24;
+const MIN_TEST_FILES = 25;
 
 /** Guards that assert repo-wide invariants rather than testing one module. */
 const GUARDS = [

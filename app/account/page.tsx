@@ -118,8 +118,8 @@ function AccountInner() {
             </div>
             {!verified && (
               <p className="text-xs text-muted-foreground">
-                Verify your email before upgrading to Pro. Check your inbox for a 6-digit code, or
-                sign out and sign in again to receive a new one.
+                Check your inbox for a 6-digit code to verify this address, or sign out and
+                sign in again to receive a new one.
               </p>
             )}
           </CardContent>
@@ -132,7 +132,12 @@ function AccountInner() {
           <CardContent className="space-y-4 text-sm">
             <div>
               <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
-              <p className="text-xl font-serif">{user.plan === "pro" ? "Pro" : "Free"}</p>
+              <p className="text-xl font-serif">Free</p>
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                Bills.Congress is free and has no paid tier. Your account saves bills and
+                conversations and raises your daily question allowance — nothing here is
+                billed, and we collect no payment details.
+              </p>
             </div>
           </CardContent>
         </Card>

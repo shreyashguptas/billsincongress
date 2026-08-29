@@ -50,7 +50,7 @@ it("rejects a stage that is not a real stage code", () => {
 });
 
 it("accepts every real stage code", () => {
-  for (const stage of [20, 40, 60, 80, 90, 95, 100]) {
+  for (const stage of [20, 40, 60, 80, 85, 90, 95, 100]) {
     assert.equal(validateFilters("bills", { progressStage: stage }).ok, true, `stage ${stage}`);
   }
 });
