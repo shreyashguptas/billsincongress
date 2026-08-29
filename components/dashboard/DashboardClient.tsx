@@ -19,7 +19,7 @@ import {
   formatCongressYearsShort,
 } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
-import { topicSlug } from '@/lib/hubs';
+import { hubByPath, topicSlug } from '@/lib/hubs';
 
 export type InitialDashboardData = {
   allCongress: FunctionReturnType<typeof api.bills.getAllCongressOverview>;
@@ -168,14 +168,23 @@ function DashboardInner({
    * For any older Congress it stays a filtered /bills URL, because hub pages
    * always show the latest Congress — sending a reader looking at the 117th to
    * a page of 119th bills would silently answer a different question.
+   *
+   * The href is also only used if it resolves to a hub we actually build. These
+   * names come from live Congress.gov data, and an unknown topic slug is a hard
+   * 404 (see app/bills/topic/[slug]/page.tsx). Today the two lists match
+   * exactly, but if Congress ever adds a 34th policy area, this falls back to
+   * the filtered URL — which still works — instead of putting a dead link on
+   * the one page search engines index.
    */
   const newestCongress =
     congressNumbers.length > 0 ? Math.max(...congressNumbers) : null;
 
-  const policyAreaHref = (area: string) =>
-    newestCongress !== null && selectedCongress === newestCongress
-      ? `/bills/topic/${topicSlug(area)}`
-      : `/bills?congress=${selectedCongress}&policyArea=${encodeURIComponent(area)}`;
+  const policyAreaHref = (area: string) => {
+    const filtered = `/bills?congress=${selectedCongress}&policyArea=${encodeURIComponent(area)}`;
+    if (newestCongress === null || selectedCongress !== newestCongress) return filtered;
+    const hubPath = `/bills/topic/${topicSlug(area)}`;
+    return hubByPath(hubPath) ? hubPath : filtered;
+  };
 
   const handleDrillDown = (filterType: string, filterValue: string | number) => {
     // Single chokepoint for every dashboard stat/chart click that drills into /bills.
