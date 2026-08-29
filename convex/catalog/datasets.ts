@@ -35,6 +35,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "latestActionDate", type: "string", meaning: "ISO date of the most recent action." },
     ],
     filters: [
+      { name: "billId", type: "string", allowed: "One exact bill, by id. The fastest way to fetch a named bill.", example: "1234hr119" },
       { name: "congress", type: "number", allowed: "A Congress number.", example: "119" },
       { name: "titleFilter", type: "string", allowed: "Words to match in the TITLE only.", example: "veterans housing" },
       { name: "policyArea", type: "string", allowed: "Use the `topics` dataset to find exact names.", example: "Health" },
@@ -46,7 +47,8 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "billNumber", type: "string", allowed: "Number within its type.", example: "1234" },
     ],
     gotchas: [
-      "progressStage is a STAGE CODE, one of 20/40/60/80/90/95/100. It is NOT a percentage and NOT a probability of passing. 20=introduced, 40=in committee, 60=passed one chamber, 80=passed both, 90=to president, 95=signed, 100=became law.",
+      "When you already know a bill's id — because the reader has it open, or a previous result gave it to you — fetch it with {\"billId\": \"...\"} rather than decomposing it into congress, billType and billNumber. It is one exact lookup instead of a scan.",
+      "progressStage is a STAGE CODE, one of 20/40/60/80/85/90/95/100. It is NOT a percentage and NOT a probability of passing. 20=introduced, 40=in committee, 60=passed one chamber, 80=passed both, 85=vetoed, 90=to president, 95=signed, 100=became law.",
       "We store only the PRIMARY sponsor. Co-sponsors are not in our data at all — never state or imply how many co-sponsors a bill has.",
       "titleFilter searches BILL TITLES ONLY, never the text of the bill. A bill about a subject whose title does not mention it will not be found this way. Prefer policyArea for subject questions.",
       "policyAreaName is ONE policy area per bill. Bills also carry a much richer list of legislative subjects, which this dataset does not expose.",
@@ -66,6 +68,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       '{ "congress": 119, "policyArea": "Health", "progressStage": 40 }',
       '{ "congress": 119, "sponsorState": "MD" }',
       '{ "congress": 119, "billType": "hr", "billNumber": "1" }',
+      '{ "billId": "1234hr119" }',
     ],
   },
 

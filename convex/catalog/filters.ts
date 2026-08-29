@@ -12,7 +12,17 @@
 import { DATASETS } from "./datasets";
 import type { DatasetName } from "./types";
 
-export const VALID_STAGES = [20, 40, 60, 80, 90, 95, 100];
+/**
+ * Mirrored by CATALOG_STAGES in `lib/answer-scope.ts`, which builds the scopes
+ * that arrive here; `lib/answer-scope.test.ts` asserts the two lists match.
+ *
+ * 85 (vetoed) was missing, and the bills list has a "Vetoed" filter — see
+ * `lib/constants/filters.ts` — so "Ask about these" on a vetoed list built a
+ * scope this function rejected. The rejection is silent to the reader: the
+ * answer still arrived, about every bill in the Congress, under a heading
+ * promising otherwise.
+ */
+export const VALID_STAGES = [20, 40, 60, 80, 85, 90, 95, 100];
 const VALID_CHAMBERS = ["house", "senate"];
 /** Datasets whose handler cannot run without a specific row identified. */
 const REQUIRED: Partial<Record<DatasetName, string[]>> = {

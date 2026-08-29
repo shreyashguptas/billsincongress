@@ -12,6 +12,7 @@ import { rateLimiter } from "./rateLimits";
 import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "./catalog/tools";
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
+import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import type { Id } from "./_generated/dataModel";
 
@@ -222,11 +223,30 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
     .filter((s: WebSource) => s.url !== "");
 }
 
+/**
+ * Read what the reader has open, from whichever field carries it.
+ *
+ * `focusBillId` is the older channel and is still honoured. Convex deploys are
+ * manual and separate from the site's, so for one release either half may be
+ * the older one — and neither ordering may cost a reader their context. Delete
+ * the fallback once both halves have shipped.
+ *
+ * Nothing here trusts the caller: `/answer/stream` is publicly addressable, so
+ * every field goes through `parsePageContext` regardless of which route it
+ * arrived on.
+ */
+function readContext(raw: unknown, legacyBillId: unknown): PageContext | null {
+  const parsed = parsePageContext(raw);
+  if (parsed) return parsed;
+  if (typeof legacyBillId !== "string") return null;
+  return parsePageContext({ route: "bill", billId: legacyBillId });
+}
+
 async function runLoop(
   ctx: ActionCtx,
   opts: {
     question: string;
-    focusBillId?: string;
+    pageContext?: PageContext | null;
     history: Array<{ role: "user" | "assistant"; content: string }>;
     apiKey: string;
     scope?: AnswerScope;
@@ -249,63 +269,99 @@ async function runLoop(
     {
       role: "system",
       content: buildSystemPrompt({
-        focusBillId: opts.focusBillId,
+        pageContext: opts.pageContext,
         scopeLabel: opts.scope?.label,
       }),
     },
     ...capHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
   ];
 
+  /**
+   * Hand the model ROWS for something it already knows the reader is looking
+   * at, as a tool result it appears to have fetched itself.
+   *
+   * The rows arrive carrying their `_cite` handles, which is the whole point:
+   * describing the reader's context in prose would give the model facts it
+   * cannot cite, and `cite.ts` deletes citations for handles that were never
+   * issued — so the reader would get a confident sentence with nothing behind
+   * it, on the one site whose entire promise is provenance.
+   */
+  const seed = async (
+    callId: string,
+    dataset: string,
+    filters: Record<string, unknown>,
+    detail: (count: number) => string,
+  ) => {
+    const seeded = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
+      name: dataset,
+      filters,
+    });
+    if (!seeded.ok) return;
+
+    for (const row of seeded.rows) {
+      if (typeof row._cite !== "string") continue;
+      allowed.add(row._cite);
+      if (dataset === "bills") {
+        display.set(row._cite, {
+          label: row.label,
+          title: row.title,
+          sponsor: row.sponsor,
+          sponsorParty: row.sponsorParty,
+          progressStage: row.progressStage,
+        });
+      }
+    }
+
+    messages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: callId,
+          type: "function",
+          function: {
+            name: "fetch_dataset",
+            arguments: JSON.stringify({ name: dataset, filters }),
+          },
+        },
+      ],
+    });
+    messages.push({
+      role: "tool",
+      tool_call_id: callId,
+      content: JSON.stringify({
+        rows: seeded.rows,
+        truncated: seeded.truncated,
+        total_matching: seeded.count,
+        ...(seeded.countIsLowerBound ? { total_is_at_least: true } : {}),
+      }),
+    });
+    note({ tool: "fetch", detail: detail(seeded.count) });
+  };
+
+  // The bill the reader has open (spec §6.4). Seeded rather than described, so
+  // the answer can say what the bill IS — title, sponsor, where it has got to —
+  // and cite it, without spending a tool round trip discovering a bill we
+  // already knew the id of.
+  if (opts.pageContext?.billId) {
+    await seed(
+      "focus_0",
+      "bills",
+      { billId: opts.pageContext.billId },
+      () => `the bill on screen · ${opts.pageContext!.billId}`,
+    );
+  }
+
   // Pre-applied scope (spec §6.3): hand the model the ROWS, not a sentence
   // describing them — describing invites it to re-derive a different set.
   if (opts.scope) {
-    const seeded = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
-      name: opts.scope.dataset,
-      filters: opts.scope.filters,
-    });
-    if (seeded.ok) {
-      for (const row of seeded.rows) {
-        if (typeof row._cite !== "string") continue;
-        allowed.add(row._cite);
-        if (opts.scope.dataset === "bills") {
-          display.set(row._cite, {
-            label: row.label,
-            title: row.title,
-            sponsor: row.sponsor,
-            sponsorParty: row.sponsorParty,
-            progressStage: row.progressStage,
-          });
-        }
-      }
-      messages.push({
-        role: "assistant",
-        content: null,
-        tool_calls: [
-          {
-            id: "scope_0",
-            type: "function",
-            function: {
-              name: "fetch_dataset",
-              arguments: JSON.stringify({
-                name: opts.scope.dataset,
-                filters: opts.scope.filters,
-              }),
-            },
-          },
-        ],
-      });
-      messages.push({
-        role: "tool",
-        tool_call_id: "scope_0",
-        content: JSON.stringify({
-          rows: seeded.rows,
-          truncated: seeded.truncated,
-          total_matching: seeded.count,
-          ...(seeded.countIsLowerBound ? { total_is_at_least: true } : {}),
-        }),
-      });
-      note({ tool: "fetch", detail: `${opts.scope.label} · ${seeded.count} matches` });
-    }
+    const scope = opts.scope;
+    await seed(
+      "scope_0",
+      scope.dataset,
+      scope.filters,
+      (count) => `${scope.label} · ${count} matches`,
+    );
   }
 
   messages.push({ role: "user", content: opts.question });
@@ -451,7 +507,9 @@ async function runLoop(
 export const ask = internalAction({
   args: {
     question: v.string(),
+    /** Kept for `convex run` ergonomics; `context.billId` is the real channel. */
     focusBillId: v.optional(v.string()),
+    context: v.optional(v.any()),
     scope: v.optional(
       v.object({ dataset: v.string(), filters: v.any(), label: v.string() }),
     ),
@@ -484,7 +542,7 @@ export const ask = internalAction({
     try {
       return await runLoop(ctx, {
         question: args.question,
-        focusBillId: args.focusBillId,
+        pageContext: readContext(args.context, args.focusBillId),
         scope: args.scope as AnswerScope | undefined,
         history: args.history ?? [],
         apiKey,
@@ -554,7 +612,7 @@ export const stream = httpAction(async (ctx, request) => {
       try {
         const result = await runLoop(ctx, {
           question,
-          focusBillId: typeof body.focusBillId === "string" ? body.focusBillId : undefined,
+          pageContext: readContext(body.context, body.focusBillId),
           scope:
             body.scope && typeof body.scope.dataset === "string"
               ? (body.scope as AnswerScope)

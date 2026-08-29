@@ -10,6 +10,8 @@ import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { hubsOfKind, type HubDefinition } from '@/lib/hubs';
 import { SITE_URL } from '@/lib/seo';
 import { HubViewTracker, HubLink } from './hub-view-tracker';
+import { AskPageContext } from '@/components/answers/ask-page-context';
+import { scopeFromHub } from '@/lib/answer-scope';
 
 
 /** Bills per hub page. Larger than /bills' ten, because a hub's job is partly
@@ -144,6 +146,14 @@ export async function HubView({
       <Suspense fallback={null}>
         <HubViewTracker hubKind={hub.kind} hubPath={hub.path} billCount={total} />
       </Suspense>
+
+      {/* Hub pages carry no ask box of their own — the persistent launcher is
+          their only one — so this is what makes a question asked from here be
+          about THESE bills rather than about the whole Congress. */}
+      <AskPageContext
+        congress={congress ?? undefined}
+        scope={scopeFromHub(hub)}
+      />
 
       <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground mb-4">
         <Link href="/" className="hover:underline">Home</Link>

@@ -136,8 +136,16 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 ### Grounded answers
 
 The answer engine that replaces prompt-stuffed bill chat. `surface` names where the
-question was asked (`bill`, `home`, `panel`, `list`), so one funnel covers every place
-the thread is mounted rather than one funnel per page.
+question was asked, so one funnel covers every place the thread is mounted rather than
+one funnel per page. It is derived from the path by `surfaceFor` in `lib/page-context.ts`
+and is always one of `home`, `bill`, `filtered` or `other` — except on the two click
+events fired from inside the panel itself (`answer_source_clicked`, `answer_entity_clicked`),
+which pass the literal `panel`.
+
+> Corrected 29 Aug 2026: `surfaceFor` used to treat any single segment under `/bills/`
+> as a bill id, so the seven hub routes (`/bills/enacted`, `/bills/house`, …) reported
+> `surface: "bill"`. They now correctly report `filtered`. Readings of `bill` before that
+> date include hub traffic.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
@@ -148,7 +156,10 @@ the thread is mounted rather than one funnel per page.
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` | `components/answers/answer-thread.tsx` |
 | `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-thread.tsx` |
 | `answer_entity_clicked` | A bill card or chip inside an answer was clicked | `surface`, `entity_kind: "bill" \| "sponsor" \| "topic" \| "state"`, `position`, `entity_id` | `components/answers/entity-block.tsx` |
-| `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger` | `components/answers/answer-panel.tsx` |
+| `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger: "launcher" \| "bill_page" \| "hero" \| "starter" \| "ask" \| "manual"`, `has_conversation` | `components/answers/answer-provider.tsx` |
+| `answer_panel_closed` | The panel was dismissed, or stepped aside for a page the reader opened from it | `surface`, `reason: "manual" \| "escape" \| "swipe" \| "entity_navigation" \| "navigation"`, `turn_count`, `dwell_ms` | `components/answers/answer-provider.tsx` |
+| `answer_panel_restored` | A set-aside conversation was reopened from the launcher | `surface`, `trigger: "launcher"`, `turn_count`, `away_ms` | `components/answers/answer-provider.tsx` |
+| `answer_panel_resized` | The docked panel's width was changed by drag or keyboard | `surface`, `width_px`, `width_pct`, `viewport_width`, `method: "drag" \| "keyboard"` | `components/answers/resize-handle.tsx` |
 | `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
 | `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/history-list.tsx` |
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
@@ -251,7 +262,18 @@ These are the saved insights the project should maintain in the PostHog UI:
 9. **Where intent actually lives** — `answer_question_submitted` split by `surface`.
    The spec's bet is that `filtered` converts best per impression. If it does not,
    the ask bar is in the wrong place.
-10. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+10. **Step-aside and return rate** — `answer_entity_clicked` →
+    `answer_panel_closed (reason: entity_navigation)` → `answer_panel_restored`, split by
+    viewport width. This is the number that says whether the mobile fix worked: readers
+    used to tap a bill inside an answer and see nothing happen, because the sheet covered
+    the page it had just opened. A large first drop means the panel is not stepping aside;
+    a large second drop means readers cannot find their way back to the conversation.
+11. **Cold asks** — `answer_panel_opened` where `has_conversation` is false, split by
+    `surface`. The always-available launcher exists so that a reader on a hub page or the
+    Learn guide — pages with no ask box of their own — can ask anything at all. This
+    number was impossible to record before it, because the old pill only appeared once a
+    conversation already existed.
+12. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
 
 ---
 

@@ -15,6 +15,7 @@ import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import BillCard from '@/components/bills/bill-card';
 import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
+import { AskPageContext } from '@/components/answers/ask-page-context';
 import { scopeFromFilters } from '@/lib/answer-scope';
 import { FilterQuickAccess } from '@/components/bills/mobile-filter-bar';
 import {
@@ -560,6 +561,12 @@ export default function BillsClient({
               <ScopeAskBar
                 scope={scopeFromFilters(filterValues)}
                 count={totalBills?.count ?? bills.length}
+              />
+              {/* The same scope, published for questions TYPED into the panel —
+                  the reader is looking at these rows either way. */}
+              <AskPageContext
+                congress={Number.parseInt(filterValues.congress, 10)}
+                scope={scopeFromFilters(filterValues)}
               />
             </div>
 
