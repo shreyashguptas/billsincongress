@@ -1,8 +1,23 @@
 name: CI
 
+# No `branches:` filter. This was `branches: [main]`, which silently skipped
+# the build for any pull request based on another branch -- so a stacked pull
+# request got reviewed but never built. That turned blocking once main began
+# requiring this check: #80 could not merge and had to be reopened as #81.
+# The review workflow has never carried this filter, which is why it ran on
+# that pull request when this one did not.
 on:
   pull_request:
-    branches: [main]
+    types: [opened, synchronize, reopened]
+
+# One build per pull request. Dropping the branch filter above means more
+# pull requests reach this workflow, so superseded commits should stop paying
+# for a build nobody will read. Cancelling is safe here in a way it is not
+# for a deploy: nothing is published, so a half-finished build leaves nothing
+# behind.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   build:
