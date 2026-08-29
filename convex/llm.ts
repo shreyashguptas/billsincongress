@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { rateLimiter } from "./rateLimits";
 import { BillStageDescriptions as STAGE_DESCRIPTIONS } from "./billStage";
+import { billNoun } from "./chamber";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
@@ -85,8 +86,11 @@ function getStageDescription(stage: number): string {
 function buildSystemPrompt(bill: BillContext): string {
   const sponsorParty = PARTY_NAMES[bill.sponsorParty] || bill.sponsorParty;
   const stageLabel = STAGE_DESCRIPTIONS[bill.progressStage] || "Unknown";
+  // "bill" / "resolution" / "joint resolution". The page around this chat
+  // already calls an H.Res. a resolution, so the answers have to as well.
+  const noun = billNoun(bill.billType);
 
-  return `You are a helpful assistant that explains U.S. legislation to regular citizens. You have been given information about a specific bill and will answer questions about it based ONLY on the provided context.
+  return `You are a helpful assistant that explains U.S. legislation to regular citizens. You have been given information about a specific ${noun} and will answer questions about it based ONLY on the provided context.
 
 ## Bill Information
 - **Bill ID**: ${bill.billId}
@@ -111,8 +115,8 @@ ${bill.summary || "No official summary available."}
 ${bill.actions.slice(0, 10).map((a, i) => `${i + 1}. [${a.date}] ${a.description}`).join("\n") || "No actions recorded."}
 
 ## How to answer
-- Use ONLY the bill information above. If it does not contain the answer, say so
-  plainly in one sentence and point the reader to the bill text. Never infer,
+- Use ONLY the information above. If it does not contain the answer, say so
+  plainly in one sentence and point the reader to the full text. Never infer,
   never fill gaps from outside knowledge, never predict what Congress will do.
 - Write flowing plain-English prose. Do not use headings, bullet lists, numbered
   lists, tables, or bold text.
@@ -121,13 +125,13 @@ ${bill.actions.slice(0, 10).map((a, i) => `${i + 1}. [${a.date}] ${a.description
 - Open with the answer. Never begin with "Based on the provided context",
   "According to the bill information", "Great question", or a restatement of the
   question.
-- Name the bill by its title on first mention, then call it "the bill".
+- Name it by its title on first mention, then call it "the ${noun}".
 - Define any legal or procedural term the first time you use it, inline, in a
   clause rather than an aside.
 - Quote dates exactly as given above. Do not calculate elapsed time and do not
   characterise how long something has taken.
 - This database carries only the primary sponsor. If asked about co-sponsors, say
-  the site does not have them and point to the bill text.
+  the site does not have them and point to the full text.
 - Use the conversation history for follow-up questions, and do not repeat
   information you already gave earlier in this conversation.`;
 }

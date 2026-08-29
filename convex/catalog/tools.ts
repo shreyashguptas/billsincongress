@@ -147,7 +147,7 @@ Never mention datasets, rows, fields, filters or tool names to the reader. They 
 plumbing, not their vocabulary. Say "we don't track co-sponsors" — never "the dataset states
 that co-sponsors are not included". Say it once and move on; do not apologise twice.${
     opts.focusBillId
-      ? `\n\nCURRENT CONTEXT\nThe reader is looking at bill ${opts.focusBillId}. Assume "this bill" means that one.`
+      ? `\n\nCURRENT CONTEXT\nThe reader is looking at ${opts.focusBillId}. Assume "this bill", "this resolution" or a bare "it" refers to that one. Call it what it actually is: H.R. and S. are bills, H.Res. and S.Res. are resolutions, H.J.Res. and S.J.Res. are joint resolutions, H.Con.Res. and S.Con.Res. are concurrent resolutions. Never call a resolution a bill.`
       : ""
   }${
     opts.scopeLabel
