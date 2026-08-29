@@ -11,6 +11,12 @@ export interface CongressScopeProps {
   /** Current value: a Congress number as a string, or 'all'. */
   value: string;
   onChange: (next: string) => void;
+  /**
+   * How many filters are set. Passed in rather than derived: this component
+   * deliberately sees only the Congress value, and reporting a hardcoded zero
+   * would make the metric quietly wrong rather than obviously missing.
+   */
+  activeFilterCount: number;
 }
 
 /**
@@ -37,7 +43,12 @@ export interface CongressScopeProps {
  * "All Congresses" — so opening the control wiped the filter, permanently if
  * Convex was unreachable.
  */
-export function CongressScope({ congressNumbers, value, onChange }: CongressScopeProps) {
+export function CongressScope({
+  congressNumbers,
+  value,
+  onChange,
+  activeFilterCount,
+}: CongressScopeProps) {
   const ref = useRef<HTMLDivElement>(null);
   const ordered = [...congressNumbers].sort((a, b) => b - a);
   const newest = ordered[0];
@@ -57,7 +68,7 @@ export function CongressScope({ congressNumbers, value, onChange }: CongressScop
     onChange(next);
     analytics.billsCongressScopeChanged({
       congress: String(congress),
-      active_filter_count: 0,
+      active_filter_count: activeFilterCount,
     });
   };
 

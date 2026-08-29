@@ -69,6 +69,7 @@ export function FilterBar({
               congressNumbers={congressNumbers}
               value={values.congress}
               onChange={(next) => onChange({ congress: next }, 'scope')}
+              activeFilterCount={count}
             />
           </div>
 

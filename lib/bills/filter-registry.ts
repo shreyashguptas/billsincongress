@@ -27,6 +27,7 @@
 import {
   BILL_TYPES,
   BILL_TYPE_GROUPS,
+  CHAMBER_OF_BILL_TYPE,
   CHAMBER_OPTIONS,
   DATE_OPTIONS,
   LIVE_STATUS_OPTIONS,
@@ -233,9 +234,13 @@ export const FILTERS: FilterDefinition[] = [
       for (const group of BILL_TYPE_GROUPS) {
         for (const option of group.options) {
           // Once a chamber is chosen, the other chamber's four kinds can only
-          // ever return nothing, so they are not offered.
-          if (ctx.chamber === 'house' && option.value.startsWith('s')) continue;
-          if (ctx.chamber === 'senate' && option.value.startsWith('h')) continue;
+          // ever return nothing, so they are not offered. Looked up rather than
+          // inferred from the leading letter: that happens to work today only
+          // because every House code starts with "h", which is a coincidence of
+          // naming and not a rule anyone guaranteed.
+          if (ctx.chamber !== 'all' && CHAMBER_OF_BILL_TYPE[option.value] !== ctx.chamber) {
+            continue;
+          }
           rows.push({ ...option, group: group.label });
         }
       }
