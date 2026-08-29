@@ -51,6 +51,8 @@ export interface SponsorOption {
 export interface BillsResponse {
   data: Bill[];
   hasMore: boolean;
+  /** The scan gave up before filling the page — more matches may exist unseen. */
+  truncated?: boolean;
 }
 
 export interface BillsCountResult {
@@ -164,7 +166,7 @@ export const billsService = {
 
     const client = getConvexHttpClient();
     if (!client) {
-      return { data: [], hasMore: false };
+      return { data: [], hasMore: false, truncated: false };
     }
 
     try {
@@ -190,10 +192,11 @@ export const billsService = {
       return {
         data: result.data.map(transformConvexBill),
         hasMore: result.hasMore,
+        truncated: result.truncated ?? false,
       };
     } catch (error) {
       console.error('Error fetching bills from Convex:', error);
-      return { data: [], hasMore: false };
+      return { data: [], hasMore: false, truncated: false };
     }
   },
 

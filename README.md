@@ -210,7 +210,7 @@ An account is free and gets you three things today: bookmarking bills, saved con
 Stated plainly, because they affect what you can trust:
 
 - **Coverage stops at the 117th Congress.** Anything older is not here. A bill missing from a search is not evidence it does not exist.
-- **A filtered list can show far fewer bills than it says it found.** The browse query gives up after scanning 1,200 records, so a narrow filter runs out early while the count above it reports the true total. Filtering the 119th Congress by Wyoming sponsors reports 161 bills and returns a handful. The counts are right; the lists behind them are not always complete. Search and the sitemap are the reliable ways to reach a specific bill.
+- **A filtered list can still stop short of its own count.** The browse query gives up after scanning 1,200 records, so a filter whose matches are thinly spread can run out early. Filters by state, topic and status now use an index and return everything; other combinations may not — and when that happens the page says "partial list" rather than pretending it is the whole set. Search and the sitemap are the reliable ways to reach a specific bill.
 - **Browsing is depth-capped** even without a filter — roughly 510 results on `/bills`, 500 on a browse page.
 - **Search matches titles and bill numbers only**, never the text of a bill. A bill about a subject whose title does not mention it will not turn up that way.
 - **Older Congresses are not actively refreshed.** The nightly, weekly and monthly jobs track the current Congress only; the Monday reconciliation adds bills that were never synced but does not re-check ones already stored. An upstream correction to a 2022 bill may not be picked up.

@@ -176,7 +176,7 @@ Eight bill types are pulled: `hr`, `s`, `hjres`, `sjres`, `hconres`, `sconres`, 
 | Bit | Endpoint | Paginated? |
 | ---: | --- | --- |
 | 1 | detail | n/a — the only **critical** fetch; the rest are best-effort |
-| 2 | actions | **No** — a single `limit=250` page, so a bill with more actions is stored truncated |
+| 2 | actions | Yes — 250 per page, max 8 pages (2,000 actions). It was a single unpaginated page until August 2026, which silently truncated long histories — and stage derivation reads that history |
 | 4 | subjects | Yes — 250 per page, max 20 pages |
 | 8 | summaries | n/a |
 | 16 | text versions | n/a |
@@ -285,7 +285,7 @@ Computed only from Congresses strictly earlier than the current one, bucketed by
 spent in committee (`[0,90)`, `[90,180)`, `[180,365)`, `[365+)`), and a bucket is hidden
 entirely unless backed by at least 100 past bills.
 
-### Query limits, and one user-visible consequence
+### Query limits, and how truncation is surfaced
 
 | Constant | Value | Effect |
 | --- | ---: | --- |
@@ -294,12 +294,19 @@ entirely unless backed by at least 100 past bills.
 | `MAX_LIST_SCAN` | 1,200 | The browse loop gives up after scanning 1,200 index rows |
 | `SEARCH_LIMIT` | 1,024 | Full-text search caps at 1,024 matching documents |
 
-> **Known defect.** Because the browse loop stops at `MAX_LIST_SCAN` while `listCount`
-> answers from precomputed tables, a sparse filter reports a true total but returns far fewer
-> rows and sets `hasMore: false`. `/bills?state=WY&congress=119` reports **161 bills**,
-> returns a handful, hides the "Load more" button, and still renders 17 numbered pagination
-> links — every one after the first is empty. The counts are right; the lists behind them are
-> not.
+The browse loop stops at `MAX_LIST_SCAN`, so a filter whose matches are sparse in the
+iterated index can run out before the page is filled. Two things keep that honest:
+
+- **Pick the narrowest index available.** `narrowestIndexFor` chooses between the policy-area,
+  progress-stage and sponsor-state indexes before iterating. State was the missing one:
+  `/bills?state=WY&congress=119` used to walk the whole Congress newest-first and return 2
+  rows for a filter the count query correctly reported as 161.
+- **Say so when the scan still gives up.** `list` returns `truncated: true` in that case and
+  the page prints "partial list — narrow the filters or search by title to reach the rest".
+  A short list is a fine answer; a short list presented as the whole set is not.
+
+Filters with no index of their own (bill type, date ranges, sponsor names) can still
+truncate — they now say so rather than implying completeness.
 
 Search matches **titles only** (the only search index is `search_title`), plus a separate
 exact bill-number lookup path. A query longer than the index allows is trimmed to fit
@@ -415,11 +422,10 @@ code:
 - `policyAreaBackfill.status` — *"reads several thousand documents per call, which as a public
   query would be unauthenticated read burn."*
 
-Two diagnostics escaped that rule and are still **public** queries:
-`aggregateBackfill.countsByType` and `aggregateBackfill.status`. The latter does three
-`.take(1000)` scans of the bills table per call — exactly the unauthenticated read burn cited
-above as the reason `policyAreaBackfill.status` is internal. They should probably be internal
-too.
+`aggregateBackfill.countsByType` and `aggregateBackfill.status` were public until August
+2026 — `status` does three `.take(1000)` scans per call, exactly the unauthenticated read
+burn cited above. Both are `internalQuery` now; the CLI commands in the runbook are
+unaffected because `npx convex run` calls internal functions as admin.
 
 Two automated guards enforce related rules on every `pnpm test` — see
 [Build, test and deploy](#build-test-and-deploy).
@@ -823,7 +829,7 @@ Congress, so a deleted historical Congress does not come back on its own.
 | Symptom | Likely cause |
 | --- | --- |
 | A query times out | A full table scan. Use a precomputed table or an index; `.collect()` on `bills` exceeds Convex's 16,384-document transaction limit |
-| A filtered list looks short | The 1,200-row scan cap — see [query limits](#query-limits-and-one-user-visible-consequence). Not a data problem |
+| A filtered list looks short | The 1,200-row scan cap — see [query limits](#query-limits-and-how-truncation-is-surfaced). If the page says "partial list" it is working as intended; if it does not, the filter has an index and the list is complete |
 | AI chat 404s after a deploy | The provider allowlist and the OpenRouter **account** setting no longer overlap |
 | "The answer service is not deployed yet" | The frontend shipped but Convex did not. Run `npx convex deploy` |
 | A Congress shows with 0 bills | The nightly 04:00 recompute will clean it up, or delete it manually |
@@ -879,17 +885,8 @@ Recorded so nobody rediscovers them as bugs.
 
 ### Gaps worth fixing
 
-1. **A sparse filter returns fewer rows than its own count reports** — see
-   [query limits](#query-limits-and-one-user-visible-consequence). The most user-visible
-   defect in the codebase.
-2. **`convex/catalog/filters.ts` `VALID_STAGES` omits 85 (Vetoed)**, so the answer engine is
-   *refused* if it tries to look up vetoed bills — even though a `/bills/vetoed` hub exists
-   and the data is real (13 in the 118th, 2 in the 119th). The schema comment and the dataset
-   catalog omit 85 too.
-3. **The live answer path has no server-side analytics** and does not forward the PostHog
+1. **The live answer path has no server-side analytics** and does not forward the PostHog
    identity headers, so a failure before the browser sees a response is invisible.
-4. **Actions are fetched as a single 250-item page** with no pagination loop, unlike subjects
-   — a bill with more actions is stored truncated, and stage derivation reads that truncation.
-5. **The three manual AI probe scripts have drifted**: two default `OPENROUTER_PROVIDERS` to
+2. **The three manual AI probe scripts have drifted**: two default `OPENROUTER_PROVIDERS` to
     `deepinfra` alone while the shipped default is `deepinfra,amazon-bedrock` — so they can
     bless a configuration that is not what production runs.
