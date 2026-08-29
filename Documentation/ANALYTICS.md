@@ -39,23 +39,53 @@ should not exist in the code — and if it's in this file, it must exist in the 
    `bill_viewed`, `signup_completed`, `bills_filters_applied`. Properties are
    `snake_case` too. Don't invent new naming styles.
 
-6. **No personal data in event properties.** Email/name only go on the **person profile**
-   via `identify()`, never on individual events.
+6. **No identity data in event properties.** Email, name and account id go on the
+   **person profile** via `identify()`, never on individual events.
+   Reader-typed free text does reach event properties today, deliberately, because knowing
+   what people ask and what they searched for and did not find is the point of collecting it:
+   `answer_question_submitted.question` (the whole question), `bills_no_results.title_query`
+   (the raw search box), and — less obviously — `answer_question_submitted.scope_label` and
+   `answer_starter_clicked.starter_text`, both of which interpolate the reader's typed title
+   search into a label. Only the AI question is currently disclosed in the Privacy Policy
+   (`app/privacy/page.tsx`, §3); **the search-box paths are not disclosed and should be.**
+   Adding another free-text property is a privacy decision, not a routine one: raise it
+   explicitly and update the Privacy Policy in the same change.
 
 ---
 
 ## What PostHog captures automatically (no code needed)
 
-These are enabled by `posthog.init` config in `instrumentation-client.ts`:
+**Only one of these is configured in code.** `instrumentation-client.ts` sets exactly six
+keys — `api_host`, `ui_host`, `defaults: '2026-01-30'`, `capture_exceptions: true`,
+`debug`, and `before_send`. Everything else in the table below comes from the
+`defaults: '2026-01-30'` preset plus **PostHog project settings** (remote config), which
+means it can be changed by someone in the PostHog UI with no commit here. There is no
+`session_recording`, `autocapture`, `enable_heatmaps` or masking key anywhere in this
+repository.
 
-| Capture | What it gives us |
-|---|---|
-| `$pageview` / `$pageleave` | Every page visited, time on page, exit pages, full URL, referrer |
-| `$autocapture` | Every click on links/buttons/inputs across the whole site (incl. nav, footer, Learn/About CTAs) |
-| Session replay | Video-style recordings of real sessions, console logs, network perf |
-| Web vitals | LCP, CLS, FCP, INP per page |
-| `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below |
-| Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) |
+| Capture | What it gives us | Turned on by |
+|---|---|---|
+| `$pageview` / `$pageleave` | Every page visited, time on page, exit pages, full URL, referrer | `defaults` preset |
+| `$autocapture` | Every click on links/buttons/inputs across the whole site (incl. nav, footer, Learn/About CTAs) | `defaults` preset + project setting `autocapture_opt_out: null` |
+| Session replay | Video-style recordings of real sessions, console logs, network perf | Project setting `session_recording_opt_in: true` |
+| Web vitals | LCP, CLS, FCP, INP per page | Project setting `autocapture_web_vitals_opt_in: true` |
+| `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle) |
+| Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) | Project setting `heatmaps_opt_in: true` |
+| `$rageclick` | Repeated frustrated clicks on the same element | `defaults` preset |
+
+Project-side settings worth knowing when reading this data, because none of them are
+visible in the repo:
+
+| Setting | Value | Consequence |
+|---|---|---|
+| `session_recording_masking_config` | `null` | No masking is configured here — replays fall back to posthog-js defaults, which **mask the value of every input** (the ask box, the auth forms) but do **not** mask ordinary on-page text. So a question is hidden while it is being typed and visible again the moment the transcript renders it back as text. Text masking, not input masking, is what is missing. |
+| `session_recording_retention_period` | `30d` | Replays are deleted after 30 days; older sessions cannot be reviewed. |
+| `session_recording_sample_rate` | `null` | Every session is recorded, not a sample. |
+| `capture_console_log_opt_in` | `true` | Console output is captured inside replays. |
+| `anonymize_ips` | `false` | IPs reach PostHog and are used for city-level geo. |
+| `event_retention_months` | `84` | Retention is *configured* at 84 months, but enforcement is off on this project, so no product event has actually been deleted yet. |
+| `capture_dead_clicks` | `false` | No `$dead_click` events. |
+| `test_account_filters` | person not in cohort `341621` | The "internal users" filter in the UI relies on this cohort. |
 
 > **`$exception` is filtered before it is sent.** Since 26 Aug 2026,
 > `instrumentation-client.ts` passes a `before_send` hook that drops exceptions
@@ -76,10 +106,13 @@ These are enabled by `posthog.init` config in `instrumentation-client.ts`:
 > product event in the tables below is sent exactly as it was.
 
 Server-rendered pages with no interactivity (the About page and the legal pages — `/terms`,
-`/privacy`) intentionally have **no custom
-code** — their CTA clicks are captured by autocapture and tagged with
-`data-ph-capture-attribute-*` HTML attributes so they can be filtered in PostHog. The Learn
-page is interactive (civics guide) and fires its own custom events — see "Learn page" below.
+`/privacy`) intentionally have **no custom code** — their clicks are covered by autocapture.
+Four CTAs carry a `data-ph-capture-attribute-*` tag so they can be filtered by name in
+PostHog: `about-github` and `about-browse-bills` (`app/about/page.tsx`),
+`learn-browse-bills` (`app/learn/page.tsx`) and `home-browse-bills`
+(`components/dashboard/DashboardClient.tsx`). The legal pages carry **no** such tags —
+they have no analytics markup of any kind. The Learn page is interactive (civics guide)
+and fires its own custom events — see "Learn page" below.
 
 ---
 
@@ -124,8 +157,8 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 | `bill_pdf_opened` | User clicks "Read full text (PDF)" | `bill_id` | `components/bills/bill-details.tsx` |
 | `bill_save_toggled` | Signed-in user saves or unsaves a bill on the detail page | `bill_id`, `action: "saved" \| "unsaved"`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/save-bill-button.tsx` |
 | `bill_save_signin_redirected` | Signed-out user clicked Save and was sent to sign-in (conversion moment) | `bill_id` | `components/bills/save-bill-button.tsx` |
-| `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
-| `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx` |
+| `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx`, now rendered only from `components/answers/answer-panel.tsx` |
+| `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx`, same render site |
 
 > **Reading `has_summary`.** It means "Congress has published a CRS summary for
 > this bill" — nothing more. Since 18 Aug 2026 every bill page also renders an
@@ -136,19 +169,26 @@ page is interactive (civics guide) and fires its own custom events — see "Lear
 ### Grounded answers
 
 The answer engine that replaces prompt-stuffed bill chat. `surface` names where the
-question was asked (`bill`, `home`, `panel`, `list`), so one funnel covers every place
-the thread is mounted rather than one funnel per page.
+question was asked, so one funnel covers every place the thread is mounted rather than
+one funnel per page. `surfaceFor()` in `components/answers/answer-provider.tsx` emits
+exactly four values — **`home`** (path `/`), **`bill`** (`/bills/<id>`), **`filtered`**
+(any other `/bills…` path, and any scoped ask) and **`other`** (everywhere else).
+**`panel`** is a fifth value used only by the panel-scoped events
+(`answer_panel_opened`, `answer_source_clicked`, `answer_entity_clicked`). No code path
+emits `list`. The stale `list` value is still written down in the `surface` type comment in
+`lib/analytics.ts`, which also omits `filtered` and `other` — fix that comment when you next
+touch the file.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-thread.tsx` |
-| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial` | `components/answers/answer-thread.tsx` |
-| `answer_failed` | Request errored (not rate limit) | `surface`, `error` | `components/answers/answer-thread.tsx` |
+| `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-provider.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial` | `components/answers/answer-provider.tsx` |
+| `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of the server's message, `"stream_incomplete"`, `"network_error"` | `components/answers/answer-provider.tsx` |
 | `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
-| `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` | `components/answers/answer-thread.tsx` |
-| `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-thread.tsx` |
+| `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |
+| `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-provider.tsx` |
 | `answer_entity_clicked` | A bill card or chip inside an answer was clicked | `surface`, `entity_kind: "bill" \| "sponsor" \| "topic" \| "state"`, `position`, `entity_id` | `components/answers/entity-block.tsx` |
-| `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger` | `components/answers/answer-panel.tsx` |
+| `answer_panel_opened` | The persistent ask panel was opened | `surface` (always `"panel"`), `trigger` — only `"resume_pill"` and `"bill_page"` are reachable; opening the panel by asking does not fire this | `components/answers/answer-provider.tsx` |
 | `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
 | `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/history-list.tsx` |
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
@@ -188,15 +228,24 @@ property exists to settle, with data, which placements earn their spot.
 |---|---|---|---|
 | `podcast_promo_clicked` | User clicks "Listen on Spotify" / "Listen on Apple Podcasts" in any podcast promo | `placement: "home" \| "learn" \| "bill"`, `platform: "spotify" \| "apple"`, `bill_id` (bill pages only) | `components/podcast-promo.tsx` (rendered by `components/dashboard/DashboardClient.tsx`, `app/learn/page.tsx`, `components/bills/bill-details.tsx`) |
 
-### Server-side events (source of truth)
+### Server-side events
 
-Captured with `posthog-node` from API routes, tied to the same person via the
-`X-PostHog-Distinct-Id` / `X-PostHog-Session-Id` headers sent by the browser.
+Captured with `posthog-node` (`lib/posthog-server.ts`) from API routes, tied to the same
+person via the `X-PostHog-Distinct-Id` / `X-PostHog-Session-Id` headers sent by the browser.
 
-| Event | Fired when | Properties | Where (file) |
-|---|---|---|---|
-| `bill_chat_message_processed` | Server finished handling a chat message (success, error, or rate-limit) — the billable/costly action | `bill_id`, `success`, `rate_limited`, `user_type`, `question_length` | `app/api/bill-chat/send/route.ts` |
-| `$exception` (server) | An API route threw | error details | `app/api/bill-chat/send/route.ts`, `app/api/bill-chat/usage/route.ts` |
+| Event | Fired when | Properties | Where (file) | Status |
+|---|---|---|---|---|
+| `bill_chat_message_processed` | Server finished handling a per-bill chat message | `bill_id`, `success`, `rate_limited`, `user_type`, `question_length` | `app/api/bill-chat/send/route.ts` | **Dead.** The route is still deployed and publicly callable, but its only client (`billsService.sendChatMessage`) has no call site anywhere in the app. Last event 27 Aug 2026. |
+| `$exception` (server) | An API route threw | error details | `app/api/bill-chat/send/route.ts` (dead), `app/api/bill-chat/usage/route.ts` (live, called by `app/account/page.tsx`) | Partly live |
+
+> **The live answer path has no server-side instrumentation at all.**
+> `app/api/answer/route.ts` imports nothing from `lib/posthog-server.ts`, and the
+> browser's `fetch('/api/answer')` does not send the PostHog identity headers, so a
+> server event added there today would not attach to the browser's person or session.
+> Everything we know about answers comes from the client events above — which means a
+> question that fails before the browser sees a response is invisible. If server-side
+> truth for the costly action matters again, this is the gap to close, and it needs
+> `analytics.requestHeaders()` wired into that fetch first.
 
 ---
 
@@ -213,19 +262,40 @@ Implemented in `components/analytics/posthog-auth-sync.tsx` (mounted in `app/lay
 - When a user **signs out** we call `posthog.reset()` so the next person on the same
   device isn't mixed into their profile.
 
-**Person properties** (set on identify, updated on every page load while signed in):
+**Person properties.** The first four are `$set` (overwritten on every page load while
+signed in). `account_created_at` is `$set_once` — written the first time and never
+updated, so it stays the true account age.
 
-| Property | Meaning |
-|---|---|
-| `email` | Account email |
-| `name` | Display name (if any) |
-| `plan` | `free` or `pro` |
-| `email_verified` | Whether email verification completed |
-| `account_created_at` | Account creation timestamp |
+| Property | How | Meaning |
+|---|---|---|
+| `email` | `$set` | Account email |
+| `name` | `$set` | Display name (if any) |
+| `plan` | `$set` | `free` or `pro`. Nothing in the codebase ever sets `pro`; there is no billing. |
+| `email_verified` | `$set` | Whether email verification completed |
+| `account_created_at` | `$set_once` | Account creation timestamp (ISO string) |
+
+Google sign-in cannot be observed at click time on the return leg, so the intent is
+stashed in `sessionStorage` under `ph_pending_google_auth` when the button is clicked and
+consumed after the redirect. A returning Google user counts as a **sign-up** rather than a
+sign-in if the account is less than 10 minutes old (`FRESH_ACCOUNT_WINDOW_MS`).
 
 ---
 
-## Funnels & insights to build in PostHog (UI work, not code)
+## Funnels & insights in PostHog (UI work, not code)
+
+**26 saved insights already exist, and six are broken.** Five still query the retired
+`bill_chat_*` events and have been flat since 27 Aug 2026, when bill chat was replaced. The
+sixth is unrelated: it queries `bills_filters_applied` and has been flat since 13 Jun 2026.
+Rebuild them on the `answer_*` equivalents:
+
+| Broken insight | short_id | Still queries | Rebuild on |
+|---|---|---|---|
+| AI chat questions per day (anonymous vs signed-in) | `AhBFHb00` | `bill_chat_question_submitted` | `answer_question_submitted`, break down by `surface` |
+| Activation: sign-up → first AI question | `eYbtcY58` | `signup_completed` → `bill_chat_question_submitted` | `signup_completed` → `answer_question_submitted` |
+| Bill discovery → AI chat funnel | `qcr4jGHS` | `bill_chat_question_submitted` as the last step | `answer_question_submitted` |
+| Weekly retention: AI chat users | `V2vWhvQ3` | `bill_chat_question_submitted` | `answer_question_submitted` |
+| Rate limit → sign-up conversion | `cztOt3GV` | `bill_chat_rate_limited` | `answer_rate_limited` |
+| Bill searches & filters applied per day | `pI36FO07` | `bills_filters_applied` | Nothing yet — filter usage is uninstrumented, see "Known gap" below |
 
 These are the saved insights the project should maintain in the PostHog UI:
 
@@ -260,7 +330,7 @@ These are the saved insights the project should maintain in the PostHog UI:
 | Env var | Value | Where it lives |
 |---|---|---|
 | `NEXT_PUBLIC_POSTHOG_KEY` | The project's public API key (`phc_…`) | `.env.local` for local dev **and** a GitHub Actions repo secret for deploys |
-| `NEXT_PUBLIC_POSTHOG_HOST` | `https://t.billsincongress.com` (reverse proxy — see below) | `.env.local` for local dev **and** a GitHub Actions repo secret for deploys |
+| `NEXT_PUBLIC_POSTHOG_HOST` | `https://t.billsincongress.com` (reverse proxy — see below). Note `.env.example` ships the direct `https://us.i.posthog.com` value, and that is also the code fallback when the variable is unset — the proxy is in effect only because the GitHub Actions secret is set to it | `.env.local` for local dev **and** a GitHub Actions repo secret for deploys |
 
 - The key is a **public** client key (it ships in the JS bundle by design); it is not a secret.
 - If PostHog env vars are missing, all analytics code no-ops — the site works fine without them.
@@ -299,8 +369,33 @@ Notes:
 ### PostHog CLI
 
 `@posthog/cli` is installed as a dev dependency (`npx posthog-cli --help`).
-Used for sourcemap uploads (error tracking readability) and ad-hoc queries.
-Authenticate once with `npx posthog-cli login`.
+Authenticate once with `npx posthog-cli login`. It is used **manually only** — for ad-hoc
+queries. No `package.json` script and no GitHub workflow invokes it, so despite what an
+earlier version of this file said, **sourcemaps are not uploaded**. Stack traces in Error
+Tracking are therefore against minified production bundles. Wiring sourcemap upload into
+`cf:build` is an open improvement, not something that already happens.
+
+---
+
+## Wired in code but never observed
+
+As of 29 Aug 2026, seven of the 48 registered events have never been received once. Each
+is either a genuinely rare path or a broken one, and the difference matters — an event
+that *cannot* fire is a silent instrumentation bug, not a quiet feature.
+
+| Event | Most likely explanation |
+|---|---|
+| `signup_verification_code_resent` | Rare path — few people need to resend the code. |
+| `signup_failed` | Rare path — only fires on a failed password-rules check or a wrong code. |
+| `hub_link_clicked` | Hub pages only shipped 18 Aug 2026 and the sibling links sit far down the page. |
+| `rate_limit_signin_clicked` | Rare — few readers hit the cap and already have an account. |
+| `answer_rate_limited` | Expected to be rare while answer volume is low, but worth watching: it is the top of the rate-limit conversion funnel. |
+| `answer_thread_deleted` | Requires a signed-in reader to delete a saved conversation. |
+| `answer_anon_thread_saved` | Requires signing in mid-conversation and choosing "Keep it". |
+
+Before assuming any of these is simply rare, check it can fire at all — the answer-family
+events only started arriving on 27 Aug 2026, so this list should be re-read once the
+feature has real usage behind it.
 
 ---
 
@@ -312,7 +407,7 @@ Authenticate once with `npx posthog-cli login`.
 | `bill_chat_answer_received` | `bill_id`, `response_ms`, `answer_length` | 2026-08-26 | Replaced by `answer_received`, which adds source counts and the grounding-health `dropped` property. |
 | `bill_chat_failed` | `bill_id`, `error` | 2026-08-26 | Replaced by `answer_failed`. |
 | `bill_chat_rate_limited` | `bill_id`, `limit_kind`, `max` | 2026-08-26 | Replaced by `answer_rate_limited`. The rate-limit dialog and its two conversion events (`rate_limit_signup_clicked`, `rate_limit_signin_clicked`) are unchanged and still live. |
-| `bills_filters_applied` | `status`, `bill_type`, `congress`, `state`, `policy_area`, `introduced_date`, `last_action_date`, `title_query`, `bill_number`, `sponsor_count`, `active_filter_count` | 2026-08-12 | The "Apply filters" button it fired from was removed when the mobile filter sheet became an always-visible inline filter bar, and filters now apply as they change. The event had no call site from that commit onward, so no data has been collected since — this row only formalises a removal that already happened in the code. Historic data before then is still in PostHog. |
+| `bills_filters_applied` | `status`, `bill_type`, `congress`, `state`, `policy_area`, `introduced_date`, `last_action_date`, `title_query`, `bill_number`, `sponsor_count`, `active_filter_count` | 2026-06-13 | The "Apply filters" button it fired from was removed when the mobile filter sheet became an always-visible inline filter bar, and filters now apply as they change. The event had no call site from that commit onward, so no data has been collected since — this row only formalises a removal that already happened in the code. Historic data before then is still in PostHog. (This row previously recorded the date as 2026-08-12, which was when the removal was written down rather than when it happened; the last event actually arrived 13 Jun 2026.) |
 
 **Known gap this leaves:** filter *usage* is no longer instrumented at all, so
 there is no way to see which filters people apply (only `bills_no_results` when
