@@ -124,6 +124,12 @@ Congress?"*) and renders an `AskAbout` button. The comment in `DashboardClient.t
 the rule: this sits **alongside** the drill-down and never replaces it, because browsing and
 asking are different intents.
 
+The masthead also mounts `<AskPageContext congress={viewCongress} />` beside `HeroAsk`. Every
+catalog fetch defaults to the 119th Congress, so before this the selector and the answer engine
+disagreed silently: a reader studying the 117th here and then asking a question was answered
+about a different Congress entirely, with nothing on screen to say so. The selector's value now
+travels with the question. See [The answer engine → Page context](./overview.md#page-context).
+
 ---
 
 ## The queries
