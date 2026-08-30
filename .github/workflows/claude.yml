@@ -1,0 +1,162 @@
+name: Claude Mention
+
+# The companion to claude-code-review.yml, and deliberately a separate file.
+# That one reviews every push to a pull request, unprompted. This one answers
+# when a person asks it something directly. Same action, different trigger.
+#
+# It ANSWERS; it does not commit. Everything it works out comes back as a
+# comment on the thread you asked in — an explanation, and the actual patch
+# written out — and applying that is somebody else's job. That is a decision,
+# not a limitation: it means a mention can never quietly rewrite a branch, and
+# it is why the permissions below stop at `contents: read` and why there is no
+# Edit, no Write and no `git push` in the tool allowlist. If this ever needs to
+# start pushing commits, that is a change worth arguing for in its own pull
+# request, not a line to slip in.
+#
+# It can still run things to check itself. The repository is checked out and
+# its dependencies installed, so `pnpm test` and `tsc --noEmit` are available
+# and it is told to use them before claiming anything compiles or passes. An
+# answer that has been executed is worth more than one that has been reasoned
+# about.
+#
+# TWO THINGS THAT WILL OTHERWISE WASTE AN AFTERNOON:
+#
+# 1. This file only works once it is on the default branch. `issue_comment`
+#    always runs the workflow as it exists on `main`, never the version sitting
+#    on the pull request branch. Adding this file in a branch and then
+#    commenting `@claude` on that same branch does nothing at all, which reads
+#    exactly like the bug it is meant to fix.
+# 2. Comments posted before it merged do not retroactively fire. Workflows are
+#    matched against events as they arrive; there is no backfill. Post a fresh
+#    comment.
+#
+# The symptom that leads people here: the `claude[bot]` GitHub App leaves a 👀
+# reaction on the mention and then nothing happens. The App acknowledges being
+# mentioned; it has no way to do work without a workflow to run it in.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+# NOT `cancel-in-progress: true`, unlike ci.yml and the review workflow. Those
+# cancel freely because a superseded build or an unread review has produced
+# nothing anybody wanted. A mention is different: somebody typed it on purpose
+# and is waiting for the reply. Cancelling one because a second arrived means a
+# question silently never gets answered. Queue them instead.
+concurrency:
+  group: claude-mention-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    # The sender check is not decoration. `track_progress` below makes this job
+    # post and edit its own comments, and `issue_comment: created` does not
+    # care who created the comment — so without this guard the job's own
+    # progress comment re-triggers the job, which posts a comment, which
+    # re-triggers the job. See anthropics/claude-code-action#625.
+    #
+    # The `contains()` arms are what stop every ordinary comment on every issue
+    # in this repository from starting a paid run.
+    if: |
+      github.event.sender.type != 'Bot' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      # `read`, matching the review workflow. This job answers in comments and
+      # has no business changing the branch, so it is not given the ability to.
+      contents: read
+      # The two it does need: somewhere to put the answer. `issues` as well as
+      # `pull-requests` because a mention can arrive on either.
+      pull-requests: write
+      issues: write
+      # Same OIDC exchange the review workflow needs. The action mints its
+      # GitHub token by trading an OIDC token, so without this it fails before
+      # it reads a line: "Could not fetch an OIDC token".
+      id-token: write
+      # Lets it read this repository's own CI results, so "why is CI red" is a
+      # question it can answer by looking rather than by guessing.
+      actions: read
+    steps:
+      # Pinned to commits rather than tags throughout, matching ci.yml,
+      # deploy.yml and the review workflow. A tag is mutable, and whoever
+      # controls it controls what runs here with a token in scope.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Full history, not a shallow clone. Needed for `git log`/`git blame`
+          # context, and required outright to reason about a merge conflict: a
+          # conflicted pull request has no `refs/pull/N/merge` ref to read, so
+          # both sides have to be reachable locally.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          # MUST equal `packageManager` in package.json (pnpm@10.33.0). The
+          # action does not take the newer of the two — it throws "Multiple
+          # versions of pnpm specified" and the run dies at this step, with the
+          # cause sitting in a different file from the one anybody changed.
+          version: 10.33.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Tolerated on purpose, for the same reason as in the review workflow: an
+      # out-of-sync lockfile is the most common CI failure there is, and it
+      # should not be able to silently swallow the answer to a direct question.
+      # If installation fails the run continues, the answer just arrives
+      # without having been executed — and it is told to say so when that
+      # happens rather than quietly dropping the verification step.
+      - name: Install dependencies
+        continue-on-error: true
+        run: pnpm install --frozen-lockfile 2>&1 | tee /tmp/install-output.txt
+
+      # This is `anthropics/claude-code-action` v1, the same pin the review
+      # workflow uses. Re-resolve the tag and update both deliberately when
+      # taking a new version.
+      - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Turns the mention into a checklist comment that fills in as work
+          # proceeds, so a long run shows progress instead of looking hung.
+          # This is also what makes the bot guard above load-bearing.
+          track_progress: true
+
+          # No `prompt:` here, and that is the point of the file. Setting one
+          # would override the comment, and the comment IS the request. The
+          # action reads the mention itself.
+
+          # WHO CAN FIRE THIS, stated plainly, because the trigger looks wider
+          # than it is. The action refuses to run for anyone without write
+          # access to the repository, checked for issue, pull request, comment
+          # and review events alike — so on a public repository a passing
+          # commenter cannot start a run.
+          #
+          # The allowlist is the review workflow's read-only set, unchanged,
+          # plus the two commands that let it verify an answer before giving
+          # it. Nothing here writes to the repository.
+          #
+          # Scope matters more than the count. `Bash(pnpm:*)` is absent because
+          # it would be a shell in disguise — it permits `pnpm dlx <anything>`.
+          # `tsc` is pinned to `--noEmit` because bare `tsc` takes `--outFile`
+          # and is therefore a file writer. `find`, `sed` and `gh api` are off
+          # for the original reasons: `find -exec` runs anything, `sed -i`
+          # writes files, and `gh api` takes POST and DELETE.
+          #
+          # Residual risk, stated honestly and identical to the review
+          # workflow's: running this repository's own test script inside the
+          # action step means dependency code executes in a process holding the
+          # OAuth and app tokens, so a compromised transitive dependency could
+          # read them. `allowBuilds` in pnpm-workspace.yaml gates dependencies'
+          # build scripts, though not this repository's own lifecycle scripts.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(gh run view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*),Bash(git status:*),Bash(pnpm test:*),Bash(./node_modules/.bin/tsc --noEmit:*)"
+            --append-system-prompt "You answer in comments. You do not change this repository: you have no ability to edit files, commit or push, and that is deliberate. Whoever asked will apply your fix themselves, so your reply has to be complete enough to act on without you. Give the reasoning, then the exact change, as a fenced diff or as full replacement code with the file path and enough surrounding context to place it unambiguously. Never say you have made a change; say what change to make. Read the codebase before answering rather than reasoning from the diff alone. Read AGENTS.md, which is the house rules for this repository and names the other documents that matter; Convex rules live in convex/_generated/ai/guidelines.md and override general Convex knowledge. The branch is checked out with dependencies installed, so run pnpm test and ./node_modules/.bin/tsc --noEmit whenever a claim turns on whether something passes or compiles, and never report a check as passing without having seen it. If installation failed, read /tmp/install-output.txt and say in your reply that you could not execute anything. If a user-facing feature changes, the analytics registry named in AGENTS.md and lib/analytics.ts have to change with it, so include those edits in what you hand back. Never put a credential in a suggested change. Prefer one well-evidenced answer to five speculative ones, and say plainly when you are unsure."
+            --max-turns 120

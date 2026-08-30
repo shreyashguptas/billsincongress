@@ -755,12 +755,14 @@ may accept a `userId` argument.
 
 ### CI
 
-Two required status checks on every pull request:
+Two required status checks on every pull request, plus one workflow that only runs when
+somebody asks it to:
 
-| Workflow | Job | Steps |
-| --- | --- | --- |
-| `ci.yml` | `build` | install (frozen lockfile) → `pnpm test` → `pnpm cf:build` |
-| `claude-code-review.yml` | `review` | install → capture `pnpm test` and `tsc --noEmit` output → automated code review |
+| Workflow | Job | Trigger | Steps |
+| --- | --- | --- | --- |
+| `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `pnpm cf:build` |
+| `claude-code-review.yml` | `review` | every PR push | install → capture `pnpm test` and `tsc --noEmit` output → automated code review |
+| `claude.yml` | `claude` | an `@claude` comment | install → answer the comment in the thread |
 
 `main` is protected by a **repository ruleset** (`main`, id 21753630), not classic branch
 protection — the classic settings page will look empty. It requires a pull request (0
@@ -779,6 +781,33 @@ The reviewer's tool allowlist is deliberately read-only with two exceptions (`pn
 `tsc --noEmit`). `Bash(pnpm:*)` is refused because it would permit `pnpm dlx <anything>`;
 `tsc` is pinned to `--noEmit` because bare `tsc` accepts `--outFile` and is therefore a file
 writer.
+
+### Asking Claude a question on a PR
+
+`claude.yml` is the on-demand companion to the automatic reviewer. Mentioning `@claude` in a
+PR comment, a review comment or a review body starts a run that reads the repository, can run
+`pnpm test` and `tsc --noEmit` to check itself, and **replies in the thread**.
+
+**It answers; it does not commit.** Its permissions stop at `contents: read` and its allowlist
+contains no `Edit`, `Write` or `git push`, so a mention cannot rewrite a branch. Fixes come
+back as a diff in the comment for a person (or another tool) to apply.
+
+Three things that make it look broken when it is not:
+
+- **It only works from `main`.** `issue_comment` always runs the workflow as it exists on the
+  default branch, never the copy on the PR branch — so adding or editing this file in a branch
+  and commenting there does nothing.
+- **Comments posted before it merged never fire.** There is no backfill; post a fresh one.
+- **A 👀 reaction and then silence** is the signature of the missing workflow, not a hung run.
+  The `claude[bot]` App acknowledges the mention; without a workflow there is nothing to run
+  the work in.
+
+Only users with write access can trigger it — the action enforces that itself. It does not
+cancel in-progress runs (`cancel-in-progress: false`): a mention is something a person typed
+on purpose, so a second one queues rather than silently dropping the first. The `if:` guard
+also requires `github.event.sender.type != 'Bot'`, because `track_progress` makes the job post
+its own comments and `issue_comment` does not care who wrote them — without the guard it
+retriggers itself in a loop.
 
 ### Deploy
 
