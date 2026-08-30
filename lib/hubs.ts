@@ -88,10 +88,15 @@ const CHAMBER_HUBS: HubDefinition[] = [
 /**
  * Status hubs, restricted to stages that actually hold bills.
  *
- * Measured against production before writing this list: stages 80 (passed both
- * chambers), 90 (to President) and 95 (signed) are 0 in all three Congresses —
- * the pipeline records those transitions as "became law" instead — so pages for
- * them would be permanently empty and are deliberately absent.
+ * Measured against production (re-checked 2026-08-29): stages 90 (to President)
+ * and 95 (signed) are 0 in all three Congresses, and stage 80 (passed both
+ * chambers) holds just 2 bills, both in the 117th — the pipeline records those
+ * transitions as "became law" instead. Pages for them would be empty or
+ * near-empty, so they are deliberately absent.
+ *
+ * Note stage 85 (vetoed) IS here: it is small but real (13 in the 118th, 2 in
+ * the 119th), and a status the site can filter by must be a status the site can
+ * show.
  */
 const STATUS_HUBS: HubDefinition[] = [
   {

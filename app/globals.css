@@ -55,6 +55,9 @@
     --status-president: 18 70% 42%;
     --status-signed: 358 65% 38%;
     --status-law: 145 40% 32%;
+    /* Vetoed is a dead end, not a rung on the warm advancing ramp: a cool,
+       desaturated slate so it reads as "stopped" rather than "nearly there". */
+    --status-vetoed: 222 12% 42%;
 
     /* Party colours — muted to match editorial palette, not saturated. */
     --party-d: 214 45% 42%;      /* muted editorial blue */
@@ -112,6 +115,7 @@
     --status-president: 18 65% 58%;
     --status-signed: 358 70% 60%;
     --status-law: 145 40% 55%;
+    --status-vetoed: 222 12% 62%;
 
     /* Party colours — slightly brighter in dark mode for contrast. */
     --party-d: 214 55% 62%;
@@ -613,4 +617,138 @@
     transform: translateY(calc(var(--rest) * var(--peak)))
       skewY(calc(var(--rest-lean) * 1deg));
   }
+}
+
+/* ── The ask panel ─────────────────────────────────────────────────────────
+   Geometry for the persistent "Ask" companion. Three shapes, and the mode is
+   decided HERE, by media query, never by JavaScript reading window.innerWidth
+   during render — that is the classic hydration mismatch, and the panel lives
+   in the root layout where it would happen on every page.
+
+     sheet  (< 1024px)  A bottom sheet that starts below the live header, so the
+                        navigation stays visible and usable while it is open.
+     rail   (1024–1343) A right-hand rail that floats over the page. The page
+                        keeps its full width here because squeezing it would
+                        leave every `lg:` layout less room than it was built for.
+     dock   (>= 1344px) A right-hand rail that PUSHES the page and can be
+                        dragged wider. 1344 = 1024 of content + 320 of panel.
+
+   The numbers below are mirrored in lib/ask-panel.ts, which cannot be imported
+   from CSS; lib/ask-css-contract.test.ts fails if the two ever drift.
+
+   Nothing here puts `overflow` or `transform` on .ask-shell. Both would break
+   `position: sticky` for the header and the three `lg:sticky` sidebars, and a
+   transform would additionally make the wrapper a containing block for fixed
+   descendants — the same hazard the .animate-page-in note above documents. */
+:root {
+  --header-h: 57px;   /* h-14 + 1px border */
+  --ask-w: 420px;     /* dock width; overwritten per-frame during a drag */
+  --ask-rail-w: 400px;
+  --ask-kb: 0px;      /* on-screen keyboard overlap, from visualViewport */
+}
+@media (min-width: 640px) { :root { --header-h: 65px; } }   /* sm:h-16 + border */
+@media (min-width: 768px) { :root { --header-h: 94px; } }   /* + md eyebrow strip */
+
+/* The push. Only the docked band moves the page. */
+.ask-shell {
+  transition: padding-right 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (min-width: 1344px) {
+  html[data-ask='open'] .ask-shell { padding-right: var(--ask-w); }
+}
+/* Direct manipulation must never lag behind a transition. */
+html[data-ask-drag='1'] .ask-shell { transition: none; }
+html[data-ask-drag='1'] { cursor: col-resize; user-select: none; }
+
+/* Sheet — the default shape. */
+.ask-panel {
+  position: fixed;
+  z-index: 45;          /* over page content, under every portaled dialog (50) */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(100dvh - var(--header-h) - var(--ask-kb));
+  overscroll-behavior: contain;
+  transform: translateY(100%);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* dvh tracks the iOS URL bar; vh is the honest fallback where it is unsupported. */
+@supports not (height: 1dvh) {
+  .ask-panel { height: calc(100vh - var(--header-h) - var(--ask-kb)); }
+}
+html[data-ask='open'] .ask-panel { transform: none; }
+html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
+/* A swipe writes its own transform inline; a transition would fight the finger. */
+.ask-panel[data-dragging='1'] { transition: none; }
+
+/* Scroll lock, sheet only, and pure CSS: there is no listener to leak, no
+   cleanup path that can strand the page unscrollable, and rotation self-corrects. */
+@media (max-width: 1023.98px) {
+  html[data-ask='open'] body { overflow: hidden; }
+}
+
+/* Rail — floats beside the page, still clear of the header. */
+@media (min-width: 1024px) {
+  .ask-panel {
+    top: var(--header-h);
+    bottom: 0;
+    left: auto;
+    right: 0;
+    height: auto;
+    width: var(--ask-rail-w);
+    transform: translateX(100%);
+  }
+  html[data-ask='minimized'] .ask-panel { transform: translateX(100%); }
+}
+
+/* Dock — full height, because the header is squeezed out of the way. */
+@media (min-width: 1344px) {
+  .ask-panel {
+    top: 0;
+    width: var(--ask-w);
+  }
+}
+
+/* The launcher. A pill in the corner; a full-width bar when a conversation was
+   set aside on a phone, because that is the moment it has to be found again. */
+.ask-launcher {
+  position: fixed;
+  z-index: 40;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 1023.98px) {
+  html[data-ask='minimized'] .ask-launcher {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    justify-content: space-between;
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-bottom-width: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+    animation: ask-bar-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+@media (min-width: 1024px) {
+  html[data-ask='minimized'] .ask-launcher {
+    animation: ask-pill-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+@keyframes ask-bar-in {
+  from { transform: translateY(100%); }
+  to   { transform: none; }
+}
+@keyframes ask-pill-in {
+  from { transform: scale(0.9); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* Only drawn in the bottom-bar shape of the launcher. */
+.ask-launcher-arrow { display: none; }
+@media (max-width: 1023.98px) {
+  html[data-ask='minimized'] .ask-launcher-arrow { display: block; }
 }

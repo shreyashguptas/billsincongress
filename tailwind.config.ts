@@ -82,6 +82,7 @@ module.exports = {
           president: 'hsl(var(--status-president))',
           signed: 'hsl(var(--status-signed))',
           law: 'hsl(var(--status-law))',
+          vetoed: 'hsl(var(--status-vetoed))',
         },
         // Party palette — used for sponsor indicators and dashboard charts
         party: {

@@ -10,6 +10,9 @@ import { SourceList } from './source-list';
 import { WorkLog } from './work-log';
 import { EntityBlock } from './entity-block';
 
+/** How close to the bottom still counts as "following along". */
+const PINNED_PX = 72;
+
 const MARKDOWN_COMPONENTS = {
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className="mb-2 last:mb-0">{children}</p>
@@ -61,25 +64,32 @@ function AssistantTurn({ turn, surface }: { turn: Turn; surface: string }) {
  * The grounded answer thread — presentational only.
  *
  * All state lives in AnswerProvider, which is mounted in the root layout, so
- * the conversation survives navigation. This component can therefore be
- * unmounted and remounted freely without losing anything.
+ * the conversation survives navigation. The panel around this keeps it mounted
+ * across every phase, so the scroll position below and the composer draft also
+ * survive the panel stepping aside for a bill.
  */
 export default function AnswerThread({ surface = 'panel' }: { surface?: string }) {
   const { turns, busy, error, ask } = useAnswers();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Follow the answer as it streams in.
+  // Follow the answer as it streams in — but only for a reader who is still at
+  // the bottom. Yanking someone back down while they are reading an earlier
+  // paragraph of a long answer is the worst moment to do it.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distance <= PINNED_PX) el.scrollTop = el.scrollHeight;
   }, [turns]);
+
+  const streaming = turns.some((t) => t.role === 'assistant' && !t.done);
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 space-y-5 min-h-0"
+        className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 lg:px-5"
       >
         {turns.length === 0 && (
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -105,7 +115,13 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
         )}
       </div>
 
-      <div className="border-t border-border px-5 py-3 shrink-0">
+      {/* Answers stream in silently. This is the only thing that tells a screen
+          reader an answer is on its way, and that one has arrived. */}
+      <p aria-live="polite" className="sr-only">
+        {streaming ? 'Writing an answer…' : turns.length > 0 ? 'Answer ready.' : ''}
+      </p>
+
+      <div className="shrink-0 border-t border-border px-4 py-3 lg:px-5">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -116,12 +132,22 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
           className="flex items-center gap-2"
         >
           <input
+            id="ask-composer"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={turns.length === 0 ? 'Ask a question…' : 'Ask a follow-up…'}
             aria-label="Ask a question"
-            className="flex-1 h-10 px-3 text-sm rounded-sm border border-border bg-background focus:outline-none focus:border-foreground disabled:opacity-60"
+            enterKeyHint="send"
+            autoComplete="off"
+            // 16px on small screens is not a style choice: iOS Safari zooms the
+            // whole page in when a focused input is any smaller, and then never
+            // zooms back out.
+            className={cn(
+              'h-11 flex-1 rounded-sm border border-border bg-background px-3 text-base',
+              'focus:border-foreground focus:outline-none disabled:opacity-60',
+              'lg:h-10 lg:text-sm',
+            )}
             disabled={busy}
             maxLength={2000}
           />
@@ -130,8 +156,8 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             disabled={busy || !input.trim()}
             aria-label="Send"
             className={cn(
-              'inline-flex h-10 w-10 items-center justify-center rounded-sm bg-foreground text-background',
-              'hover:bg-foreground/85 transition-colors disabled:opacity-40 shrink-0',
+              'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-foreground text-background',
+              'transition-colors hover:bg-foreground/85 disabled:opacity-40 lg:h-10 lg:w-10',
             )}
           >
             {busy ? (

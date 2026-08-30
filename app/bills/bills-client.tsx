@@ -13,6 +13,8 @@ import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import BillCard from '@/components/bills/bill-card';
 import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
+import { AskPageContext } from '@/components/answers/ask-page-context';
+import { validCongress } from '@/lib/page-context';
 import { scopeFromFilters } from '@/lib/answer-scope';
 import { FilterBar } from '@/components/bills/filters/filter-bar';
 import {
@@ -33,13 +35,6 @@ const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr
 
 const ITEMS_PER_PAGE = 10;
 
-/**
- * Convex scans at most this many bills when no index covers the filter set.
- * Used only to decide whether to warn that a list may be missing older matches.
- * Mirrors MAX_LIST_SCAN in convex/bills.ts.
- */
-const MAX_LIST_SCAN = 1200;
-
 /** Filter values the server derived from URL search params (absent = not in URL). */
 export interface UrlFilters {
   status?: string;
@@ -59,6 +54,7 @@ export interface BillsClientProps {
   /** First page of results fetched on the server; null if the server fetch failed. */
   initialBills: Bill[] | null;
   initialHasMore: boolean;
+  initialTruncated?: boolean;
   /** Null when the server couldn't count; `exact: false` means "at least this many". */
   initialTotal: BillsCountResult | null;
   initialPage: number;
@@ -83,6 +79,7 @@ export interface BillsClientProps {
 export default function BillsClient({
   initialBills,
   initialHasMore,
+  initialTruncated = false,
   initialTotal,
   initialPage,
   urlFilters,
@@ -92,6 +89,7 @@ export default function BillsClient({
 }: BillsClientProps) {
   const [bills, setBills] = useState<Bill[]>(initialBills ?? []);
   const [hasMore, setHasMore] = useState(initialHasMore);
+  const [truncated, setTruncated] = useState(initialTruncated);
   // `totalBills` is loaded asynchronously — kept off the critical render path
   // so bills appear fast. `null` means "still loading / unknown".
   const [totalBills, setTotalBills] = useState<BillsCountResult | null>(initialTotal);
@@ -243,6 +241,7 @@ export default function BillsClient({
       const newBills = response.data.filter((b) => !existing.has(b.id));
       setBills((prev) => [...prev, ...newBills]);
       setHasMore(response.hasMore);
+      setTruncated(response.truncated ?? false);
       setCurrentPage(nextPage);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load more bills');
@@ -285,6 +284,7 @@ export default function BillsClient({
         if (cancelled) return;
         setBills(response.data);
         setHasMore(response.hasMore);
+        setTruncated(response.truncated ?? false);
         setCurrentPage(1);
         // UX friction signal: an active filter combination matched nothing.
         if (response.data.length === 0 && activeFilterCount(filters) > 0) {
@@ -318,39 +318,30 @@ export default function BillsClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSignature]);
 
-  /**
-   * Whether this result set is capped rather than complete.
+  /*
+   * Whether this list is a sample rather than the whole set.
    *
-   * Convex has indexes for topic, outcome and Congress only; every other filter
-   * is applied in memory over a bounded scan of the newest bills. So
-   * "Sponsor's state: Wyoming" can honestly count 161 bills and then run out
-   * after seven, and saying nothing would read as "that is all there is".
+   * This used to be inferred here — active scan-limited filters, an exact
+   * count, and no more pages — because the backend did not say. It does now:
+   * `list` reports `truncated` when its scan gave up before filling the page,
+   * so the inference is gone. A guess and an answer looked the same on screen
+   * and only one of them was right.
    */
   const limitedKinds = scanLimitedActive(filters);
   const knownTotal = totalBills?.exact ? totalBills.count : null;
-  const truncation: 'dead_end' | 'advisory' | null =
-    !isLoading && limitedKinds.length > 0 && knownTotal !== null
-      ? !hasMore && knownTotal > bills.length
-        ? 'dead_end'
-        : knownTotal > MAX_LIST_SCAN
-          ? 'advisory'
-          : null
-      : null;
 
   const reportedTruncation = useRef<string>('');
   useEffect(() => {
-    if (!truncation) return;
-    const key = `${currentSignature}|${truncation}`;
-    if (reportedTruncation.current === key) return;
-    reportedTruncation.current = key;
+    if (!truncated) return;
+    if (reportedTruncation.current === currentSignature) return;
+    reportedTruncation.current = currentSignature;
     analytics.billsResultsTruncated({
       filter_kinds: limitedKinds,
       shown: bills.length,
       known_total: knownTotal,
-      variant: truncation,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [truncation, currentSignature]);
+  }, [truncated, currentSignature]);
 
   // Re-keying the results grid on the filter signature makes new cards
   // cross-fade/stagger in when filters change, while a "load more" (same
@@ -440,6 +431,16 @@ export default function BillsClient({
                       ? 'bill'
                       : 'bills'}
                     {filtersActive && <span className="ml-1">· filtered</span>}
+                    {/* The scan gave up before finding every match, so this list
+                        is a sample of the count beside it, not the whole of it.
+                        Saying so is the difference between an incomplete answer
+                        and a wrong one. */}
+                    {truncated && (
+                      <span className="ml-1">
+                        · partial list — narrow the filters or search by title to
+                        reach the rest
+                      </span>
+                    )}
                   </>
                 ) : isLoading ? (
                   'Loading…'
@@ -456,6 +457,12 @@ export default function BillsClient({
               <ScopeAskBar
                 scope={scopeFromFilters(filters)}
                 count={totalBills?.count ?? bills.length}
+              />
+              {/* The same scope, published for questions TYPED into the panel —
+                  the reader is looking at these rows either way. */}
+              <AskPageContext
+                congress={validCongress(filters.congress)}
+                scope={scopeFromFilters(filters)}
               />
             </div>
 
@@ -556,31 +563,6 @@ export default function BillsClient({
               )}
             </div>
 
-            {truncation && (
-              <p className="mt-8 border-l-2 border-border pl-3 text-sm text-muted-foreground">
-                {truncation === 'dead_end' ? (
-                  <>
-                    Showing the{' '}
-                    <span className="font-mono tabular text-foreground">{bills.length}</span>{' '}
-                    most recent of{' '}
-                    <span className="font-mono tabular text-foreground">
-                      {formatCount(knownTotal ?? 0)}
-                    </span>
-                    . This combination reads only the newest bills — add a topic or an
-                    outcome to reach further back.
-                  </>
-                ) : (
-                  <>
-                    This combination reads only the roughly{' '}
-                    <span className="font-mono tabular text-foreground">
-                      {formatCount(MAX_LIST_SCAN)}
-                    </span>{' '}
-                    most recent bills in this Congress, so older matches may be missing.
-                    Adding a topic or an outcome searches all of them.
-                  </>
-                )}
-              </p>
-            )}
 
             {hasMore && (
               <div className="mt-10 text-center">

@@ -45,6 +45,9 @@ export async function POST(request: Request) {
     body: JSON.stringify({
       question,
       focusBillId: body.focusBillId,
+      // Ids and enums only, and re-validated in Convex — the httpAction it
+      // reaches is publicly addressable, so this route is defence in depth.
+      context: body.context,
       scope: body.scope,
       history: body.history,
       chatId: body.chatId,

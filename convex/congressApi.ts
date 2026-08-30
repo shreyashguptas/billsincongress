@@ -158,6 +158,46 @@ type BillSubjectsResult = {
 };
 
 /**
+ * Fetch a bill's full action history, paginating it.
+ *
+ * This used to be a single `limit=250` request with no loop, so any bill with
+ * more actions than that was stored truncated — and because `calculateBillStage`
+ * reads this list, a truncated history could mis-derive the bill's stage, which
+ * is the one number on the site we compute ourselves. Subjects right below this
+ * already paginated; actions simply never did.
+ *
+ * Returns null only if the FIRST page fails; a later-page failure returns what
+ * was collected so far, so a partial history still beats none. The caller must
+ * already have delayed before the call — page 0 does not delay.
+ */
+async function fetchBillActions(
+  congress: number,
+  billType: string,
+  billNumber: number | string,
+  label: string,
+): Promise<any[] | null> {
+  const PAGE = 250;
+  const MAX_PAGES = 8; // 2,000 actions — far beyond any real bill
+  const actions: any[] = [];
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    if (page > 0) await delay(DELAY_BETWEEN_REQUESTS_MS);
+    const offset = page * PAGE;
+    const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/actions?format=json&limit=${PAGE}&offset=${offset}`;
+    const resp = await fetchWithRetry(url, `${label} offset=${offset}`);
+    if (!resp || !resp.ok) {
+      if (page === 0) return null;
+      break;
+    }
+    const data = await resp.json();
+    const batch: any[] = data.actions ?? [];
+    actions.push(...batch);
+    if (batch.length < PAGE) break; // last page
+  }
+  return actions;
+}
+
+/**
  * Fetch a bill's subjects, paginating `legislativeSubjects` (its `count` can
  * exceed the 250-per-page limit). Returns null only if the FIRST page fails; a
  * later-page failure returns what was collected so far. The caller must already
@@ -259,11 +299,9 @@ async function syncSingleBill(
   await delay(DELAY_BETWEEN_REQUESTS_MS);
   let actions: any[] = [];
   try {
-    const actionsUrl = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/actions?format=json&limit=250`;
-    const actionsResponse = await fetchWithRetry(actionsUrl, `actions ${billId}`);
-    if (actionsResponse && actionsResponse.ok) {
-      const actionsData = await actionsResponse.json();
-      actions = actionsData.actions || [];
+    const fetched = await fetchBillActions(congress, billType, billNumber, `actions ${billId}`);
+    if (fetched !== null) {
+      actions = fetched;
       endpointBits |= SYNC_ACTIONS;
     }
   } catch {

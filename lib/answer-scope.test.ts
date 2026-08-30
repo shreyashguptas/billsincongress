@@ -11,7 +11,9 @@
  * Run with: `pnpm test`.
  */
 import assert from 'node:assert/strict';
-import { scopeFromFilters } from './answer-scope';
+import { VALID_STAGES } from '../convex/catalog/filters';
+import { ALL_HUBS, hubByPath } from './hubs';
+import { CATALOG_STAGES, scopeFromFilters, scopeFromHub } from './answer-scope';
 
 let passed = 0;
 const failures: string[] = [];
@@ -109,6 +111,50 @@ it('maps a chamber, which the catalog validates as house or senate', () => {
 
 it('does not treat a chamber sentinel as a filter', () => {
   assert.equal(scopeFromFilters({ congress: '119', chamber: 'all' }), null);
+});
+
+it('keeps the stage list in step with the catalog that has to accept it', () => {
+  // Imported from the catalog itself rather than duplicated: these two lists
+  // disagreed once, and the symptom was an "Ask about these" on a vetoed list
+  // silently answering about every bill in the Congress.
+  assert.deepEqual([...CATALOG_STAGES].sort(), [...VALID_STAGES].sort());
+});
+
+it('builds a scope for a chamber hub', () => {
+  const s = scopeFromHub(hubByPath('/bills/house')!);
+  assert.equal(s?.filters.chamber, 'house');
+  assert.equal(s?.label, 'house bills');
+});
+
+it('builds a scope for a topic hub', () => {
+  const s = scopeFromHub(hubByPath('/bills/topic/health')!);
+  assert.equal(s?.filters.policyArea, 'Health');
+});
+
+it('coerces a hub stage to the number the catalog requires', () => {
+  const s = scopeFromHub(hubByPath('/bills/enacted')!);
+  // A string here is rejected outright by convex/catalog/filters.ts, which is
+  // why this is a coercion and not a formality.
+  assert.equal(typeof s?.filters.progressStage, 'number');
+  assert.equal(s?.filters.progressStage, 100);
+});
+
+it('builds an applicable scope for every hub the site publishes', () => {
+  for (const hub of ALL_HUBS) {
+    const s = scopeFromHub(hub);
+    assert.ok(s, `no scope for ${hub.path}`);
+    assert.ok(s.label.length > 0, `empty label for ${hub.path}`);
+    const stage = s.filters.progressStage;
+    if (stage !== undefined) {
+      assert.ok(VALID_STAGES.includes(stage as number), `${hub.path} stage ${String(stage)}`);
+    }
+  }
+});
+
+it('keeps the vetoed list answerable rather than silently unscoped', () => {
+  // /bills/vetoed and the list page's "Vetoed" filter both use stage 85.
+  assert.equal(scopeFromHub(hubByPath('/bills/vetoed')!)?.filters.progressStage, 85);
+  assert.equal(scopeFromFilters({ congress: '119', status: '85' })?.filters.progressStage, 85);
 });
 
 console.log(`\nanswer-scope: ${passed} passed, ${failures.length} failed`);

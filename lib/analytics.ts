@@ -214,16 +214,15 @@ export const analytics = {
   }) => capture('bills_filter_search_used', props),
 
   /**
-   * A results list was capped rather than complete. Convex indexes only topic,
-   * outcome and Congress; the rest are filtered in memory over a bounded scan,
-   * so some combinations legitimately cannot see older bills. Passive, once per
-   * filter set.
+   * A results list was a sample rather than the whole set — the backend's scan
+   * gave up before filling the page. Reported by `list` itself rather than
+   * inferred from the filters, so this fires when it actually happened and not
+   * when it looked likely. Passive, once per filter set.
    */
   billsResultsTruncated: (props: {
     filter_kinds: string[];
     shown: number;
     known_total: number | null;
-    variant: 'dead_end' | 'advisory';
   }) => capture('bills_results_truncated', props),
 
   /** The Congress being browsed was switched on /bills. */
@@ -326,8 +325,13 @@ export const analytics = {
 
   // Grounded answers
   //
-  // `surface` says where the question was asked from ('bill', 'home', 'panel',
-  // 'list'), so one funnel covers every place the answer thread is mounted.
+  // `surface` says where the question was asked from, so one funnel covers every
+  // place the answer thread is mounted. `surfaceFor()` — now in lib/page-context.ts,
+  // where it is unit-tested — emits exactly four values: 'home', 'bill', 'filtered'
+  // and 'other'. A fifth, 'panel', is passed literally by the two click events
+  // fired from inside the panel ('answer_source_clicked', 'answer_entity_clicked'),
+  // which describe a place rather than a page. There is no 'list' surface; it was
+  // in an early draft and never shipped.
 
   answerQuestionSubmitted: (props: {
     surface: string;
@@ -381,8 +385,49 @@ export const analytics = {
     entity_id: string;
   }) => capture('answer_entity_clicked', props),
 
-  answerPanelOpened: (props: { surface: string; trigger: string }) =>
-    capture('answer_panel_opened', props),
+  /**
+   * `has_conversation: false` is the number the always-available launcher was
+   * added for. It was impossible before: the old pill only appeared once a
+   * conversation already existed, so a cold open could not be recorded.
+   */
+  answerPanelOpened: (props: {
+    surface: string;
+    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual';
+    has_conversation: boolean;
+  }) => capture('answer_panel_opened', props),
+
+  answerPanelClosed: (props: {
+    surface: string;
+    reason: 'manual' | 'escape' | 'swipe' | 'entity_navigation' | 'navigation';
+    turn_count: number;
+    dwell_ms: number;
+  }) => capture('answer_panel_closed', props),
+
+  /**
+   * The other half of the mobile fix. `entity_navigation` closes should track
+   * `answer_entity_clicked` on small viewports, and each one should be followed
+   * by a restore — a gap between the two means readers are tapping bills and
+   * not finding their way back to the conversation.
+   */
+  answerPanelRestored: (props: {
+    surface: string;
+    trigger: 'launcher';
+    turn_count: number;
+    away_ms: number;
+  }) => capture('answer_panel_restored', props),
+
+  /**
+   * Drag end only, debounced — a capture per pointermove would swamp every
+   * other event on the site. `width_pct` is the readable one: raw pixels are
+   * not comparable between a 1440 and a 3840 display.
+   */
+  answerPanelResized: (props: {
+    surface: string;
+    width_px: number;
+    width_pct: number;
+    viewport_width: number;
+    method: 'drag' | 'keyboard' | 'reset';
+  }) => capture('answer_panel_resized', props),
 
   /**
    * Whether the persistent panel is earning its complexity: a reader who kept

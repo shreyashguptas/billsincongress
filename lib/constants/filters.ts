@@ -92,9 +92,10 @@ export const labelFor = (
  * pipeline order — "did it become law" is the question people arrive with.
  *
  * Stages 80 (passed both chambers), 90 (to President) and 95 (signed) are
- * absent because they hold zero bills in every Congress we carry: the ingest
- * pipeline records those transitions as "became law" instead. `lib/hubs.ts`
- * documents the same measurement and refuses to build hub pages for them.
+ * absent because they are empty or near-empty in every Congress we carry — 90
+ * and 95 hold nothing at all, 80 holds two bills, both in the 117th — since the
+ * ingest pipeline records those transitions as "became law" instead.
+ * `lib/hubs.ts` documents the same measurement and builds no hub pages for them.
  *
  * They stay in `STATUS_OPTIONS` above, because a bookmarked `?status=90` must
  * still be labelled rather than shown as a bare number.

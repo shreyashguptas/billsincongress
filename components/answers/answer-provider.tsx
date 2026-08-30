@@ -21,6 +21,27 @@ import {
   type Turn as StoredTurn,
 } from '@/lib/transcript-cap';
 import type { AnswerScope } from '@/lib/answer-scope';
+import {
+  billIdFor,
+  pageContextFor,
+  surfaceFor,
+  type PublishedContext,
+} from '@/lib/page-context';
+import {
+  clampPanelWidth,
+  layoutModeFor,
+  loadPanelPrefs,
+  viewportWidth,
+} from '@/lib/ask-panel';
+import {
+  INITIAL_ASK_STATE,
+  nextAskState,
+  type AskAction,
+  type AskPhase,
+  type AskState,
+  type CloseReason,
+  type OpenTrigger,
+} from '@/lib/ask-panel-state';
 import type { WorkEntry } from './work-log';
 
 export interface WebSource {
@@ -56,14 +77,21 @@ interface AskOptions {
 
 interface AnswerContextValue {
   turns: Turn[];
-  isOpen: boolean;
+  phase: AskPhase;
   busy: boolean;
   error: string;
   rateLimit: RateLimitInfo | null;
   chatId: Id<'chats'> | null;
   /** A signed-out transcript waiting for a keep/discard decision. */
   pendingHandoff: StoredTurn[] | null;
-  setOpen: (open: boolean, trigger?: string) => void;
+  /** Open or dismiss. `trigger` names where it came from, for the funnel. */
+  setOpen: (open: boolean, trigger?: OpenTrigger | CloseReason) => void;
+  /** Bring a set-aside conversation back, thread and draft intact. */
+  restore: () => void;
+  /** Step the panel aside so the page it just opened becomes visible. */
+  minimize: (reason: CloseReason) => void;
+  /** What the current route has open, beyond what the path already says. */
+  setPublished: (published: PublishedContext | null) => void;
   ask: (question: string, opts?: AskOptions) => Promise<void>;
   resume: (chatId: Id<'chats'>) => void;
   newChat: () => void;
@@ -80,29 +108,31 @@ export function useAnswers(): AnswerContextValue {
   return ctx;
 }
 
-/** Derive the surface name from the path, for analytics. */
-function surfaceFor(pathname: string): string {
-  if (pathname === '/') return 'home';
-  if (/^\/bills\/[^/]+$/.test(pathname)) return 'bill';
-  if (pathname.startsWith('/bills')) return 'filtered';
-  return 'other';
-}
+/**
+ * How the panel tells the provider that the navigation about to happen came
+ * from a link inside an answer.
+ *
+ * Separate from the main context on purpose: it is set during a click, read
+ * during the next pathname change, and never rendered — putting it on the
+ * conversation context would invalidate every consumer of `useAnswers()`
+ * mid-stream for a value none of them display.
+ */
+const NavReasonContext = createContext<(reason: CloseReason) => void>(() => {});
 
-/** Derive the focused bill from the path, so "this bill" resolves after navigation. */
-function billIdFor(pathname: string): string | undefined {
-  const m = pathname.match(/^\/bills\/([^/]+)$/);
-  return m ? m[1] : undefined;
+export function useNoteNavReason() {
+  return useContext(NavReasonContext);
 }
 
 export function AnswerProvider({ children }: { children: React.ReactNode }) {
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [askState, setAskState] = useState<AskState>(INITIAL_ASK_STATE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
   const [chatId, setChatId] = useState<Id<'chats'> | null>(null);
   const [resumeId, setResumeId] = useState<Id<'chats'> | null>(null);
   const [pendingHandoff, setPendingHandoff] = useState<StoredTurn[] | null>(null);
+  const [published, setPublishedState] = useState<PublishedContext | null>(null);
 
   const pathname = usePathname();
   const { isAuthenticated } = useConvexAuth();
@@ -113,10 +143,173 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   const lastSurfaceRef = useRef('home');
   const wasAuthedRef = useRef<boolean | null>(null);
 
-  const setOpen = useCallback((open: boolean, trigger = 'manual') => {
-    setIsOpen(open);
-    if (open) analytics.answerPanelOpened({ surface: 'panel', trigger });
+  /**
+   * The phase, mirrored synchronously.
+   *
+   * A navigation out of an answer reaches the panel twice — once from the
+   * click, before the router commits, and once from the pathname changing
+   * afterwards. The reducer is idempotent so the STATE is safe either way, but
+   * the analytics are not: without a synchronous read of the current phase,
+   * `answer_panel_closed` would fire twice for one tap and the funnel measuring
+   * this very fix would be wrong. `setState` is asynchronous; this is not.
+   */
+  const phaseRef = useRef<AskPhase>(INITIAL_ASK_STATE.phase);
+  const turnsRef = useRef<Turn[]>(turns);
+  const pathnameRef = useRef(pathname);
+  const openedAtRef = useRef(0);
+  const minimizedAtRef = useRef(0);
+  /** Set by the panel's click-capture, so the pathname effect knows the cause. */
+  const navReasonRef = useRef<CloseReason>('navigation');
+
+  useEffect(() => {
+    turnsRef.current = turns;
+  }, [turns]);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  const surfaceNow = useCallback(() => surfaceFor(pathnameRef.current), []);
+  const questionCount = () => turnsRef.current.filter((t) => t.role === 'user').length;
+
+  /**
+   * Run one transition. Returns the new state, or null when the reducer decided
+   * nothing should change — callers report analytics only on a real transition.
+   */
+  const apply = useCallback((action: AskAction): AskState | null => {
+    const prev = { phase: phaseRef.current };
+    const next = nextAskState(prev, action);
+    if (next.phase === prev.phase) return null;
+    phaseRef.current = next.phase;
+    setAskState(next);
+    return next;
   }, []);
+
+  const openPanel = useCallback(
+    (trigger: OpenTrigger) => {
+      if (!apply({ type: 'open' })) return;
+      openedAtRef.current = Date.now();
+      analytics.answerPanelOpened({
+        surface: surfaceNow(),
+        trigger,
+        has_conversation: turnsRef.current.length > 0,
+      });
+    },
+    [apply, surfaceNow],
+  );
+
+  const closePanel = useCallback(
+    (reason: CloseReason) => {
+      if (!apply({ type: 'close' })) return;
+      analytics.answerPanelClosed({
+        surface: surfaceNow(),
+        reason,
+        turn_count: questionCount(),
+        dwell_ms: openedAtRef.current ? Date.now() - openedAtRef.current : 0,
+      });
+    },
+    [apply, surfaceNow],
+  );
+
+  const minimize = useCallback(
+    (reason: CloseReason) => {
+      // Read the mode from the live viewport, in an event handler — never
+      // during render, where it would be a hydration mismatch.
+      const mode = layoutModeFor(viewportWidth());
+      if (!apply({ type: 'minimize', mode })) return;
+      minimizedAtRef.current = Date.now();
+      analytics.answerPanelClosed({
+        surface: surfaceNow(),
+        reason,
+        turn_count: questionCount(),
+        dwell_ms: openedAtRef.current ? Date.now() - openedAtRef.current : 0,
+      });
+    },
+    [apply, surfaceNow],
+  );
+
+  const restore = useCallback(() => {
+    const wasMinimized = phaseRef.current === 'minimized';
+    if (!apply({ type: 'restore' })) return;
+    openedAtRef.current = Date.now();
+    if (wasMinimized) {
+      analytics.answerPanelRestored({
+        surface: surfaceNow(),
+        trigger: 'launcher',
+        turn_count: questionCount(),
+        away_ms: minimizedAtRef.current ? Date.now() - minimizedAtRef.current : 0,
+      });
+      return;
+    }
+    analytics.answerPanelOpened({
+      surface: surfaceNow(),
+      trigger: 'launcher',
+      has_conversation: turnsRef.current.length > 0,
+    });
+  }, [apply, surfaceNow]);
+
+  const setOpen = useCallback(
+    (open: boolean, trigger: OpenTrigger | CloseReason = 'manual') => {
+      if (open) openPanel(trigger as OpenTrigger);
+      else closePanel(trigger as CloseReason);
+    },
+    [openPanel, closePanel],
+  );
+
+  const setPublished = useCallback((next: PublishedContext | null) => {
+    setPublishedState(next);
+  }, []);
+
+  const noteNavReason = useCallback((reason: CloseReason) => {
+    navReasonRef.current = reason;
+  }, []);
+
+  // ── DOM plumbing ─────────────────────────────────────────────────────────
+  // The phase drives the layout push, the panel's transform, the launcher's
+  // shape and the mobile scroll lock — all in CSS, off a single attribute, so
+  // no component has to know the viewport.
+  useEffect(() => {
+    document.documentElement.dataset.ask = askState.phase;
+  }, [askState.phase]);
+
+  useEffect(
+    () => () => {
+      delete document.documentElement.dataset.ask;
+    },
+    [],
+  );
+
+  // Restore the reader's preferred width. Clamped against THIS viewport, not
+  // the one it was saved on: a 640px width chosen on a large display must not
+  // follow them onto a laptop and starve the page there.
+  useEffect(() => {
+    const { widthPx } = loadPanelPrefs();
+    document.documentElement.style.setProperty(
+      '--ask-w',
+      `${clampPanelWidth(widthPx, viewportWidth())}px`,
+    );
+  }, []);
+
+  // The on-screen keyboard. Fixed elements are positioned against the LAYOUT
+  // viewport, which iOS does not shrink when the keyboard appears — so without
+  // this the composer sits underneath it. Shrinking the sheet by the overlap
+  // keeps the composer, the last child of a flex column, directly above the
+  // keys. Absent `visualViewport`, the value stays 0 and nothing changes.
+  useEffect(() => {
+    const vv = typeof window === 'undefined' ? null : window.visualViewport;
+    if (!vv || askState.phase !== 'open') return;
+    const sync = () => {
+      const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--ask-kb', `${Math.round(overlap)}px`);
+    };
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+      document.documentElement.style.setProperty('--ask-kb', '0px');
+    };
+  }, [askState.phase]);
 
   // Restore an in-progress anonymous conversation after a hard refresh.
   useEffect(() => {
@@ -128,10 +321,27 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Count navigations that happen mid-thread — the metric that says whether the
-  // persistent panel is earning its complexity (spec §11).
+  // ── Navigation ───────────────────────────────────────────────────────────
+  // Two things happen here. The first is the metric that says whether the
+  // persistent panel is earning its complexity (spec §11). The second is the
+  // fix for the reported bug: on a phone the sheet covers the page, so a bill
+  // tapped inside an answer opened correctly and was never seen. The panel now
+  // steps aside for it.
+  //
+  // The panel's own click-capture usually gets there first, so the motion
+  // starts on the tap rather than when the route commits. This is the backstop
+  // for every navigation that does not pass through it — a link in the header,
+  // browser back, a programmatic push — and it cannot double-report, because
+  // `minimize` no-ops once the phase has already moved.
+  const isFirstPathRef = useRef(true);
   useEffect(() => {
-    if (turns.length > 0) navCountRef.current += 1;
+    if (isFirstPathRef.current) {
+      isFirstPathRef.current = false;
+      return;
+    }
+    if (turnsRef.current.length > 0) navCountRef.current += 1;
+    minimize(navReasonRef.current);
+    navReasonRef.current = 'navigation';
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
@@ -181,7 +391,12 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       const q = question.trim();
       if (!q || busy) return;
 
-      const surface = opts.scope ? 'filtered' : surfaceFor(pathname);
+      // A question typed into the panel on a filtered list carries that list's
+      // scope, not only the "Ask about these" button — the reader is looking at
+      // the same rows either way.
+      const scope = opts.scope ?? published?.scope ?? undefined;
+      const context = pageContextFor(pathname, published);
+      const surface = scope ? 'filtered' : surfaceFor(pathname);
       const askedAt = Date.now();
       const userTurn: Turn = { id: `u${askedAt}`, role: 'user', content: q };
       const botTurn: Turn = {
@@ -194,7 +409,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       const history = turns.map((t) => ({ role: t.role, content: t.content }));
 
       setTurns((prev) => [...prev, userTurn, botTurn]);
-      setIsOpen(true);
+      openPanel('ask');
       setBusy(true);
       setError('');
 
@@ -204,7 +419,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         question_length: q.length,
         source: opts.source ?? 'typed',
         question_number: turns.filter((t) => t.role === 'user').length + 1,
-        ...(opts.scope ? { scope_label: opts.scope.label } : {}),
+        ...(scope ? { scope_label: scope.label } : {}),
       });
 
       if (navCountRef.current > 0) {
@@ -235,8 +450,12 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             question: q,
+            // `focusBillId` is redundant with `context.billId` and is sent
+            // anyway: Convex deploys are manual and separate from the site's,
+            // so for one release either half may be the older one.
             focusBillId: billIdFor(pathname),
-            scope: opts.scope ?? undefined,
+            context,
+            scope,
             history,
             chatId: chatId ?? undefined,
           }),
@@ -337,7 +556,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         setBusy(false);
       }
     },
-    [busy, chatId, pathname, turns],
+    [busy, chatId, openPanel, pathname, published, turns],
   );
 
   // Session storage only. Anonymous conversations never reach the database —
@@ -384,13 +603,16 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       turns,
-      isOpen,
+      phase: askState.phase,
       busy,
       error,
       rateLimit,
       chatId,
       pendingHandoff,
       setOpen,
+      restore,
+      minimize,
+      setPublished,
       ask,
       resume,
       newChat,
@@ -400,13 +622,16 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       turns,
-      isOpen,
+      askState.phase,
       busy,
       error,
       rateLimit,
       chatId,
       pendingHandoff,
       setOpen,
+      restore,
+      minimize,
+      setPublished,
       ask,
       resume,
       newChat,
@@ -415,5 +640,10 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     ],
   );
 
-  return <AnswerContext.Provider value={value}>{children}</AnswerContext.Provider>;
+  return (
+    <AnswerContext.Provider value={value}>
+      <NavReasonContext.Provider value={noteNavReason}>{children}</NavReasonContext.Provider>
+    </AnswerContext.Provider>
+  );
 }
+

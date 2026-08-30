@@ -136,6 +136,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   // null — the client component then fetches exactly as it did pre-SSR.
   let initialBills: Bill[] | null = null;
   let initialHasMore = false;
+  let initialTruncated = false;
   let initialTotal: BillsCountResult | null = null;
   // Every Congress with data. Drives both the header's "(2021–2026 ·
   // 117th–119th)" span and the filter band's scope switcher, so the client no
@@ -153,6 +154,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
     ]);
     initialBills = billsResponse.data;
     initialHasMore = billsResponse.hasMore;
+    initialTruncated = billsResponse.truncated ?? false;
     initialTotal = countResult;
     congressNumbers = availableCongresses;
   } catch (error) {
@@ -164,6 +166,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
       <BillsClient
         initialBills={initialBills}
         initialHasMore={initialHasMore}
+        initialTruncated={initialTruncated}
         initialTotal={initialTotal}
         initialPage={page}
         urlFilters={urlFilters}
