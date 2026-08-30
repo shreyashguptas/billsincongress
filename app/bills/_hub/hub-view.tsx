@@ -221,6 +221,7 @@ export async function HubView({
                 <HubLink
                   href={sibling.path}
                   hubKind={sibling.kind}
+                  placement="hub_siblings"
                   className="text-muted-foreground hover:text-foreground hover:underline"
                 >
                   {sibling.heading}

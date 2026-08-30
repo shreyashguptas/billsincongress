@@ -96,6 +96,12 @@ export function scopeFromFilters(input: Partial<BillsFilterValues>): AnswerScope
     parts.push(`from ${state}`);
   }
 
+  const chamber = value(input.chamber);
+  if (chamber) {
+    filters.chamber = chamber;
+    parts.push(chamber === 'house' ? 'in the House' : 'in the Senate');
+  }
+
   const billType = value(input.billType);
   if (billType) filters.billType = billType;
 

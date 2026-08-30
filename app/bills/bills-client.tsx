@@ -1,13 +1,11 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
-import { parseBillReference } from '@/lib/bill-query';
-import { analytics } from '@/lib/analytics';
+import { analytics, type FilterSurface } from '@/lib/analytics';
 import { formatCount } from '@/lib/utils';
 import {
-  formatCongressOrdinal,
   formatCongressOrdinalSpan,
   formatCongressYearSpan,
 } from '@/lib/congress';
@@ -18,62 +16,24 @@ import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { validCongress } from '@/lib/page-context';
 import { scopeFromFilters } from '@/lib/answer-scope';
-import { FilterQuickAccess } from '@/components/bills/mobile-filter-bar';
+import { FilterBar } from '@/components/bills/filters/filter-bar';
 import {
   DEFAULT_FILTER_VALUES,
   filterSignature,
   type BillsFilterValues,
 } from './filter-signature';
 import {
-  BILL_TYPES,
-  DATE_OPTIONS,
-  STATE_NAMES,
-  STATUS_OPTIONS,
-  labelFor,
-} from '@/lib/constants/filters';
+  FILTER_BY_FIELD,
+  activeFilterCount,
+  activeFilters,
+  isSet,
+  scanLimitedActive,
+} from '@/lib/bills/filter-registry';
+import { buildFilterQuery, filtersFromQuery } from '@/lib/bills/filter-url';
 
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
 const ITEMS_PER_PAGE = 10;
-
-/**
- * Serialise a filter set back into a query string, omitting anything still at
- * its default. Param names match what `app/bills/page.tsx` parses, so a URL
- * built here server-renders the same results it shows on the client.
- */
-function buildFilterQuery(f: BillsFilterValues): string {
-  const p = new URLSearchParams();
-  if (f.status !== 'all') p.set('status', f.status);
-  if (f.introducedDate !== 'all') p.set('introducedDate', f.introducedDate);
-  if (f.lastActionDate !== 'all') p.set('lastActionDate', f.lastActionDate);
-  if (f.title !== '') p.set('title', f.title);
-  if (f.state !== 'all') p.set('state', f.state);
-  if (f.policyArea !== 'all') p.set('policyArea', f.policyArea);
-  if (f.billType !== 'all') p.set('billType', f.billType);
-  if (f.billNumber !== '') p.set('billNumber', f.billNumber);
-  if (f.congress !== 'all') p.set('congress', f.congress);
-  for (const s of f.sponsor) p.append('sponsor', s);
-  const qs = p.toString();
-  return qs ? `?${qs}` : '';
-}
-
-/** Inverse of `buildFilterQuery` — used when the user navigates back/forward. */
-function filtersFromQuery(search: string): BillsFilterValues {
-  const p = new URLSearchParams(search);
-  const one = (key: string, fallback: string) => p.get(key) ?? fallback;
-  return {
-    status: one('status', DEFAULT_FILTER_VALUES.status),
-    introducedDate: one('introducedDate', DEFAULT_FILTER_VALUES.introducedDate),
-    lastActionDate: one('lastActionDate', DEFAULT_FILTER_VALUES.lastActionDate),
-    sponsor: p.getAll('sponsor').filter((s) => s !== ''),
-    title: one('title', DEFAULT_FILTER_VALUES.title),
-    state: one('state', DEFAULT_FILTER_VALUES.state),
-    policyArea: one('policyArea', DEFAULT_FILTER_VALUES.policyArea),
-    billType: one('billType', DEFAULT_FILTER_VALUES.billType),
-    billNumber: one('billNumber', DEFAULT_FILTER_VALUES.billNumber),
-    congress: one('congress', DEFAULT_FILTER_VALUES.congress),
-  };
-}
 
 /** Filter values the server derived from URL search params (absent = not in URL). */
 export interface UrlFilters {
@@ -86,6 +46,7 @@ export interface UrlFilters {
   billType?: string;
   billNumber?: string;
   congress?: string;
+  chamber?: string;
   sponsor?: string[];
 }
 
@@ -104,8 +65,15 @@ export interface BillsClientProps {
    * is skipped — the server-rendered results are already correct.
    */
   serverFilterSignature: string;
-  /** Oldest/newest Congress with data — drives the header's year span. */
-  congressRange: { oldest: number; newest: number } | null;
+  /** Every Congress with data. Fetched on the server; the client never asks. */
+  congressNumbers: number[];
+  /**
+   * The browse-by-category disclosure, rendered by a server component and
+   * passed down as JSX. It must NOT be imported here: importing it would make
+   * it a client module and its forty hub anchors would leave the
+   * server-rendered HTML, which is the only reason they exist.
+   */
+  browseDirectory?: ReactNode;
 }
 
 export default function BillsClient({
@@ -116,7 +84,8 @@ export default function BillsClient({
   initialPage,
   urlFilters,
   serverFilterSignature,
-  congressRange: initialCongressRange,
+  congressNumbers,
+  browseDirectory,
 }: BillsClientProps) {
   const [bills, setBills] = useState<Bill[]>(initialBills ?? []);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -125,78 +94,81 @@ export default function BillsClient({
   // so bills appear fast. `null` means "still loading / unknown".
   const [totalBills, setTotalBills] = useState<BillsCountResult | null>(initialTotal);
   const [currentPage, setCurrentPage] = useState(initialPage);
+
   // The URL is the single source of truth for filters. Values arrive as props
   // the server already applied, so server HTML and the first client render
   // always agree — and a filtered view can be shared, bookmarked, and walked
   // back through. Filters are deliberately NOT persisted to browser storage:
   // silently re-applying a previous visit's filters produced an unexplained
   // "No bills found" for 358 people a month.
-  const [statusFilter, setStatusFilter] = useState<string>(
-    () => urlFilters.status ?? DEFAULT_FILTER_VALUES.status
-  );
-  const [introducedDateFilter, setIntroducedDateFilter] = useState<string>(
-    () => urlFilters.introducedDate ?? DEFAULT_FILTER_VALUES.introducedDate
-  );
-  const [lastActionDateFilter, setLastActionDateFilter] = useState<string>(
-    () => urlFilters.lastActionDate ?? DEFAULT_FILTER_VALUES.lastActionDate
-  );
-  const [sponsorFilter, setSponsorFilter] = useState<string[]>(
-    () => urlFilters.sponsor ?? DEFAULT_FILTER_VALUES.sponsor
-  );
-  const [titleFilter, setTitleFilter] = useState(
-    () => urlFilters.title ?? DEFAULT_FILTER_VALUES.title
-  );
-  const [stateFilter, setStateFilter] = useState<string>(
-    () => urlFilters.state ?? DEFAULT_FILTER_VALUES.state
-  );
-  const [policyAreaFilter, setPolicyAreaFilter] = useState<string>(
-    () => urlFilters.policyArea ?? DEFAULT_FILTER_VALUES.policyArea
-  );
-  const [billTypeFilter, setBillTypeFilter] = useState<string>(
-    () => urlFilters.billType ?? DEFAULT_FILTER_VALUES.billType
-  );
-  const [billNumberFilter, setBillNumberFilter] = useState(
-    () => urlFilters.billNumber ?? DEFAULT_FILTER_VALUES.billNumber
-  );
+  //
+  // One object rather than eleven hooks, so every change goes through a single
+  // chokepoint. That is what makes one analytics call site, one chip
+  // implementation and one URL writer possible — the three things that had
+  // drifted apart when each filter carried its own state.
+  const [filters, setFilters] = useState<BillsFilterValues>(() => ({
+    ...DEFAULT_FILTER_VALUES,
+    ...Object.fromEntries(
+      Object.entries(urlFilters).filter(([, v]) => v !== undefined),
+    ),
+  }));
+
   const [isLoading, setIsLoading] = useState(initialBills === null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [congressRange, setCongressRange] = useState<{ oldest: number; newest: number } | null>(initialCongressRange);
-  const [congressFilter, setCongressFilter] = useState<string>(
-    () => urlFilters.congress ?? DEFAULT_FILTER_VALUES.congress
-  );
 
-  const filterValues: BillsFilterValues = {
-    status: statusFilter,
-    introducedDate: introducedDateFilter,
-    lastActionDate: lastActionDateFilter,
-    sponsor: sponsorFilter,
-    title: titleFilter,
-    state: stateFilter,
-    policyArea: policyAreaFilter,
-    billType: billTypeFilter,
-    billNumber: billNumberFilter,
-    congress: congressFilter,
-  };
-  const currentSignature = filterSignature(filterValues);
-  useEffect(() => {
-    if (congressRange) return;
-    const fetchCongressRange = async () => {
-      try {
-        const numbers = await billsService.getAvailableCongressNumbers();
-        if (numbers.length > 0) {
-          setCongressRange({
-            oldest: Math.min(...numbers),
-            newest: Math.max(...numbers),
+  const currentSignature = filterSignature(filters);
+  const chips = activeFilters(filters);
+  const filtersActive = chips.length > 0;
+
+  const congressRange =
+    congressNumbers.length > 0
+      ? { oldest: Math.min(...congressNumbers), newest: Math.max(...congressNumbers) }
+      : null;
+
+  /**
+   * The one place a filter changes. Fires the analytics that
+   * Documentation/ANALYTICS.md has recorded as missing since the Apply button
+   * was removed, and resets pagination so page 4 of one filter set never
+   * becomes page 4 of another.
+   */
+  const setFilter = (patch: Partial<BillsFilterValues>, surface: FilterSurface) => {
+    setCurrentPage(1);
+    setFilters((previous) => {
+      const next = { ...previous, ...patch };
+      for (const [field, value] of Object.entries(patch)) {
+        const definition = FILTER_BY_FIELD[field];
+        if (!definition) continue;
+        const count = activeFilterCount(next);
+        if (isSet(value as string | string[])) {
+          analytics.billsFilterApplied({
+            filter_kind: definition.kind,
+            // Free text and sponsor names are the reader's business; a length
+            // and a count tell us what we need without keeping either.
+            ...(definition.field === 'title'
+              ? { query_length: String(value).length }
+              : definition.field === 'sponsor'
+                ? { sponsor_count: (value as string[]).length }
+                : { filter_value: String(value) }),
+            surface,
+            active_filter_count: count,
+          });
+        } else if (isSet(previous[definition.field])) {
+          analytics.billsFilterRemoved({
+            filter_kind: definition.kind,
+            surface,
+            active_filter_count: count,
           });
         }
-      } catch (e) {
-        console.error('Error fetching Congress range:', e);
       }
-    };
-    fetchCongressRange();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      return next;
+    });
+  };
+
+  const handleClearAllFilters = () => {
+    setCurrentPage(1);
+    setFilters(DEFAULT_FILTER_VALUES);
+  };
 
   // Mirror filter state into the address bar. Uses the History API directly
   // rather than the Next router: the results are already fetched client-side, so
@@ -205,21 +177,21 @@ export default function BillsClient({
   const syncedSignature = useRef(serverFilterSignature);
   // NUL-joined so the pair round-trips unambiguously: a title may contain
   // spaces or any printable separator, but never a NUL.
-  const syncedText = useRef(`${titleFilter}\u0000${billNumberFilter}`);
+  const syncedText = useRef(`${filters.title}\u0000${filters.billNumber}`);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (currentSignature === syncedSignature.current) return;
 
-    const text = `${titleFilter}\u0000${billNumberFilter}`;
+    const text = `${filters.title}\u0000${filters.billNumber}`;
     const textChanged = text !== syncedText.current;
     syncedSignature.current = currentSignature;
     syncedText.current = text;
 
-    const url = `${window.location.pathname}${buildFilterQuery(filterValues)}`;
-    // Typing replaces the current entry, so Back doesn't have to walk through
-    // every keystroke. Choosing a dropdown value pushes a real entry, so Back
-    // returns to the previous filter set.
+    const url = `${window.location.pathname}${buildFilterQuery(filters)}`;
+    // A search commit replaces the current entry, so Back doesn't have to walk
+    // through every settled query. Choosing a value pushes a real entry, so
+    // Back returns to the previous filter set.
     if (textChanged) window.history.replaceState({}, '', url);
     else window.history.pushState({}, '', url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,120 +206,25 @@ export default function BillsClient({
       syncedSignature.current = filterSignature(f);
       syncedText.current = `${f.title}\u0000${f.billNumber}`;
       setCurrentPage(1);
-      setStatusFilter(f.status);
-      setIntroducedDateFilter(f.introducedDate);
-      setLastActionDateFilter(f.lastActionDate);
-      setSponsorFilter(f.sponsor);
-      setTitleFilter(f.title);
-      setStateFilter(f.state);
-      setPolicyAreaFilter(f.policyArea);
-      setBillTypeFilter(f.billType);
-      setBillNumberFilter(f.billNumber);
-      setCongressFilter(f.congress);
+      setFilters(f);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  const handleClearAllFilters = () => {
-    analytics.billsFiltersCleared();
-    setCurrentPage(1);
-    setStatusFilter('all');
-    setIntroducedDateFilter('all');
-    setLastActionDateFilter('all');
-    setSponsorFilter([]);
-    setTitleFilter('');
-    setStateFilter('all');
-    setPolicyAreaFilter('all');
-    setBillTypeFilter('all');
-    setBillNumberFilter('');
-    setCongressFilter('all');
-  };
-
-  /**
-   * One chip per active filter, so an empty result can name exactly what is
-   * narrowing it and let the reader drop constraints one at a time.
-   */
-  const activeFilterChips: Array<{ kind: string; label: string; clear: () => void }> = [];
-  if (congressFilter !== 'all') {
-    activeFilterChips.push({
-      kind: 'congress',
-      label: `${formatCongressOrdinal(Number(congressFilter))} Congress`,
-      clear: () => setCongressFilter('all'),
-    });
-  }
-  if (titleFilter !== '') {
-    // A search that is entirely a bill reference is run as a number lookup, not
-    // a title search, so the chip has to say so — otherwise an empty result
-    // claims we looked somewhere we didn't.
-    const reference = billNumberFilter === '' ? parseBillReference(titleFilter) : null;
-    activeFilterChips.push({
-      kind: reference ? 'bill_reference' : 'title',
-      label: reference
-        ? `Bill ${reference.billType ? `${BILL_TYPES[reference.billType as keyof typeof BILL_TYPES] ?? reference.billType} ` : 'number '}${reference.billNumber}`
-        : `Title contains “${titleFilter}”`,
-      clear: () => setTitleFilter(''),
-    });
-  }
-  if (billNumberFilter !== '') {
-    activeFilterChips.push({
-      kind: 'bill_number',
-      label: `Bill number ${billNumberFilter}`,
-      clear: () => setBillNumberFilter(''),
-    });
-  }
-  if (statusFilter !== 'all') {
-    activeFilterChips.push({
-      kind: 'status',
-      label: labelFor(STATUS_OPTIONS, statusFilter),
-      clear: () => setStatusFilter('all'),
-    });
-  }
-  if (billTypeFilter !== 'all') {
-    activeFilterChips.push({
-      kind: 'bill_type',
-      label: BILL_TYPES[billTypeFilter as keyof typeof BILL_TYPES] ?? billTypeFilter,
-      clear: () => setBillTypeFilter('all'),
-    });
-  }
-  if (policyAreaFilter !== 'all') {
-    activeFilterChips.push({
-      kind: 'policy_area',
-      label: `Policy area: ${policyAreaFilter}`,
-      clear: () => setPolicyAreaFilter('all'),
-    });
-  }
-  if (stateFilter !== 'all') {
-    activeFilterChips.push({
-      kind: 'state',
-      label: STATE_NAMES[stateFilter] ?? stateFilter,
-      clear: () => setStateFilter('all'),
-    });
-  }
-  if (sponsorFilter.length > 0) {
-    activeFilterChips.push({
-      kind: 'sponsor',
-      label:
-        sponsorFilter.length === 1
-          ? `Sponsor: ${sponsorFilter[0]}`
-          : `${sponsorFilter.length} sponsors`,
-      clear: () => setSponsorFilter([]),
-    });
-  }
-  if (introducedDateFilter !== 'all') {
-    activeFilterChips.push({
-      kind: 'introduced_date',
-      label: `Introduced: ${labelFor(DATE_OPTIONS, introducedDateFilter).toLowerCase()}`,
-      clear: () => setIntroducedDateFilter('all'),
-    });
-  }
-  if (lastActionDateFilter !== 'all') {
-    activeFilterChips.push({
-      kind: 'last_action_date',
-      label: `Acted on: ${labelFor(DATE_OPTIONS, lastActionDateFilter).toLowerCase()}`,
-      clear: () => setLastActionDateFilter('all'),
-    });
-  }
+  const serviceArgs = (f: BillsFilterValues) => ({
+    status: f.status,
+    introducedDateFilter: f.introducedDate,
+    lastActionDateFilter: f.lastActionDate,
+    sponsorFilter: f.sponsor,
+    titleFilter: f.title,
+    stateFilter: f.state,
+    policyArea: f.policyArea,
+    billType: f.billType,
+    billNumber: f.billNumber,
+    congress: f.congress,
+    chamber: f.chamber === 'all' ? null : (f.chamber as 'house' | 'senate'),
+  });
 
   const handleLoadMore = async () => {
     setIsLoadingMore(true);
@@ -358,16 +235,7 @@ export default function BillsClient({
       const response = await billsService.fetchBills({
         page: nextPage,
         itemsPerPage: ITEMS_PER_PAGE,
-        status: statusFilter,
-        introducedDateFilter,
-        lastActionDateFilter,
-        sponsorFilter,
-        titleFilter,
-        stateFilter,
-        policyArea: policyAreaFilter,
-        billType: billTypeFilter,
-        billNumber: billNumberFilter,
-        congress: congressFilter,
+        ...serviceArgs(filters),
       });
       const existing = new Set(bills.map((b) => b.id));
       const newBills = response.data.filter((b) => !existing.has(b.id));
@@ -406,18 +274,7 @@ export default function BillsClient({
     // render only when Convex can answer from precomputed data.
     setTotalBills(null);
 
-    const filterArgs = {
-      status: statusFilter,
-      introducedDateFilter,
-      lastActionDateFilter,
-      sponsorFilter,
-      titleFilter,
-      stateFilter,
-      policyArea: policyAreaFilter,
-      billType: billTypeFilter,
-      billNumber: billNumberFilter,
-      congress: congressFilter,
-    };
+    const filterArgs = serviceArgs(filters);
 
     // Fire page + count in parallel. We don't await both together; bills render
     // as soon as the page query resolves, and exact counts fill in when cheap.
@@ -430,8 +287,8 @@ export default function BillsClient({
         setTruncated(response.truncated ?? false);
         setCurrentPage(1);
         // UX friction signal: an active filter combination matched nothing.
-        if (response.data.length === 0 && activeFilterChips.length > 0) {
-          analytics.billsNoResults(activeFilterChips.length, titleFilter);
+        if (response.data.length === 0 && activeFilterCount(filters) > 0) {
+          analytics.billsNoResults(activeFilterCount(filters), filters.title.length);
         }
       })
       .catch((e) => {
@@ -456,14 +313,35 @@ export default function BillsClient({
     return () => {
       cancelled = true;
     };
+    // One dependency, not eleven. `sponsor` is an array, so a new-but-equal
+    // identity used to trigger a full refetch on every unrelated render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    statusFilter, introducedDateFilter, lastActionDateFilter, sponsorFilter,
-    titleFilter, stateFilter, policyAreaFilter, billTypeFilter,
-    billNumberFilter, congressFilter,
-  ]);
+  }, [currentSignature]);
 
-  const filtersActive = activeFilterChips.length > 0;
+  /*
+   * Whether this list is a sample rather than the whole set.
+   *
+   * This used to be inferred here — active scan-limited filters, an exact
+   * count, and no more pages — because the backend did not say. It does now:
+   * `list` reports `truncated` when its scan gave up before filling the page,
+   * so the inference is gone. A guess and an answer looked the same on screen
+   * and only one of them was right.
+   */
+  const limitedKinds = scanLimitedActive(filters);
+  const knownTotal = totalBills?.exact ? totalBills.count : null;
+
+  const reportedTruncation = useRef<string>('');
+  useEffect(() => {
+    if (!truncated) return;
+    if (reportedTruncation.current === currentSignature) return;
+    reportedTruncation.current = currentSignature;
+    analytics.billsResultsTruncated({
+      filter_kinds: limitedKinds,
+      shown: bills.length,
+      known_total: knownTotal,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [truncated, currentSignature]);
 
   // Re-keying the results grid on the filter signature makes new cards
   // cross-fade/stagger in when filters change, while a "load more" (same
@@ -498,35 +376,15 @@ export default function BillsClient({
         </div>
       </section>
 
-      <div className="container-editorial py-8 lg:py-10">
-        {/* Quick-access filters — always visible, all screens */}
-        <div className="mb-5">
-          <FilterQuickAccess
-            statusFilter={statusFilter}
-            introducedDateFilter={introducedDateFilter}
-            lastActionDateFilter={lastActionDateFilter}
-            sponsorFilter={sponsorFilter}
-            titleFilter={titleFilter}
-            stateFilter={stateFilter}
-            policyAreaFilter={policyAreaFilter}
-            billTypeFilter={billTypeFilter}
-            billNumberFilter={billNumberFilter}
-            congressFilter={congressFilter}
-            onStatusChange={setStatusFilter}
-            onIntroducedDateChange={setIntroducedDateFilter}
-            onLastActionDateChange={setLastActionDateFilter}
-            onSponsorChange={setSponsorFilter}
-            onTitleChange={setTitleFilter}
-            onStateChange={setStateFilter}
-            onPolicyAreaChange={setPolicyAreaFilter}
-            onBillTypeChange={setBillTypeFilter}
-            onBillNumberChange={setBillNumberFilter}
-            onCongressChange={setCongressFilter}
-            onClearAllFilters={handleClearAllFilters}
-            filtersActive={filtersActive}
-          />
-        </div>
+      <FilterBar
+        values={filters}
+        onChange={setFilter}
+        onClearAll={handleClearAllFilters}
+        congressNumbers={congressNumbers}
+        browseDirectory={browseDirectory}
+      />
 
+      <div className="container-editorial py-8 lg:py-10">
         <div className="flex flex-col gap-10 lg:gap-12">
           {/* Results column */}
           <div className="flex-1 min-w-0">
@@ -538,18 +396,40 @@ export default function BillsClient({
                     <span className="font-mono font-medium text-foreground tabular">
                       {bills.length}
                     </span>
-                    {totalBills?.count != null && (
+                    {/*
+                      Three different states, and they must not be conflated:
+
+                      - a known total → "of 2,121"
+                      - a capped search, which knows only a floor → "of 1,024+",
+                        never presented as the full total
+                      - still in flight → "of …", holding the slot so the line
+                        does not reflow when the count lands
+
+                      When the count comes back genuinely unavailable — Convex
+                      declines to count two or more non-Congress filters — the
+                      phrase is dropped entirely. An ellipsis there would promise
+                      a number that is never coming.
+                    */}
+                    {totalBills?.count != null ? (
                       <>
                         {' '}of{' '}
                         <span className="font-mono font-medium text-foreground tabular">
-                          {/* A capped search knows only a floor, so show "1,024+"
-                              rather than presenting it as the full total. */}
                           {formatCount(totalBills.count)}
                           {totalBills.exact ? '' : '+'}
                         </span>
                       </>
-                    )}
-                    {' '}bills
+                    ) : totalBills === null ? (
+                      <>
+                        {' '}of{' '}
+                        <span className="font-mono font-medium text-muted-foreground tabular">…</span>
+                      </>
+                    ) : null}
+                    {/* "Showing 1 bills" — the plural only ever showed up once
+                        the "of N" phrase could be absent. */}
+                    {' '}
+                    {totalBills?.count === 1 || (totalBills?.count == null && bills.length === 1)
+                      ? 'bill'
+                      : 'bills'}
                     {filtersActive && <span className="ml-1">· filtered</span>}
                     {/* The scan gave up before finding every match, so this list
                         is a sample of the count beside it, not the whole of it.
@@ -575,14 +455,14 @@ export default function BillsClient({
                 unfiltered list — "explain all 19,000 bills" is not a question.
               */}
               <ScopeAskBar
-                scope={scopeFromFilters(filterValues)}
+                scope={scopeFromFilters(filters)}
                 count={totalBills?.count ?? bills.length}
               />
               {/* The same scope, published for questions TYPED into the panel —
                   the reader is looking at these rows either way. */}
               <AskPageContext
-                congress={validCongress(filterValues.congress)}
-                scope={scopeFromFilters(filterValues)}
+                congress={validCongress(filters.congress)}
+                scope={scopeFromFilters(filters)}
               />
             </div>
 
@@ -619,26 +499,38 @@ export default function BillsClient({
                     <>
                       <p className="text-sm text-muted-foreground">
                         No bill matches{' '}
-                        {activeFilterChips.length === 1
+                        {chips.length === 1
                           ? 'this filter'
-                          : `all ${activeFilterChips.length} of these filters`}
+                          : `all ${chips.length} of these filters`}
                         . Remove one to widen the search.
                       </p>
                       <div className="mt-5 flex flex-wrap justify-center gap-2">
-                        {activeFilterChips.map((chip) => (
+                        {chips.map((chip) => (
                           <button
-                            key={chip.label}
+                            key={chip.definition.field}
                             type="button"
                             onClick={() => {
                               analytics.billsNoResultsFilterRemoved(
-                                chip.kind,
-                                activeFilterChips.length,
+                                chip.definition.kind,
+                                chips.length,
                               );
-                              chip.clear();
+                              setFilter(
+                                {
+                                  [chip.definition.field]: chip.definition.multi
+                                    ? []
+                                    : chip.definition.field === 'title' ||
+                                        chip.definition.field === 'billNumber'
+                                      ? ''
+                                      : 'all',
+                                } as Partial<BillsFilterValues>,
+                                'empty_state',
+                              );
                             }}
-                            className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="group inline-flex max-w-full items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            <span className="truncate">{chip.label}</span>
+                            <span className="truncate">
+                              {chip.definition.label}: {chip.label}
+                            </span>
                             <span aria-hidden="true" className="text-muted-foreground group-hover:text-foreground">
                               ×
                             </span>
@@ -647,7 +539,17 @@ export default function BillsClient({
                         ))}
                       </div>
                       <div className="mt-5">
-                        <Button onClick={handleClearAllFilters} variant="outline" size="sm">
+                        <Button
+                          onClick={() => {
+                            analytics.billsFiltersCleared({
+                              active_filter_count: chips.length,
+                              surface: 'empty_state',
+                            });
+                            handleClearAllFilters();
+                          }}
+                          variant="outline"
+                          size="sm"
+                        >
                           Clear all filters
                         </Button>
                       </div>
@@ -660,6 +562,7 @@ export default function BillsClient({
                 </div>
               )}
             </div>
+
 
             {hasMore && (
               <div className="mt-10 text-center">
@@ -674,4 +577,3 @@ export default function BillsClient({
     </div>
   );
 }
-

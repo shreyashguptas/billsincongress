@@ -86,6 +86,7 @@ function parseRequest(params: SearchParams): {
     billType: firstValue(params.billType),
     billNumber: firstValue(params.billNumber),
     congress: firstValue(params.congress),
+    chamber: firstValue(params.chamber),
   };
   const sponsor = allValues(params.sponsor);
   if (sponsor.length > 0) urlFilters.sponsor = sponsor;
@@ -101,6 +102,7 @@ function parseRequest(params: SearchParams): {
     billType: urlFilters.billType ?? DEFAULT_FILTER_VALUES.billType,
     billNumber: urlFilters.billNumber ?? DEFAULT_FILTER_VALUES.billNumber,
     congress: urlFilters.congress ?? DEFAULT_FILTER_VALUES.congress,
+    chamber: urlFilters.chamber ?? DEFAULT_FILTER_VALUES.chamber,
   };
 
   const rawPage = Number.parseInt(firstValue(params.page) ?? '1', 10);
@@ -124,6 +126,9 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
     billType: applied.billType,
     billNumber: applied.billNumber,
     congress: applied.congress,
+    // Already plumbed through the service and Convex, and used by the hub
+    // pages — it was only ever missing from the URL parsing here.
+    chamber: applied.chamber === 'all' ? null : (applied.chamber as 'house' | 'senate'),
   };
 
   // Server-render the requested page of results so crawlers (and first paint)
@@ -133,11 +138,14 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   let initialHasMore = false;
   let initialTruncated = false;
   let initialTotal: BillsCountResult | null = null;
-  // Oldest/newest Congress with data — drives the header's "(2021–2026 ·
-  // 117th–119th)" span. Null until known (or if nothing is available).
-  let congressRange: { oldest: number; newest: number } | null = null;
+  // Every Congress with data. Drives both the header's "(2021–2026 ·
+  // 117th–119th)" span and the filter band's scope switcher, so the client no
+  // longer fetches it a second time — which used to mean that on
+  // /bills?congress=118 the switcher had no options until that fetch returned,
+  // and opening it wiped the filter.
+  let congressNumbers: number[] = [];
   try {
-    const [billsResponse, countResult, congressNumbers] = await Promise.all([
+    const [billsResponse, countResult, availableCongresses] = await Promise.all([
       billsService.fetchBills({ page, itemsPerPage: ITEMS_PER_PAGE, ...serviceArgs }),
       billsService
         .fetchBillsCount(serviceArgs)
@@ -148,12 +156,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
     initialHasMore = billsResponse.hasMore;
     initialTruncated = billsResponse.truncated ?? false;
     initialTotal = countResult;
-    if (congressNumbers.length > 0) {
-      congressRange = {
-        oldest: Math.min(...congressNumbers),
-        newest: Math.max(...congressNumbers),
-      };
-    }
+    congressNumbers = availableCongresses;
   } catch (error) {
     console.error('Server-side bills fetch failed, deferring to client:', error);
   }
@@ -168,9 +171,10 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
         initialPage={page}
         urlFilters={urlFilters}
         serverFilterSignature={filterSignature(applied)}
-        congressRange={congressRange}
+        congressNumbers={congressNumbers}
+        browseDirectory={<HubDirectory />}
       />
-      <div className="container mx-auto px-4 max-w-5xl">
+      <div className="container-editorial">
         {/* Server-rendered page links. The list above is a client component
             whose "Load more" button a crawler cannot press, which is why depth
             on this page was unreachable while the hub pages were not. Filters
@@ -182,7 +186,6 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
           hrefForPage={(n) => hrefForPage(params, n)}
           className="mb-12 justify-center"
         />
-        <HubDirectory />
       </div>
     </>
   );

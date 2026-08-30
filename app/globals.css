@@ -42,6 +42,11 @@
     --input: 35 15% 85%;
     --ring: 220 25% 14%;
 
+    /* Boundary of an interactive control. --border is 1.37:1 against --card,
+       which is fine for a decorative rule but fails WCAG 1.4.11 (3:1) when it
+       is the only thing telling a reader that a thing is a control. */
+    --control-border: 35 15% 52%;
+
     /* Stage / status colours used in dashboard charts */
     --status-introduced: 220 8% 55%;
     --status-committee: 220 25% 38%;
@@ -101,6 +106,8 @@
     --input: 220 12% 22%;
     --ring: 40 20% 92%;
 
+    --control-border: 220 12% 44%;
+
     --status-introduced: 220 8% 60%;
     --status-committee: 220 20% 60%;
     --status-passed-one: 35 60% 60%;
@@ -131,6 +138,14 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    /* Tells the browser which way to paint the chrome it owns — scrollbars,
+       form controls, the overscroll gutter. Without it a reader on the dark
+       theme with a light OS gets white scrollbars out of a dark page. */
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
   }
 
   body {
@@ -210,6 +225,77 @@
 }
 .animate-rise-in {
   animation: rise-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* ── Overlay surfaces ─────────────────────────────────────────────────────
+   Sheets, dialogs and popovers. Radix keeps an element mounted while its
+   exit animation runs, so every surface needs BOTH directions — with only an
+   "in" animation, Presence unmounts immediately and the sheet snaps shut.
+
+   These are also declared in tailwind.config.ts. That is not duplication:
+   a `data-[state=open]:animate-x` VARIANT only emits CSS for a utility
+   Tailwind itself generated, so a hand-written `.animate-x` class alone is
+   silently inert inside a variant. Every existing sheet on the site is
+   currently un-animated for exactly that reason.
+
+   Every "in" ends at `transform: none` for the same reason page-in does:
+   a lingering transform creates a containing block and breaks the portalled
+   content positioned inside it.
+
+   The blanket prefers-reduced-motion rule at the end of this file neutralises
+   all of them automatically. */
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes overlay-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes sheet-in-bottom {
+  from { transform: translateY(100%); }
+  to   { transform: none; }
+}
+@keyframes sheet-out-bottom {
+  from { transform: none; }
+  to   { transform: translateY(100%); }
+}
+
+@keyframes sheet-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: none; }
+}
+@keyframes sheet-out-left {
+  from { transform: none; }
+  to   { transform: translateX(-100%); }
+}
+
+@keyframes sheet-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: none; }
+}
+@keyframes sheet-out-right {
+  from { transform: none; }
+  to   { transform: translateX(100%); }
+}
+
+@keyframes sheet-in-top {
+  from { transform: translateY(-100%); }
+  to   { transform: none; }
+}
+@keyframes sheet-out-top {
+  from { transform: none; }
+  to   { transform: translateY(-100%); }
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes popover-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(-4px) scale(0.98); }
 }
 
 /* ── Waving flag ──────────────────────────────────────────────────────────
