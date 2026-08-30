@@ -18,7 +18,7 @@ export default function SignInPage() {
             Welcome back
           </h1>
           <p className="text-sm text-muted-foreground">
-            Sign in to follow bills, save your work, and access Pro features.
+            Sign in to save bills and ask more questions each day.
           </p>
         </div>
         <Suspense fallback={<div className="h-72" aria-hidden />}>

@@ -91,7 +91,7 @@ export default defineSchema({
     sponsorLastName: v.optional(v.string()),
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
-    progressStage: v.optional(v.number()), // 20, 40, 60, 80, 90, 95, 100
+    progressStage: v.optional(v.number()), // 20, 40, 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
     // Denormalised copy of billSubjects.policyAreaName: a topic filter must be

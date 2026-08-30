@@ -222,8 +222,10 @@ export const debugBillEnrichment = internalQuery({
   },
 });
 
-// A bill stores at most 250 actions (the sync fetches with limit=250).
-const MAX_BILL_ACTIONS = 250;
+// The sync paginates actions up to 2,000 per bill (see fetchBillActions in
+// congressApi.ts), so this bound must cover a full history — otherwise the
+// "most recent" sort below runs over an arbitrary prefix of it.
+const MAX_BILL_ACTIONS = 2000;
 const RECENT_ACTIONS_LIMIT = 20;
 
 /**
@@ -528,9 +530,20 @@ async function narrowestIndexFor(
   ctx: QueryCtx,
   congress: number,
   args: BillsFilterArgs,
-): Promise<"policyArea" | "progressStage" | "congress"> {
+): Promise<"policyArea" | "progressStage" | "sponsorState" | "congress"> {
   const topic = args.policyArea;
   const stage = args.progressStage;
+
+  // A state filter is dramatically more selective than a whole congress —
+  // Wyoming sponsors 161 bills of the 119th's 18,472 — and `by_congress_and_
+  // sponsor_state` already exists. Without this the loop iterated the whole
+  // congress newest-first, hit MAX_LIST_SCAN 1,000+ bills before finding the
+  // matches, and returned 2 rows for a filter the count query correctly
+  // reported as 161. Only used when no topic/stage filter is present, because
+  // those two can be sized against the aggregates below and this one cannot.
+  if (topic === undefined && stage === undefined && args.sponsorState !== undefined) {
+    return "sponsorState";
+  }
 
   if (topic === undefined && stage === undefined) return "congress";
   if (stage === undefined) return "policyArea";
@@ -575,7 +588,7 @@ export const list = query({
     const offset = clampPageNumber(args.offset, 0, MAX_LIST_OFFSET);
 
     const congressFilter = await resolveCongress(ctx, args.congress);
-    if (congressFilter === null) return { data: [], hasMore: false };
+    if (congressFilter === null) return { data: [], hasMore: false, truncated: false };
 
     const searchQuery = args.titleFilter?.trim() || null;
     const match = buildBillPredicate(args);
@@ -593,6 +606,9 @@ export const list = query({
       return {
         data: await enrichWithSubjects(ctx, matches.slice(offset, offset + limit)),
         hasMore: matches.length > offset + limit,
+        // Full-text search has its own ceiling, reported via listCount's
+        // `exact` flag; this path never runs the capped scan.
+        truncated: false,
       };
     }
 
@@ -610,6 +626,7 @@ export const list = query({
       return {
         data: await enrichWithSubjects(ctx, filtered.slice(offset, offset + limit)),
         hasMore: filtered.length > offset + limit,
+        truncated: false, // exact indexed lookup — nothing was skipped
       };
     }
 
@@ -645,10 +662,19 @@ export const list = query({
                   .eq("progressStage", args.progressStage),
               )
               .order("desc")
-          : ctx.db
-              .query("bills")
-              .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-              .order("desc");
+          : iterateBy === "sponsorState"
+            ? ctx.db
+                .query("bills")
+                .withIndex("by_congress_and_sponsor_state", (q) =>
+                  q
+                    .eq("congress", congressFilter)
+                    .eq("sponsorState", args.sponsorState),
+                )
+                .order("desc")
+            : ctx.db
+                .query("bills")
+                .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
+                .order("desc");
 
     for await (const bill of iter) {
       scanned++;
@@ -661,7 +687,13 @@ export const list = query({
       if (scanned >= MAX_LIST_SCAN) break;
     }
 
-    if (scanned >= MAX_LIST_SCAN && matches.length <= offset + limit) {
+    // The scan gave up before filling the page: there may well be more matches
+    // past the cap that we never looked at. Returning only `hasMore: false` here
+    // let the UI present a truncated list as the complete set — the count query
+    // said 161 Wyoming bills while this returned 2. Surface it instead.
+    const truncated = scanned >= MAX_LIST_SCAN && matches.length <= offset + limit;
+
+    if (truncated) {
       console.warn("bills.list hit scan cap before filling page", {
         congress: congressFilter,
         filters: {
@@ -687,6 +719,7 @@ export const list = query({
     return {
       data: await enrichWithSubjects(ctx, matches.slice(offset, offset + limit)),
       hasMore: matches.length > offset + limit,
+      truncated,
     };
   },
 });

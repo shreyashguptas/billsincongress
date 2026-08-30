@@ -94,7 +94,16 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
   let scanCapped = false;
   /** The sponsor branch computes its own capping, per surname. */
   let sponsorBranch = false;
-  if (title !== "") {
+  if (typeof f.billId === "string") {
+    // MUST come first. An exact id is the most selective filter there is, and
+    // every branch below scans a capped window — so a request for one known
+    // bill would otherwise be answered by looking through the newest 200 and
+    // reporting "not found" for anything older.
+    candidates = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", f.billId as string))
+      .take(1);
+  } else if (title !== "") {
     candidates = await ctx.db
       .query("bills")
       .withSearchIndex("search_title", (q) => {
@@ -199,6 +208,12 @@ async function fetchBills(ctx: QueryCtx, f: Row, limit: number): Promise<FetchRe
     f.chamber === "house" ? HOUSE_TYPES : f.chamber === "senate" ? SENATE_TYPES : null;
 
   const matched = candidates.filter((b) => {
+    if (typeof f.billId === "string" && b.billId !== f.billId) return false;
+    // A no-op for every other branch, where the index already pinned the
+    // Congress. It matters only for the billId branch, which does not — so a
+    // {billId, congress} pair that disagrees returns nothing rather than
+    // returning the bill and letting the answer assert the wrong Congress.
+    if (typeof f.congress === "number" && b.congress !== f.congress) return false;
     if (typeof f.progressStage === "number" && b.progressStage !== f.progressStage) return false;
     if (typeof f.sponsorState === "string" && b.sponsorState !== f.sponsorState) return false;
     if (typeof f.billType === "string" && b.billType !== f.billType) return false;

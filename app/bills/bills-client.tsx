@@ -15,6 +15,8 @@ import type { Bill } from '../../lib/types/bill';
 import { Button } from '@/components/ui/button';
 import BillCard from '@/components/bills/bill-card';
 import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
+import { AskPageContext } from '@/components/answers/ask-page-context';
+import { validCongress } from '@/lib/page-context';
 import { scopeFromFilters } from '@/lib/answer-scope';
 import { FilterQuickAccess } from '@/components/bills/mobile-filter-bar';
 import {
@@ -91,6 +93,7 @@ export interface BillsClientProps {
   /** First page of results fetched on the server; null if the server fetch failed. */
   initialBills: Bill[] | null;
   initialHasMore: boolean;
+  initialTruncated?: boolean;
   /** Null when the server couldn't count; `exact: false` means "at least this many". */
   initialTotal: BillsCountResult | null;
   initialPage: number;
@@ -108,6 +111,7 @@ export interface BillsClientProps {
 export default function BillsClient({
   initialBills,
   initialHasMore,
+  initialTruncated = false,
   initialTotal,
   initialPage,
   urlFilters,
@@ -116,6 +120,7 @@ export default function BillsClient({
 }: BillsClientProps) {
   const [bills, setBills] = useState<Bill[]>(initialBills ?? []);
   const [hasMore, setHasMore] = useState(initialHasMore);
+  const [truncated, setTruncated] = useState(initialTruncated);
   // `totalBills` is loaded asynchronously — kept off the critical render path
   // so bills appear fast. `null` means "still loading / unknown".
   const [totalBills, setTotalBills] = useState<BillsCountResult | null>(initialTotal);
@@ -368,6 +373,7 @@ export default function BillsClient({
       const newBills = response.data.filter((b) => !existing.has(b.id));
       setBills((prev) => [...prev, ...newBills]);
       setHasMore(response.hasMore);
+      setTruncated(response.truncated ?? false);
       setCurrentPage(nextPage);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load more bills');
@@ -421,6 +427,7 @@ export default function BillsClient({
         if (cancelled) return;
         setBills(response.data);
         setHasMore(response.hasMore);
+        setTruncated(response.truncated ?? false);
         setCurrentPage(1);
         // UX friction signal: an active filter combination matched nothing.
         if (response.data.length === 0 && activeFilterChips.length > 0) {
@@ -544,6 +551,16 @@ export default function BillsClient({
                     )}
                     {' '}bills
                     {filtersActive && <span className="ml-1">· filtered</span>}
+                    {/* The scan gave up before finding every match, so this list
+                        is a sample of the count beside it, not the whole of it.
+                        Saying so is the difference between an incomplete answer
+                        and a wrong one. */}
+                    {truncated && (
+                      <span className="ml-1">
+                        · partial list — narrow the filters or search by title to
+                        reach the rest
+                      </span>
+                    )}
                   </>
                 ) : isLoading ? (
                   'Loading…'
@@ -560,6 +577,12 @@ export default function BillsClient({
               <ScopeAskBar
                 scope={scopeFromFilters(filterValues)}
                 count={totalBills?.count ?? bills.length}
+              />
+              {/* The same scope, published for questions TYPED into the panel —
+                  the reader is looking at these rows either way. */}
+              <AskPageContext
+                congress={validCongress(filterValues.congress)}
+                scope={scopeFromFilters(filterValues)}
               />
             </div>
 
