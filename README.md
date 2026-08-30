@@ -38,7 +38,7 @@ Nearly every number on the page is clickable. Click a status segment, a sponsor 
 
 `/bills` is the full browser. You can search by title or bill number, start typing a sponsor's name to pick them from a list, and filter by status, Congress, policy area (33 of them), state, date introduced, date last acted on, and bill type.
 
-Every active filter shows as a chip you can remove, and every filter is written into the address bar — so a filtered view can be bookmarked, shared, or walked back through with the browser's Back button. Filters are deliberately *not* remembered between visits, because silently re-applying last week's filters is how people end up staring at an unexplained empty page.
+Each filter's own control displays what it is currently set to, with a running "N filters applied · Clear all" line under the row, and every filter is written into the address bar — so a filtered view can be bookmarked, shared, or walked back through with the browser's Back button. Filters are deliberately *not* remembered between visits, because silently re-applying last week's filters is how people end up staring at an unexplained empty page.
 
 ### Forty ways in
 

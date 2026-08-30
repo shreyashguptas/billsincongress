@@ -438,15 +438,17 @@ Tracking are therefore against minified production bundles. Wiring sourcemap upl
 
 ## Wired in code but never observed
 
-As of 29 Aug 2026, seven of the 48 registered events have never been received once. Each
-is either a genuinely rare path or a broken one, and the difference matters — an event
-that *cannot* fire is a silent instrumentation bug, not a quiet feature.
+As of 29 Aug 2026, seven registered events had never been received once. Each is either a
+genuinely rare path or a broken one, and the difference matters — an event that *cannot*
+fire is a silent instrumentation bug, not a quiet feature. The seven filter-redesign events
+shipped the same day and are deliberately left out of this table: they need a week of
+traffic before their absence tells you anything.
 
 | Event | Most likely explanation |
 |---|---|
 | `signup_verification_code_resent` | Rare path — few people need to resend the code. |
 | `signup_failed` | Rare path — only fires on a failed password-rules check or a wrong code. |
-| `hub_link_clicked` | Hub pages only shipped 18 Aug 2026 and the sibling links sit far down the page. |
+| `hub_link_clicked` | Hub pages only shipped 18 Aug 2026, and until the /bills browse disclosure and the filter-picker footers landed, the only way to fire this was a sibling row far down a hub page. |
 | `rate_limit_signin_clicked` | Rare — few readers hit the cap and already have an account. |
 | `answer_rate_limited` | Expected to be rare while answer volume is low, but worth watching: it is the top of the rate-limit conversion funnel. |
 | `answer_thread_deleted` | Requires a signed-in reader to delete a saved conversation. |
