@@ -190,9 +190,20 @@ export default function RootLayout({
                 >
                   Skip to content
                 </a>
-                <div className="flex min-h-screen flex-col">
+                {/*
+                  `ask-shell` is the element the docked panel pushes, via a
+                  padding-right in globals.css. It has to be this node: it is
+                  the only one wrapping header, main and footer together, so
+                  the sticky header squeezes with the page instead of running
+                  underneath the panel. Padding, never a transform — a
+                  transform does not reflow and would make this a containing
+                  block for every fixed descendant.
+                */}
+                <div className="ask-shell flex min-h-screen flex-col">
                   <Navigation />
-                  <main id="main" className="flex-1">
+                  {/* tabIndex so focus can be moved here when the panel
+                      steps aside for a bill the reader tapped in an answer. */}
+                  <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
                     {children}
                   </main>
                   <Footer />

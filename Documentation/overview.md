@@ -440,7 +440,7 @@ Replaces the per-bill chat panel, which was removed on 26 August 2026.
 
 ```
 components/answers/answer-provider.tsx      one provider, mounted in app/layout.tsx
-  └─ fetch POST /api/answer
+  └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId
        └─ app/api/answer/route.ts           exists ONLY to attach the httpOnly auth cookie
             │                                and the anonymous session cookie
             └─ POST {CONVEX_SITE_URL}/answer/stream     (convex/http.ts → answer.stream)
@@ -457,6 +457,75 @@ The panel is mounted in the root layout as a **sibling** of the page content, ne
 it, so a conversation survives client-side navigation. Prose is emitted only *after* citations
 are resolved, in 60-character chunks — never token by token, because a fabricated citation
 must not be visible even briefly.
+
+### The panel
+
+Three shapes, chosen by media query in `app/globals.css` and described by `lib/ask-panel.ts`:
+
+| Viewport | Shape | Behaviour |
+| --- | --- | --- |
+| `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. |
+| `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. |
+| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. |
+
+**1344 is derived, not chosen.** `container-editorial` at a 1024px viewport gives its `lg:`
+layouts 960px of inner width, so the pushed shell must never fall below 1024px — and the
+narrowest useful panel is 320px. Tailwind's media queries see the **viewport**, not a content
+box shrinking underneath them, so a starved `lg:` grid cannot notice and adapt. That invariant
+is the reason `lib/ask-panel.test.ts` sweeps every docked viewport against every requested
+width rather than spot-checking a few.
+
+**The mode is never computed during render.** The panel lives in the root layout, so reading
+the viewport while rendering would be a hydration mismatch on every page of the site. CSS owns
+the decision. Where JavaScript needs the width it calls `viewportWidth()`, which returns
+`documentElement.clientWidth` — *not* `window.innerWidth`, which includes the classic
+scrollbar while a `width` media feature does not. The ~15px difference is enough, at a window
+sized near the dock threshold, to have JavaScript believing the panel is docked while CSS is
+still drawing it over the page.
+
+`app/globals.css` cannot import those constants, so `lib/ask-css-contract.test.ts` reads the
+stylesheet as text and asserts the breakpoints, the three `--header-h` values (57/65/**94**px
+— the header really is three heights) and the panel's z-index match `lib/ask-panel.ts` and
+`components/navigation.tsx`. That drift is guaranteed otherwise, not merely possible.
+
+**The panel is never unmounted** — only translated off-screen and marked `inert`. The phase
+machine is `lib/ask-panel-state.ts`: `closed`, `open`, `minimized`. Keeping it mounted is what
+makes the next part cheap.
+
+**Stepping aside.** A bill card inside an answer was always a working link, but on a phone the
+sheet covered the page it opened, so the tap read as doing nothing. `answer-panel.tsx` captures
+the click at the panel boundary and minimises *on the tap*, before the route commits — which
+also catches tapping the bill the reader is already on, where no route change ever fires. A
+`usePathname` effect backstops navigations that never pass through the panel. Because nothing
+unmounts, the thread's scroll position and the composer's draft survive. Focus moves to
+`<main>`, so a keyboard or screen-reader user lands on the page they just opened.
+
+`components/answers/ask-launcher.tsx` is the way back, and the way in: present on every page in
+every phase but `open`, and **not** gated on a conversation already existing — topic hubs and
+`/learn` previously had no ask affordance at all. A corner pill normally; a full-width bottom
+bar on a phone when a conversation has been set aside.
+
+### Page context
+
+Each route publishes what it has open via `components/answers/ask-page-context.tsx`, a
+null-rendering component. `lib/page-context.ts` turns that plus the path into the payload;
+`convex/catalog/context.ts` validates it again on arrival and composes the prompt block.
+
+The wire carries **identifiers and enums only** — a route name from a closed set of six, an
+integer Congress bounded 1–200, and a bill id matched against a pattern. It never carries
+prose, and the one client string that does reach the model (the scope label, which is partly
+reader-typed via the title filter) is newline-stripped and clamped to 120 characters first.
+`/answer/stream` is an httpAction on `*.convex.site` and is publicly addressable, so
+`app/api/answer/route.ts` is defence in depth and `convex/catalog/context.ts` is the boundary.
+
+Context says **where to look**, never what is true. Prose injected into a prompt carries no
+`_cite` handle, so `cite.ts` deletes any citation hung on it and the reader is left with an
+unsupported sentence. The bill on screen is therefore **seeded as a tool result**, carrying its
+handle, exactly as a pre-applied scope is — specific answers that still cite a real record.
+
+> `surfaceFor` used to treat any single segment under `/bills/` as a bill id, so the seven hub
+> routes reported `surface: "bill"` on every answer event and the prompt asserted *"the reader
+> is looking at bill enacted"*. It now lives in `lib/page-context.ts` with tests.
 
 ### Grounding
 

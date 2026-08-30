@@ -59,7 +59,11 @@ Below that:
 
 ### Ask the record
 
-A question panel opens from the home page, the bills browser and any bill page, and then follows you as you move around the site, so a conversation survives navigation.
+A question panel is available from every page — including the topic and status pages and the `/learn` guide — and it follows you as you move around the site, so a conversation survives navigation.
+
+It adapts to the room it has. On a wide screen it docks to the right and you can drag it wider or narrower; the page and the navigation bar reflow beside it rather than being covered, and your chosen width is remembered. On a narrower window it sits alongside the page as a rail. On a phone it is a sheet that rises from the bottom, below the navigation, so you can still move around the site while it is open.
+
+It also knows what you are looking at. Ask "what does this do?" on a bill page and it knows which bill; ask on a filtered list and it answers about those bills rather than all of them. If you tap a bill inside an answer, the panel steps aside so you can read it, and a bar offers to bring the conversation back exactly as you left it — including anything you had half typed.
 
 It is not a general-purpose chatbot. It answers from this site's own database of Congressional records, and every source it cites is checked against the specific records it was actually shown. See [About the AI](#about-the-ai) below, which is the most important disclosure on this page.
 

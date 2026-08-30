@@ -11,6 +11,7 @@
  * grounding (spec §3.1).
  */
 import { datasetIndex, DATASET_NAMES } from "./datasets";
+import { renderContextBlock, type PageContext } from "./context";
 
 /** Bounds a runaway tool loop. On exceeding it we force a final answer. */
 export const MAX_TOOL_ROUNDS = 4;
@@ -86,8 +87,14 @@ export const ANSWER_TOOLS = [
   },
 ];
 
+/**
+ * `pageContext` and `scopeLabel` describe what the reader has on screen. Both
+ * are rendered by `./context`, which composes every sentence from a constant
+ * table and validated ids — no client string reaches the model from here except
+ * the scope label, and that is stripped and clamped first.
+ */
 export function buildSystemPrompt(
-  opts: { focusBillId?: string; scopeLabel?: string } = {},
+  opts: { pageContext?: PageContext | null; scopeLabel?: string } = {},
 ): string {
   return `You explain the United States Congress to ordinary readers, using ONLY data you retrieve from the datasets below.
 
@@ -145,13 +152,8 @@ Never narrate your own process. "Based on the search results, I can see..." and 
 provide the answer" are not part of the answer; start with the answer itself.
 Never mention datasets, rows, fields, filters or tool names to the reader. They are your
 plumbing, not their vocabulary. Say "we don't track co-sponsors" — never "the dataset states
-that co-sponsors are not included". Say it once and move on; do not apologise twice.${
-    opts.focusBillId
-      ? `\n\nCURRENT CONTEXT\nThe reader is looking at ${opts.focusBillId}. Assume "this bill", "this resolution" or a bare "it" refers to that one. Call it what it actually is: H.R. and S. are bills, H.Res. and S.Res. are resolutions, H.J.Res. and S.J.Res. are joint resolutions, H.Con.Res. and S.Con.Res. are concurrent resolutions. Never call a resolution a bill.`
-      : ""
-  }${
-    opts.scopeLabel
-      ? `\n\nCURRENT VIEW\nThe reader is looking at a filtered list: ${opts.scopeLabel}. Those rows are already in your context — use them. Only fetch again if the question needs something outside that set, and say so when you do.`
-      : ""
-  }`;
+that co-sponsors are not included". Say it once and move on; do not apologise twice.${renderContextBlock(
+    opts.pageContext ?? null,
+    opts.scopeLabel,
+  )}`;
 }

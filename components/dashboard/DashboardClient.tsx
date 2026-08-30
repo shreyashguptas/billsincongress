@@ -9,6 +9,7 @@ import { useConvexEnabled } from '@/components/convex-client-provider';
 import Link from 'next/link';
 import { cn, formatCount } from '@/lib/utils';
 import { HeroAsk } from '@/components/answers/hero-ask';
+import { AskPageContext } from '@/components/answers/ask-page-context';
 import { AskAbout } from '@/components/answers/ask-about';
 import { analytics } from '@/lib/analytics';
 import {
@@ -214,6 +215,11 @@ function DashboardInner({
               {/* The eyebrow, h1 and paragraph above stay server-rendered —
                   they are the page's indexable body — and this is a client
                   island beside them. */}
+              {/* Tells the ask panel which Congress is on screen. Every catalog
+                  fetch otherwise defaults to the 119th, so a reader studying the
+                  117th here and then asking a question was answered about a
+                  different Congress entirely. */}
+              <AskPageContext congress={viewCongress} />
               <HeroAsk
                 starters={{
                   congress: viewCongress,

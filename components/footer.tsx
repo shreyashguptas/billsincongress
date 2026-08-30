@@ -8,7 +8,9 @@ export function Footer() {
 
   return (
     <footer className="border-t border-border bg-background">
-      <div className="container-editorial py-10">
+      {/* pb clears the ask launcher, which is fixed to the bottom-right on
+          every page and would otherwise sit on top of the last link column. */}
+      <div className="container-editorial pt-10 pb-24">
         <div className="grid gap-8 md:grid-cols-4">
           <div className="md:col-span-2 space-y-3">
             <p className="font-serif text-xl font-semibold tracking-tight">

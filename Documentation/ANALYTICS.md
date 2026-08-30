@@ -169,14 +169,23 @@ and fires its own custom events — see "Learn page" below.
 
 The answer engine that replaces prompt-stuffed bill chat. `surface` names where the
 question was asked, so one funnel covers every place the thread is mounted rather than
-one funnel per page. `surfaceFor()` in `components/answers/answer-provider.tsx` emits
-exactly four values — **`home`** (path `/`), **`bill`** (`/bills/<id>`), **`filtered`**
-(any other `/bills…` path, and any scoped ask) and **`other`** (everywhere else).
-**`panel`** is a fifth value used only by the panel-scoped events
-(`answer_panel_opened`, `answer_source_clicked`, `answer_entity_clicked`). No code path
-emits `list`. The stale `list` value is still written down in the `surface` type comment in
-`lib/analytics.ts`, which also omits `filtered` and `other` — fix that comment when you next
-touch the file.
+one funnel per page. `surfaceFor()` lives in `lib/page-context.ts`, where it is
+unit-tested (it used to be inline and untested in `answer-provider.tsx`), and emits
+exactly four values: **`home`** (path `/`), **`bill`**
+(`/bills/<id>`), **`filtered`** (any other `/bills…` path, and any scoped ask) and
+**`other`** (everywhere else). A fifth, **`panel`**, is passed literally by the two
+click events fired from inside the panel (`answer_source_clicked`,
+`answer_entity_clicked`), which describe a place rather than a page. No code path
+emits `list`.
+
+> Corrected 29 Aug 2026: `surfaceFor` used to treat any single segment under `/bills/`
+> as a bill id, so the seven hub routes (`/bills/enacted`, `/bills/house`, …) reported
+> `surface: "bill"`. They now correctly report `filtered`. Readings of `bill` before that
+> date include hub traffic.
+>
+> Also corrected that day: `answer_panel_opened` used to report `surface: "panel"` on
+> every open. It now reports the page the reader opened it from, which is what makes it
+> comparable with the rest of the family.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
@@ -187,7 +196,10 @@ touch the file.
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |
 | `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-provider.tsx` |
 | `answer_entity_clicked` | A bill card or chip inside an answer was clicked | `surface`, `entity_kind: "bill" \| "sponsor" \| "topic" \| "state"`, `position`, `entity_id` | `components/answers/entity-block.tsx` |
-| `answer_panel_opened` | The persistent ask panel was opened | `surface` (always `"panel"`), `trigger` — only `"resume_pill"` and `"bill_page"` are reachable; opening the panel by asking does not fire this | `components/answers/answer-provider.tsx` |
+| `answer_panel_opened` | The persistent ask panel was opened | `surface`, `trigger: "launcher" \| "bill_page" \| "hero" \| "starter" \| "ask" \| "manual"`, `has_conversation` | `components/answers/answer-provider.tsx` |
+| `answer_panel_closed` | The panel was dismissed, or stepped aside for a page the reader opened from it | `surface`, `reason: "manual" \| "escape" \| "swipe" \| "entity_navigation" \| "navigation"`, `turn_count`, `dwell_ms` | `components/answers/answer-provider.tsx` |
+| `answer_panel_restored` | A set-aside conversation was reopened from the launcher | `surface`, `trigger: "launcher"`, `turn_count`, `away_ms` | `components/answers/answer-provider.tsx` |
+| `answer_panel_resized` | The docked panel's width was changed by drag, keyboard or a double-click reset | `surface`, `width_px`, `width_pct`, `viewport_width`, `method: "drag" \| "keyboard" \| "reset"` | `components/answers/resize-handle.tsx` |
 | `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
 | `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/history-list.tsx` |
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
@@ -320,7 +332,18 @@ These are the saved insights the project should maintain in the PostHog UI:
 9. **Where intent actually lives** — `answer_question_submitted` split by `surface`.
    The spec's bet is that `filtered` converts best per impression. If it does not,
    the ask bar is in the wrong place.
-10. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+10. **Step-aside and return rate** — `answer_entity_clicked` →
+    `answer_panel_closed (reason: entity_navigation)` → `answer_panel_restored`, split by
+    viewport width. This is the number that says whether the mobile fix worked: readers
+    used to tap a bill inside an answer and see nothing happen, because the sheet covered
+    the page it had just opened. A large first drop means the panel is not stepping aside;
+    a large second drop means readers cannot find their way back to the conversation.
+11. **Cold asks** — `answer_panel_opened` where `has_conversation` is false, split by
+    `surface`. The always-available launcher exists so that a reader on a hub page or the
+    Learn guide — pages with no ask box of their own — can ask anything at all. This
+    number was impossible to record before it, because the old pill only appeared once a
+    conversation already existed.
+12. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
 
 ---
 
