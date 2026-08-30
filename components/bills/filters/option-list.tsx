@@ -6,6 +6,7 @@ import { cn, formatCount } from '@/lib/utils';
 import { searchOptions } from '@/lib/option-search';
 import { analytics } from '@/lib/analytics';
 import type { FilterOption } from '@/lib/bills/filter-registry';
+import { SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import type { SurfaceMode } from '@/hooks/use-surface-mode';
 
 /** Lists shorter than this are faster to scan than to search. */
@@ -182,6 +183,19 @@ export function OptionList({
   };
 
   const hasValue = Array.isArray(value) ? value.length > 0 : value !== 'all' && value !== '';
+
+  /*
+   * The bottom sheet is a Radix Dialog, and a dialog has to be NAMED — an
+   * `aria-label` on the content does not satisfy it, so a screen-reader user
+   * opening a picker on a phone was landing in an unnamed dialog. Rendering the
+   * visible heading AS the dialog title (rather than adding a hidden second
+   * copy) gives it a name without saying everything twice.
+   *
+   * Conditional on the shell: Dialog.Title outside a Dialog root throws, and a
+   * popover neither needs nor can host one.
+   */
+  const Heading = layout === 'touch' ? SheetTitle : 'p';
+  const Helper = layout === 'touch' ? SheetDescription : 'p';
   const activeId = items[activeIndex] ? `${listboxId}-${activeIndex}` : undefined;
 
   let lastGroup: string | undefined;
@@ -195,10 +209,12 @@ export function OptionList({
 
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 pb-3 pt-3">
         <div className="min-w-0">
-          <p className="font-serif text-base font-semibold tracking-tight text-foreground">
+          <Heading className="font-serif text-base font-semibold tracking-tight text-foreground">
             {title}
-          </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{helper}</p>
+          </Heading>
+          <Helper className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            {helper}
+          </Helper>
         </div>
         {hasValue && (
           <button

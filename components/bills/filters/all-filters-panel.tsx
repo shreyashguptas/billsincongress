@@ -12,6 +12,7 @@ import {
   isSet,
   type FilterDefinition,
 } from '@/lib/bills/filter-registry';
+import { SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { AdaptiveSurface } from './adaptive-surface';
 import { OptionList } from './option-list';
 import { loadSponsors } from './sponsor-source';
@@ -51,7 +52,6 @@ export function AllFiltersPanel({
 
   return (
     <AdaptiveSurface
-      label="All filters"
       popoverClassName="w-[min(32rem,calc(100vw_-_2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
       trigger={
         <button
@@ -190,6 +190,10 @@ function PanelBody({
     (f) => f.tier !== 'scope' && f.field !== 'title' && f.field !== 'billNumber'
   );
 
+  // See the note in option-list.tsx: the bottom sheet is a dialog and has to be
+  // named, so its visible heading doubles as the dialog title.
+  const Heading = layout === 'touch' ? SheetTitle : 'p';
+
   return (
     <>
       {layout === 'touch' && (
@@ -197,9 +201,15 @@ function PanelBody({
       )}
 
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 pb-3 pt-3">
-        <p className="font-serif text-base font-semibold tracking-tight text-foreground">
+        <Heading className="font-serif text-base font-semibold tracking-tight text-foreground">
           All filters
-        </p>
+        </Heading>
+        {layout === 'touch' && (
+          <SheetDescription className="sr-only">
+            Every filter available on this page, including the ones the bar has no
+            room for.
+          </SheetDescription>
+        )}
         {activeFilterCount(values) > 0 && (
           <button
             type="button"

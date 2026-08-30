@@ -405,17 +405,40 @@ export default function BillsClient({
                     <span className="font-mono font-medium text-foreground tabular">
                       {bills.length}
                     </span>
-                    {' '}of{' '}
-                    <span className="font-mono font-medium text-foreground tabular">
-                      {/* A capped search knows only a floor, so show "1,024+"
-                          rather than presenting it as the full total. The
-                          placeholder holds the slot so the line doesn't reflow
-                          every time a count is refetched. */}
-                      {totalBills?.count != null
-                        ? `${formatCount(totalBills.count)}${totalBills.exact ? '' : '+'}`
-                        : '…'}
-                    </span>
-                    {' '}bills
+                    {/*
+                      Three different states, and they must not be conflated:
+
+                      - a known total → "of 2,121"
+                      - a capped search, which knows only a floor → "of 1,024+",
+                        never presented as the full total
+                      - still in flight → "of …", holding the slot so the line
+                        does not reflow when the count lands
+
+                      When the count comes back genuinely unavailable — Convex
+                      declines to count two or more non-Congress filters — the
+                      phrase is dropped entirely. An ellipsis there would promise
+                      a number that is never coming.
+                    */}
+                    {totalBills?.count != null ? (
+                      <>
+                        {' '}of{' '}
+                        <span className="font-mono font-medium text-foreground tabular">
+                          {formatCount(totalBills.count)}
+                          {totalBills.exact ? '' : '+'}
+                        </span>
+                      </>
+                    ) : totalBills === null ? (
+                      <>
+                        {' '}of{' '}
+                        <span className="font-mono font-medium text-muted-foreground tabular">…</span>
+                      </>
+                    ) : null}
+                    {/* "Showing 1 bills" — the plural only ever showed up once
+                        the "of N" phrase could be absent. */}
+                    {' '}
+                    {totalBills?.count === 1 || (totalBills?.count == null && bills.length === 1)
+                      ? 'bill'
+                      : 'bills'}
                     {filtersActive && <span className="ml-1">· filtered</span>}
                   </>
                 ) : isLoading ? (

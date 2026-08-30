@@ -88,7 +88,6 @@ export function FilterField({
 
   return (
     <AdaptiveSurface
-      label={definition.label}
       trigger={
         <FilterPill
           name={definition.label}

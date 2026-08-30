@@ -23,8 +23,6 @@ export interface AdaptiveSurfaceProps {
   onOpenChange?: (open: boolean, layout: SurfaceMode) => void;
   /** Width of the popover shell. Ignored on touch. */
   popoverClassName?: string;
-  /** Accessible name for the sheet, which is a dialog and needs one. */
-  label: string;
 }
 
 /**
@@ -61,7 +59,6 @@ export function AdaptiveSurface({
   children,
   onOpenChange,
   popoverClassName,
-  label,
 }: AdaptiveSurfaceProps) {
   const live = useSurfaceMode();
   const [open, setOpen] = useState(false);
@@ -124,7 +121,8 @@ export function AdaptiveSurface({
         <SheetContent
           side="bottom"
           hideClose
-          aria-label={label}
+          // Deliberately unnamed here: the body renders a real dialog title (see
+          // option-list.tsx), and an aria-label on the content would override it.
           className="flex flex-col gap-0 rounded-t-sm p-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
