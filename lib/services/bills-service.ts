@@ -265,9 +265,15 @@ export const billsService = {
     }
   },
 
+  /**
+   * Rethrows rather than returning `[]`. An empty list and a failed request
+   * look identical to the caller otherwise, so the sponsor picker showed
+   * "No sponsors match" forever whenever Convex was unreachable — an answer,
+   * confidently given, to a question we could not actually ask.
+   */
   async fetchAllSponsors(): Promise<SponsorOption[]> {
     const client = getConvexHttpClient();
-    if (!client) return [];
+    if (!client) throw new Error('Convex is not configured');
 
     try {
       const { api } = await import('../../convex/_generated/api');
@@ -275,7 +281,7 @@ export const billsService = {
       return rows as SponsorOption[];
     } catch (error) {
       console.error('Error fetching sponsors from Convex:', error);
-      return [];
+      throw error;
     }
   },
 

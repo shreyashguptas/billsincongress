@@ -139,13 +139,50 @@ and fires its own custom events — see "Learn page" below.
 |---|---|---|---|
 | `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `components/dashboard/DashboardClient.tsx` |
 | `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into the bills data (status bar, policy area, sponsor, state, metric). Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` |
-| `bills_filters_cleared` | User clicks "Clear all" filters | — | `app/bills/bills-client.tsx` |
+| `bills_filter_applied` | A filter moves off its default or changes value. Fires from one chokepoint, so it cannot drift per control | `filter_kind`, `filter_value` (omitted for `title` and `sponsor`), `query_length` (`title` only), `sponsor_count` (`sponsor` only), `surface`, `active_filter_count` | `app/bills/bills-client.tsx` |
+| `bills_filter_removed` | A filter returns to its default outside the empty-result state | `filter_kind`, `surface`, `active_filter_count` | `app/bills/bills-client.tsx` |
+| `bills_filter_panel_opened` | A filter picker or the "All filters" panel opens | `filter_kind` (or `"all"`), `layout`, `active_filter_count` | `components/bills/filters/filter-field.tsx`, `components/bills/filters/all-filters-panel.tsx` |
+| `bills_filter_panel_closed` | It closes | `filter_kind`, `layout`, `changes_made`, `dwell_ms`, `active_filter_count` | `components/bills/filters/filter-field.tsx` |
+| `bills_filter_search_used` | In-picker search settles (500ms debounce, once per settled query) | `filter_kind`, `query_length`, `result_count`, `selected` | `components/bills/filters/option-list.tsx` |
+| `bills_congress_scope_changed` | Reader switches which Congress /bills is showing | `congress`, `active_filter_count` | `components/bills/filters/congress-scope.tsx` |
+| `bills_results_truncated` | The backend reported the results list as a sample rather than the whole set (passive, once per filter set) | `filter_kinds`, `shown`, `known_total` | `app/bills/bills-client.tsx` |
+| `bills_filters_cleared` | User clicks "Clear all" filters | `active_filter_count`, `surface` | `app/bills/bills-client.tsx`, `components/bills/filters/filter-bar.tsx` |
 | `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
-| `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `title_query` | `app/bills/bills-client.tsx` |
+| `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `query_length` | `app/bills/bills-client.tsx` |
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill card in the results grid | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
-| `hub_link_clicked` | User clicks a link from one hub to a sibling hub | `from_path`, `to_path`, `hub_kind` | `app/bills/_hub/hub-view-tracker.tsx` |
+| `hub_link_clicked` | User clicks a link into a hub — from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx` |
+
+**`filter_kind` vocabulary** (shared by `bills_filter_applied`,
+`bills_filter_removed`, `bills_filter_panel_*` and
+`bills_no_results_filter_removed`, and defined once in
+`lib/bills/filter-registry.ts`): `title`, `bill_reference`, `bill_number`,
+`status`, `policy_area`, `state`, `bill_type`, `sponsor`, `introduced_date`,
+`last_action_date`, `congress`, `chamber`. These are deliberately NOT renamed to
+match the reader-facing labels ("Outcome", "Topic", "Sponsor's state") — the
+labels are free to change, the metric vocabulary is joined against historical
+data and against `dashboard_drilldown_clicked.filter_type`.
+
+**`layout` is the payoff property of the filter redesign.** It records whether a
+picker opened as a bottom `sheet` or an anchored `popover`, which is chosen by
+the reader's pointer device rather than by screen width. Cross-tabbing
+`bills_filter_panel_closed.changes_made` by `layout` is the only way to find out
+whether one of the two surfaces underperforms for this audience; `dwell_ms` by
+`filter_kind` says whether putting a filter behind a tap cost anything.
+
+**No raw reader text on any of these events.** `title` sends `query_length` and
+`sponsor` sends `sponsor_count`. `bills_no_results` was changed in the same
+commit to send `query_length` instead of the raw `title_query` it used to carry;
+the property is additive-by-replacement, so historic `title_query` data is
+untouched and no saved insight breaks.
+
+**`bills_no_results` volumes before 2026-08-29 are inflated and not comparable.**
+The search box had no debounce, so every keystroke fired a query and every
+intermediate prefix that matched nothing fired this event — 10,597 events from
+1,436 people in 90 days, with a query-length distribution decaying smoothly from
+one character. The 250ms debounce added with the filter redesign means it now
+fires roughly once per settled search.
 
 ### Bill detail & AI chat
 
@@ -431,8 +468,10 @@ feature has real usage behind it.
 | `bill_chat_rate_limited` | `bill_id`, `limit_kind`, `max` | 2026-08-26 | Replaced by `answer_rate_limited`. The rate-limit dialog and its two conversion events (`rate_limit_signup_clicked`, `rate_limit_signin_clicked`) are unchanged and still live. |
 | `bills_filters_applied` | `status`, `bill_type`, `congress`, `state`, `policy_area`, `introduced_date`, `last_action_date`, `title_query`, `bill_number`, `sponsor_count`, `active_filter_count` | 2026-06-13 | The "Apply filters" button it fired from was removed when the mobile filter sheet became an always-visible inline filter bar, and filters now apply as they change. The event had no call site from that commit onward, so no data has been collected since — this row only formalises a removal that already happened in the code. Historic data before then is still in PostHog. (This row previously recorded the date as 2026-08-12, which was when the removal was written down rather than when it happened; the last event actually arrived 13 Jun 2026.) |
 
-**Known gap this leaves:** filter *usage* is no longer instrumented at all, so
-there is no way to see which filters people apply (only `bills_no_results` when
-a combination returns nothing). That blind spot is how a completely broken topic
-filter went unnoticed. Re-instrumenting it belongs with the next change to the
-bills filter UI rather than with a backend fix.
+**Gap now closed (2026-08-29).** Filter *usage* was uninstrumented from the
+removal of this event until the bills filter redesign — there was no way to see
+which filters people applied, only `bills_no_results` when a combination
+returned nothing, which is how a completely broken topic filter went unnoticed.
+`bills_filter_applied` and `bills_filter_removed` now cover it, per change
+rather than per Apply click. The old name was deliberately not revived: reusing
+it would silently merge two different semantics in historic charts.

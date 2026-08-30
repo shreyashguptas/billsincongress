@@ -103,6 +103,16 @@ it('maps a title search to titleFilter', () => {
   assert.ok(s?.label.includes('veterans housing'));
 });
 
+it('maps a chamber, which the catalog validates as house or senate', () => {
+  const s = scopeFromFilters({ congress: '119', chamber: 'senate' });
+  assert.equal(s?.filters.chamber, 'senate');
+  assert.ok(s?.label.includes('Senate'), `label was "${s?.label}"`);
+});
+
+it('does not treat a chamber sentinel as a filter', () => {
+  assert.equal(scopeFromFilters({ congress: '119', chamber: 'all' }), null);
+});
+
 it('keeps the stage list in step with the catalog that has to accept it', () => {
   // Imported from the catalog itself rather than duplicated: these two lists
   // disagreed once, and the symptom was an "Ask about these" on a vetoed list

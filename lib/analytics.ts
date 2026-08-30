@@ -25,6 +25,13 @@ function capture(event: string, properties?: Record<string, unknown>) {
 /** sessionStorage key used to attribute Google OAuth completions after the redirect. */
 const PENDING_GOOGLE_AUTH_KEY = 'ph_pending_google_auth';
 
+/**
+ * Where a filter change came from. `rail` is a pill in the always-visible row,
+ * `panel` the "all filters" surface, `scope` the Congress switcher, and
+ * `empty_state` the chip row shown when a filter set matches nothing.
+ */
+export type FilterSurface = 'rail' | 'panel' | 'scope' | 'empty_state';
+
 export type AuthIntent = 'sign_in' | 'sign_up';
 export type LimitKind = 'anonymous' | 'authed';
 
@@ -133,13 +140,96 @@ export const analytics = {
 
   // Bills browse
 
-  billsFiltersCleared: () => capture('bills_filters_cleared'),
+  /** `surface` says where "clear all" was pressed from — the bar, the panel, or
+   *  the empty-result state, which are three different admissions of defeat. */
+  billsFiltersCleared: (props?: {
+    active_filter_count?: number;
+    surface?: 'bar' | 'panel' | 'empty_state';
+  }) => capture('bills_filters_cleared', props ?? {}),
 
   billsLoadMoreClicked: (nextPage: number, loadedCount: number) =>
     capture('bills_load_more_clicked', { next_page: nextPage, loaded_count: loadedCount }),
 
-  billsNoResults: (activeFilterCount: number, titleQuery: string) =>
-    capture('bills_no_results', { active_filter_count: activeFilterCount, title_query: titleQuery }),
+  billsNoResults: (activeFilterCount: number, queryLength: number) =>
+    capture('bills_no_results', {
+      active_filter_count: activeFilterCount,
+      // Length, not the text. What people search for is their business; how
+      // long a query has to get before it dead-ends is ours.
+      query_length: queryLength,
+    }),
+
+  /**
+   * A filter moved off its default or changed value.
+   *
+   * This closes the gap Documentation/ANALYTICS.md has flagged since the Apply
+   * button was removed: there has been no way to see WHICH filters people use,
+   * only that they hit zero results. Fired from one chokepoint in
+   * bills-client.tsx, so it cannot drift per control.
+   *
+   * `filter_value` is deliberately omitted for free text and for sponsors —
+   * those carry a length and a count instead.
+   */
+  billsFilterApplied: (props: {
+    filter_kind: string;
+    filter_value?: string;
+    query_length?: number;
+    sponsor_count?: number;
+    surface: FilterSurface;
+    active_filter_count: number;
+  }) => capture('bills_filter_applied', props),
+
+  /** A filter returned to its default outside the empty-result state. */
+  billsFilterRemoved: (props: {
+    filter_kind: string;
+    surface: FilterSurface;
+    active_filter_count: number;
+  }) => capture('bills_filter_removed', props),
+
+  /**
+   * A picker opened. `layout` is the payoff property of the filter redesign: it
+   * is the only way to learn whether the pointer test picks the right surface
+   * for this audience. Cross-tab it against panel_closed.changes_made.
+   */
+  billsFilterPanelOpened: (props: {
+    filter_kind: string;
+    layout: 'sheet' | 'popover';
+    active_filter_count: number;
+  }) => capture('bills_filter_panel_opened', props),
+
+  /** `dwell_ms` by filter_kind says whether hiding a filter cost anything. */
+  billsFilterPanelClosed: (props: {
+    filter_kind: string;
+    layout: 'sheet' | 'popover';
+    changes_made: number;
+    dwell_ms: number;
+    active_filter_count: number;
+  }) => capture('bills_filter_panel_closed', props),
+
+  /** In-picker search settled. Says whether long lists needed to be searchable. */
+  billsFilterSearchUsed: (props: {
+    filter_kind: string;
+    query_length: number;
+    result_count: number;
+    selected: boolean;
+  }) => capture('bills_filter_search_used', props),
+
+  /**
+   * A results list was a sample rather than the whole set — the backend's scan
+   * gave up before filling the page. Reported by `list` itself rather than
+   * inferred from the filters, so this fires when it actually happened and not
+   * when it looked likely. Passive, once per filter set.
+   */
+  billsResultsTruncated: (props: {
+    filter_kinds: string[];
+    shown: number;
+    known_total: number | null;
+  }) => capture('bills_results_truncated', props),
+
+  /** The Congress being browsed was switched on /bills. */
+  billsCongressScopeChanged: (props: {
+    congress: string;
+    active_filter_count: number;
+  }) => capture('bills_congress_scope_changed', props),
 
   /**
    * A reader dropped one filter from the empty-result state's chip row. Tells us
@@ -176,11 +266,19 @@ export const analytics = {
     page: number;
   }) => capture('hub_viewed', props),
 
-  /** A link from one hub to a sibling hub, or from /bills into a hub. */
+  /**
+   * A link from one hub to a sibling hub, or from /bills into a hub.
+   *
+   * `placement` distinguishes the browse disclosure on /bills from the
+   * sibling row on a hub page and from a picker footer. Worth having: this
+   * event had no call site on /bills at all, so "no one uses the category
+   * list" was unfalsifiable from our own data.
+   */
   hubLinkClicked: (props: {
     from_path: string;
     to_path: string;
     hub_kind: 'chamber' | 'status' | 'topic';
+    placement?: 'directory' | 'filter_panel' | 'hub_siblings';
   }) => capture('hub_link_clicked', props),
 
   // Bill detail & AI chat
