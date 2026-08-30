@@ -10,10 +10,13 @@ import { HubLinkTracker } from './hub-view-tracker';
  * This is the page that hands a crawler the whole middle layer in one document:
  * two chambers, five stages and every policy area, as real anchors. Before
  * these existed, /bills offered ten links to individual bills and nothing else,
- * which is why 99.98% of the corpus was reachable only via the sitemap. The
- * footer carries the seven chamber and stage hubs on every page; the 33 topic
- * hubs are linked from here and nowhere else, so this block is the only thing
- * standing between them and being orphaned.
+ * which is why 99.98% of the corpus was reachable only via the sitemap.
+ *
+ * Nothing else covers all 40. The sitewide footer carries the seven chamber and
+ * stage hubs and no topics; the homepage policy-area list links the eight
+ * biggest topics of the current Congress; a hub page links its own siblings,
+ * which is a closed loop a crawler can only enter from outside. So this block
+ * is the only inbound link the remaining topic hubs have.
  *
  * Two rules follow from that, and both are load-bearing:
  *

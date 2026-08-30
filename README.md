@@ -32,13 +32,13 @@ The home page is a dashboard for a single Congress at a time (the 119th by defau
 - **Introductions month by month** — bills introduced growing upward, laws signed growing downward, each on its own scale, ending in a written sentence naming the busiest and quietest months.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.
 
-Nearly every number on the page is clickable. Click a status segment, a policy area, a sponsor or a state and you land in the bill list already filtered to it.
+Nearly every number on the page is clickable. Click a status segment, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.
 
 ### Every bill, browsable
 
 `/bills` is the full browser. You can search by title or bill number, start typing a sponsor's name to pick them from a list, and filter by status, Congress, policy area (33 of them), state, date introduced, date last acted on, and bill type.
 
-Every active filter shows as a chip you can remove, and every filter is written into the address bar — so a filtered view can be bookmarked, shared, or walked back through with the browser's Back button. Filters are deliberately *not* remembered between visits, because silently re-applying last week's filters is how people end up staring at an unexplained empty page.
+Each filter's own control displays what it is currently set to, with a running "N filters applied · Clear all" line under the row, and every filter is written into the address bar — so a filtered view can be bookmarked, shared, or walked back through with the browser's Back button. Filters are deliberately *not* remembered between visits, because silently re-applying last week's filters is how people end up staring at an unexplained empty page.
 
 ### Forty ways in
 

@@ -1,4 +1,5 @@
 import { SITE_URL, SITE_NAME } from '@/lib/seo';
+import { hubsOfKind } from '@/lib/hubs';
 
 // Serves /llms.txt — the emerging convention for giving AI agents a concise,
 // structured map of a site: what it is, how its URLs work, and how to cite it.
@@ -7,6 +8,16 @@ import { SITE_URL, SITE_NAME } from '@/lib/seo';
 export const dynamic = 'force-static';
 
 const HOST = SITE_URL.replace(/^https?:\/\//, '');
+
+/**
+ * The browse layer, listed so an answer bot can cite "bills that became law" or
+ * "health bills" as a page rather than reconstructing a filtered URL. Generated
+ * from lib/hubs.ts so this file cannot drift from the routes that exist.
+ */
+const hubList = (kind: 'chamber' | 'status' | 'topic') =>
+  hubsOfKind(kind)
+    .map((hub) => `- [${hub.heading}](${SITE_URL}${hub.path})`)
+    .join('\n');
 
 const BODY = `# ${SITE_NAME} (${HOST})
 
@@ -24,6 +35,20 @@ and link to the specific bill page so readers can reach the original record.
   billId is {number}{type}{congress}, e.g. ${SITE_URL}/bills/261hr119.
 - [About](${SITE_URL}/about): what this project is and how the data is sourced.
 - [How Congress works](${SITE_URL}/learn): a plain-language guide to the legislative process.
+
+## Browse pages
+Each of these is a real page with a plain-language explanation of what the
+grouping means and the bills currently in it — prefer citing one of these over a
+filtered search URL.
+
+### By chamber
+${hubList('chamber')}
+
+### By stage
+${hubList('status')}
+
+### By policy area
+${hubList('topic')}
 
 ## Data
 - Source: the official Congress.gov API (public U.S. government data).

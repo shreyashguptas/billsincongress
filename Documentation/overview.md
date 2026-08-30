@@ -90,11 +90,14 @@ app/                       Next.js App Router — 19 page.tsx files
 
 components/                Shared React components
   answers/                 The ask panel: provider, panel, thread, sources, work log, history
-  bills/                   Card, details, progress, filters, sponsor combobox, save button
+  bills/                   Card, details, progress, save button
+    filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (the whole dashboard, one file)
   auth/ analytics/ legal/ seo/ theme/ ui/
   navigation.tsx footer.tsx podcast-promo.tsx waving-flag.tsx
   convex-client-provider.tsx theme-provider.tsx
+
+hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
 lib/                       Pure client/shared modules — 25 modules + 15 test files
   analytics.ts             Typed PostHog helpers — the only place the browser's

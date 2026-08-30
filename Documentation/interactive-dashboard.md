@@ -245,17 +245,22 @@ reconcile happens to touch them.
 ## Drill-down
 
 One chokepoint, `handleDrillDown`, which fires the analytics event, pins the Congress, adds
-exactly one more filter, and pushes to `/bills`. Because every drill-down into `/bills` goes
-through it, `dashboard_drilldown_clicked` cannot be bypassed by adding a new chart. (The
-hero's plain "Or browse all bills →" link and the podcast links navigate on their own and are
-captured separately.)
+exactly one more filter, and pushes to `/bills`. (The hero's plain "Or browse all bills →"
+link and the podcast links navigate on their own and are captured separately.)
+
+**Policy-area rows are the one exception, deliberately.** They are real `<a href>` elements
+rather than scripted pushes, because this is the only page search engines index and a
+`router.push` passes no link equity to the topic hub pages at all. They fire
+`dashboard_drilldown_clicked` themselves, with identical properties, and let the `href` do the
+navigating — so the event still cannot be bypassed, but it now has two call sites rather than
+one. If you add a new chart, route it through `handleDrillDown`.
 
 | Element | Filter | Example URL |
 | --- | --- | --- |
 | "Bills introduced" card | `congress` | `/bills?congress=119` |
 | "Became law" card | `status=100` | `/bills?congress=119&status=100` |
 | Status segment or legend row | `status` | `/bills?congress=119&status=40` |
-| Policy area row | `policyArea` | `/bills?congress=119&policyArea=Health` |
+| Policy area row | `policyArea` | Newest Congress: `/bills/topic/health` (the hub). Older: `/bills?congress=117&policyArea=Health` |
 | Sponsor row | `sponsor` | `/bills?congress=119&sponsor=Rick+Scott` |
 | Top-state row | `state` | `/bills?congress=119&state=CA` |
 
