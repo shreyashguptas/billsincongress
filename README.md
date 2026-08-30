@@ -32,7 +32,7 @@ The home page is a dashboard for a single Congress at a time (the 119th by defau
 - **Introductions month by month** — bills introduced growing upward, laws signed growing downward, each on its own scale, ending in a written sentence naming the busiest and quietest months.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.
 
-Nearly every number on the page is clickable. Click a status segment, a policy area, a sponsor or a state and you land in the bill list already filtered to it.
+Nearly every number on the page is clickable. Click a status segment, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.
 
 ### Every bill, browsable
 

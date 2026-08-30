@@ -35,11 +35,16 @@ export default async function sitemap(props: {
       { url: `${SITE_URL}/bills`, changeFrequency: 'daily', priority: 0.9 },
       // Hub pages sit above individual bills in the hierarchy, so they rank
       // between /bills and a bill page. A sitemap entry declares them, links
-      // make them discoverable, and the indexing problem needs both. The
-      // internal links are: the footer (chamber and stage only, sitewide), the
-      // browse disclosure in the /bills filter band (all 40, and the ONLY
-      // internal link to the 33 topic hubs), and the homepage policy-area list
-      // (the top 8 topics, and the only ones linked from an indexed page).
+      // make them discoverable, and the indexing problem needs both.
+      //
+      // Hubs link to their own siblings, so a crawler that reaches one topic
+      // reaches all 33 — but it has to reach one first, and only two places
+      // hand it that entry point in server-rendered HTML: the browse
+      // disclosure in the /bills filter band (all 40, the only complete
+      // index) and the homepage policy-area list (the top 8 topics, and the
+      // only hub links on a page Google already indexes). The sitewide footer
+      // covers chamber and stage but no topics; the link in a filter picker's
+      // footer sits inside a portal, so no crawler ever sees it.
       ...ALL_HUBS.map((hub) => ({
         url: `${SITE_URL}${hub.path}`,
         changeFrequency: 'daily' as const,

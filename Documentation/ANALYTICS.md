@@ -146,13 +146,13 @@ and fires its own custom events — see "Learn page" below.
 | `bills_filter_search_used` | In-picker search settles (500ms debounce, once per settled query) | `filter_kind`, `query_length`, `result_count`, `selected` | `components/bills/filters/option-list.tsx` |
 | `bills_congress_scope_changed` | Reader switches which Congress /bills is showing | `congress`, `active_filter_count` | `components/bills/filters/congress-scope.tsx` |
 | `bills_results_truncated` | The backend reported the results list as a sample rather than the whole set (passive, once per filter set) | `filter_kinds`, `shown`, `known_total` | `app/bills/bills-client.tsx` |
-| `bills_filters_cleared` | User clicks "Clear all" filters | `active_filter_count`, `surface` | `app/bills/bills-client.tsx`, `components/bills/filters/filter-bar.tsx` |
+| `bills_filters_cleared` | User clicks "Clear all" filters | `active_filter_count`, `surface` | `app/bills/bills-client.tsx`, `components/bills/filters/filter-bar.tsx`, `components/bills/filters/all-filters-panel.tsx` |
 | `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `query_length` | `app/bills/bills-client.tsx` |
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill card in the results grid | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
-| `hub_link_clicked` | User clicks a link into a hub — from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx` |
+| `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub. **Not** the homepage policy-area rows, which link to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
 
 **`filter_kind` vocabulary** (shared by `bills_filter_applied`,
 `bills_filter_removed`, `bills_filter_panel_*` and
