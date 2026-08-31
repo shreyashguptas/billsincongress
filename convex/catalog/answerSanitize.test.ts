@@ -361,6 +361,28 @@ it("still catches working-out spread across otherwise-innocent sentences", () =>
   assert.equal(r.text, "104 laws.");
 });
 
+it("keeps the fact when narration is joined to it by a colon", () => {
+  // Raised in review: splitting only on . ! ? made "I need to check this and I
+  // should confirm: 104 laws passed this session." one indivisible unit, so
+  // trimming the narration took the fact with it.
+  const r = sanitizeAnswer(
+    "I need to check this and I should confirm: 104 laws passed this session.\n\nSee the breakdown below.",
+  );
+  assert.ok(r.text.includes("104 laws passed this session"), `lost the fact: ${r.text}`);
+  assert.ok(!/i need to/i.test(r.text), `kept the narration: ${r.text}`);
+});
+
+it("does not treat every colon as a sentence break", () => {
+  // A vote tally, a markdown label and a labelled fact all survive whole.
+  for (const clean of [
+    "The Senate passed it 51:50 on 2026-07-12.",
+    "Note: 104 laws became law this Congress.",
+    "**Health:** 1 law.\n\n**Energy:** 7 laws.",
+  ]) {
+    assert.equal(sanitizeAnswer(clean).text, clean, clean);
+  }
+});
+
 if (failures.length > 0) {
   console.error(`convex/catalog/answerSanitize.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));
