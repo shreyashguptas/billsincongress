@@ -141,7 +141,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
     gotchas: [
       "Use this to find the EXACT spelling of a policy area before filtering `bills` by it. A near-miss returns zero bills and looks like an empty topic.",
       "Counts are precomputed and exact — do not recompute them by counting rows from `bills`.",
-      "These counts are STAGE-BLIND. They cover every measure in the topic at any stage, including the ~96% still in committee. They CANNOT tell you how many became law. For that, fetch `bills` with policyArea and progressStage together (that pair is indexed, so it comes back complete) and read its total.",
+      "These counts are STAGE-BLIND. They cover every measure in the topic at any stage, including the ~96% still in committee. They CANNOT tell you how many became law. For that, fetch `bills` with policyArea and progressStage together and read its total — and pass limit 0, because the big topics (Health, Taxation, Armed Forces, International Affairs, Government Operations) have more measures than a normal fetch reads, and only the count-only path reaches all of them.",
       "Every bill has at most one policy area, so these counts sum to roughly the total measure count, not more.",
     ],
     notCovered: [
@@ -166,15 +166,20 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
     filters: [
       { name: "congress", type: "number", allowed: "A Congress number.", example: "119" },
       { name: "sponsorState", type: "string", allowed: "Two-letter state code.", example: "MD" },
+      { name: "sort", type: "string", allowed: "most_bills (default) or fewest_bills. REQUIRED for any 'fewest' question — the default page hides the bottom of the ranking.", example: "fewest_bills" },
     ],
     gotchas: [
       "Counts are of bills INTRODUCED, which is not a measure of influence or success. Do not present a high count as effectiveness.",
       "Reflects PRIMARY sponsorship only — a member who co-sponsors heavily but introduces little will look inactive here, and is not.",
       "Use the exact sponsorName from this dataset in the `bills` sponsorFilter. Reformatting the name will match nothing.",
-      "Filtering by sponsorState reads that state's members directly and comes back complete, so the lowest billCount in the result really is the state's minimum. Check the `complete` field before making any 'most' or 'fewest' claim — this dataset once returned 29 of California's 54 members and the answer named the wrong person.",
+      "Before any 'most' or 'fewest' claim, check `complete` — and then check the ORDER, because a complete total does not make the page complete. Filtering by sponsorState reads that state's members directly, so the total is exact; but the rows are still one page of it, ordered most-first by default. California has 54 members and you see 50, so the fewest is NOT the last row you can see. For 'who introduced the fewest' pass sort 'fewest_bills'; for 'the most', 'most_bills'. Never read a minimum off a page.",
     ],
     notCovered: ["Committee membership", "Voting records", "Seniority, leadership roles, or district", "Co-sponsorship counts"],
-    examples: ['{ "congress": 119 }', '{ "congress": 119, "sponsorState": "MD" }'],
+    examples: [
+      '{ "congress": 119 }',
+      '{ "congress": 119, "sponsorState": "MD" }',
+      '{ "congress": 119, "sponsorState": "CA", "sort": "fewest_bills" } — who introduced the fewest',
+    ],
   },
 
   stats: {

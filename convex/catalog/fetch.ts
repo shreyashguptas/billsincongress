@@ -25,10 +25,11 @@
 import { internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import type { QueryCtx } from "../_generated/server";
+import type { Doc } from "../_generated/dataModel";
 import { isDatasetName } from "./datasets";
 import { validateFilters } from "./filters";
 import { mintHandle } from "./cite";
-import { sanitizeSearchQuery } from "../searchQuery";
+import { SEARCH_LIMIT, sanitizeSearchQuery } from "../searchQuery";
 import type { DatasetName } from "./types";
 import { chooseBillsIndex, countInMemoryFilters } from "./billsIndex";
 import {
@@ -39,7 +40,7 @@ import {
 } from "./completeness";
 import { milestoneStages } from "./stageSemantics";
 import { canBecomeLaw, measureNoun } from "./measureType";
-import { matchesFullName, resolveSurname } from "./sponsorName";
+import { candidateSurnames, matchesFullName } from "./sponsorName";
 
 /** Default rows per fetch. Small on purpose — context is the scarce resource. */
 const DEFAULT_LIMIT = 20;
@@ -170,6 +171,55 @@ const SORT_FIELD: Record<
   },
 };
 
+/** "119th", "101st", "122nd" — a hardcoded "th" printed "the 101th Congress". */
+function congressOrdinal(n: number): string {
+  const suffix =
+    n % 100 >= 11 && n % 100 <= 13
+      ? "th"
+      : n % 10 === 1
+        ? "st"
+        : n % 10 === 2
+          ? "nd"
+          : n % 10 === 3
+            ? "rd"
+            : "th";
+  return `${n}${suffix}`;
+}
+
+/**
+ * The index that can serve a requested sort, when one exists.
+ *
+ * Reading through an ordering index and THEN filtering in memory still yields the
+ * true first rows of the filtered set: the window holds the globally first rows
+ * in order, so any surviving row is ahead of every row outside it. The count is
+ * unknown, the order is exact — which is precisely the distinction
+ * `orderFromIndex` records.
+ *
+ * Only consulted for a ROW fetch. A count-only fetch wants a total, and the
+ * selective filter index gives a better one.
+ */
+function chooseOrderingIndex(
+  f: Row,
+): { indexName: "by_congress_and_latest_action" | "by_congress_stage_and_action" | "by_congress_and_introduced"; direction: "asc" | "desc"; order: RowOrder } | null {
+  const sort = typeof f.sort === "string" ? SORT_FIELD[f.sort] : undefined;
+  if (!sort) return null;
+  // An exact id needs no ordering, and its own branch is far more selective.
+  if (typeof f.billId === "string") return null;
+  // The search index cannot be combined with an ordering index.
+  if (typeof f.titleFilter === "string" && f.titleFilter !== "") return null;
+  // reachedStage spans several stage buckets, so no single ordered range covers it.
+  if (typeof f.reachedStage === "number") return null;
+
+  const byIntroduced = f.sort === "newest_introduced" || f.sort === "oldest_introduced";
+  if (byIntroduced) {
+    return { indexName: "by_congress_and_introduced", direction: sort.direction, order: sort.order };
+  }
+  if (typeof f.progressStage === "number") {
+    return { indexName: "by_congress_stage_and_action", direction: sort.direction, order: sort.order };
+  }
+  return { indexName: "by_congress_and_latest_action", direction: sort.direction, order: sort.order };
+}
+
 /** Plain-English description of the set a bills fetch drew from. */
 function describeBillSet(f: Row): string {
   const parts: string[] = [];
@@ -178,7 +228,9 @@ function describeBillSet(f: Row): string {
   if (typeof f.progressStage === "number") parts.push(`terminal stage ${f.progressStage}`);
   if (typeof f.reachedStage === "number") parts.push(`having reached stage ${f.reachedStage}`);
   if (typeof f.sponsorState === "string") parts.push(`sponsored from ${f.sponsorState}`);
-  if (Array.isArray(f.sponsorFilter)) parts.push(`sponsored by ${(f.sponsorFilter as string[]).join(", ")}`);
+  if (Array.isArray(f.sponsorFilter) && f.sponsorFilter.length > 0) {
+    parts.push(`sponsored by ${(f.sponsorFilter as string[]).join(", ")}`);
+  }
   if (typeof f.chamber === "string") parts.push(`originating in the ${f.chamber}`);
   if (typeof f.billType === "string") parts.push(`of type ${f.billType}`);
   if (typeof f.titleFilter === "string") parts.push(`with '${f.titleFilter}' in the title`);
@@ -188,7 +240,7 @@ function describeBillSet(f: Row): string {
   if (typeof f.actionBefore === "string") parts.push(`last acted on or before ${f.actionBefore}`);
   const congress = (f.congress as number) ?? 119;
   const where = parts.length > 0 ? ` ${parts.join(", ")}` : "";
-  return `every measure in the ${congress}th Congress${where}`;
+  return `every measure in the ${congressOrdinal(congress)} Congress${where}`;
 }
 
 async function fetchBills(
@@ -200,15 +252,31 @@ async function fetchBills(
   const congress = (f.congress as number) ?? 119;
   const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter) : "";
   const sponsorNames = Array.isArray(f.sponsorFilter) ? (f.sponsorFilter as string[]) : null;
-  const ceiling = countOnly ? COUNT_SCAN_LIMIT : SCAN_LIMIT;
+  let ceiling = countOnly ? COUNT_SCAN_LIMIT : SCAN_LIMIT;
 
   // The index choice is a correctness argument, not an optimisation, and it lives
   // in a tested module precisely because two production incidents came from
   // getting the ordering of these branches wrong. See billsIndex.ts.
   const plan = chooseBillsIndex(f);
+  // A sort question and a count question want different indexes. Serve the sort
+  // from an ordering index when one exists: "what is the most recent bill?" over
+  // a whole Congress was refused outright before, because the set is too big to
+  // count and the sort was refused along with the total.
+  const ordering = countOnly ? null : chooseOrderingIndex(f);
+
+  // Convex caps a full-text search at SEARCH_LIMIT results regardless of what we
+  // ask for, so our own ceiling cannot detect the cut. With the count-only
+  // ceiling of 5,000 the check `candidates.length >= ceiling` was structurally
+  // unreachable, and `{titleFilter:"Act", limit:0}` — the exact call the prompt
+  // tells the model to make for a count — reported an exact total of 1,024
+  // against a truth of 14,685. Lower the ceiling to the real one so a filled
+  // search window is visible. convex/bills.ts already does this; this branch did
+  // not.
+  if (plan.branch === "titleSearch") ceiling = Math.min(ceiling, SEARCH_LIMIT);
 
   let candidates;
   let windowFilled = false;
+  let orderFromIndex = false;
   /**
    * Set by branches that read several index ranges and therefore compute their
    * own capping — the sponsor-surname branch and the milestone branch. Their
@@ -217,6 +285,21 @@ async function fetchBills(
    */
   let ownCapping = false;
 
+  if (ordering) {
+    candidates = await ctx.db
+      .query("bills")
+      .withIndex(ordering.indexName, (q) => {
+        const scoped = q.eq("congress", congress);
+        return ordering.indexName === "by_congress_stage_and_action"
+          ? scoped.eq("progressStage", f.progressStage as number)
+          : scoped;
+      })
+      .order(ordering.direction === "desc" ? "desc" : "asc")
+      .take(ceiling);
+    windowFilled = candidates.length >= ceiling;
+    ownCapping = true;
+    orderFromIndex = true;
+  } else
   switch (plan.branch) {
     case "billId":
       candidates = await ctx.db
@@ -278,43 +361,61 @@ async function fetchBills(
         .take(ceiling);
       break;
     case "sponsorNames": {
-      // Query by LAST name through the index, then match the full name in memory.
-      // Surnames are RESOLVED against what we actually store rather than guessed
-      // from the last word — guessing reported every member with a two-word
-      // surname, Monica De La Cruz and Jeff Van Drew among them, as having
-      // introduced nothing at all.
-      const known = await knownSurnames(ctx, congress);
-      const resolved = (sponsorNames ?? [])
-        .map((n) => resolveSurname(n, known))
-        .filter((s): s is string => s !== null);
-      const allLastNames = [...new Set(resolved)];
-      const lastNames = allLastNames.slice(0, MAX_SPONSOR_LOOKUPS);
-      const perName = await Promise.all(
-        lastNames.map((last) =>
-          ctx.db
-            .query("bills")
-            .withIndex("by_congress_and_sponsor_last", (q) =>
-              q.eq("congress", congress).eq("sponsorLastName", last),
-            )
-            .order("desc")
-            .take(ceiling),
-        ),
-      );
-      candidates = perName.flat();
-      ownCapping = true;
-      // Capped if ANY single surname filled its own window — not if the names
-      // merely sum past it — or if we declined to look some of them up.
+      // Read every plausible spelling of the surname and union the results, then
+      // let the in-memory full-name match decide. Two production-shaped failures
+      // make this necessary, and BOTH previously returned "complete, total 0" —
+      // an authoritative claim that a sitting member had sponsored nothing:
       //
-      // ALSO capped when we could not resolve a single requested name. Without
-      // this, an unrecognised spelling would return "complete, total 0", which
-      // states as fact that a sitting member has introduced nothing — the exact
-      // falsehood this branch was rewritten to stop. The same applies if we hold
-      // no sponsor roster for the Congress at all: not knowing is not zero.
+      //   Multi-token GIVEN names. "Anna Paulina Luna" is stored as first="Anna
+      //   Paulina", last="Luna". Deriving the surname as "everything after the
+      //   first token" yields "Paulina Luna", which matches no row. She has 39.
+      //
+      //   Mixed-case surnames. The 118th stores Barbara Lee's surname as both
+      //   "LEE" and "Lee"; an index eq is case-sensitive, so one casing was
+      //   invisible. That answered 12 where the truth is 59, on 85 of the 118th's
+      //   595 members.
+      let docsRead = 0;
+      let exhausted = false;
+      /** Per requested name: did ANY spelling of it return a row? */
+      const productive = new Map<string, boolean>();
+      const collected: Doc<"bills">[] = [];
+
+      for (const requested of sponsorNames ?? []) {
+        if (!productive.has(requested)) productive.set(requested, false);
+        for (const candidate of candidateSurnames(requested)) {
+          for (const spelling of surnameSpellings(candidate)) {
+            // One shared budget across every read, so a name with many candidate
+            // spellings cannot multiply the cost of the request.
+            if (docsRead >= ceiling) {
+              exhausted = true;
+              break;
+            }
+            const rows = await ctx.db
+              .query("bills")
+              .withIndex("by_congress_and_sponsor_last", (q) =>
+                q.eq("congress", congress).eq("sponsorLastName", spelling),
+              )
+              .order("desc")
+              .take(ceiling - docsRead);
+            docsRead += rows.length;
+            if (rows.length > 0) productive.set(requested, true);
+            collected.push(...rows);
+          }
+          if (exhausted) break;
+        }
+        if (exhausted) break;
+      }
+      candidates = collected;
+      ownCapping = true;
+      // Incomplete if we ran out of budget, or if ANY requested name produced no
+      // row at all. A name we could not place must not be silently counted as
+      // zero and folded into a total covering the names we could — that reports
+      // a member as having sponsored nothing on the strength of a spelling.
       windowFilled =
-        (allLastNames.length === 0 && (sponsorNames?.length ?? 0) > 0) ||
-        known.size === 0 ||
-        perName.some((rows) => rows.length >= ceiling) ||
-        allLastNames.length > lastNames.length;
+        exhausted ||
+        docsRead >= ceiling ||
+        productive.size === 0 ||
+        [...productive.values()].some((found) => !found);
       break;
     }
     case "reachedStage": {
@@ -323,21 +424,28 @@ async function fetchBills(
       // and complete, where a chamber scan comes back capped and therefore
       // unanswerable. Each bucket gets the FULL ceiling, so one large bucket
       // cannot silently starve the others.
+      // Sequential, not parallel, because the buckets share ONE read budget.
+      // Reading `ceiling` from each of eight buckets meant a single count-only
+      // call could read 5,779 documents and 4.15 MB — and discard all of it,
+      // because a filled window returns no rows and no total.
       const stages = milestoneStages(f.reachedStage as number);
-      const perStage = await Promise.all(
-        stages.map((stage) =>
-          ctx.db
-            .query("bills")
-            .withIndex("by_congress_and_progress_stage", (q) =>
-              q.eq("congress", congress).eq("progressStage", stage),
-            )
-            .order("desc")
-            .take(ceiling),
-        ),
-      );
-      candidates = perStage.flat();
+      const collectedStages: Doc<"bills">[] = [];
+      let stageDocs = 0;
+      for (const stage of stages) {
+        if (stageDocs >= ceiling) break;
+        const rows = await ctx.db
+          .query("bills")
+          .withIndex("by_congress_and_progress_stage", (q) =>
+            q.eq("congress", congress).eq("progressStage", stage),
+          )
+          .order("desc")
+          .take(ceiling - stageDocs);
+        stageDocs += rows.length;
+        collectedStages.push(...rows);
+      }
+      candidates = collectedStages;
       ownCapping = true;
-      windowFilled = perStage.some((rows) => rows.length >= ceiling);
+      windowFilled = stageDocs >= ceiling;
       break;
     }
     case "sponsorState":
@@ -407,17 +515,21 @@ async function fetchBills(
     if (typeof f.billNumber === "string" && b.billNumber !== f.billNumber) return false;
     if (typeof f.policyArea === "string" && b.policyAreaName !== f.policyArea) return false;
     if (chamberTypes && !chamberTypes.includes(b.billType)) return false;
-    if (typeof f.introducedAfter === "string" && (b.introducedDate ?? "") < f.introducedAfter) {
-      return false;
+    // A missing date satisfies NO bound. Comparing `?? ""` let undated rows slip
+    // under every `before` filter — "bills last acted on before 2020" returned 11
+    // measures whose real answer is none — and sort them to the top of an
+    // oldest-first list. An unknown date is unknown in both directions.
+    if (typeof f.introducedAfter === "string") {
+      if (!b.introducedDate || b.introducedDate < f.introducedAfter) return false;
     }
-    if (typeof f.introducedBefore === "string" && (b.introducedDate ?? "") > f.introducedBefore) {
-      return false;
+    if (typeof f.introducedBefore === "string") {
+      if (!b.introducedDate || b.introducedDate > f.introducedBefore) return false;
     }
-    if (typeof f.actionAfter === "string" && (b.latestActionDate ?? "") < f.actionAfter) {
-      return false;
+    if (typeof f.actionAfter === "string") {
+      if (!b.latestActionDate || b.latestActionDate < f.actionAfter) return false;
     }
-    if (typeof f.actionBefore === "string" && (b.latestActionDate ?? "") > f.actionBefore) {
-      return false;
+    if (typeof f.actionBefore === "string") {
+      if (!b.latestActionDate || b.latestActionDate > f.actionBefore) return false;
     }
     if (requestedSurnames) {
       if (
@@ -439,7 +551,11 @@ async function fetchBills(
   const requestedSort = typeof f.sort === "string" ? SORT_FIELD[f.sort] : undefined;
   let order: RowOrder = "arbitrary";
   let ordered = matched;
-  if (requestedSort && !windowFilled) {
+  if (ordering) {
+    // The database already returned these in order, and an in-memory filter
+    // preserves it. Real even when the window filled — that is the whole point.
+    order = ordering.order;
+  } else if (requestedSort && !windowFilled) {
     ordered = [...matched].sort((a, b) => {
       const av = requestedSort.key(a);
       const bv = requestedSort.key(b);
@@ -472,6 +588,26 @@ async function fetchBills(
         canBecomeLaw: canBecomeLaw(b.billType),
       }));
 
+  // A Congress we hold nothing for must not answer "0, and that is the complete
+  // count". `{congress:116}` did, which states as fact that no measure from that
+  // Congress ever became law — when the truth is we have not loaded it. One
+  // indexed probe, and only when the answer would otherwise be an empty complete.
+  if (matched.length === 0 && !windowFilled) {
+    const anyForCongress = await ctx.db
+      .query("bills")
+      .withIndex("by_congress", (q) => q.eq("congress", congress))
+      .take(1);
+    if (anyForCongress.length === 0) {
+      return {
+        ok: false,
+        error:
+          `We hold no measures at all for the ${congressOrdinal(congress)} Congress, so this is ` +
+          `not a count of zero — it is a Congress we have not loaded. Say we do not hold it. ` +
+          `Do not report any figure for it, and do not describe it as empty.`,
+      };
+    }
+  }
+
   return {
     ok: true,
     rows,
@@ -482,24 +618,28 @@ async function fetchBills(
       matchedCount: matched.length,
       shown: rows.length,
       order,
+      // Only meaningful if something survived the in-memory filter: an empty page
+      // from an ordered window tells you nothing about what lies beyond it.
+      orderFromIndex: orderFromIndex && rows.length > 0,
     }),
   };
 }
 
-/** Surnames we actually store for a Congress, so a full name can be resolved. */
-async function knownSurnames(ctx: QueryCtx, congress: number): Promise<Set<string>> {
-  const sponsors = await ctx.db
-    .query("congressSponsors")
-    .withIndex("by_congress", (q) => q.eq("congress", congress))
-    .take(SPONSOR_SCAN_LIMIT);
-  const out = new Set<string>();
-  for (const s of sponsors) {
-    // congressSponsors stores the full "First Last"; the surname is everything
-    // after the first token, which is exactly what bills.sponsorLastName holds.
-    const parts = s.sponsorName.trim().split(/\s+/);
-    if (parts.length > 1) out.add(parts.slice(1).join(" "));
-  }
-  return out;
+/**
+ * Spellings of a surname to try against the case-sensitive index.
+ *
+ * The stored data is not consistent: the 118th holds both "LEE" and "Lee", and
+ * both "Smith" and "SMITH". Trying only the spelling we were handed made 85 of
+ * that Congress's 595 members return a wrong total that was flagged complete.
+ */
+function surnameSpellings(surname: string): string[] {
+  const trimmed = surname.trim();
+  if (trimmed === "") return [];
+  const title = trimmed
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+  return [...new Set([trimmed, title, trimmed.toUpperCase()])];
 }
 
 async function fetchActions(ctx: QueryCtx, f: Row, limit: number): Promise<FetchResult> {
@@ -650,7 +790,14 @@ async function fetchSponsors(
         .take(SPONSOR_SCAN_LIMIT);
 
   const windowFilled = all.length >= SPONSOR_SCAN_LIMIT;
-  const sorted = [...all].sort((a, b) => b.billCount - a.billCount);
+  // `fewest_bills` is not a convenience. Without it "who introduced the fewest
+  // bills in California" could not be answered at all: the read is complete and
+  // the total exact, but the page is 50 of 54 ordered most-first, so the true
+  // minimum was never on it and the model read the last visible row instead.
+  const ascending = f.sort === "fewest_bills";
+  const sorted = [...all].sort((a, b) =>
+    ascending ? a.billCount - b.billCount : b.billCount - a.billCount,
+  );
   const rows = countOnly
     ? []
     : sorted.slice(0, limit).map((s) => ({
@@ -674,7 +821,7 @@ async function fetchSponsors(
       matchedCount: sorted.length,
       shown: rows.length,
       // Sorting a complete set is exact; a filled window makes the claim a lie.
-      order: windowFilled ? "arbitrary" : "most_bills_first",
+      order: windowFilled ? "arbitrary" : ascending ? "fewest_bills_first" : "most_bills_first",
     }),
   };
 }

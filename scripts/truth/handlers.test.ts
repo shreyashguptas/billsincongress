@@ -122,14 +122,51 @@ async function main() {
     assert.equal(r.report.order, "arbitrary", "silence about order is what let the model invent one");
   });
 
-  await it("a sort over an INCOMPLETE set is refused, not faked", async () => {
-    // Every measure in the Congress is far past the scan window, so the honest
-    // answer is "no order and no total", not a sorted sample.
-    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort: "newest_action" }, 50);
+  await it("'the most recent bill' is answerable even when the set is too big to count", async () => {
+    // Served by an ordering index, so the rows really are the first of the whole
+    // set. "Cannot count it" and "cannot order it" are different problems, and
+    // conflating them refused a question we can answer exactly.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort: "newest_action" }, 3);
+    assert.ok(r.ok);
+    assert.equal(r.report.order, "newest_action_first");
+    assert.equal(r.report.orderFromIndex, true, "the index guarantees this order");
+    assert.equal(r.report.total, undefined, "but the size of the set is still unknown");
+    const trueMax = bills
+      .filter((b: any) => b.congress === 119)
+      .reduce((a: any, b: any) => ((b.latestActionDate ?? "") > (a.latestActionDate ?? "") ? b : a))
+      .latestActionDate;
+    assert.equal(r.rows[0].latestActionDate, trueMax, "row 1 must carry the true maximum date");
+  });
+
+  await it("the newest bill of a FILTERED set is right too, not just the newest overall", async () => {
+    for (const [label, filters, pred] of [
+      ["California", { congress: 119, sponsorState: "CA", sort: "newest_action" }, (b: any) => b.sponsorState === "CA"],
+      ["Health", { congress: 119, policyArea: "Health", sort: "newest_action" }, (b: any) => b.policyAreaName === "Health"],
+    ] as Array<[string, Record<string, unknown>, (b: any) => boolean]>) {
+      const r = await fetchViaHandlers(ctx, "bills", filters, 3);
+      assert.ok(r.ok, label);
+      const trueMax = bills
+        .filter((b: any) => b.congress === 119 && pred(b))
+        .reduce((a: any, b: any) => ((b.latestActionDate ?? "") > (a.latestActionDate ?? "") ? b : a))
+        .latestActionDate;
+      assert.equal(r.rows[0].latestActionDate, trueMax, `${label}: row 1 is not the newest`);
+    }
+  });
+
+  await it("a sort with NO index behind it is still refused rather than faked", async () => {
+    // A title search cannot be combined with an ordering index, and the search
+    // window fills, so there is no honest order to claim.
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 119, titleFilter: "Act", sort: "newest_action" },
+      50,
+    );
     assert.ok(r.ok);
     assert.equal(r.report.complete, false);
     assert.equal(r.report.order, "arbitrary", "a sorted SAMPLE must never be labelled sorted");
-    assert.equal(r.report.total, undefined, "no total may accompany an incomplete read");
+    assert.notEqual(r.report.orderFromIndex, true);
+    assert.equal(r.report.total, undefined);
   });
 
   // --- D2: sponsors reported a fraction of a state as the whole roster -------
@@ -391,6 +428,133 @@ async function main() {
     const r = await fetchViaHandlers(ctx, "bills", { progressStage: 100 }, 5);
     assert.ok(r.ok);
     assert.match(r.report.set, /119th Congress/, "an implicit Congress must still be stated");
+  });
+
+  // --- found by adversarial review of PR #92, after the first fix landed ----
+  // Every case below was a "complete: true" with a number that was wrong, i.e.
+  // the exact class this change exists to remove, surviving inside the fix.
+
+  await it("a multi-token GIVEN name still finds the member's bills", async () => {
+    // "Anna Paulina Luna" is stored first="Anna Paulina", last="Luna". Deriving
+    // the surname as everything-after-the-first-token produced "Paulina Luna",
+    // matched nothing, and reported a complete total of 0 against her real 39.
+    for (const name of ["Anna Paulina Luna", "Mary Gay Scanlon"]) {
+      const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sponsorFilter: [name] }, 0);
+      assert.ok(r.ok, `${name}: ${r.error}`);
+      const real = bills.filter(
+        (b: any) =>
+          b.congress === 119 &&
+          `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`.trim() === name,
+      ).length;
+      assert.ok(real > 0, `sanity: ${name} really has bills`);
+      assert.equal(r.report.total, real, `${name} came back wrong`);
+      assert.equal(r.report.complete, true);
+    }
+  });
+
+  await it("a surname stored in two casings is counted once, in full", async () => {
+    // The 118th holds Barbara Lee's surname as both "LEE" and "Lee". An index eq
+    // is case-sensitive, so one bucket was invisible: 12 reported against 59.
+    const norm = (x: string) => x.trim().toLowerCase().replace(/\s+/g, " ");
+    for (const name of ["Barbara Lee", "Christopher Smith"]) {
+      const r = await fetchViaHandlers(ctx, "bills", { congress: 118, sponsorFilter: [name] }, 0);
+      assert.ok(r.ok, `${name}: ${r.error}`);
+      const real = bills.filter(
+        (b: any) =>
+          b.congress === 118 &&
+          norm(`${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`) === norm(name),
+      ).length;
+      assert.equal(r.report.total, real, `${name} missed a casing`);
+    }
+  });
+
+  await it("a count-only title search cannot fabricate a total of 1024", async () => {
+    // Convex caps full-text search at SEARCH_LIMIT results whatever we ask for,
+    // so the count-only ceiling of 5,000 could never detect the cut and every
+    // title search reported itself complete — 1,024 against a truth of ~14,900.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: "Act" }, 0);
+    assert.ok(r.ok);
+    assert.equal(r.report.complete, false, "a capped search must not claim completeness");
+    assert.equal(r.report.total, undefined);
+  });
+
+  await it("'the fewest bills in California' is answerable, and it is James Gallagher", async () => {
+    // The read was complete and the total exact, but the page was 50 of 54
+    // ordered most-first, so the true minimum was never on it.
+    const r = await fetchViaHandlers(
+      ctx,
+      "sponsors",
+      { congress: 119, sponsorState: "CA", sort: "fewest_bills" },
+      5,
+    );
+    assert.ok(r.ok);
+    assert.equal(r.report.order, "fewest_bills_first");
+    const realMin = truth.caSponsors.reduce((a: any, b: any) =>
+      b.billCount < a.billCount ? b : a,
+    );
+    assert.equal(r.rows[0].sponsorName, realMin.sponsorName);
+    assert.equal(r.rows[0].billCount, realMin.billCount);
+  });
+
+  await it("one unrecognised name among several does not get silently counted as zero", async () => {
+    // Union-of-spellings made a mixed list dangerous: the real name returns rows,
+    // so the read looks productive, and the unplaceable one is folded in as 0.
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 119, sponsorFilter: ["Katie Britt", "Nobody McNotreal"] },
+      0,
+    );
+    assert.ok(r.ok);
+    assert.equal(
+      r.report.complete,
+      false,
+      "a name we could not place must make the whole total unreportable",
+    );
+    assert.equal(r.report.total, undefined);
+  });
+
+  await it("a Congress we hold nothing for is refused, not answered zero", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 116, progressStage: 100 }, 0);
+    assert.equal(r.ok, false, "an unloaded Congress must not report a complete total of 0");
+    assert.match(r.error, /not a count of zero/i);
+    assert.match(r.error, /116th/, "and it must name the Congress correctly, not '116th' as '116th'");
+  });
+
+  await it("an empty sponsorFilter is rejected rather than matching nothing", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      progressStage: 100,
+      sponsorFilter: [],
+    });
+    assert.equal(r.ok, false, "an empty list silently rejected all 104 laws and called it complete");
+    assert.match(r.error, /empty list/i);
+  });
+
+  await it("a bill with no date satisfies no date bound", async () => {
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 119, progressStage: 20, actionBefore: "2020-01-01" },
+      0,
+    );
+    assert.ok(r.ok);
+    const real = bills.filter(
+      (b: any) =>
+        b.congress === 119 &&
+        b.progressStage === 20 &&
+        b.latestActionDate &&
+        b.latestActionDate <= "2020-01-01",
+    ).length;
+    assert.equal(r.report.total, real);
+    assert.equal(r.report.total, 0, "undated rows used to slip under every 'before' bound");
+  });
+
+  await it("the set description ordinalises the Congress correctly", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, progressStage: 100 }, 1);
+    assert.ok(r.ok);
+    assert.match(r.report.set, /117th Congress/);
+    assert.ok(!/\d+(?:1th|2th|3th)\b/.test(r.report.set), "printed '101th' style ordinals");
   });
 
   // --- the invariant, checked across many shapes ----------------------------

@@ -38,6 +38,15 @@ export const VALID_SORTS = [
   "newest_introduced",
   "oldest_introduced",
 ];
+/**
+ * Sorts the `sponsors` dataset understands.
+ *
+ * `fewest_bills` exists because "who introduced the fewest bills in California"
+ * was unanswerable at any page size: the read was complete and the total exact,
+ * but the 50-row page was ordered most-first, so the four lowest — including the
+ * real answer — were never on it.
+ */
+export const VALID_SPONSOR_SORTS = ["most_bills", "fewest_bills"];
 /** ISO calendar dates only. Anything looser invites a silent mismatch. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_FILTERS = ["introducedAfter", "introducedBefore", "actionAfter", "actionBefore"];
@@ -85,6 +94,17 @@ export function validateFilters(name: DatasetName, raw: unknown): ValidationResu
       if (!Array.isArray(value) || value.some((v) => typeof v !== "string")) {
         return { ok: false, error: `'${key}' must be an array of strings, e.g. ${spec.example}.` };
       }
+      // An empty list is a malformed call, not "no filter". Silently ignoring it
+      // was worse: `{progressStage:100, sponsorFilter:[]}` rejected every row in
+      // memory and reported an exact, complete total of 0 against a truth of 104.
+      if (value.length === 0) {
+        return {
+          ok: false,
+          error:
+            `'${key}' was an empty list. Either name at least one, e.g. ${spec.example}, or ` +
+            `leave the filter out entirely. An empty list is not "everyone".`,
+        };
+      }
     }
 
     if (key === "progressStage" && !VALID_STAGES.includes(value as number)) {
@@ -107,11 +127,14 @@ export function validateFilters(name: DatasetName, raw: unknown): ValidationResu
     if (key === "chamber" && !VALID_CHAMBERS.includes(value as string)) {
       return { ok: false, error: `chamber must be 'house' or 'senate'. Got '${String(value)}'.` };
     }
-    if (key === "sort" && !VALID_SORTS.includes(value as string)) {
-      return {
-        ok: false,
-        error: `sort must be one of ${VALID_SORTS.join(", ")}. Got '${String(value)}'.`,
-      };
+    if (key === "sort") {
+      const allowed = name === "sponsors" ? VALID_SPONSOR_SORTS : VALID_SORTS;
+      if (!allowed.includes(value as string)) {
+        return {
+          ok: false,
+          error: `sort on '${name}' must be one of ${allowed.join(", ")}. Got '${String(value)}'.`,
+        };
+      }
     }
     if (DATE_FILTERS.includes(key) && !ISO_DATE.test(String(value))) {
       return {

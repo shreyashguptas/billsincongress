@@ -44,6 +44,7 @@ export type RowOrder =
   | "newest_introduced_first"
   | "oldest_introduced_first"
   | "most_bills_first"
+  | "fewest_bills_first"
   | "chronological"
   | "newest_first"
   | "largest_first";
@@ -58,6 +59,7 @@ const ORDER_PROSE: Record<RowOrder, string> = {
   newest_introduced_first: "Sorted by introduction date, newest first.",
   oldest_introduced_first: "Sorted by introduction date, oldest first.",
   most_bills_first: "Sorted by number of bills introduced, highest first.",
+  fewest_bills_first: "Sorted by number of bills introduced, LOWEST first.",
   chronological: "In the order the events actually happened, earliest first.",
   newest_first: "Sorted newest first.",
   largest_first: "Sorted by size, largest first.",
@@ -78,6 +80,18 @@ export interface CompletenessReport {
   /** How many rows were actually returned. */
   shown: number;
   order: RowOrder;
+  /**
+   * True when an INDEX produced the order, so the rows really are the first N of
+   * the whole set — even if we never counted it.
+   *
+   * This is the difference between "we cannot tell you how many" and "we cannot
+   * tell you which is newest". Without it, "what is the most recent bill?" over
+   * the 18,476 measures of a Congress was refused outright: the set is too big to
+   * count, so the sort was refused too, and a perfectly answerable question got
+   * nothing. Reading an ordering index answers it exactly while leaving the total
+   * honestly unknown.
+   */
+  orderFromIndex?: boolean;
   /** Present only when incomplete: what was and was not read. */
   note?: string;
 }
@@ -107,6 +121,8 @@ export function reportFor(input: {
   matchedCount: number;
   shown: number;
   order: RowOrder;
+  /** An index produced the order, so the rows are the true first N of the set. */
+  orderFromIndex?: boolean;
 }): CompletenessReport {
   const complete = !input.windowFilled;
   if (complete) {
@@ -116,6 +132,7 @@ export function reportFor(input: {
       total: input.matchedCount,
       shown: input.shown,
       order: input.order,
+      ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
     };
   }
   return {
@@ -123,10 +140,13 @@ export function reportFor(input: {
     complete: false,
     shown: input.shown,
     order: input.order,
+    ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
     note: input.filteredInMemory
       ? INCOMPLETE_NOTE +
-        " (These filters have no index, so only the most recent rows were examined and the rest " +
-        "of your filters were applied to that sample.)"
+        " (These filters have no index, so an ARBITRARY sample was examined — ordered by when we " +
+        "synced each row, which has nothing to do with dates, size or importance — and the rest " +
+        "of your filters were applied to that sample. Do not assume the rows you cannot see are " +
+        "the older or less relevant ones.)"
       : INCOMPLETE_NOTE,
   };
 }
@@ -175,6 +195,13 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
     }
   } else {
     payload.note = report.note;
+  }
+  if (report.orderFromIndex && report.shown > 0) {
+    payload.rows_are_the_true_first_rows =
+      `The database returned these rows IN THIS ORDER, so they really are the first of the whole ` +
+      `set — row 1 is genuinely the ${report.order.replace(/_/g, " ")}. You may say so, and you ` +
+      `may rank the rows you can see against each other. You still may NOT state how many there ` +
+      `are unless a total is given above.`;
   }
   return JSON.stringify(payload);
 }

@@ -110,6 +110,14 @@ it("names the unindexed-filter case, because that is when a zero is meaningless"
     order: "arbitrary",
   });
   assert.match(String(unindexed.note), /no index/i);
+  // The window is ordered by SYNC time, not by any date. Telling the model the
+  // unseen rows are the older ones licenses exactly the inference this whole
+  // change exists to kill.
+  assert.match(String(unindexed.note), /arbitrary sample/i);
+  assert.ok(
+    !/most recent rows were examined/i.test(String(unindexed.note)),
+    "the note must not claim the window held the most recent rows",
+  );
   assert.ok(!/no index/i.test(String(indexed.note)));
 });
 

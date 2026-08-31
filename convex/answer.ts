@@ -435,16 +435,33 @@ async function runLoop(
     const isFinalRound = round === MAX_TOOL_ROUNDS;
     if (isFinalRound) partial = true;
 
-    const { message, lengthCapped } = await callModel(
-      isFinalRound
-        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION }]
-        : messages,
-      opts.apiKey,
-      { withTools: !isFinalRound },
-    );
+    const finalMessages = isFinalRound
+      ? [...messages, { role: "user" as const, content: FINAL_ROUND_INSTRUCTION }]
+      : messages;
+
+    let message;
+    let lengthCapped = false;
+    try {
+      ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
+        withTools: !isFinalRound,
+      }));
+    } catch (error) {
+      // The final round omits the tool schema while the transcript still contains
+      // tool calls. Every OpenAI-compatible provider we have used accepts that,
+      // but the pinned provider is an environment variable and a swap must not be
+      // able to cost a reader their answer. Ask once more WITH the schema and a
+      // plain instruction not to use it: weaker, but far better than an error.
+      if (!isFinalRound) throw error;
+      console.error("final round without tools failed, retrying with them:", error);
+      ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
+        withTools: true,
+      }));
+    }
     if (lengthCapped) truncatedByLength = true;
 
-    const toolCalls = message?.tool_calls ?? [];
+    // On the final round any tool call is ignored: it can only come from the
+    // retry above, and there is no round left to serve it.
+    const toolCalls = isFinalRound ? [] : (message?.tool_calls ?? []);
     if (toolCalls.length === 0) {
       const text = message?.content ?? "";
       // Empty prose is not an answer; fall through to the message below rather
