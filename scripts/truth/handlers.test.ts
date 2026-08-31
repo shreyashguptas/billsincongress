@@ -18,7 +18,13 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { CACHE_MISSING_MESSAGE, cacheAvailable, loadFakeCtx } from "./fakedb";
+import {
+  CACHE_MISSING_MESSAGE,
+  TRUTH_CACHE_SKIP_EXIT,
+  cacheAvailable,
+  loadFakeCtx,
+  truthCacheRequired,
+} from "./fakedb";
 import { validateFilters } from "../../convex/catalog/filters";
 import { isDatasetName } from "../../convex/catalog/datasets";
 
@@ -56,9 +62,13 @@ async function fetchViaHandlers(
 
 async function main() {
   if (!cacheAvailable()) {
+    if (truthCacheRequired()) {
+      console.error("REQUIRE_TRUTH_CACHE=1 but no .truth-cache/ — refusing to pass without running.");
+      process.exit(1);
+    }
     console.log(`handlers.test.ts — skipped`);
     console.log(CACHE_MISSING_MESSAGE);
-    return;
+    process.exit(TRUTH_CACHE_SKIP_EXIT);
   }
   const ctx = loadFakeCtx();
   const bills = ctx.db.rowsOf("bills");
@@ -555,6 +565,40 @@ async function main() {
     assert.ok(r.ok);
     assert.match(r.report.set, /117th Congress/);
     assert.ok(!/\d+(?:1th|2th|3th)\b/.test(r.report.set), "printed '101th' style ordinals");
+  });
+
+  await it("an undated bill is never returned as 'the oldest'", async () => {
+    // Convex sorts a missing value before every string, so an ascending index
+    // read put the eleven undated measures of the 119th at the front — and the
+    // contract then told the model row 1 was genuinely the oldest, of a bill with
+    // no known date at all.
+    for (const [sort, field] of [
+      ["oldest_action", "latestActionDate"],
+      ["oldest_introduced", "introducedDate"],
+    ] as Array<[string, string]>) {
+      const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort }, 5);
+      assert.ok(r.ok, sort);
+      for (const row of r.rows) {
+        assert.ok(row[field], `${sort}: returned a row with no ${field}`);
+      }
+      const trueMin = bills
+        .filter((b: any) => b.congress === 119 && b[field])
+        .reduce((a: any, b: any) => (b[field] < a[field] ? b : a))[field];
+      assert.equal(r.rows[0][field], trueMin, `${sort}: row 1 is not the true oldest`);
+    }
+  });
+
+  await it("the set description names every filter that narrowed it", async () => {
+    // It listed billType but not billNumber, so an exact one-bill lookup read as
+    // "every measure of type hr" with a total of 1 — a self-contradiction.
+    const r = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      billType: "hr",
+      billNumber: "1",
+    }, 2);
+    assert.ok(r.ok);
+    assert.match(r.report.set, /numbered 1/, "billNumber missing from the set description");
+    assert.equal(r.report.total, 1);
   });
 
   // --- the invariant, checked across many shapes ----------------------------

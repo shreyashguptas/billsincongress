@@ -22,7 +22,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   CACHE_MISSING_MESSAGE,
+  TRUTH_CACHE_SKIP_EXIT,
   cacheAvailable,
+  truthCacheRequired,
   compareValues,
   loadFakeCtx,
   parseSchema,
@@ -77,9 +79,13 @@ async function main() {
   });
 
   if (!cacheAvailable()) {
+    if (truthCacheRequired()) {
+      console.error("REQUIRE_TRUTH_CACHE=1 but no .truth-cache/ — refusing to pass without running.");
+      process.exit(1);
+    }
     console.log(`fakedb.test.ts — ${passed} passed (schema only)`);
     console.log(CACHE_MISSING_MESSAGE);
-    return;
+    process.exit(TRUTH_CACHE_SKIP_EXIT);
   }
 
   const ctx = loadFakeCtx();

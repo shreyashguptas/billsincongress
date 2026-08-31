@@ -578,9 +578,18 @@ harness built on `fetchDataset` would agree with every bug in `fetchDataset`. An
 `fakedb.test.ts` asserts that the stand-in reproduces production's *known wrong numbers* before
 it is trusted to prove any fix; if that file goes red, nothing depending on it can be believed.
 
-`handlers.test.ts` and `fakedb.test.ts` run in `pnpm test` and skip cleanly when
-`.truth-cache/` is absent, so the unit suite stays hermetic and free. `check-answers.ts` costs
-real model calls against production and is run deliberately, never in CI.
+`handlers.test.ts` and `fakedb.test.ts` run in `pnpm test` when `.truth-cache/` exists and are
+reported as **SKIPPED** when it does not — separately from the pass count, with a list of what
+did not run. That distinction matters: the accuracy assertions skipped silently in CI for a
+while, and `pnpm test` printed "0 failed", so a green check read as proof of the one thing it had
+not checked. `REQUIRE_TRUTH_CACHE=1 pnpm test` turns those skips into failures and is the gate to
+run before merging anything under `convex/catalog/`.
+
+Wiring CI to run them would mean either committing a copy of the production tables or giving the
+workflow a Convex key — both are decisions worth making deliberately, and a PR that edits its own
+review workflow forfeits that review. Until then the gate is local and the skip is loud.
+
+`check-answers.ts` costs real model calls against production and is run deliberately, never in CI.
 
 **When a wrong answer turns up in the wild, add it to `questions.ts` first, watch it go red, then
 fix it.** That file is the institutional memory of every way this system has stated something

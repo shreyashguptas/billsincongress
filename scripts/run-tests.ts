@@ -56,10 +56,24 @@ if (testFiles.length < MIN_TEST_FILES) {
   process.exit(1);
 }
 
+/**
+ * Exit code a test uses when it could not run for want of the production copy
+ * in .truth-cache/. Kept in step with scripts/truth/fakedb.ts.
+ *
+ * These are counted and printed SEPARATELY, and deliberately not as passes. The
+ * accuracy tests — the ones that drive the real handlers against real rows —
+ * skipped silently in CI while this script printed "0 failed", so a green run
+ * read as proof of exactly the thing it had not checked.
+ */
+const SKIPPED_NO_DATA = 3;
+
 let failed = 0;
+const skipped: string[] = [];
 for (const file of [...testFiles, ...GUARDS]) {
   const result = spawnSync("tsx", [file], { stdio: "inherit" });
-  if (result.status !== 0) {
+  if (result.status === SKIPPED_NO_DATA) {
+    skipped.push(file);
+  } else if (result.status !== 0) {
     failed += 1;
     console.error(`FAIL ${file}`);
   }
@@ -68,6 +82,21 @@ for (const file of [...testFiles, ...GUARDS]) {
 // Print what ran, so a passing run is evidence rather than an assertion. CI
 // pastes this into the review, where "0 files" would otherwise read as success.
 console.log(
-  `\n${testFiles.length} test file(s) + ${GUARDS.length} guard(s) run, ${failed} failed.`,
+  `\n${testFiles.length} test file(s) + ${GUARDS.length} guard(s) run, ${failed} failed` +
+    (skipped.length > 0 ? `, ${skipped.length} SKIPPED.` : "."),
 );
+if (skipped.length > 0) {
+  console.log(
+    `\n${skipped.length} file(s) did NOT run — no .truth-cache/ production copy:\n` +
+      skipped.map((f) => `  - ${f}`).join("\n") +
+      `\n\nThese are the accuracy tests: they drive the real fetch handlers against a real\n` +
+      `copy of production, and they are the only thing that checks the answer engine does\n` +
+      `not state numbers it cannot defend. A green run WITHOUT them proves much less than\n` +
+      `a green run with them. Before merging anything under convex/catalog, run:\n` +
+      `  export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)\n` +
+      `  ./node_modules/.bin/tsx scripts/truth/dump.ts\n` +
+      `  REQUIRE_TRUTH_CACHE=1 pnpm test\n` +
+      `REQUIRE_TRUTH_CACHE=1 turns these skips into failures.`,
+  );
+}
 process.exit(failed === 0 ? 0 : 1);

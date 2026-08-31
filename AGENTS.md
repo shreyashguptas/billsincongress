@@ -86,8 +86,20 @@ Three rules, in order of importance:
    A sort is only real when an index provides it or the whole set was read.
 3. **Prove it against real data, not a fixture.** `scripts/truth/handlers.test.ts` runs the real
    handlers against a local copy of production via `scripts/truth/fakedb.ts`. Every accuracy fix
-   needs a case there, written as the wrong answer a reader actually got. Populate the local copy
-   with `./node_modules/.bin/tsx scripts/truth/dump.ts` (needs `CONVEX_DEPLOY_KEY`; read-only).
+   needs a case there, written as the wrong answer a reader actually got.
+
+   **These tests do not run in CI**, because the production copy is not committed. `pnpm test`
+   reports them as `SKIPPED` and prints what did not run — a green CI check is NOT evidence the
+   answer engine was checked. Before merging anything under `convex/catalog/` or
+   `convex/answer.ts`, run the gate locally:
+
+   ```bash
+   export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)
+   ./node_modules/.bin/tsx scripts/truth/dump.ts   # read-only; keeps only public tables
+   REQUIRE_TRUTH_CACHE=1 pnpm test                 # turns the skips into failures
+   ```
+
+   `REQUIRE_TRUTH_CACHE=1` is the difference between "the tests passed" and "the tests ran".
 
 When a wrong answer is found in the wild, add it to `scripts/truth/questions.ts` FIRST, watch it
 go red, then fix it.

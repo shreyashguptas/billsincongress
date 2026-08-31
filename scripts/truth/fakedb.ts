@@ -346,6 +346,24 @@ export function cacheAvailable(): boolean {
   return existsSync(join(CACHE_DIR, "bills.jsonl"));
 }
 
+/**
+ * Exit code a test uses when it cannot run for want of the production copy.
+ *
+ * A distinct code, not 0, because the runner has to be able to tell "passed"
+ * from "did not run". `pnpm test` printed "0 failed" while every one of the
+ * accuracy assertions silently skipped in CI — a green result that had proved
+ * nothing about the thing it exists to prove.
+ */
+export const TRUTH_CACHE_SKIP_EXIT = 3;
+
+/**
+ * Set REQUIRE_TRUTH_CACHE=1 to turn that skip into a failure. Used by the
+ * pre-merge gate for anything touching convex/catalog.
+ */
+export function truthCacheRequired(): boolean {
+  return process.env.REQUIRE_TRUTH_CACHE === "1";
+}
+
 /** Message printed by tests that need the cache and cannot find it. */
 export const CACHE_MISSING_MESSAGE =
   `SKIPPED — no ${CACHE_DIR}/ found. These tests run the real fetch handlers against a local ` +

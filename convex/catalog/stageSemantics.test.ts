@@ -22,6 +22,8 @@ import {
 import { VALID_STAGES } from "./filters";
 
 let passed = 0;
+/** A data-dependent case could not run; the runner must not read this as a pass. */
+let skippedProductionData = false;
 const failures: string[] = [];
 
 function it(name: string, fn: () => void) {
@@ -143,6 +145,11 @@ const SENATE_TYPES = ["s", "sjres", "sres", "sconres"];
 
 if (!existsSync(BILLS_PATH)) {
   console.log("catalog/stageSemantics: SKIPPED the production-data test — no .truth-cache/");
+  if (process.env.REQUIRE_TRUTH_CACHE === "1") {
+    console.error("REQUIRE_TRUTH_CACHE=1 but no .truth-cache/ — refusing to pass without running.");
+    process.exit(1);
+  }
+  skippedProductionData = true;
 } else {
   const allBills = readFileSync(BILLS_PATH, "utf8")
     .split("\n")
@@ -239,4 +246,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(`catalog/stageSemantics — ${passed} passed`);
+// Exit 3 when a data-dependent case could not run, so the runner reports it as
+// SKIPPED rather than folding it into "0 failed".
+if (skippedProductionData) process.exit(3);
 export {};

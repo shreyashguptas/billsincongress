@@ -233,6 +233,7 @@ function describeBillSet(f: Row): string {
   }
   if (typeof f.chamber === "string") parts.push(`originating in the ${f.chamber}`);
   if (typeof f.billType === "string") parts.push(`of type ${f.billType}`);
+  if (typeof f.billNumber === "string") parts.push(`numbered ${f.billNumber}`);
   if (typeof f.titleFilter === "string") parts.push(`with '${f.titleFilter}' in the title`);
   if (typeof f.introducedAfter === "string") parts.push(`introduced on or after ${f.introducedAfter}`);
   if (typeof f.introducedBefore === "string") parts.push(`introduced on or before ${f.introducedBefore}`);
@@ -492,6 +493,7 @@ async function fetchBills(
   // nothing derived from `matched` can be called a total.
   if (!ownCapping) windowFilled = candidates.length >= ceiling;
 
+  const requestedSort = typeof f.sort === "string" ? SORT_FIELD[f.sort] : undefined;
   const requestedSurnames = sponsorNames;
   const chamberTypes =
     f.chamber === "house" ? HOUSE_TYPES : f.chamber === "senate" ? SENATE_TYPES : null;
@@ -531,6 +533,11 @@ async function fetchBills(
     if (typeof f.actionBefore === "string") {
       if (!b.latestActionDate || b.latestActionDate > f.actionBefore) return false;
     }
+    // You cannot order by a value a row does not have. Convex sorts `undefined`
+    // before every string, so an ascending read put the eleven undated measures
+    // of the 119th at the very front and the contract then told the model "row 1
+    // is genuinely the oldest" — of a bill with no known date at all.
+    if (requestedSort && !requestedSort.key(b as BillSortRow)) return false;
     if (requestedSurnames) {
       if (
         !requestedSurnames.some((n) =>
@@ -548,7 +555,6 @@ async function fetchBills(
   // and sorting a sample and calling it "newest first" is how the assistant named
   // the third-most-recent law as the most recent. In that case the order stays
   // `arbitrary` and the contract forbids deriving a max or min from it.
-  const requestedSort = typeof f.sort === "string" ? SORT_FIELD[f.sort] : undefined;
   let order: RowOrder = "arbitrary";
   let ordered = matched;
   if (ordering) {
