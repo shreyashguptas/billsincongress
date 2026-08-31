@@ -209,6 +209,19 @@ it("puts the new filters and the completeness rule into describe_dataset output"
   }
 });
 
+it("tells the model where to look up ONE member's bill count", () => {
+  // Asked how many bills Monica De La Cruz introduced, the assistant tried to
+  // filter `sponsors` by name, was refused, and told the reader it could not
+  // find out. The refusal was about its own call, not about our holdings.
+  const g = gotchaSaying("sponsors", "sponsorfilter");
+  assert.ok(/bills/.test(g), "must name the dataset that does support a name lookup");
+});
+
+it("tells the model to group instead of looping a fetch per category", () => {
+  const g = gotchaSaying("bills", "groupby");
+  assert.ok(/each|breakdown/i.test(g), "must name the question shape groupBy answers");
+});
+
 console.log(`\ncatalog/datasets: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join("\n"));

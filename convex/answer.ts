@@ -13,7 +13,7 @@ import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "./catalog/tool
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
-import { sanitizeAnswer } from "./catalog/answerSanitize";
+import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import type { Id } from "./_generated/dataModel";
@@ -465,8 +465,10 @@ async function runLoop(
     if (toolCalls.length === 0) {
       const text = message?.content ?? "";
       // Empty prose is not an answer; fall through to the message below rather
-      // than streaming the reader a blank panel.
-      if (text.trim().length === 0) break;
+      // than streaming the reader a blank panel. Neither is the model thinking
+      // out loud: a reader was shown "Let me fetch the remaining policy areas I
+      // haven't gotten yet." as the answer to a question about laws by category.
+      if (text.trim().length === 0 || isAllDeliberation(text)) break;
       return finish(text);
     }
 

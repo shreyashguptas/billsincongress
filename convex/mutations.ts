@@ -333,6 +333,9 @@ export const writeCongressStats = internalMutation({
         count: v.number(),
       }),
     ),
+    typeCounts: v.optional(
+      v.array(v.object({ billType: v.string(), count: v.number() })),
+    ),
   },
   handler: async (ctx, args) => {
     const stats = {
@@ -341,6 +344,7 @@ export const writeCongressStats = internalMutation({
       houseCount: args.houseCount,
       senateCount: args.senateCount,
       stageCounts: args.stageCounts,
+      typeCounts: args.typeCounts,
       updatedAt: new Date().toISOString(),
     };
 
@@ -378,6 +382,11 @@ export const recomputeCongressStats = internalAction({
     let houseCount = 0;
     let senateCount = 0;
     const stageCounts = new Map<number, number>();
+    // Per measure type, from the loop that already reads billType. "How many
+    // BILLS have been introduced" had no exact source: 18,476 measures is far
+    // past any scan ceiling, so counting hr and s directly comes back
+    // incomplete, and the only number on hand counted resolutions as bills.
+    const typeCounts = new Map<string, number>();
 
     for (;;) {
       const page: StatsBillPageResult = await ctx.runQuery(
@@ -389,6 +398,7 @@ export const recomputeCongressStats = internalAction({
         totalCount += 1;
         if (bill.billType.startsWith("h")) houseCount += 1;
         if (bill.billType.startsWith("s")) senateCount += 1;
+        typeCounts.set(bill.billType, (typeCounts.get(bill.billType) ?? 0) + 1);
         if (bill.progressStage !== undefined) {
           stageCounts.set(
             bill.progressStage,
@@ -411,6 +421,9 @@ export const recomputeCongressStats = internalAction({
         description,
         count: stageCounts.get(stage) ?? 0,
       })).filter((s) => s.count > 0),
+      typeCounts: [...typeCounts.entries()]
+        .map(([billType, count]) => ({ billType, count }))
+        .sort((a, b) => b.count - a.count),
     });
   },
 });

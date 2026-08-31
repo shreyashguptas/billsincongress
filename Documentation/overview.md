@@ -633,6 +633,12 @@ date off an arbitrary page and named S. 1003 (26 June); the real answer, S. 629 
 not on the page at all. A sort is honoured when an index provides it or when the whole set was
 read; over an incomplete set the sort is refused and the order stays `arbitrary`.
 
+**Breakdowns are one fetch, not thirty.** `groupBy` on `bills` returns one row per category with
+its own count — `{congress, progressStage: 100, groupBy: "policyArea"}` answers "how many of the
+laws passed were in each category" in a single call. Before it existed that question needed one
+fetch per policy area, ran out of tool rounds, and shipped the model's own working-out to the
+reader as the answer.
+
 **Terminal stage vs milestone.** `progressStage` is where a measure STOPPED — the buckets are
 mutually exclusive, so the "passed one chamber" bucket excludes everything that later became law.
 Use `reachedStage` for "got at least this far". Counting the terminal bucket answered *"how many
@@ -947,9 +953,11 @@ question until the job runs. After deploying such a change:
 npx convex run congressApi:triggerRecomputeStats
 ```
 
-This is required for the per-chamber `stageCounts` added to `congressChamberBreakdowns`; until it
-runs, a chamber-scoped stats row reports that it holds no stage ladder instead of quoting the
-whole-Congress one.
+This is required for the per-chamber `stageCounts` on `congressChamberBreakdowns` and the
+per-type `typeCounts` on `congressStats`; until it runs, a chamber-scoped stats row reports that
+it holds no stage ladder instead of quoting the whole-Congress one, and the whole-Congress row
+says it cannot split measures into bills and resolutions rather than letting the measure total be
+read as a bill count.
 
 ---
 

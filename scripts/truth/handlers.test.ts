@@ -744,6 +744,103 @@ async function main() {
     assert.equal(r.report.total, 0);
   });
 
+  // --- the question that started all of this --------------------------------
+
+  await it("laws by category is ONE fetch, and the groups sum to the total", async () => {
+    // "Out of the laws passed give me for each category how many were for each"
+    // is the question that opened this whole thread. It needed one fetch per
+    // policy area — 31 round trips — so the engine ran out of lookups and shipped
+    // the model's own working-out to the reader as the answer.
+    const r = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      progressStage: 100,
+      groupBy: "policyArea",
+    });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.report.total, truth.laws119.length, "the total must be the measures, not the groups");
+
+    const summed = r.rows.reduce((a: number, x: any) => a + x.count, 0);
+    assert.equal(summed, truth.laws119.length, "the groups must account for every law");
+
+    const expected = new Map<string, number>();
+    for (const b of truth.laws119) {
+      const k = (b as any).policyAreaName ?? "(no policy area assigned)";
+      expected.set(k, (expected.get(k) ?? 0) + 1);
+    }
+    assert.equal(r.rows.length, expected.size, "one row per group");
+    for (const row of r.rows) {
+      assert.equal(row.count, expected.get(row.group), `${row.group} counted wrong`);
+    }
+    assert.equal(r.report.order, "largest_first");
+    assert.equal(r.rows[0].count, Math.max(...expected.values()), "biggest group first");
+  });
+
+  await it("a policy-area group carries a citation that resolves to that topic", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      progressStage: 100,
+      groupBy: "policyArea",
+    });
+    const named = r.rows.find((x: any) => x.group !== "(no policy area assigned)");
+    assert.ok(named?._cite, "a real topic group must be citable");
+    assert.equal(named._cite, `topics:119:${named.group}`);
+  });
+
+  await it("grouping never drops rows that have no value for the field", async () => {
+    // Folding the unclassified away would make the groups sum to less than the
+    // total the same result reports — a self-contradicting answer.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "sponsorParty" }, 0);
+    if (r.ok && r.report.complete) {
+      const summed = r.rows.reduce((a: number, x: any) => a + x.count, 0);
+      assert.equal(summed, r.report.total);
+    }
+    const chamber = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      progressStage: 100,
+      groupBy: "chamber",
+    });
+    assert.ok(chamber.ok);
+    const byChamber = Object.fromEntries(chamber.rows.map((x: any) => [x.group, x.count]));
+    const houseLaws = truth.laws119.filter((b: any) =>
+      ["hr", "hjres", "hconres", "hres"].includes(b.billType),
+    ).length;
+    assert.equal(byChamber.house, houseLaws, "chamber grouping must match the House law count");
+  });
+
+  await it("grouping by a field you already filtered to one value is refused", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      policyArea: "Health",
+      groupBy: "policyArea",
+    });
+    assert.equal(r.ok, false);
+    assert.match(r.error, /grouped by it/i);
+  });
+
+  await it("the stats row separates bills from resolutions", async () => {
+    // "How many bills have been introduced" had no exact source: 18,476 measures
+    // is past any scan ceiling, so counting hr and s came back incomplete, and
+    // the one number on hand counted resolutions as bills. Production answered
+    // "I could not get an exact count" three times out of three.
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119 });
+    assert.ok(r.ok);
+    const row = r.rows[0];
+    const realBills = bills.filter(
+      (b: any) => b.congress === 119 && (b.billType === "hr" || b.billType === "s"),
+    ).length;
+    if (row.billsOnly === undefined) {
+      // The recompute has not run against this copy yet; it must say so rather
+      // than let totalMeasures be read as a bill count.
+      assert.match(String(row.billsVersusResolutions_unavailable), /not.*count of bills/i);
+    } else {
+      assert.equal(row.billsOnly, realBills);
+      assert.notEqual(row.billsOnly, row.totalMeasures, "bills and measures are different numbers");
+      const parts = row.billsOnly + row.jointResolutions + row.otherResolutions;
+      assert.equal(parts, row.totalMeasures, "the three parts must account for every measure");
+    }
+  });
+
   // --- the invariant, checked across many shapes ----------------------------
 
   await it("no result ever carries a total without claiming completeness", async () => {

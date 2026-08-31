@@ -140,6 +140,13 @@ function stripNonClaims(text: string): string {
       // contains four consecutive digits, so "18,476" is safe, while "in 2021,"
       // and "in 2021." must still lose their year.
       .replace(/(?<!\d)(?:1[7-9]\d{2}|20\d{2})(?!\d)/g, " ")
+      // Stage codes. The model explains itself with them — "104 measures have
+      // become law (stage 100, signed into law)" — and the stray 100 made a
+      // CORRECT answer score as an ambiguous refusal. A stage code is vocabulary,
+      // not a claim about how many.
+      .replace(/\bstages?\s*\d+\b/gi, " ")
+      // Public law numbers: "Public Law 119-21" is an identifier, not a count.
+      .replace(/\bpublic\s+law\s+(?:no\.?\s*)?\d+[-–]\d+/gi, " ")
   );
 }
 

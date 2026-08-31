@@ -278,6 +278,28 @@ it("refuses when the answer says neither", () => {
   assert.ok(reason.includes("no yes/no"), reason);
 });
 
+it("a stage code in the explanation is vocabulary, not a rival claim", () => {
+  // This exact sentence scored UNCHECKABLE against production: the stray 100
+  // from "stage 100" looked like a second number and refused a correct answer.
+  assert.deepEqual(
+    extractNumber("104 measures in the 119th Congress have become law (stage 100, signed into law) as of today."),
+    { found: true, value: 104 },
+  );
+});
+
+it("a public law number is an identifier, not a count", () => {
+  assert.deepEqual(
+    extractNumber("Yes — 11 have, including H.R. 1, which became Public Law 119-21."),
+    { found: true, value: 11 },
+  );
+});
+
+it("still refuses when two real counts genuinely disagree", () => {
+  // The guard that matters must survive the loosening above.
+  const r = extractNumber("104 House bills became law. The party split is 56 and 8.");
+  assert.equal(r.found, false);
+});
+
 if (failures.length > 0) {
   console.error(`scripts/truth/extract.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));

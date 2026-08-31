@@ -47,6 +47,22 @@ export const VALID_SORTS = [
  * real answer — were never on it.
  */
 export const VALID_SPONSOR_SORTS = ["most_bills", "fewest_bills"];
+/**
+ * Fields the `bills` dataset can group a count by.
+ *
+ * Without this, "how many of the laws passed were in each category" needed one
+ * fetch per policy area — 31 round trips, which does not fit in the tool-round
+ * budget. Production ran out of rounds and shipped the model's own working-out
+ * to the reader as the answer. One grouped fetch replaces all 31.
+ */
+export const VALID_GROUP_BY = [
+  "policyArea",
+  "progressStage",
+  "sponsorState",
+  "sponsorParty",
+  "billType",
+  "chamber",
+];
 /** ISO calendar dates only. Anything looser invites a silent mismatch. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_FILTERS = ["introducedAfter", "introducedBefore", "actionAfter", "actionBefore"];
@@ -136,6 +152,12 @@ export function validateFilters(name: DatasetName, raw: unknown): ValidationResu
         };
       }
     }
+    if (key === "groupBy" && !VALID_GROUP_BY.includes(value as string)) {
+      return {
+        ok: false,
+        error: `groupBy must be one of ${VALID_GROUP_BY.join(", ")}. Got '${String(value)}'.`,
+      };
+    }
     if (DATE_FILTERS.includes(key) && !ISO_DATE.test(String(value))) {
       return {
         ok: false,
@@ -159,6 +181,18 @@ export function validateFilters(name: DatasetName, raw: unknown): ValidationResu
   // These two answer different questions and combining them is always a mistake:
   // progressStage is where a bill STOPPED, reachedStage is how far it GOT. Asking
   // for both means asking for bills that stopped at 60 and also went past it.
+  // Grouping BY a field you have also pinned to one value yields one bucket and
+  // is always a mistake in the making.
+  if (typeof out.groupBy === "string" && out[out.groupBy] !== undefined) {
+    return {
+      ok: false,
+      error:
+        `You filtered by '${out.groupBy}' and also grouped by it, which can only ever return ` +
+        `that one value. Drop the filter to see every group, or drop the groupBy to count just ` +
+        `the one you filtered to.`,
+    };
+  }
+
   if (out.progressStage !== undefined && out.reachedStage !== undefined) {
     return {
       ok: false,
