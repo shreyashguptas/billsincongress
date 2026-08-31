@@ -329,6 +329,38 @@ it("never eats a paragraph that names a real bill", () => {
   assert.equal(sanitizeAnswer(other).text, other);
 });
 
+it("keeps the fact when the paragraph OPENS with the commonest narration", () => {
+  // Found in review of the sentence-level trim itself: the paragraph-level check
+  // ran first and matched on how the paragraph opens, so everything after the
+  // opener went with it — including the answer. "Let me..." is the headline
+  // example of the problem the trim exists to solve, and it was the one case the
+  // trim never reached.
+  const cases = [
+    "Let me check that. The 119th Congress passed 104 laws so far.\n\nSee the breakdown below.",
+    "Wait, that's the 118th. The 119th Congress passed 104 laws so far.\n\nSee the breakdown below.",
+    "Actually, let me re-check. The 119th Congress passed 104 laws so far.\n\nSee below.",
+  ];
+  for (const c of cases) {
+    const out = sanitizeAnswer(c).text;
+    assert.ok(out.includes("104 laws so far"), `lost the fact: ${JSON.stringify(out)}`);
+    assert.ok(!/^(let me|wait|actually)/i.test(out.trim()), `kept the narration: ${out}`);
+  }
+});
+
+it("still drops a paragraph that is narration all the way through", () => {
+  const r = sanitizeAnswer("Let me fetch the remaining policy areas.\n\n**Armed Forces:** 20");
+  assert.equal(r.text, "**Armed Forces:** 20");
+});
+
+it("still catches working-out spread across otherwise-innocent sentences", () => {
+  // Two or more process markers anywhere: what the paragraph-level rule catches
+  // and the sentence matchers cannot. Moving it to a fallback must not lose it.
+  const r = sanitizeAnswer(
+    "The 119th has data. I need to confirm the stage codes. I should check the totals too.\n\n104 laws.",
+  );
+  assert.equal(r.text, "104 laws.");
+});
+
 if (failures.length > 0) {
   console.error(`convex/catalog/answerSanitize.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));

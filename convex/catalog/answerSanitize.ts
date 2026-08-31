@@ -191,6 +191,10 @@ function leaksVocabulary(paragraph: string): boolean {
 const SENTENCE_NARRATION: RegExp[] = [
   /^i have (?:the|a|all|everything|what)\b/,
   /^(?:now )?let(?:'s| me| us)\b/,
+  /^actually,\s*let\b/,
+  // Same rule as WAIT_NARRATION: only when a break follows, because 14 bill
+  // titles and 87 summaries in the corpus are about wait times.
+  /^wait\s*[,.:;!?…—–-]/,
   /^i(?:'ll| will| need to| should| can now)\b/,
   /^(?:ok|okay|right|good)[,.]\s/,
   /^(?:first|next|now)[,]\s+i\b/,
@@ -289,7 +293,15 @@ export function sanitizeAnswer(text: string): SanitizeResult {
   const dropped = new Set<number>();
   /** Blocks whose opening narration was trimmed but whose answer survives. */
   const trimmedLeading = new Map<number, string>();
-  const leadingNarration: string[] = [];
+  /**
+   * The narration trimmed off each such block, by index.
+   *
+   * Keyed rather than listed because pass 2 may go on to drop the whole block
+   * anyway — a paragraph that leaks a field name goes entirely, trimmed or not.
+   * Reporting both the trimmed sentence AND the whole paragraph would double-
+   * count one removal in the log.
+   */
+  const leadingNarration = new Map<number, string>();
 
   // Pass 1: the leading run of deliberation. Blank blocks in front of it go too,
   // but only once a real deliberation paragraph is found behind them — otherwise
@@ -301,26 +313,35 @@ export function sanitizeAnswer(text: string): SanitizeResult {
       pendingBlanks.push(i);
       continue;
     }
-    if (isDeliberation(body)) {
+    // SENTENCE-AWARE FIRST. The paragraph-level check below matches on how a
+    // paragraph OPENS, so running it first threw away everything after the
+    // opener: "Let me check that. The 119th Congress passed 104 laws so far."
+    // lost the fact along with the narration — the exact defect this trim
+    // exists to prevent, triggered by its own headline example.
+    const trimmed = trimLeadingNarration(body);
+    if (trimmed.trim() === "") {
+      // Every sentence was narration; the paragraph goes.
       for (const blank of pendingBlanks) dropped.add(blank);
       pendingBlanks.length = 0;
       dropped.add(i);
       continue;
     }
-    // Not narration as a whole, but it may still OPEN with a sentence of it:
-    // "I have everything I need. The 119th Congress has 104 laws passed so far."
-    // Trim the front and keep the answer — a paragraph-level rule cannot, because
-    // dropping the paragraph takes the answer with it.
-    const trimmed = trimLeadingNarration(body);
     if (trimmed !== body) {
       for (const blank of pendingBlanks) dropped.add(blank);
       pendingBlanks.length = 0;
-      if (trimmed.trim() === "") {
-        dropped.add(i);
-        continue;
-      }
       trimmedLeading.set(i, trimmed);
-      leadingNarration.push(body.slice(0, body.length - trimmed.length).trim());
+      leadingNarration.set(i, body.slice(0, body.length - trimmed.length).trim());
+      break;
+    }
+    // Nothing trimmed from the front. The paragraph can still be working-out
+    // spread across sentences that individually look fine — two or more process
+    // markers anywhere. That is what isDeliberation catches and the sentence
+    // matchers cannot.
+    if (isDeliberation(body)) {
+      for (const blank of pendingBlanks) dropped.add(blank);
+      pendingBlanks.length = 0;
+      dropped.add(i);
+      continue;
     }
     break;
   }
@@ -333,7 +354,8 @@ export function sanitizeAnswer(text: string): SanitizeResult {
   }
 
   const removed = [
-    ...leadingNarration,
+    // Only for blocks that survived pass 2; a dropped block reports its whole text.
+    ...[...leadingNarration].filter(([i]) => !dropped.has(i)).map(([, body]) => body),
     ...[...dropped]
       .sort((a, b) => a - b)
       .map((i) => blocks[i].text)
