@@ -626,6 +626,10 @@ async function fetchBills(
         matchedCount: matched.length,
         shown: groupRows.length,
         order: "largest_first",
+        // `total` counts MEASURES and `shown` counts GROUPS — different units.
+        // Saying so is what stops the generic sample warning from firing and
+        // telling the model its complete breakdown is a page of itself.
+        rowsAreGroups: true,
       }),
     };
   }

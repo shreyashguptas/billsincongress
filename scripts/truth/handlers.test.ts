@@ -776,6 +776,41 @@ async function main() {
     assert.equal(r.rows[0].count, Math.max(...expected.values()), "biggest group first");
   });
 
+  await it("the JSON a grouped fetch actually sends says the rows ARE the whole set", async () => {
+    // The handler tests asserted on the raw result and never routed through
+    // payloadFor, so nobody had read what the model is really handed. It was
+    // being told "you were shown 23 of 104 ... do not describe them as the whole
+    // set, and do not rank or compare across the set using only these rows" —
+    // false for a breakdown, and a direct contradiction of the request.
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const r = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      progressStage: 100,
+      groupBy: "policyArea",
+    });
+    assert.ok(r.ok);
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.equal(
+      payload.rows_are_a_sample_of_a_known_total,
+      undefined,
+      "a complete breakdown must never be described as a page of itself",
+    );
+    assert.match(String(payload.rows_are_a_complete_breakdown), /whole set/i);
+    assert.match(String(payload.rows_are_a_complete_breakdown), /compare or rank/i);
+  });
+
+  await it("a genuine PAGE of a complete set is still warned about", async () => {
+    // The guard above must not blunt the real one: California's 54 members shown
+    // 50 at a time is a page, and reading the last row as "the fewest" is the
+    // error that named the wrong member.
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const r = await fetchViaHandlers(ctx, "sponsors", { congress: 119, sponsorState: "CA" }, 50);
+    assert.ok(r.ok);
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(String(payload.rows_are_a_sample_of_a_known_total), /50 of 54/);
+    assert.equal(payload.rows_are_a_complete_breakdown, undefined);
+  });
+
   await it("a policy-area group carries a citation that resolves to that topic", async () => {
     const r = await fetchViaHandlers(ctx, "bills", {
       congress: 119,

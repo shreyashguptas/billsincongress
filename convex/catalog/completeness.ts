@@ -92,6 +92,17 @@ export interface CompletenessReport {
    * honestly unknown.
    */
   orderFromIndex?: boolean;
+  /**
+   * The rows are one-per-GROUP, not one-per-record: an exhaustive breakdown that
+   * sums to `total`, not a page of it.
+   *
+   * Without this, `total` (104 measures) and `shown` (23 groups) are different
+   * units, and the sample warning fired on every real grouped query — telling the
+   * model "you were shown 23 of 104 ... do not describe them as the whole set,
+   * and do not rank or compare across the set using only these rows". Both halves
+   * are false for a breakdown, and the second forbids exactly what was asked for.
+   */
+  rowsAreGroups?: boolean;
   /** Present only when incomplete: what was and was not read. */
   note?: string;
 }
@@ -123,6 +134,8 @@ export function reportFor(input: {
   order: RowOrder;
   /** An index produced the order, so the rows are the true first N of the set. */
   orderFromIndex?: boolean;
+  /** Rows are one per group and sum to `total`, rather than a page of it. */
+  rowsAreGroups?: boolean;
 }): CompletenessReport {
   const complete = !input.windowFilled;
   if (complete) {
@@ -133,6 +146,7 @@ export function reportFor(input: {
       shown: input.shown,
       order: input.order,
       ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
+      ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
     };
   }
   return {
@@ -141,6 +155,7 @@ export function reportFor(input: {
     shown: input.shown,
     order: input.order,
     ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
+    ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
     note: input.filteredInMemory
       ? INCOMPLETE_NOTE +
         " (These filters have no index, so an ARBITRARY sample was examined — ordered by when we " +
@@ -187,7 +202,12 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
   };
   if (report.complete) {
     payload.total = report.total;
-    if ((report.total ?? 0) > report.shown) {
+    if (report.rowsAreGroups) {
+      payload.rows_are_a_complete_breakdown =
+        `These ${report.shown} rows are one per group and account for the whole total: their ` +
+        `counts sum to ${report.total}. This IS the whole set, not a page of it. State every ` +
+        `group, and compare or rank them freely.`;
+    } else if ((report.total ?? 0) > report.shown) {
       payload.rows_are_a_sample_of_a_known_total =
         `You were shown ${report.shown} of ${report.total}. The TOTAL is exact and you may state ` +
         `it. The ROWS are a page: do not describe them as the whole set, and do not rank or ` +

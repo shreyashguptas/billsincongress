@@ -181,6 +181,25 @@ it("the reader-facing label never shows a number it cannot defend", () => {
   );
 });
 
+it("a grouped result is a complete breakdown, not a page of itself", () => {
+  // `total` counts records and `shown` counts groups — different units, so the
+  // generic sample warning fired on every real breakdown and told the model not
+  // to compare the categories it had just asked for.
+  const payload = parse(
+    new Array(23).fill({}),
+    completeReport({ set: "s", total: 104, shown: 23, order: "largest_first" }),
+  );
+  assert.match(payload.rows_are_a_sample_of_a_known_total, /23 of 104/, "without the flag it warns");
+
+  const grouped = parse(
+    new Array(23).fill({}),
+    { set: "s", complete: true, total: 104, shown: 23, order: "largest_first", rowsAreGroups: true },
+  );
+  assert.equal(grouped.rows_are_a_sample_of_a_known_total, undefined);
+  assert.match(grouped.rows_are_a_complete_breakdown, /sum to 104/);
+  assert.match(grouped.rows_are_a_complete_breakdown, /compare or rank/i);
+});
+
 it("every payload states the set it drew from", () => {
   const payload = parse([], completeReport({ set: "every Texas measure that became law", total: 11, shown: 0, order: "arbitrary" }));
   assert.equal(payload.set, "every Texas measure that became law");
