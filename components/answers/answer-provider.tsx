@@ -62,6 +62,13 @@ export interface Turn {
   webSources?: WebSource[];
   work?: WorkEntry[];
   done?: boolean;
+  /**
+   * The assistant asked the reader a question instead of answering (the
+   * `ask_reader` tool). `content` IS the question. Set only for the live turn:
+   * a resumed thread has no record of it, and a question already answered by
+   * the following turn no longer needs the invitation to reply.
+   */
+  askedReader?: boolean;
 }
 
 export interface RateLimitInfo {
@@ -495,6 +502,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 entities: data.entities ?? {},
                 webReason: data.webReason ?? '',
                 webSources: data.webSources ?? [],
+                askedReader: Boolean(data.askedReader),
                 done: true,
               }));
               if (data.chatId) setChatId(data.chatId as Id<'chats'>);
@@ -510,6 +518,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 web_source_count: webSources.length,
                 dropped: data.dropped ?? 0,
                 partial: Boolean(data.partial),
+                asked_reader: Boolean(data.askedReader),
+                truncated_by_length: Boolean(data.truncatedByLength),
               });
               if ((data.dropped ?? 0) > 0) {
                 analytics.answerCitationUnresolved({

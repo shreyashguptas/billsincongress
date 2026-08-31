@@ -813,6 +813,15 @@ export const writeCongressChamberBreakdown = internalMutation({
     stateCounts: v.array(
       v.object({ state: v.string(), count: v.number() }),
     ),
+    stageCounts: v.optional(
+      v.array(
+        v.object({
+          stage: v.number(),
+          description: v.string(),
+          count: v.number(),
+        }),
+      ),
+    ),
     monthly: v.array(
       v.object({
         month: v.string(),
@@ -837,6 +846,7 @@ export const writeCongressChamberBreakdown = internalMutation({
       partyLawCounts: args.partyLawCounts,
       stateCounts: args.stateCounts,
       monthly: args.monthly,
+      stageCounts: args.stageCounts,
       updatedAt: new Date().toISOString(),
     };
 
@@ -886,6 +896,13 @@ export const recomputeCongressChamberBreakdown = internalAction({
     };
     const stateCounts = new Map<string, number>();
     const monthCounts = new Map<string, { total: number; law: number }>();
+    // Per-stage counts FOR THIS CHAMBER. Accumulated in the loop that was
+    // already reading progressStage for partyLawCounts, so it costs nothing.
+    // Without it, a chamber-filtered stats row had no chamber-scoped ladder and
+    // the answer engine fell back to the whole-Congress one: "how many House
+    // bills became law" was answered 104, which is both chambers, when the House
+    // figure is 64.
+    const stageCounts = new Map<number, number>();
     let total = 0;
 
     for (const billType of billTypes) {
@@ -906,6 +923,12 @@ export const recomputeCongressChamberBreakdown = internalAction({
           const isLaw = bill.progressStage === 100;
           partyCounts[party] += 1;
           if (isLaw) partyLawCounts[party] += 1;
+          if (bill.progressStage !== undefined) {
+            stageCounts.set(
+              bill.progressStage,
+              (stageCounts.get(bill.progressStage) ?? 0) + 1,
+            );
+          }
 
           // Only valid ASCII state codes, so the top-states list gets no
           // "Unknown" bucket.
@@ -957,6 +980,12 @@ export const recomputeCongressChamberBreakdown = internalAction({
         partyLawCounts,
         stateCounts: stateCountsArr,
         monthly,
+        // Zero-count stages are dropped, matching recomputeCongressStats.
+        stageCounts: BILL_STAGES.map(({ stage, description }) => ({
+          stage,
+          description,
+          count: stageCounts.get(stage) ?? 0,
+        })).filter((s) => s.count > 0),
       },
     );
   },

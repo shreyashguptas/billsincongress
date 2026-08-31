@@ -448,10 +448,12 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
             │                                and the anonymous session cookie
             └─ POST {CONVEX_SITE_URL}/answer/stream     (convex/http.ts → answer.stream)
                  ├─ rate-limit check  ← the token is consumed BEFORE the model is called
-                 ├─ tool loop, max 4 rounds
+                 ├─ tool loop, max 4 rounds (the 5th call goes out WITHOUT tools)
                  │    ├─ describe_dataset
                  │    ├─ fetch_dataset   → convex/catalog/fetch.ts
-                 │    └─ search_web      → OpenRouter web plugin, engine "exa"
+                 │    ├─ search_web      → OpenRouter web plugin, engine "exa"
+                 │    └─ ask_reader      → ends the turn with a question, not an answer
+                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts
                  ├─ citation resolution → convex/catalog/cite.ts
                  └─ SSE frames back: work · delta · done · rate_limited · error
 ```
@@ -539,9 +541,9 @@ is exactly those six.
 
 | Limit | Value |
 | --- | ---: |
-| Tool rounds | 4, then the model must answer with what it has and the answer is flagged `partial` |
-| Rows per fetch | 20 default, 50 max |
-| Scan window | 200 rows — when it fills, the count is returned as `total_is_at_least` so the model must say "at least N" |
+| Tool rounds | 4. The fifth call goes out with the tool schema **withheld**, so the model has to write prose; the answer is flagged `partial` |
+| Rows per fetch | 20 default, 50 max. `limit: 0` is count-only — no rows, a deeper scan, an exact total |
+| Scan window | 1,000 rows (8,000 for a count-only read). When it fills, the result is `complete: false` and carries **no total at all** |
 | Sponsor lookups per request | 10 distinct surnames |
 | Question length | 2,000 characters |
 | History sent back to the model | 10 turns / 8,000 characters, oldest dropped first |
@@ -556,6 +558,98 @@ do not render. The count of deletions is the `dropped` metric — the grounding-
 This filters **citations and entity directives, not prose**. The sentences around them are
 never verified. A rising `dropped` means the catalog's `gotchas` need strengthening; that is
 the fix, not a prompt patch elsewhere.
+
+### The truth harness — how we know
+
+`scripts/truth/` is the standing check that the answer engine is telling the truth. It exists
+because 41 confirmed defects shipped without anyone noticing, and every one of them produced a
+confident, cited, wrong sentence.
+
+| File | Role |
+| --- | --- |
+| `dump.ts` | Copies the raw legislative tables out of production into `.truth-cache/` (gitignored). Read-only; keeps only public tables and deletes the rest of the export immediately |
+| `fakedb.ts` | A stand-in for `ctx.db` over that copy. Parses the index definitions straight out of `convex/schema.ts`, so it cannot drift, and throws on an index that does not exist |
+| `handlers.test.ts` | Runs the **real** fetch handlers against the **real** data, locally, with no deployment. This is where the accuracy fixes are actually proven |
+| `questions.ts` / `check-answers.ts` | Ask production a fixed set of factual questions and score each answer against truth computed from raw rows |
+| `extract.ts` | Pulls a checkable claim out of an answer's prose. Deliberately strict — it refuses rather than guesses, because a lenient extractor scores a wrong answer as a pass |
+
+Two rules make this worth having. **The oracle shares no code with the system under test** — a
+harness built on `fetchDataset` would agree with every bug in `fetchDataset`. And
+`fakedb.test.ts` asserts that the stand-in reproduces production's *known wrong numbers* before
+it is trusted to prove any fix; if that file goes red, nothing depending on it can be believed.
+
+`handlers.test.ts` and `fakedb.test.ts` run in `pnpm test` when `.truth-cache/` exists and are
+reported as **SKIPPED** when it does not — separately from the pass count, with a list of what
+did not run. That distinction matters: the accuracy assertions skipped silently in CI for a
+while, and `pnpm test` printed "0 failed", so a green check read as proof of the one thing it had
+not checked. `REQUIRE_TRUTH_CACHE=1 pnpm test` turns those skips into failures and is the gate to
+run before merging anything under `convex/catalog/`.
+
+Wiring CI to run them would mean either committing a copy of the production tables or giving the
+workflow a Convex key — both are decisions worth making deliberately, and a PR that edits its own
+review workflow forfeits that review. Until then the gate is local and the skip is loud.
+
+`check-answers.ts` costs real model calls against production and is run deliberately, never in CI.
+
+**When a wrong answer turns up in the wild, add it to `questions.ts` first, watch it go red, then
+fix it.** That file is the institutional memory of every way this system has stated something
+untrue.
+
+### The completeness contract
+
+This is the load-bearing idea of the whole answer engine, and it exists because of what happened
+without it. Every result from `fetch_dataset` now declares three things, built by
+`convex/catalog/completeness.ts`:
+
+| Field | Meaning |
+| --- | --- |
+| `set` | Plain-English description of the set the rows were drawn from, e.g. *"every measure in the 119th Congress with policy area 'Health', terminal stage 100"* |
+| `complete` | Whether every row matching the filters was examined |
+| `total` | The size of that set. **Present only when `complete` is true** |
+| `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
+
+The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
+"fewest", "newest", "the only", "none", an average, any ranking — may be made ONLY from a result
+with `complete: true`. Everything else is a sample.
+
+**Why the absence of `total` matters more than any warning beside it.** The previous shape was
+`{ truncated, count, countIsLowerBound }`, where `count` was whatever survived an in-memory
+filter over a capped window. A capped scan that matched nothing returned `total_matching: 0`
+with `total_is_at_least: true`, and "at least 0" beside an empty row list read as *"none exist"*.
+That single shape produced, in production:
+
+- *"104 House bills became law"* — that is both chambers; the House figure is 64. The model
+  printed the party split in the next sentence, which sums to 64, without noticing.
+- *"Tom McClintock has introduced the fewest bills in California"* — 25 of California's 54
+  members were invisible; the real answer is James Gallagher with 5. The model justified itself
+  with *"truncated: false … meaning all matching rows were returned"*.
+- *"We don't have data on Texas bills that became law"* — eleven had, including H.R. 1.
+
+So a result that cannot defend a number now carries **no number**. There is nothing to reach for.
+
+**Ordering is never implied.** `order: "arbitrary"` means index order, which after an `eq()`
+prefix is insertion order. Asked for the most recent law, the model previously read the maximum
+date off an arbitrary page and named S. 1003 (26 June); the real answer, S. 629 (12 July), was
+not on the page at all. A sort is honoured when an index provides it or when the whole set was
+read; over an incomplete set the sort is refused and the order stays `arbitrary`.
+
+**Terminal stage vs milestone.** `progressStage` is where a measure STOPPED — the buckets are
+mutually exclusive, so the "passed one chamber" bucket excludes everything that later became law.
+Use `reachedStage` for "got at least this far". Counting the terminal bucket answered *"how many
+bills has the Senate passed"* with a number that omitted all 104 laws.
+
+**Measures, not bills.** Totals count every measure, including ~2,500 simple and concurrent
+resolutions a Congress, which are not bills and can never become law. Bill rows carry
+`measureType` and `canBecomeLaw` so an answer can use the right word.
+
+**Time.** The system prompt now carries today's date and, for a Congress that has adjourned, an
+instruction to use the past tense. Two of the three Congresses we hold are over — about 37,000 of
+~55,000 rows — and without this the model described them as still in progress. `stats` carries
+`dataLastSynced` so "how current is this?" has a real answer instead of an invented one.
+
+**Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
+the reader's question has two readings that give materially different numbers. "How many bills has
+the Senate passed" is the canonical case, and it silently changes the answer by a factor of two.
 
 **Bad filters return a descriptive error, never an empty result** — because an empty result
 reads as "none exist" and would turn a typo into a confident falsehood.
@@ -836,6 +930,27 @@ production Convex deployment.
 > branch diverged. This has happened — it once clobbered the saved-bills functions.
 > **Always merge `origin/main` before running `npx convex deploy`.**
 
+> **Merging a PR does NOT deploy the backend.** The GitHub Actions workflow above deploys the
+> Next.js site to Cloudflare; it does not touch `convex/`. Production once ran three days behind
+> `main` on the answer engine, and for the whole of that time readers on a bill page were told
+> about a different bill — confidently, with working citations, because the fix that seeds the
+> focused bill's row had been merged and never shipped.
+> **After merging any PR that touches `convex/`: `git checkout main && git pull && npx convex deploy -y`.**
+
+**Changes that need a recompute, not just a deploy.** Some Convex changes add a field to a
+precomputed table, and the deploy alone leaves that field empty on every existing row. The
+handlers are written to treat a missing value as "we do not hold this" rather than falling back
+to a wider figure, so an un-recomputed field degrades honestly — but it does not answer the
+question until the job runs. After deploying such a change:
+
+```bash
+npx convex run congressApi:triggerRecomputeStats
+```
+
+This is required for the per-chamber `stageCounts` added to `congressChamberBreakdowns`; until it
+runs, a chamber-scoped stats row reports that it holds no stage ladder instead of quoting the
+whole-Congress one.
+
 ---
 
 ## Hosting and Cloudflare constraints
@@ -930,6 +1045,8 @@ Congress, so a deleted historical Congress does not come back on its own.
 | Symptom | Likely cause |
 | --- | --- |
 | A query times out | A full table scan. Use a precomputed table or an index; `.collect()` on `bills` exceeds Convex's 16,384-document transaction limit |
+| The assistant says it has no count | The filter combination could not be read completely, so it was given no number rather than a wrong one. Adding an index for that pair in `convex/schema.ts` — and a branch in `convex/catalog/billsIndex.ts` — makes it exact |
+| The assistant refuses to name "the most recent" | The result came back `order: "arbitrary"`. Either the question needs a `sort` filter, or the set is too big to read completely and the sort was honestly refused |
 | A filtered list looks short | The 1,200-row scan cap — see [query limits](#query-limits-and-how-truncation-is-surfaced). If the page says "partial list" it is working as intended; if it does not, the filter has an index and the list is complete |
 | AI chat 404s after a deploy | The provider allowlist and the OpenRouter **account** setting no longer overlap |
 | "The answer service is not deployed yet" | The frontend shipped but Convex did not. Run `npx convex deploy` |

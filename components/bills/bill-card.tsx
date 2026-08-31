@@ -3,6 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Bill } from '@/lib/types/bill';
 import { analytics } from '@/lib/analytics';
+import { compactStageLabel } from '@/lib/utils/bill-stages';
 import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
 import { billNoun } from '@/lib/seo';
 import { BillProgress } from './bill-progress';
@@ -19,16 +20,6 @@ const PARTY_DOT_COLOR: Record<string, string> = {
   D: 'bg-party-d',
   R: 'bg-party-r',
   I: 'bg-party-i',
-};
-
-export const STAGE_LABEL: Record<number, string> = {
-  20: 'Introduced',
-  40: 'In committee',
-  60: 'Passed one chamber',
-  80: 'Passed both',
-  90: 'To president',
-  95: 'Signed',
-  100: 'Became law',
 };
 
 /**
@@ -87,7 +78,7 @@ export function CompactBillCard({
           <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${partyDot}`} aria-hidden="true" />
           <span className="truncate">
             {sponsorLastName ? `${sponsorLastName} · ` : ''}
-            {stage !== undefined ? (STAGE_LABEL[stage] ?? 'Unknown') : ''}
+            {stage !== undefined ? compactStageLabel(stage) : ''}
           </span>
         </p>
       )}
