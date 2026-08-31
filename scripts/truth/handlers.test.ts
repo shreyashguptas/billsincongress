@@ -18,11 +18,14 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   CACHE_MISSING_MESSAGE,
+  FakeDb,
   TRUTH_CACHE_SKIP_EXIT,
   cacheAvailable,
   loadFakeCtx,
+  parseSchema,
   truthCacheRequired,
 } from "./fakedb";
 import { validateFilters } from "../../convex/catalog/filters";
@@ -668,22 +671,77 @@ async function main() {
     assert.match(unknown.error, /not a count of zero/i);
   });
 
-  await it("a real but rare policy area is answered, not refused as unknown", async () => {
-    // The spelling check must trust the bills table, not the precomputed topic
-    // list — that list is truncated to the top 50 areas per Congress by an
-    // unrelated job, so trusting it would refuse a genuine low-frequency topic
-    // and trade a wrong count for a wrong refusal.
-    const counts = new Map<string, number>();
-    for (const b of bills) {
-      if (b.congress === 119 && b.policyAreaName) {
-        counts.set(b.policyAreaName, (counts.get(b.policyAreaName) ?? 0) + 1);
-      }
-    }
-    const rarest = [...counts.entries()].sort((a, b) => a[1] - b[1])[0];
-    assert.ok(rarest, "sanity: the 119th has policy areas");
-    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, policyArea: rarest[0] }, 0);
-    assert.ok(r.ok, `the rarest area '${rarest[0]}' was refused: ${r.error}`);
-    assert.equal(r.report.total, rarest[1]);
+  await it("a real topic narrowed to zero by another filter is answered, not refused", async () => {
+    // This is the case the spelling check actually has to get right, and the
+    // first version of this test did not reach it: a bare {congress, policyArea}
+    // for a real topic never has zero matches, so the refusal guard is never
+    // entered and the test passed with the fix reverted.
+    //
+    // Here the topic is real AND the state is real, and the pair is genuinely
+    // empty. The guard IS entered, and it must fall through to an honest zero
+    // rather than refusing the topic as an unknown spelling.
+    const topic = "Foreign Trade and International Finance";
+    const state = "WY";
+    const realPairCount = bills.filter(
+      (b: any) =>
+        b.congress === 119 && b.policyAreaName === topic && b.sponsorState === state,
+    ).length;
+    assert.equal(realPairCount, 0, "fixture: this pair must genuinely have no bills");
+    assert.ok(
+      bills.some((b: any) => b.congress === 119 && b.policyAreaName === topic),
+      "fixture: the topic must be real",
+    );
+    assert.ok(
+      bills.some((b: any) => b.congress === 119 && b.sponsorState === state),
+      "fixture: the state must be real",
+    );
+
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 119, policyArea: topic, sponsorState: state },
+      0,
+    );
+    assert.ok(r.ok, `a real topic with a real state was refused: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.report.total, 0, "an honest zero, not a refusal and not a guess");
+  });
+
+  await it("a real topic MISSING from the precomputed list is still answered", async () => {
+    // The guard asks the bills table, not `congressPolicyAreas`, because that
+    // table is truncated to the top 50 areas per Congress by an unrelated job.
+    // Today all three Congresses hold 31-33 areas so the truncation never bites,
+    // which means no query over real data can reach this branch — the condition
+    // has to be built to be tested at all. Drop one real topic from the
+    // precomputed list and the handler must still answer from the bills table.
+    const topic = "Foreign Trade and International Finance";
+    const schema = parseSchema(readFileSync("convex/schema.ts", "utf8"));
+    const truncated = new FakeDb(
+      {
+        bills: ctx.db.rowsOf("bills"),
+        congressPolicyAreas: ctx.db
+          .rowsOf("congressPolicyAreas")
+          .filter((t: any) => t.policyAreaName !== topic),
+        congressSponsors: ctx.db.rowsOf("congressSponsors"),
+      },
+      schema,
+    );
+    assert.ok(
+      !truncated.rowsOf("congressPolicyAreas").some((t: any) => t.policyAreaName === topic),
+      "fixture: the topic must be absent from the precomputed list",
+    );
+
+    const { runFetch } = await import("../../convex/catalog/fetch");
+    const r: any = await runFetch({ db: truncated } as any, {
+      name: "bills",
+      filters: { congress: 119, policyArea: topic, sponsorState: "WY" },
+      limit: 0,
+    });
+    assert.ok(
+      r.ok,
+      "a topic the precomputed list has dropped was refused as an unknown spelling",
+    );
+    assert.equal(r.report.total, 0);
   });
 
   // --- the invariant, checked across many shapes ----------------------------
