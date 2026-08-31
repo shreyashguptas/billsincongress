@@ -272,6 +272,95 @@ it("an empty string is not deliberation", () => {
   assert.equal(isAllDeliberation("   \n\n  "), false);
 });
 
+it("trims narration that opens a paragraph the answer shares", () => {
+  // Measured against production: three answers in four to the laws-by-category
+  // question opened this way, and in this shape the narration and the answer are
+  // the SAME paragraph — dropping it would take the answer with it.
+  assert.equal(
+    sanitizeAnswer("I have everything I need. The 119th Congress has 104 laws passed so far.").text,
+    "The 119th Congress has 104 laws passed so far.",
+  );
+  assert.equal(
+    sanitizeAnswer(
+      "I have the complete breakdown. Let me present this to the reader.\n\nThe 119th passed 104 laws.",
+    ).text,
+    "The 119th passed 104 laws.",
+  );
+});
+
+it("drops a whole opening paragraph of narration when the answer follows", () => {
+  const r = sanitizeAnswer(
+    "I have a complete breakdown of all 104 laws passed in the 119th Congress by policy area.\n\n**Armed Forces:** 20",
+  );
+  assert.equal(r.text, "**Armed Forces:** 20");
+  assert.equal(r.removed.length, 1);
+});
+
+it("never mistakes an honest 'I have no...' for narration", () => {
+  // The one shape that must survive: it is an answer, not working-out.
+  for (const honest of [
+    "I have no record of that bill.",
+    "I have not found anything on that.",
+    "I haven't got a summary for it.",
+  ]) {
+    assert.equal(sanitizeAnswer(honest).text, honest, honest);
+  }
+});
+
+it("leaves a clean opening alone", () => {
+  for (const clean of [
+    "Here's the breakdown of the 104 laws passed in the 119th Congress.",
+    "The 119th Congress has passed 104 laws so far.",
+    "Let me Be Frank Act is a real bill title and must not be eaten.",
+  ]) {
+    assert.equal(sanitizeAnswer(clean).text, clean, clean);
+  }
+});
+
+it("never eats a paragraph that names a real bill", () => {
+  // Six titles in the corpus open with a phrase the narration matchers hit:
+  // "Let Me Travel America Act", "Let's Get to Work Act of 2022". Before the
+  // guard, an answer whose paragraph began with one was classed as working-out
+  // and dropped whole — deleting the answer instead of the narration.
+  const withTitle =
+    "Let Me Travel America Act was introduced in March.\n\nIt is still in committee.";
+  assert.equal(sanitizeAnswer(withTitle).text, withTitle);
+  const other = "Let's Get to Work Act of 2022 cleared the House. It now goes to the Senate.";
+  assert.equal(sanitizeAnswer(other).text, other);
+});
+
+it("keeps the fact when the paragraph OPENS with the commonest narration", () => {
+  // Found in review of the sentence-level trim itself: the paragraph-level check
+  // ran first and matched on how the paragraph opens, so everything after the
+  // opener went with it — including the answer. "Let me..." is the headline
+  // example of the problem the trim exists to solve, and it was the one case the
+  // trim never reached.
+  const cases = [
+    "Let me check that. The 119th Congress passed 104 laws so far.\n\nSee the breakdown below.",
+    "Wait, that's the 118th. The 119th Congress passed 104 laws so far.\n\nSee the breakdown below.",
+    "Actually, let me re-check. The 119th Congress passed 104 laws so far.\n\nSee below.",
+  ];
+  for (const c of cases) {
+    const out = sanitizeAnswer(c).text;
+    assert.ok(out.includes("104 laws so far"), `lost the fact: ${JSON.stringify(out)}`);
+    assert.ok(!/^(let me|wait|actually)/i.test(out.trim()), `kept the narration: ${out}`);
+  }
+});
+
+it("still drops a paragraph that is narration all the way through", () => {
+  const r = sanitizeAnswer("Let me fetch the remaining policy areas.\n\n**Armed Forces:** 20");
+  assert.equal(r.text, "**Armed Forces:** 20");
+});
+
+it("still catches working-out spread across otherwise-innocent sentences", () => {
+  // Two or more process markers anywhere: what the paragraph-level rule catches
+  // and the sentence matchers cannot. Moving it to a fallback must not lose it.
+  const r = sanitizeAnswer(
+    "The 119th has data. I need to confirm the stage codes. I should check the totals too.\n\n104 laws.",
+  );
+  assert.equal(r.text, "104 laws.");
+});
+
 if (failures.length > 0) {
   console.error(`convex/catalog/answerSanitize.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));
