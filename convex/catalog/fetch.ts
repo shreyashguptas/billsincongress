@@ -603,13 +603,27 @@ async function fetchBills(
     // not an empty topic. `policyArea:"health"` matched nothing and reported a
     // complete zero — "no health bills became law" — over a capital letter.
     if (typeof f.policyArea === "string") {
+      // Ask the BILLS table whether this spelling exists, not the precomputed
+      // topic list. That list is truncated to the top 50 areas per Congress by an
+      // unrelated job, so trusting it would make a real but low-frequency topic
+      // get refused as an unknown spelling — trading a wrong count for a wrong
+      // refusal, which is the same defect wearing a different coat. One indexed
+      // read against the thing we are actually querying.
+      const spelled = await ctx.db
+        .query("bills")
+        .withIndex("by_congress_and_policy_area", (q) =>
+          q.eq("congress", congress).eq("policyAreaName", f.policyArea as string),
+        )
+        .take(1);
       const known = await ctx.db
         .query("congressPolicyAreas")
         .withIndex("by_congress", (q) => q.eq("congress", congress))
         .collect();
       const wanted = f.policyArea.trim().toLowerCase();
       const match = known.find((t) => t.policyAreaName.trim().toLowerCase() === wanted);
-      if (!match) {
+      // A spelling the bills table recognises is real, whatever the topic list
+      // says: fall through and report the honest zero.
+      if (spelled.length === 0 && !match) {
         return {
           ok: false,
           error:
@@ -619,7 +633,7 @@ async function fetchBills(
             `retry. Do not tell the reader we have nothing on the subject.`,
         };
       }
-      if (match.policyAreaName !== f.policyArea) {
+      if (spelled.length === 0 && match && match.policyAreaName !== f.policyArea) {
         return {
           ok: false,
           error:
@@ -846,9 +860,12 @@ async function fetchSponsors(
       continue;
     }
     held.billCount += row.billCount;
-    // Prefer the mixed-case spelling for display: SHOUTING a member's name at the
-    // reader is a tell that we are showing them a raw row.
-    if (held.sponsorName === held.sponsorName.toUpperCase() && row.sponsorName !== row.sponsorName.toUpperCase()) {
+    // Prefer a mixed-case spelling for display: SHOUTING a member's name at the
+    // reader is a tell that we are showing them a raw row. Never invent a casing
+    // — title-casing a surname would misspell McCarthy, and a wrong name is worse
+    // than a loud one — so this only ever picks between spellings we hold.
+    const uniform = (n: string) => n === n.toUpperCase() || n === n.toLowerCase();
+    if (uniform(held.sponsorName) && !uniform(row.sponsorName)) {
       held.sponsorName = row.sponsorName;
     }
     held.sponsorParty = held.sponsorParty ?? row.sponsorParty;

@@ -668,6 +668,24 @@ async function main() {
     assert.match(unknown.error, /not a count of zero/i);
   });
 
+  await it("a real but rare policy area is answered, not refused as unknown", async () => {
+    // The spelling check must trust the bills table, not the precomputed topic
+    // list — that list is truncated to the top 50 areas per Congress by an
+    // unrelated job, so trusting it would refuse a genuine low-frequency topic
+    // and trade a wrong count for a wrong refusal.
+    const counts = new Map<string, number>();
+    for (const b of bills) {
+      if (b.congress === 119 && b.policyAreaName) {
+        counts.set(b.policyAreaName, (counts.get(b.policyAreaName) ?? 0) + 1);
+      }
+    }
+    const rarest = [...counts.entries()].sort((a, b) => a[1] - b[1])[0];
+    assert.ok(rarest, "sanity: the 119th has policy areas");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, policyArea: rarest[0] }, 0);
+    assert.ok(r.ok, `the rarest area '${rarest[0]}' was refused: ${r.error}`);
+    assert.equal(r.report.total, rarest[1]);
+  });
+
   // --- the invariant, checked across many shapes ----------------------------
 
   await it("no result ever carries a total without claiming completeness", async () => {
