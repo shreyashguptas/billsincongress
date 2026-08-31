@@ -599,6 +599,36 @@ async function fetchBills(
   // Congress ever became law — when the truth is we have not loaded it. One
   // indexed probe, and only when the answer would otherwise be an empty complete.
   if (matched.length === 0 && !windowFilled) {
+    // A policy area we do not hold under that exact spelling is a failed lookup,
+    // not an empty topic. `policyArea:"health"` matched nothing and reported a
+    // complete zero — "no health bills became law" — over a capital letter.
+    if (typeof f.policyArea === "string") {
+      const known = await ctx.db
+        .query("congressPolicyAreas")
+        .withIndex("by_congress", (q) => q.eq("congress", congress))
+        .collect();
+      const wanted = f.policyArea.trim().toLowerCase();
+      const match = known.find((t) => t.policyAreaName.trim().toLowerCase() === wanted);
+      if (!match) {
+        return {
+          ok: false,
+          error:
+            `We hold no policy area spelled '${String(f.policyArea)}' in the ` +
+            `${congressOrdinal(congress)} Congress, so this is not a count of zero — it is a name ` +
+            `we do not recognise. Fetch the 'topics' dataset to get the exact spellings, then ` +
+            `retry. Do not tell the reader we have nothing on the subject.`,
+        };
+      }
+      if (match.policyAreaName !== f.policyArea) {
+        return {
+          ok: false,
+          error:
+            `We spell that policy area '${match.policyAreaName}', not ` +
+            `'${String(f.policyArea)}'. Retry with the exact spelling — the filter is an exact ` +
+            `match, and a near miss returns nothing while looking like an empty topic.`,
+        };
+      }
+    }
     const anyForCongress = await ctx.db
       .query("bills")
       .withIndex("by_congress", (q) => q.eq("congress", congress))
@@ -796,12 +826,41 @@ async function fetchSponsors(
         .take(SPONSOR_SCAN_LIMIT);
 
   const windowFilled = all.length >= SPONSOR_SCAN_LIMIT;
+
+  // One row per PERSON, not per spelling. The 118th stores Barbara Lee twice —
+  // "Barbara Lee" with 12 and "BARBARA LEE" with 47 — so California came back
+  // with 67 "members" against 54 seats, and the split fragments corrupted the
+  // ranking: Anna Eshoo appeared with 4 bills when her real total is 30. Summing
+  // is the correct merge; 12 + 47 = 59 is exactly her count in the bills table.
+  const byPerson = new Map<string, { sponsorName: string; billCount: number; sponsorParty?: string; sponsorState?: string }>();
+  for (const row of all) {
+    const key = row.sponsorName.trim().toLowerCase().replace(/\s+/g, " ");
+    const held = byPerson.get(key);
+    if (!held) {
+      byPerson.set(key, {
+        sponsorName: row.sponsorName,
+        billCount: row.billCount,
+        sponsorParty: row.sponsorParty,
+        sponsorState: row.sponsorState,
+      });
+      continue;
+    }
+    held.billCount += row.billCount;
+    // Prefer the mixed-case spelling for display: SHOUTING a member's name at the
+    // reader is a tell that we are showing them a raw row.
+    if (held.sponsorName === held.sponsorName.toUpperCase() && row.sponsorName !== row.sponsorName.toUpperCase()) {
+      held.sponsorName = row.sponsorName;
+    }
+    held.sponsorParty = held.sponsorParty ?? row.sponsorParty;
+    held.sponsorState = held.sponsorState ?? row.sponsorState;
+  }
+  const merged = [...byPerson.values()];
   // `fewest_bills` is not a convenience. Without it "who introduced the fewest
   // bills in California" could not be answered at all: the read is complete and
   // the total exact, but the page is 50 of 54 ordered most-first, so the true
   // minimum was never on it and the model read the last visible row instead.
   const ascending = f.sort === "fewest_bills";
-  const sorted = [...all].sort((a, b) =>
+  const sorted = merged.sort((a, b) =>
     ascending ? a.billCount - b.billCount : b.billCount - a.billCount,
   );
   const rows = countOnly

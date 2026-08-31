@@ -601,6 +601,73 @@ async function main() {
     assert.equal(r.report.total, 1);
   });
 
+  await it("a state's roster counts people, not spellings of their name", async () => {
+    // The 118th stores Barbara Lee as "Barbara Lee" (12) and "BARBARA LEE" (47),
+    // so California reported 67 members against 54 seats, and the split halves
+    // corrupted the ranking — Anna Eshoo showed 4 bills against a real 30.
+    const norm = (x: string) => x.trim().toLowerCase().replace(/\s+/g, " ");
+    for (const congress of [117, 118, 119]) {
+      const r = await fetchViaHandlers(ctx, "sponsors", { congress, sponsorState: "CA" }, 50);
+      assert.ok(r.ok);
+      const people = new Set(
+        sponsorRows
+          .filter((s: any) => s.congress === congress && s.sponsorState === "CA")
+          .map((s: any) => norm(s.sponsorName)),
+      );
+      assert.equal(r.report.total, people.size, `CA ${congress} counted spellings, not people`);
+    }
+    // And the merged count must equal what the bills table actually holds.
+    const r = await fetchViaHandlers(
+      ctx,
+      "sponsors",
+      { congress: 118, sponsorState: "CA", sort: "most_bills" },
+      50,
+    );
+    const lee = r.rows.find((x: any) => norm(x.sponsorName) === "barbara lee");
+    const realLee = bills.filter(
+      (b: any) =>
+        b.congress === 118 &&
+        norm(`${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`) === "barbara lee",
+    ).length;
+    assert.equal(lee?.billCount, realLee, "a merged member's count must match the bills table");
+  });
+
+  await it("a filter value in the wrong case is normalised, not answered zero", async () => {
+    const lower = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      sponsorState: "Ca",
+      progressStage: 100,
+    }, 0);
+    const upper = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      sponsorState: "CA",
+      progressStage: 100,
+    }, 0);
+    assert.ok(lower.ok && upper.ok);
+    assert.equal(lower.report.total, upper.report.total, "'Ca' must mean California");
+    const shouty = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      billType: "HR",
+      progressStage: 100,
+    }, 0);
+    assert.ok(shouty.ok);
+    assert.ok((shouty.report.total ?? 0) > 0, "'HR' must mean hr");
+  });
+
+  await it("a misspelled policy area is refused with the right spelling, not answered zero", async () => {
+    const wrongCase = await fetchViaHandlers(ctx, "bills", {
+      congress: 119,
+      policyArea: "health",
+      progressStage: 100,
+    }, 0);
+    assert.equal(wrongCase.ok, false, "'health' reported a complete zero over a capital letter");
+    assert.match(wrongCase.error, /'Health'/, "the error must name the spelling we do hold");
+
+    const unknown = await fetchViaHandlers(ctx, "bills", { congress: 119, policyArea: "Nonsense" }, 0);
+    assert.equal(unknown.ok, false);
+    assert.match(unknown.error, /not a count of zero/i);
+  });
+
   // --- the invariant, checked across many shapes ----------------------------
 
   await it("no result ever carries a total without claiming completeness", async () => {

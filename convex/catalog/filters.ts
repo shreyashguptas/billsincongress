@@ -143,7 +143,17 @@ export function validateFilters(name: DatasetName, raw: unknown): ValidationResu
       };
     }
 
-    out[key] = value;
+    // Normalise the closed-domain values. `sponsorState:"Ca"` and `billType:"HR"`
+    // matched nothing and reported it as a complete zero — "no bills from
+    // California", said with authority, because of a capital letter. Both domains
+    // are fixed and known, so accepting either casing is lossless.
+    if (key === "sponsorState" && typeof value === "string") {
+      out[key] = value.trim().toUpperCase();
+    } else if (key === "billType" && typeof value === "string") {
+      out[key] = value.trim().toLowerCase();
+    } else {
+      out[key] = value;
+    }
   }
 
   // These two answer different questions and combining them is always a mistake:
