@@ -140,9 +140,21 @@ function opensWith(text: string, marker: string): boolean {
   return next === "" || !/\w/.test(next);
 }
 
+/**
+ * A sentence that NAMES legislation is talking about Congress, not about itself.
+ *
+ * Six bill titles in the corpus open with a phrase the narration matchers hit —
+ * "Let Me Travel America Act", "Let's Get to Work Act of 2022" — so an answer
+ * whose paragraph began with one was classed as working-out and dropped whole.
+ * Deleting a real answer is the same defect as publishing narration, pointed the
+ * other way. Capitalised on purpose: "the act of introducing" is not a title.
+ */
+const NAMES_LEGISLATION = /\b(?:Act|Resolution|Amendment)\b/;
+
 function isDeliberation(paragraph: string): boolean {
   const text = normalize(paragraph);
   if (text === "") return false;
+  if (NAMES_LEGISLATION.test(paragraph)) return false;
 
   if (OPENING_MARKERS.some((m) => opensWith(text, m))) return true;
   if (WAIT_NARRATION.test(text)) return true;
@@ -159,6 +171,64 @@ function isDeliberation(paragraph: string): boolean {
 
 function leaksVocabulary(paragraph: string): boolean {
   return VOCABULARY_PATTERNS.some((re) => re.test(paragraph));
+}
+
+/**
+ * Narration that OPENS a sentence and asserts nothing about Congress.
+ *
+ * Measured against production after the breakdown fix shipped: three answers in
+ * four opened with one of these — "I have a complete breakdown of all 104 laws",
+ * "I have everything I need.", "I have the complete breakdown." The paragraph
+ * detector cannot catch them, because it inspects only the FIRST sentence of a
+ * paragraph, and in one case the narration and the answer shared one:
+ * "I have everything I need. The 119th Congress has 104 laws passed so far."
+ * Dropping that paragraph would have taken the answer with it.
+ *
+ * Anchored at the sentence start, and deliberately NOT matching a bare "I have":
+ * "I have no record of that" is an honest answer and must survive, as must
+ * "I haven't got that".
+ */
+const SENTENCE_NARRATION: RegExp[] = [
+  /^i have (?:the|a|all|everything|what)\b/,
+  /^(?:now )?let(?:'s| me| us)\b/,
+  /^i(?:'ll| will| need to| should| can now)\b/,
+  /^(?:ok|okay|right|good)[,.]\s/,
+  /^(?:first|next|now)[,]\s+i\b/,
+  /^the (?:result|results|dataset|data|row|rows|fetch|lookup) (?:says|show|shows|returned|gave)\b/,
+  /^based on (?:the|my) (?:search|lookup|results|data)\b/,
+  /^looking at the (?:data|results|rows)\b/,
+];
+
+/** Split a paragraph into sentences, keeping each one's trailing whitespace. */
+function splitSentences(paragraph: string): string[] {
+  return paragraph.split(/(?<=[.!?…])(\s+)/).reduce<string[]>((out, part, i) => {
+    if (i % 2 === 0) out.push(part);
+    else out[out.length - 1] += part;
+    return out;
+  }, []);
+}
+
+/**
+ * Drop the leading run of narration sentences from a paragraph.
+ *
+ * Sentence-level, not paragraph-level, precisely because the model mixes the two
+ * in one breath. Only ever trims from the FRONT: once a sentence says something
+ * about Congress, everything after it is the answer and is left alone.
+ */
+export function trimLeadingNarration(paragraph: string): string {
+  const sentences = splitSentences(paragraph);
+  let i = 0;
+  while (i < sentences.length) {
+    const normalised = normalize(sentences[i]).trim();
+    if (normalised === "") {
+      i++;
+      continue;
+    }
+    if (NAMES_LEGISLATION.test(sentences[i])) break;
+    if (!SENTENCE_NARRATION.some((re) => re.test(normalised))) break;
+    i++;
+  }
+  return sentences.slice(i).join("").replace(/^\s+/, "");
 }
 
 /** A paragraph plus the exact separator that followed it, so a rejoin is lossless. */
@@ -217,6 +287,9 @@ export function isAllDeliberation(text: string): boolean {
 export function sanitizeAnswer(text: string): SanitizeResult {
   const blocks = splitBlocks(text);
   const dropped = new Set<number>();
+  /** Blocks whose opening narration was trimmed but whose answer survives. */
+  const trimmedLeading = new Map<number, string>();
+  const leadingNarration: string[] = [];
 
   // Pass 1: the leading run of deliberation. Blank blocks in front of it go too,
   // but only once a real deliberation paragraph is found behind them — otherwise
@@ -228,10 +301,28 @@ export function sanitizeAnswer(text: string): SanitizeResult {
       pendingBlanks.push(i);
       continue;
     }
-    if (!isDeliberation(body)) break;
-    for (const blank of pendingBlanks) dropped.add(blank);
-    pendingBlanks.length = 0;
-    dropped.add(i);
+    if (isDeliberation(body)) {
+      for (const blank of pendingBlanks) dropped.add(blank);
+      pendingBlanks.length = 0;
+      dropped.add(i);
+      continue;
+    }
+    // Not narration as a whole, but it may still OPEN with a sentence of it:
+    // "I have everything I need. The 119th Congress has 104 laws passed so far."
+    // Trim the front and keep the answer — a paragraph-level rule cannot, because
+    // dropping the paragraph takes the answer with it.
+    const trimmed = trimLeadingNarration(body);
+    if (trimmed !== body) {
+      for (const blank of pendingBlanks) dropped.add(blank);
+      pendingBlanks.length = 0;
+      if (trimmed.trim() === "") {
+        dropped.add(i);
+        continue;
+      }
+      trimmedLeading.set(i, trimmed);
+      leadingNarration.push(body.slice(0, body.length - trimmed.length).trim());
+    }
+    break;
   }
 
   // Pass 2: internal vocabulary, wherever it appears.
@@ -241,11 +332,16 @@ export function sanitizeAnswer(text: string): SanitizeResult {
     if (leaksVocabulary(blocks[i].text)) dropped.add(i);
   }
 
-  const removed = [...dropped]
-    .sort((a, b) => a - b)
-    .map((i) => blocks[i].text)
-    .filter((body) => body.trim() !== "");
+  const removed = [
+    ...leadingNarration,
+    ...[...dropped]
+      .sort((a, b) => a - b)
+      .map((i) => blocks[i].text)
+      .filter((body) => body.trim() !== ""),
+  ];
   if (removed.length === 0) return { text, removed: [] };
+
+  for (const [i, trimmed] of trimmedLeading) blocks[i] = { ...blocks[i], text: trimmed };
 
   const survivors = blocks.filter((_, i) => !dropped.has(i));
   if (survivors.every((b) => b.text.trim() === "")) {
