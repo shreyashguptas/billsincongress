@@ -227,7 +227,7 @@ emits `list`.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-provider.tsx` |
-| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial` | `components/answers/answer-provider.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence | `components/answers/answer-provider.tsx` |
 | `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of the server's message, `"stream_incomplete"`, `"network_error"` | `components/answers/answer-provider.tsx` |
 | `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |
@@ -366,6 +366,14 @@ These are the saved insights the project should maintain in the PostHog UI:
 8. **Fallback discipline** — `answer_web_search_used` as a share of `answer_received`.
    It should be a small minority. A rising share means our catalog has a real gap,
    or the fallback-only rule has stopped holding.
+9. **Clarifying questions** — `asked_reader` as a share of `answer_received`. A small
+   share is healthy: it means the assistant asks rather than guessing when a question
+   has two readings that give different numbers. A rising share means questions are
+   arriving ambiguous, or the assistant has started dodging answerable ones.
+10. **Cut-off answers** — `truncated_by_length` as a share of `answer_received`. Should be
+   near zero. It was previously undetectable, and because an answer states its claim
+   before its qualification, truncation removes precisely the caveat that made the
+   claim honest.
 9. **Where intent actually lives** — `answer_question_submitted` split by `surface`.
    The spec's bet is that `filtered` converts best per impression. If it does not,
    the ask bar is in the wrong place.

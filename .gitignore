@@ -58,3 +58,8 @@ cloudflare-env.d.ts
 
 # Misc
 /extra-files-for-future
+
+# Local snapshot of production tables, used as INDEPENDENT ground truth by
+# scripts/truth. Regenerate with `pnpm tsx scripts/truth/dump.ts`. Never commit:
+# it is a copy of production data and it is large.
+/.truth-cache/

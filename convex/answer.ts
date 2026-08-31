@@ -12,6 +12,8 @@ import { rateLimiter } from "./rateLimits";
 import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "./catalog/tools";
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
+import { payloadFor, workLogLabel } from "./catalog/completeness";
+import { sanitizeAnswer } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import type { Id } from "./_generated/dataModel";
@@ -34,6 +36,16 @@ const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
 const AUTHED_CHAT_DAILY_LIMIT = 100;
 /** Search engine behind the web fallback. Named on the privacy page. */
 const WEB_ENGINE = "exa";
+/**
+ * Sent on the last round, with the tools withheld. It licenses a PARTIAL answer
+ * explicitly: the failure it replaces was a full apology delivered on top of 17
+ * successful lookups, because nothing told the model that half an answer beats
+ * none.
+ */
+const FINAL_ROUND_INSTRUCTION =
+  "You have no lookups left. Answer now from what you already retrieved. If that covers only " +
+  "part of what was asked, give that part and say plainly, in the same sentence, which part you " +
+  "could not get. Do not ask the reader to rephrase.";
 const WEB_MAX_RESULTS = 5;
 
 export interface WorkLogEntry {
@@ -73,6 +85,17 @@ export interface AnswerResult {
    */
   webReason: string;
   webSources: WebSource[];
+  /**
+   * Set when the model called ask_reader instead of answering. The text IS the
+   * question. The reader replies as a normal next turn.
+   */
+  askedReader?: boolean;
+  /**
+   * The model hit its token ceiling mid-sentence. Previously undetected, which
+   * mattered because the answer is written claim-first and the caveat last, so a
+   * cut-off answer loses precisely the qualification that made it honest.
+   */
+  truncatedByLength?: boolean;
   error?: string;
 }
 
@@ -130,9 +153,14 @@ function providerConfig() {
   };
 }
 
-async function callModel(messages: ChatMessage[], apiKey: string) {
+async function callModel(
+  messages: ChatMessage[],
+  apiKey: string,
+  opts: { withTools?: boolean } = {},
+) {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const fallbacks = fallbackModels();
+  const withTools = opts.withTools ?? true;
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
@@ -146,7 +174,11 @@ async function callModel(messages: ChatMessage[], apiKey: string) {
       model,
       ...(fallbacks.length > 0 && { models: fallbacks }),
       messages,
-      tools: ANSWER_TOOLS,
+      // Omitted entirely on the final round. Sending the tools and asking the
+      // model not to use them is advice; not sending them is a guarantee. When it
+      // was advice, a model that asked for one more lookup fell out of the loop
+      // and the reader got a canned apology on top of 17 successful fetches.
+      ...(withTools ? { tools: ANSWER_TOOLS } : {}),
       max_tokens: 2048,
       temperature: 0.3,
       reasoning: { enabled: false },
@@ -171,7 +203,13 @@ async function callModel(messages: ChatMessage[], apiKey: string) {
       `OpenRouter served ${servedModel} instead of requested ${model}`,
     );
   }
-  return data.choices?.[0]?.message;
+  const choice = data.choices?.[0];
+  // finish_reason was never read, so a completion cut off at max_tokens was
+  // returned as if it were whole. Surfaced here so the loop can say so.
+  return {
+    message: choice?.message,
+    lengthCapped: choice?.finish_reason === "length",
+  };
 }
 
 /**
@@ -271,6 +309,10 @@ async function runLoop(
       content: buildSystemPrompt({
         pageContext: opts.pageContext,
         scopeLabel: opts.scope?.label,
+        // Without this the model dated "recent", "this year" and "how long ago"
+        // from its own training cutoff, and had no way to know that two of the
+        // three Congresses we hold have already adjourned.
+        today: new Date().toISOString().slice(0, 10),
       }),
     },
     ...capHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
@@ -290,7 +332,7 @@ async function runLoop(
     callId: string,
     dataset: string,
     filters: Record<string, unknown>,
-    detail: (count: number) => string,
+    detail: (count: string) => string,
   ) => {
     const seeded = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
       name: dataset,
@@ -329,14 +371,9 @@ async function runLoop(
     messages.push({
       role: "tool",
       tool_call_id: callId,
-      content: JSON.stringify({
-        rows: seeded.rows,
-        truncated: seeded.truncated,
-        total_matching: seeded.count,
-        ...(seeded.countIsLowerBound ? { total_is_at_least: true } : {}),
-      }),
+      content: payloadFor(seeded.rows, seeded.report),
     });
-    note({ tool: "fetch", detail: detail(seeded.count) });
+    note({ tool: "fetch", detail: detail(workLogLabel(seeded.report)) });
   };
 
   // The bill the reader has open (spec §6.4). Seeded rather than described, so
@@ -360,39 +397,91 @@ async function runLoop(
       "scope_0",
       scope.dataset,
       scope.filters,
-      (count) => `${scope.label} · ${count} matches`,
+      (count) => `${scope.label} · ${count}`,
     );
   }
 
   messages.push({ role: "user", content: opts.question });
 
   let partial = false;
+  let truncatedByLength = false;
+
+  const finish = (raw: string, extra: Partial<AnswerResult> = {}): AnswerResult => {
+    // Strip the model's working-out BEFORE citations are resolved, so a handle
+    // cited only inside a deleted deliberation paragraph does not become a
+    // dangling source. Enforced in code because the prompt asking for it did not
+    // hold: readers were shown "The result says truncated: false" as reassurance,
+    // and once a false claim that our own data was incomplete.
+    const cleaned = sanitizeAnswer(raw);
+    const resolved = resolveAnswer(cleaned.text, allowed);
+    return {
+      ...resolved,
+      workLog,
+      partial,
+      allowed: [...allowed],
+      entities: Object.fromEntries(display),
+      webReason,
+      webSources,
+      ...(truncatedByLength ? { truncatedByLength: true } : {}),
+      ...extra,
+    };
+  };
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const message = await callModel(
-      round === MAX_TOOL_ROUNDS
-        ? [...messages, { role: "user", content: "Answer now with what you have." }]
+    // On the final round the tools are WITHHELD, not discouraged. Asking the
+    // model to "answer now" while still handing it the tool schema left it free
+    // to call one more tool, after which the loop fell out of the bottom and
+    // returned a canned apology — discarding everything it had gathered.
+    const isFinalRound = round === MAX_TOOL_ROUNDS;
+    if (isFinalRound) partial = true;
+
+    const { message, lengthCapped } = await callModel(
+      isFinalRound
+        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION }]
         : messages,
       opts.apiKey,
+      { withTools: !isFinalRound },
     );
+    if (lengthCapped) truncatedByLength = true;
 
     const toolCalls = message?.tool_calls ?? [];
     if (toolCalls.length === 0) {
-      const resolved = resolveAnswer(message?.content ?? "", allowed);
-      return {
-        ...resolved,
-        workLog,
-        partial,
-        allowed: [...allowed],
-        entities: Object.fromEntries(display),
-        webReason,
-        webSources,
-      };
+      const text = message?.content ?? "";
+      // Empty prose is not an answer; fall through to the message below rather
+      // than streaming the reader a blank panel.
+      if (text.trim().length === 0) break;
+      return finish(text);
     }
 
-    if (round === MAX_TOOL_ROUNDS) partial = true;
-
     messages.push({ role: "assistant", content: message.content ?? null, tool_calls: toolCalls });
+
+    // ask_reader ends the turn. Handled before the tool loop because there is
+    // nothing to append to the transcript — the reader's reply is the next turn.
+    const askCall = toolCalls.find(
+      (c: { function: { name: string } }) => c.function.name === "ask_reader",
+    );
+    if (askCall) {
+      let question = "";
+      let why = "";
+      try {
+        const parsed = JSON.parse(askCall.function.arguments || "{}");
+        question = typeof parsed.question === "string" ? parsed.question : "";
+        why = typeof parsed.why === "string" ? parsed.why : "";
+      } catch {
+        question = "";
+      }
+      if (question.trim().length > 0) {
+        note({ tool: "ask", detail: why || "needs one detail before answering" });
+        const prose = why.trim().length > 0 ? `${why.trim()}\n\n${question.trim()}` : question.trim();
+        return finish(prose, { askedReader: true, partial: false });
+      }
+      // A malformed ask_reader is not fatal: tell the model and let it retry.
+      messages.push({
+        role: "tool",
+        tool_call_id: askCall.id,
+        content: "ERROR: 'question' is required and must be a non-empty string.",
+      });
+    }
 
     for (const call of toolCalls) {
       let result: string;
@@ -431,22 +520,18 @@ async function runLoop(
               });
             }
           }
-          result = JSON.stringify({
-            rows: fetched.rows,
-            truncated: fetched.truncated,
-            total_matching: fetched.count,
-            // When the scan hit its window, total_matching counts only what we
-            // read, not what exists. Saying so is the difference between "at
-            // least 12" and a confidently wrong "12".
-            ...(fetched.countIsLowerBound ? { total_is_at_least: true } : {}),
-          });
+          result = payloadFor(fetched.rows, fetched.report);
           note({
             tool: "fetch",
-            detail: `${String(args.name)} · ${fetched.count} match${fetched.count === 1 ? "" : "es"}`,
+            detail: `${String(args.name)} · ${workLogLabel(fetched.report)}`,
           });
         } else {
-          result = `ERROR: ${fetched.error}`;
-          note({ tool: "fetch", detail: `${String(args.name)} · rejected` });
+          // A rejected filter is an error in the model's CALL, not a gap in our
+          // holdings. Labelled as such because the model laundered one into
+          // "we don't have data on Texas bills that became law" — a statement
+          // about the site, made in the site's voice, that was false.
+          result = `ERROR (your call was invalid — this says nothing about what we hold): ${fetched.error}`;
+          note({ tool: "fetch", detail: `${String(args.name)} · invalid request, retrying` });
         }
       } else if (call.function.name === "search_web") {
         const query = String(args.query ?? "");
@@ -475,6 +560,9 @@ async function runLoop(
             note({ tool: "web", detail: reason });
           }
         }
+      } else if (call.function.name === "ask_reader") {
+        // Reached only when the ask was malformed and already answered above.
+        continue;
       } else {
         result = `Unknown tool '${call.function.name}'.`;
       }
@@ -483,6 +571,9 @@ async function runLoop(
     }
   }
 
+  // Unreachable in normal operation: the final round is called without tools, so
+  // it cannot end in a tool call, and any non-empty answer returns above. Kept as
+  // the honest thing to say when the model returns nothing at all.
   return {
     text: "I could not finish looking that up. Please try asking more specifically.",
     sources: [],
@@ -660,6 +751,11 @@ export const stream = httpAction(async (ctx, request) => {
           entities: result.entities,
           webReason: result.webReason,
           webSources: result.webSources,
+          askedReader: result.askedReader ?? false,
+          // The model hit its token ceiling mid-answer. Reported so a rising
+          // rate is visible: an answer cut off here loses whatever qualification
+          // was still to come.
+          truncatedByLength: result.truncatedByLength ?? false,
           chatId: savedChatId ?? null,
         });
       } catch (error) {

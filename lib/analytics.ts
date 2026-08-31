@@ -351,6 +351,17 @@ export const analytics = {
     web_source_count: number;
     dropped: number;
     partial: boolean;
+    /**
+     * The assistant asked the reader a clarifying question instead of answering.
+     * A healthy small number; a rising one means questions are arriving
+     * ambiguous, or the assistant is dodging.
+     */
+    asked_reader: boolean;
+    /**
+     * The answer hit the token ceiling mid-sentence. Previously undetectable,
+     * and it systematically ate the closing caveat.
+     */
+    truncated_by_length: boolean;
   }) => capture('answer_received', props),
 
   answerFailed: (props: { surface: string; error: string }) =>

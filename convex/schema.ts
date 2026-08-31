@@ -113,6 +113,34 @@ export default defineSchema({
     .index("by_congress_and_type", ["congress", "billType"])
     .index("by_congress_and_progress_stage", ["congress", "progressStage"])
     .index("by_congress_and_policy_area", ["congress", "policyAreaName"])
+    // The PAIRS below each need their own index, and the reason is correctness,
+    // not speed. A filter the chosen index does not enforce is applied in memory
+    // over a capped window, so anything outside that window is invisible — and an
+    // empty result then reads as "none exist". Both of these shipped wrong
+    // answers to readers:
+    //   {policyArea, progressStage} scanned the 200 newest bills in a topic (all
+    //     still in committee) and reported that no Health bill had become law.
+    //   {sponsorState, progressStage} answered "we don't have data on Texas bills
+    //     that became law" when eleven had, including H.R. 1.
+    // Same failure as the `policyAreaName` note above, one filter further along.
+    .index("by_congress_policy_area_and_stage", [
+      "congress",
+      "policyAreaName",
+      "progressStage",
+    ])
+    .index("by_congress_state_and_stage", ["congress", "sponsorState", "progressStage"])
+    // Ordering indexes. Without a real sort the answer engine had none at all:
+    // it read rows in insertion order and then asserted a date sort that did not
+    // exist, once naming a "most recent" law while a later row in its own result
+    // carried a later date. Row order is only ever claimed when an index or a
+    // complete in-memory set actually guarantees it.
+    .index("by_congress_and_latest_action", ["congress", "latestActionDate"])
+    .index("by_congress_and_introduced", ["congress", "introducedDate"])
+    .index("by_congress_stage_and_action", [
+      "congress",
+      "progressStage",
+      "latestActionDate",
+    ])
     .index("by_progress_stage", ["progressStage"])
     .index("by_sponsor_state", ["sponsorState"])
     .index("by_updated_at", ["updatedAt"])
@@ -247,7 +275,14 @@ export default defineSchema({
     billCount: v.number(),
   })
     .index("by_congress", ["congress"])
-    .index("by_congress_and_count", ["congress", "billCount"]),
+    .index("by_congress_and_count", ["congress", "billCount"])
+    // A state's members must be readable WITHOUT first ranking every member in
+    // the Congress. The answer engine used to take the top 300 by bill count and
+    // then filter to a state, so California came back as 29 of its 54 members —
+    // flagged complete — and "who introduced the fewest bills in California"
+    // named the wrong person by 20 places. 250 of the 550 members of the 119th
+    // were unreachable entirely.
+    .index("by_congress_and_state", ["congress", "sponsorState"]),
 
   // Precomputed party / state / monthly aggregations per (congress, chamber).
   // Replaces the per-load 13K-doc scan in getChamberDeepBreakdown — homepage
@@ -280,6 +315,25 @@ export default defineSchema({
         count: v.number(),
         becameLaw: v.number(),
       }),
+    ),
+    // Per-stage counts FOR THIS CHAMBER. Optional so the schema accepts rows
+    // written before this field existed; the answer engine treats a missing
+    // value as "no chamber-scoped stage figures available" rather than falling
+    // back to the whole-Congress ladder.
+    //
+    // Its absence was a critical defect: a chamber-filtered stats row carried the
+    // whole-Congress `stageCounts`, so "how many House bills became law" was
+    // answered 104 — the figure for both chambers — when the answer is 64. The
+    // model then printed the party split in the next sentence, which sums to 64,
+    // and did not notice it had contradicted itself.
+    stageCounts: v.optional(
+      v.array(
+        v.object({
+          stage: v.number(),
+          description: v.string(),
+          count: v.number(),
+        }),
+      ),
     ),
     updatedAt: v.string(),
   }).index("by_congress_and_chamber", ["congress", "chamber"]),
