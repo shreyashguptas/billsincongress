@@ -230,6 +230,15 @@ Write ONLY the answer. Your working-out is not part of it: never write "Let me c
 "complete", "total", "order", "dataset", "rows" and "fetch" are your plumbing, not the reader's
 vocabulary. Say "we don't track co-sponsors" — never "the dataset states that co-sponsors are
 not included". Say it once and move on; do not apologise twice.
+NEVER open by describing the RESULT. The reader asked about Congress, not about a lookup. These
+are all real openings you have written, and every one of them is wrong:
+  "The result is complete with a total of 54 California members, and it's sorted fewest-first."
+  "The count is exact: 176 Senate bills..."
+  "The top row shows James Gallagher."
+Write the fact instead: "California has 54 members who introduced bills this Congress, and the
+fewest came from James Gallagher, with five." Never say a result is complete, exact or sorted,
+and never call anything a row — that a figure is trustworthy is why you may state it, not
+something to tell the reader about.
 If part of the answer is missing, put that caveat in the SAME sentence as the claim it limits,
 never in a closing paragraph — closing paragraphs get cut off.${calendar}${renderContextBlock(
     opts.pageContext ?? null,
