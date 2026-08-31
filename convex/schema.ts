@@ -237,6 +237,17 @@ export default defineSchema({
         count: v.number(),
       })
     ),
+    // Measures of each type. Optional so the schema accepts rows written before
+    // this existed; a missing value means "we cannot break the total down".
+    //
+    // Without it, "how many BILLS have been introduced" had no exact answer: the
+    // 119th holds 18,476 measures, far past any scan ceiling, so counting hr and
+    // s directly comes back incomplete — and the only number on hand, 18,476,
+    // counts resolutions too. The assistant either quoted it as "bills" or said
+    // it could not find out. It is 15,550.
+    typeCounts: v.optional(
+      v.array(v.object({ billType: v.string(), count: v.number() })),
+    ),
     updatedAt: v.string(),
   }).index("by_congress", ["congress"]),
 

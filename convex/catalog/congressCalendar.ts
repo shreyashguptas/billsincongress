@@ -139,12 +139,12 @@ export function calendarNote(congress: number, asOfIso: string): string {
     // note trades one false answer for another.
     return (
       `${today} The ${name} adjourned sine die on ${endDate} and is over. Every bill ` +
-      `still unfinished then died at that moment: none can now advance, pass, or ` +
-      `become law, and a bill shown as "in committee" there died in committee. Bills ` +
-      `that became law before ${endDate} remain law. Describe the Congress only in the ` +
-      `past tense, and never call an unfinished bill in it pending, waiting, active, or ` +
-      `something that might still happen — reviving one takes reintroduction in a later ` +
-      `Congress.`
+      `unfinished then died at that moment: none can now advance, pass, or become law, ` +
+      `and one shown as "in committee" died in committee. Bills enacted before ` +
+      `${endDate} remain law. Use the past tense only, and never call anything in it ` +
+      `pending, waiting or active. "Is any of it still in committee?" is answered NO, ` +
+      `however many rows sit at that stage. Reviving one takes reintroduction in a ` +
+      `later Congress.`
     );
   }
 

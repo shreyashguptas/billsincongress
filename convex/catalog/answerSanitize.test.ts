@@ -8,7 +8,7 @@
  * (Jodey Arrington, TX) became law.
  */
 import assert from "node:assert/strict";
-import { INTERNAL_VOCABULARY, sanitizeAnswer } from "./answerSanitize";
+import { INTERNAL_VOCABULARY, isAllDeliberation, sanitizeAnswer } from "./answerSanitize";
 
 let passed = 0;
 const failures: string[] = [];
@@ -232,6 +232,44 @@ it("publishes the vocabulary it enforces", () => {
     const result = sanitizeAnswer(answer);
     assert.equal(result.text, "The bill is still in committee.", `${term} was not caught`);
   }
+});
+
+it("recognises an answer that is nothing but the model thinking out loud", () => {
+  // Production shipped this to a reader as the answer to "how many laws in each
+  // category". sanitizeAnswer deliberately returns it unchanged rather than
+  // emptying it, so the caller needs a way to tell it apart from a real answer.
+  assert.equal(
+    isAllDeliberation("Let me fetch the remaining policy areas I haven't gotten yet."),
+    true,
+  );
+  assert.equal(isAllDeliberation("Let me check that.\n\nThe result says truncated: false."), true);
+});
+
+it("a leaky but CORRECT answer is kept, not thrown away", () => {
+  // Production returned this. It quotes an internal field name, which is a wording
+  // defect — and it is also the right number. Discarding it would cost the reader
+  // a correct answer to protect them from a word.
+  assert.equal(
+    isAllDeliberation(
+      "The House-only row shows 64 measures that became law, and partyLawCounts sums to 64 (8+56).",
+    ),
+    false,
+  );
+});
+
+it("does not mistake an honest admission for deliberation", () => {
+  // "I could not find that" is a real answer and must survive.
+  assert.equal(isAllDeliberation("I could not find any Texas bills that became law."), false);
+  assert.equal(isAllDeliberation("We do not track co-sponsors."), false);
+  assert.equal(
+    isAllDeliberation("**H.R. 1** is the reconciliation act, sponsored by Jodey Arrington."),
+    false,
+  );
+});
+
+it("an empty string is not deliberation", () => {
+  assert.equal(isAllDeliberation(""), false);
+  assert.equal(isAllDeliberation("   \n\n  "), false);
 });
 
 if (failures.length > 0) {

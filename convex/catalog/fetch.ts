@@ -171,6 +171,33 @@ const SORT_FIELD: Record<
   },
 };
 
+/** The bucket a row falls into for a grouped count. */
+function groupValue(b: Doc<"bills">, field: string): string {
+  switch (field) {
+    case "policyArea":
+      // Never silently drop the unclassified: ~4% of measures carry no policy
+      // area, and folding them away would make the groups sum to less than the
+      // total the same result reports.
+      return b.policyAreaName ?? "(no policy area assigned)";
+    case "progressStage":
+      return String(b.progressStage ?? 20);
+    case "sponsorState":
+      return b.sponsorState ?? "(no state recorded)";
+    case "sponsorParty":
+      return b.sponsorParty ?? "(no party recorded)";
+    case "billType":
+      return b.billType;
+    case "chamber":
+      return HOUSE_TYPES.includes(b.billType)
+        ? "house"
+        : SENATE_TYPES.includes(b.billType)
+          ? "senate"
+          : "(unknown chamber)";
+    default:
+      throw new Error(`Unhandled groupBy field: ${field}`);
+  }
+}
+
 /** "119th", "101st", "122nd" — a hardcoded "th" printed "the 101th Congress". */
 function congressOrdinal(n: number): string {
   const suffix =
@@ -253,7 +280,10 @@ async function fetchBills(
   const congress = (f.congress as number) ?? 119;
   const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter) : "";
   const sponsorNames = Array.isArray(f.sponsorFilter) ? (f.sponsorFilter as string[]) : null;
-  let ceiling = countOnly ? COUNT_SCAN_LIMIT : SCAN_LIMIT;
+  const groupBy = typeof f.groupBy === "string" ? f.groupBy : null;
+  // A grouped fetch is inherently a count: it ships one row per group, not bills,
+  // so it gets the deeper ceiling whatever `limit` says.
+  let ceiling = countOnly || groupBy ? COUNT_SCAN_LIMIT : SCAN_LIMIT;
 
   // The index choice is a correctness argument, not an optimisation, and it lives
   // in a tested module precisely because two production incidents came from
@@ -263,7 +293,7 @@ async function fetchBills(
   // from an ordering index when one exists: "what is the most recent bill?" over
   // a whole Congress was refused outright before, because the set is too big to
   // count and the sort was refused along with the total.
-  const ordering = countOnly ? null : chooseOrderingIndex(f);
+  const ordering = countOnly || groupBy ? null : chooseOrderingIndex(f);
 
   // Convex caps a full-text search at SEARCH_LIMIT results regardless of what we
   // ask for, so our own ceiling cannot detect the cut. With the count-only
@@ -569,6 +599,35 @@ async function fetchBills(
       return requestedSort.direction === "asc" ? cmp : -cmp;
     });
     order = requestedSort.order;
+  }
+
+  if (groupBy) {
+    const buckets = new Map<string, number>();
+    for (const b of matched) {
+      buckets.set(groupValue(b, groupBy), (buckets.get(groupValue(b, groupBy)) ?? 0) + 1);
+    }
+    const groupRows = [...buckets.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([group, count]) => ({
+        // A policy-area group IS a topic, and `topics:<congress>:<name>` already
+        // renders as a link to that topic. The other group fields have no page to
+        // point at, so they carry no handle rather than a broken one.
+        ...(groupBy === "policyArea" ? { _cite: mintHandle("topics", `${congress}:${group}`) } : {}),
+        group,
+        count,
+      }));
+    return {
+      ok: true,
+      rows: groupRows,
+      report: reportFor({
+        set: `${describeBillSet(f)}, counted per ${groupBy}`,
+        windowFilled,
+        filteredInMemory: countInMemoryFilters(f, plan) > 0,
+        matchedCount: matched.length,
+        shown: groupRows.length,
+        order: "largest_first",
+      }),
+    };
   }
 
   const rows = countOnly
@@ -920,6 +979,38 @@ async function dataLastSynced(ctx: QueryCtx): Promise<string | null> {
   return newest[0]?.updatedAt ?? null;
 }
 
+/**
+ * The bills-versus-resolutions split, spelled out so the model does not have to
+ * know which of eight type slugs is a bill.
+ *
+ * "How many bills have been introduced" was unanswerable: 18,476 measures is far
+ * past any scan ceiling, so counting hr and s directly came back incomplete, and
+ * the one number on hand counted resolutions as bills.
+ */
+function typeBreakdown(
+  typeCounts: Array<{ billType: string; count: number }> | undefined,
+): Record<string, unknown> {
+  if (!typeCounts || typeCounts.length === 0) {
+    return {
+      billsVersusResolutions_unavailable:
+        "We hold no per-type breakdown for this Congress, so totalMeasures cannot be split into " +
+        "bills and resolutions. Do not present it as a count of bills.",
+    };
+  }
+  const counts = Object.fromEntries(typeCounts.map((t) => [t.billType, t.count]));
+  const sum = (types: string[]) => types.reduce((a, t) => a + (counts[t] ?? 0), 0);
+  return {
+    measuresByType: counts,
+    billsOnly: sum(["hr", "s"]),
+    jointResolutions: sum(["hjres", "sjres"]),
+    otherResolutions: sum(["hconres", "sconres", "hres", "sres"]),
+    billsVersusResolutions:
+      "billsOnly is what an ordinary reader means by 'bills' (H.R. and S.). The other two are " +
+      "resolutions: joint resolutions can become law, concurrent and simple ones never can. " +
+      "totalMeasures is all of them added together — never call it a count of bills.",
+  };
+}
+
 async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
   const congress = (f.congress as number) ?? 119;
   const stats = await ctx.db
@@ -958,6 +1049,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
           houseMeasures: stats.houseCount,
           senateMeasures: stats.senateCount,
           stageCounts: stats.stageCounts,
+          ...typeBreakdown(stats.typeCounts),
           ...freshness,
         },
       ],

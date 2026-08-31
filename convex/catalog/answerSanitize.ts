@@ -192,6 +192,28 @@ function splitBlocks(input: string): Block[] {
  * is returned unchanged with removed: [] — a mangled answer is worse than a
  * leaky one.
  */
+/**
+ * True when the whole text is the model's working-out and nothing else.
+ *
+ * `sanitizeAnswer` deliberately returns such a text unchanged rather than
+ * emptying it, because mangling an answer is worse than a leaky one. But that
+ * makes a deliberation-only reply indistinguishable from a clean one, and a
+ * reader was shown "Let me fetch the remaining policy areas I haven't gotten
+ * yet." as an answer. The caller uses this to fall back to an honest message
+ * instead of publishing the model thinking out loud.
+ */
+export function isAllDeliberation(text: string): boolean {
+  const blocks = splitBlocks(text).filter((b) => b.text.trim() !== "");
+  if (blocks.length === 0) return false;
+  // Process narration ONLY. A leaked field name is not grounds to throw the
+  // answer away: production returned "The House-only row shows 64 measures that
+  // became law, and partyLawCounts sums to 64" — ugly, leaky, and RIGHT. Binning
+  // that would have cost the reader a correct answer to protect them from a
+  // word. Vocabulary leaks are handled by dropping the paragraph when others
+  // survive; when none do, a leaky true answer beats no answer.
+  return blocks.every((b) => isDeliberation(b.text));
+}
+
 export function sanitizeAnswer(text: string): SanitizeResult {
   const blocks = splitBlocks(text);
   const dropped = new Set<number>();
@@ -227,7 +249,10 @@ export function sanitizeAnswer(text: string): SanitizeResult {
 
   const survivors = blocks.filter((_, i) => !dropped.has(i));
   if (survivors.every((b) => b.text.trim() === "")) {
-    // Everything was deliberation. Publishing nothing is the worse failure.
+    // Everything was deliberation. Returning the text unchanged keeps this
+    // function from mangling an answer, but the CALLER must not publish it —
+    // see isAllDeliberation. Production shipped "Let me fetch the remaining
+    // policy areas I haven't gotten yet." to a reader as the answer.
     return { text, removed: [] };
   }
 
