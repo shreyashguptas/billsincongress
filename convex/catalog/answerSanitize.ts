@@ -203,9 +203,17 @@ const SENTENCE_NARRATION: RegExp[] = [
   /^looking at the (?:data|results|rows)\b/,
 ];
 
-/** Split a paragraph into sentences, keeping each one's trailing whitespace. */
+/**
+ * Split a paragraph into sentences, keeping each one's trailing whitespace.
+ *
+ * Colons and semicolons count as breaks, because the model joins its narration
+ * to the answer with one: "I need to check this and I should confirm: 104 laws
+ * passed this session." Splitting only on . ! ? made that one indivisible unit,
+ * so trimming the narration took the fact with it. A trailing space is required,
+ * so "51:50" and "3:30" stay whole.
+ */
 function splitSentences(paragraph: string): string[] {
-  return paragraph.split(/(?<=[.!?…])(\s+)/).reduce<string[]>((out, part, i) => {
+  return paragraph.split(/(?<=[.!?…:;])(\s+)/).reduce<string[]>((out, part, i) => {
     if (i % 2 === 0) out.push(part);
     else out[out.length - 1] += part;
     return out;
