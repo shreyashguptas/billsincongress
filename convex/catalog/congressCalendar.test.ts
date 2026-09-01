@@ -230,6 +230,18 @@ it("leaves no placeholder or undefined in any note", () => {
   }
 });
 
+it("answers the 'still sitting in committee' phrasing outright", () => {
+  // Three runs out of three opened "Yes — thousands of measures from the 118th
+  // are still sitting in committee, but that Congress has adjourned..." The
+  // model understood perfectly and still led with the wrong word, so the note
+  // now answers the question rather than describing the situation.
+  const note = calendarNote(118, "2026-08-31");
+  assert.match(note, /answer NO/i);
+  for (const phrasing of ["committee", "sitting", "waiting", "pending", "active"]) {
+    assert.ok(note.includes(phrasing), `the note does not cover "${phrasing}"`);
+  }
+});
+
 console.log(`\ncatalog/congressCalendar: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join("\n"));

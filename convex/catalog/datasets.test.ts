@@ -222,6 +222,18 @@ it("tells the model to group instead of looping a fetch per category", () => {
   assert.ok(/each|breakdown/i.test(g), "must name the question shape groupBy answers");
 });
 
+it("the always-present index says stats can separate bills from resolutions", () => {
+  // The model could not find billsOnly. It is in production and exact (15,550),
+  // but the one-line summary the model always sees said only "totals by
+  // Congress, chamber and stage" — so it went to `bills`, hit the scan ceiling,
+  // and told the reader three times out of three that it could not find out.
+  const line = datasetIndex()
+    .split("\n")
+    .find((l) => l.trim().startsWith("stats"));
+  assert.ok(line, "no stats line in the index");
+  assert.match(line, /resolution/i, "the index does not hint at the bills/resolutions split");
+});
+
 console.log(`\ncatalog/datasets: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join("\n"));

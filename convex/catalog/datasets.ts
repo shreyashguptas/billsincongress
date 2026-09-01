@@ -189,7 +189,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
 
   stats: {
     name: "stats",
-    summary: "Precomputed totals by Congress, chamber and stage.",
+    summary: "Exact precomputed totals per Congress: by stage, by chamber, and bills vs resolutions.",
     grain: "One row per Congress, or per Congress and chamber.",
     fields: [
       { name: "totalMeasures", type: "number", meaning: "All MEASURES in the Congress — bills AND resolutions. Not 'bills'." },
