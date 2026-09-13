@@ -6,6 +6,8 @@ the AI answers are grounded, and how the whole thing is built and shipped.
 For what the site *is* and what a visitor sees, read the [README](../README.md). For
 analytics, read [ANALYTICS.md](ANALYTICS.md). For the home-page dashboard and the
 precomputed-analytics pattern, read [interactive-dashboard.md](interactive-dashboard.md).
+PostHog Self-driving is configured via `pnpm posthog:self-driving` (see
+`posthog-setup-report.md` and the Self-driving section in ANALYTICS.md).
 
 Figures were verified against production on **29 August 2026**.
 
