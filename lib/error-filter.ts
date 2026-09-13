@@ -3,9 +3,10 @@
  *
  * Most recorded exceptions do not come from this codebase — they come from
  * software running inside the visitor's browser: Outlook's link scanner,
- * browser extensions, and WebKit's opaque cross-origin reporting. The problem
- * is legibility: a genuine regression has to be spotted inside a column of
- * noise many times its size.
+ * browser extensions, WebKit's opaque cross-origin reporting, and benign
+ * notices the browser engine raises about its own scheduling. The problem is
+ * legibility: a genuine regression has to be spotted inside a column of noise
+ * many times its size.
  *
  * Reading the event
  *
@@ -22,9 +23,10 @@
  * The rule for adding an entry
  *
  * Deliberately strict: the pattern must be attributable to a named third party,
- * and no plausible bug in this codebase may produce the same string. Anything
- * merely *probably* external stays, because a dropped event cannot be
- * investigated later. `SecurityError: The operation is insecure.` is the
+ * or raised by the browser engine itself as a benign, spec-defined notice that
+ * reports no failure — and no plausible bug in this codebase may produce the
+ * same string. Anything merely *probably* external stays, because a dropped
+ * event cannot be investigated later. `SecurityError: The operation is insecure.` is the
  * instructive case — it is iOS Safari with storage blocked, and this app's
  * storage access is guarded (see lib/safe-storage.ts), but the same string
  * would appear if a new unguarded access were introduced. So it stays.
@@ -68,6 +70,16 @@ const RULES: readonly DropRule[] = [
       m.includes('runtime.sendMessage') ||
       m.includes('Extension context invalidated') ||
       m.includes('feature named `pageContext` was not found'),
+  },
+  {
+    // The browser engine raises this itself when ResizeObserver callbacks do
+    // not settle within one animation frame. The spec says it simply carries on
+    // with the next frame, so nothing behind it is broken. It arrives synthetic
+    // with no stack, and this codebase has no ResizeObserver of its own, so the
+    // observer belongs to a UI dependency. The no-stack condition guards the
+    // same way it does for `Script error.`: a real error would carry frames.
+    source: 'browser ResizeObserver notice (benign)',
+    matches: (m, hasStack) => m.startsWith('ResizeObserver loop') && !hasStack,
   },
 ];
 

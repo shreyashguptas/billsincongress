@@ -100,12 +100,33 @@ it("drops browser-extension messaging failures", () => {
   assert.equal(shouldDropException(event("feature named `pageContext` was not found")), true);
 });
 
+it("drops the browser's benign ResizeObserver notice, which arrives with no frames", () => {
+  // 3 events, 1 visitor, one 5-minute session on 2026-09-01, Edge on Windows.
+  // The browser engine raises this itself and carries on with the next frame.
+  assert.equal(
+    shouldDropException(
+      event("ResizeObserver loop completed with undelivered notifications.", { frames: 0 }),
+    ),
+    true,
+  );
+});
+
 // Keeps: the group that matters
 
 it("keeps a 'Script error.' that came with frames", () => {
   // Without the stack condition this rule would swallow a real error that
   // happened to carry a bare message.
   assert.equal(shouldDropException(event("Script error.", { frames: 4 })), false);
+});
+
+it("keeps a ResizeObserver error that came with frames", () => {
+  // The no-stack condition guards the same way it does for 'Script error.'.
+  assert.equal(
+    shouldDropException(
+      event("ResizeObserver loop completed with undelivered notifications.", { frames: 4 }),
+    ),
+    false,
+  );
 });
 
 it("keeps everything that could be this app's own fault", () => {
