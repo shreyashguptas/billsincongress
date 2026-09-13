@@ -14,7 +14,7 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from 'node:assert/strict';
-import { isChunkLoadError } from './chunk-error';
+import { isChunkLoadError, reloadForChunkError } from './chunk-error';
 
 let passed = 0;
 const failures: string[] = [];
@@ -86,6 +86,81 @@ it('handles non-Error values without throwing', () => {
   assert.equal(isChunkLoadError('ChunkLoadError'), false);
   assert.equal(isChunkLoadError({ name: 'ChunkLoadError' }), true);
   assert.equal(isChunkLoadError({ message: 'Failed to load chunk x.js' }), true);
+});
+
+
+// The reload guard. `isChunkLoadError` above only decides whether to recover;
+// these cover the recovery itself, which is the half that can misfire on a
+// reader. A reload that is not bounded is worse than the dead page it replaces:
+// the reader cannot even reach the retry control before the tab goes again.
+
+/** Epoch-like, because the guard compares against a real timestamp. */
+const BASE = 1_700_000_000_000;
+
+/**
+ * Install a fake window. `mode` picks the storage behaviour: 'working' is an
+ * ordinary tab, 'blocked' is Safari with "Block all cookies", where touching
+ * the property throws before getItem/setItem ever runs.
+ */
+function withWindow(mode: 'working' | 'blocked', fn: (count: () => number) => void) {
+  const g = globalThis as Record<string, unknown>;
+  const saved = g.window;
+  let reloads = 0;
+  const mem = new Map<string, string>();
+  const win: Record<string, unknown> = { location: { reload: () => { reloads++; } } };
+  Object.defineProperty(win, 'sessionStorage', {
+    configurable: true,
+    get() {
+      if (mode === 'blocked') throw new Error('SecurityError: The operation is insecure.');
+      return {
+        getItem: (k: string) => mem.get(k) ?? null,
+        setItem: (k: string, v: string) => { mem.set(k, v); },
+        removeItem: (k: string) => { mem.delete(k); },
+      };
+    },
+  });
+  g.window = win;
+  try {
+    fn(() => reloads);
+  } finally {
+    if (saved === undefined) delete g.window;
+    else g.window = saved;
+  }
+}
+
+it('reloads once to pick up fresh assets', () => {
+  withWindow('working', (count) => {
+    reloadForChunkError(BASE);
+    assert.equal(count(), 1);
+  });
+});
+
+it('does not reload again inside the window, so a broken deploy cannot loop', () => {
+  withWindow('working', (count) => {
+    reloadForChunkError(BASE);
+    reloadForChunkError(BASE + 1_000);
+    reloadForChunkError(BASE + 9_999);
+    assert.equal(count(), 1);
+  });
+});
+
+it('reloads again once the window has passed', () => {
+  withWindow('working', (count) => {
+    reloadForChunkError(BASE);
+    reloadForChunkError(BASE + 10_001);
+    assert.equal(count(), 2);
+  });
+});
+
+it('does not reload at all when storage is blocked', () => {
+  // The guard lives in sessionStorage, and a blocked write is swallowed
+  // silently, so the stamp would read 0 on every pass and the tab would
+  // refresh forever. Falling through to the retry control is the safe
+  // degradation; reloading unbounded is not.
+  withWindow('blocked', (count) => {
+    for (let i = 0; i < 6; i++) reloadForChunkError(BASE + i * 60_000);
+    assert.equal(count(), 0);
+  });
 });
 
 console.log(`\nchunk-error: ${passed} passed, ${failures.length} failed`);

@@ -68,7 +68,7 @@ repository.
 | `$autocapture` | Every click on links/buttons/inputs across the whole site (incl. nav, footer, Learn/About CTAs) | `defaults` preset + project setting `autocapture_opt_out: null` |
 | Session replay | Video-style recordings of real sessions, console logs, network perf | Project setting `session_recording_opt_in: true` |
 | Web vitals | LCP, CLS, FCP, INP per page | Project setting `autocapture_web_vitals_opt_in: true` |
-| `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle) |
+| `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below. Since 13 Sep 2026 also reported explicitly by the error boundaries, which catch a render failure before the window-level handler can see it | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle), plus `analytics.captureException()` from `app/error.tsx` and `app/global-error.tsx` |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) | Project setting `heatmaps_opt_in: true` |
 | `$rageclick` | Repeated frustrated clicks on the same element | `defaults` preset |
 

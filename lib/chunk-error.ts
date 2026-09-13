@@ -53,5 +53,15 @@ export function reloadForChunkError(now: number = Date.now()): void {
   const last = Number(safeSessionStorage.getItem(RELOAD_AT_KEY)) || 0;
   if (now - last < RELOAD_WINDOW_MS) return;
   safeSessionStorage.setItem(RELOAD_AT_KEY, String(now));
+  // Read the guard back before acting on it. `safeSessionStorage` swallows a
+  // blocked write by design, which is right for the persistence it was built
+  // for — losing a saved filter costs nothing. Here the write IS the guard, so
+  // a silent no-op is not a degraded reload, it is an unbounded one: the stamp
+  // reads 0 forever, every chunk error clears the window, and a deploy the
+  // reload cannot fix refreshes the tab until the reader closes it. Safari with
+  // "Block all cookies" is exactly the population lib/safe-storage.ts exists
+  // for, so this is not hypothetical. When the stamp did not stick, do nothing
+  // and let the boundary's retry control carry the reader instead.
+  if (Number(safeSessionStorage.getItem(RELOAD_AT_KEY)) !== now) return;
   if (typeof window !== 'undefined') window.location.reload();
 }

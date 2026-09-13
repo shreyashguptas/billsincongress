@@ -40,9 +40,19 @@ const registry = readFileSync(join(root, 'Documentation/ANALYTICS.md'), 'utf8');
 const code = readFileSync(join(root, 'lib/analytics.ts'), 'utf8');
 
 /**
- * Events fired from the server, which never pass through `lib/analytics.ts` —
- * they use `lib/posthog-server.ts` from API routes and Convex. They are
- * registered, correctly, and have no client helper to match.
+ * Registered events with no `capture('name')` literal in `lib/analytics.ts` to
+ * match against.
+ *
+ * `bill_chat_message_processed` is fired from the server, which never passes
+ * through this file — API routes and Convex use `lib/posthog-server.ts`.
+ *
+ * `$exception` is exempt for a different reason, and the distinction matters
+ * to anyone changing this list: it IS sent from the client, both by PostHog's
+ * own `capture_exceptions` autocapture and, since 13 Sep 2026, explicitly by
+ * `analytics.captureException()` in the error boundaries. It is listed here
+ * because that helper calls `posthog.captureException(error)`, which carries no
+ * event-name literal for `capturedEvents()` to find — not because nothing
+ * client-side sends it.
  */
 const SERVER_SIDE = new Set(['bill_chat_message_processed', '$exception']);
 
