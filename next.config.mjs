@@ -1,5 +1,31 @@
+import { execSync } from 'node:child_process';
+
+// A per-deploy id that is stable within one build. When set, Next.js adds it to
+// every asset request and turns on skew protection: a stale tab whose id no
+// longer matches the server does a full reload on navigation instead of a
+// client-side one, so it never asks for a chunk the new deploy dropped — the
+// proactive companion to the app/error.tsx recovery. Prefer the CI-provided
+// commit, then the git commit; return undefined (a no-op) when neither exists,
+// since Date.now() would differ between the build's worker processes.
+function resolveDeploymentId() {
+  const fromEnv = process.env.DEPLOYMENT_ID || process.env.WORKERS_CI_COMMIT_SHA;
+  if (fromEnv) return fromEnv;
+  try {
+    return (
+      execSync('git rev-parse --short HEAD', {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+        .toString()
+        .trim() || undefined
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  deploymentId: resolveDeploymentId(),
   images: {
     remotePatterns: [
       {

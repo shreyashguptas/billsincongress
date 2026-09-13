@@ -89,6 +89,7 @@ app/                       Next.js App Router — 19 page.tsx files
   api/                     answer/, bill-chat/send, bill-chat/usage
   robots.ts sitemap.ts sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
+  error.tsx global-error.tsx   Client error boundaries (recover from a stale-asset chunk failure)
 
 components/                Shared React components
   answers/                 The ask panel: provider, panel, thread, sources, work log, history
@@ -101,13 +102,14 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 25 modules + 15 test files
+lib/                       Pure client/shared modules — 24 modules + 22 test files
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
   seo.ts hubs.ts pagination.ts cacheable-routes.ts indexnow.ts
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
+  chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   services/bills-service.ts  constants/  types/  utils/
 
 convex/                    Backend — 30 top-level modules + catalog/ + 9 test files
@@ -164,6 +166,18 @@ visitor's page in a shared cache. Signed-out responses on `/`, `/about`, `/learn
 `/privacy`, `/terms` and anything under `/bills` get
 `public, max-age=0, s-maxage=300, stale-while-revalidate=86400`; any request carrying an
 auth cookie gets `private, no-store`. **New public routes must be added to that file.**
+
+**Error boundaries.** `app/error.tsx` catches client render failures for a route segment;
+`app/global-error.tsx` catches failures in the root layout and renders its own
+`<html>`/`<body>` with inline styles, since it replaces the layout. Both recognise a
+stale-asset `ChunkLoadError` — a tab opened before a deploy asking for a content-hashed chunk
+the new deploy no longer serves — through `lib/chunk-error.ts`, and do one guarded
+`location.reload()` to load fresh assets. The guard (a timestamped sessionStorage key) blocks
+a second reload inside a short window, so a genuinely broken deploy shows a retry control
+instead of looping. Both report the error through `analytics.captureException`, because a
+boundary catches the error before PostHog's window-level capture would see it.
+`next.config.mjs` sets a per-deploy `deploymentId` (the git commit) so Next.js skew protection
+can force a full reload on navigation when a tab is out of date, avoiding the failure up front.
 
 ---
 
