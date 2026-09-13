@@ -99,6 +99,31 @@ jobs:
           # a twelve-minute run shows its work instead of looking hung.
           track_progress: true
 
+          # PostHog's self-driving automation opens pull requests from branches
+          # in THIS repository (`posthog-self-driving/*`), and the action
+          # refuses non-human actors by default — so every one of those pull
+          # requests failed this check and could merge with no review at all.
+          # That is backwards: code no person wrote is the code most worth
+          # reviewing.
+          #
+          # Named explicitly rather than `*`. This repository is public, and the
+          # action's own warning is that `*` lets any external App invoke it.
+          # Matching lowercases and strips a trailing `[bot]` on both sides, so
+          # this single entry covers the `posthog[bot]` actor. Add further bots
+          # by name, comma-separated; never widen this to `*` here.
+          #
+          # What this does and does not widen. The install and "Capture check
+          # results" steps sit ABOVE the action and are ungated, so a bot branch
+          # already runs its own package.json and test script on the runner
+          # today — that exposure is unchanged by this line. What is new is that
+          # the review step now runs for those branches too, which carries the
+          # residual risk stated below: repository and dependency code executing
+          # in a process holding the OAuth and app tokens. Accepted, because the
+          # actor is a trusted App that already holds write access and could
+          # push such a branch regardless, and because `prompt` below is fixed
+          # in this file — no pull request author, bot or human, can steer it.
+          allowed_bots: "posthog"
+
           # Only `github.repository` and the PR number are interpolated here.
           # Titles and bodies are author-controlled text and are deliberately
           # not pasted into the prompt; the action reads them itself.
