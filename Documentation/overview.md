@@ -138,7 +138,7 @@ public/                    Icons, images, _headers, the IndexNow key file
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route) |
-| `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies |
+| `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies and injecting a keep-alive while the stream is silent |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
 | `/robots.txt`, `/sitemap_index.xml`, `/sitemap/<n>.xml`, `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
@@ -446,8 +446,10 @@ Replaces the per-bill chat panel, which was removed on 26 August 2026.
 ```
 components/answers/answer-provider.tsx      one provider, mounted in app/layout.tsx
   └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId
-       └─ app/api/answer/route.ts           exists ONLY to attach the httpOnly auth cookie
-            │                                and the anonymous session cookie
+       └─ app/api/answer/route.ts           attaches the httpOnly auth cookie and the
+            │                                anonymous session cookie, and injects an SSE
+            │                                keep-alive comment while the loop runs silent
+            │                                so an idle timeout cannot reap a long answer
             └─ POST {CONVEX_SITE_URL}/answer/stream     (convex/http.ts → answer.stream)
                  ├─ rate-limit check  ← the token is consumed BEFORE the model is called
                  ├─ tool loop, max 4 rounds (the 5th call goes out WITHOUT tools)
@@ -458,6 +460,7 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  ├─ deliberation stripped → convex/catalog/answerSanitize.ts
                  ├─ citation resolution → convex/catalog/cite.ts
                  └─ SSE frames back: work · delta · done · rate_limited · error
+                      (the proxy adds `: keep-alive` comments between them)
 ```
 
 The panel is mounted in the root layout as a **sibling** of the page content, never inside

@@ -364,8 +364,27 @@ export const analytics = {
     truncated_by_length: boolean;
   }) => capture('answer_received', props),
 
-  answerFailed: (props: { surface: string; error: string }) =>
-    capture('answer_failed', props),
+  /**
+   * A question got no answer. `error` is a durable, specific reason, not one
+   * opaque bucket:
+   *   'connection_failed' — the request never delivered a byte.
+   *   'stream_dropped'    — the connection was cut mid-answer. The fingerprint
+   *                         of an idle timeout reaping a long, silent
+   *                         generation; a rising rate here means the keep-alive
+   *                         in app/api/answer/route.ts is losing.
+   *   'no_stream_body'    — a response with no readable body.
+   *   'stream_incomplete' — the stream ended with no done/error/rate-limit frame.
+   *   any other string    — the server's own error message.
+   * `stream_started` says whether any byte arrived before the failure and
+   * `elapsed_ms` how long the reader waited — together they separate "never
+   * connected" from "dropped after N seconds".
+   */
+  answerFailed: (props: {
+    surface: string;
+    error: string;
+    elapsed_ms?: number;
+    stream_started?: boolean;
+  }) => capture('answer_failed', props),
 
   answerSourceClicked: (props: {
     surface: string;
