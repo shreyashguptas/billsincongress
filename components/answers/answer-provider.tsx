@@ -44,6 +44,22 @@ import {
 } from '@/lib/ask-panel-state';
 import type { WorkEntry } from './work-log';
 
+/**
+ * How long the answer may show the reader nothing new before we stop waiting.
+ *
+ * Chosen against what the answer path actually does, not as a round number.
+ * Answers complete in tens of seconds and the agent's own tool-round ceiling
+ * bounds the normal case, so a gap this long with no step and no text is not a
+ * slow answer, it is a stuck one. The proxy also caps the stream, but at three
+ * minutes — right for releasing a server socket, far past the point a person
+ * has given up and reloaded.
+ *
+ * Raise this rather than removing it if real answers are ever cut off; the
+ * failure it produces is recorded under its own reason, so the rate of it is
+ * measurable instead of guessed at.
+ */
+const ANSWER_STALL_MS = 45_000;
+
 export interface WebSource {
   handle: string;
   url: string;
@@ -455,8 +471,40 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       // latter is the idle-timeout drop the proxy keep-alive exists to stop.
       let streamStarted = false;
 
+      // A reader watching nothing happen has no way to tell a long answer from
+      // a dead one, and until now nothing bounded the wait: the proxy's own cap
+      // is three minutes, which is a timeout for the server's benefit, not a
+      // wait any person would sit through.
+      //
+      // What this measures is deliberately NOT elapsed time, and not bytes
+      // either. The proxy writes a keep-alive every ten seconds through a
+      // silence, so bytes arrive throughout and a byte-based timer would never
+      // fire. It measures time since the last thing that CHANGED WHAT THE
+      // READER SEES — a step in the work log, or text in the answer. An answer
+      // still producing output keeps resetting it and is never cut off, however
+      // long it runs; only a screen that has sat still for the whole window
+      // gives up. That is what makes a limit this short safe.
+      const stalled = new AbortController();
+      let stallTimer: ReturnType<typeof setTimeout> | null = null;
+      let stalledOut = false;
+      const clearStall = () => {
+        if (stallTimer !== null) {
+          clearTimeout(stallTimer);
+          stallTimer = null;
+        }
+      };
+      const armStall = () => {
+        clearStall();
+        stallTimer = setTimeout(() => {
+          stalledOut = true;
+          stalled.abort();
+        }, ANSWER_STALL_MS);
+      };
+      armStall();
+
       try {
         const res = await fetch('/api/answer', {
+          signal: stalled.signal,
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -494,12 +542,18 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
             const data = JSON.parse(dataLine.slice(6));
 
             if (event === 'work') {
+              // Visible progress: the reader sees a new step, so the wait
+              // starts over. Only `work` and `delta` do this — a keep-alive
+              // shows nothing and must not buy more time.
+              armStall();
               patch((t) => ({ ...t, work: [...(t.work ?? []), data] }));
             } else if (event === 'delta') {
+              armStall();
               answerText += data.text;
               patch((t) => ({ ...t, content: t.content + data.text }));
             } else if (event === 'done') {
               settled = true;
+              clearStall();
               patch((t) => ({
                 ...t,
                 sources: data.sources ?? [],
@@ -543,6 +597,14 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
               }
             } else if (event === 'rate_limited') {
               settled = true;
+              // Settled, so the watchdog has nothing left to watch. The loop
+              // does not break here — it waits for the stream to close — so
+              // without this the timer stays armed past the point the turn was
+              // decided. Safe today only because both senders close in the same
+              // tick; if either ever closed behind an await, this would abort a
+              // resolved fetch and stack a second, false failure on top of the
+              // real one already reported. The reason exists to mean one thing.
+              clearStall();
               drop();
               setRateLimit({ kind: data.kind, max: data.max, resetAt: data.resetAt });
               analytics.answerRateLimited({
@@ -552,6 +614,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
               });
             } else if (event === 'error') {
               settled = true;
+              clearStall();
               setError(data.message);
               drop();
               analytics.answerFailed({
@@ -574,16 +637,26 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
           });
         }
       } catch (err) {
-        setError('Failed to get a response. Please try again.');
+        setError(
+          stalledOut
+            ? 'That answer is taking longer than expected. Please try again.'
+            : 'Failed to get a response. Please try again.',
+        );
         drop();
         // A durable, specific reason in place of one opaque 'network_error':
         // 'no_stream_body' — a response with no readable body;
         // 'connection_failed' — the request never delivered a byte;
         // 'stream_dropped' — the connection was cut mid-answer, the fingerprint
         // of an idle timeout reaping a long, silent generation (the proxy
-        // keep-alive in app/api/answer/route.ts exists to stop this).
-        const reason =
-          err instanceof Error && err.message === 'no stream'
+        // keep-alive in app/api/answer/route.ts exists to stop this);
+        // 'stalled_no_progress' — WE gave up, nothing was cut. Checked first
+        // and deliberately: aborting the fetch throws like any other broken
+        // connection, so without this our own abort would be recorded as
+        // 'stream_dropped' and inflate the very number that measures whether
+        // the keep-alive is working.
+        const reason = stalledOut
+          ? 'stalled_no_progress'
+          : err instanceof Error && err.message === 'no stream'
             ? 'no_stream_body'
             : streamStarted
               ? 'stream_dropped'
@@ -595,6 +668,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
           stream_started: streamStarted,
         });
       } finally {
+        clearStall();
         setBusy(false);
       }
     },

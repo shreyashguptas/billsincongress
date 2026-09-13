@@ -386,6 +386,11 @@ export const analytics = {
    *                         in app/api/answer/route.ts is losing.
    *   'no_stream_body'    — a response with no readable body.
    *   'stream_incomplete' — the stream ended with no done/error/rate-limit frame.
+   *   'stalled_no_progress' — the reader saw nothing new for the stall window
+   *                         and the client gave up. Distinct from
+   *                         'stream_dropped' on purpose: nothing was cut, WE
+   *                         stopped waiting, so folding the two together would
+   *                         inflate the number that measures the keep-alive.
    *   any other string    — the server's own error message.
    * `stream_started` says whether any byte arrived before the failure and
    * `elapsed_ms` how long the reader waited — together they separate "never
