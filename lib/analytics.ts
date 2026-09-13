@@ -67,6 +67,18 @@ export const analytics = {
   },
 
   /**
+   * Report an exception an error boundary caught. A React error boundary
+   * (`app/error.tsx`, `app/global-error.tsx`) stops the error before PostHog's
+   * window-level capture sees it, so without this call these render failures
+   * would vanish from error tracking. Produces a `$exception` event, so
+   * `before_send` in `instrumentation-client.ts` still filters it.
+   */
+  captureException(error: unknown) {
+    if (!ready()) return;
+    posthog.captureException(error);
+  },
+
+  /**
    * Headers that let server-side captures attach to the same person/session.
    * Spread into fetch() headers for API calls whose routes capture events.
    */
