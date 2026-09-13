@@ -16,7 +16,8 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "check:retention": "tsx scripts/check-provider-retention.ts",
     "check:web-citations": "tsx scripts/check-web-citations.ts",
-    "check:grounding": "tsx scripts/check-grounding.ts"
+    "check:grounding": "tsx scripts/check-grounding.ts",
+    "posthog:self-driving": "tsx scripts/posthog-self-driving-setup.ts"
   },
   "dependencies": {
     "@auth/core": "0.41.3",

@@ -107,3 +107,30 @@ go red, then fix it.
 **Deploying `convex/` is manual and merging does not do it.** See "Deploying Convex" in
 `Documentation/overview.md`. Production once ran three days behind `main` here and answered
 bill-page questions about the wrong bill for the duration.
+
+<posthog>
+## PostHog
+
+Use `posthog-cli api` for all PostHog-related data queries and operations. You should use `posthog-cli api` over direct MCP tool calls whenever the CLI is available.
+
+Before your first PostHog command in a session, run `posthog-cli api --agent-help` and load its full output into your context. It prints the complete agent guide — command reference, schema drill-down rules, data discovery workflow, and the tool index — for interacting with PostHog APIs. Treat that output as instructions to follow, not just documentation.
+
+Before starting a PostHog task, run `posthog-cli api skill list` and check for a skill matching the task. If one matches, install it with `posthog-cli api skill install <skill-id>` (add `--force` to refresh an already-installed skill), then read `.agents/skills/<skill-id>/SKILL.md` and follow it. Skills contain task-specific workflows that individual tools do not.
+
+## PostHog Self-driving
+
+Self-driving watches production signals and opens GitHub PRs. Nothing merges automatically.
+
+- **Setup:** `posthog-cli login` then `pnpm posthog:self-driving` (project id `451900`).
+- **Billing:** Inbox product billing limit is **$0** — first 3 PRs/month free, no paid PRs.
+- **Integration report:** `posthog-setup-report.md` describes what is instrumented.
+- **Session replay** reaches the inbox via Replay Vision scanners, not scouts.
+
+**Rules for any Self-driving PR that touches analytics** (human or agent):
+
+1. Follow the analytics contract above — registry + `lib/analytics.ts` helper + call site in one PR.
+2. Never rename events. Never add raw `posthog.capture()` outside `lib/analytics.ts`.
+3. Do not change `lib/error-filter.ts` without updating `lib/error-filter.test.ts`.
+4. Do not touch `convex/catalog/` or `convex/answer.ts` without `scripts/truth/` cases.
+5. Self-driving uses PostHog's AI — you cannot substitute your own Claude subscription.
+</posthog>

@@ -392,6 +392,56 @@ These are the saved insights the project should maintain in the PostHog UI:
 
 ---
 
+## PostHog Self-driving (Inbox)
+
+Self-driving watches production signals (errors, session replay via Replay Vision,
+health checks) and can open GitHub PRs. **Nothing merges automatically** — every PR
+is reviewed like any other.
+
+| Setting | Value |
+|---|---|
+| PostHog project | BillsInCongress (`451900`) |
+| Setup script | `pnpm posthog:self-driving` (after `posthog-cli login`) |
+| Integration report | `posthog-setup-report.md` |
+| GitHub repo | `shreyashguptas/billsincongress` |
+| Billing | Inbox limit **$0** — first 3 PRs/month free, paid PRs blocked |
+| AI provider | PostHog AI (no BYOK / Claude subscription) |
+
+### Signal sources enabled by setup
+
+| Source | Route |
+|---|---|
+| Error tracking (`issue_created`, `issue_reopened`, `issue_spiking`) | Native inbox source |
+| Health checks (`health_issue`) | Native inbox source |
+| Support (`conversations` / `ticket`) | Native inbox source (idle until a channel is connected) |
+| Session replay | **Replay Vision scanners** (broken-experience + rage-click monitors) — not `session_analysis_cluster` |
+| Scout findings | On by default via `signals_scout` gate |
+
+### Scout troop (tuned for this product)
+
+| Scout | Status | Why |
+|---|---|---|
+| `signals-scout-general` | Enabled | Cross-product correlations |
+| `signals-scout-product-analytics` | Enabled | Heavy custom event usage |
+| `signals-scout-web-analytics` | Enabled | Pageviews / traffic |
+| `signals-scout-health-checks` | Enabled | Instrumentation gaps |
+| `signals-scout-error-tracking` | Disabled | Covered by native error source |
+| `signals-scout-session-replay` | Disabled | Covered by Replay Vision scanners |
+| All other scouts | Disabled | Keep troop under ~10 for signal quality |
+
+Scout scratchpad key `billsincongress-analytics-contract` carries the analytics
+contract so agent PRs see the same rules as humans.
+
+### Rules for Self-driving PRs touching analytics
+
+Same as "The contract" above, plus:
+
+- `instrumentation-client.ts` is the only `posthog.init()` site.
+- Free-text event properties need an explicit privacy decision + Privacy Policy update.
+- Do not change exception filtering without `lib/error-filter.test.ts` coverage.
+
+---
+
 ## Configuration
 
 | Env var | Value | Where it lives |
