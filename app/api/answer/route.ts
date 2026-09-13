@@ -14,6 +14,7 @@ import {
   getOrCreateAnonymousChatSessionId,
   MAX_QUESTION_LENGTH,
 } from '../bill-chat/_shared';
+import { withKeepAlive } from '@/lib/sse-keepalive';
 
 export async function POST(request: Request) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -81,7 +82,14 @@ export async function POST(request: Request) {
     );
   }
 
-  return new Response(upstream.body, {
+  // The answer loop has long silent gaps and the connection was being reaped
+  // mid-generation, which readers saw as a dropped answer. Re-emit the upstream
+  // through a wrapper that writes an SSE comment during silence. Why that is
+  // subtler than it looks — frame boundaries, and idle time rather than
+  // wall-clock — is documented in lib/sse-keepalive.ts, which has the tests.
+  const stream = withKeepAlive(upstream.body);
+
+  return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',

@@ -450,6 +450,10 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       // described — a dropped connection, or a proxy that returned something
       // that was not SSE at all. Without this the turn sits spinning forever.
       let settled = false;
+      // Whether any byte reached us before a failure. It separates "never
+      // connected" from "connected, then the stream was cut mid-answer" — the
+      // latter is the idle-timeout drop the proxy keep-alive exists to stop.
+      let streamStarted = false;
 
       try {
         const res = await fetch('/api/answer', {
@@ -476,6 +480,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
+          streamStarted = true;
           buffer += decoder.decode(value, { stream: true });
           const frames = buffer.split('\n\n');
           buffer = frames.pop() ?? '';
@@ -549,19 +554,46 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
               settled = true;
               setError(data.message);
               drop();
-              analytics.answerFailed({ surface, error: data.message });
+              analytics.answerFailed({
+                surface,
+                error: data.message,
+                elapsed_ms: Date.now() - askedAt,
+                stream_started: streamStarted,
+              });
             }
           }
         }
         if (!settled) {
           setError('The answer ended unexpectedly. Please try again.');
           drop();
-          analytics.answerFailed({ surface, error: 'stream_incomplete' });
+          analytics.answerFailed({
+            surface,
+            error: 'stream_incomplete',
+            elapsed_ms: Date.now() - askedAt,
+            stream_started: streamStarted,
+          });
         }
-      } catch {
+      } catch (err) {
         setError('Failed to get a response. Please try again.');
         drop();
-        analytics.answerFailed({ surface, error: 'network_error' });
+        // A durable, specific reason in place of one opaque 'network_error':
+        // 'no_stream_body' — a response with no readable body;
+        // 'connection_failed' — the request never delivered a byte;
+        // 'stream_dropped' — the connection was cut mid-answer, the fingerprint
+        // of an idle timeout reaping a long, silent generation (the proxy
+        // keep-alive in app/api/answer/route.ts exists to stop this).
+        const reason =
+          err instanceof Error && err.message === 'no stream'
+            ? 'no_stream_body'
+            : streamStarted
+              ? 'stream_dropped'
+              : 'connection_failed';
+        analytics.answerFailed({
+          surface,
+          error: reason,
+          elapsed_ms: Date.now() - askedAt,
+          stream_started: streamStarted,
+        });
       } finally {
         setBusy(false);
       }
