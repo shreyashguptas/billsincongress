@@ -597,6 +597,14 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
               }
             } else if (event === 'rate_limited') {
               settled = true;
+              // Settled, so the watchdog has nothing left to watch. The loop
+              // does not break here — it waits for the stream to close — so
+              // without this the timer stays armed past the point the turn was
+              // decided. Safe today only because both senders close in the same
+              // tick; if either ever closed behind an await, this would abort a
+              // resolved fetch and stack a second, false failure on top of the
+              // real one already reported. The reason exists to mean one thing.
+              clearStall();
               drop();
               setRateLimit({ kind: data.kind, max: data.max, resetAt: data.resetAt });
               analytics.answerRateLimited({
@@ -606,6 +614,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
               });
             } else if (event === 'error') {
               settled = true;
+              clearStall();
               setError(data.message);
               drop();
               analytics.answerFailed({

@@ -148,6 +148,23 @@ it('stops the watchdog when the answer lands and when the turn ends', () => {
   );
 });
 
+it('stops the watchdog on every branch that settles the turn', () => {
+  // `done` is not the only way a turn ends. `rate_limited` and `error` settle
+  // it too, and the loop does not break on any of them — it waits for the
+  // stream to close. A timer left armed past that point can fire on a turn
+  // already decided and stack a false failure on top of the real one.
+  for (const event of ['rate_limited', 'error']) {
+    const start = source.indexOf(`} else if (event === '${event}')`);
+    assert.ok(start !== -1, `the ${event} branch has moved`);
+    const nextBranch = source.indexOf('} else if (event ===', start + 10);
+    const branch = source.slice(start, nextBranch === -1 ? start + 600 : nextBranch);
+    assert.ok(
+      branch.includes('clearStall()'),
+      `the ${event} branch settles the turn but leaves the watchdog armed`,
+    );
+  }
+});
+
 it('reports our own abort as a stall, never as a dropped connection', () => {
   const reasonStart = source.indexOf('const reason =');
   assert.ok(reasonStart !== -1, 'the failure-reason chain has moved');
