@@ -94,6 +94,11 @@ visible in the repo:
 > 300 of the ~320 exceptions recorded in the preceding ten weeks, which made the
 > error count unreadable rather than merely wrong.
 >
+> Added 13 Sep 2026: the browser engine's benign `ResizeObserver loop` notices,
+> which report no failure. These are deliberately not part of the count above —
+> they were first seen on 1 Sep 2026, after that ten-week window closed, and
+> numbered 3 events from one visitor.
+>
 > The rules live in `lib/error-filter.ts` with the reasoning for each, and are
 > tested against verbatim production messages in `lib/error-filter.test.ts`.
 > Anything that this codebase could plausibly have caused is deliberately kept,
