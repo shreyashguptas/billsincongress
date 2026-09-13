@@ -138,7 +138,7 @@ public/                    Icons, images, _headers, the IndexNow key file
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route) |
-| `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies and injecting a keep-alive while the stream is silent |
+| `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
 | `/robots.txt`, `/sitemap_index.xml`, `/sitemap/<n>.xml`, `/llms.txt`, `/manifest.webmanifest` | Machine-readable |

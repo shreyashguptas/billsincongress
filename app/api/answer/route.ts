@@ -14,13 +14,7 @@ import {
   getOrCreateAnonymousChatSessionId,
   MAX_QUESTION_LENGTH,
 } from '../bill-chat/_shared';
-
-/**
- * How often to send a keep-alive comment while the upstream stream is silent.
- * Well under the ~15s idle window after which a mobile carrier or edge proxy
- * was severing the connection mid-answer.
- */
-const HEARTBEAT_MS = 10_000;
+import { withKeepAlive } from '@/lib/sse-keepalive';
 
 export async function POST(request: Request) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -88,57 +82,12 @@ export async function POST(request: Request) {
     );
   }
 
-  // The answer loop runs for many seconds with long silent gaps — the model
-  // call that writes the final answer emits no SSE frame until it is done. A
-  // mobile carrier or edge proxy reaps a response socket left idle that long,
-  // and the client reports the severed stream as a failure a median of ~15s
-  // after the question, right when the answer would have arrived. Broad home
-  // questions run longest and fail most.
-  //
-  // Re-emit the upstream stream through a wrapper that injects an SSE comment
-  // during silence, so bytes keep flowing and the connection is not reaped
-  // mid-generation. The comment has no `event:`/`data:` line, so the client
-  // parser skips it (see components/answers/answer-provider.tsx).
-  const encoder = new TextEncoder();
-  const reader = upstream.body.getReader();
-  let heartbeat: ReturnType<typeof setInterval> | null = null;
-  const stopHeartbeat = () => {
-    if (heartbeat !== null) {
-      clearInterval(heartbeat);
-      heartbeat = null;
-    }
-  };
-
-  const stream = new ReadableStream({
-    start(controller) {
-      heartbeat = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(': keep-alive\n\n'));
-        } catch {
-          stopHeartbeat();
-        }
-      }, HEARTBEAT_MS);
-
-      void (async () => {
-        try {
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            controller.enqueue(value);
-          }
-          stopHeartbeat();
-          controller.close();
-        } catch (error) {
-          stopHeartbeat();
-          controller.error(error);
-        }
-      })();
-    },
-    cancel(reason) {
-      stopHeartbeat();
-      void reader.cancel(reason);
-    },
-  });
+  // The answer loop has long silent gaps and the connection was being reaped
+  // mid-generation, which readers saw as a dropped answer. Re-emit the upstream
+  // through a wrapper that writes an SSE comment during silence. Why that is
+  // subtler than it looks — frame boundaries, and idle time rather than
+  // wall-clock — is documented in lib/sse-keepalive.ts, which has the tests.
+  const stream = withKeepAlive(upstream.body);
 
   return new Response(stream, {
     headers: {
