@@ -240,7 +240,17 @@ const PRODUCT_CONTEXT = [
   'Answer accuracy under convex/catalog/ and convex/answer.ts is safety-critical — never auto-fix without scripts/truth tests.',
 ].join(' ');
 
-const BROKEN_SCANNER = {
+type ReplayVisionScannerPayload = {
+  name: string;
+  scanner_type: string;
+  emits_signals: boolean;
+  scanner_config: { prompt: string };
+  query: Record<string, unknown>;
+  sampling_rate: number;
+  model: string;
+};
+
+const BROKEN_SCANNER: ReplayVisionScannerPayload = {
   name: 'Bill browse and answer failures',
   scanner_type: 'monitor',
   emits_signals: true,
@@ -264,7 +274,7 @@ const BROKEN_SCANNER = {
   model: 'gemini-3-flash-preview',
 };
 
-const FRUSTRATION_SCANNER = {
+const FRUSTRATION_SCANNER: ReplayVisionScannerPayload = {
   name: 'Browse and ask frustration',
   scanner_type: 'monitor',
   emits_signals: true,
@@ -311,7 +321,7 @@ function createReplayVisionScanners() {
     return;
   }
 
-  const upsert = (payload: typeof BROKEN_SCANNER, matchPhrase: string) => {
+  const upsert = (payload: ReplayVisionScannerPayload, matchPhrase: string) => {
     const match = existing.find((row) => row.name === payload.name);
     if (match) {
       if (match.emits_signals) {
