@@ -111,6 +111,18 @@ it("drops the browser's benign ResizeObserver notice, which arrives with no fram
   );
 });
 
+it("drops the ResizeObserver notice regardless of surrounding whitespace", () => {
+  // The rule trims, as the 'Script error.' rule does. Without that this reads
+  // as a different message and the notice returns to the error column, which
+  // is the one failure mode a filter must not have: quiet and invisible.
+  assert.equal(
+    shouldDropException(
+      event("  ResizeObserver loop completed with undelivered notifications. ", { frames: 0 }),
+    ),
+    true,
+  );
+});
+
 // Keeps: the group that matters
 
 it("keeps a 'Script error.' that came with frames", () => {

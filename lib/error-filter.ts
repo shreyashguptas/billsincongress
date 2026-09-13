@@ -78,8 +78,13 @@ const RULES: readonly DropRule[] = [
     // with no stack, and this codebase has no ResizeObserver of its own, so the
     // observer belongs to a UI dependency. The no-stack condition guards the
     // same way it does for `Script error.`: a real error would carry frames.
+    //
+    // Trimmed before matching, for the same reason the `Script error.` rule
+    // trims: the message is whatever the engine handed to the error event, and
+    // a rule that silently stops matching on a leading space fails open —
+    // the noise comes back with nothing to say why.
     source: 'browser ResizeObserver notice (benign)',
-    matches: (m, hasStack) => m.startsWith('ResizeObserver loop') && !hasStack,
+    matches: (m, hasStack) => m.trim().startsWith('ResizeObserver loop') && !hasStack,
   },
 ];
 

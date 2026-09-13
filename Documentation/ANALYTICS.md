@@ -89,11 +89,15 @@ visible in the repo:
 > **`$exception` is filtered before it is sent.** Since 26 Aug 2026,
 > `instrumentation-client.ts` passes a `before_send` hook that drops exceptions
 > raised by software that is not this site: Microsoft Outlook's link scanner,
-> browser-extension messaging failures, the browser's own opaque
-> `Script error.` reports that arrive with no stack frames, and the browser
-> engine's benign `ResizeObserver loop` notices, which report no failure. Those were roughly
+> browser-extension messaging failures, and the browser's own opaque
+> `Script error.` reports that arrive with no stack frames. Those were roughly
 > 300 of the ~320 exceptions recorded in the preceding ten weeks, which made the
 > error count unreadable rather than merely wrong.
+>
+> Added 13 Sep 2026: the browser engine's benign `ResizeObserver loop` notices,
+> which report no failure. These are deliberately not part of the count above —
+> they were first seen on 1 Sep 2026, after that ten-week window closed, and
+> numbered 3 events from one visitor.
 >
 > The rules live in `lib/error-filter.ts` with the reasoning for each, and are
 > tested against verbatim production messages in `lib/error-filter.test.ts`.
