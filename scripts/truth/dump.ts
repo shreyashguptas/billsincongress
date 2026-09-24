@@ -28,9 +28,10 @@
  *   export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)
  *   ./node_modules/.bin/tsx scripts/truth/dump.ts
  *
- * Or, with no deploy key, as a user logged in with `npx convex login`, naming
- * the production deployment explicitly:
- *   ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment <prod-deployment-name>
+ * Or, with no deploy key, as a user logged in with `npx convex login`:
+ *   ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment prod
+ * `prod` needs a checkout linked to the project (CONVEX_DEPLOYMENT set). Without
+ * one, pass the production deployment's name instead; anything else is refused.
  *
  * NOT part of `pnpm test`: it needs production credentials and downloads ~170MB.
  * Named dump.ts, not dump.test.ts, so the suite's *.test.ts discovery cannot
@@ -42,6 +43,7 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readFileSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -73,7 +75,8 @@ const KEY_HELP =
   "  export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)\n" +
   "  ./node_modules/.bin/tsx scripts/truth/dump.ts\n\n" +
   "Or, logged in with `npx convex login` and no key:\n" +
-  "  ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment <prod-deployment-name>\n\n" +
+  "  ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment prod\n" +
+  "  (or the production deployment's name, if this checkout is not linked to the project)\n\n" +
   "The key selects the deployment on its own — do NOT also pass --prod, and do\n" +
   "not point this at a dev deployment: the harness scores what readers actually\n" +
   "get, which is production.";
@@ -175,16 +178,45 @@ function removeStrays(): void {
 }
 
 /**
- * `--deployment <name>` for a logged-in user without a deploy key. Only a bare
- * deployment name is accepted: it is passed to `convex export` as an argument,
- * and nothing that looks like a flag or a path may ride along with it.
+ * The production deployment's name, from the Convex URL `.env.example` commits.
+ * That file is the one place the repo states which deployment readers use.
+ */
+function productionDeploymentName(): string | null {
+  try {
+    const example = readFileSync(".env.example", "utf8");
+    const url = /^NEXT_PUBLIC_CONVEX_URL=(\S+)$/m.exec(example)?.[1];
+    return url ? new URL(url).hostname.split(".")[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `--deployment` for a logged-in user without a deploy key.
+ *
+ * The harness scores what READERS get, so this must select production and
+ * nothing else. `prod` is the CLI's own "default production deployment" and is
+ * the preferred form, but it needs a checkout linked to the project. A bare name
+ * works without one, and is accepted only if it IS production — a dev name
+ * would fill .truth-cache/ with rows no reader sees and still report the gate
+ * as passed. The value is an argument to `convex export`, so nothing flag- or
+ * path-like may ride along.
  */
 function deploymentArg(): string[] {
   const i = process.argv.indexOf("--deployment");
   if (i === -1) return [];
   const name = process.argv[i + 1] ?? "";
+  if (name === "prod") return ["--deployment", "prod"];
   if (!/^[a-z]+-[a-z]+-\d+$/.test(name)) {
-    console.error(`--deployment needs a deployment name like "happy-animal-123", got "${name}".`);
+    console.error(`--deployment needs "prod" or a deployment name like "happy-animal-123", got "${name}".`);
+    process.exit(1);
+  }
+  const production = productionDeploymentName() ?? "unknown: .env.example has no NEXT_PUBLIC_CONVEX_URL";
+  if (name !== production) {
+    console.error(
+      `--deployment ${name} is not production (${production}). The harness scores what ` +
+        `readers get; refusing to export anything else.`,
+    );
     process.exit(1);
   }
   return ["--deployment", name];
