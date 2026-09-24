@@ -139,12 +139,14 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             className="flex-1 h-12 px-4 bg-transparent text-base border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground/70"
           />
           <button
-            type="submit"
-            // The arrow is labelled "Ask", so clicking it always asks — even
-            // with a row highlighted by hover or arrow keys. Only Enter in the
-            // field opens a highlighted bill, and the footer says when it will.
-            onClick={(e) => {
-              e.preventDefault();
+            // `type="button"`, not submit. Enter in the field submits the form by
+            // synthesising a click on its submit button, so a submit button with
+            // this handler would turn every Enter into an ask and nothing could
+            // open a highlighted bill. With no submit button, the form's single
+            // text field still submits on Enter through `onSubmit`, which honours
+            // the highlight. The arrow itself is labelled "Ask", so it always asks.
+            type="button"
+            onClick={() => {
               if (input.trim()) askTyped();
             }}
             disabled={busy || !input.trim()}
