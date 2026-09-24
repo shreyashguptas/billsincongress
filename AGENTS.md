@@ -99,13 +99,19 @@ Three rules, in order of importance:
    REQUIRE_TRUTH_CACHE=1 pnpm test                 # turns the skips into failures
    ```
 
+   No deploy key? After `npx convex login`, run `dump.ts --deployment prod` instead (or the
+   production deployment's name in a checkout not linked to the project; `dump.ts` refuses any
+   deployment that is not production).
+
    `REQUIRE_TRUTH_CACHE=1` is the difference between "the tests passed" and "the tests ran".
 
 When a wrong answer is found in the wild, add it to `scripts/truth/questions.ts` FIRST, watch it
 go red, then fix it.
 
 **Deploying `convex/` is manual and merging does not do it.** See "Deploying Convex" in
-`Documentation/overview.md`. Production once ran three days behind `main` here and answered
+`Documentation/overview.md`. In a checkout not linked to the project, target production
+explicitly: `CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy` (dry-run it first
+with `--dry-run`). Production once ran three days behind `main` here and answered
 bill-page questions about the wrong bill for the duration.
 
 <posthog>
@@ -134,3 +140,13 @@ Self-driving watches production signals and opens GitHub PRs. Nothing merges aut
 4. Do not touch `convex/catalog/` or `convex/answer.ts` without `scripts/truth/` cases.
 5. Self-driving uses PostHog's AI — you cannot substitute your own Claude subscription.
 </posthog>
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

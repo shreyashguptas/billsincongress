@@ -962,6 +962,13 @@ Any push to `main` (or a manual dispatch) triggers `deploy.yml`, which runs `pnp
 npx convex deploy
 ```
 
+In a checkout with no `CONVEX_DEPLOYMENT` (a fresh clone or a worktree), name production
+explicitly, and dry-run it first:
+
+```bash
+CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy --dry-run
+```
+
 **Manual, and shared.** Every worktree, branch and local dev server talks to the same
 production Convex deployment.
 
