@@ -7,7 +7,7 @@ import { ArrowUp } from 'lucide-react';
 import { useAnswers } from './answer-provider';
 import { useBillSuggestions } from './use-bill-suggestions';
 import { analytics } from '@/lib/analytics';
-import { starterQuestions, type StarterInput } from '@/lib/starter-questions';
+import { starters as buildStarters, type StarterInput } from '@/lib/starter-questions';
 import { initialHighlight, isSettled, moveHighlight } from '@/lib/bill-suggest';
 import { buildFilterQuery } from '@/lib/bills/filter-url';
 import { DEFAULT_FILTER_VALUES } from '@/app/bills/filter-signature';
@@ -18,9 +18,11 @@ import { compactStageLabel } from '@/lib/utils/bill-stages';
  * The masthead ask box (spec §6.1).
  *
  * Deliberately NOT a chat bubble: a single rule-bordered field at reading
- * width, with three generated starters beneath it as quiet text buttons. The
+ * width, with three generated starters beneath it as quiet text links. The
  * conversation itself belongs to the panel, so submitting here just calls
- * ask() and the panel takes over.
+ * ask() and the panel takes over. The data starters open the page that answers
+ * them rather than asking (`lib/starter-questions.ts` has why); only the
+ * cold-start fallbacks are asked.
  *
  * While the reader types, matching bills appear beneath the field
  * (`lib/bill-suggest.ts` has the numbers behind this). Picking one opens the
@@ -32,7 +34,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const [input, setInput] = useState('');
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(-1);
-  const questions = starterQuestions(starters);
+  const starterItems = buildStarters(starters);
   const congress = starters.congress;
   const listId = useId();
 
@@ -244,23 +246,48 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
       </div>
 
       <div className="mt-3 flex flex-col gap-1.5 items-start">
-        {questions.map((q) => (
-          <button
-            key={q}
-            type="button"
-            onClick={() => {
-              analytics.answerStarterClicked({ surface: 'home', starter_text: q });
-              void ask(q, { source: 'starter' });
-            }}
-            disabled={busy}
-            className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
-              ▸
-            </span>
-            {q}
-          </button>
-        ))}
+        {starterItems.map((s) =>
+          s.href ? (
+            <Link
+              key={s.kind}
+              href={s.href}
+              onClick={() =>
+                analytics.answerStarterClicked({
+                  surface: 'home',
+                  starter_text: s.text,
+                  action: 'open_page',
+                  destination: s.href,
+                })
+              }
+              className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
+                ▸
+              </span>
+              {s.text} <span aria-hidden="true">→</span>
+            </Link>
+          ) : (
+            <button
+              key={s.text}
+              type="button"
+              onClick={() => {
+                analytics.answerStarterClicked({
+                  surface: 'home',
+                  starter_text: s.text,
+                  action: 'ask',
+                });
+                void ask(s.text, { source: 'starter' });
+              }}
+              disabled={busy}
+              className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
+                ▸
+              </span>
+              {s.text}
+            </button>
+          ),
+        )}
       </div>
     </div>
   );
