@@ -221,7 +221,6 @@ function DashboardInner({
   const congressDashboard = view.dashboard;
   const houseBreakdown = view.house;
   const senateBreakdown = view.senate;
-  const currentStats = allCongressData.find((d) => d.congress === viewCongress);
 
   const homeProps: HomeProps | null = congressDashboard
     ? {
@@ -262,6 +261,11 @@ function DashboardInner({
           and then asking a question was answered about a different Congress. */}
       <AskPageContext congress={viewCongress} />
 
+      {/* Outside the keyed cross-fade below, so switching Congress does not
+          remount the ask box and throw away a half-typed question. Its numbers
+          still come from `view`, so they change with everything else. */}
+      <HomeHero {...homeProps} />
+
       {/* Data region — dims while a newly-picked Congress loads, then
           cross-fades to the new numbers (re-keyed on the loaded Congress). */}
       <div
@@ -271,7 +275,6 @@ function DashboardInner({
         )}
       >
         <div key={viewCongress} className="animate-fade-in">
-          <HomeHero {...homeProps} />
           <StatStrip {...homeProps} />
           <StageZoom {...homeProps} />
           <TopicWheel {...homeProps} />

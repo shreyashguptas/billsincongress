@@ -17,7 +17,8 @@ import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
-import { StarterButton, fmt, type HomeProps } from './shared';
+import { AskAbout } from '@/components/answers/ask-about';
+import { fmt, type HomeProps } from './shared';
 
 // [column, row] on an 11 × 8 grid.
 const TILES: Record<string, [number, number]> = {
@@ -139,12 +140,9 @@ export function StateMap({
           <p className="label-eyebrow mb-2">Across the country</p>
           <div className="flex items-start justify-between gap-4">
             <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">Where bills come from</h2>
-            <StarterButton
-              question={`Which states' members sponsor the most bills in the ${formatCongressOrdinal(congress)} Congress?`}
-              className="shrink-0 pt-1.5 text-[12px] whitespace-nowrap"
-            >
-              Ask about this →
-            </StarterButton>
+            <div className="shrink-0 pt-1.5">
+              <AskAbout question={`Which states' members sponsor the most bills in the ${formatCongressOrdinal(congress)} Congress?`} />
+            </div>
           </div>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground leading-relaxed">
             Bills sponsored by each state&rsquo;s members this Congress.

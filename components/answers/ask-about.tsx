@@ -2,6 +2,7 @@
 
 import { useAnswers } from './answer-provider';
 import { analytics } from '@/lib/analytics';
+import { cn } from '@/lib/utils';
 
 /**
  * The "ask about this" affordance beside a chart (spec §6.5).
@@ -11,7 +12,16 @@ import { analytics } from '@/lib/analytics';
  * Sits alongside the existing drill-down, never replacing it: browse and ask
  * are different intents.
  */
-export function AskAbout({ question }: { question: string }) {
+export function AskAbout({
+  question,
+  className,
+  children = 'Ask about this →',
+}: {
+  question: string;
+  /** Replaces the default small-caption styling, e.g. for an inline action. */
+  className?: string;
+  children?: React.ReactNode;
+}) {
   const { ask, busy } = useAnswers();
   return (
     <button
@@ -21,9 +31,12 @@ export function AskAbout({ question }: { question: string }) {
         analytics.answerStarterClicked({ surface: 'home', starter_text: question });
         void ask(question, { source: 'starter' });
       }}
-      className="text-[12px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 whitespace-nowrap"
+      className={cn(
+        'text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50',
+        className ?? 'text-[12px] whitespace-nowrap',
+      )}
     >
-      Ask about this →
+      {children}
     </button>
   );
 }

@@ -2,16 +2,13 @@
 
 /**
  * Shared pieces for the home page's hero and chart sections: the props
- * contract, a compact Congress picker, the chart "Ask about this" button and
- * the browse link. The hero's ask box is `components/answers/hero-ask.tsx`.
+ * contract, a compact Congress picker and the browse link. The hero's ask box is `components/answers/hero-ask.tsx`.
  */
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowUp } from 'lucide-react';
 import type { FunctionReturnType } from 'convex/server';
 import type { api } from '@/convex/_generated/api';
-import { useAnswers } from '@/components/answers/answer-provider';
 import { analytics } from '@/lib/analytics';
 import type { StarterInput } from '@/lib/starter-questions';
 import { cn } from '@/lib/utils';
@@ -81,40 +78,6 @@ export function CongressSelect({
           ))}
       </select>
     </label>
-  );
-}
-
-/** A starter question as a quiet button. */
-export function StarterButton({
-  question,
-  className,
-  children,
-}: {
-  question: string;
-  className?: string;
-  children?: React.ReactNode;
-}) {
-  const { ask, busy } = useAnswers();
-  return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={() => {
-        analytics.answerStarterClicked({ surface: 'home', starter_text: question });
-        void ask(question, { source: 'starter' });
-      }}
-      className={cn(
-        'text-left text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50',
-        className,
-      )}
-    >
-      {children ?? (
-        <>
-          <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">▸</span>
-          {question}
-        </>
-      )}
-    </button>
   );
 }
 

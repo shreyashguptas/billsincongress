@@ -13,7 +13,8 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { formatCongressOrdinal } from '@/lib/congress';
-import { StarterButton, fmt, type HomeProps } from './shared';
+import { AskAbout } from '@/components/answers/ask-about';
+import { fmt, type HomeProps } from './shared';
 
 type SB = HomeProps['dashboard']['statusBreakdown'];
 
@@ -74,12 +75,9 @@ export function StageZoom({
             <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight max-w-2xl">
               {((stuckTotal / all) * 100).toFixed(1)}% of bills haven&rsquo;t made it out of committee. Here are the ones that have.
             </h2>
-            <StarterButton
-              question={`Why do most bills never leave committee in the ${formatCongressOrdinal(congress)} Congress?`}
-              className="shrink-0 pt-1.5 text-[12px] whitespace-nowrap"
-            >
-              Ask about this →
-            </StarterButton>
+            <div className="shrink-0 pt-1.5">
+              <AskAbout question={`Why do most bills never leave committee in the ${formatCongressOrdinal(congress)} Congress?`} />
+            </div>
           </div>
         </header>
 

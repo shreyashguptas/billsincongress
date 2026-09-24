@@ -5,8 +5,10 @@
  *
  * CivLab-style radial map: each slice is a policy area sized by its bills, the
  * dots inside are the bills (one dot ≈ a fixed number). The six biggest topics
- * each get a colour; everything past them folds into one grey "everything
- * else" slice, because more than six colours stop being tellable apart.
+ * each get a colour; everything past them folds into one grey slice, because
+ * more than six colours stop being tellable apart. That slice is total bills
+ * minus the six, so it also holds bills with no policy area yet, and its label
+ * says so.
  * Names live in the legend beside the wheel, never squeezed onto the rim, so a
  * long one like "Armed Forces and National Security" always reads in full.
  * Hover either side to link them; click to pin a topic and get its actions.
@@ -17,7 +19,8 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
-import { StarterButton, fmt, type HomeProps } from './shared';
+import { AskAbout } from '@/components/answers/ask-about';
+import { fmt, type HomeProps } from './shared';
 
 const COLORED = 6;
 const S = 640;
@@ -61,7 +64,7 @@ export function TopicWheel({
     const rest = Math.max(0, dashboard.totalBills - topSum);
     const items = [
       ...top.map((a, i) => ({ name: a.name, count: a.count, color: `var(--topic-${i + 1})`, isRest: false })),
-      ...(rest > 0 ? [{ name: 'Everything else', count: rest, color: 'hsl(var(--muted-foreground))', isRest: true }] : []),
+      ...(rest > 0 ? [{ name: 'Other topics, or none tagged', count: rest, color: 'hsl(var(--muted-foreground))', isRest: true }] : []),
     ];
     const total = items.reduce((s, a) => s + a.count, 0) || 1;
     const perDot = Math.max(1, Math.round(total / 1100));
@@ -105,12 +108,9 @@ export function TopicWheel({
             <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">
               What Congress is working on
             </h2>
-            <StarterButton
-              question={`What are the biggest policy areas in the ${formatCongressOrdinal(congress)} Congress and what do those bills do?`}
-              className="shrink-0 pt-1.5 text-[12px] whitespace-nowrap"
-            >
-              Ask about this →
-            </StarterButton>
+            <div className="shrink-0 pt-1.5">
+              <AskAbout question={`What are the biggest policy areas in the ${formatCongressOrdinal(congress)} Congress and what do those bills do?`} />
+            </div>
           </div>
         </header>
 
@@ -222,9 +222,12 @@ export function TopicWheel({
                     >
                       See the {fmt(pinnedItem.count)} {pinnedItem.name.toLowerCase()} bills →
                     </Link>
-                    <StarterButton question={`What are the ${pinnedItem.name.toLowerCase()} bills in the ${formatCongressOrdinal(congress)} Congress about?`}>
+                    <AskAbout
+                      question={`What are the ${pinnedItem.name.toLowerCase()} bills in the ${formatCongressOrdinal(congress)} Congress about?`}
+                      className="text-sm"
+                    >
                       Ask what they&rsquo;re about →
-                    </StarterButton>
+                    </AskAbout>
                   </div>
                 )
               ) : (

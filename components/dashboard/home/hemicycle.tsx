@@ -20,6 +20,9 @@ export type PartyKey = (typeof PARTIES)[number]['key'];
 export type PartyCounts = Record<PartyKey, number>;
 
 export const OUTER_SEATS = 435;
+
+/** Outer seats actually drawn: one per bill when a Congress has fewer than 435. */
+export const outerSeatsFor = (totalBills: number) => Math.min(OUTER_SEATS, totalBills);
 const MAX_LAW_SEATS = 400;
 
 const W = 800;
@@ -110,13 +113,33 @@ export function Hemicycle({
   const totalLaws = PARTIES.reduce((s, p) => s + laws[p.key], 0);
   const lawSeatCount = Math.min(totalLaws, MAX_LAW_SEATS);
 
-  const billSeats = useMemo(() => layout(bills, OUTER_SEATS, 250, 385, 9), [JSON.stringify(bills)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const billSeats = useMemo(
+    () => layout(bills, outerSeatsFor(totalBills), 250, 385, 9),
+    [JSON.stringify(bills), totalBills], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // More laws → more rows, growing inward, so each seat stays big enough to
+  // read its party colour. Six rows at most keeps the hollow wide enough for
+  // the readout.
+  const lawRows = Math.min(6, Math.max(3, Math.ceil(lawSeatCount / 60)));
   const lawSeats = useMemo(
-    () => layout(laws, lawSeatCount, 172, 222, lawSeatCount > 150 ? 4 : 3),
-    [JSON.stringify(laws), lawSeatCount], // eslint-disable-line react-hooks/exhaustive-deps
+    () => layout(laws, lawSeatCount, 222 - (lawRows - 1) * 16, 222, lawRows),
+    [JSON.stringify(laws), lawSeatCount, lawRows], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const dim = (p: PartyKey) => hover !== null && hover !== p;
+
+  // No party breakdown yet (a new Congress's first sync writes that row last).
+  // Drawing seats from all-zero counts would hand every one to the last party
+  // in the list — an all-Republican chamber that no data supports.
+  if (totalBills === 0) {
+    return (
+      <div className="flex aspect-[80/41] w-full items-center justify-center rounded-t-full border border-dashed border-border">
+        <p className="max-w-xs text-center text-sm text-muted-foreground">
+          The party breakdown for this Congress hasn&rsquo;t been built yet. It fills in after the next nightly update.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">
@@ -147,7 +170,8 @@ export function Hemicycle({
             r={s.r}
             fill={colorOf(s.party)}
             stroke="hsl(var(--status-law))"
-            strokeWidth={1}
+            // Thin the ring on small seats so the party colour still reads.
+            strokeWidth={Math.min(1, s.r * 0.2)}
             opacity={dim(s.party) ? 0.12 : 1}
             className="transition-opacity duration-200 animate-seat-in"
             style={{ animationDelay: `${250 + i * 5}ms` }}
@@ -171,10 +195,11 @@ export function Hemicycle({
 
 /** The one-line scale note — the only caption the chart needs. */
 export function HemicycleKey({ totalBills, totalLaws }: { totalBills: number; totalLaws: number }) {
-  const perSeat = Math.max(1, Math.round(totalBills / OUTER_SEATS));
+  if (totalBills === 0) return null;
+  const perSeat = Math.max(1, Math.round(totalBills / outerSeatsFor(totalBills)));
   return (
     <p className="font-mono text-[10px] text-muted-foreground">
-      outer seat ≈ {fmt(perSeat)} bills
+      {perSeat === 1 ? 'outer seat = 1 bill' : `outer seat ≈ ${fmt(perSeat)} bills`}
       <span className="mx-2 opacity-50">|</span>
       <span className="inline-block h-2 w-2 rounded-full align-middle mr-1 ring-1" style={{ '--tw-ring-color': 'hsl(var(--status-law))' } as React.CSSProperties} />
       inner seat = {totalLaws > MAX_LAW_SEATS ? `${fmt(Math.ceil(totalLaws / MAX_LAW_SEATS))} laws` : '1 law'}

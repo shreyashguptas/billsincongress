@@ -755,8 +755,8 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 
 /* ── Home page charts (components/dashboard/home) ───────────────────────── */
 
-/* Topic wheel: six categorical slots, validated (scripts/validate_palette.js)
-   against this site's own surfaces — adjacent CVD ΔE ≥ 9.2 light / 9.4 dark.
+/* Topic wheel: six categorical slots, checked with a colour-vision-deficiency
+   validator (not part of this repo) against this site's own surfaces — adjacent CVD ΔE ≥ 9.2 light / 9.4 dark.
    Party blue/red and the "became law" green are left out on purpose. Light-mode
    contrast is below 3:1 for four slots, so the wheel always ships its legend. */
 :root {

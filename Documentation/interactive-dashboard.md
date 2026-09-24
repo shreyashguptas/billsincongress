@@ -112,7 +112,7 @@ should look like a missing backend, not an empty dashboard.
 | 1 | Hero — the chamber (`home/hero.tsx`) | Headline "Who's writing America's laws?", one source line, and a parliament-style half circle. Outer seats: every bill split by the sponsor's party, one seat per ~N bills (N = bills ÷ 435, stated under the chart). Inner seats, ringed in green: the bills that became law, one seat each (scaled only past 400). The hollow shows the law count and swaps to a party's own numbers on hover. One legend row carries every party. Below, centred: the `HeroAsk` box (instant bill suggestions as you type) with its three starters as pills. A dropdown picks the Congress; "Browse bills" sits beside it | "Browse bills" link; suggested bills link to their pages; starters link to hubs or filtered `/bills` |
 | 2 | Stat cards (`home/stat-strip.tsx`) | Bills introduced · House bills · Senate bills · Became law, each with one line of context ("65% of all bills", "about 1 in 168 bills") | All four |
 | 3 | Where bills stand (`home/stage-zoom.tsx`) | Two panels at two stated scales. Left: bills still introduced or in committee, small squares of 1–1,000 bills each. Right, zoomed in: every bill that moved, one bigger square per bill, one row per stage | Every row and square |
-| 4 | What Congress is working on (`home/topic-wheel.tsx`) | Radial chart: the six biggest policy areas as coloured slices, everything else as one grey slice, one dot per ~N bills. Full names, shares and counts live in the legend beside it, never on the rim. Clicking a slice or row pins it and offers "See these bills" and "Ask what they're about" | Pinned topic |
+| 4 | What Congress is working on (`home/topic-wheel.tsx`) | Radial chart: the six biggest policy areas as coloured slices, every other topic plus bills with no policy area as one grey slice labelled "Other topics, or none tagged", one dot per ~N bills. Full names, shares and counts live in the legend beside it, never on the rim. Clicking a slice or row pins it and offers "See these bills" and "Ask what they're about" | Pinned topic |
 | 5 | Leading sponsors (`home/sponsors-chart.tsx`) | Top 10 members as horizontal bars from zero, coloured by party, count at the bar end | Every bar |
 | 6 | Where bills come from (`home/state-map.tsx`) | Tile map, one square per state (plus territories), shaded in five equal-count steps. "Per member" divides by House seats + 2 senators (one delegate for DC and territories) using the 2020 apportionment, so it is offered only from the 118th Congress on. Hover shows the state's numbers; otherwise the top five are listed | Every tile and row |
 | 7 | Introductions month by month | Two-track chart — introductions up, laws down, **each track independently scaled** — closing with a generated sentence naming busiest, quietest, and most-laws months | No |
@@ -120,11 +120,17 @@ should look like a missing backend, not an empty dashboard.
 | 9 | Podcast promo | "The Federalist Papers: Explained" | External links |
 | 10 | Waving flag | Decorative, `aria-hidden`, reduced-motion aware | No |
 
-Sections 1–8 live inside a cross-fade wrapper. Switching Congress does **not** blank the
+Sections 2–8 live inside a cross-fade wrapper. Switching Congress does **not** blank the
 page to a skeleton: the previous numbers stay on screen at 50% opacity and
 `pointer-events-none` until the new data lands, so a drill-down can never fire against
-numbers that no longer match the selection. The hero is inside that wrapper too, so its
-Congress dropdown is briefly inert while a switch loads.
+numbers that no longer match the selection. The hero sits **above** that wrapper, because the
+wrapper is re-keyed on the Congress and remounting the hero would throw away a half-typed
+question in its ask box; its numbers still come from the same loaded view.
+
+Two edge cases the chamber handles on purpose: a Congress with fewer than 435 bills gets one
+seat per bill, and a Congress whose party breakdown row does not exist yet (a new Congress's
+first sync writes it last) shows a "not built yet" note instead of seats, because all-zero
+counts would otherwise seat the whole chamber as one party.
 
 Numbers in the monthly chart and the state map count bills by the month they were
 **introduced** and the state of their **sponsor**; the "became law" figures anywhere on the
@@ -134,8 +140,8 @@ page are progress stage 100 only, the same definition `statusBreakdown.becameLaw
 
 Sections 3 through 8 each carry an "Ask about this" question that interpolates the
 current Congress (for example *"Why do most bills never leave committee in the 119th
-Congress?"*) and renders an ask button (`AskAbout` on the two older charts, `StarterButton` from
-`home/shared.tsx` on the new ones — same event, same behaviour). The comment in `DashboardClient.tsx` states
+Congress?"*) and renders an `AskAbout` button (it takes optional `className` and `children`, which the
+topic wheel uses for its inline "Ask what they're about"). The comment in `DashboardClient.tsx` states
 the rule: this sits **alongside** the drill-down and never replaces it, because browsing and
 asking are different intents.
 
@@ -315,7 +321,7 @@ one. If you add a new chart, route it through `handleDrillDown`.
 | "Became law" card | `status=100` | `/bills?congress=119&status=100` |
 | Stage row or square | `status` | `/bills?congress=119&status=40` |
 | Topic legend "→", or pinned topic's "See these bills" | `policyArea` | Newest Congress: `/bills/topic/health` (the hub). Older: `/bills?congress=117&policyArea=Health` |
-| "Everything else" topic slice | `congress` | `/bills?congress=119` |
+| "Other topics, or none tagged" slice | `congress` | `/bills?congress=119` |
 | Sponsor bar | `sponsor` | `/bills?congress=119&sponsor=Rick+Scott` |
 | State tile or top-five row | `state` | `/bills?congress=119&state=CA` |
 
@@ -336,7 +342,7 @@ Recorded so they are decisions rather than surprises.
    `order()`. A future writer that inserted unsorted rows would produce a silently wrong
    "top 10" with no error.
 3. **Four policy areas are fetched and discarded** on every load — the query returns 10 and the
-   wheel colours 6, folding the rest into "Everything else".
+   wheel colours 6, folding the rest, and untagged bills, into one grey slice.
 4. **The monthly chart has no drill-through** — it is the only data section with neither a
    click target nor a link.
 5. **Policy areas and sponsors have no independent refresh** — they only update when a sync

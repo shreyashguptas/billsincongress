@@ -9,7 +9,8 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { formatCongressOrdinal } from '@/lib/congress';
-import { StarterButton, fmt, type HomeProps } from './shared';
+import { AskAbout } from '@/components/answers/ask-about';
+import { fmt, type HomeProps } from './shared';
 
 const PARTY: Record<string, { label: string; color: string }> = {
   D: { label: 'Democrat', color: 'hsl(var(--party-d))' },
@@ -36,12 +37,9 @@ export function SponsorsChart({
           <p className="label-eyebrow mb-2">The most prolific</p>
           <div className="flex items-start justify-between gap-4">
             <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">Leading sponsors</h2>
-            <StarterButton
-              question={`Who introduces the most bills in the ${formatCongressOrdinal(congress)} Congress, and does that mean anything?`}
-              className="shrink-0 pt-1.5 text-[12px] whitespace-nowrap"
-            >
-              Ask about this →
-            </StarterButton>
+            <div className="shrink-0 pt-1.5">
+              <AskAbout question={`Who introduces the most bills in the ${formatCongressOrdinal(congress)} Congress, and does that mean anything?`} />
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
             {parties.map((label) => {
