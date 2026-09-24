@@ -97,6 +97,25 @@ it('sends an older Congress to the same filter on /bills, not to a hub', () => {
   assert.equal(byKind.in_committee, '/bills?congress=117&status=40');
 });
 
+// Review of #112: the committee line is a statement, and early in a new
+// Congress most bills can still be at "introduced". It must not claim most are
+// in committee unless the breakdown says so, and it must show the count the
+// destination page shows (in committee), not the Congress total.
+it('only states the committee share when most bills really are in committee', () => {
+  const early = starters({
+    ...input,
+    latestCongress: 119,
+    statusBreakdown: { introduced: 15000, inCommittee: 3000, becameLaw: 2 },
+  });
+  assert.ok(!early.some((s) => s.kind === 'in_committee'), JSON.stringify(early));
+  assert.equal(early.length, 3);
+});
+
+it('leads the committee starter with the count its destination shows', () => {
+  const s = starters({ ...input, latestCongress: 119 }).find((x) => x.kind === 'in_committee');
+  assert.equal(s?.text, 'Why 16,800 of the 19,241 bills are still in committee');
+});
+
 // The in-committee hub explains why bills stall; a filtered list does not, so
 // only the hub link may promise a "why".
 it('promises an explanation only when the destination has one', () => {

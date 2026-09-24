@@ -79,6 +79,7 @@ export function starters(input: StarterInput): Starter[] {
   const ordinal = formatCongressOrdinal(input.congress);
   const topArea = input.topPolicyAreas?.[0];
   const becameLaw = input.statusBreakdown?.becameLaw ?? 0;
+  const inCommittee = input.statusBreakdown?.inCommittee ?? 0;
 
   if (topArea && topArea.count > 0) {
     out.push({
@@ -96,10 +97,16 @@ export function starters(input: StarterInput): Starter[] {
       href: destination(input, '/bills/enacted', { status: String(BillStages.BECAME_LAW) }),
     });
   }
-  if (input.totalBills > 0) {
+  // A statement in the site's own voice, so it appears only when the data backs
+  // it: more than half the Congress's bills actually in committee. Early in a
+  // new Congress most bills can still be at "introduced", and the line would
+  // then be false. It leads with the in-committee count because that is the
+  // number the destination page shows.
+  if (input.totalBills > 0 && inCommittee * 2 > input.totalBills) {
     const href = destination(input, '/bills/in-committee', {
       status: String(BillStages.IN_COMMITTEE),
     });
+    const share = `${fmt(inCommittee)} of the ${fmt(input.totalBills)} bills`;
     out.push({
       kind: 'in_committee',
       // "Why" only where the destination explains it: the in-committee hub
@@ -107,8 +114,8 @@ export function starters(input: StarterInput): Starter[] {
       // does not — so there the starter promises only what the list shows.
       text:
         href === '/bills/in-committee'
-          ? `Why most of the ${fmt(input.totalBills)} bills never leave committee`
-          : `Most of the ${fmt(input.totalBills)} bills stalled in committee — see them`,
+          ? `Why ${share} are still in committee`
+          : `${share} stalled in committee — see them`,
       href,
     });
   }

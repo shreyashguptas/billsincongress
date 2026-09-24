@@ -159,7 +159,10 @@ seconds, because each asks about hundreds or thousands of bills and a lookup rea
 now links to the page that answers each one completely: `/bills/topic/<slug>`,
 `/bills/enacted` and `/bills/in-committee` for the newest Congress, or the same filter on
 `/bills` for an older one, because hub pages always show the newest Congress. The committee
-starter only says "Why" when it links to the hub, whose explainer answers it. Checked
+starter is a statement, so it appears only when more than half the bills really are in
+committee (early in a new Congress most can still be at "introduced"), leads with the
+in-committee count its page shows, and says "Why" only when it links to the hub, whose
+explainer answers it. Checked
 against production on 2026-09-24: each destination shows the same count as its starter
 (113, 2,181 and 18,208 of 19,007 for the 119th; 365, 2,276 and 16,721 of 17,828 for the 117th).
 The cold-start fallbacks are still asked.
