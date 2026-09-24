@@ -84,9 +84,10 @@ jobs:
           echo "typecheck exit: ${PIPESTATUS[0]}" >> /tmp/typecheck-output.txt
           exit 0
 
-      # Likewise. This is `anthropics/claude-code-action` v1. Re-resolve the
-      # tag and update this line deliberately when picking up a new version.
-      - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678
+      # Likewise. This is `anthropics/claude-code-action` v1 as of 23 Sep 2026
+      # (Claude Code 2.1.281). Re-resolve the tag and update this line, and the
+      # same pin in claude.yml, deliberately when picking up a new version.
+      - uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c
         # Runs even if a step above failed, so a broken install or a red test
         # run still gets reviewed. Deliberately NOT `always()`: that would also
         # run this paid review for jobs the concurrency group cancelled, undoing
@@ -249,6 +250,14 @@ jobs:
           # Still absent, and for the original reasons: `find`, `sed`, `cat`.
           # `find -exec` runs arbitrary commands and `sed -i` writes files.
           # `gh api` is absent because that verb takes POST and DELETE.
+          #
+          # Model and effort are pinned here rather than left to the action's
+          # default, so a review is not silently run by a different model when
+          # that default moves. Opus 5.5 at medium effort. `--effort` was checked
+          # against Claude Code 2.1.281, the version the action pin above
+          # installs; re-check it when moving that pin.
           claude_args: |
+            --model claude-opus-5-5
+            --effort medium
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*),Bash(pnpm test:*),Bash(./node_modules/.bin/tsc --noEmit:*)"
             --max-turns 120
