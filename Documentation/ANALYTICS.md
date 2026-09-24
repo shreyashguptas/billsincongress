@@ -156,6 +156,9 @@ and fires its own custom events — see "Learn page" below.
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `query_length` | `app/bills/bills-client.tsx` |
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill card in the results grid | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
+| `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set (passive, 150ms debounce, once per settled query and Congress, including zero results) | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
+| `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
+| `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
 | `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub. **Not** the homepage policy-area rows, which link to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
 
@@ -181,6 +184,15 @@ whether one of the two surfaces underperforms for this audience; `dwell_ms` by
 commit to send `query_length` instead of the raw `title_query` it used to carry;
 the property is additive-by-replacement, so historic `title_query` data is
 untouched and no saved insight breaks.
+
+**Home search suggestions (added 2026-09-24).** Most home ask-box entries are
+searches, not questions: from 13 to 23 Sep 2026, 265 of 340 typed entries were four
+words or fewer and 66 were a bare bill reference, each waiting 10–40 seconds for an
+AI answer. `bill_suggestions_*` measure whether showing matching bills while the
+reader types replaces those waits. Read them against `answer_question_submitted`
+(`surface: "home"`, `source: "typed"`) in the same session: a falling share of short
+typed questions alongside rising `bill_suggestion_clicked` is the win. Like the
+events above, no query text is sent.
 
 **`bills_no_results` volumes before 2026-08-29 are inflated and not comparable.**
 The search box had no debounce, so every keystroke fired a query and every

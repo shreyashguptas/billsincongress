@@ -1,10 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 import { useAnswers } from './answer-provider';
+import { useBillSuggestions } from './use-bill-suggestions';
 import { analytics } from '@/lib/analytics';
 import { starterQuestions, type StarterInput } from '@/lib/starter-questions';
+import { initialHighlight, moveHighlight, suggestKey } from '@/lib/bill-suggest';
+import { buildFilterQuery } from '@/lib/bills/filter-url';
+import { DEFAULT_FILTER_VALUES } from '@/app/bills/filter-signature';
+import { formatCongressOrdinal } from '@/lib/congress';
+import { compactStageLabel } from '@/lib/utils/bill-stages';
 
 /**
  * The masthead ask box (spec §6.1).
@@ -13,42 +21,203 @@ import { starterQuestions, type StarterInput } from '@/lib/starter-questions';
  * width, with three generated starters beneath it as quiet text buttons. The
  * conversation itself belongs to the panel, so submitting here just calls
  * ask() and the panel takes over.
+ *
+ * While the reader types, matching bills appear beneath the field
+ * (`lib/bill-suggest.ts` has the numbers behind this). Picking one opens the
+ * bill; Enter with nothing highlighted still asks the question as typed.
  */
 export function HeroAsk({ starters }: { starters: StarterInput }) {
   const { ask, busy } = useAnswers();
+  const router = useRouter();
   const [input, setInput] = useState('');
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
   const questions = starterQuestions(starters);
+  const congress = starters.congress;
+  const listId = useId();
+
+  const suggestions = useBillSuggestions(input, congress);
+  const settled = suggestions.kind !== null && suggestions.forQuery === suggestKey(input);
+  // While the next query is in flight the previous rows stay up, so the list
+  // does not blink on every keystroke. They cannot be picked with Enter until
+  // they belong to what is typed.
+  const bills = suggestions.bills;
+  const showList =
+    open && !busy && suggestions.kind !== null && (settled || bills.length > 0);
+  const active = settled ? highlight : -1;
+
+  // A new settled result set resets the highlight, and is reported once.
+  const reported = useRef('');
+  useEffect(() => {
+    if (!settled || suggestions.kind === null) return;
+    setHighlight(initialHighlight(suggestions.kind, suggestions.bills.length));
+    const reportKey = `${congress}:${suggestions.forQuery}`;
+    if (reported.current === reportKey) return;
+    reported.current = reportKey;
+    analytics.billSuggestionsShown({
+      match_kind: suggestions.kind,
+      query_length: suggestions.forQuery.length,
+      result_count: suggestions.bills.length,
+      congress,
+    });
+  }, [settled, suggestions.kind, suggestions.forQuery, suggestions.bills, congress]);
+
+  const trackOpen = (position: number, method: 'click' | 'enter') => {
+    const bill = bills[position];
+    if (!bill || suggestions.kind === null) return;
+    analytics.billSuggestionClicked({
+      bill_id: String(bill.id),
+      position: position + 1,
+      method,
+      match_kind: suggestions.kind,
+      query_length: suggestions.forQuery.length,
+    });
+  };
+
+  const seeAllHref =
+    '/bills' +
+    buildFilterQuery({ ...DEFAULT_FILTER_VALUES, title: input.trim(), congress: String(congress) });
 
   return (
     <div className="mt-7 max-w-2xl">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const q = input;
-          setInput('');
-          void ask(q, { source: 'typed' });
-        }}
-        className="flex items-center gap-2 border border-border rounded-sm bg-background focus-within:border-foreground transition-colors"
-      >
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about any bill in Congress…"
-          aria-label="Ask about any bill in Congress"
-          maxLength={2000}
-          disabled={busy}
-          className="flex-1 h-12 px-4 bg-transparent text-base border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground/70"
-        />
-        <button
-          type="submit"
-          disabled={busy || !input.trim()}
-          aria-label="Ask"
-          className="mr-1.5 inline-flex h-9 w-9 items-center justify-center rounded-sm bg-foreground text-background hover:bg-foreground/85 transition-colors disabled:opacity-40 shrink-0"
+      <div className="relative">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (showList && settled && highlight >= 0 && bills[highlight]) {
+              trackOpen(highlight, 'enter');
+              setOpen(false);
+              router.push(`/bills/${bills[highlight].id}`);
+              return;
+            }
+            const q = input;
+            setInput('');
+            setOpen(false);
+            void ask(q, { source: 'typed' });
+          }}
+          className="flex items-center gap-2 border border-border rounded-sm bg-background focus-within:border-foreground transition-colors"
         >
-          <ArrowUp className="h-4 w-4" />
-        </button>
-      </form>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setOpen(false);
+                return;
+              }
+              if (!showList || !settled || bills.length === 0) return;
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                setHighlight((h) => moveHighlight(h, e.key === 'ArrowDown' ? 1 : -1, bills.length));
+              }
+            }}
+            placeholder="Ask about any bill in Congress…"
+            aria-label="Ask about any bill in Congress"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={showList}
+            aria-controls={listId}
+            aria-activedescendant={
+              showList && active >= 0 ? `${listId}-${active}` : undefined
+            }
+            autoComplete="off"
+            maxLength={2000}
+            disabled={busy}
+            className="flex-1 h-12 px-4 bg-transparent text-base border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground/70"
+          />
+          <button
+            type="submit"
+            disabled={busy || !input.trim()}
+            aria-label="Ask"
+            className="mr-1.5 inline-flex h-9 w-9 items-center justify-center rounded-sm bg-foreground text-background hover:bg-foreground/85 transition-colors disabled:opacity-40 shrink-0"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
+        </form>
+
+        {showList && (
+          <div
+            // Keeps focus in the field while a row is pressed, so blur does not
+            // close the list before the click lands.
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute left-0 right-0 top-full z-30 mt-1 rounded-sm border border-border bg-background shadow-lg"
+          >
+            {bills.length > 0 ? (
+              <ul
+                id={listId}
+                role="listbox"
+                aria-label="Matching bills"
+                aria-busy={!settled}
+                className={`py-1 transition-opacity ${settled ? '' : 'opacity-60'}`}
+              >
+                {bills.map((bill, i) => (
+                  <li
+                    key={bill.id}
+                    id={`${listId}-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                  >
+                    <Link
+                      href={`/bills/${bill.id}`}
+                      onClick={() => {
+                        trackOpen(i, 'click');
+                        setOpen(false);
+                      }}
+                      onMouseEnter={() => setHighlight(i)}
+                      tabIndex={-1}
+                      className={`flex items-baseline gap-3 px-4 py-2 transition-colors ${
+                        i === active ? 'bg-muted' : 'hover:bg-muted'
+                      }`}
+                    >
+                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground tabular shrink-0">
+                        {bill.bill_type_label || bill.bill_type?.toUpperCase()} {bill.bill_number}
+                      </span>
+                      <span className="flex-1 min-w-0 text-sm text-foreground line-clamp-2 sm:truncate">
+                        {bill.title}
+                      </span>
+                      <span className="hidden sm:inline text-xs text-muted-foreground shrink-0">
+                        {compactStageLabel(bill.progress_stage)}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p id={listId} className="px-4 py-2.5 text-sm text-muted-foreground">
+                No {formatCongressOrdinal(congress)} Congress bill titles match. Press
+                Enter to ask instead.
+              </p>
+            )}
+            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2 text-xs text-muted-foreground">
+              <span className="hidden sm:inline">Enter asks the question · ↑↓ to pick a bill</span>
+              {bills.length > 0 && (
+                <Link
+                  href={seeAllHref}
+                  tabIndex={-1}
+                  onClick={() => {
+                    if (suggestions.kind === null) return;
+                    analytics.billSuggestionsSeeAllClicked({
+                      match_kind: suggestions.kind,
+                      query_length: suggestions.forQuery.length,
+                      result_count: bills.length,
+                    });
+                    setOpen(false);
+                  }}
+                  className="ml-auto hover:text-foreground underline underline-offset-2 decoration-border"
+                >
+                  See all matching bills →
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="mt-3 flex flex-col gap-1.5 items-start">
         {questions.map((q) => (
