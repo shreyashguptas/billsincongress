@@ -13,7 +13,8 @@ illustrative of magnitude, not as live values.
 | Concern | Path |
 | --- | --- |
 | Home-page route (server component) | `app/page.tsx` |
-| Dashboard UI (client component) | `components/dashboard/DashboardClient.tsx` |
+| Dashboard shell (client component): data loading, Congress switching, drill-down, the two older charts | `components/dashboard/DashboardClient.tsx` |
+| Hero and chart sections | `components/dashboard/home/` — `hero.tsx` + `hemicycle.tsx`, `stat-strip.tsx`, `stage-zoom.tsx`, `topic-wheel.tsx`, `sponsors-chart.tsx`, `state-map.tsx`, shared props and ask pieces in `shared.tsx` |
 | Dashboard queries | `convex/bills.ts` — `getAllCongressOverview`, `getCongressDashboard`, `getChamberDeepBreakdown` |
 | Recompute jobs | `convex/mutations.ts`, orchestrated from `convex/congressApi.ts` |
 | Precomputed tables | `convex/schema.ts` |
@@ -21,8 +22,9 @@ illustrative of magnitude, not as live values.
 | Fonts | `app/layout.tsx` |
 | Closing decoration | `components/waving-flag.tsx` |
 
-`components/dashboard/` contains exactly one file. **There is no charting library** — every
-chart is hand-built from `div`s with computed inline widths and heights.
+**There is no charting library** — every chart is hand-built from `div`s or inline SVG with
+computed sizes. Every section in `home/` takes the same `HomeProps` object, built once in
+`DashboardClient`, so adding one is a single line there.
 
 ---
 
@@ -81,6 +83,15 @@ The dashboard applies status and party colours as **inline styles**, not Tailwin
 because widths and colours are computed at runtime. The `status-*` / `party-*` Tailwind
 aliases exist for the rest of the site.
 
+Two chart-only palettes sit at the end of `app/globals.css`:
+
+- `--topic-1` … `--topic-6` colour the six biggest slices of the topic wheel. They are
+  plain hex, one set per theme, and were checked with a colour-blindness validator against
+  this site's own backgrounds (worst neighbouring pair ΔE 9.2 light / 9.4 dark). Blue, red and
+  green are left out so a topic can never be read as a party or as "became law". Four of the
+  light-mode colours are under 3:1 contrast, which is why the wheel always ships its legend.
+- `--heat` is the single amber hue the state map shades in five opacity steps.
+
 > Anything describing Playfair Display, Source Sans 3, or a navy/gold `--congress-*` palette
 > is from a much older draft of this file. No such tokens exist in the codebase.
 
@@ -98,33 +109,37 @@ should look like a missing backend, not an empty dashboard.
 
 | # | Section | What it shows | Drills through? |
 | --- | --- | --- | --- |
-| 1 | Hero / masthead | Eyebrow, headline "Every bill, every step, in plain view.", the `HeroAsk` box with three generated starter questions | Link to `/bills` |
-| 1a | Congress selector | One button per Congress that has bills, newest first, labelled with year span and ordinal | Switches the view in place |
-| 2 | "The evidence" divider | One line tying the numbers below to the answers above | No |
-| 3 | Key metrics | Bills introduced · House bills · Senate bills · Became law | Cards 1 and 4 only |
-| 4a | Status distribution | 12px stacked bar plus a legend table (swatch, label, share to 1dp, count) | Every segment and every row |
-| 4b | Top policy areas | Top 8, name and count over a scaled bar | Yes |
-| 5 | Leading sponsors | Top 10 table: rank, member, party, state, bill count | Whole row |
-| 6 | Who's writing the bills | Per-chamber stacked party bar with a share/count/laws table, a combined passage-rate footnote, and a top-8 sponsoring-states list | States only |
+| 1 | Hero — the chamber (`home/hero.tsx`) | Headline "Who's writing America's laws?", one source line, and a parliament-style half circle. Outer seats: every bill split by the sponsor's party, one seat per ~N bills (N = bills ÷ 435, stated under the chart). Inner seats, ringed in green: the bills that became law, one seat each (scaled only past 400). The hollow shows the law count and swaps to a party's own numbers on hover. One legend row carries every party. Below: the ask box and two starter pills. A dropdown picks the Congress; "Browse bills" sits beside it | "Browse bills" link |
+| 2 | Stat cards (`home/stat-strip.tsx`) | Bills introduced · House bills · Senate bills · Became law, each with one line of context ("65% of all bills", "about 1 in 168 bills") | All four |
+| 3 | Where bills stand (`home/stage-zoom.tsx`) | Two panels at two stated scales. Left: bills still introduced or in committee, small squares of 1–1,000 bills each. Right, zoomed in: every bill that moved, one bigger square per bill, one row per stage | Every row and square |
+| 4 | What Congress is working on (`home/topic-wheel.tsx`) | Radial chart: the six biggest policy areas as coloured slices, everything else as one grey slice, one dot per ~N bills. Full names, shares and counts live in the legend beside it, never on the rim. Clicking a slice or row pins it and offers "See these bills" and "Ask what they're about" | Pinned topic |
+| 5 | Leading sponsors (`home/sponsors-chart.tsx`) | Top 10 members as horizontal bars from zero, coloured by party, count at the bar end | Every bar |
+| 6 | Where bills come from (`home/state-map.tsx`) | Tile map, one square per state (plus territories), shaded in five equal-count steps. "Per member" divides by House seats + 2 senators (one delegate for DC and territories) using the 2020 apportionment, so it is offered only from the 118th Congress on. Hover shows the state's numbers; otherwise the top five are listed | Every tile and row |
 | 7 | Introductions month by month | Two-track chart — introductions up, laws down, **each track independently scaled** — closing with a generated sentence naming busiest, quietest, and most-laws months | No |
 | 8 | Volume across recent Congresses | One bar per Congress, max height 140px | Switches Congress |
 | 9 | Podcast promo | "The Federalist Papers: Explained" | External links |
 | 10 | Waving flag | Decorative, `aria-hidden`, reduced-motion aware | No |
 
-Sections 2–8 live inside a cross-fade wrapper. Switching Congress does **not** blank the
+Sections 1–8 live inside a cross-fade wrapper. Switching Congress does **not** blank the
 page to a skeleton: the previous numbers stay on screen at 50% opacity and
 `pointer-events-none` until the new data lands, so a drill-down can never fire against
-numbers that no longer match the selection.
+numbers that no longer match the selection. The hero is inside that wrapper too, so its
+Congress dropdown is briefly inert while a switch loads.
+
+Numbers in the monthly chart and the state map count bills by the month they were
+**introduced** and the state of their **sponsor**; the "became law" figures anywhere on the
+page are progress stage 100 only, the same definition `statusBreakdown.becameLaw` uses.
 
 ### "Ask about this"
 
-Sections 4a, 4b, 5, 6, 7 and 8 each carry an `askQuestion` string that interpolates the
+Sections 3 through 8 each carry an "Ask about this" question that interpolates the
 current Congress (for example *"Why do most bills never leave committee in the 119th
-Congress?"*) and renders an `AskAbout` button. The comment in `DashboardClient.tsx` states
+Congress?"*) and renders an ask button (`AskAbout` on the two older charts, `StarterButton` from
+`home/shared.tsx` on the new ones — same event, same behaviour). The comment in `DashboardClient.tsx` states
 the rule: this sits **alongside** the drill-down and never replaces it, because browsing and
 asking are different intents.
 
-The masthead also mounts `<AskPageContext congress={viewCongress} />` beside `HeroAsk`. Every
+`DashboardClient` also mounts `<AskPageContext congress={viewCongress} />` above the hero. Every
 catalog fetch defaults to the 119th Congress, so before this the selector and the answer engine
 disagreed silently: a reader studying the 117th here and then asking a question was answered
 about a different Congress entirely, with nothing on screen to say so. The selector's value now
@@ -245,10 +260,11 @@ reconcile happens to touch them.
 ## Drill-down
 
 One chokepoint, `handleDrillDown`, which fires the analytics event, pins the Congress, adds
-exactly one more filter, and pushes to `/bills`. (The hero's plain "Or browse all bills →"
+exactly one more filter, and pushes to `/bills`. (The hero's plain "Browse bills →"
 link and the podcast links navigate on their own and are captured separately.)
 
-**Policy-area rows are the one exception, deliberately.** They are real `<a href>` elements
+**Topic links are the one exception, deliberately.** The "→" on each coloured row of the
+topic wheel's legend, and the pinned topic's "See these bills", are real `<a href>` elements
 rather than scripted pushes, because this is the only page search engines index and a
 `router.push` passes no link equity to the topic hub pages at all. They fire
 `dashboard_drilldown_clicked` themselves, with identical properties, and let the `href` do the
@@ -258,24 +274,17 @@ one. If you add a new chart, route it through `handleDrillDown`.
 | Element | Filter | Example URL |
 | --- | --- | --- |
 | "Bills introduced" card | `congress` | `/bills?congress=119` |
+| "House bills" / "Senate bills" card | `chamber` | `/bills?congress=119&chamber=house` |
 | "Became law" card | `status=100` | `/bills?congress=119&status=100` |
-| Status segment or legend row | `status` | `/bills?congress=119&status=40` |
-| Policy area row | `policyArea` | Newest Congress: `/bills/topic/health` (the hub). Older: `/bills?congress=117&policyArea=Health` |
-| Sponsor row | `sponsor` | `/bills?congress=119&sponsor=Rick+Scott` |
-| Top-state row | `state` | `/bills?congress=119&state=CA` |
+| Stage row or square | `status` | `/bills?congress=119&status=40` |
+| Topic legend "→", or pinned topic's "See these bills" | `policyArea` | Newest Congress: `/bills/topic/health` (the hub). Older: `/bills?congress=117&policyArea=Health` |
+| "Everything else" topic slice | `congress` | `/bills?congress=119` |
+| Sponsor bar | `sponsor` | `/bills?congress=119&sponsor=Rick+Scott` |
+| State tile or top-five row | `state` | `/bills?congress=119&state=CA` |
 
-### Why the House and Senate cards are not clickable
-
-Verbatim from the source: *"House bills" / "Senate bills" count ALL house-originated (hr,
-hjres, hconres, hres) and senate-originated types. There is no single `billType` filter value
-that matches that union, so we omit drill-downs on those two cards rather than mislead the
-user with a narrower filter.*
-
-Mechanically the two cards simply omit `onClick`, and the card renders a `<div>` with
-`cursor-default` instead of a `<button>`, so they get no hover affordance either.
-
-Worth revisiting: `/bills/house` and `/bills/senate` hub pages now exist and carry exactly
-the right filter, so a correct target is available today — the cards just do not use it.
+The House and Senate cards used to be dead, because no single `billType` matches every
+House-originated type. The `/bills` page has since gained a whole-chamber `chamber` filter,
+which is exactly that union, so all four cards now drill through and share one hover.
 
 ---
 
@@ -289,8 +298,8 @@ Recorded so they are decisions rather than surprises.
 2. **"Top" ordering is an artifact of insertion order.** Neither top list applies an
    `order()`. A future writer that inserted unsorted rows would produce a silently wrong
    "top 10" with no error.
-3. **Two policy areas are fetched and discarded** on every load — the query returns 10 and the
-   list renders 8.
+3. **Four policy areas are fetched and discarded** on every load — the query returns 10 and the
+   wheel colours 6, folding the rest into "Everything else".
 4. **The monthly chart has no drill-through** — it is the only data section with neither a
    click target nor a link.
 5. **Policy areas and sponsors have no independent refresh** — they only update when a sync
@@ -302,6 +311,9 @@ Recorded so they are decisions rather than surprises.
    tested — `convex/billStage.test.ts` for the stage constants,
    `lib/starter-questions.test.ts` for the hero starters — but the rendering and the query
    shapes are not.
+8. **The state map's seat counts are hard-coded** (2020 apportionment, in `home/state-map.tsx`).
+   They must be revisited after the 2030 census, and the "per member" view deliberately does
+   not exist for Congresses before the 118th rather than divide by the wrong seats.
 
 ---
 

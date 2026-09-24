@@ -95,7 +95,8 @@ components/                Shared React components
   answers/                 The ask panel: provider, panel, thread, sources, work log, history
   bills/                   Card, details, progress, save button
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
-  dashboard/               DashboardClient.tsx (the whole dashboard, one file)
+  dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
+    home/                  The home page hero (the chamber) and its chart sections
   auth/ analytics/ legal/ seo/ theme/ ui/
   navigation.tsx footer.tsx podcast-promo.tsx waving-flag.tsx
   convex-client-provider.tsx theme-provider.tsx

@@ -150,6 +150,21 @@ export const analytics = {
       congress,
     }),
 
+  /** Reader focused one party in the hero chamber (hover, or keyboard focus on
+   *  its legend entry). Once per party per page view, so a mouse sweeping the
+   *  arc does not flood the project. */
+  homeChamberPartyFocused: (party: 'D' | 'R' | 'I' | 'U', congress: number) =>
+    capture('home_chamber_party_focused', { party, congress }),
+
+  /** Reader pinned a slice of the topic wheel by clicking it or its legend row.
+   *  `is_rest` is the grey "everything else" slice. */
+  homeTopicSelected: (props: { policy_area: string; is_rest: boolean; congress: number }) =>
+    capture('home_topic_selected', props),
+
+  /** Reader switched the state map between total bills and bills per member. */
+  homeStateMapMeasureChanged: (measure: 'total' | 'per_member', congress: number) =>
+    capture('home_state_map_measure_changed', { measure, congress }),
+
   // Bills browse
 
   /** `surface` says where "clear all" was pressed from — the bar, the panel, or
