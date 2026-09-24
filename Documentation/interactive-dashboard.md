@@ -86,8 +86,13 @@ aliases exist for the rest of the site.
 Two chart-only palettes sit at the end of `app/globals.css`:
 
 - `--topic-1` … `--topic-6` colour the six biggest slices of the topic wheel. They are
-  plain hex, one set per theme, and were checked with a colour-blindness validator against
-  this site's own backgrounds (worst neighbouring pair ΔE 9.2 light / 9.4 dark). Blue, red and
+  plain hex, one set per theme, taken from a published eight-colour categorical palette and
+  checked with that palette's validator, an external script that is not part of this repo. It
+  simulates protan, deutan and tritan colour vision and measures the difference between
+  neighbouring slices in OKLab (ΔE × 100), against this site's own backgrounds (`#faf7f2`
+  light, `#111419` dark). The worst neighbouring pair was 9.2 light / 9.4 dark; 8 is the
+  usual target. To re-check without the script, any CVD simulator applied to adjacent
+  slices will do. Blue, red and
   green are left out so a topic can never be read as a party or as "became law". Four of the
   light-mode colours are under 3:1 contrast, which is why the wheel always ships its legend.
 - `--heat` is the single amber hue the state map shades in five opacity steps.
