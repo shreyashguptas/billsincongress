@@ -28,6 +28,10 @@
  *   export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)
  *   ./node_modules/.bin/tsx scripts/truth/dump.ts
  *
+ * Or, with no deploy key, as a user logged in with `npx convex login`, naming
+ * the production deployment explicitly:
+ *   ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment <prod-deployment-name>
+ *
  * NOT part of `pnpm test`: it needs production credentials and downloads ~170MB.
  * Named dump.ts, not dump.test.ts, so the suite's *.test.ts discovery cannot
  * pick it up.
@@ -68,6 +72,8 @@ const KEY_HELP =
   "CONVEX_DEPLOY_KEY is not set, so there is no deployment to export from.\n\n" +
   "  export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)\n" +
   "  ./node_modules/.bin/tsx scripts/truth/dump.ts\n\n" +
+  "Or, logged in with `npx convex login` and no key:\n" +
+  "  ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment <prod-deployment-name>\n\n" +
   "The key selects the deployment on its own — do NOT also pass --prod, and do\n" +
   "not point this at a dev deployment: the harness scores what readers actually\n" +
   "get, which is production.";
@@ -168,8 +174,25 @@ function removeStrays(): void {
   }
 }
 
+/**
+ * `--deployment <name>` for a logged-in user without a deploy key. Only a bare
+ * deployment name is accepted: it is passed to `convex export` as an argument,
+ * and nothing that looks like a flag or a path may ride along with it.
+ */
+function deploymentArg(): string[] {
+  const i = process.argv.indexOf("--deployment");
+  if (i === -1) return [];
+  const name = process.argv[i + 1] ?? "";
+  if (!/^[a-z]+-[a-z]+-\d+$/.test(name)) {
+    console.error(`--deployment needs a deployment name like "happy-animal-123", got "${name}".`);
+    process.exit(1);
+  }
+  return ["--deployment", name];
+}
+
 function main(): void {
-  if (!process.env.CONVEX_DEPLOY_KEY) {
+  const deployment = deploymentArg();
+  if (!process.env.CONVEX_DEPLOY_KEY && deployment.length === 0) {
     console.error(KEY_HELP);
     process.exit(1);
   }
@@ -186,7 +209,9 @@ function main(): void {
     console.log(`Exporting production tables to ${ZIP_PATH} ...`);
     // No --include-file-storage: that flag only ADDS stored files, and we want
     // strictly less than the default, not more.
-    execFileSync("npx", ["convex", "export", "--path", ZIP_PATH], { stdio: "inherit" });
+    execFileSync("npx", ["convex", "export", "--path", ZIP_PATH, ...deployment], {
+      stdio: "inherit",
+    });
 
     const byTable = entriesByTable();
     const missing = TABLES.filter((t) => !byTable.has(t));
