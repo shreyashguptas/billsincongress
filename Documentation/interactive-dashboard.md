@@ -98,7 +98,7 @@ should look like a missing backend, not an empty dashboard.
 
 | # | Section | What it shows | Drills through? |
 | --- | --- | --- | --- |
-| 1 | Hero / masthead | Eyebrow, headline "Every bill, every step, in plain view.", the `HeroAsk` box with three generated starter questions | Link to `/bills` |
+| 1 | Hero / masthead | Eyebrow, headline "Every bill, every step, in plain view.", the `HeroAsk` box (with instant bill suggestions as you type) and three generated starter questions | Link to `/bills`; suggested bills link to their pages |
 | 1a | Congress selector | One button per Congress that has bills, newest first, labelled with year span and ordinal | Switches the view in place |
 | 2 | "The evidence" divider | One line tying the numbers below to the answers above | No |
 | 3 | Key metrics | Bills introduced · House bills · Senate bills · Became law | Cards 1 and 4 only |
@@ -129,6 +129,25 @@ catalog fetch defaults to the 119th Congress, so before this the selector and th
 disagreed silently: a reader studying the 117th here and then asking a question was answered
 about a different Congress entirely, with nothing on screen to say so. The selector's value now
 travels with the question. See [The answer engine → Page context](./overview.md#page-context).
+
+### Bill suggestions in the ask box
+
+Most of what readers type into `HeroAsk` is a search rather than a question: from 13 to 23 Sep
+2026, 265 of 340 typed entries were four words or fewer and 66 were a bare bill reference, and
+each waited 10–40 seconds for an AI answer. So while the reader types, up to five matching bills
+appear under the field (`components/answers/use-bill-suggestions.ts`). They come from the same
+`bills.list` query as the `/bills` search box, through `billsService.fetchBills`, so bill
+references ("HR 979", "s.1426") become an exact number lookup and the curated acronyms
+("KOSA", "NDAA") expand exactly as they do there. The search is scoped to the Congress on screen.
+
+The rules live in `lib/bill-suggest.ts` and its tests. The key one is that **Enter still asks
+the question** unless a row is highlighted, and the only row highlighted by default is a bill
+reference that matched exactly one bill, so "HR 979" + Enter opens H.R. 979 while "climate
+change" + Enter asks. "See all matching bills" opens `/bills` with the same text and Congress.
+Measured against production on 2026-09-24, a bill-number lookup returns in about 40 ms. A common
+topic word takes 0.3–1.4 s, because the title search reads up to 1,024 matches before returning a
+page. Events: `bill_suggestions_shown`, `bill_suggestion_clicked`,
+`bill_suggestions_see_all_clicked` (see `ANALYTICS.md`).
 
 ---
 

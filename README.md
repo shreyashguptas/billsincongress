@@ -22,7 +22,9 @@ It is free, has no ads, and you do not need an account to read anything on it.
 
 ### The front page — one Congress at a glance
 
-The home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them). It shows:
+At the top is a box for asking a question. As you type, bills whose title or number matches appear under it straight away. Pick one to go straight to its page, or press Enter to ask your question instead. The one exception: if you typed a bill number that matches exactly one bill, Enter opens that bill.
+
+Below that, the home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them). It shows:
 
 - **Four headline counts** — bills introduced, House bills, Senate bills, and how many became law.
 - **Where bills stand** — a stacked bar across the legislative pipeline, with each stage's share and count. It is a blunt picture: in the 119th Congress, about 96% of everything introduced is still sitting in committee.
