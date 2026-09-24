@@ -117,10 +117,10 @@ jobs:
         continue-on-error: true
         run: pnpm install --frozen-lockfile 2>&1 | tee /tmp/install-output.txt
 
-      # This is `anthropics/claude-code-action` v1, the same pin the review
-      # workflow uses. Re-resolve the tag and update both deliberately when
-      # taking a new version.
-      - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678
+      # This is `anthropics/claude-code-action` v1 as of 23 Sep 2026 (Claude
+      # Code 2.1.281), the same pin the review workflow uses. Re-resolve the tag
+      # and update both deliberately when taking a new version.
+      - uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
@@ -156,7 +156,15 @@ jobs:
           # OAuth and app tokens, so a compromised transitive dependency could
           # read them. `allowBuilds` in pnpm-workspace.yaml gates dependencies'
           # build scripts, though not this repository's own lifecycle scripts.
+          #
+          # Model and effort are pinned here rather than left to the action's
+          # default, so an answer is not silently run by a different model when
+          # that default moves. Opus 5.5 at medium effort. `--effort` was checked
+          # against Claude Code 2.1.281, the version the action pin above
+          # installs; re-check it when moving that pin.
           claude_args: |
+            --model claude-opus-5-5
+            --effort medium
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(gh run view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*),Bash(git status:*),Bash(pnpm test:*),Bash(./node_modules/.bin/tsc --noEmit:*)"
             --append-system-prompt "You answer in comments. You do not change this repository: you have no ability to edit files, commit or push, and that is deliberate. Whoever asked will apply your fix themselves, so your reply has to be complete enough to act on without you. Give the reasoning, then the exact change, as a fenced diff or as full replacement code with the file path and enough surrounding context to place it unambiguously. Never say you have made a change; say what change to make. Read the codebase before answering rather than reasoning from the diff alone. Read AGENTS.md, which is the house rules for this repository and names the other documents that matter; Convex rules live in convex/_generated/ai/guidelines.md and override general Convex knowledge. The branch is checked out with dependencies installed, so run pnpm test and ./node_modules/.bin/tsc --noEmit whenever a claim turns on whether something passes or compiles, and never report a check as passing without having seen it. If installation failed, read /tmp/install-output.txt and say in your reply that you could not execute anything. If a user-facing feature changes, the analytics registry named in AGENTS.md and lib/analytics.ts have to change with it, so include those edits in what you hand back. Never put a credential in a suggested change. Prefer one well-evidenced answer to five speculative ones, and say plainly when you are unsure."
             --max-turns 120
