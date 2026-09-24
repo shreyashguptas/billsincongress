@@ -23,7 +23,7 @@
   "placement": { "mode": "smart" },
   // Cost guardrail: cap CPU time per request so a runaway bug can't quietly run
   // up the bill. 10s is ~30-100x a normal render and well under Cloudflare's 30s
-  // default. CPU time excludes time spent waiting on Convex/Resend/PostHog
+  // default. CPU time excludes time spent waiting on Convex/PostHog
   // subrequests, so this does not affect normal traffic. Enforced on Cloudflare's
   // network only, not in local dev.
   "limits": { "cpu_ms": 10000 },

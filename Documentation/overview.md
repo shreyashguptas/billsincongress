@@ -837,7 +837,8 @@ password-reset code.
   body; it is a property of handing the email to any sending service. Keep PostHog project
   membership as tight as Convex's.
 - **Bounces and delivery** show up as `$workflows_email_*` events in PostHog (see
-  `ANALYTICS.md`) and in the workflow's Metrics and Logs tabs.
+  `ANALYTICS.md`) and in the workflow's Metrics tab; per-send step traces are in its Logs tab,
+  and each send's full payload in its Invocations tab (above).
 
 ---
 
