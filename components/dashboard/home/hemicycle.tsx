@@ -194,15 +194,24 @@ export function Hemicycle({
 }
 
 /** The one-line scale note — the only caption the chart needs. */
+/**
+ * "= 1" only when a seat really is exactly one; any scaled seat says "≈", with
+ * one decimal under 10 so 600 bills on 435 seats reads "≈ 1.4", not "= 1".
+ */
+function perSeatLabel(total: number, seats: number, one: string, many: string) {
+  if (total <= seats) return `= 1 ${one}`;
+  const per = total / seats;
+  return `≈ ${per < 10 ? per.toFixed(1) : fmt(Math.round(per))} ${many}`;
+}
+
 export function HemicycleKey({ totalBills, totalLaws }: { totalBills: number; totalLaws: number }) {
   if (totalBills === 0) return null;
-  const perSeat = Math.max(1, Math.round(totalBills / outerSeatsFor(totalBills)));
   return (
     <p className="font-mono text-[10px] text-muted-foreground">
-      {perSeat === 1 ? 'outer seat = 1 bill' : `outer seat ≈ ${fmt(perSeat)} bills`}
+      outer seat {perSeatLabel(totalBills, OUTER_SEATS, 'bill', 'bills')}
       <span className="mx-2 opacity-50">|</span>
       <span className="inline-block h-2 w-2 rounded-full align-middle mr-1 ring-1" style={{ '--tw-ring-color': 'hsl(var(--status-law))' } as React.CSSProperties} />
-      inner seat = {totalLaws > MAX_LAW_SEATS ? `${fmt(Math.ceil(totalLaws / MAX_LAW_SEATS))} laws` : '1 law'}
+      inner seat {perSeatLabel(totalLaws, MAX_LAW_SEATS, 'law', 'laws')}
     </p>
   );
 }
