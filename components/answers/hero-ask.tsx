@@ -77,6 +77,13 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
     });
   };
 
+  const askTyped = () => {
+    const q = input;
+    setInput('');
+    setOpen(false);
+    void ask(q, { source: 'typed' });
+  };
+
   const seeAllHref =
     '/bills' +
     buildFilterQuery({ ...DEFAULT_FILTER_VALUES, title: input.trim(), congress: String(congress) });
@@ -93,10 +100,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               router.push(`/bills/${bills[highlight].id}`);
               return;
             }
-            const q = input;
-            setInput('');
-            setOpen(false);
-            void ask(q, { source: 'typed' });
+            askTyped();
           }}
           className="flex items-center gap-2 border border-border rounded-sm bg-background focus-within:border-foreground transition-colors"
         >
@@ -136,6 +140,13 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
           />
           <button
             type="submit"
+            // The arrow is labelled "Ask", so clicking it always asks — even
+            // with a row highlighted by hover or arrow keys. Only Enter in the
+            // field opens a highlighted bill, and the footer says when it will.
+            onClick={(e) => {
+              e.preventDefault();
+              if (input.trim()) askTyped();
+            }}
             disabled={busy || !input.trim()}
             aria-label="Ask"
             className="mr-1.5 inline-flex h-9 w-9 items-center justify-center rounded-sm bg-foreground text-background hover:bg-foreground/85 transition-colors disabled:opacity-40 shrink-0"
@@ -155,6 +166,12 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               <ul
                 id={listId}
                 role="listbox"
+                // Hover highlights a row; leaving the list hands the highlight
+                // back to its default, so a stray pass of the mouse does not
+                // change what Enter does.
+                onMouseLeave={() =>
+                  setHighlight(initialHighlight(suggestions.kind, bills.length))
+                }
                 aria-label="Matching bills"
                 aria-busy={!settled}
                 className={`py-1 transition-opacity ${settled ? '' : 'opacity-60'}`}
