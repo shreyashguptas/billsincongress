@@ -257,6 +257,7 @@ function DashboardInner({
               <HeroAsk
                 starters={{
                   congress: viewCongress,
+                  latestCongress: newestCongress,
                   totalBills: congressDashboard?.totalBills ?? 0,
                   topPolicyAreas: congressDashboard?.topPolicyAreas ?? [],
                   statusBreakdown: congressDashboard?.statusBreakdown ?? null,

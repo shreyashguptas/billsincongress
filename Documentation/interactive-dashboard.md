@@ -98,7 +98,7 @@ should look like a missing backend, not an empty dashboard.
 
 | # | Section | What it shows | Drills through? |
 | --- | --- | --- | --- |
-| 1 | Hero / masthead | Eyebrow, headline "Every bill, every step, in plain view.", the `HeroAsk` box (with instant bill suggestions as you type) and three generated starter questions | Link to `/bills`; suggested bills link to their pages |
+| 1 | Hero / masthead | Eyebrow, headline "Every bill, every step, in plain view.", the `HeroAsk` box (with instant bill suggestions as you type) and three generated starters that link to the page answering each | Link to `/bills`; suggested bills link to their pages; starters link to hubs or filtered `/bills` |
 | 1a | Congress selector | One button per Congress that has bills, newest first, labelled with year span and ordinal | Switches the view in place |
 | 2 | "The evidence" divider | One line tying the numbers below to the answers above | No |
 | 3 | Key metrics | Bills introduced · House bills · Senate bills · Became law | Cards 1 and 4 only |
@@ -148,6 +148,21 @@ Measured against production on 2026-09-24, a bill-number lookup returns in about
 topic word takes 0.3–1.4 s, because the title search reads up to 1,024 matches before returning a
 page. Events: `bill_suggestions_shown`, `bill_suggestion_clicked`,
 `bill_suggestions_see_all_clicked` (see `ANALYTICS.md`).
+
+### The starters under the ask box
+
+`lib/starter-questions.ts` builds three starters from the dashboard numbers: the top policy
+area, the count that became law, and the share still in committee. Until 2026-09-24 they were
+questions sent to the answer engine, and they were its worst: 96 clicks from 2 to 24 Sep, 27
+readers gone before any answer, and 63 of the 69 answers stopped early after a median 24–30
+seconds, because each asks about hundreds or thousands of bills and a lookup reads 50. They are
+now links to the page that answers each one completely: `/bills/topic/<slug>`,
+`/bills/enacted` and `/bills/in-committee` for the newest Congress, or the same filter on
+`/bills` for an older one, because hub pages always show the newest Congress. The committee
+starter only says "Why" when it links to the hub, whose explainer answers it. Checked
+against production on 2026-09-24: each destination shows the same count as its starter
+(113, 2,181 and 18,208 of 19,007 for the 119th; 365, 2,276 and 16,721 of 17,828 for the 117th).
+The cold-start fallbacks are still asked.
 
 ---
 

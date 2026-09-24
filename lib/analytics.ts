@@ -531,8 +531,18 @@ export const analytics = {
   answerAnonThreadSaved: (props: { turn_count: number }) =>
     capture('answer_anon_thread_saved', props),
 
-  answerStarterClicked: (props: { surface: string; starter_text: string }) =>
-    capture('answer_starter_clicked', props),
+  /**
+   * A generated starter or chart question was used. On the home masthead the
+   * data starters open a page instead of asking (`action: 'open_page'`, with the
+   * `destination` path); only there is `action` sent. Kept on this event rather
+   * than a new one so starter click-through stays one continuous series.
+   */
+  answerStarterClicked: (props: {
+    surface: string;
+    starter_text: string;
+    action?: 'ask' | 'open_page';
+    destination?: string;
+  }) => capture('answer_starter_clicked', props),
 
   answerWebSearchUsed: (props: {
     surface: string;
