@@ -16,8 +16,17 @@ export const revalidate = 86400;
 // the last good index in the meantime.
 export async function GET(): Promise<Response> {
   const client = getConvexHttpClient();
-  if (!client) throw new Error('sitemap_index: NEXT_PUBLIC_CONVEX_URL is not set');
-  const ids = sitemapIds(await client.query(api.bills.getCongressNumbers, {}));
+  // No deployment URL at all is a build without secrets (a fork's pull request,
+  // a fresh clone), not an outage — this route is prerendered at build, so a
+  // throw here would fail that build. Mirror generateSitemaps and list the
+  // static file only. A lookup that fails or returns nothing still throws.
+  let ids: number[];
+  if (!client) {
+    console.warn('sitemap_index: NEXT_PUBLIC_CONVEX_URL is not set; static sitemap only');
+    ids = [0];
+  } else {
+    ids = sitemapIds(await client.query(api.bills.getCongressNumbers, {}));
+  }
   const body = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${ids.map((id) => `  <sitemap><loc>${SITE_URL}/sitemap/${id}.xml</loc></sitemap>`).join('\n')}
