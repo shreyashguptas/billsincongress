@@ -23,6 +23,7 @@ Figures were verified against production on **29 August 2026**.
 - [Convex functions](#convex-functions)
 - [The answer engine](#the-answer-engine)
 - [Accounts and auth](#accounts-and-auth)
+- [Email](#email)
 - [Environment variables](#environment-variables)
 - [Build, test and deploy](#build-test-and-deploy)
 - [Hosting and Cloudflare constraints](#hosting-and-cloudflare-constraints)
@@ -769,7 +770,7 @@ Re-run the three manual probes whenever the model or provider pin changes.
 ## Accounts and auth
 
 `@convex-dev/auth` with two providers: **Google OAuth**, and **email + password** with a
-6-digit code emailed via Resend that expires in 15 minutes. Passwords must be ≥10 characters
+6-digit code emailed through PostHog Workflows (see "Email" below) that expires in 15 minutes. Passwords must be ≥10 characters
 with upper case, lower case and a digit, enforced server-side; they are stored only as a
 scrypt hash by the library.
 
@@ -792,10 +793,43 @@ Deliberate hardening worth preserving:
 - No public function takes a `userId` — enforced by a guard on every test run.
 
 **Not built (UI only):** the password-reset *back end* is wired — `convex/auth.ts` passes
-`reset: ResendOTPPasswordReset`, which emails a 6-digit reset code on the same rate-limit
+`reset: PasswordResetCode` (`convex/emailCodes.ts`), which emails a 6-digit reset code on the same rate-limit
 bucket — but no page ever starts the flow, so `/forgot-password` is a static "coming soon"
 page asking people to email. Self-serve account deletion does not exist at all; deletion is
 handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly.
+
+---
+
+## Email
+
+Every email goes out through **PostHog Workflows** from `no-reply@mail.billsincongress.com`.
+Today that is only the two account emails: the sign-up verification code and the
+password-reset code.
+
+- **The site writes the email; PostHog only delivers it.** `convex/codeEmail.ts` renders the
+  subject, plain text and HTML (letterhead in `convex/emailStyle.ts`), and
+  `convex/posthogEmail.ts` POSTs them to the workflow's webhook. The workflow is one email
+  step that places those fields with Liquid's `| raw` filter (without it PostHog
+  HTML-escapes them). To change the wording, edit the code, not the workflow.
+- **The webhook needs a password.** Its trigger requires `Authorization: Bearer
+  <POSTHOG_EMAIL_WEBHOOK_SECRET>` and rejects anything else with a 401, so the URL alone
+  cannot be used to send mail as the site.
+- **Sent inline, not queued.** The code is posted from the sign-in request itself, so a
+  failure reaches the reader as "Could not send verification email." at once.
+- **Transactional, untracked.** The step's message category is transactional (sent even to
+  someone who opted out of other mail, no unsubscribe header) and open/click tracking is
+  off: no pixel, no rewritten links.
+- **Works with remote content blocked.** No images, web fonts or remote CSS; the code is
+  text. `convex/codeEmail.test.ts` checks this.
+- **Sending allowance.** PostHog caps each project's daily sends while it builds a sending
+  reputation (a new project starts at 100 a day). Above the cap, emails wait rather than
+  fail, which for a sign-up code means a late code. See
+  [Sending reputation](https://posthog.com/docs/workflows/sending-reputation).
+- **DNS** (Cloudflare, added by PostHog's one-click Domain Connect): DKIM and the
+  `_amazonses` verification record on `mail.billsincongress.com`, and the bounce domain
+  `feedback.mail.billsincongress.com` (MX + SPF). PostHog sends through Amazon SES.
+- **Bounces and delivery** show up as `$workflows_email_*` events in PostHog (see
+  `ANALYTICS.md`) and in the workflow's Metrics and Logs tabs.
 
 ---
 
@@ -829,8 +863,8 @@ Set with `npx convex env set --prod`. Ten are configured in production.
 | `OPENROUTER_MODEL` | Model override | `deepseek/deepseek-v4-flash-0731` |
 | `OPENROUTER_PROVIDERS` | Provider pin | `deepinfra,amazon-bedrock` |
 | `OPENROUTER_FALLBACK_MODELS` | Failover chain | Default chain — **blank disables failover** |
-| `AUTH_RESEND_KEY` | Resend API key for OTP mail | none |
-| `AUTH_EMAIL_FROM` | `From:` on OTP mail | `Bills.Congress <onboarding@resend.dev>` (Resend's shared sandbox) |
+| `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
+| `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing | none |
 | `SITE_URL` | Auth redirect base | library default |

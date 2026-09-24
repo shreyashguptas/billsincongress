@@ -45,7 +45,6 @@
     "posthog-node": "^5.51.6",
     "react": "^19.2.8",
     "react-markdown": "^10.1.0",
-    "resend": "6.12.2",
     "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {

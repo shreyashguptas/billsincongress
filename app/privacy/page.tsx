@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'August 29, 2026';
+const LAST_UPDATED = 'September 24, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -152,9 +152,12 @@ export default function PrivacyPage() {
                 you are signed in, our analytics link your activity to your
                 account (including your email address) so we can understand the
                 journey from first visit to sign-up. We send email only for
-                account purposes — verification codes and password resets — via{' '}
-                <ExternalLink href="https://resend.com">Resend</ExternalLink>.
-                We do not send marketing email or newsletters.
+                account purposes — verification codes and password resets —
+                through PostHog, the same provider that runs our analytics. To
+                deliver one, PostHog receives your email address and the
+                message, and records whether it was delivered or bounced. These
+                emails contain no tracking pixels or tracked links. We do not
+                send marketing email or newsletters.
               </p>
               <p>
                 The site is free and has no paid features today, so we do not
@@ -386,7 +389,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (verification codes and password resets), for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
@@ -395,10 +398,6 @@ const providers = [
   {
     name: 'Exa',
     role: 'Web search, used only when our own records cannot answer. Receives a rewritten neutral search phrase, never your question in your own words and never your identity.',
-  },
-  {
-    name: 'Resend',
-    role: 'Delivers account emails: verification codes and password resets.',
   },
   {
     name: 'Google',

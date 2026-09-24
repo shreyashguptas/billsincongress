@@ -198,6 +198,7 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **The text of questions you ask the assistant is included in that analytics data.**
 - **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database. The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
+- **Account emails (sign-up and password-reset codes) are sent through PostHog**, the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
@@ -242,7 +243,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
 | Styling | Tailwind CSS, shadcn/ui, Framer Motion |
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
-| Accounts | Convex Auth: Google sign-in, or email and password with a one-time code sent via Resend |
+| Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |
 | Hosting | Cloudflare Workers via OpenNext, with Convex Cloud for the backend |
 | Analytics | PostHog |

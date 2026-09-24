@@ -8,15 +8,13 @@
  * @module
  */
 
-import type * as ResendOTP from "../ResendOTP.js";
-import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
 import type * as answer from "../answer.js";
 import type * as auth from "../auth.js";
 import type * as baseRates from "../baseRates.js";
-import type * as billStage from "../billStage.js";
 import type * as bills from "../bills.js";
+import type * as billStage from "../billStage.js";
 import type * as catalog_answerSanitize from "../catalog/answerSanitize.js";
 import type * as catalog_billsIndex from "../catalog/billsIndex.js";
 import type * as catalog_cite from "../catalog/cite.js";
@@ -34,8 +32,11 @@ import type * as catalog_types from "../catalog/types.js";
 import type * as chamber from "../chamber.js";
 import type * as chatAnalytics from "../chatAnalytics.js";
 import type * as chats from "../chats.js";
+import type * as codeEmail from "../codeEmail.js";
 import type * as congressApi from "../congressApi.js";
 import type * as crons from "../crons.js";
+import type * as emailCodes from "../emailCodes.js";
+import type * as emailStyle from "../emailStyle.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as indexNow from "../indexNow.js";
@@ -43,6 +44,7 @@ import type * as indexNowStatus from "../indexNowStatus.js";
 import type * as llm from "../llm.js";
 import type * as mutations from "../mutations.js";
 import type * as policyAreaBackfill from "../policyAreaBackfill.js";
+import type * as posthogEmail from "../posthogEmail.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as savedBills from "../savedBills.js";
 import type * as searchQuery from "../searchQuery.js";
@@ -57,15 +59,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  ResendOTP: typeof ResendOTP;
-  ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   aggregateBackfill: typeof aggregateBackfill;
   aggregates: typeof aggregates;
   answer: typeof answer;
   auth: typeof auth;
   baseRates: typeof baseRates;
-  billStage: typeof billStage;
   bills: typeof bills;
+  billStage: typeof billStage;
   "catalog/answerSanitize": typeof catalog_answerSanitize;
   "catalog/billsIndex": typeof catalog_billsIndex;
   "catalog/cite": typeof catalog_cite;
@@ -83,8 +83,11 @@ declare const fullApi: ApiFromModules<{
   chamber: typeof chamber;
   chatAnalytics: typeof chatAnalytics;
   chats: typeof chats;
+  codeEmail: typeof codeEmail;
   congressApi: typeof congressApi;
   crons: typeof crons;
+  emailCodes: typeof emailCodes;
+  emailStyle: typeof emailStyle;
   functions: typeof functions;
   http: typeof http;
   indexNow: typeof indexNow;
@@ -92,6 +95,7 @@ declare const fullApi: ApiFromModules<{
   llm: typeof llm;
   mutations: typeof mutations;
   policyAreaBackfill: typeof policyAreaBackfill;
+  posthogEmail: typeof posthogEmail;
   rateLimits: typeof rateLimits;
   savedBills: typeof savedBills;
   searchQuery: typeof searchQuery;
