@@ -38,7 +38,17 @@ export interface OutgoingEmail {
  */
 export const EMAIL_DISTINCT_ID = "bills-congress-mailer";
 
-/** The event name the workflows' webhook triggers record for each send. */
+/**
+ * The name the workflow run is started under. It is NOT ingested as an
+ * analytics event (a webhook trigger only ingests one if the workflow has a
+ * "Capture event" step, and ours has none), but the trigger template rejects a
+ * request without it.
+ *
+ * What PostHog does keep: each run's trigger payload, this whole request, in
+ * the workflow's Invocations tab. For the codes stream that includes the live
+ * code, readable by anyone with access to the PostHog project until it expires
+ * (15 minutes, one use). See "Email" in Documentation/overview.md.
+ */
 export const EMAIL_EVENT = "bic_email_requested";
 
 const WEBHOOK_ENV: Record<EmailStream, string> = {

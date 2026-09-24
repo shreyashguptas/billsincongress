@@ -828,6 +828,14 @@ password-reset code.
 - **DNS** (Cloudflare, added by PostHog's one-click Domain Connect): DKIM and the
   `_amazonses` verification record on `mail.billsincongress.com`, and the bounce domain
   `feedback.mail.billsincongress.com` (MX + SPF). PostHog sends through Amazon SES.
+- **What PostHog keeps.** The request is not ingested as an analytics event (the workflow has
+  no "Capture event" step), but each run's trigger payload is stored in the workflow's
+  Invocations tab: recipient, subject, text and HTML, so **the code itself**. Anyone with
+  access to the PostHog project, including AI agents working through `posthog-cli` or the
+  PostHog MCP, can read a code there while it is valid (15 minutes, single use, 5 requests an
+  hour per address). This was already true of Resend, whose dashboard keeps every sent email's
+  body; it is a property of handing the email to any sending service. Keep PostHog project
+  membership as tight as Convex's.
 - **Bounces and delivery** show up as `$workflows_email_*` events in PostHog (see
   `ANALYTICS.md`) and in the workflow's Metrics and Logs tabs.
 

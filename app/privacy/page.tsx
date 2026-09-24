@@ -155,7 +155,9 @@ export default function PrivacyPage() {
                 account purposes — verification codes and password resets —
                 through PostHog, the same provider that runs our analytics. To
                 deliver one, PostHog receives your email address and the
-                message, and records whether it was delivered or bounced. These
+                message, keeps a record of the send (including the code, which
+                expires after 15 minutes) for troubleshooting, and records
+                whether it was delivered or bounced. These
                 emails contain no tracking pixels or tracked links. We do not
                 send marketing email or newsletters.
               </p>
