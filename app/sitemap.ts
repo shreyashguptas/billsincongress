@@ -3,6 +3,7 @@ import { api } from '@/convex/_generated/api';
 import { ALL_HUBS } from '@/lib/hubs';
 import { SITE_URL } from '@/lib/seo';
 import { getConvexHttpClient } from '@/lib/convex-client';
+import { sitemapIds } from '@/lib/sitemap-ids';
 
 // Sitemap id 0 = static pages; ids 117/118/119/… = one sitemap per congress
 // (each well under the 50k-URL spec limit). Served at /sitemap/<id>.xml and
@@ -12,16 +13,22 @@ export const revalidate = 86400;
 
 const SITEMAP_PAGE_SIZE = 2500;
 
+// Throws rather than falling back to [{ id: 0 }]. This runs at build time, and
+// a fallback would ship a deploy with no per-Congress sitemaps at all — every
+// /sitemap/<congress>.xml a 404 until the next deploy. Failing the build keeps
+// the previous deploy, and its sitemaps, live. See lib/sitemap-ids.ts.
 export async function generateSitemaps(): Promise<Array<{ id: number }>> {
   const client = getConvexHttpClient();
-  if (!client) return [{ id: 0 }];
-  try {
-    const congresses = await client.query(api.bills.getCongressNumbers, {});
-    return [{ id: 0 }, ...congresses.map((congress) => ({ id: congress }))];
-  } catch (error) {
-    console.error('generateSitemaps: failed to list congresses:', error);
+  // No deployment URL at all is a build without secrets (a fork's pull request,
+  // a fresh clone), not an outage: both workflows that can deploy set it. That
+  // build has no bills to list, so it keeps the static file only. A lookup that
+  // fails, or returns nothing, is the outage case, and throws.
+  if (!client) {
+    console.warn('generateSitemaps: NEXT_PUBLIC_CONVEX_URL is not set; static sitemap only');
     return [{ id: 0 }];
   }
+  const congresses = await client.query(api.bills.getCongressNumbers, {});
+  return sitemapIds(congresses).map((id) => ({ id }));
 }
 
 export default async function sitemap(props: {
@@ -56,8 +63,11 @@ export default async function sitemap(props: {
     ];
   }
 
+  // Every failure below throws. An empty list would be served as a valid,
+  // successful sitemap with no bills in it; a throw is a 5xx, which Google
+  // retries, and the incremental cache keeps the last good copy meanwhile.
   const client = getConvexHttpClient();
-  if (!client) return [];
+  if (!client) throw new Error(`sitemap ${id}: NEXT_PUBLIC_CONVEX_URL is not set`);
 
   const entries: MetadataRoute.Sitemap = [];
   let cursor: string | null = null;
@@ -85,5 +95,7 @@ export default async function sitemap(props: {
     if (result.isDone) break;
     cursor = result.continueCursor;
   }
+  // A Congress is only listed once it has a congressStats row, so it has bills.
+  if (entries.length === 0) throw new Error(`sitemap ${id}: no bills returned`);
   return entries;
 }

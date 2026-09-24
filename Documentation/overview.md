@@ -103,11 +103,11 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 26 modules + 24 test files
+lib/                       Pure client/shared modules — 27 modules + 25 test files
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
-  seo.ts hubs.ts pagination.ts cacheable-routes.ts indexnow.ts
+  seo.ts hubs.ts pagination.ts cacheable-routes.ts indexnow.ts sitemap-ids.ts
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
@@ -146,6 +146,16 @@ public/                    Icons, images, _headers, the IndexNow key file
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
 | `/robots.txt`, `/sitemap_index.xml`, `/sitemap/<n>.xml`, `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
+
+**Sitemaps** are `/sitemap_index.xml` (a route handler) listing `/sitemap/0.xml` (static pages
+and hubs) plus one file per Congress from `app/sitemap.ts`, about 56,000 URLs. Both take their
+list from `lib/sitemap-ids.ts`, and both are prerendered at build and revalidated daily. **A
+sitemap never answers OK with less than the whole site.** A failed or empty Congress lookup
+throws: at build it fails the deploy, keeping the previous one live, and at runtime it is a 5xx
+that Google retries while the cache keeps the last good copy. It used to fall back to the
+static file alone, and Google read the index exactly once (23 Jun 2026), recorded "Success, 0
+discovered pages", and knew 6 of the site's pages for the next three months. A build with no
+`NEXT_PUBLIC_CONVEX_URL` at all (a fork's pull request) still produces the static file only.
 
 **Hubs** are defined in `lib/hubs.ts`: 2 chamber + 5 status + 33 topic = **40**. Stage hubs
 for 80 / 90 / 95 deliberately do not exist: 90 and 95 are zero in all three Congresses, and
