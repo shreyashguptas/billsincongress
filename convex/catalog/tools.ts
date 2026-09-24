@@ -16,7 +16,8 @@
  * confidently wrong answer that audit found was a set-level claim made from a
  * page. See convex/catalog/completeness.ts.
  */
-import { datasetIndex, DATASET_NAMES } from "./datasets";
+import { datasetIndex, DATASET_NAMES, describeDataset } from "./datasets";
+import type { DatasetName } from "./types";
 import { renderContextBlock, type PageContext } from "./context";
 import { calendarNote } from "./congressCalendar";
 
@@ -24,7 +25,47 @@ import { calendarNote } from "./congressCalendar";
 export const MAX_TOOL_ROUNDS = 4;
 
 /** The Congress the site is currently tracking. */
-const CURRENT_CONGRESS = 119;
+export const CURRENT_CONGRESS = 119;
+
+/**
+ * Datasets described to the model BEFORE the question, so the lookup budget
+ * above goes on lookups.
+ *
+ * Measured against production on 2026-09-24: of 364 home-page answers from 13
+ * to 23 Sep, 148 (41%) used every round and were forced to answer. Traces of
+ * five real reader questions ("climate change", "broadband", "mental health
+ * bill", ...) show why. Every one spent its FIRST round calling describe_dataset
+ * for `bills` and `topics`, and most spent the SECOND fetching the `topics` list
+ * to spell a policy area. That left two rounds for the bills themselves, and a
+ * single retry used them up. These two are what nearly every question needs;
+ * the rest stay on demand.
+ */
+export const PRIMED_DATASETS: readonly DatasetName[] = ["bills", "topics"];
+
+/**
+ * The describe_dataset exchange for PRIMED_DATASETS, as the assistant tool call
+ * and tool results the model would otherwise have spent a round producing. Same
+ * text, same shape, no round trip.
+ */
+export function primedDescriptions(): {
+  toolCalls: Array<{
+    id: string;
+    type: "function";
+    function: { name: "describe_dataset"; arguments: string };
+  }>;
+  results: Array<{ tool_call_id: string; content: string }>;
+} {
+  const toolCalls = PRIMED_DATASETS.map((name) => ({
+    id: `primed_describe_${name}`,
+    type: "function" as const,
+    function: { name: "describe_dataset" as const, arguments: JSON.stringify({ name }) },
+  }));
+  const results = PRIMED_DATASETS.map((name) => ({
+    tool_call_id: `primed_describe_${name}`,
+    content: describeDataset(name),
+  }));
+  return { toolCalls, results };
+}
 
 export const ANSWER_TOOLS = [
   {
@@ -160,7 +201,9 @@ ${datasetIndex()}
 
 HOW TO WORK
 1. Decide which dataset answers the question.
-2. Call describe_dataset the first time you use a dataset — it tells you the filters and the pitfalls.
+2. \`bills\` and \`topics\` are already described at the start of this conversation, and on most pages
+   the policy-area list has already been fetched — do not fetch them again. Call describe_dataset the
+   first time you use any OTHER dataset — it tells you the filters and the pitfalls.
 3. Call fetch_dataset to get rows. Read the errors; they tell you how to fix the call.
 4. Answer from what you retrieved.
 5. For a COUNT, pass limit 0 — you get an exact total and no rows. For a breakdown across many

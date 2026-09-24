@@ -12,7 +12,8 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { ANSWER_TOOLS, MAX_TOOL_ROUNDS, buildSystemPrompt } from "./tools";
+import { ANSWER_TOOLS, MAX_TOOL_ROUNDS, PRIMED_DATASETS, buildSystemPrompt, primedDescriptions } from "./tools";
+import { describeDataset } from "./datasets";
 
 let passed = 0;
 const failures: string[] = [];
@@ -82,6 +83,28 @@ it("offers the reader-question tool and says when to reach for it", () => {
   assert.ok(names.includes("ask_reader"), "ask_reader is not offered");
   assert.match(prompt, /ask_reader/);
   assert.ok(MAX_TOOL_ROUNDS >= 1);
+});
+
+// 2026-09-24: 41% of home answers used every lookup round. Traces of real
+// reader questions showed the first round always went on describe_dataset for
+// bills and topics. That exchange is now primed before the question.
+it("primes bills and topics with their real descriptions, as matched call/result pairs", () => {
+  assert.deepEqual([...PRIMED_DATASETS], ["bills", "topics"]);
+  const { toolCalls, results } = primedDescriptions();
+  assert.equal(toolCalls.length, results.length);
+  toolCalls.forEach((call, i) => {
+    assert.equal(call.function.name, "describe_dataset");
+    const { name } = JSON.parse(call.function.arguments);
+    assert.equal(results[i].tool_call_id, call.id);
+    assert.equal(results[i].content, describeDataset(name));
+  });
+  // Every call id must be unique, or a provider rejects the transcript.
+  assert.equal(new Set(toolCalls.map((c) => c.id)).size, toolCalls.length);
+});
+
+it("tells the model not to spend a round re-describing what it was already given", () => {
+  assert.match(prompt, /`bills` and `topics` are already described/);
+  assert.match(prompt, /do not fetch them again/);
 });
 
 it("survives being built without a date, rather than throwing", () => {

@@ -478,6 +478,8 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
             │                                so an idle timeout cannot reap a long answer
             └─ POST {CONVEX_SITE_URL}/answer/stream     (convex/http.ts → answer.stream)
                  ├─ rate-limit check  ← the token is consumed BEFORE the model is called
+                 ├─ primed, costing no round: describe_dataset for bills + topics, and
+                 │    (off bill pages) the topics list for the Congress on screen
                  ├─ tool loop, max 4 rounds (the 5th call goes out WITHOUT tools)
                  │    ├─ describe_dataset
                  │    ├─ fetch_dataset   → convex/catalog/fetch.ts
@@ -572,7 +574,7 @@ is exactly those six.
 
 | Limit | Value |
 | --- | ---: |
-| Tool rounds | 4. The fifth call goes out with the tool schema **withheld**, so the model has to write prose; the answer is flagged `partial` |
+| Tool rounds | 4. The fifth call goes out with the tool schema **withheld**, so the model has to write prose; the answer is flagged `partial`. `bills` and `topics` are described before the question (`PRIMED_DATASETS` in `convex/catalog/tools.ts`), and off bill pages the topics list is fetched too, because traces of real questions showed those two exchanges using the first two of the four rounds |
 | Rows per fetch | 20 default, 50 max. `limit: 0` is count-only — no rows, a deeper scan, an exact total |
 | Scan window | 1,000 rows (8,000 for a count-only read). When it fills, the result is `complete: false` and carries **no total at all** |
 | Sponsor lookups per request | 10 distinct surnames |
