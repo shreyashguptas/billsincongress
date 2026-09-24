@@ -514,6 +514,34 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
   {
+    id: "older-congress-topic-count",
+    question: "How many health measures were introduced in the 117th Congress?" + ONE_NUMBER,
+    defect:
+      "Added with #115, before it shipped: the answer loop now primes the topics list for the " +
+      "Congress on screen (the 119th from the home page). Answering a 117th question from those " +
+      "rows would state the 119th's Health count, complete and cited, as the 117th's.",
+    expect: (db) => {
+      const row = db.congressPolicyAreas.find(
+        (a) => a.congress === 117 && a.policyAreaName === "Health",
+      );
+      if (!row) throw new Error("No 117th-Congress Health row in congressPolicyAreas.");
+      const current = db.congressPolicyAreas.find(
+        (a) => a.congress === CURRENT_CONGRESS && a.policyAreaName === "Health",
+      );
+      if (current && current.count === row.count) {
+        throw new Error(
+          `117th and ${CURRENT_CONGRESS}th Health counts are equal (${row.count}); this question ` +
+            `can no longer tell the two Congresses apart.`,
+        );
+      }
+      return {
+        kind: "number",
+        value: row.count,
+        note: `congressPolicyAreas row for 117 / Health; the ${CURRENT_CONGRESS}th's is ${current?.count}.`,
+      };
+    },
+  },
+  {
     id: "control-largest-topic",
     question:
       `Which policy area has the most bills in the ${CURRENT_CONGRESS}th Congress?` + ONE_NAME,

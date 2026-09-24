@@ -104,7 +104,14 @@ it("primes bills and topics with their real descriptions, as matched call/result
 
 it("tells the model not to spend a round re-describing what it was already given", () => {
   assert.match(prompt, /`bills` and `topics` are already described/);
-  assert.match(prompt, /do not fetch them again/);
+  assert.match(prompt, /do not call\s+describe_dataset for them again/);
+});
+
+// Review of #115: the primed topics list is ONE Congress. Told only "do not
+// fetch it again", a question about the 117th could be answered from the 119th's
+// complete, cited list. The exception has to be in the rule itself.
+it("tells the model to fetch topics itself for a different Congress than the primed one", () => {
+  assert.match(prompt, /fetch `topics` yourself if the question\s+is about a different Congress/);
 });
 
 it("survives being built without a date, rather than throwing", () => {

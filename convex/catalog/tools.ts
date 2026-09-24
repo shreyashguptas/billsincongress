@@ -201,9 +201,11 @@ ${datasetIndex()}
 
 HOW TO WORK
 1. Decide which dataset answers the question.
-2. \`bills\` and \`topics\` are already described at the start of this conversation, and on most pages
-   the policy-area list has already been fetched — do not fetch them again. Call describe_dataset the
-   first time you use any OTHER dataset — it tells you the filters and the pitfalls.
+2. \`bills\` and \`topics\` are already described at the start of this conversation — do not call
+   describe_dataset for them again. Off bill pages, the policy-area list for the Congress on screen has
+   also been fetched; use it rather than fetching it again, but fetch \`topics\` yourself if the question
+   is about a different Congress. Call describe_dataset the first time you use any OTHER dataset — it
+   tells you the filters and the pitfalls.
 3. Call fetch_dataset to get rows. Read the errors; they tell you how to fix the call.
 4. Answer from what you retrieved.
 5. For a COUNT, pass limit 0 — you get an exact total and no rows. For a breakdown across many
