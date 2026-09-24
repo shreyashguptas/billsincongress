@@ -40,8 +40,9 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const settled = suggestions.kind !== null && isSettled(suggestions, input, congress);
   // While the next query is in flight the previous rows stay up, so the list
   // does not blink on every keystroke. They cannot be picked with Enter until
-  // they belong to what is typed.
-  const bills = suggestions.bills;
+  // they belong to what is typed. Rows from another Congress are never kept:
+  // after a switch they would be clickable under the wrong masthead.
+  const bills = suggestions.forCongress === congress ? suggestions.bills : [];
   const showList =
     open && !busy && suggestions.kind !== null && (settled || bills.length > 0);
   const active = settled ? highlight : -1;
@@ -197,7 +198,9 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               </p>
             )}
             <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2 text-xs text-muted-foreground">
-              <span className="hidden sm:inline">Enter asks the question · ↑↓ to pick a bill</span>
+              <span className="hidden sm:inline">
+                {active >= 0 ? 'Enter opens this bill' : 'Enter asks the question'} · ↑↓ to pick a bill
+              </span>
               {bills.length > 0 && (
                 <Link
                   href={seeAllHref}
