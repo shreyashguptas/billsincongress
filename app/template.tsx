@@ -7,8 +7,9 @@
 // intentionally left outside this wrapper so only the page content animates.
 //
 // Implemented as a plain CSS animation (see `.animate-page-in` in globals.css)
-// rather than a motion library: it needs no client JS, ends at
-// `transform: none`, and is automatically disabled by the global
+// rather than a motion library: it needs no client JS, leaves no transform on
+// the wrapper once it finishes (its fill mode is `backwards`; globals.css has
+// why that matters), and is automatically disabled by the global
 // `prefers-reduced-motion` rule for users who ask for reduced motion.
 export default function Template({ children }: { children: React.ReactNode }) {
   return <div className="animate-page-in">{children}</div>;
