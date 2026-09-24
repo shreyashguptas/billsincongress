@@ -966,7 +966,8 @@ In a checkout with no `CONVEX_DEPLOYMENT` (a fresh clone or a worktree), name pr
 explicitly, and dry-run it first:
 
 ```bash
-CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy --dry-run
+CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy --dry-run   # preview
+CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy             # the real deploy
 ```
 
 **Manual, and shared.** Every worktree, branch and local dev server talks to the same
