@@ -13,7 +13,6 @@ import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
 import { hubByPath, topicSlug } from '@/lib/hubs';
-import { starterQuestions } from '@/lib/starter-questions';
 import type { HomeProps } from './home/shared';
 import { HomeHero } from './home/hero';
 import { StatStrip } from './home/stat-strip';
@@ -236,12 +235,13 @@ function DashboardInner({
         onSelectCongress: setSelectedCongress,
         onDrillDown: handleDrillDown,
         policyAreaHref,
-        starters: starterQuestions({
+        starterInput: {
           congress: viewCongress,
+          latestCongress: newestCongress,
           totalBills: congressDashboard.totalBills,
           topPolicyAreas: congressDashboard.topPolicyAreas,
           statusBreakdown: congressDashboard.statusBreakdown,
-        }),
+        },
       }
     : null;
 

@@ -92,7 +92,8 @@ app/                       Next.js App Router — 19 page.tsx files
   error.tsx global-error.tsx   Client error boundaries (recover from a stale-asset chunk failure)
 
 components/                Shared React components
-  answers/                 The ask panel: provider, panel, thread, sources, work log, history
+  answers/                 The ask panel: provider, panel, thread, sources, work log, history;
+                           hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
   bills/                   Card, details, progress, save button
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
@@ -103,13 +104,14 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 24 modules + 22 test files
+lib/                       Pure client/shared modules — 26 modules + 24 test files
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
   seo.ts hubs.ts pagination.ts cacheable-routes.ts indexnow.ts
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
+  bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   services/bills-service.ts  constants/  types/  utils/
 

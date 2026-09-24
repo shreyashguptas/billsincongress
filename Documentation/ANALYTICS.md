@@ -160,6 +160,9 @@ and fires its own custom events — see "Learn page" below.
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `query_length` | `app/bills/bills-client.tsx` |
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill card in the results grid | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
+| `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set while the list is open (passive, 150ms debounce, once per settled query and Congress, including zero results) | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
+| `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
+| `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
 | `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub. **Not** the homepage topic wheel's links, which go to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
 
@@ -185,6 +188,15 @@ whether one of the two surfaces underperforms for this audience; `dwell_ms` by
 commit to send `query_length` instead of the raw `title_query` it used to carry;
 the property is additive-by-replacement, so historic `title_query` data is
 untouched and no saved insight breaks.
+
+**Home search suggestions (added 2026-09-24).** Most home ask-box entries are
+searches, not questions: from 13 to 23 Sep 2026, 265 of 340 typed entries were four
+words or fewer and 66 were a bare bill reference, each waiting 10–40 seconds for an
+AI answer. `bill_suggestions_*` measure whether showing matching bills while the
+reader types replaces those waits. Read them against `answer_question_submitted`
+(`surface: "home"`, `source: "typed"`) in the same session: a falling share of short
+typed questions alongside rising `bill_suggestion_clicked` is the win. Like the
+events above, no query text is sent.
 
 **`bills_no_results` volumes before 2026-08-29 are inflated and not comparable.**
 The search box had no debounce, so every keystroke fired a query and every
@@ -251,7 +263,7 @@ emits `list`.
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
 | `answer_thread_deleted` | Reader deleted one conversation or all of them | `scope: "one" \| "all"`, `thread_count` | `components/answers/history-list.tsx` |
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
-| `answer_starter_clicked` | A generated starter or chart question was used | `surface: "home" \| "filtered" \| "bill"`, `starter_text` | `components/dashboard/home/shared.tsx` (hero starter pills and the new charts' "Ask about this"), `components/answers/ask-about.tsx`, `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
+| `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/dashboard/home/shared.tsx` (the new home charts' "Ask about this"), `components/answers/ask-about.tsx`, `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
 | `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
 
 > **`dropped` is the grounding-health number.** It counts citations the model

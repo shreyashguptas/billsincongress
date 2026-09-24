@@ -109,7 +109,7 @@ should look like a missing backend, not an empty dashboard.
 
 | # | Section | What it shows | Drills through? |
 | --- | --- | --- | --- |
-| 1 | Hero — the chamber (`home/hero.tsx`) | Headline "Who's writing America's laws?", one source line, and a parliament-style half circle. Outer seats: every bill split by the sponsor's party, one seat per ~N bills (N = bills ÷ 435, stated under the chart). Inner seats, ringed in green: the bills that became law, one seat each (scaled only past 400). The hollow shows the law count and swaps to a party's own numbers on hover. One legend row carries every party. Below: the ask box and two starter pills. A dropdown picks the Congress; "Browse bills" sits beside it | "Browse bills" link |
+| 1 | Hero — the chamber (`home/hero.tsx`) | Headline "Who's writing America's laws?", one source line, and a parliament-style half circle. Outer seats: every bill split by the sponsor's party, one seat per ~N bills (N = bills ÷ 435, stated under the chart). Inner seats, ringed in green: the bills that became law, one seat each (scaled only past 400). The hollow shows the law count and swaps to a party's own numbers on hover. One legend row carries every party. Below, centred: the `HeroAsk` box (instant bill suggestions as you type) with its three starters as pills. A dropdown picks the Congress; "Browse bills" sits beside it | "Browse bills" link; suggested bills link to their pages; starters link to hubs or filtered `/bills` |
 | 2 | Stat cards (`home/stat-strip.tsx`) | Bills introduced · House bills · Senate bills · Became law, each with one line of context ("65% of all bills", "about 1 in 168 bills") | All four |
 | 3 | Where bills stand (`home/stage-zoom.tsx`) | Two panels at two stated scales. Left: bills still introduced or in committee, small squares of 1–1,000 bills each. Right, zoomed in: every bill that moved, one bigger square per bill, one row per stage | Every row and square |
 | 4 | What Congress is working on (`home/topic-wheel.tsx`) | Radial chart: the six biggest policy areas as coloured slices, everything else as one grey slice, one dot per ~N bills. Full names, shares and counts live in the legend beside it, never on the rim. Clicking a slice or row pins it and offers "See these bills" and "Ask what they're about" | Pinned topic |
@@ -144,6 +144,43 @@ catalog fetch defaults to the 119th Congress, so before this the selector and th
 disagreed silently: a reader studying the 117th here and then asking a question was answered
 about a different Congress entirely, with nothing on screen to say so. The selector's value now
 travels with the question. See [The answer engine → Page context](./overview.md#page-context).
+
+### Bill suggestions in the ask box
+
+Most of what readers type into `HeroAsk` is a search rather than a question: from 13 to 23 Sep
+2026, 265 of 340 typed entries were four words or fewer and 66 were a bare bill reference, and
+each waited 10–40 seconds for an AI answer. So while the reader types, up to five matching bills
+appear under the field (`components/answers/use-bill-suggestions.ts`). They come from the same
+`bills.list` query as the `/bills` search box, through `billsService.fetchBills`, so bill
+references ("HR 979", "s.1426") become an exact number lookup and the curated acronyms
+("KOSA", "NDAA") expand exactly as they do there. The search is scoped to the Congress on screen.
+
+The rules live in `lib/bill-suggest.ts` and its tests. The key one is that **Enter still asks
+the question** unless a row is highlighted, and the only row highlighted by default is a bill
+reference that matched exactly one bill, so "HR 979" + Enter opens H.R. 979 while "climate
+change" + Enter asks. "See all matching bills" opens `/bills` with the same text and Congress.
+Measured against production on 2026-09-24, a bill-number lookup returns in about 40 ms. A common
+topic word takes 0.3–1.4 s, because the title search reads up to 1,024 matches before returning a
+page. Events: `bill_suggestions_shown`, `bill_suggestion_clicked`,
+`bill_suggestions_see_all_clicked` (see `ANALYTICS.md`).
+
+### The starters under the ask box
+
+`lib/starter-questions.ts` builds three starters from the dashboard numbers: the top policy
+area, the count that became law, and the share still in committee. Until 2026-09-24 they were
+questions sent to the answer engine, and they were its worst: 96 clicks from 2 to 24 Sep, 27
+readers gone before any answer, and 63 of the 69 answers stopped early after a median 24–30
+seconds, because each asks about hundreds or thousands of bills and a lookup reads 50. They are
+now links to the page that answers each one completely: `/bills/topic/<slug>`,
+`/bills/enacted` and `/bills/in-committee` for the newest Congress, or the same filter on
+`/bills` for an older one, because hub pages always show the newest Congress. The committee
+starter is a statement, so it appears only when more than half the bills really are in
+committee (early in a new Congress most can still be at "introduced"), leads with the
+in-committee count its page shows, and says "Why" only when it links to the hub, whose
+explainer answers it. Checked
+against production on 2026-09-24: each destination shows the same count as its starter
+(113, 2,181 and 18,208 of 19,007 for the 119th; 365, 2,276 and 16,721 of 17,828 for the 117th).
+The cold-start fallbacks are still asked.
 
 ---
 

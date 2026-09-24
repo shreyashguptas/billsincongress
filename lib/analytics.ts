@@ -308,6 +308,35 @@ export const analytics = {
     placement?: 'directory' | 'filter_panel' | 'hub_siblings';
   }) => capture('hub_link_clicked', props),
 
+  /**
+   * Instant bill suggestions under the home ask box settled on a result set.
+   * Passive, once per settled query (debounced), including zero results — the
+   * zero rows are the searches the title index cannot serve. Query text is not
+   * sent; its length and how it was matched are.
+   */
+  billSuggestionsShown: (props: {
+    match_kind: 'number' | 'acronym' | 'title';
+    query_length: number;
+    result_count: number;
+    congress: number;
+  }) => capture('bill_suggestions_shown', props),
+
+  /** A suggested bill was opened, by click/tap or by Enter on a highlighted row. */
+  billSuggestionClicked: (props: {
+    bill_id: string;
+    position: number;
+    method: 'click' | 'enter';
+    match_kind: 'number' | 'acronym' | 'title';
+    query_length: number;
+  }) => capture('bill_suggestion_clicked', props),
+
+  /** "See all matching bills" under the suggestions, which opens /bills filtered by the query. */
+  billSuggestionsSeeAllClicked: (props: {
+    match_kind: 'number' | 'acronym' | 'title';
+    query_length: number;
+    result_count: number;
+  }) => capture('bill_suggestions_see_all_clicked', props),
+
   // Bill detail & AI chat
 
   billViewed: (props: {
@@ -517,8 +546,18 @@ export const analytics = {
   answerAnonThreadSaved: (props: { turn_count: number }) =>
     capture('answer_anon_thread_saved', props),
 
-  answerStarterClicked: (props: { surface: string; starter_text: string }) =>
-    capture('answer_starter_clicked', props),
+  /**
+   * A generated starter or chart question was used. On the home masthead the
+   * data starters open a page instead of asking (`action: 'open_page'`, with the
+   * `destination` path); only there is `action` sent. Kept on this event rather
+   * than a new one so starter click-through stays one continuous series.
+   */
+  answerStarterClicked: (props: {
+    surface: string;
+    starter_text: string;
+    action?: 'ask' | 'open_page';
+    destination?: string;
+  }) => capture('answer_starter_clicked', props),
 
   answerWebSearchUsed: (props: {
     surface: string;

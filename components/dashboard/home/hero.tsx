@@ -5,8 +5,9 @@
  *
  * Centred. The chart (hemicycle.tsx) is the hero; its hollow holds one big
  * number — laws passed — that swaps to a party's own number on hover. One
- * legend row under the arc carries every party, the ask box sits below it,
- * and the starters are two small pills. Browse sits beside the Congress picker.
+ * legend row under the arc carries every party, and the ask box (HeroAsk, with
+ * its bill suggestions) sits below it, centred, with its starters as pills.
+ * Browse sits beside the Congress picker.
  */
 
 import { useRef, useState } from 'react';
@@ -14,10 +15,11 @@ import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { Hemicycle, HemicycleKey, PARTIES, WellReadout, type PartyKey } from './hemicycle';
-import { AskField, BrowseLink, CongressSelect, StarterChips, combinedParty, fmt, type HomeProps } from './shared';
+import { HeroAsk } from '@/components/answers/hero-ask';
+import { BrowseLink, CongressSelect, combinedParty, fmt, type HomeProps } from './shared';
 
 export function HomeHero(props: HomeProps) {
-  const { congress, house, senate, starters } = props;
+  const { congress, house, senate, starterInput } = props;
   const { bills, laws } = combinedParty(house, senate);
   const [hover, setHoverState] = useState<PartyKey | null>(null);
   const reported = useRef(new Set<PartyKey>());
@@ -89,10 +91,7 @@ export function HomeHero(props: HomeProps) {
           <HemicycleKey totalBills={totalBills} totalLaws={totalLaws} />
         </div>
 
-        <div className="mx-auto mt-6 max-w-2xl">
-          <AskField size="lg" placeholder="Ask anything about these bills…" />
-          <StarterChips questions={starters.slice(0, 2)} className="mt-3 justify-center" />
-        </div>
+        <HeroAsk starters={starterInput} centered />
       </div>
     </section>
   );

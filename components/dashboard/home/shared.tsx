@@ -2,7 +2,8 @@
 
 /**
  * Shared pieces for the home page's hero and chart sections: the props
- * contract, a compact Congress picker, the one-line ask field and starters.
+ * contract, a compact Congress picker, the chart "Ask about this" button and
+ * the browse link. The hero's ask box is `components/answers/hero-ask.tsx`.
  */
 
 import { useState } from 'react';
@@ -12,6 +13,7 @@ import type { FunctionReturnType } from 'convex/server';
 import type { api } from '@/convex/_generated/api';
 import { useAnswers } from '@/components/answers/answer-provider';
 import { analytics } from '@/lib/analytics';
+import type { StarterInput } from '@/lib/starter-questions';
 import { cn } from '@/lib/utils';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 
@@ -31,7 +33,8 @@ export interface HomeProps {
   onSelectCongress: (congress: number) => void;
   onDrillDown: (filterType: string, filterValue: string | number) => void;
   policyAreaHref: (area: string) => string;
-  starters: string[];
+  /** Feeds the hero's ask box starters (`lib/starter-questions.ts`). */
+  starterInput: StarterInput;
 }
 
 export const fmt = (n: number) => n.toLocaleString('en-US');
@@ -81,61 +84,6 @@ export function CongressSelect({
   );
 }
 
-/** One-line ask field. `size="lg"` is the taller, emphasised version. */
-export function AskField({
-  placeholder = 'Ask about any bill in Congress…',
-  size = 'md',
-  className,
-}: {
-  placeholder?: string;
-  size?: 'md' | 'lg';
-  className?: string;
-}) {
-  const { ask, busy } = useAnswers();
-  const [input, setInput] = useState('');
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const q = input;
-        setInput('');
-        void ask(q, { source: 'typed' });
-      }}
-      className={cn(
-        'flex items-center gap-2 border border-border rounded-sm bg-background focus-within:border-foreground transition-colors',
-        size === 'lg' && 'shadow-[0_1px_0_0_hsl(var(--border)),0_12px_40px_-20px_hsl(var(--foreground)/0.35)]',
-        className,
-      )}
-    >
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder={placeholder}
-        aria-label="Ask about any bill in Congress"
-        maxLength={2000}
-        disabled={busy}
-        className={cn(
-          'flex-1 min-w-0 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground/70',
-          size === 'lg' ? 'h-14 px-5 text-lg' : 'h-12 px-4 text-base',
-        )}
-      />
-      <button
-        type="submit"
-        disabled={busy || !input.trim()}
-        aria-label="Ask"
-        className={cn(
-          'inline-flex items-center justify-center rounded-sm bg-foreground text-background hover:bg-foreground/85 transition-colors disabled:opacity-40 shrink-0',
-          size === 'lg' ? 'mr-2 h-10 w-10' : 'mr-1.5 h-9 w-9',
-        )}
-      >
-        <ArrowUp className="h-4 w-4" />
-      </button>
-    </form>
-  );
-}
-
 /** A starter question as a quiet button. */
 export function StarterButton({
   question,
@@ -167,23 +115,6 @@ export function StarterButton({
         </>
       )}
     </button>
-  );
-}
-
-/** Starters as small pills in one wrapping row — far less text than a list. */
-export function StarterChips({ questions, className }: { questions: string[]; className?: string }) {
-  return (
-    <div className={cn('flex flex-wrap gap-2', className)}>
-      {questions.map((q) => (
-        <StarterButton
-          key={q}
-          question={q}
-          className="rounded-full border border-border px-3 py-1 text-xs hover:border-foreground/40"
-        >
-          {q}
-        </StarterButton>
-      ))}
-    </div>
   );
 }
 
