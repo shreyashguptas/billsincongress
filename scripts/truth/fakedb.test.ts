@@ -6,11 +6,16 @@
  * because it would look like proof. So before the fake is used to verify any fix,
  * it must reproduce production's KNOWN WRONG NUMBERS exactly.
  *
- * The numbers asserted below were measured against production Convex on
- * 2026-08-30 by running the real `catalog/fetch:fetchDataset` query:
+ * The defects were measured against production Convex on 2026-08-30 by running
+ * the real `catalog/fetch:fetchDataset` query:
  *   {policyArea:"Health", progressStage:100}  -> count 0   (truth: 1)
  *   {progressStage:100}                       -> count 104 (truth: 104)
  *   sponsors {sponsorState:"CA"}              -> count 29  (truth: 54)
+ * Those exact numbers moved as Congress kept passing laws, so the tests below no
+ * longer hardcode them. Each one computes what production's index read MUST
+ * return — by a hand-written filter and sort over the raw rows, never through the
+ * fake's own query path — then requires the fake to return exactly those rows,
+ * and requires the defect to still be visible in them.
  * If this file goes red, the fake has drifted from Convex and nothing that
  * depends on it can be believed.
  *
@@ -125,7 +130,18 @@ async function main() {
     assert.ok(truth > 0, "there really are Health laws; the window simply cannot see them");
   });
 
-  await it("reproduces production: 104 laws in the 119th, and the window sees all of them", async () => {
+  // What Convex returns for an index read, computed by hand: the rows matching the
+  // index prefix, ordered by the next index field and then _creationTime, newest
+  // first. Deliberately not the fake's code path — agreeing with itself proves
+  // nothing.
+  const byCreationDesc = (a: any, b: any) => b._creationTime - a._creationTime;
+  const laws119 = bills.filter((r: any) => r.congress === 119 && r.progressStage === 100);
+  const lawsInIndexOrder = [...laws119].sort(byCreationDesc);
+  const ids = (rows: any[]) => rows.map((r: any) => r.billId);
+
+  await it("reproduces production: every 119th law, and the window sees all of them", async () => {
+    // The control case: when the window is not full, the count is right. On
+    // 2026-08-30 that was 104 of 104.
     const window = await ctx.db
       .query("bills")
       .withIndex("by_congress_and_progress_stage", (q: any) =>
@@ -133,9 +149,13 @@ async function main() {
       )
       .order("desc")
       .take(200);
-    assert.equal(window.length, 104);
-    const truth = bills.filter((r: any) => r.congress === 119 && r.progressStage === 100).length;
-    assert.equal(truth, 104);
+    assert.ok(laws119.length > 0, "sanity: the 119th has passed laws");
+    assert.ok(
+      laws119.length < 200,
+      `${laws119.length} laws no longer fit the 200-row window; this control case needs a narrower set`,
+    );
+    assert.equal(window.length, laws119.length, "the window must see every law");
+    assert.deepEqual(ids(window), ids(lawsInIndexOrder), "and in Convex's index order");
   });
 
   await it("reproduces production: the sponsors top-300 cut hides most of California", async () => {
@@ -144,17 +164,33 @@ async function main() {
       .withIndex("by_congress_and_count", (q: any) => q.eq("congress", 119))
       .order("desc")
       .take(300);
+    const sponsors119 = ctx.db.rowsOf("congressSponsors").filter((s: any) => s.congress === 119);
+    const expectedTop300 = [...sponsors119]
+      .sort((a: any, b: any) => b.billCount - a.billCount || byCreationDesc(a, b))
+      .slice(0, 300);
+    assert.ok(sponsors119.length > 300, "sanity: the 119th has more sponsors than the cut keeps");
+    assert.deepEqual(
+      top300.map((s: any) => s._id),
+      expectedTop300.map((s: any) => s._id),
+      "the fake's top 300 must be exactly the rows Convex's index returns",
+    );
     const visibleCa = top300.filter((s: any) => s.sponsorState === "CA").length;
-    const realCa = ctx.db
-      .rowsOf("congressSponsors")
-      .filter((s: any) => s.congress === 119 && s.sponsorState === "CA").length;
-    assert.equal(visibleCa, 29, "production shows 29 Californians through this read");
-    assert.equal(realCa, 54, "California really has 54 sponsors");
+    const realCa = sponsors119.filter((s: any) => s.sponsorState === "CA").length;
+    assert.equal(
+      visibleCa,
+      expectedTop300.filter((s: any) => s.sponsorState === "CA").length,
+      "the fake must show as many Californians as production does through this read",
+    );
+    assert.ok(
+      visibleCa < realCa,
+      `the cut must hide Californians (${visibleCa} visible of ${realCa}); that gap IS the bug`,
+    );
   });
 
   await it("reproduces production: the most recent law is NOT first in index order", async () => {
     // This is the defect a reader caught: the page is in insertion order, so the
-    // model took the max date within an arbitrary 50 and answered S. 1003.
+    // model took the max date within an arbitrary 50 and answered S. 1003 when
+    // the genuinely most recent law (then S. 629) was not on the page at all.
     const page = await ctx.db
       .query("bills")
       .withIndex("by_congress_and_progress_stage", (q: any) =>
@@ -162,13 +198,19 @@ async function main() {
       )
       .order("desc")
       .take(50);
-    const truthLatest = bills
-      .filter((r: any) => r.congress === 119 && r.progressStage === 100)
-      .reduce((a: any, b: any) => ((b.latestActionDate ?? "") > (a.latestActionDate ?? "") ? b : a));
-    assert.equal(truthLatest.billId, "629s119", "S. 629 is the genuinely most recent law");
+    assert.deepEqual(ids(page), ids(lawsInIndexOrder.slice(0, 50)), "the page is Convex's index order");
+    const latestDate = laws119.reduce(
+      (max: string, r: any) => ((r.latestActionDate ?? "") > max ? r.latestActionDate : max),
+      "",
+    );
+    const latestLaws = ids(laws119.filter((r: any) => r.latestActionDate === latestDate));
+    assert.ok(latestDate !== "", "sanity: laws carry action dates");
     assert.ok(
-      !page.some((r: any) => r.billId === "629s119"),
-      "S. 629 must be absent from the 50-row page — that absence IS the bug",
+      !page.some((r: any) => latestLaws.includes(r.billId)),
+      `${latestLaws.join(", ")} (${latestDate}) is inside the 50-row index-order page, so this ` +
+        `copy of production no longer reproduces D9. The fake is NOT wrong (the order check above ` +
+        `passed): a law introduced and enacted within days, such as a continuing resolution, sits ` +
+        `at the front of _creationTime order. Pick a set whose latest law was introduced earlier.`,
     );
   });
 

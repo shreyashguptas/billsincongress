@@ -609,8 +609,12 @@ confident, cited, wrong sentence.
 
 Two rules make this worth having. **The oracle shares no code with the system under test** — a
 harness built on `fetchDataset` would agree with every bug in `fetchDataset`. And
-`fakedb.test.ts` asserts that the stand-in reproduces production's *known wrong numbers* before
+`fakedb.test.ts` asserts that the stand-in reproduces production's *known wrong answers* before
 it is trusted to prove any fix; if that file goes red, nothing depending on it can be believed.
+Where an expected value is a count or a bill that changes as Congress acts, both files compute it
+from the raw rows by a hand-written loop (the index order Convex would return, the law
+with the latest action date), so a fresh copy of production is checked against itself, not against
+the numbers of the day the test was written.
 
 `handlers.test.ts` and `fakedb.test.ts` run in `pnpm test` when `.truth-cache/` exists and are
 reported as **SKIPPED** when it does not — separately from the pass count, with a list of what
