@@ -315,7 +315,7 @@ async function main() {
       0,
     );
     assert.equal(partySum, houseLaws, "the only law count on this row must be the House's");
-    assert.notEqual(houseLaws, truth.laws119.length, "sanity: 64 and 104 are different numbers");
+    assert.notEqual(houseLaws, truth.laws119.length, "sanity: House laws (64 of 104 on 2026-08-30) are not all the laws");
   });
 
   await it("the whole-Congress stats row says in words that it covers both chambers", async () => {

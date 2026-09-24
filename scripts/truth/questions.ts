@@ -465,8 +465,9 @@ export const QUESTIONS: TruthQuestion[] = [
   // --- Page context: the answer must be about THIS bill --------------------
   {
     id: "focused-bill-sponsor",
-    // The most recent law, so the question is about a bill whose page a reader
-    // would plausibly be on when they ask.
+    // The most recent law when this was written (2026-08-30), so the question is
+    // about a bill whose page a reader would plausibly be on. Being the latest is
+    // not what the case tests; the expected sponsor is read from the cache.
     focusBillId: "629s119",
     question: "Who sponsored this bill?" + ONE_NAME,
     defect:

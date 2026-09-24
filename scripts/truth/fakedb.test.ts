@@ -207,7 +207,10 @@ async function main() {
     assert.ok(latestDate !== "", "sanity: laws carry action dates");
     assert.ok(
       !page.some((r: any) => latestLaws.includes(r.billId)),
-      `${latestLaws.join(", ")} (${latestDate}) must be absent from the 50-row page — that absence IS the bug`,
+      `${latestLaws.join(", ")} (${latestDate}) is inside the 50-row index-order page, so this ` +
+        `copy of production no longer reproduces D9. The fake is NOT wrong (the order check above ` +
+        `passed): a law introduced and enacted within days, such as a continuing resolution, sits ` +
+        `at the front of _creationTime order. Pick a set whose latest law was introduced earlier.`,
     );
   });
 
