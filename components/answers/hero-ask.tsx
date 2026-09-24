@@ -8,7 +8,7 @@ import { useAnswers } from './answer-provider';
 import { useBillSuggestions } from './use-bill-suggestions';
 import { analytics } from '@/lib/analytics';
 import { starterQuestions, type StarterInput } from '@/lib/starter-questions';
-import { initialHighlight, moveHighlight, suggestKey } from '@/lib/bill-suggest';
+import { initialHighlight, isSettled, moveHighlight } from '@/lib/bill-suggest';
 import { buildFilterQuery } from '@/lib/bills/filter-url';
 import { DEFAULT_FILTER_VALUES } from '@/app/bills/filter-signature';
 import { formatCongressOrdinal } from '@/lib/congress';
@@ -37,7 +37,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const listId = useId();
 
   const suggestions = useBillSuggestions(input, congress);
-  const settled = suggestions.kind !== null && suggestions.forQuery === suggestKey(input);
+  const settled = suggestions.kind !== null && isSettled(suggestions, input, congress);
   // While the next query is in flight the previous rows stay up, so the list
   // does not blink on every keystroke. They cannot be picked with Enter until
   // they belong to what is typed.
@@ -46,12 +46,14 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
     open && !busy && suggestions.kind !== null && (settled || bills.length > 0);
   const active = settled ? highlight : -1;
 
-  // A new settled result set resets the highlight, and is reported once.
+  // A new settled result set resets the highlight, and is reported once —
+  // only while the list is actually open, so "shown" means seen.
   const reported = useRef('');
   useEffect(() => {
     if (!settled || suggestions.kind === null) return;
     setHighlight(initialHighlight(suggestions.kind, suggestions.bills.length));
-    const reportKey = `${congress}:${suggestions.forQuery}`;
+    if (!open || busy) return;
+    const reportKey = `${suggestions.forCongress}:${suggestions.forQuery}`;
     if (reported.current === reportKey) return;
     reported.current = reportKey;
     analytics.billSuggestionsShown({
@@ -60,7 +62,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
       result_count: suggestions.bills.length,
       congress,
     });
-  }, [settled, suggestions.kind, suggestions.forQuery, suggestions.bills, congress]);
+  }, [settled, open, busy, suggestions.kind, suggestions.forQuery, suggestions.forCongress, suggestions.bills, congress]);
 
   const trackOpen = (position: number, method: 'click' | 'enter') => {
     const bill = bills[position];

@@ -44,6 +44,20 @@ export function suggestKey(raw: string): string {
 }
 
 /**
+ * Whether a result set answers what is on screen now: the same normalised text
+ * AND the same Congress. Text alone is not enough — switching Congress with a
+ * query still in the box would otherwise treat the previous Congress's bills as
+ * current, pickable with Enter.
+ */
+export function isSettled(
+  result: { forQuery: string; forCongress: number | null },
+  input: string,
+  congress: number,
+): boolean {
+  return result.forCongress === congress && result.forQuery === suggestKey(input);
+}
+
+/**
  * Where a highlight moves on ArrowUp / ArrowDown.
  *
  * -1 means nothing is highlighted, which is also where Enter asks the question

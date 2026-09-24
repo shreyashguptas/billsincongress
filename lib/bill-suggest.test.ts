@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   initialHighlight,
+  isSettled,
   moveHighlight,
   suggestKey,
   suggestKind,
@@ -76,6 +77,21 @@ it('pre-selects only a bill reference that found exactly one bill', () => {
   assert.equal(initialHighlight('title', 1), -1);
   assert.equal(initialHighlight('acronym', 1), -1);
   assert.equal(initialHighlight(null, 0), -1);
+});
+
+// Review of #111: with "broadband" still typed, switching the masthead from the
+// 119th to the 117th left the 119th's rows counted as current and pickable.
+it('does not treat another Congress\'s results as current for the same text', () => {
+  const from119 = { forQuery: 'broadband', forCongress: 119 };
+  assert.equal(isSettled(from119, 'broadband', 119), true);
+  assert.equal(isSettled(from119, 'broadband', 117), false);
+});
+
+it('treats a result as current only for the text it answered', () => {
+  const r = { forQuery: 'hr 979', forCongress: 119 };
+  assert.equal(isSettled(r, '  HR   979 ', 119), true);
+  assert.equal(isSettled(r, 'hr 97', 119), false);
+  assert.equal(isSettled({ forQuery: '', forCongress: null }, '', 119), false);
 });
 
 console.log(`\nbill-suggest: ${passed} passed, ${failures.length} failed`);

@@ -18,18 +18,27 @@ export interface BillSuggestions {
   kind: SuggestKind | null;
   /** The settled query `bills` answers, so a stale list is never shown as current. */
   forQuery: string;
+  /** The Congress `bills` was searched in — half of what makes a list current. */
+  forCongress: number | null;
   loading: boolean;
 }
 
-const EMPTY: BillSuggestions = { bills: [], kind: null, forQuery: '', loading: false };
+const EMPTY: BillSuggestions = {
+  bills: [],
+  kind: null,
+  forQuery: '',
+  forCongress: null,
+  loading: false,
+};
 
 /**
  * Bills matching what is typed in the home ask box, via the same `bills.list`
  * query the /bills search box uses — so bill references ("HR 979") and known
  * acronyms ("KOSA") resolve here exactly as they do there.
  *
- * Responses are cached per normalised query for the life of the component, and
- * any response for a query the reader has since typed past is dropped.
+ * Responses are cached per Congress and normalised query for the life of the
+ * component, and any response for a query or Congress the reader has since
+ * moved past is dropped.
  */
 export function useBillSuggestions(query: string, congress: number): BillSuggestions {
   const [state, setState] = useState<BillSuggestions>(EMPTY);
@@ -39,17 +48,17 @@ export function useBillSuggestions(query: string, congress: number): BillSuggest
   useEffect(() => {
     const key = suggestKey(query);
     const kind = suggestKind(query);
-    latest.current = key;
+    const cacheKey = `${congress}:${key}`;
+    latest.current = cacheKey;
 
     if (kind === null) {
       setState(EMPTY);
       return;
     }
 
-    const cacheKey = `${congress}:${key}`;
     const cached = cache.current.get(cacheKey);
     if (cached) {
-      setState({ bills: cached, kind, forQuery: key, loading: false });
+      setState({ bills: cached, kind, forQuery: key, forCongress: congress, loading: false });
       return;
     }
 
@@ -63,15 +72,15 @@ export function useBillSuggestions(query: string, congress: number): BillSuggest
         })
         .then(({ data }) => {
           cache.current.set(cacheKey, data);
-          if (latest.current !== key) return;
-          setState({ bills: data, kind, forQuery: key, loading: false });
+          if (latest.current !== cacheKey) return;
+          setState({ bills: data, kind, forQuery: key, forCongress: congress, loading: false });
         })
         .catch(() => {
           // fetchBills already degrades to an empty list; this only guards a
           // throw from the dynamic import itself. Suggestions are optional —
           // the ask path still works — so fail quietly.
-          if (latest.current !== key) return;
-          setState({ bills: [], kind, forQuery: key, loading: false });
+          if (latest.current !== cacheKey) return;
+          setState({ bills: [], kind, forQuery: key, forCongress: congress, loading: false });
         });
     }, SUGGEST_DEBOUNCE_MS);
 
