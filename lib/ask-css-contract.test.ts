@@ -118,13 +118,14 @@ it('keeps the panel under the portaled dialogs and over the page', () => {
   assert.ok(css.includes('z-index: 45'), '.ask-panel no longer sits at z-index 45');
 });
 
-// The page wrapper (app/template.tsx) holds every page, and the panel's sticky
-// header and sidebars sit inside it. A fill mode that keeps the last keyframe
-// leaves `matrix(1, 0, 0, 1, 0, 0)` on it, not `none`, which turns it into the
-// containing block for every `position: fixed` descendant (see the page-in note
-// in globals.css). Only a comment stood between `backwards` and a revert to the
-// usual `both`, and nothing on screen says anything is wrong until something
-// fixed scrolls away with the page.
+// The page wrapper (app/template.tsx) holds every page's content — not the
+// navigation or the ask panel, which live in the layout outside {children}. A
+// fill mode that keeps the last keyframe leaves `matrix(1, 0, 0, 1, 0, 0)` on
+// it, not `none`, which turns it into the containing block for every
+// `position: fixed` descendant (see the page-in note in globals.css). Only a
+// comment stood between `backwards` and a revert to the usual `both`, and
+// nothing on screen says anything is wrong until something fixed scrolls away
+// with the page.
 it('lets the page-enter animation leave no transform behind', () => {
   const rule = css.match(/\.animate-page-in\s*\{([^}]*)\}/);
   assert.ok(rule, 'globals.css has no .animate-page-in rule to check.');
