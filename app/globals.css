@@ -207,14 +207,22 @@
 }
 
 /* Page-to-page enter transition. Re-runs on every navigation via app/template.tsx.
-   Ends at `transform: none` so it never leaves a stacking/containing-block
-   behind (which would break sticky sidebars / portaled overlays). */
+
+   The fill mode is `backwards`, and it must stay that way. With `both` (or
+   `forwards`) the finished animation keeps applying its last keyframe, and a
+   keyframe `transform: none` interpolated against `translateY(8px)` is stored
+   as `translateY(0)` — computed `matrix(1, 0, 0, 1, 0, 0)`, not `none`. Any
+   transform other than `none` makes this wrapper, which holds every page, a
+   containing block for `position: fixed` descendants and a new stacking
+   context: fixed elements pinned themselves to the page instead of the
+   viewport. `backwards` still holds the start state before the first frame,
+   then lets go entirely, so the wrapper ends with no transform at all. */
 @keyframes page-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
 .animate-page-in {
-  animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* List item entrance — used for bill cards as a filtered result set comes in.
@@ -238,9 +246,10 @@
    silently inert inside a variant. Every existing sheet on the site is
    currently un-animated for exactly that reason.
 
-   Every "in" ends at `transform: none` for the same reason page-in does:
-   a lingering transform creates a containing block and breaks the portalled
-   content positioned inside it.
+   None of these sets a forwards fill, so a finished "in" leaves no transform
+   behind (see the page-in note above for why a filled `transform: none` is
+   not actually `none`): a lingering transform creates a containing block and
+   breaks the portalled content positioned inside it.
 
    The blanket prefers-reduced-motion rule at the end of this file neutralises
    all of them automatically. */
