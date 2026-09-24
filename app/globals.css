@@ -752,3 +752,46 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 @media (max-width: 1023.98px) {
   html[data-ask='minimized'] .ask-launcher-arrow { display: block; }
 }
+
+/* ── Home page charts (components/dashboard/home) ───────────────────────── */
+
+/* Topic wheel: six categorical slots, checked with a colour-vision-deficiency
+   validator (not part of this repo) against this site's own surfaces — adjacent CVD ΔE ≥ 9.2 light / 9.4 dark.
+   Party blue/red and the "became law" green are left out on purpose. Light-mode
+   contrast is below 3:1 for four slots, so the wheel always ships its legend. */
+:root {
+  --topic-1: #eb6834; --topic-2: #1baf7a; --topic-3: #4a3aa7;
+  --topic-4: #eda100; --topic-5: #2a78d6; --topic-6: #e87ba4;
+  /* State map: one hue, shaded by opacity in five steps. Amber, so it can't be
+     mistaken for either party or for "became law". */
+  --heat: 28 80% 40%;
+}
+.dark {
+  --topic-1: #d95926; --topic-2: #199e70; --topic-3: #9085e9;
+  --topic-4: #c98500; --topic-5: #3987e5; --topic-6: #d55181;
+  --heat: 34 85% 60%;
+}
+
+@keyframes odds-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-odds-in { animation: odds-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes odds-law-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--status-law) / 0); }
+  50%      { box-shadow: 0 0 0 3px hsl(var(--status-law) / 0.35); }
+}
+.odds-law { animation: odds-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both, odds-law-glow 2.4s ease-in-out 1.6s infinite; }
+@keyframes seat-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-seat-in { animation: seat-in 0.4s ease-out both; }
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: none; }
+}
+.animate-bar-grow { animation: bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-odds-in, .odds-law, .animate-seat-in, .animate-bar-grow { animation-delay: 0s !important; }
+}

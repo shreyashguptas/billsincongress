@@ -96,7 +96,8 @@ components/                Shared React components
                            hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
   bills/                   Card, details, progress, save button
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
-  dashboard/               DashboardClient.tsx (the whole dashboard, one file)
+  dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
+    home/                  The home page hero (the chamber) and its chart sections
   auth/ analytics/ legal/ seo/ theme/ ui/
   navigation.tsx footer.tsx podcast-promo.tsx waving-flag.tsx
   convex-client-provider.tsx theme-provider.tsx

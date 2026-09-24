@@ -4,7 +4,7 @@
 
 Live at **[billsincongress.com](https://billsincongress.com)**
 
-![The Bills.Congress home page: the 119th Congress at a glance, with headline counts, a status-distribution bar and top policy areas](public/readme/preview.png)
+![The Bills.Congress home page: a chamber of dots showing the 119th Congress's bills by sponsor's party, with the 113 that became law in the inner rows, above a question box and the headline counts](public/readme/preview.png)
 
 ---
 
@@ -22,19 +22,23 @@ It is free, has no ads, and you do not need an account to read anything on it.
 
 ### The front page — one Congress at a glance
 
-At the top is a box for asking a question. As you type, bills whose title or number matches appear under it straight away. Pick one to go straight to its page, or press Enter to ask your question instead. The one exception: if you typed a bill number that matches exactly one bill, Enter opens that bill. Under the box are three quick links built from the live numbers, such as the bills that became law this Congress. Each one opens the full list rather than asking the AI, which cannot read hundreds of bills at once.
+The home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them).
 
-Below that, the home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them). It shows:
+It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover a party to see its own numbers.
+
+Right under the chamber is a box for asking a question. As you type, bills whose title or number matches appear under it straight away. Pick one to go straight to its page, or press Enter to ask your question instead. The one exception: if you typed a bill number that matches exactly one bill, Enter opens that bill. Under the box are three quick links built from the live numbers, such as the bills that became law this Congress. Each one opens the full list rather than asking the AI, which cannot read hundreds of bills at once.
+
+Below that, it shows:
 
 - **Four headline counts** — bills introduced, House bills, Senate bills, and how many became law.
-- **Where bills stand** — a stacked bar across the legislative pipeline, with each stage's share and count. It is a blunt picture: in the 119th Congress, about 96% of everything introduced is still sitting in committee.
-- **Top policy areas** — the subjects Congress is actually spending its time on, ranked.
-- **Leading sponsors** — the ten members who introduced the most bills, with party and state.
-- **Who's writing the bills** — sponsorship by party and chamber, next to how many of those bills actually became law, so you can see the gap between introducing and passing.
+- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 98% of everything introduced has not made it out of committee.
+- **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
+- **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
+- **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
 - **Introductions month by month** — bills introduced growing upward, laws signed growing downward, each on its own scale, ending in a written sentence naming the busiest and quietest months.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.
 
-Nearly every number on the page is clickable. Click a status segment, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.
+Nearly every number on the page is clickable. Click a stage, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.
 
 ### Every bill, browsable
 

@@ -114,7 +114,8 @@ Server-rendered pages with no interactivity (the About page and the legal pages 
 Four CTAs carry a `data-ph-capture-attribute-*` tag so they can be filtered by name in
 PostHog: `about-github` and `about-browse-bills` (`app/about/page.tsx`),
 `learn-browse-bills` (`app/learn/page.tsx`) and `home-browse-bills`
-(`components/dashboard/DashboardClient.tsx`). The legal pages carry **no** such tags —
+(`components/dashboard/home/shared.tsx`, the "Browse bills" link beside the hero's Congress
+picker). The legal pages carry **no** such tags —
 they have no analytics markup of any kind. The Learn page is interactive (civics guide)
 and fires its own custom events — see "Learn page" below.
 
@@ -142,8 +143,11 @@ and fires its own custom events — see "Learn page" below.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `components/dashboard/DashboardClient.tsx` |
-| `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into the bills data (status bar, policy area, sponsor, state, metric). Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` |
+| `dashboard_congress_selected` | User switches Congress with the dropdown in the home hero | `congress` | `components/dashboard/home/shared.tsx` |
+| `dashboard_drilldown_clicked` | User clicks any home-page stat or chart that drills into the bills data: the four stat cards, a stage in "Where bills stand", a topic's "→" link or the pinned topic's "See these bills", the grey "Other topics, or none tagged" slice's browse link, a sponsor bar, a state tile or top-five row. Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page. `filter_type` is one of `congress`, `chamber` (House/Senate cards, since 24 Sep 2026), `status`, `policyArea`, `sponsor`, `state` | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` (`handleDrillDown`), `components/dashboard/home/topic-wheel.tsx` |
+| `home_chamber_party_focused` | Reader hovers a party's seats in the hero chamber, or hovers/focuses its legend entry. Once per party per page view | `party: "D" \| "R" \| "I" \| "U"`, `congress` | `components/dashboard/home/hero.tsx` |
+| `home_topic_selected` | Reader pins a slice of the topic wheel (clicking the slice or its legend row). Unpinning sends nothing | `policy_area`, `is_rest` (the grey "Other topics, or none tagged" slice), `congress` | `components/dashboard/home/topic-wheel.tsx` |
+| `home_state_map_measure_changed` | Reader switches the state map between total bills and bills per member | `measure: "total" \| "per_member"`, `congress` | `components/dashboard/home/state-map.tsx` |
 | `bills_filter_applied` | A filter moves off its default or changes value. Fires from one chokepoint, so it cannot drift per control | `filter_kind`, `filter_value` (omitted for `title` and `sponsor`), `query_length` (`title` only), `sponsor_count` (`sponsor` only), `surface`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bills_filter_removed` | A filter returns to its default outside the empty-result state | `filter_kind`, `surface`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bills_filter_panel_opened` | A filter picker or the "All filters" panel opens | `filter_kind` (or `"all"`), `layout`, `active_filter_count` | `components/bills/filters/filter-field.tsx`, `components/bills/filters/all-filters-panel.tsx` |
@@ -160,7 +164,7 @@ and fires its own custom events — see "Learn page" below.
 | `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
 | `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
-| `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub. **Not** the homepage policy-area rows, which link to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
+| `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub. **Not** the homepage topic wheel's links, which go to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
 
 **`filter_kind` vocabulary** (shared by `bills_filter_applied`,
 `bills_filter_removed`, `bills_filter_panel_*` and
@@ -259,7 +263,7 @@ emits `list`.
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
 | `answer_thread_deleted` | Reader deleted one conversation or all of them | `scope: "one" \| "all"`, `thread_count` | `components/answers/history-list.tsx` |
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
-| `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx`, `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
+| `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` (also every home chart's "Ask about this"), `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
 | `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
 
 > **`dropped` is the grounding-health number.** It counts citations the model
