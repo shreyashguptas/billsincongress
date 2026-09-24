@@ -65,8 +65,11 @@ const SITE_GRAPH = {
         'legislative tracking',
       ],
       isAccessibleForFree: true,
+      // Google's Dataset rich results accept only Person or Organization here
+      // and flag the more specific GovernmentOrganization as "Invalid object
+      // type for field 'creator'" (Search Console → Data sets, Sep 2026).
       creator: {
-        '@type': 'GovernmentOrganization',
+        '@type': 'Organization',
         name: 'United States Congress',
         url: 'https://www.congress.gov',
       },
