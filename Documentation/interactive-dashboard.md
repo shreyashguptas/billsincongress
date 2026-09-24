@@ -133,9 +133,10 @@ wrapper is re-keyed on the Congress and remounting the hero would throw away a h
 question in its ask box; its numbers still come from the same loaded view.
 
 Two edge cases the chamber handles on purpose: a Congress with fewer than 435 bills gets one
-seat per bill, and a Congress whose party breakdown row does not exist yet (a new Congress's
-first sync writes it last) shows a "not built yet" note instead of seats, because all-zero
-counts would otherwise seat the whole chamber as one party.
+seat per bill, and a Congress missing either chamber's party breakdown row (a new Congress's
+first sync writes them last) shows a "not built yet" note instead of seats. All-zero counts
+would otherwise seat the whole chamber as one party, and one chamber alone would show about
+half the bills under a headline about all of them.
 
 Numbers in the monthly chart and the state map count bills by the month they were
 **introduced** and the state of their **sponsor**; the "became law" figures anywhere on the

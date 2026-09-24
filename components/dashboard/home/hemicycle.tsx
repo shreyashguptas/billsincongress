@@ -193,7 +193,6 @@ export function Hemicycle({
   );
 }
 
-/** The one-line scale note — the only caption the chart needs. */
 /**
  * "= 1" only when a seat really is exactly one; any scaled seat says "≈", with
  * one decimal under 10 so 600 bills on 435 seats reads "≈ 1.4", not "= 1".
@@ -204,6 +203,7 @@ function perSeatLabel(total: number, seats: number, one: string, many: string) {
   return `≈ ${per < 10 ? per.toFixed(1) : fmt(Math.round(per))} ${many}`;
 }
 
+/** The one-line scale note — the only caption the chart needs. */
 export function HemicycleKey({ totalBills, totalLaws }: { totalBills: number; totalLaws: number }) {
   if (totalBills === 0) return null;
   return (

@@ -20,7 +20,16 @@ import { BrowseLink, CongressSelect, combinedParty, fmt, type HomeProps } from '
 
 export function HomeHero(props: HomeProps) {
   const { congress, house, senate, starterInput } = props;
-  const { bills, laws } = combinedParty(house, senate);
+  // Each chamber's party breakdown is its own row, written after the stats.
+  // If one exists and the other doesn't yet, the seats would hold about half
+  // the bills under a headline about all of them, so show neither until both
+  // are there (Hemicycle renders its "not built yet" note for all-zero counts).
+  const breakdownComplete =
+    ((house?.total ?? 0) > 0 || props.dashboard.houseCount === 0) &&
+    ((senate?.total ?? 0) > 0 || props.dashboard.senateCount === 0);
+  const { bills, laws } = breakdownComplete
+    ? combinedParty(house, senate)
+    : combinedParty(null, null);
   const [hover, setHoverState] = useState<PartyKey | null>(null);
   const reported = useRef(new Set<PartyKey>());
   const setHover = (p: PartyKey | null) => {
