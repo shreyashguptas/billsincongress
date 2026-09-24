@@ -2,8 +2,7 @@ import Google from "@auth/core/providers/google";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
 import { ConvexError } from "convex/values";
-import { ResendOTP } from "./ResendOTP";
-import { ResendOTPPasswordReset } from "./ResendOTPPasswordReset";
+import { EmailVerificationCode, PasswordResetCode } from "./emailCodes";
 
 // Sessions last 60 days: the library transparently refreshes the JWT every hour
 // off the long-lived refresh token, so a user is only signed out after 60 days
@@ -65,8 +64,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
 
     // Email + password with scrypt hashing (library default).
     Password({
-      verify: ResendOTP,
-      reset: ResendOTPPasswordReset,
+      verify: EmailVerificationCode,
+      reset: PasswordResetCode,
       validatePasswordRequirements: (password: string) => {
         if (password.length < 10) {
           throw new ConvexError("Password must be at least 10 characters.");

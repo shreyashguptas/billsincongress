@@ -71,6 +71,7 @@ repository.
 | `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below. Since 13 Sep 2026 also reported explicitly by the error boundaries, which catch a render failure before the window-level handler can see it | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle), plus `analytics.captureException()` from `app/error.tsx` and `app/global-error.tsx` |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) | Project setting `heatmaps_opt_in: true` |
 | `$rageclick` | Repeated frustrated clicks on the same element | `defaults` preset |
+| `$workflows_email_*` | Delivery of each account email (sign-up and password-reset codes): `sent`, `delivered`, `bounced`, `blocked`. No opens or clicks, because tracking is off on those sends. All under one distinct id, `bills-congress-mailer`, so no per-recipient profiles are created; the recipient is in `$email_to` | PostHog Workflows, not the browser. The workflow is "Bills.Congress: sign-in codes"; see "Email" in `overview.md`. The site's request names its run `bic_email_requested`, but that is **not** an ingested event (the workflow has no "Capture event" step) and never appears in insights; the payload, code included, is kept only in the workflow's Invocations tab |
 
 Project-side settings worth knowing when reading this data, because none of them are
 visible in the repo:
