@@ -1213,7 +1213,12 @@ The site installs to a phone's Home Screen or a computer's dock and opens full s
   serve `public/offline.html` instead of the browser's error screen. It caches nothing else —
   every page, chunk and API call goes to the network as if it were not there — so it cannot
   hide a deploy behind a stale copy or fight skew protection. Navigation preload is on, so it
-  costs a navigation no time. `public/_headers` serves both files `no-cache`. If it ever
+  costs a navigation no time. `public/_headers` serves both files `no-cache`.
+  Cloudflare serves static HTML without its extension (`/offline.html` answers 307 →
+  `/offline`), and a browser rejects a *redirected* response as the answer to a page load,
+  so the worker stores a fresh copy of the page rather than the fetched response. Version 1
+  cached the redirected copy and its offline page never showed in production; test offline
+  behaviour under `wrangler dev`, not only `next start`, which does not redirect. If it ever
   grows a page or asset cache, deploy skew (`deploymentId` in `next.config.mjs`) has to be
   handled first. Bump `OFFLINE_CACHE` in it when `offline.html` changes.
 - **"Install the app"** in the footer (`components/pwa/install-app-button.tsx`) appears only

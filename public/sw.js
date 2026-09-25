@@ -11,15 +11,29 @@
 // `deploymentId`) first.
 //
 // Bump OFFLINE_CACHE when offline.html changes, so installs pick up the new one.
+// (v1 cached the redirected copy described below and served nothing; v2 fixes it.)
 
-const OFFLINE_CACHE = 'offline-v1';
+const OFFLINE_CACHE = 'offline-v2';
 const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(OFFLINE_CACHE)
-      .then((cache) => cache.add(new Request(OFFLINE_URL, { cache: 'reload' }))),
+    (async () => {
+      // Cloudflare serves static HTML without its extension, so /offline.html
+      // answers 307 → /offline. fetch() follows that, but the response it
+      // returns is marked `redirected`, and a browser refuses a redirected
+      // response as the answer to a page load: the offline page would itself
+      // fail. Storing a fresh Response with the same body drops the mark, and
+      // works whether or not the host redirects (`next start` does not).
+      const response = await fetch(OFFLINE_URL, { cache: 'reload' });
+      if (!response.ok) throw new Error(`${OFFLINE_URL}: HTTP ${response.status}`);
+      const clean = new Response(await response.blob(), {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+      const cache = await caches.open(OFFLINE_CACHE);
+      await cache.put(OFFLINE_URL, clean);
+    })(),
   );
   self.skipWaiting();
 });
