@@ -88,8 +88,8 @@ app/                       Next.js App Router — 19 page.tsx files
     _hub/                  Hub view, directory and view-tracker (route-private)
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|in-committee|passed-one-chamber|introduced|vetoed/
-  learn/                   Illustrated civics guide
-    components/            Route-private: capitol, seat charts, journey, quiz, …
+  learn/                   How Congress works, in pictures (server-rendered)
+    components/            Route-private: the SVG pictures, the hemicycle maths, the state picker
   about/ privacy/ terms/   Content and legal
   account/                 The only signed-in page
   sign-in/ sign-up/ forgot-password/

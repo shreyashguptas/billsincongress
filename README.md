@@ -83,13 +83,14 @@ Pro also raises the question limit from 100 a day to 500. Payment is handled by 
 
 ### How Congress works
 
-`/learn` is a hand-built illustrated civics guide for people who never got the classroom version:
+`/learn` explains how Congress works in pictures, simply enough for a child of about eight: one short caption per picture and no paragraphs.
 
-- A line drawing of the Capitol that draws itself.
-- Real seat charts — all 435 House seats and 100 Senate seats — where picking your state lights up the seats it sends.
-- A "100 bills, 3 survive" animation of what actually happens to legislation.
-- A seven-step walkthrough from idea to law, each step with its own illustration, a piece of trivia (the House's mahogany "hopper" box; the President's ten-day window), and a note telling you which label that step carries on a real bill page here.
-- A five-question quiz that scores you from Campaign Volunteer to Speaker of the House.
+- **Who is Congress?** People vote, they pick people to speak for them, and those people meet in two rooms. Both rooms are drawn seat by seat — all 435 House seats and 100 Senate seats — and picking your state fills in the seats it sends.
+- **How an idea becomes a law**, in six pictures, each in the colour that stage has everywhere else on the site: the idea is written down as a bill, a small group checks it, one room votes yes, the other room votes yes, the President signs, and it is a law.
+- **Most bills never make it:** 100 dots, 2 of them green. About 2 in 100 bills became law in the last two full Congresses (639 of 31,807, 2021–2024).
+- Buttons onward to the bills that became law and to every bill.
+
+The page is drawn on the server and ships almost no JavaScript of its own; the state picker is its only interactive part.
 
 ### Reading comfort
 
@@ -255,7 +256,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Layer | What it is |
 | --- | --- |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
-| Design | [shadcn/ui](https://ui.shadcn.com) components (Radix underneath) and Tailwind CSS, themed by the tokens in [`Documentation/brand.md`](Documentation/brand.md) — the design language: colour, type, logo, components. Framer Motion for the Learn page |
+| Design | [shadcn/ui](https://ui.shadcn.com) components (Radix underneath) and Tailwind CSS, themed by the tokens in [`Documentation/brand.md`](Documentation/brand.md) — the design language: colour, type, logo, components |
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
 | Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
 | Payments | Stripe Checkout and the Stripe customer portal; a signature-checked webhook is the only thing that sets a reader's plan (`convex/billing.ts`) |

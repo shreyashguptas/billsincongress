@@ -1,225 +1,254 @@
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
-import { sharedViewport } from '../shared-metadata';
+import { ArrowRight, FilePlus, Landmark, PenLine, ScrollText, User, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { sharedViewport } from '../shared-metadata';
 import PodcastPromo from '@/components/podcast-promo';
-import { SectionHeader } from '@/components/brand/section';
+import { ChamberMark } from '@/components/brand/logo';
+import { SectionHeader, SourceLine } from '@/components/brand/section';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LearnMotionProvider } from './components/motion-provider';
-import { CapitolDome } from './components/capitol-dome';
-import { HeroStats } from './components/hero-stats';
-import { Reveal } from './components/reveal';
-import { CivicFlow } from './components/civic-flow';
-import { ChamberSeats } from './components/chamber-seats';
-import { BillSurvival } from './components/bill-survival';
-import { BillJourney } from './components/bill-journey';
-import { CivicsQuiz } from './components/civics-quiz';
+import {
+  CommitteePicture,
+  HouseVotePicture,
+  HundredBills,
+  IdeaPicture,
+  LawPicture,
+  PickPicture,
+  SenateVotePicture,
+  SignPicture,
+  VotePicture,
+} from './components/pictures';
+import { TwoRooms } from './components/two-rooms';
+
+// How Congress works, in pictures, for a reader as young as eight: one short
+// caption per picture and no paragraphs. The page is server-rendered; the only
+// client JavaScript of its own is the state picker in <TwoRooms>.
 
 export const viewport: Viewport = sharedViewport;
 
 export const metadata: Metadata = {
   title: 'How Congress works',
   description:
-    'An illustrated, interactive guide to the United States Congress — who writes the laws, how a bill survives the journey, and why most never make it.',
+    'How Congress works, in pictures: people vote, Congress meets in two rooms, and an idea becomes a law in six steps.',
   alternates: { canonical: '/learn' },
 };
 
-const JUMP_LINKS = [
-  { href: '#idea', label: 'The big idea' },
-  { href: '#chambers', label: 'The two rooms' },
-  { href: '#bills', label: "What's a bill" },
-  { href: '#journey', label: 'The journey' },
-  { href: '#quiz', label: 'Pop quiz' },
-  { href: '#podcast', label: 'Go deeper' },
-];
-
 /**
- * One chapter of the guide: an eyebrow, a headline, the lead paragraph in
- * Newsreader at reading size, then the interactive piece. Chapters are divided
- * by a hairline, never boxed (Documentation/brand.md, "Layout and shape").
+ * One panel of the story: the picture first, then its caption beside a node —
+ * a number in ink for the people, the stage's glyph in the stage's colour for
+ * a bill's path. `wide` (the two rooms) puts the caption above a full-width
+ * picture, because the caption leads into the state picker.
  */
-function Chapter({
-  id,
-  eyebrow,
+function Step({
+  node,
+  tone = 'bg-ink',
   title,
-  lead,
-  children,
-  className,
+  sub,
+  picture,
+  wide = false,
 }: {
-  id?: string;
-  eyebrow: string;
+  node: number | LucideIcon;
+  tone?: string;
   title: string;
-  lead: ReactNode;
-  children: ReactNode;
-  className?: string;
+  sub?: string;
+  picture: ReactNode;
+  wide?: boolean;
 }) {
+  const Glyph = typeof node === 'number' ? null : node;
+  const caption = (
+    <div className="flex items-start gap-4">
+      <span
+        aria-hidden="true"
+        className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-ink', tone)}
+      >
+        {Glyph ? (
+          <Glyph className="h-5 w-5" strokeWidth={1.75} />
+        ) : (
+          <span className="font-mono text-base tabular">{node as number}</span>
+        )}
+      </span>
+      <div className="pt-1">
+        <h3 className="text-display-sm text-ink">{title}</h3>
+        {sub && <p className="mt-1.5 text-ink-2 sm:text-lg">{sub}</p>}
+      </div>
+    </div>
+  );
+  const frame = <div className="rounded-lg border border-line bg-raised p-4 sm:p-6">{picture}</div>;
   return (
-    <section id={id} className={cn('scroll-mt-24 border-t border-line', className)}>
+    <li className={cn('flex flex-col gap-5', wide && 'md:col-span-2')}>
+      {wide ? caption : frame}
+      {wide ? frame : caption}
+    </li>
+  );
+}
+
+function Part({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: ReactNode }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-24 border-t border-line">
       <div className="container-editorial py-16 sm:py-24">
-        <Reveal className="max-w-measure">
-          <SectionHeader eyebrow={eyebrow} title={title} />
-          <p className="mt-5 font-serif text-reading text-ink">{lead}</p>
-        </Reveal>
-        <div className="mt-10 sm:mt-14">{children}</div>
+        <SectionHeader eyebrow={eyebrow} title={<span id={`${id}-title`}>{title}</span>} />
+        <div className="mt-12 sm:mt-16">{children}</div>
       </div>
     </section>
   );
 }
 
+/** The whole idea in one picture: you → Congress → laws. */
+function BigIdea() {
+  const nodes: { label: string; icon: ReactNode; tone: string }[] = [
+    { label: 'You', icon: <User className="h-10 w-10 sm:h-14 sm:w-14" strokeWidth={1.5} />, tone: 'bg-sunken text-ink' },
+    { label: 'Congress', icon: <ChamberMark className="h-12 w-12 sm:h-16 sm:w-16" />, tone: 'bg-sunken text-ink' },
+    { label: 'Laws', icon: <ScrollText className="h-10 w-10 sm:h-14 sm:w-14" strokeWidth={1.5} />, tone: 'bg-status-law text-on-ink' },
+  ];
+  return (
+    <ol
+      aria-label="You pick Congress, and Congress makes the laws."
+      className="flex items-start justify-between gap-2 sm:justify-start sm:gap-6"
+    >
+      {nodes.map((n, i) => (
+        <li key={n.label} className="flex items-start gap-2 sm:gap-6">
+          <div className="flex flex-col items-center gap-3">
+            <span
+              aria-hidden="true"
+              className={cn('flex h-20 w-20 items-center justify-center rounded-full sm:h-28 sm:w-28', n.tone)}
+            >
+              {n.icon}
+            </span>
+            <span className="text-title text-ink">{n.label}</span>
+          </div>
+          {i < nodes.length - 1 && (
+            <ArrowRight aria-hidden="true" className="mt-7 h-6 w-6 text-ink-3 sm:mt-11" strokeWidth={1.75} />
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export default function LearnPage() {
   return (
-    <LearnMotionProvider>
-      <article className="animate-fade-in">
-        {/* Page head */}
-        <header className="overflow-hidden">
-          <div className="container-editorial pt-12 sm:pt-16">
-            <div className="grid items-center gap-10 lg:grid-cols-12 lg:gap-12">
-              <div className="lg:col-span-6">
-                <p className="label-eyebrow">A visual guide</p>
-                <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">How Congress works.</h1>
-                <p className="mt-5 max-w-[60ch] text-[17px] leading-relaxed text-ink-2 sm:text-lg">
-                  535 people. Two rooms. One long obstacle course from idea to
-                  law. Here is the whole story, told simply enough for anyone —
-                  no homework required.
-                </p>
+    <article>
+      <header className="container-editorial grid items-center gap-10 pb-16 pt-12 sm:pb-24 sm:pt-16 lg:grid-cols-2">
+        <div>
+          <p className="label-eyebrow">In pictures</p>
+          <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">How Congress works</h1>
+          <p className="mt-4 text-lg text-ink-2 sm:text-xl">Congress makes the rules for the whole country.</p>
+        </div>
+        <BigIdea />
+      </header>
 
-                <nav
-                  aria-label="Sections of this guide"
-                  className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm"
-                >
-                  {JUMP_LINKS.map((link) => (
-                    <a key={link.href} href={link.href} className="link focus-ring rounded-xs">
-                      {link.label}
-                    </a>
-                  ))}
-                </nav>
+      <Part id="who" eyebrow="Part 1" title="Who is Congress?">
+        <ol className="grid gap-x-8 gap-y-14 md:grid-cols-2">
+          <Step node={1} title="People vote." sub="Every citizen 18 or older can." picture={<VotePicture />} />
+          <Step node={2} title="They pick people to speak for them." picture={<PickPicture />} />
+          <Step
+            node={3}
+            title="Those people meet in two rooms."
+            sub="Together, the two rooms are Congress."
+            picture={
+              <div id="rooms" className="scroll-mt-24">
+                <TwoRooms />
               </div>
+            }
+            wide
+          />
+        </ol>
+      </Part>
 
-              {/* The Capitol draws itself in */}
-              <div className="text-ink lg:col-span-6">
-                <CapitolDome className="mx-auto w-full max-w-xl" />
-              </div>
-            </div>
+      <Part id="path" eyebrow="Part 2" title="How an idea becomes a law">
+        <ol className="grid gap-x-8 gap-y-14 md:grid-cols-2 lg:grid-cols-3">
+          <Step
+            node={FilePlus}
+            tone="bg-status-introduced"
+            title="Someone has an idea."
+            sub="A member of Congress writes it down. Now it’s a bill."
+            picture={<IdeaPicture />}
+          />
+          <Step
+            node={Users}
+            tone="bg-status-committee"
+            title="A small group checks it."
+            picture={<CommitteePicture />}
+          />
+          <Step
+            node={Landmark}
+            tone="bg-status-passed-one"
+            title="One room votes yes."
+            sub="More than half must agree."
+            picture={<HouseVotePicture />}
+          />
+          <Step
+            node={Landmark}
+            tone="bg-status-passed-both"
+            title="Then the other room votes yes."
+            picture={<SenateVotePicture />}
+          />
+          <Step
+            node={PenLine}
+            tone="bg-status-president"
+            title="The President signs it."
+            picture={<SignPicture />}
+          />
+          <Step
+            node={ScrollText}
+            tone="bg-status-law"
+            title="Now it’s a law."
+            sub="Everyone in the country follows it."
+            picture={<LawPicture />}
+          />
+        </ol>
+      </Part>
 
-            {/* The three figures */}
-            <div className="mt-10 sm:mt-14">
-              <HeroStats />
-            </div>
+      <Part id="odds" eyebrow="Part 3" title="Most bills never make it">
+        <div className="grid items-center gap-10 md:grid-cols-2 md:gap-16">
+          <div>
+            <p className="font-serif text-display-md text-ink sm:text-display-lg">
+              About <span className="tabular">2</span> in <span className="tabular">100</span> become law.
+            </p>
+            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-ink-2">
+              <li className="flex items-center gap-2">
+                <span aria-hidden="true" className="h-3 w-3 rounded-full bg-status-law" />
+                Became law
+              </li>
+              <li className="flex items-center gap-2">
+                <span aria-hidden="true" className="h-3 w-3 rounded-full bg-ink/15" />
+                Did not
+              </li>
+            </ul>
+            <SourceLine className="mt-6">
+              Source: Congress.gov. The 117th and 118th Congresses (2021–2024): 639 of 31,807 bills became law.
+            </SourceLine>
           </div>
-        </header>
+          <HundredBills className="mx-auto w-full max-w-sm md:max-w-md" />
+        </div>
+      </Part>
 
-        {/* The strip above already closes with a hairline, so the first
-            chapter does not draw a second one. */}
-        <Chapter
-          id="idea"
-          eyebrow="§ 01 — The big idea"
-          title="Who makes the rules?"
-          className="border-t-0"
-          lead={
-            <>
-              Every country needs rules — about taxes, schools, roads, food,
-              the internet, the air. In America, the people who write those
-              rules work in one building: the United States Capitol in
-              Washington, D.C. Together they are called Congress. And they all
-              work for you.
-            </>
-          }
-        >
-          <CivicFlow />
-        </Chapter>
-
-        <Chapter
-          id="chambers"
-          eyebrow="§ 02 — The two rooms"
-          title="Congress is two teams in two rooms."
-          lead={
-            <>
-              The House of Representatives is big, loud, and fast. The Senate
-              is small, slow, and stubborn. Nothing becomes law unless both
-              rooms say yes to the exact same words — that is the whole trick
-              of the system. Every dot below is a real seat, held by a real
-              person.
-            </>
-          }
-        >
-          <ChamberSeats />
-        </Chapter>
-
-        <Chapter
-          id="bills"
-          eyebrow="§ 03 — The paperwork"
-          title="Every law starts as a bill."
-          lead={
-            <>
-              A bill is an idea for a law, written down and given a number.
-              That&apos;s it. Anyone can have the idea — a scientist, a shop owner,
-              a fifth-grader — but only a member of Congress can put it in the
-              race. And once it&apos;s in, the odds are brutal.
-            </>
-          }
-        >
-          <BillSurvival />
-        </Chapter>
-
-        {/* The page's one bold moment: the interactive journey. */}
-        <Chapter
-          id="journey"
-          eyebrow="§ 04 — The obstacle course"
-          title="From idea to law, in seven steps."
-          lead={
-            <>
-              Every bill on this site is somewhere on this exact path — whether
-              it&apos;s about school lunches or space travel. Click through the
-              steps and walk the road yourself.
-            </>
-          }
-        >
-          <BillJourney />
-        </Chapter>
-
-        <Chapter
-          id="quiz"
-          eyebrow="§ 05 — Pop quiz"
-          title="Think you've got it?"
-          lead="Five questions. No grades, no pressure — just bragging rights."
-        >
-          <Reveal delay={0.1} className="max-w-3xl">
-            <CivicsQuiz />
-          </Reveal>
-        </Chapter>
-
-        {/* § 06 — Go deeper (podcast) */}
-        <section id="podcast" className="scroll-mt-24 border-t border-line">
-          <div className="container-editorial py-16 sm:py-24">
-            <Reveal>
-              <PodcastPromo placement="learn" eyebrow="§ 06 — Go deeper" />
-            </Reveal>
+      <section className="border-t border-line bg-sunken">
+        <div className="container-editorial py-16 text-center sm:py-24">
+          <h2 className="text-display-sm text-ink sm:text-display-md">See it for real</h2>
+          <div className="mx-auto mt-8 flex max-w-xs flex-col items-center justify-center gap-3 sm:max-w-none sm:flex-row">
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href="/bills/enacted" data-ph-capture-attribute-cta="learn-enacted-bills">
+                Bills that became law
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
+              <Link href="/bills" data-ph-capture-attribute-cta="learn-browse-bills">
+                All bills in Congress
+              </Link>
+            </Button>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Closing call to action — the quiet band */}
-        <section className="border-t border-line bg-sunken">
-          <div className="container-editorial py-16 text-center sm:py-24">
-            <Reveal>
-              <p className="label-eyebrow">Now you&apos;re ready</p>
-              <h2 className="mt-3 text-display-sm text-ink sm:text-display-md">Watch it happen for real.</h2>
-              <p className="mx-auto mt-4 max-w-[60ch] text-[17px] leading-relaxed text-ink-2 sm:text-lg">
-                Right now, thousands of real bills are making this exact journey
-                through Congress. Some will become laws that shape your life.
-                Follow them as it happens.
-              </p>
-              <Button asChild size="lg" className="mt-8">
-                <Link href="/bills" data-ph-capture-attribute-cta="learn-browse-bills">
-                  Browse the bills in Congress
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
-            </Reveal>
-          </div>
-        </section>
-      </article>
-    </LearnMotionProvider>
+      <section className="border-t border-line">
+        <div className="container-editorial py-10">
+          <PodcastPromo placement="learn" variant="compact" />
+        </div>
+      </section>
+    </article>
   );
 }

@@ -119,13 +119,13 @@ visible in the repo:
 
 Server-rendered pages with no interactivity (the About page and the legal pages — `/terms`,
 `/privacy`) intentionally have **no custom code** — their clicks are covered by autocapture.
-Four CTAs carry a `data-ph-capture-attribute-*` tag so they can be filtered by name in
+Five CTAs carry a `data-ph-capture-attribute-*` tag so they can be filtered by name in
 PostHog: `about-github` and `about-browse-bills` (`app/about/page.tsx`),
-`learn-browse-bills` (`app/learn/page.tsx`) and `home-browse-bills`
+`learn-enacted-bills` and `learn-browse-bills` (`app/learn/page.tsx`) and `home-browse-bills`
 (`components/dashboard/home/shared.tsx`, the "Browse bills" link beside the hero's Congress
 picker). The legal pages carry **no** such tags —
-they have no analytics markup of any kind. The Learn page is interactive (civics guide)
-and fires its own custom events — see "Learn page" below.
+they have no analytics markup of any kind. The Learn page has one interaction (the state
+picker) and fires one custom event — see "Learn page" below.
 
 ---
 
@@ -310,25 +310,23 @@ emits `list`.
 > `convex/catalog/datasets.ts` need strengthening — that is the fix, not a prompt
 > patch elsewhere.
 
-### Learn page (interactive civics guide)
+### Learn page (picture guide)
 
-The Learn page is an illustrated, interactive explainer of how Congress works. Each
-interactive element fires events so we can see which parts people actually engage with
-(and where they drop off). Static CTA clicks are still covered by autocapture.
+The Learn page explains how Congress works in pictures, for readers as young as eight. It
+was rebuilt on 2026-09-25 as a server-rendered page with one interaction, the state
+picker; the step-through journey and the quiz it used to have are retired (see "Retired
+events"). The two onward buttons carry `data-ph-capture-attribute-cta` tags and are
+covered by autocapture.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `learn_state_selected` | User picks their state in the "two rooms" seat-chart explorer | `state`, `representatives` | `app/learn/components/chamber-seats.tsx` |
-| `learn_journey_step_viewed` | User navigates to a step of the interactive bill journey (click on a step number, Next, or Back) | `step` (1–7), `step_title`, `method: "next" \| "back" \| "jump"` | `app/learn/components/bill-journey.tsx` |
-| `learn_quiz_answered` | User answers a civics-quiz question | `question` (1–5), `correct` | `app/learn/components/civics-quiz.tsx` |
-| `learn_quiz_completed` | User reaches the quiz results screen | `score`, `total` | `app/learn/components/civics-quiz.tsx` |
-| `learn_quiz_restarted` | User clicks "Take it again" on the results screen | — | `app/learn/components/civics-quiz.tsx` |
+| `learn_state_selected` | User picks their state in the "two rooms" seat pictures | `state`, `representatives` | `app/learn/components/two-rooms.tsx` |
 
 ### Podcast cross-promotion
 
 The owner's podcast ("The Federalist Papers: Explained") is promoted in three places:
-the home page (full promo section), the Learn page (full promo, "§ 06 — Go deeper")
-and the end of every bill detail page (compact promo after the Q&A). The `placement`
+the home page (full promo section), the foot of the Learn page (compact promo) and the
+end of every bill detail page (compact promo after the Q&A). The `placement`
 property exists to settle, with data, which placements earn their spot.
 
 | Event | Fired when | Properties | Where (file) |
@@ -581,6 +579,10 @@ feature has real usage behind it.
 
 | Event | Properties | Retired | Why |
 | --- | --- | --- | --- |
+| `learn_journey_step_viewed` | `step` (1–7), `step_title`, `method: "next" \| "back" \| "jump"` | 2026-09-25 | The seven-step journey stepper was replaced by a static picture path when the Learn page was rebuilt for young readers and page speed. Last 30 days before retirement: 125 events from 18 people. |
+| `learn_quiz_answered` | `question` (1–5), `correct` | 2026-09-25 | The civics quiz was removed in the same rebuild. Last 30 days: 86 events from 16 people. |
+| `learn_quiz_completed` | `score`, `total` | 2026-09-25 | Quiz removed (see above). Last 30 days: 16 events from 14 people. |
+| `learn_quiz_restarted` | — | 2026-09-25 | Quiz removed (see above). Last 30 days: 2 events from 1 person. |
 | `bill_chat_question_submitted` | `bill_id`, `question`, `question_length`, `source`, `question_number`, `user_type` | 2026-08-26 | Replaced by `answer_question_submitted` when bill chat became the grounded answer panel. Deliberately not renamed — renaming breaks saved insights and funnels. `surface: "bill"` is the closest equivalent of the old `bill_id`-scoped view. |
 | `bill_chat_answer_received` | `bill_id`, `response_ms`, `answer_length` | 2026-08-26 | Replaced by `answer_received`, which adds source counts and the grounding-health `dropped` property. |
 | `bill_chat_failed` | `bill_id`, `error` | 2026-08-26 | Replaced by `answer_failed`. |

@@ -242,8 +242,6 @@ What stays hand-built, on purpose:
   history entries.
 - **Caption-size text actions** ("Ask about this →", the work-log toggles),
   where `Button`'s height and padding would change the line they sit in.
-- **Learn's stepper and quiz answers**, whose states (reached, correct, wrong)
-  a toggle's "selected" would misreport to a screen reader.
 
 ## Charts
 
