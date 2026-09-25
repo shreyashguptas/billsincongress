@@ -79,10 +79,19 @@ for (const file of [...testFiles, ...GUARDS]) {
   }
 }
 
+// Convex function specs (`convex/**/*.spec.ts`) run real queries, mutations and
+// HTTP actions against an in-memory database via convex-test, which needs
+// vitest's `import.meta.glob`. One vitest run covers all of them.
+const specRun = spawnSync("vitest", ["run", "--reporter=dot"], { stdio: "inherit" });
+if (specRun.status !== 0) {
+  failed += 1;
+  console.error("FAIL convex/**/*.spec.ts (vitest)");
+}
+
 // Print what ran, so a passing run is evidence rather than an assertion. CI
 // pastes this into the review, where "0 files" would otherwise read as success.
 console.log(
-  `\n${testFiles.length} test file(s) + ${GUARDS.length} guard(s) run, ${failed} failed` +
+  `\n${testFiles.length} test file(s) + ${GUARDS.length} guard(s) + the vitest specs run, ${failed} failed` +
     (skipped.length > 0 ? `, ${skipped.length} SKIPPED.` : "."),
 );
 if (skipped.length > 0) {

@@ -17,9 +17,10 @@ Generated for Self-driving / scout context. Project **BillsInCongress** (id `451
 
 ## Custom events
 
-- **~50 live custom events** in `lib/analytics.ts`, all registered in `Documentation/ANALYTICS.md`.
+- **~70 live custom events** in `lib/analytics.ts`, all registered in `Documentation/ANALYTICS.md`.
 - No raw `posthog.capture()` in components — only inside `lib/analytics.ts`.
-- Primary surfaces: bill browse/filters, bill detail, grounded answer panel, auth, Learn page, podcast promos.
+- Primary surfaces: bill browse/filters, bill detail, grounded answer panel, auth, Learn page, podcast promos, and the Pro plan (bill alerts, Stripe checkout, billing portal).
+- Pro funnel: `bill_alert_upsell_shown` / `rate_limit_upgrade_clicked` → `pro_checkout_started` → `pro_checkout_returned` → `pro_activated`.
 
 ## Autocapture (project settings, not in repo)
 

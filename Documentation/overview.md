@@ -24,6 +24,7 @@ Figures were verified against production on **29 August 2026**.
 - [The answer engine](#the-answer-engine)
 - [Accounts and auth](#accounts-and-auth)
 - [Email](#email)
+- [Pro: billing and bill alerts](#pro-billing-and-bill-alerts)
 - [Environment variables](#environment-variables)
 - [Build, test and deploy](#build-test-and-deploy)
 - [Hosting and Cloudflare constraints](#hosting-and-cloudflare-constraints)
@@ -38,7 +39,7 @@ Figures were verified against production on **29 August 2026**.
 ```
 Congress.gov API v3  (Library of Congress)
       │
-      │  nine scheduled jobs — convex/crons.ts
+      │  nine sync jobs + two alert-email jobs — convex/crons.ts
       ▼
 convex/congressApi.ts   sync, reconcile, repair, backfill
       │
@@ -59,6 +60,11 @@ Next.js App Router (app/)  ◀──────  app/api/answer/route.ts (cooki
       ▼
 Cloudflare Worker (OpenNext)  →  billsincongress.com
 ```
+
+Pro billing and bill alerts sit beside this: Stripe calls the Convex HTTP action
+`POST /stripe/webhook` (convex/billing.ts), which is the only writer of `users.plan`, and a
+daily cron (convex/alerts.ts) emails followed-bill digests through PostHog Workflows. See
+[Pro: billing and bill alerts](#pro-billing-and-bill-alerts).
 
 Two independently deployed halves:
 
@@ -126,8 +132,10 @@ convex/                    Backend — 30 top-level modules + catalog/ + 9 test 
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
   answer.ts catalog/       The grounded answer engine
   chats.ts savedBills.ts users.ts auth.ts   Accounts
+  billing.ts alerts.ts email.ts             Pro: Stripe webhook + checkout, bill alerts, alert delivery
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts
-  billStage.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts   Pure, unit-tested
+  billStage.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
+  plan.ts alertDigest.ts                    Pure, unit-tested
 
 scripts/                   run-tests.ts, two CI guards, three AI probes, image tooling
 public/                    Icons, images, _headers, the IndexNow key file
@@ -146,7 +154,10 @@ public/                    Icons, images, _headers, the IndexNow key file
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/enacted`, `/vetoed` | 5 stage hubs |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
-| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route) |
+| `/pro` | The Pro plan: prices, what it adds, subscribe buttons (Stripe Checkout) |
+| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, "Manage billing" (Stripe portal) and followed bills |
+| `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
+| `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
@@ -180,7 +191,7 @@ the allowlist in `lib/cacheable-routes.ts`.
 Caching is an **allowlist, not a denylist**, on purpose: a missing public route is merely
 uncached, whereas a personalised route slipping through a denylist gap would put one
 visitor's page in a shared cache. Signed-out responses on `/`, `/about`, `/learn`,
-`/privacy`, `/terms` and anything under `/bills` get
+`/privacy`, `/pro`, `/terms` and anything under `/bills` get
 `public, max-age=0, s-maxage=300, stale-while-revalidate=86400`; any request carrying an
 auth cookie gets `private, no-store`. **New public routes must be added to that file.**
 
@@ -228,7 +239,9 @@ reaches back two Congresses, and it only *inserts* bills that are entirely missi
 re-fetches an already-complete bill in a previous Congress, so an upstream correction to a
 117th- or 118th-Congress bill will not be picked up.
 
-### The nine cron jobs
+### The cron jobs
+
+Nine keep the data in step with Congress; a tenth (the last row) sends bill alerts.
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -241,6 +254,7 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 | `monthly-current-congress-repull` | 05:00 on the 1st | Current Congress | Full re-fetch with no date filter |
 | `weekly-reconcile-recent-congresses` | Mon 06:00 | Current + 2 | Diff the full live list against ours — **the only path that finds never-synced bills in a previous Congress** (the monthly re-pull covers the current one) |
 | `indexnow-submit-evening` | 13:30 daily | — | Second queue drain |
+| `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
 
 ### Throttling
 
@@ -361,7 +375,7 @@ total.
 | Table | Purpose |
 | --- | --- |
 | `bills` | One row per (congress, type, number). Identity, title, primary sponsor, introduced date, derived stage, latest action date, denormalised policy area, sync bitmask |
-| `billActions` | Legislative actions, up to 250 per bill |
+| `billActions` | Legislative actions, up to 250 per bill. Indexed by bill, and by bill + date for bill alerts |
 | `billSubjects` | The single official policy area |
 | `billSummaries` | CRS summary versions, keyed by update date |
 | `billText` | Links to official PDF and text versions |
@@ -391,13 +405,15 @@ strategy, the rules for adding one, and the two incidents that produced them.
 
 | Table | Purpose |
 | --- | --- |
-| `users` | Name, email, image, verification time, plan. Also carries six unused billing columns (five `stripe*` plus `cancelAtPeriodEnd`). `plan` itself is live — it drives the account page, the user menu and the PostHog identify call |
-| `savedBills` | One row per (user, bill) bookmark |
+| `users` | Name, email, image, verification time, plan, and the Stripe mirror: `stripeCustomerId`, `stripeSubscriptionId`, `stripeSubscriptionStatus`, `stripePriceId`, `stripeCurrentPeriodEnd`, `cancelAtPeriodEnd`. `plan` is written **only** by the Stripe webhook (`billing.applySubscription`) and gates the Pro question allowance and bill alerts |
+| `savedBills` | One row per (user, bill) bookmark. Free, silent |
+| `billAlerts` | One row per (user, bill) a Pro reader follows by email, with the watermark the digest advances: `lastSeenActionDate`, `lastSeenActionFingerprints` (actions on that date), `lastSeenStage`, `lastEmailedAt` |
+| `stripeEvents` | Webhook idempotency: one row per Stripe event id, `received` → `processed` / `failed` |
 | `chats` / `chatMessages` | Saved answer conversations, frozen with their citations, entities and work log |
 | `billChats` / `billChatMessages` | The old per-bill chat. Still written by the dead route |
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
-| `stripeEvents`, `usageEvents` | **Dead** — zero references outside `schema.ts` |
+| `usageEvents` | **Dead** — zero references outside `schema.ts` |
 
 > **`chats.userId` is required, not optional, and that is the point.** An anonymous
 > conversation cannot be represented in the schema at all, so it cannot be persisted by
@@ -423,10 +439,10 @@ wrong import is how an aggregate silently drifts from the table.
 
 ## Convex functions
 
-117 hand-written functions — 23 public queries, 4 public mutations, 1 public action, 1 HTTP
-action, 88 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
+133 hand-written functions — 26 public queries, 6 public mutations, 3 public actions, 2 HTTP
+actions, 96 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
 `signOut` (public actions), `isAuthenticated` (public query) and `store` (internal mutation).
-121 registered in total.
+137 registered in total.
 
 | File | Role |
 | --- | --- |
@@ -435,12 +451,14 @@ action, 88 internal — plus four more generated by `convexAuth()` in `auth.ts`:
 | `congressApi.ts` | Sync, reconcile, repair, backfill (19) — **every one an `internalAction`** |
 | `answer.ts`, `catalog/` | The grounded answer engine |
 | `chats.ts`, `savedBills.ts`, `users.ts`, `auth.ts` | Accounts |
-| `llm.ts` | The old per-bill chat back end. Holds the only hand-written public action (`sendChatMessage`), reached solely by the dead `/api/bill-chat/send` route |
+| `billing.ts` | Pro: `startCheckout` and `openBillingPortal` (public actions), `status` (public query), the Stripe webhook HTTP action and the internal mutations it calls |
+| `alerts.ts`, `email.ts` | Bill alerts: follow/unfollow, the account list, token unsubscribe, the daily digest run; `email.deliver` hands each digest and plan-change email to PostHog |
+| `llm.ts` | The old per-bill chat back end. Holds `sendChatMessage`, a public action reached solely by the dead `/api/bill-chat/send` route |
 | `indexNow.ts` | Search-engine notification (10, all internal) |
-| `rateLimits.ts` | The limiter config plus `getChatUsage`, the one public query behind the account page's quota meter |
+| `rateLimits.ts` | The limiter config, `getChatUsage` (the public query behind the account page's quota meter) and `limitChatQuestion`, the one helper that picks the anonymous, free or Pro bucket |
 | `sync.ts`, `aggregateBackfill.ts`, `policyAreaBackfill.ts`, `chatAnalytics.ts` | Operational backfills and diagnostics, almost all internal |
 | `crons.ts`, `http.ts`, `convex.config.ts`, `functions.ts` | Schedule, HTTP router, installed components, trigger-wrapped constructors |
-| `billStage.ts`, `chamber.ts`, `baseRates.ts`, `searchQuery.ts`, `syncStatus.ts` | Pure modules, no Convex imports, unit-tested |
+| `billStage.ts`, `chamber.ts`, `baseRates.ts`, `searchQuery.ts`, `syncStatus.ts`, `plan.ts`, `alertDigest.ts` | Pure modules, no Convex imports, unit-tested |
 
 ### The visibility rule
 
@@ -752,8 +770,12 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 
 ### Rate limits
 
-5 questions/day signed out, 100/day signed in. Fixed windows (all tokens granted at window
-start, no carry-over) aligned to midnight US Eastern. The signed-out limit is keyed to an
+5 questions/day signed out, 100/day signed in, 500/day on Pro (constants in `convex/plan.ts`;
+the UI imports the same ones). Pro is a separate bucket, `chatProPerDay`, not a bigger rate
+on the free one, so upgrading mid-day starts a fresh Pro allowance. Which bucket applies is
+decided only in `limitChatQuestion` (`convex/rateLimits.ts`), from the stored `users.plan`.
+Fixed windows (all tokens granted at window start, no carry-over) aligned to midnight US
+Eastern. The signed-out limit is keyed to an
 httpOnly, SameSite=Lax cookie `bic_bill_chat_session` holding a random UUID, 60-day lifetime.
 OTP emails are separately limited to 5 per hour per address.
 
@@ -765,7 +787,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | Script | Runs | Enforces |
 | --- | --- | --- |
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
-| `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` |
+| `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for the primary **and every fallback** |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web plugin still returns the `url_citation` annotations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
@@ -784,10 +806,9 @@ scrypt hash by the library.
 Sessions last **60 days** (both total and inactive), and the cookie `maxAge` in
 `middleware.ts` must stay ≥ that value.
 
-An account gets you exactly three things today: bookmarking bills (the account page lists the
-most recent 200), saved conversation history, and the higher daily question allowance. There
-is no paid tier, no Stripe dependency in `package.json` and no Stripe integration logic —
-only the dead `stripeEvents` table and the six unused billing columns noted above.
+A free account gets you three things: bookmarking bills (the account page lists the most
+recent 200), saved conversation history, and the higher daily question allowance. Pro, the
+one paid plan, adds bill alerts and a higher allowance still — see the next section.
 
 Deliberate hardening worth preserving:
 
@@ -810,9 +831,12 @@ handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly
 ## Email
 
 Every email goes out through **PostHog Workflows** from `no-reply@mail.billsincongress.com`.
-Today that is only the sign-up verification code. The password-reset code is wired and
-rendered the same way, but nothing sends it until a page starts the reset flow (see "Not
-built" above).
+Three workflows, one per kind of email, all sharing that sender and one webhook secret: **sign-in
+codes** (sign-up codes today; the password-reset code is wired and rendered the same way, but
+nothing sends it until a page starts the reset flow — see "Not built" above), **bill alerts** (Pro digests; see "How alerts
+work") and **billing** (Pro plan changes; see "What the reader sees, state by state"). The
+bullets below describe the sign-in codes; alerts and billing work the same way except where
+those sections say otherwise.
 
 - **The site writes the email; PostHog only delivers it.** `convex/codeEmail.ts` renders the
   subject, plain text and HTML (letterhead in `convex/emailStyle.ts`), and
@@ -847,6 +871,237 @@ built" above).
 - **Bounces and delivery** show up as `$workflows_email_*` events in PostHog (see
   `ANALYTICS.md`) and in the workflow's Metrics tab; per-send step traces are in its Logs tab,
   and each send's full payload in its Invocations tab (above).
+## Pro: billing and bill alerts
+
+### How a reader becomes Pro
+
+1. `/pro` → `billing.startCheckout({interval})`. The action creates (once, idempotency key
+   `bic-customer-<userId>`) a Stripe customer tagged `metadata.app = "billsincongress"`,
+   links it on `users.stripeCustomerId`, and returns a hosted Checkout URL. The subscription is
+   tagged with the same `app` and the reader's `userId`.
+   **No double billing:** Stripe Checkout will sell a customer the same subscription twice,
+   and `users.plan` lags payment by the seconds the webhook takes. So before creating a
+   session the action asks Stripe (not our row): a live subscription tagged for this site
+   refuses the request (`ALREADY_PRO`; `SUBSCRIPTION_NEEDS_ATTENTION` when it is unpaid or
+   paused, which the billing portal fixes; `PAYMENT_PENDING` while a first payment is
+   incomplete). After creating the new Checkout page it closes every OLDER open one for this
+   site, so however many tabs race, exactly the newest stays payable (three simultaneous calls
+   against the sandbox: one open, two expired). If two payments still land, the webhook logs
+   `DUPLICATE_SUBSCRIPTION …`; cancel and refund one in Stripe.
+   The customer is created without an idempotency key of our own (a key made Stripe replay a
+   customer deleted minutes earlier); racing calls each create one, the first link wins, and the
+   loser deletes its empty customer.
+2. Stripe calls `POST https://<deployment>.convex.site/stripe/webhook`.
+   `billing.handleStripeWebhook` verifies the signature, records the event id in
+   `stripeEvents` (a redelivery is acknowledged and skipped), then **re-reads the subscription
+   from Stripe** rather than trusting the event body, because events arrive out of order.
+3. `billing.applySubscription` writes the plan: `active`, `trialing` and `past_due` are Pro
+   (`past_due` keeps Pro while Stripe retries the card); everything else is free. An old
+   subscription ending cannot downgrade a reader who is on a newer one.
+4. The success URL (`/account?checkout=success`) only waits for that write; the account page
+   updates live when it lands. Visiting it by hand grants nothing.
+
+"Manage billing" on `/account` opens the Stripe customer portal (`billing.openBillingPortal`)
+for card changes, switching monthly/yearly, cancelling, undoing a cancellation, and invoice
+history. `startCheckout` and `openBillingPortal` share a rate limit of 20 an hour per reader
+(`billingActionPerUser`): each makes several Stripe calls, and Stripe's API rate limit is shared
+with the webhook's re-reads.
+
+### What the reader sees, state by state
+
+`planCardView` (`lib/pro.ts`, tested in `lib/pro.test.ts`) decides the plan card on `/account`
+for every subscription state, and `billingNotice` (`convex/plan.ts`) decides which email a change
+sends. The emails are rendered in `convex/billingEmail.ts` and go out through the "Bills.Congress:
+billing" PostHog workflow (transactional, untracked), queued by `applySubscription` in the same
+transaction that records the new plan, so a redelivered or out-of-order webhook that changes
+nothing sends nothing.
+
+| State (Stripe status) | Plan | Account page says | Buttons | Our email on entering it |
+| --- | --- | --- | --- | --- |
+| Never subscribed | Free | The pitch | See Pro | — |
+| Back from Checkout, webhook not in yet | Free | "Payment received — confirming…"; after a minute, a plain warning with the support address | none | — |
+| `active` | Pro | "Renews <date>." | Manage billing | Welcome (or "Welcome back" after an earlier subscription) |
+| `active`, cancel at period end | Pro | "Cancelled. You keep Pro until <date>…; renew under Manage billing" | Manage billing | "Your Pro plan ends on <date>" |
+| cancellation undone | Pro | "Renews <date>." | Manage billing | "Your Pro plan will keep renewing" |
+| `past_due` (renewal failed, Stripe retrying) | Pro | Warning: update your card | Manage billing | "Your Pro payment didn't go through" (once, not per retry) |
+| `canceled` | Free | "Your Pro plan has ended. The bills you follow are still saved…" | Manage billing (invoices), Subscribe again | "Your Pro plan has ended" (or "…: payment didn't go through" when it followed `past_due`) |
+| `unpaid` | Free | Warning: update your card to restore Pro | Manage billing | "…has ended: payment didn't go through" |
+| `paused` | Free | "Pro is paused. Resume it under Manage billing." | Manage billing | "Your Pro plan is paused" |
+| `incomplete` (first payment processing) | Free | "Still being confirmed…" | Manage billing | — |
+| `incomplete_expired` | Free | "Your last checkout didn't finish… you weren't charged" | Subscribe again | — (it failed in front of the reader) |
+
+`/account?checkout=success` (Stripe's return link) is read once and then removed from the address
+bar, so the card says "confirming" until the webhook lands — also for a returning subscriber whose
+old subscription had ended — and a reload or bookmark cannot repeat it. The page updates live when
+the plan is recorded.
+
+On a bill page the follow button reads **"Email me updates"**, **"Emailing you updates"** (Pro,
+following) or **"Updates paused"** (following, but Pro has ended; a click unfollows).
+
+**Stripe sends the money emails, we send the plan emails.** In the Stripe dashboard (live, and
+the sandbox for testing) turn on, under Settings → Business → Customer emails, **Successful
+payments** and **Refunds**, and under Settings → Billing → Subscriptions and emails, **Send
+emails about expiring cards**. Leave **Send emails when card payments fail** off: our
+"payment didn't go through" email covers it, and both would mean two emails for one failure.
+Stripe does not email a cancellation or a start of service, which is why those are ours.
+
+**Operating notes** (each checked against the sandbox):
+
+- **A refund does not end Pro.** Refunding a payment leaves the subscription active in Stripe, so
+  the reader keeps Pro. To take Pro away, cancel the subscription too.
+- **To give someone Pro for free**, create the subscription in Stripe with metadata
+  `app = billsincongress` and `userId = <their users _id>` (a 100%-off coupon makes it free).
+  A subscription without that tag is ignored, by design.
+- **Don't use "pause payment collection"** on a subscription: it keeps the status `active`, so
+  the reader keeps Pro while paying nothing. Cancel instead.
+- **A subscription whose `userId` matches no account** (the account was deleted) changes nothing
+  and logs `Stripe subscription … matches no user`; cancel it in Stripe.
+
+**A customer deleted in the Stripe dashboard** (for example on an account-deletion request)
+arrives as `customer.deleted`; the webhook drops the link (`_forgetCustomer`) so "Manage
+billing" does not open a portal for a customer that no longer exists and a later Subscribe
+creates a new one. Stripe does not promise order: an ending subscription processed after
+`customer.deleted` does not re-link the customer (only a Pro-granting subscription links one).
+If the webhook is missed entirely, `startCheckout` and `openBillingPortal` both check the
+customer still exists and drop a dead link themselves. To delete a reader's account: cancel their subscription in Stripe (or delete
+the Stripe customer), then delete the account rows.
+
+**Stripe account: OffGrid LLC** (`acct_1UJKPkCylyXxQEhV`, in the BillsInCongress Stripe
+organization). Live objects created 24 Sep 2026:
+
+| Object | Id |
+| --- | --- |
+| Product "Bills.Congress Pro" (statement descriptor `BILLS.CONGRESS PRO`) | `prod_VJzZRmXYFrvxUJ` |
+| $9 / month, lookup key `bic_pro_monthly` | `price_1UJLafCylyXxQEhVnVLQfDAr` |
+| $90 / year, lookup key `bic_pro_yearly` | `price_1UJLaiCylyXxQEhVKHM2qBOx` |
+| Customer portal (default configuration; cancel at period end, switch monthly/yearly, card and invoice history) | `bpc_1UJLayCylyXxQEhVgXocv8a9` |
+
+OffGrid may sell other products from the same account, so everything this site creates is
+tagged `app: billsincongress` and the webhook ignores any subscription without that tag. Do not
+look customers up by email: a customer of another product with the same address is not the
+same billing relationship.
+
+**Sandbox: "BillsInCongress sandbox"** (`acct_1UJKPqEGs4LR10Cz`), a mirror for testing with
+test cards:
+
+| Object | Id |
+| --- | --- |
+| Product "Bills.Congress Pro" | `prod_VJzeUBTaHapQOm` |
+| $9 / month, `bic_pro_monthly` | `price_1UJLfPEGs4LR10CzBQpz8c0b` |
+| $90 / year, `bic_pro_yearly` | `price_1UJLfREGs4LR10CzYflxinhl` |
+| Customer portal (default) | `bpc_1UJLfaEGs4LR10CzowgZUaBD` |
+
+Checked against the sandbox on 24 Sep 2026, end to end through a local backend (the site, the
+webhook handler re-reading real sandbox subscriptions, and the emails): Checkout opens with the
+reader's email and the right price; a paid subscription records Pro; the portal's cancel (which
+sets `cancel_at`, not `cancel_at_period_end`) and its undo both land with the right email; a
+monthly → yearly switch records the new interval and sends nothing; an immediate cancel ends Pro
+once, and a redelivered event sends nothing more; a second `startCheckout` expires the first
+open Checkout page; a forged signature is a 400.
+
+What that run changed:
+
+- **Portal plan switches restart the billing date** (`subscription_update.billing_cycle_anchor:
+  "now"`, both accounts). With `"unchanged"`, switching monthly → yearly under Stripe's
+  flexible billing mode quoted **$171 due today** instead of $81 ($90 less the unused month).
+- **A stored customer that no longer exists is replaced** (`customerExists` in `billing.ts`):
+  a reader whose Stripe customer was deleted with the webhook missed, or created on the other
+  Stripe account, got "No such customer" on Subscribe instead of a checkout page.
+- **Billing dates show in US Eastern time** on the account page and in the emails. Stripe's
+  own pages use the Stripe account's timezone, so set **Settings → Business → Account details →
+  Time zone** to Eastern on both accounts; otherwise Stripe says a renewal is the 25th while we
+  say the 24th (a renewal at 00:58 UTC is 8:58 PM Eastern the day before).
+
+Also worth knowing: Checkout offers Stripe's dynamic payment methods (card, Link, Klarna, Cash
+App Pay, Amazon Pay here). A slower method can leave a subscription `incomplete` for a while;
+the account page and `refuseSecondSubscription` handle that. The portal lets a reader change the
+email Stripe bills to; receipts follow that address, our emails follow the account's.
+
+### How alerts work
+
+`Email me updates` on a bill page (`components/bills/bill-alert-button.tsx`) calls
+`alerts.toggle`. Following needs Pro and an email address, and is capped at 100 bills;
+unfollowing always works, even after Pro lapses. A new alert's watermark starts at the bill's
+current state, so the first email reports only what happens next.
+
+Every day at 11:00 UTC `alerts.runDigests` pages through `billAlerts` and schedules one
+`alerts.sendDigestForUser` per reader. That mutation:
+
+- skips readers no longer on Pro. Their list and watermarks are kept as they were, so on
+  resubscribing the first digest catches them up on everything that moved while Pro was off
+  (still at most 8 actions per bill, with "and N earlier new actions on the bill page"), and
+  later digests go back to one day's news;
+- reads a followed bill's actions only when `bills.latestActionDate` is on or after the
+  watermark, or its stage changed;
+- decides what is new with `newActionsSince` (`convex/alertDigest.ts`): later-dated actions,
+  plus same-day actions whose fingerprint the watermark has not seen. Actions are re-inserted
+  on every sync (`upsertBillActions` deletes and rewrites them), so `_creationTime` is useless
+  here; the fingerprint is `date + whitespace-collapsed text`, which also collapses the
+  duplicate House/LoC listing of one floor action;
+- schedules at most one email (`email.deliver`) and advances the watermarks **in the same
+  transaction**: a scheduled function exists only if its transaction commits, so a bill is
+  never reported twice and never marked reported without an email queued. `deliver`
+  renders nothing; it POSTs the finished digest to the "Bills.Congress: bill alerts" workflow
+  (see [Email](#email)) and retries twice, 1 and 10 minutes later, only when PostHog is
+  unreachable or answers 429/5xx. A timeout after PostHog accepted could in principle send one
+  digest twice; that is preferred over dropping it.
+
+**A heavy day stays one readable email.** Bills are listed status changes first, then by number
+of new actions. Up to 12 are shown in full (up to 8 actions each); every other changed bill gets
+one line (title shortened to 110 characters) with its link under "Also moved". If the HTML would pass 80 KB, fewer are shown in full.
+Gmail clips a message over ~102 KB (hiding the unsubscribe link) and PostHog refuses a request over
+500 KB; 100 bills with 10 actions each measured 432 KB before this cap and 79 KB after.
+
+Two ways to stop alerts, and they are not the same:
+
+- **The footer link** ("Stop all bill alert emails") goes to `/alerts/unsubscribe?token=…`, a
+  page with a button that posts to `/api/alerts/unsubscribe`. The token is
+  `<userId>.<HMAC-SHA256>` under `ALERTS_UNSUBSCRIBE_SECRET` — no table, unforgeable, and
+  rotating the secret voids every link. It deletes all of the reader's `billAlerts` rows.
+- **The mail client's own unsubscribe button.** PostHog cannot set custom headers, so the
+  `List-Unsubscribe` header is PostHog's: the alerts workflow sends as a *marketing* message,
+  and a one-click unsubscribe puts the address on PostHog's opt-out list. PostHog then skips
+  every later alert to it. Our `billAlerts` rows are **not** touched, so the account page still
+  lists the bills; the reader simply stops getting mail. Re-following does not lift a PostHog
+  opt-out — remove it under Workflows → Opt-outs.
+
+Digests and sign-in codes share one PostHog sending allowance (a new project starts at 50 an
+hour and 100 a day; see [Email](#email)). Emails over the cap wait, so a large digest run can
+delay a sign-up code. Ask PostHog support for a higher tier before the list of Pro readers
+grows past a few dozen.
+
+### Setting it up (per deployment)
+
+1. Stripe: the Pro product and its two prices exist on OffGrid LLC (table above). Set their
+   ids as `STRIPE_PRICE_PRO_MONTHLY` / `STRIPE_PRICE_PRO_YEARLY`.
+2. Stripe: add a webhook endpoint `https://<deployment>.convex.site/stripe/webhook` for
+   `checkout.session.completed`, `customer.subscription.created`, `.updated`, `.deleted`,
+   `.paused`, `.resumed` and `customer.deleted`; set its signing secret as
+   `STRIPE_WEBHOOK_SECRET`. Turn on the customer emails listed above.
+3. Stripe: the customer portal is configured (table above) and is the account default, so
+   `STRIPE_PORTAL_CONFIGURATION` can stay unset.
+4. PostHog: the "Bills.Congress: bill alerts" workflow exists (same sender and webhook secret as
+   the sign-in codes; see [Email](#email)). Enable it and set its webhook URL as
+   `POSTHOG_EMAIL_ALERTS_WEBHOOK_URL`. Generate `ALERTS_UNSUBSCRIBE_SECRET` (any long random
+   string).
+5. PostHog: enable the "Bills.Congress: billing" workflow and set its webhook URL as
+   `POSTHOG_EMAIL_BILLING_WEBHOOK_URL`. Plan-change emails are not gated by the next step: they
+   fire only on a real Stripe event for that deployment's own Stripe account.
+6. Set `ALERT_EMAILS_LIVE=true` **only on production**. Without it `email.deliver` logs and
+   skips every alert send, so a dev deployment holding copies of real users can never mail them.
+
+### Operations
+
+```bash
+npx convex run --prod alerts:runDigests '{}'                   # run today's digests now (idempotent per day)
+npx convex run --prod alerts:sendDigestForUser '{"userId":"…"}'
+npx convex run --prod billing:applySubscription '{…}'          # repair one plan by hand
+```
+
+Delivery status (sent, bounced, spam complaint) is in the alerts workflow's Metrics tab and as
+`$workflows_email_*` events; failed hand-offs to PostHog are in the Convex logs for
+`email:deliver`. Webhook history is in `stripeEvents`; a `failed` row is retried by
+Stripe automatically.
 
 ---
 
@@ -871,7 +1126,8 @@ only in an untracked local `.env` and is deliberately **not** a GitHub secret.
 
 ### Convex deployment side
 
-Set with `npx convex env set --prod`. Ten are configured in production.
+Set with `npx convex env set --prod`. Ten are configured in production; the Pro rows below
+are new and not yet set anywhere.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -884,7 +1140,15 @@ Set with `npx convex env set --prod`. Ten are configured in production.
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing | none |
-| `SITE_URL` | Auth redirect base | library default |
+| `SITE_URL` | Auth redirect base; also the base of Stripe return URLs and alert-email links | library default; billing and alerts fall back to `https://billsincongress.com` |
+| `STRIPE_SECRET_KEY` | Stripe API key (Checkout, portal, webhook re-reads) | Checkout returns `BILLING_NOT_CONFIGURED` |
+| `STRIPE_WEBHOOK_SECRET` | Verifies `POST /stripe/webhook` | Webhook answers 500; Stripe retries |
+| `STRIPE_PRICE_PRO_MONTHLY` / `STRIPE_PRICE_PRO_YEARLY` | The two Pro price ids | Checkout returns `BILLING_NOT_CONFIGURED` |
+| `STRIPE_PORTAL_CONFIGURATION` | A specific customer-portal configuration id | Stripe's default portal configuration |
+| `POSTHOG_EMAIL_ALERTS_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: bill alerts" workflow | Alert sends fail and are logged; the bills stay marked as reported |
+| `POSTHOG_EMAIL_BILLING_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: billing" workflow | Plan-change emails fail and are logged; the plan itself is still recorded |
+| `ALERTS_UNSUBSCRIBE_SECRET` | Signs unsubscribe tokens | Digest sends fail rather than mail without a working unsubscribe link |
+| `ALERT_EMAILS_LIVE` | `true` lets alert email reach real addresses | Every alert send is logged and skipped |
 
 > `CONGRESS_API_KEY` and the `OPENROUTER_*` variables are read by **Convex server code**.
 > Putting them in `.env.local` does nothing — this project never runs `convex dev`.
@@ -918,8 +1182,8 @@ false.
 
 ### The test system
 
-`scripts/run-tests.ts` — no test framework. Each `*.test.ts` is a plain script executed with
-`tsx`. Files are **discovered**, not listed:
+`scripts/run-tests.ts`. Each `*.test.ts` is a plain script executed with `tsx`, no framework.
+Files are **discovered**, not listed:
 
 ```
 git ls-files --cached --others --exclude-standard '*.test.ts'
@@ -928,9 +1192,9 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 24` and there are currently exactly 24 files, so **there is zero
-headroom**: deleting any test fails the run until the constant is lowered in the same commit,
-which is the point — a reviewer sees the intent. The rationale in the header is that
+`MIN_TEST_FILES = 25` is a floor, not a count (55 files match today): if discovery ever finds
+fewer, the run fails, and deleting tests below it means lowering the constant in the same
+commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified
 nothing, and "a green result that proved nothing is worse than a red one, because it is
 trusted." The run ends by printing how many files and guards actually ran.
@@ -940,6 +1204,18 @@ Then the two guards run (not counted toward the floor, but counted toward failur
 shipped as a public action with no auth and no limiter, beside a properly metered `stream`.
 `check-no-userid-args.ts` enforces the identity rule statically — no public Convex function
 may accept a `userId` argument.
+
+Last, `vitest run` executes the **Convex function specs**, `convex/**/*.spec.ts` (config in
+`vitest.config.mts`). These run real queries, mutations and HTTP actions against an in-memory
+database with `convex-test`, which needs vitest's `import.meta.glob` — that is the only reason
+vitest is here. `convex/pro.spec.ts` covers the Pro plan end to end: plan changes from
+subscription events, question allowances, checkout refusing a second subscription (paid but
+not yet confirmed, unpaid, two open tabs), the digest (new, late same-day, status change,
+stage-only move on a long bill, lapsed reader and their catch-up email on return, no double
+send, PostHog retries), the unsubscribe token, and the Stripe webhook with a signed payload
+(`fetch` is stubbed with a real sandbox subscription reply; a forged signature is rejected).
+Nothing in it reaches Stripe, PostHog or any deployment. `convex deploy` skips these files,
+like every file name with more than one dot.
 
 ### CI
 
@@ -1154,6 +1430,8 @@ Congress, so a deleted historical Congress does not come back on its own.
 | A Congress shows with 0 bills | The nightly 04:00 recompute will clean it up, or delete it manually |
 | Intermittent Worker `1101` errors | The KV cache bindings are missing or misconfigured |
 | Data looks stale | Check `bills:getSyncStatus`; the daily sync runs 01:00 UTC and stats rebuild at 04:00 UTC |
+| A reader paid but is still Free | The webhook did not land. Check `stripeEvents` for a `failed` row and the endpoint's delivery log in Stripe; `STRIPE_WEBHOOK_SECRET` must be that endpoint's own secret |
+| No alert emails at all | `ALERT_EMAILS_LIVE` is not `true` (test mode), or `ALERTS_UNSUBSCRIBE_SECRET` is unset (every send throws) |
 
 ---
 
@@ -1195,8 +1473,7 @@ Recorded so nobody rediscovers them as bugs.
 | --- | --- |
 | `app/api/bill-chat/send`, `convex/llm.ts`, `billChats` / `billChatMessages`, `billsService.sendChatMessage` | The old per-bill chat. Replaced 26 Aug 2026. The route is still deployed and publicly callable but nothing in the UI calls it. Its analytics event `bill_chat_message_processed` last fired 27 Aug 2026 |
 | `app/api/bill-chat/usage` | **Not** dead — the account page still reads it for the quota meter |
-| `stripeEvents`, `usageEvents`, `billTitles` tables | Defined in the schema, never read or written (`billTitles` is only ever deleted) |
-| Six unused billing columns on `users` (five `stripe*` plus `cancelAtPeriodEnd`) | No Stripe dependency and no Stripe integration logic anywhere. `plan`, in the same block, is **not** dead |
+| `usageEvents`, `billTitles` tables | Defined in the schema, never read or written (`billTitles` is only ever deleted) |
 | `congressApi.dailySync` | Legacy entry point, wired to no cron, delegates to `incrementalSync` |
 | `bills.getCongressInfo`, `billCountsByCongress`, `latestCongressStatus`, `getPolicyAreas` | Public queries with no caller. `getCongressInfo` also has an off-by-one: it returns `endYear = startYear + 2` (119th → 2025–2027), disagreeing with `lib/congress.ts` |
 | `pnpm optimize-images`, `pnpm cf-typegen` | Produce output nothing reads |

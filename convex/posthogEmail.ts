@@ -1,7 +1,7 @@
 /**
  * Every email the site sends goes out through PostHog Workflows. Pure — no
- * Convex imports — so any action can call it; today that is the sign-in code
- * providers (convex/emailCodes.ts).
+ * Convex imports — so any action can call it: the sign-in code providers
+ * (convex/emailCodes.ts) and the bill-alert sender (convex/email.ts).
  *
  * How it works: each stream is one PostHog workflow with a webhook trigger and
  * a single email step. We POST the finished message (recipient, subject, text,
@@ -9,7 +9,7 @@
  * fields. The site renders every email itself, so the wording lives in this
  * repository, not in PostHog's editor.
  *
- * The URL alone would let anyone who learned it send mail as Bills.Congress,
+ * The URL alone would let anyone who learned it send mail as Bills in Congress,
  * so each workflow's trigger also requires `Authorization: Bearer <secret>`
  * (the trigger's "Authorization header value" setting) and rejects anything
  * else with a 401.
@@ -19,9 +19,17 @@
  *            sign-in codes". Message category "transactional": sent even to
  *            someone who opted out of other mail, with no unsubscribe header,
  *            and open and click tracking turned off.
+ *   alerts — Pro bill-alert digests, workflow "Bills.Congress: bill alerts".
+ *            Message category "marketing": PostHog adds the one-click
+ *            List-Unsubscribe header mail clients show as a button, and skips
+ *            anyone who used it. Our own unsubscribe link stays in the footer.
+ *            Tracking off.
+ *   billing — Pro plan changes (started, cancelling, payment failed, ended),
+ *            workflow "Bills.Congress: billing". Transactional, tracking off:
+ *            a reader who opted out of alerts still hears their plan changed.
  */
 
-export type EmailStream = "codes";
+export type EmailStream = "codes" | "alerts" | "billing";
 
 export interface OutgoingEmail {
   to: string;
@@ -53,6 +61,8 @@ export const EMAIL_EVENT = "bic_email_requested";
 
 const WEBHOOK_ENV: Record<EmailStream, string> = {
   codes: "POSTHOG_EMAIL_CODES_WEBHOOK_URL",
+  alerts: "POSTHOG_EMAIL_ALERTS_WEBHOOK_URL",
+  billing: "POSTHOG_EMAIL_BILLING_WEBHOOK_URL",
 };
 
 /** Why a send failed, and whether trying again could help. */

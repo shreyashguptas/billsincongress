@@ -8,7 +8,9 @@
  * protection lived in `stream` beside it.
  *
  * The rule: in any convex module that reads OPENROUTER_API_KEY, every PUBLIC
- * `action` or `httpAction` must call `rateLimiter.limit`. Internal functions are
+ * `action` or `httpAction` must call `rateLimiter.limit`, or `limitChatQuestion`
+ * (convex/rateLimits.ts), the one wrapper that picks the anonymous, free or Pro
+ * bucket and calls `rateLimiter.limit` itself. Internal functions are
  * exempt — they are not reachable from a browser. Queries and mutations are out
  * of scope because Convex forbids network I/O in them, so they cannot reach the
  * model at all.
@@ -33,6 +35,9 @@ const offenders: string[] = [];
  * other spelling, and missing it means the PRECEDING function's body silently
  * runs to end-of-file and inherits its neighbour's rate limiter.
  */
+/** Calls that consume a daily token. Anything else does not count as metering. */
+const METERED_CALLS = ["rateLimiter.limit", "limitChatQuestion("];
+
 const REGISTRATION =
   /export\s+const\s+(\w+)\s*=\s*(internalAction|httpAction|action)\s*\(/g;
 
@@ -58,7 +63,8 @@ function walk(dir: string) {
       if (kind.startsWith("internal")) continue;
       const start = marks[i].index ?? 0;
       const end = i + 1 < marks.length ? (marks[i + 1].index ?? source.length) : source.length;
-      if (!source.slice(start, end).includes("rateLimiter.limit")) {
+      const body = source.slice(start, end);
+      if (!METERED_CALLS.some((call) => body.includes(call))) {
         offenders.push(
           `${path}: public ${kind} \`${name}\` reaches OpenRouter but never calls rateLimiter.limit`,
         );

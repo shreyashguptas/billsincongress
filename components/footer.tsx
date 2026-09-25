@@ -65,6 +65,7 @@ export function Footer() {
                   Data: Congress.gov
                 </a>
               </li>
+              <li><Link href="/pro" className={linkClass}>Pro: bill alerts</Link></li>
               <li><Link href="/terms" className={linkClass}>Terms of Service</Link></li>
               <li><Link href="/privacy" className={linkClass}>Privacy Policy</Link></li>
             </ul>

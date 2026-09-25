@@ -1,6 +1,7 @@
 import posthog from 'posthog-js';
 
 import { shouldDropException } from '@/lib/error-filter';
+import { redactEvent } from '@/lib/redact-secrets';
 
 // IMPORTANT: this is the only place posthog.init() may be called. Never add a
 // PostHogProvider or a second init elsewhere.
@@ -29,8 +30,14 @@ if (POSTHOG_KEY) {
     // so reading the event is part of what `lib/error-filter.test.ts` exercises.
     // Picking fields at the call site is how the first version came to read
     // `$exception_values`, which a browser-side event does not carry.
+    //
+    // Every event first loses the bill-alert unsubscribe token, which rides in
+    // the URL of /alerts/unsubscribe and would otherwise land in page URLs,
+    // referrers and session replay (see lib/redact-secrets.ts).
     before_send: (event) => {
-      if (!event || event.event !== '$exception') return event;
+      if (!event) return event;
+      redactEvent(event);
+      if (event.event !== '$exception') return event;
       return shouldDropException(event.properties) ? null : event;
     },
   });

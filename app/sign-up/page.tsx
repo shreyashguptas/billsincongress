@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function SignUpPage() {
   return (
-    <AuthCard title="Create your account" description="Free, with no paid tier.">
+    <AuthCard title="Create your account" description="Free. Save bills and ask more questions each day.">
       <Suspense fallback={<div className="h-96" aria-hidden />}>
         <SignUpForm />
       </Suspense>

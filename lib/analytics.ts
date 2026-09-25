@@ -384,6 +384,60 @@ export const analytics = {
   billSaveSigninRedirected: (billId: string) =>
     capture('bill_save_signin_redirected', { bill_id: billId }),
 
+  // Pro plan: bill alerts + higher question allowance
+
+  /**
+   * A reader followed or unfollowed a bill for email alerts. From the bill page
+   * the bill's properties ride along; the account page's Unfollow sends only
+   * the id (it doesn't hold them).
+   */
+  billAlertToggled: (props: {
+    bill_id: string;
+    action: 'followed' | 'unfollowed';
+    surface: 'bill_page' | 'account';
+    bill_type?: string;
+    bill_number?: string;
+    congress?: number;
+    policy_area?: string;
+    progress_stage?: number | string;
+  }) => capture('bill_alert_toggled', props),
+
+  /**
+   * A reader who is not on Pro pressed "Email me updates" and was shown the
+   * upgrade prompt — the alert-as-upgrade-driver moment. `signed_in: false`
+   * readers are sent to sign in first.
+   */
+  billAlertUpsellShown: (props: { bill_id: string; signed_in: boolean }) =>
+    capture('bill_alert_upsell_shown', props),
+
+  /** Reader pressed a subscribe button; they are about to leave for Stripe. */
+  proCheckoutStarted: (props: {
+    interval: 'month' | 'year';
+    surface: 'pro_page' | 'account' | 'alert_prompt' | 'rate_limit';
+  }) => capture('pro_checkout_started', props),
+
+  /** Checkout could not be opened. `reason` is our error code, never card data. */
+  proCheckoutFailed: (props: { interval: 'month' | 'year'; reason: string }) =>
+    capture('pro_checkout_failed', props),
+
+  /** Reader came back from Stripe Checkout (success page or cancel link). */
+  proCheckoutReturned: (outcome: 'success' | 'canceled') =>
+    capture('pro_checkout_returned', { outcome }),
+
+  /**
+   * The account page saw the plan turn Pro after a successful checkout — i.e.
+   * the Stripe webhook landed. The end of the upgrade funnel.
+   */
+  proActivated: (interval: 'month' | 'year' | 'unknown') =>
+    capture('pro_activated', { interval }),
+
+  /** Reader opened the Stripe billing portal (change card, switch, cancel). */
+  billingPortalOpened: () => capture('billing_portal_opened'),
+
+  /** Reader used the link in an alert email to stop all alert emails. */
+  billAlertsUnsubscribed: (props: { removed: number }) =>
+    capture('bill_alerts_unsubscribed', props),
+
   // Grounded answers
   //
   // `surface` says where the question was asked from, so one funnel covers every
@@ -576,6 +630,9 @@ export const analytics = {
 
   rateLimitSigninClicked: (kind: LimitKind) =>
     capture('rate_limit_signin_clicked', { limit_kind: kind }),
+
+  /** A signed-in free reader at the daily cap clicked through to Pro. */
+  rateLimitUpgradeClicked: () => capture('rate_limit_upgrade_clicked'),
 
   // Podcast cross-promotion
 

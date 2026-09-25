@@ -14,7 +14,7 @@ Congress.gov already publishes everything you need to follow legislation. But it
 
 Bills in Congress takes exactly the same primary data and reorganises it the way a newspaper of record would: clearly indexed, plainly labelled, fast to read, and honest about what it does and does not know.
 
-It is free, has no ads, and you do not need an account to read anything on it.
+It is free to read, has no ads, and you do not need an account to read anything on it. An optional paid plan, **Pro**, emails you when bills you follow move and raises the daily question allowance; nothing that was free before it existed went behind it.
 
 ---
 
@@ -73,6 +73,14 @@ It also knows what you are looking at. Ask "what does this do?" on a bill page a
 
 It is not a general-purpose chatbot. It answers from this site's own database of Congressional records, and every source it cites is checked against the specific records it was actually shown. See [About the AI](#about-the-ai) below, which is the most important disclosure on this page.
 
+### Follow a bill (Pro)
+
+Every bill page has an **Email me updates** button. On Pro ($9 a month or $90 a year), it follows the bill: on any morning one of your followed bills has a new action or a new status, you get one email early in the morning (11:00 UTC, which is 6 or 7 AM Eastern depending on daylight saving), listing exactly what happened — each action quoted as Congress.gov records it, with a link back to the bill. No news, no email. Up to 100 bills per reader.
+
+What "new" means is exact rather than approximate: each followed bill remembers the latest action date it has reported and a fingerprint of every action on that day, so a second action posted late for yesterday is still reported, and an action listed twice by two congressional offices appears once. Every email has a one-click unsubscribe that works without signing in.
+
+Pro also raises the question limit from 100 a day to 500. Payment is handled by Stripe; card details never reach this site. Cancel from your account page at any time.
+
 ### How Congress works
 
 `/learn` is a hand-built illustrated civics guide for people who never got the classroom version:
@@ -115,7 +123,7 @@ A snapshot of what that holds, taken 29 August 2026:
 
 ### How it stays current
 
-Nine scheduled jobs keep the database in step with Congress:
+Nine scheduled jobs keep the database in step with Congress, and a tenth sends bill-alert emails:
 
 | When | What it does |
 | --- | --- |
@@ -127,6 +135,7 @@ Nine scheduled jobs keep the database in step with Congress:
 | Friday, 04:30 UTC | Recompute the historical committee statistics shown on bill pages |
 | 1st of the month, 05:00 UTC | Re-fetch the current Congress from scratch |
 | Twice daily, 01:30 and 13:30 UTC | Tell search engines which bill pages changed |
+| Daily, 11:00 UTC | Email Pro readers whose followed bills moved since their last alert |
 
 The sync throttles itself deliberately — three quarters of a second between calls, backing off on rate limits and pausing when Congress.gov's remaining quota runs low. It also skips the bill-record update when nothing a reader would see has changed, so a routine re-pull does not stamp a fake "updated" date on 18,000 bills or announce fake updates to search engines.
 
@@ -186,7 +195,7 @@ The question panel is the only place in the interface where a machine writes pro
 
 **The model itself:** DeepSeek V4 Flash, reached through OpenRouter. Requests carry zero-retention and no-training flags, a maximum price per million tokens so a repriced provider is skipped rather than silently billed, and an automatic failover chain if the primary is unavailable. Routing is pinned to a short allowlist of providers chosen for US data processing — OpenRouter's true region-locking is an enterprise feature, so this is an allowlist, not a hard geographic guarantee.
 
-**Limits:** five questions a day without an account, 100 with one. Questions are capped at 2,000 characters.
+**Limits:** five questions a day without an account, 100 with a free one, 500 on Pro. Questions are capped at 2,000 characters.
 
 **And the honest part:** AI answers can still be incomplete, outdated, or plainly wrong. The grounding machinery makes fabricated *sources* very hard, but it does not make the prose correct. Treat any answer as a starting point and click through to the record. For anything official, use Congress.gov.
 
@@ -201,10 +210,12 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database. The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
 - **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
+- **If you subscribe to Pro, Stripe handles the payment.** Your card details go to Stripe and never reach this site. What this site stores is your Stripe customer and subscription IDs, the plan's status and price, and when it renews or ends.
+- **If you follow bills on Pro, the list of bills you follow is stored with your account**, along with when each was last emailed. Alert emails are sent through PostHog like the account emails, and PostHog keeps a record of each send. Alert emails carry no tracking pixels and no rewritten links.
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
-An account is free and gets you three things today: bookmarking bills, saved conversation history, and the higher daily question allowance. There is no paid tier and no payment information is collected. Account deletion is handled by emailing **hi@billsincongress.com** — there is no self-serve delete button yet.
+An account is free and gets you three things: bookmarking bills, saved conversation history, and a higher daily question allowance. Pro, the one paid plan, adds bill alerts and a higher allowance still. Account deletion is handled by emailing **hi@billsincongress.com** — there is no self-serve delete button yet. If you are on Pro, cancel first from your account page (Manage billing) so you are not charged again.
 
 ---
 
@@ -228,9 +239,10 @@ Stated plainly, because they affect what you can trust:
 - **Search matches titles and bill numbers only**, never the text of a bill. A bill about a subject whose title does not mention it will not turn up that way.
 - **Older Congresses are not actively refreshed.** The nightly, weekly and monthly jobs track the current Congress only; the Monday reconciliation adds bills that were never synced but does not re-check ones already stored. An upstream correction to a 2022 bill may not be picked up.
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.
-- **There is no notification or "follow this bill" feature.** Saving a bill bookmarks it; it does not alert you when it moves.
+- **Bill alerts trail Congress.gov.** They go out once a day, after the overnight sync, and Congress.gov itself can post an action a day or more after it happens. An alert says what the record shows, not what happened on the floor an hour ago.
+- **Alerts cover actions and status only** — not new cosponsors, amendments, text versions or hearings, which this site does not store.
 - **Password reset is not self-serve yet.** The back end can already email a reset code, but no page on the site starts that flow, so no reset email is ever sent today. Email hi@billsincongress.com and it gets done by hand.
-- **The site is free and has no paid tier.** No payment details are collected anywhere.
+- **Bill alerts are paid; saving a bill is not.** Saving bookmarks a bill for free; it does not email you.
 
 If you spot something wrong, that is the most useful thing you can send. See below.
 
@@ -246,13 +258,15 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Design | [shadcn/ui](https://ui.shadcn.com) components (Radix underneath) and Tailwind CSS, themed by the tokens in [`Documentation/brand.md`](Documentation/brand.md) — the design language: colour, type, logo, components. Framer Motion for the Learn page |
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
 | Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
+| Payments | Stripe Checkout and the Stripe customer portal; a signature-checked webhook is the only thing that sets a reader's plan (`convex/billing.ts`) |
+| Email | PostHog Workflows — sign-in codes sent inline (`convex/emailCodes.ts`); bill alerts and Pro plan-change notices scheduled from Convex (`convex/alerts.ts`, `convex/billing.ts` → `convex/email.ts`). Receipts and refunds come from Stripe |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |
 | Hosting | Cloudflare Workers via OpenNext, with Convex Cloud for the backend |
 | Analytics | PostHog |
 
 ```
 Congress.gov API
-      ↓   nine scheduled jobs (convex/crons.ts)
+      ↓   ten scheduled jobs (convex/crons.ts): nine sync, one alert email
 Sync and repair (convex/congressApi.ts, convex/sync.ts)
       ↓
 Convex database (convex/schema.ts) + precomputed statistics
@@ -294,6 +308,6 @@ Anything else: **hi@billsincongress.com**.
 
 ## Independence and licensing
 
-Bills in Congress is a public-interest project operated by Shreyash Gupta. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
+Bills in Congress is a public-interest project operated by OffGrid LLC, a Maryland limited liability company, which also sells the optional Pro plan. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
 
 The legislative data is a work of the U.S. government and is in the public domain. The source code is released under the [MIT License](LICENSE) — free to use, copy, modify and distribute, including commercially.

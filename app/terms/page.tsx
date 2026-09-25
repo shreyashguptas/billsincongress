@@ -20,13 +20,14 @@ export default function TermsPage() {
       title="Terms of Service"
       standfirst={
         <>
-          Bills in Congress is a free, public-interest service. These terms keep
-          it that way — they are short, written in plain English, and ask
-          little more than that you use the site reasonably.
+          Bills in Congress is a public-interest service, free to read. These
+          terms are short, written in plain English, and ask little more than
+          that you use the site reasonably. Section 5 covers the optional
+          paid plan.
         </>
       }
       lastUpdated={LAST_UPDATED}
-      summaryTitle="A free public resource. Use it reasonably."
+      summaryTitle="A public resource, free to read. Use it reasonably."
       summary={summary}
       summaryNote={
         <>
@@ -44,11 +45,14 @@ export default function TermsPage() {
       <Section number={1} title="Agreement to these terms">
         <p>
           Bills in Congress (billsincongress.com) is an independent,
-          open-source project operated by Shreyash Gupta. By using the
-          site, you agree to these terms. If you do not agree with them,
+          open-source project operated by OffGrid LLC, a Maryland limited
+          liability company. In these terms, &ldquo;we&rdquo; and
+          &ldquo;us&rdquo; mean OffGrid LLC. By using the site, you agree
+          to these terms. If you do not agree with them,
           please do not use the site.
         </p>
       </Section>
+
 
       <Section number={2} title="What the service is (and isn't)">
         <p>
@@ -73,6 +77,7 @@ export default function TermsPage() {
         </p>
       </Section>
 
+
       <Section number={3} title="Accuracy and AI-generated content">
         <p>
           We sync data from the public record daily and work hard to
@@ -88,10 +93,12 @@ export default function TermsPage() {
         </p>
       </Section>
 
+
       <Section number={4} title="Your account">
         <p>
           You don&rsquo;t need an account to read the site. If you create
-          one — to save bills and get a higher AI-chat allowance — you
+          one — to save bills, get a higher AI-chat allowance, or
+          subscribe to Pro — you
           agree to provide accurate information, keep your password to
           yourself, and be at least 13 years old. You are responsible for
           activity that happens under your account.
@@ -109,14 +116,55 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section number={5} title="Fair use of the service">
+
+      <Section number={5} title="Pro subscriptions">
         <p>
-          The site is free, and the AI assistant costs real money to run,
-          so daily usage limits apply (shown in the app when you reach
-          them). To keep the service available for everyone, you agree
+          Pro is an optional paid plan, sold by OffGrid LLC. It adds email
+          alerts for bills you follow and a higher daily question
+          allowance. Everything that is free without it stays free.
+        </p>
+        <ul className="space-y-2 list-disc pl-5">
+          <li>
+            <strong className="text-ink">Billing.</strong> Pro renews
+            automatically each month or year, at the price shown when you
+            subscribe, until you cancel. Payments are processed by Stripe,
+            and appear on your statement as BILLS.CONGRESS PRO.
+            If we change the price, we will tell you by email before it
+            applies to your next renewal.
+          </li>
+          <li>
+            <strong className="text-ink">Cancelling.</strong> Cancel
+            at any time from your account page (Manage billing). You keep
+            Pro until the end of the period you already paid for and are
+            not charged again. We do not give partial refunds for unused
+            time, except where the law requires it.
+          </li>
+          <li>
+            <strong className="text-ink">Failed payments.</strong> If
+            a renewal payment fails, Stripe retries it for a short period
+            while you keep Pro. If it still fails, your plan returns to
+            free.
+          </li>
+          <li>
+            <strong className="text-ink">What alerts are.</strong>{' '}
+            Alerts report actions and status changes as Congress.gov
+            records them, once a day. Congress.gov can post an action a day
+            or more after it happens, and an alert can be late, missing or
+            wrong if the source is. Do not rely on alerts for deadlines or
+            anything with legal consequences.
+          </li>
+        </ul>
+      </Section>
+
+
+      <Section number={6} title="Fair use of the service">
+        <p>
+          The AI assistant costs real money to run, so daily usage limits
+          apply on every plan, Pro included (shown in the app when you
+          reach them). To keep the service available for everyone, you agree
           not to:
         </p>
-        <ul className="list-disc space-y-2 pl-5">
+        <ul className="space-y-2 list-disc pl-5">
           <li>
             circumvent rate limits or access controls, or automate
             requests in a way that burdens the service;
@@ -138,7 +186,8 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section number={6} title="Content and licenses">
+
+      <Section number={7} title="Content and licenses">
         <p>
           The legislative data on this site comes from the United States
           government and is in the public domain. The site&rsquo;s source
@@ -163,7 +212,8 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section number={7} title="No warranty">
+
+      <Section number={8} title="No warranty">
         <p>
           The service is provided &ldquo;as is&rdquo; and &ldquo;as
           available,&rdquo; without warranties of any kind, express or
@@ -173,19 +223,22 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section number={8} title="Limitation of liability">
+
+      <Section number={9} title="Limitation of liability">
         <p>
           To the fullest extent permitted by law, the project and its
           operator are not liable for any indirect, incidental, or
           consequential damages arising from your use of the site, or for
           decisions made in reliance on its content — including
-          AI-generated content. The service is free; our total liability
-          for any claim is limited to the amount you paid to use it,
-          which is zero.
+          AI-generated content — or on bill alerts. Our total liability
+          for any claim is limited to the amount you paid us in the
+          twelve months before it arose, which is zero if you do not
+          subscribe to Pro.
         </p>
       </Section>
 
-      <Section number={9} title="Suspension and termination">
+
+      <Section number={10} title="Suspension and termination">
         <p>
           We may suspend or close accounts that violate these terms or
           abuse the service. You may delete your account at any time as
@@ -193,7 +246,8 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section number={10} title="Changes to these terms">
+
+      <Section number={11} title="Changes to these terms">
         <p>
           If we change these terms, we will update this page and the
           &ldquo;last updated&rdquo; date at the top. Continued use of
@@ -205,9 +259,12 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section number={11} title="Governing law and contact">
+
+      <Section number={12} title="Governing law and contact">
         <p>
-          These terms are governed by the laws of the United States.
+          These terms are governed by the laws of the State of Maryland
+          and applicable federal law of the United States, without regard
+          to conflict-of-law rules.
           Questions about them are welcome at{' '}
           <a
             href="mailto:hi@billsincongress.com"
@@ -227,10 +284,11 @@ export default function TermsPage() {
 }
 
 const summary = [
-  'Free to use, with or without an account.',
+  'Free to read, with or without an account.',
+  'Pro is optional, renews until you cancel, and you can cancel any time.',
   'Not the government, and not legal advice — verify anything important on Congress.gov.',
   'AI answers can be wrong. Read the bill.',
-  'Daily AI-chat limits keep the service free for everyone — don’t try to game them.',
+  'Daily AI-chat limits keep the service running — don’t try to game them.',
   'The data is public domain; the code is open source.',
   'Provided as-is, no warranty.',
 ];

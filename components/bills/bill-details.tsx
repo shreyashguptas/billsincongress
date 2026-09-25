@@ -19,6 +19,7 @@ import {
 import { billAnswerParagraph, billNoun, billSummaryText } from '@/lib/seo';
 import { AskAboutBill } from './ask-about-bill';
 import SaveBillButton from './save-bill-button';
+import BillAlertButton from './bill-alert-button';
 import PodcastPromo from '@/components/podcast-promo';
 import {
   ArrowLeft,
@@ -209,9 +210,11 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             )}
           </div>
 
-          <div className="flex shrink-0 gap-2">
+          {/* PDF on its own line on a phone, then Save and alerts side by side;
+              one row from `sm` up. Wraps so the alert button's error can sit under it. */}
+          <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
             {bill.pdf_url && (
-              <Button asChild variant="outline" className="h-11 flex-1 sm:h-10 sm:flex-none">
+              <Button asChild variant="outline" className="h-11 basis-full sm:h-10 sm:basis-auto">
                 <a
                   href={bill.pdf_url}
                   target="_blank"
@@ -224,6 +227,17 @@ export default function BillDetails({ bill }: BillDetailsProps) {
               </Button>
             )}
             <SaveBillButton
+              className="h-11 flex-1 sm:h-10 sm:flex-none"
+              billId={String(bill.id)}
+              analyticsProps={{
+                bill_type: bill.bill_type,
+                bill_number: bill.bill_number,
+                congress: bill.congress,
+                policy_area: bill.bill_subjects?.policy_area_name ?? '',
+                progress_stage: progressStage,
+              }}
+            />
+            <BillAlertButton
               className="h-11 flex-1 sm:h-10 sm:flex-none"
               billId={String(bill.id)}
               analyticsProps={{

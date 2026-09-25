@@ -2,47 +2,60 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useSearchParams } from "next/navigation";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { ConvexError } from "convex/values";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
+import { billingErrorCode, planCardView } from "@/lib/pro";
 import { formatCongressProse } from "@/lib/congress";
-import { StatusPill } from "@/components/brand/status";
-import { SectionHeader } from "@/components/brand/section";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useConvexEnabled } from "@/components/convex-client-provider";
 import { billsService, type ChatUsageResult } from "@/lib/services/bills-service";
-import { BillStageDescriptions } from "@/lib/utils/bill-stages";
-
-/**
- * `listSaved` returns a bill's stage as its description ("In Committee"), the
- * same string `getStageDescription` produces. Map it back to the stage code so
- * the row can carry a StatusPill; anything unrecognised stays plain text.
- */
-function stageFromDescription(description: string | null): number | null {
-  if (!description) return null;
-  const match = Object.entries(BillStageDescriptions).find(([, label]) => label === description);
-  return match ? Number(match[0]) : null;
-}
 
 export default function AccountPage() {
   const enabled = useConvexEnabled();
   if (!enabled) {
     return (
       <div className="container-editorial py-16">
-        <p className="text-sm text-ink-2">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
-  return <AccountInner />;
+  // useSearchParams needs a Suspense boundary to prerender.
+  return (
+    <React.Suspense
+      fallback={
+        <div className="container-editorial py-16">
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
+      }
+    >
+      <AccountInner />
+    </React.Suspense>
+  );
 }
 
 function AccountInner() {
   const user = useQuery(api.users.currentUser, {});
   const savedBills = useQuery(api.savedBills.listSaved, {});
+  const billing = useQuery(api.billing.status, {});
+  const alerts = useQuery(api.alerts.listMine, {});
+  const params = useSearchParams();
+  // Back from Stripe Checkout. Read once, then dropped from the address so a
+  // reload or a bookmarked link cannot claim a payment that is not happening;
+  // the plan card says "confirming" until the webhook records the plan.
+  const [checkoutSucceeded] = React.useState(() => params.get("checkout") === "success");
+  React.useEffect(() => {
+    if (params.get("checkout") !== "success") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("checkout");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, [params]);
   const { signOut } = useAuthActions();
   const [chatUsage, setChatUsage] = React.useState<ChatUsageResult | null>(null);
 
@@ -60,12 +73,27 @@ function AccountInner() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, billing?.plan]);
+
+  // Returning from Stripe: record the return once, then the activation once
+  // the webhook has flipped the plan (the page updates live when it does).
+  const returnReported = React.useRef(false);
+  const activationReported = React.useRef(false);
+  React.useEffect(() => {
+    if (!checkoutSucceeded || returnReported.current) return;
+    returnReported.current = true;
+    analytics.proCheckoutReturned("success");
+  }, [checkoutSucceeded]);
+  React.useEffect(() => {
+    if (!checkoutSucceeded || activationReported.current || billing?.plan !== "pro") return;
+    activationReported.current = true;
+    analytics.proActivated(billing.interval ?? "unknown");
+  }, [checkoutSucceeded, billing?.plan, billing?.interval]);
 
   if (user === undefined) {
     return (
       <div className="container-editorial py-16">
-        <p className="text-sm text-ink-2">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
@@ -74,9 +102,9 @@ function AccountInner() {
     // Middleware should have redirected, but if a query desync happened, show a hint.
     return (
       <div className="container-editorial py-16">
-        <p className="text-sm text-ink-2">
+        <p className="text-sm text-muted-foreground">
           Not signed in.{" "}
-          <Link href="/sign-in" className="link focus-ring rounded-xs">
+          <Link href="/sign-in" className="underline">
             Sign in
           </Link>
         </p>
@@ -97,137 +125,136 @@ function AccountInner() {
     : "midnight Eastern";
 
   return (
-    <div className="container-editorial">
-      <header className="pb-12 pt-12 sm:pb-16 sm:pt-16">
+    <div className="container-editorial py-16 space-y-10">
+      <header className="space-y-2">
         <p className="label-eyebrow">Account</p>
-        <h1 className="mt-3 text-display-lg text-ink [overflow-wrap:anywhere] sm:text-display-xl">
+        <h1 className="font-serif text-3xl font-semibold tracking-tight">
           {user.name ?? user.email ?? "Your account"}
         </h1>
       </header>
 
-      {/* Profile, plan and usage: three columns with hairline dividers, not cards. */}
-      <section aria-label="Profile, plan and usage" className="border-t border-line py-12 sm:py-16">
-        <div className="grid gap-10 lg:grid-cols-3 lg:gap-0 lg:divide-x lg:divide-line">
-          <div className="space-y-4 lg:pr-8">
-            <h2 className="label-eyebrow">Profile</h2>
-            <dl className="space-y-4 text-sm">
-              <div>
-                <dt className="text-ink-3">Name</dt>
-                <dd className="mt-0.5 text-[15px] text-ink">{user.name ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-ink-3">Email</dt>
-                <dd className="mt-0.5 flex flex-wrap items-center gap-2 text-[15px] text-ink">
-                  <span className="[overflow-wrap:anywhere]">{user.email ?? "—"}</span>
-                  {verified ? (
-                    <Badge variant="secondary">Verified</Badge>
-                  ) : (
-                    <Badge variant="outline">Unverified</Badge>
-                  )}
-                </dd>
-              </div>
-            </dl>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Profile</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider">Name</p>
+              <p>{user.name ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider">Email</p>
+              <p className="flex items-center gap-2">
+                {user.email ?? "—"}
+                {verified ? (
+                  <span className="rounded-sm bg-emerald-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                    Verified
+                  </span>
+                ) : (
+                  <span className="rounded-sm bg-amber-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                    Unverified
+                  </span>
+                )}
+              </p>
+            </div>
             {!verified && (
-              <p className="text-[13px] leading-relaxed text-ink-2">
+              <p className="text-xs text-muted-foreground">
                 Check your inbox for a 6-digit code to verify this address, or sign out and
                 sign in again to receive a new one.
               </p>
             )}
-          </div>
+          </CardContent>
+        </Card>
 
-          <div className="space-y-4 lg:px-8">
-            <h2 className="label-eyebrow">Plan</h2>
-            <p className="font-serif text-display-sm font-medium text-ink">Free</p>
-            <p className="text-[13px] leading-relaxed text-ink-2">
-              Bills in Congress is free and has no paid tier. Your account saves bills and
-              conversations and raises your daily question allowance — nothing here is
-              billed, and we collect no payment details.
-            </p>
-          </div>
+        <PlanCard billing={billing} checkoutSucceeded={checkoutSucceeded} />
 
-          <div className="space-y-4 lg:pl-8">
-            <h2 className="label-eyebrow">Free bill chat</h2>
-            <p className="font-serif text-display-sm font-medium text-ink tabular">
-              {chatUsed}
-              <span className="text-title text-ink-3"> / {chatMax}</span>
-            </p>
-            <Progress value={chatPercent} aria-label="Bill chat usage" className="rounded-xs" />
-            <div className="flex items-center justify-between gap-3 font-mono text-xs text-ink-3 tabular">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Usage</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider">
+                {billing?.plan === "pro" ? "Questions today (Pro)" : "Questions today"}
+              </p>
+              <p className="mt-1 font-serif text-2xl">
+                {chatUsed}
+                <span className="text-base text-muted-foreground"> / {chatMax}</span>
+              </p>
+            </div>
+            <Progress value={chatPercent} aria-label="Bill chat usage" />
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
               <span>{chatRemaining} remaining today</span>
               <span>Resets at {resetLabel}</span>
             </div>
-          </div>
-        </div>
-      </section>
+          </CardContent>
+        </Card>
+      </div>
 
-      <section className="border-t border-line py-12 sm:py-16">
-        <SectionHeader title="Saved bills" />
-        <div className="mt-6">
-          {savedBills === undefined ? (
-            <p className="text-sm text-ink-2">Loading…</p>
-          ) : savedBills.length === 0 ? (
-            <p className="text-[15px] text-ink-2">
-              No saved bills yet.{" "}
-              <Link href="/bills" className="link focus-ring rounded-xs">
-                Browse bills
-              </Link>{" "}
-              and tap Save on any bill to keep it here.
-            </p>
-          ) : (
-            <ul className="divide-y divide-line border-y border-line">
-              {savedBills.map((row) => {
-                if (!row.bill) {
-                  return (
-                    <li key={row.billId} className="py-4">
-                      <p className="text-sm text-ink-2">
-                        This bill is no longer available{" "}
-                        <span className="font-mono text-xs text-ink-3">({row.billId})</span>
+      <AlertsSection alerts={alerts} isPro={billing === undefined ? undefined : billing?.plan === "pro"} />
+
+      <section className="space-y-4">
+        <h2 className="font-serif text-xl font-semibold tracking-tight">Saved bills</h2>
+        {savedBills === undefined ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : savedBills.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No saved bills yet.{" "}
+            <Link href="/bills" className="underline underline-offset-4">
+              Browse bills
+            </Link>{" "}
+            and tap Save on any bill to keep it here.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border border-y border-border">
+            {savedBills.map((row) =>
+              row.bill ? (
+                <li key={row.billId}>
+                  <Link
+                    href={`/bills/${row.billId}`}
+                    className="group flex items-baseline justify-between gap-4 py-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                        {row.bill.billTypeLabel} {row.bill.billNumber} ·{" "}
+                        {formatCongressProse(row.bill.congress)}
                       </p>
-                    </li>
-                  );
-                }
-                const stage = stageFromDescription(row.bill.progressDescription);
-                return (
-                  <li key={row.billId}>
-                    <Link
-                      href={`/bills/${row.billId}`}
-                      className="focus-ring group flex flex-col gap-3 rounded-xs py-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-mono text-xs text-ink-3 tabular">
-                          {row.bill.billTypeLabel} {row.bill.billNumber} ·{" "}
-                          {formatCongressProse(row.bill.congress)}
+                      <p className="mt-1 font-serif font-medium leading-snug group-hover:underline underline-offset-4">
+                        {row.bill.title}
+                      </p>
+                      {row.bill.progressDescription && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {row.bill.progressDescription}
                         </p>
-                        <p className="mt-1.5 line-clamp-3 font-serif text-title text-ink decoration-line-strong underline-offset-[3px] group-hover:underline">
-                          {row.bill.title}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
-                        {stage !== null ? (
-                          <StatusPill stage={stage} />
-                        ) : (
-                          row.bill.progressDescription && (
-                            <span className="text-[13px] text-ink-2">{row.bill.progressDescription}</span>
-                          )
-                        )}
-                        <span className="font-mono text-xs text-ink-3 tabular">
-                          Saved{" "}
-                          {new Intl.DateTimeFormat("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          }).format(new Date(row.savedAt))}
-                        </span>
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      Saved{" "}
+                      {new Intl.DateTimeFormat("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      }).format(new Date(row.savedAt))}
+                    </span>
+                  </Link>
+                </li>
+              ) : (
+                <li
+                  key={row.billId}
+                  className="flex items-baseline justify-between gap-4 py-4"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    This bill is no longer available{" "}
+                    <span className="font-mono text-xs">({row.billId})</span>
+                  </p>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
       </section>
 
-      <div className="border-t border-line pb-16 pt-8 sm:pb-24">
+      <div className="border-t border-border pt-6">
         <Button
           variant="outline"
           onClick={async () => {
@@ -241,5 +268,210 @@ function AccountInner() {
         </Button>
       </div>
     </div>
+  );
+}
+
+type BillingStatus = NonNullable<ReturnType<typeof useQuery<typeof api.billing.status>>>;
+
+/**
+ * Billing dates in US Eastern time, like the site's other clocks ("resets at
+ * midnight Eastern") and the plan-change emails (convex/billingEmail.ts), so a
+ * reader never sees one date here and another in their inbox. Stripe's own
+ * pages follow the Stripe account's timezone, which should be set to Eastern.
+ */
+function formatDay(unixSeconds: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/New_York",
+  }).format(new Date(unixSeconds * 1000));
+}
+
+function PlanCard({
+  billing,
+  checkoutSucceeded,
+}: {
+  billing: BillingStatus | null | undefined;
+  checkoutSucceeded: boolean;
+}) {
+  const openPortal = useAction(api.billing.openBillingPortal);
+  const [opening, setOpening] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const isPro = billing?.plan === "pro";
+
+  const manage = async () => {
+    setError(null);
+    setOpening(true);
+    try {
+      const { url } = await openPortal({});
+      analytics.billingPortalOpened();
+      window.location.href = url;
+    } catch (err) {
+      const code = err instanceof ConvexError ? billingErrorCode(err.data) : "UNKNOWN";
+      setError(
+        code === "RATE_LIMITED"
+          ? "Too many tries in a short time. Please wait a few minutes and try again."
+          : code === "NO_BILLING_ACCOUNT"
+            ? "There is no billing account to open any more. Subscribe again from the Pro page to start a new one."
+            : "Could not open billing. Please try again.",
+      );
+      setOpening(false);
+    }
+  };
+
+  // After a minute back from Checkout with no plan yet, say so plainly.
+  const [waitedLong, setWaitedLong] = React.useState(false);
+  React.useEffect(() => {
+    if (!checkoutSucceeded || isPro) return;
+    const timer = setTimeout(() => setWaitedLong(true), 60_000);
+    return () => clearTimeout(timer);
+  }, [checkoutSucceeded, isPro]);
+
+  const view = billing
+    ? planCardView(billing, { checkoutReturned: checkoutSucceeded, waitedLong, formatDate: formatDay })
+    : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Plan</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <div>
+          <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
+          <p className="text-xl font-serif">
+            {view ? view.label : "…"}
+            {view?.cadence && (
+              <span className="ml-2 text-sm font-sans text-muted-foreground">{view.cadence}</span>
+            )}
+          </p>
+          {view && (
+            <p
+              role={view.tone === "warning" ? "alert" : "status"}
+              className={`mt-2 text-xs leading-relaxed ${
+                view.tone === "warning" ? "text-destructive" : "text-muted-foreground"
+              }`}
+            >
+              {view.message}
+            </p>
+          )}
+        </div>
+        {view?.showManage && (
+          <Button variant="outline" size="sm" onClick={manage} disabled={opening}>
+            {opening ? "Opening…" : "Manage billing"}
+          </Button>
+        )}
+        {view?.subscribe && (
+          <Button asChild size="sm">
+            <Link href="/pro">{view.subscribe}</Link>
+          </Button>
+        )}
+        {error && (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+type AlertRows = NonNullable<ReturnType<typeof useQuery<typeof api.alerts.listMine>>>;
+
+function AlertsSection({
+  alerts,
+  isPro,
+}: {
+  alerts: AlertRows | undefined;
+  /** undefined while the plan is loading: say nothing about it yet. */
+  isPro: boolean | undefined;
+}) {
+  // Hooks first: returning before them would change the hook count between
+  // renders once the plan arrives, which React rejects.
+  const toggle = useMutation(api.alerts.toggle);
+  const [removing, setRemoving] = React.useState<string | null>(null);
+  if (isPro === undefined) return null;
+
+  // Nothing to show a free reader who never followed anything.
+  if (!isPro && (alerts === undefined || alerts.length === 0)) return null;
+
+  const unfollow = async (billId: string) => {
+    setRemoving(billId);
+    try {
+      const { following } = await toggle({ billId });
+      if (!following) {
+        analytics.billAlertToggled({ bill_id: billId, action: "unfollowed", surface: "account" });
+      }
+    } finally {
+      setRemoving(null);
+    }
+  };
+
+  return (
+    <section id="alerts" className="space-y-4 scroll-mt-24">
+      <div className="space-y-1">
+        <h2 className="font-serif text-xl font-semibold tracking-tight">Bill alerts</h2>
+        <p className="text-sm text-muted-foreground">
+          {isPro
+            ? "One email early in the morning, US Eastern time, on any day these bills move. Add bills with Email me updates on a bill page."
+            : "Your Pro plan has ended, so these alerts are paused. Subscribe again to resume them."}
+        </p>
+      </div>
+      {alerts === undefined ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : alerts.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          You don&apos;t follow any bills yet.{" "}
+          <Link href="/bills" className="underline underline-offset-4">
+            Browse bills
+          </Link>
+          .
+        </p>
+      ) : (
+        <ul className="divide-y divide-border border-y border-border">
+          {alerts.map((row) => (
+            <li key={row.billId} className="flex items-baseline justify-between gap-4 py-4">
+              <Link href={`/bills/${row.billId}`} className="group min-w-0">
+                {row.bill ? (
+                  <>
+                    <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                      {row.bill.billTypeLabel} {row.bill.billNumber} ·{" "}
+                      {formatCongressProse(row.bill.congress)}
+                    </p>
+                    <p className="mt-1 font-serif font-medium leading-snug group-hover:underline underline-offset-4">
+                      {row.bill.title}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {row.bill.progressDescription ?? "Status unknown"}
+                      {row.lastEmailedAt
+                        ? ` · last emailed ${new Intl.DateTimeFormat("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          }).format(new Date(row.lastEmailedAt))}`
+                        : ""}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    This bill is no longer available{" "}
+                    <span className="font-mono text-xs">({row.billId})</span>
+                  </p>
+                )}
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                disabled={removing === row.billId}
+                onClick={() => unfollow(row.billId)}
+              >
+                {removing === row.billId ? "Removing…" : "Unfollow"}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

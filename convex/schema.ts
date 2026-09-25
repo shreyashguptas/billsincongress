@@ -78,6 +78,28 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_and_bill", ["userId", "billId"]),
 
+  // Bills a Pro subscriber gets emailed about. Separate from `savedBills`: a
+  // bookmark is free and silent, an alert is paid and sends mail, and the
+  // watermark below changes every time a digest goes out.
+  //
+  // The watermark is what makes "new" exact. `upsertBillActions` deletes and
+  // re-inserts every action on each sync, so `_creationTime` says nothing about
+  // which actions are new. Instead each alert remembers the latest action date
+  // it has reported and a fingerprint of every action ON that date: an action
+  // is new when it is dated later, or dated the same day with an unseen
+  // fingerprint (a second House action posted the next morning for yesterday).
+  billAlerts: defineTable({
+    userId: v.id("users"),
+    billId: v.string(), // References bills.billId, e.g. "1234hr119"
+    createdAt: v.number(), // epoch ms
+    lastSeenActionDate: v.optional(v.string()), // YYYY-MM-DD; unset = no actions yet
+    lastSeenActionFingerprints: v.array(v.string()), // actions dated lastSeenActionDate
+    lastSeenStage: v.optional(v.number()),
+    lastEmailedAt: v.optional(v.number()), // epoch ms of the last digest naming it
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_bill", ["userId", "billId"]),
+
   bills: defineTable({
     billId: v.string(), // Composite key: "{number}{type}{congress}" e.g. "1234hr119"
     congress: v.number(),
@@ -169,7 +191,12 @@ export default defineSchema({
     sourceSystemName: v.optional(v.string()),
     text: v.string(),
     type: v.optional(v.string()),
-  }).index("by_billId", ["billId"]),
+  })
+    .index("by_billId", ["billId"])
+    // Bill alerts read only the actions on or after the last reported day
+    // (convex/alerts.ts), so a quiet followed bill costs a row or two a day
+    // instead of its whole history.
+    .index("by_billId_and_actionDate", ["billId", "actionDate"]),
 
   // Bill subjects / policy areas (one-to-one: bill -> subject)
   billSubjects: defineTable({

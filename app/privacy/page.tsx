@@ -51,16 +51,17 @@ export default function PrivacyPage() {
       <Section number={1} title="Who we are">
         <p>
           Bills in Congress (billsincongress.com) is an independent,
-          open-source, public-interest project operated by Shreyash
-          Gupta. It is not affiliated with the United States government.
+          open-source, public-interest project operated by OffGrid LLC, a
+          Maryland limited liability company. It is not affiliated with the United States government.
           The legislative data we publish comes from the official{' '}
           <ExternalLink href="https://api.congress.gov">
             Congress.gov API
           </ExternalLink>{' '}
           and is in the public domain. In this policy, &ldquo;we&rdquo;
-          and &ldquo;us&rdquo; refer to the project and its operator.
+          and &ldquo;us&rdquo; refer to the project and OffGrid LLC.
         </p>
       </Section>
+
 
       <Section number={2} title="What we collect when you just browse">
         <p>
@@ -87,6 +88,7 @@ export default function PrivacyPage() {
           location. We do not store IP addresses in our own database.
         </p>
       </Section>
+
 
       <Section number={3} title="The AI assistant">
         <p>
@@ -141,6 +143,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+
       <Section number={4} title="If you create an account">
         <p>
           Creating an account is optional. If you sign up with email and
@@ -156,10 +159,13 @@ export default function PrivacyPage() {
           with it: the bills you save and your bill-chat history. Once
           you are signed in, our analytics link your activity to your
           account (including your email address) so we can understand the
-          journey from first visit to sign-up. We send email only for
-          account purposes — today only the sign-up verification code;
-          password-reset codes will join it once self-serve reset is built —
-          through PostHog, the same provider that runs our analytics. To
+          journey from first visit to sign-up. We send email for three
+          reasons only: account emails (today, sign-up verification
+          codes; password-reset codes once self-serve reset is built),
+          notices when your Pro plan starts, changes or ends,
+          and bill alerts you have turned on yourself. All of them go
+          through PostHog, the same provider that runs our analytics.
+          Payment receipts come from Stripe. To
           deliver one, PostHog receives your email address and the
           message, keeps a record of the send (including the code, which
           expires after 15 minutes) for troubleshooting, and records
@@ -168,31 +174,48 @@ export default function PrivacyPage() {
           send marketing email or newsletters.
         </p>
         <p>
-          The site is free and has no paid features today, so we do not
-          collect any payment information.
+          Reading the site is free. If you subscribe to Pro, the one paid
+          plan, payment is handled by{' '}
+          <ExternalLink href="https://stripe.com/privacy">Stripe</ExternalLink>:
+          your card details go to Stripe and never reach our servers. We
+          store your Stripe customer and subscription IDs, which price you
+          chose, the subscription&apos;s status, and when it renews or ends
+          — enough to know whether you are on Pro, nothing more. Stripe keeps
+          its own payment records as its privacy policy and the law require.
+        </p>
+        <p>
+          If you follow bills for email alerts, we store which bills you
+          follow and when each was last included in an alert. Alert emails
+          list public actions on those bills; they contain no tracking
+          pixels and no rewritten links, so we do not know whether you opened
+          or clicked one. We keep a copy of each sent alert email for seven
+          days so we can investigate delivery problems, then delete it. Every
+          alert email has a link that stops all alerts without signing in.
         </p>
       </Section>
+
 
       <Section number={5} title="Cookies and local storage">
         <p>
           We use a small number of cookies and browser-storage entries,
           all of them functional — none are advertising trackers:
         </p>
-        <ul className="mt-4 border-t border-line">
+        <ul className="space-y-3 mt-4">
           {cookies.map((c) => (
             <li
               key={c.name}
-              className="border-b border-line py-3"
+              className="border-b border-line pb-3 last:border-0"
             >
               <p className="font-mono text-sm text-ink">{c.name}</p>
-              <p className="mt-1 text-sm leading-relaxed text-ink-2">
+              <p className="text-sm text-ink-3 leading-relaxed mt-1">
                 {c.purpose}{' '}
-                <span className="text-ink-3">({c.lifespan})</span>
+                <span className="text-ink/70">({c.lifespan})</span>
               </p>
             </li>
           ))}
         </ul>
       </Section>
+
 
       <Section number={6} title="The services we rely on">
         <p>
@@ -200,16 +223,16 @@ export default function PrivacyPage() {
           providers that make the site run, and only to the extent needed
           for the job each one does:
         </p>
-        <ul className="mt-4 border-t border-line">
+        <ul className="space-y-3 mt-4">
           {providers.map((p) => (
             <li
               key={p.name}
-              className="border-b border-line py-3"
+              className="border-b border-line pb-3 last:border-0"
             >
-              <p className="font-medium text-ink">
+              <p className="font-serif text-base font-semibold tracking-tight">
                 {p.name}
               </p>
-              <p className="mt-1 text-sm leading-relaxed text-ink-2">
+              <p className="text-sm text-ink-3 leading-relaxed mt-1">
                 {p.role}
               </p>
             </li>
@@ -220,8 +243,9 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+
       <Section number={7} title="What we never do">
-        <ul className="list-disc space-y-2 pl-5">
+        <ul className="space-y-2 list-disc pl-5">
           <li>We never sell or rent your data to anyone.</li>
           <li>
             We show no ads and use no advertising trackers or data
@@ -238,6 +262,7 @@ export default function PrivacyPage() {
         </ul>
       </Section>
 
+
       <Section number={8} title="How long we keep things">
         <p>
           Account data, saved bills, and signed-in chat history are kept
@@ -248,6 +273,7 @@ export default function PrivacyPage() {
           retention policies.
         </p>
       </Section>
+
 
       <Section number={9} title="Your choices and rights">
         <p>
@@ -271,6 +297,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+
       <Section number={10} title="Children">
         <p>
           The site is an educational resource that anyone can read, but
@@ -278,6 +305,7 @@ export default function PrivacyPage() {
           children under 13 not create accounts.
         </p>
       </Section>
+
 
       <Section number={11} title="Changes to this policy">
         <p>
@@ -300,8 +328,8 @@ const summary = [
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
-  'We email you only for account reasons — never marketing.',
-  'No payment data: the site is free.',
+  'We email you only for account reasons and bill alerts you turn on — never marketing.',
+  'Reading is free. If you pay for Pro, Stripe handles your card; we never see it.',
 ];
 
 const cookies = [
@@ -333,7 +361,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts, saved bills, chat history, and the public bill data.',
+    role: 'Our database and authentication backend. Stores accounts, saved bills, followed bills, chat history, your plan status, and the public bill data.',
   },
   {
     name: 'Cloudflare',
@@ -341,7 +369,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (today, sign-up verification codes; password-reset codes once that flow is built), for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
@@ -350,6 +378,10 @@ const providers = [
   {
     name: 'Exa',
     role: 'Web search, used only when our own records cannot answer. Receives a rewritten neutral search phrase, never your question in your own words and never your identity.',
+  },
+  {
+    name: 'Stripe',
+    role: 'Only if you subscribe to Pro: takes the payment and runs the subscription. Receives your email address, name and card details; we never see the card.',
   },
   {
     name: 'Google',

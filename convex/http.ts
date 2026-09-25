@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { auth } from "./auth";
 import { stream as answerStream } from "./answer";
+import { handleStripeWebhook } from "./billing";
 
 const http = httpRouter();
 
@@ -15,6 +16,14 @@ http.route({
   path: "/answer/stream",
   method: "POST",
   handler: answerStream,
+});
+
+// Stripe subscription events. Signature-verified inside the handler; this is
+// the only thing that sets a reader's plan (see convex/billing.ts).
+http.route({
+  path: "/stripe/webhook",
+  method: "POST",
+  handler: handleStripeWebhook,
 });
 
 export default http;
