@@ -145,12 +145,17 @@ async function queryBills<Name extends RelayedBillsQuery>(
       return await run(api.bills[name], args);
     } catch (error) {
       if (!inBrowser || !isUnreachable(error)) throw error;
-      convexUnreachable = true;
-      try {
-        const { analytics } = await import('@/lib/analytics');
-        analytics.billsQueryRelayed(name);
-      } catch {
-        // Analytics must never be the reason bills fail to load.
+      // Several reads start together on /bills (list, count, sync status), so
+      // more than one can fail before the flag is set. Only the one that sets
+      // it reports, keeping the event to once per page load.
+      if (!convexUnreachable) {
+        convexUnreachable = true;
+        try {
+          const { analytics } = await import('@/lib/analytics');
+          analytics.billsQueryRelayed(name);
+        } catch {
+          // Analytics must never be the reason bills fail to load.
+        }
       }
     }
   }

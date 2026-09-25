@@ -120,8 +120,18 @@ const run = async () => {
   await it('when Convex is unreachable, the bills come through the relay', async () => {
     calls.length = 0;
     convexBehaviour = 'unreachable';
-    const response = await billsService.fetchBills({ congress: '118' });
-    assert.deepEqual(calls, ['convex', 'relay']);
+    // /bills starts the page and the count together, so both fail before
+    // either can set the flag. Both must still arrive through the relay. (The
+    // guard that keeps `bills_query_relayed` to one capture sits on the same
+    // path; posthog-js does not load under tsx, so the capture itself is not
+    // observable here.)
+    const [response, count] = await Promise.all([
+      billsService.fetchBills({ congress: '118' }),
+      billsService.fetchBillsCount({ congress: '118' }),
+    ]);
+    assert.deepEqual(calls.filter((c) => c === 'convex').length, 2);
+    assert.deepEqual(calls.filter((c) => c === 'relay').length, 2);
+    assert.notEqual(count, null);
     assert.equal(response.data.length, 1);
     assert.equal(response.data[0].id, '5193hr118');
     assert.equal(response.hasMore, true);
