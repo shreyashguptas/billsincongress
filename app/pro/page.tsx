@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Metadata, Viewport } from 'next';
 
 import { sharedViewport } from '../shared-metadata';
-import { SubscribePanel } from '@/components/pro/subscribe-panel';
+import { PlanCardsSkeleton, SubscribePanel } from '@/components/pro/subscribe-panel';
 import {
   AUTHED_CHAT_DAILY_LIMIT,
   MAX_ALERTS_PER_USER,
@@ -60,74 +60,80 @@ const FAQ = [
   },
 ];
 
+// A plan page on the editorial grid: the two price panels are the one bold
+// thing, and everything around them is hairline rows (Documentation/brand.md,
+// "Layout and shape").
 export default function ProPage() {
   return (
     <article className="animate-fade-in">
-      <header className="border-b border-border">
-        <div className="container-editorial py-12 sm:py-16">
-          <p className="label-eyebrow mb-3">Pro</p>
-          <h1 className="font-serif text-display-md sm:text-display-lg font-semibold leading-[1.05] tracking-tight max-w-3xl">
-            Know the morning a bill moves.
-          </h1>
-          <p className="mt-5 max-w-2xl text-base sm:text-lg text-muted-foreground leading-relaxed">
-            For people who follow legislation for work. Reading the site stays free for
-            everyone; Pro adds the tools that save you checking back.
-          </p>
-        </div>
+      <header className="container-editorial pb-12 pt-12 sm:pb-16 sm:pt-16">
+        <p className="label-eyebrow">Pro</p>
+        <h1 className="mt-3 max-w-3xl text-display-lg text-ink sm:text-display-xl">
+          Know the morning a bill moves.
+        </h1>
+        <p className="mt-5 max-w-[60ch] text-[17px] leading-relaxed text-ink-2 sm:text-lg">
+          For people who follow legislation for work. Reading the site stays free for
+          everyone; Pro adds the tools that save you checking back.
+        </p>
       </header>
 
-      <section className="container-editorial py-12">
-        <div className="grid gap-12 lg:grid-cols-12">
-          <div className="lg:col-span-7 space-y-10">
-            <Suspense fallback={<div className="h-64" aria-hidden />}>
+      <div className="container-editorial">
+        <div className="grid gap-12 border-t border-line pb-16 pt-12 sm:pb-24 sm:pt-16 lg:grid-cols-12 lg:gap-16">
+          <div className="min-w-0 lg:col-span-7">
+            <Suspense fallback={<PlanCardsSkeleton />}>
               <SubscribePanel />
             </Suspense>
 
-            <div>
-              <p className="label-eyebrow mb-4">What Pro adds</p>
-              <ul className="divide-y divide-border border-y border-border">
+            <section className="mt-16">
+              <h2 className="label-eyebrow">What Pro adds</h2>
+              <ul className="mt-4 border-t border-line">
                 {INCLUDED.map((item) => (
-                  <li key={item.title} className="py-5">
-                    <p className="font-serif text-lg font-semibold">{item.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{item.body}</p>
+                  <li key={item.title} className="border-b border-line py-5">
+                    <h3 className="text-title text-ink tabular">{item.title}</h3>
+                    <p className="mt-1.5 text-[15px] leading-relaxed text-ink-2">{item.body}</p>
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
 
-            <div>
-              <p className="label-eyebrow mb-4">Questions</p>
-              <dl className="space-y-6">
+            <section className="mt-16">
+              <h2 className="label-eyebrow">Questions</h2>
+              <dl className="mt-4 border-t border-line">
                 {FAQ.map((item) => (
-                  <div key={item.q}>
-                    <dt className="font-medium">{item.q}</dt>
-                    <dd className="mt-1 text-sm text-muted-foreground leading-relaxed">{item.a}</dd>
+                  <div key={item.q} className="border-b border-line py-5">
+                    <dt className="text-[15px] font-medium text-ink">{item.q}</dt>
+                    <dd className="mt-1.5 text-[15px] leading-relaxed text-ink-2">{item.a}</dd>
                   </div>
                 ))}
               </dl>
-            </div>
+            </section>
           </div>
 
           <aside className="lg:col-span-5">
-            <div className="rounded-md border border-border p-6 lg:sticky lg:top-24">
-              <p className="label-eyebrow mb-3">Free for everyone, always</p>
-              <ul className="space-y-2 text-sm">
+            <div className="lg:sticky lg:top-24">
+              <h2 className="label-eyebrow">Free for everyone, always</h2>
+              <ul className="mt-4 border-t border-line">
                 {FREE.map((line) => (
-                  <li key={line} className="flex gap-2">
-                    <span aria-hidden className="text-muted-foreground">—</span>
-                    <span>{line}</span>
+                  <li key={line} className="border-b border-line py-3 text-[15px] leading-snug text-ink">
+                    {line}
                   </li>
                 ))}
               </ul>
-              <p className="mt-5 text-xs text-muted-foreground leading-relaxed">
-                See the <Link href="/terms" className="underline underline-offset-4">terms</Link> and{' '}
-                <Link href="/privacy" className="underline underline-offset-4">privacy notice</Link> for
-                how billing and alert emails work.
+              <p className="mt-4 text-xs leading-relaxed text-ink-3">
+                See the{' '}
+                <Link href="/terms" className="link focus-ring rounded-xs">
+                  terms
+                </Link>{' '}
+                and{' '}
+                <Link href="/privacy" className="link focus-ring rounded-xs">
+                  privacy notice
+                </Link>{' '}
+                for how billing and alert emails work.
               </p>
             </div>
           </aside>
         </div>
-      </section>
+      </div>
     </article>
   );
 }
