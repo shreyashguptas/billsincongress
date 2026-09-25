@@ -1,7 +1,7 @@
 /**
  * Every email the site sends goes out through PostHog Workflows. Pure — no
- * Convex imports — so both the sign-in code providers (convex/emailCodes.ts)
- * and the bill-alert sender (convex/email.ts) can call it.
+ * Convex imports — so any action can call it: the sign-in code providers
+ * (convex/emailCodes.ts) and the bill-alert sender (convex/email.ts).
  *
  * How it works: each stream is one PostHog workflow with a webhook trigger and
  * a single email step. We POST the finished message (recipient, subject, text,
@@ -14,14 +14,16 @@
  * (the trigger's "Authorization header value" setting) and rejects anything
  * else with a 401.
  *
- * Two streams, two workflows, because PostHog treats them differently:
- *   codes  — sign-up and password-reset codes. Message category
- *            "transactional": sent even to someone who opted out of other
- *            mail, and no unsubscribe header.
- *   alerts — bill alert digests. Message category "marketing": PostHog adds
- *            the one-click List-Unsubscribe header mail clients show as a
- *            button. Our own unsubscribe link stays in the footer.
- * Both have open and click tracking turned off.
+ * Streams:
+ *   codes  — sign-up and password-reset codes, workflow "Bills.Congress:
+ *            sign-in codes". Message category "transactional": sent even to
+ *            someone who opted out of other mail, with no unsubscribe header,
+ *            and open and click tracking turned off.
+ *   alerts — Pro bill-alert digests, workflow "Bills.Congress: bill alerts".
+ *            Message category "marketing": PostHog adds the one-click
+ *            List-Unsubscribe header mail clients show as a button, and skips
+ *            anyone who used it. Our own unsubscribe link stays in the footer.
+ *            Tracking off.
  */
 
 export type EmailStream = "codes" | "alerts";
@@ -41,7 +43,17 @@ export interface OutgoingEmail {
  */
 export const EMAIL_DISTINCT_ID = "bills-congress-mailer";
 
-/** The event name the workflows' webhook triggers record for each send. */
+/**
+ * The name the workflow run is started under. It is NOT ingested as an
+ * analytics event (a webhook trigger only ingests one if the workflow has a
+ * "Capture event" step, and ours has none), but the trigger template rejects a
+ * request without it.
+ *
+ * What PostHog does keep: each run's trigger payload, this whole request, in
+ * the workflow's Invocations tab. For the codes stream that includes the live
+ * code, readable by anyone with access to the PostHog project until it expires
+ * (15 minutes, one use). See "Email" in Documentation/overview.md.
+ */
 export const EMAIL_EVENT = "bic_email_requested";
 
 const WEBHOOK_ENV: Record<EmailStream, string> = {

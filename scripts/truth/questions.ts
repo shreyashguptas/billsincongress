@@ -465,8 +465,9 @@ export const QUESTIONS: TruthQuestion[] = [
   // --- Page context: the answer must be about THIS bill --------------------
   {
     id: "focused-bill-sponsor",
-    // The most recent law, so the question is about a bill whose page a reader
-    // would plausibly be on when they ask.
+    // The most recent law when this was written (2026-08-30), so the question is
+    // about a bill whose page a reader would plausibly be on. Being the latest is
+    // not what the case tests; the expected sponsor is read from the cache.
     focusBillId: "629s119",
     question: "Who sponsored this bill?" + ONE_NAME,
     defect:
@@ -510,6 +511,34 @@ export const QUESTIONS: TruthQuestion[] = [
         kind: "number",
         value: fromRows,
         note: `Agreed by two independent tables: stage-100 bill rows and congressStats.stageCounts.`,
+      };
+    },
+  },
+  {
+    id: "older-congress-topic-count",
+    question: "How many health measures were introduced in the 117th Congress?" + ONE_NUMBER,
+    defect:
+      "Added with #115, before it shipped: the answer loop now primes the topics list for the " +
+      "Congress on screen (the 119th from the home page). Answering a 117th question from those " +
+      "rows would state the 119th's Health count, complete and cited, as the 117th's.",
+    expect: (db) => {
+      const row = db.congressPolicyAreas.find(
+        (a) => a.congress === 117 && a.policyAreaName === "Health",
+      );
+      if (!row) throw new Error("No 117th-Congress Health row in congressPolicyAreas.");
+      const current = db.congressPolicyAreas.find(
+        (a) => a.congress === CURRENT_CONGRESS && a.policyAreaName === "Health",
+      );
+      if (current && current.count === row.count) {
+        throw new Error(
+          `117th and ${CURRENT_CONGRESS}th Health counts are equal (${row.count}); this question ` +
+            `can no longer tell the two Congresses apart.`,
+        );
+      }
+      return {
+        kind: "number",
+        value: row.count,
+        note: `congressPolicyAreas row for 117 / Health; the ${CURRENT_CONGRESS}th's is ${current?.count}.`,
       };
     },
   },

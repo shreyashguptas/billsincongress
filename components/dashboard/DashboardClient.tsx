@@ -6,21 +6,20 @@ import type { FunctionReturnType } from 'convex/server';
 import { api } from '@/convex/_generated/api';
 import { useRouter } from 'next/navigation';
 import { useConvexEnabled } from '@/components/convex-client-provider';
-import Link from 'next/link';
 import { cn, formatCount } from '@/lib/utils';
-import { HeroAsk } from '@/components/answers/hero-ask';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { AskAbout } from '@/components/answers/ask-about';
 import { analytics } from '@/lib/analytics';
-import {
-  formatCongressOrdinal,
-  formatCongressPicker,
-  formatCongressProse,
-  formatCongressYears,
-  formatCongressYearsShort,
-} from '@/lib/congress';
+import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
 import { hubByPath, topicSlug } from '@/lib/hubs';
+import type { HomeProps } from './home/shared';
+import { HomeHero } from './home/hero';
+import { StatStrip } from './home/stat-strip';
+import { StageZoom } from './home/stage-zoom';
+import { TopicWheel } from './home/topic-wheel';
+import { SponsorsChart } from './home/sponsors-chart';
+import { StateMap } from './home/state-map';
 
 export type InitialDashboardData = {
   allCongress: FunctionReturnType<typeof api.bills.getAllCongressOverview>;
@@ -162,7 +161,7 @@ function DashboardInner({
   }, [congressNumbers, selectedCongress]);
 
   /**
-   * Where a policy-area row points.
+   * Where a topic link points (the topic wheel's legend and pinned topic).
    *
    * For the newest Congress this is the topic hub — a real page with an
    * explanation of what the grouping means. That matters beyond navigation:
@@ -222,100 +221,50 @@ function DashboardInner({
   const congressDashboard = view.dashboard;
   const houseBreakdown = view.house;
   const senateBreakdown = view.senate;
-  const currentStats = allCongressData.find((d) => d.congress === viewCongress);
+
+  const homeProps: HomeProps | null = congressDashboard
+    ? {
+        congress: viewCongress,
+        dashboard: congressDashboard,
+        house: houseBreakdown,
+        senate: senateBreakdown,
+        allCongress: allCongressData,
+        congressNumbers,
+        selectedCongress,
+        onSelectCongress: setSelectedCongress,
+        onDrillDown: handleDrillDown,
+        policyAreaHref,
+        starterInput: {
+          congress: viewCongress,
+          latestCongress: newestCongress,
+          totalBills: congressDashboard.totalBills,
+          topPolicyAreas: congressDashboard.topPolicyAreas,
+          statusBreakdown: congressDashboard.statusBreakdown,
+        },
+      }
+    : null;
+
+  // `getCongressDashboard` returns null when a Congress has no stats row yet.
+  // Say so rather than showing a skeleton that never resolves.
+  if (!homeProps) {
+    return (
+      <div className="container-editorial py-24 text-center text-muted-foreground">
+        No data available for the {formatCongressOrdinal(viewCongress)} Congress yet.
+      </div>
+    );
+  }
 
   return (
     <div>
-      {/* HERO / Editorial masthead */}
-      <section className="border-b border-border">
-        <div className="container-editorial py-10 sm:py-14">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div className="max-w-3xl">
-              <p className="label-eyebrow mb-3">
-                The {formatCongressOrdinal(viewCongress)} Congress
-                <span className="ml-2 text-muted-foreground/80 normal-case tracking-normal">
-                  · {formatCongressYears(viewCongress)}
-                </span>
-              </p>
-              <h1 className="font-serif text-display-md sm:text-display-lg lg:text-display-xl font-semibold leading-[1.05] tracking-tight">
-                Every bill, every step,
-                <br className="hidden sm:inline" /> in plain view.
-              </h1>
-              <p className="mt-5 text-base sm:text-lg text-muted-foreground max-w-2xl leading-relaxed">
-                A continuous record of legislation moving through the United
-                States Congress — sourced live from Congress.gov, made readable
-                for citizens, journalists and researchers.
-              </p>
-              {/* The eyebrow, h1 and paragraph above stay server-rendered —
-                  they are the page's indexable body — and this is a client
-                  island beside them. */}
-              {/* Tells the ask panel which Congress is on screen. Every catalog
-                  fetch otherwise defaults to the 119th, so a reader studying the
-                  117th here and then asking a question was answered about a
-                  different Congress entirely. */}
-              <AskPageContext congress={viewCongress} />
-              <HeroAsk
-                starters={{
-                  congress: viewCongress,
-                  latestCongress: newestCongress,
-                  totalBills: congressDashboard?.totalBills ?? 0,
-                  topPolicyAreas: congressDashboard?.topPolicyAreas ?? [],
-                  statusBreakdown: congressDashboard?.statusBreakdown ?? null,
-                }}
-              />
-              <p className="mt-4 text-sm">
-                <Link
-                  href="/bills"
-                  data-ph-capture-attribute-cta="home-browse-bills"
-                  className="text-muted-foreground hover:text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground transition-colors"
-                >
-                  Or browse all bills →
-                </Link>
-              </p>
-            </div>
+      {/* Tells the ask panel which Congress is on screen. Every catalog fetch
+          otherwise defaults to the 119th, so a reader studying the 117th here
+          and then asking a question was answered about a different Congress. */}
+      <AskPageContext congress={viewCongress} />
 
-            {/* Congress selector — quiet sidebar */}
-            <div className="min-w-[180px]">
-              <p className="label-eyebrow mb-2">Congress</p>
-              <div className="flex flex-wrap gap-1">
-                {[...congressNumbers]
-                  .sort((a, b) => b - a)
-                  .map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => {
-                        analytics.dashboardCongressSelected(c);
-                        setSelectedCongress(c);
-                      }}
-                      title={formatCongressPicker(c)}
-                      aria-label={formatCongressPicker(c)}
-                      className={cn(
-                        'rounded-sm border px-2.5 py-1 font-mono text-xs transition-colors tabular text-left',
-                        selectedCongress === c
-                          ? 'border-foreground bg-foreground text-background'
-                          : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
-                      )}
-                    >
-                      <span className="block leading-tight">
-                        {formatCongressYearsShort(c)}
-                      </span>
-                      <span
-                        className={cn(
-                          'block text-[10px] leading-tight',
-                          selectedCongress === c
-                            ? 'text-background/70'
-                            : 'text-muted-foreground/70'
-                        )}
-                      >
-                        {formatCongressOrdinal(c)}
-                      </span>
-                    </button>
-                  ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Outside the keyed cross-fade below, so switching Congress does not
+          remount the ask box and throw away a half-typed question. Its numbers
+          still come from `view`, so they change with everything else. */}
+      <HomeHero {...homeProps} />
 
       {/* Data region — dims while a newly-picked Congress loads, then
           cross-fades to the new numbers (re-keyed on the loaded Congress). */}
@@ -326,133 +275,41 @@ function DashboardInner({
         )}
       >
         <div key={viewCongress} className="animate-fade-in">
-      {/* "The evidence" divider */}
-      <section className="border-b border-border">
-        <div className="container-editorial pt-10 pb-2">
-          <p className="label-eyebrow">The evidence</p>
-          <p className="mt-1 text-sm text-muted-foreground max-w-2xl leading-relaxed">
-            Everything below is the record the answers above are drawn from — the same
-            numbers, unfiltered.
-          </p>
-        </div>
-      </section>
+          <StatStrip {...homeProps} />
+          <StageZoom {...homeProps} />
+          <TopicWheel {...homeProps} />
+          <SponsorsChart {...homeProps} />
+          <StateMap {...homeProps} />
 
-      {/* KEY METRICS row */}
-      <section className="border-b border-border">
-        <div className="container-editorial py-8">
-          <StatsOverview
-            stats={currentStats}
-            dashboardData={congressDashboard}
-            onDrillDown={handleDrillDown}
-          />
-        </div>
-      </section>
-
-      {/* Status distribution + Policy areas */}
-      <section className="border-b border-border">
-        <div className="container-editorial py-12 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
-          <div className="lg:col-span-7">
-            <SectionHeader
-              eyebrow="Where bills stand"
-              title="Status distribution"
-            askQuestion={`Why do most bills never leave committee in the ${formatCongressOrdinal(viewCongress)} Congress?`}
-              description="Most introduced bills never leave committee. The bar shows how this Congress's introduced bills are distributed across the legislative pipeline."
-            />
-            {congressDashboard && (
-              <StatusBar
-                data={congressDashboard.statusBreakdown}
-                totalBills={congressDashboard.totalBills}
-                onSegmentClick={handleDrillDown}
+          {/* Monthly introduction cadence */}
+          <section className="border-b border-border">
+            <div className="container-editorial py-12">
+              <SectionHeader
+                eyebrow="Session rhythm"
+                title="Introductions, month by month"
+                askQuestion={`When during the ${formatCongressOrdinal(viewCongress)} Congress were bills actually introduced?`}
+                description="The pulse of the legislative calendar — when bills are actually filed, and how many of them eventually became law."
               />
-            )}
-          </div>
-          <div className="lg:col-span-5">
-            <SectionHeader
-              eyebrow="By subject"
-              title="Top policy areas"
-            askQuestion={`What are the biggest policy areas in the ${formatCongressOrdinal(viewCongress)} Congress and what do those bills do?`}
-              description="The most common policy areas tagged on bills introduced this Congress."
-            />
-            {congressDashboard && (
-              <PolicyAreaList
-                data={congressDashboard.topPolicyAreas}
-                hrefFor={policyAreaHref}
-                onItemClick={(area) =>
-                  analytics.dashboardDrilldownClicked('policyArea', area, selectedCongress)
-                }
+              <MonthlyCadenceChart house={houseBreakdown} senate={senateBreakdown} />
+            </div>
+          </section>
+
+          {/* Historical comparison */}
+          <section>
+            <div className="container-editorial py-12">
+              <SectionHeader
+                eyebrow="In context"
+                title="Volume across recent Congresses"
+                askQuestion={`How does the ${formatCongressOrdinal(viewCongress)} Congress compare to recent ones by volume?`}
+                description="Total bills introduced in each two-year session of Congress on record. Click a bar to switch the view."
               />
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Sponsors */}
-      <section className="border-b border-border">
-        <div className="container-editorial py-12">
-          <SectionHeader
-            eyebrow="The most prolific"
-            title="Leading sponsors"
-            askQuestion={`Who introduces the most bills in the ${formatCongressOrdinal(viewCongress)} Congress, and does that mean anything?`}
-            description="Members who have introduced the most bills this Congress."
-          />
-          {congressDashboard && (
-            <SponsorTable
-              data={congressDashboard.topSponsors}
-              onSponsorClick={(name) => handleDrillDown('sponsor', name)}
-            />
-          )}
-        </div>
-      </section>
-
-      {/* Party & chamber breakdown */}
-      <section className="border-b border-border">
-        <div className="container-editorial py-12">
-          <SectionHeader
-            eyebrow="Across the aisle"
-            title="Who's writing the bills"
-            askQuestion={`How does bill sponsorship split by party and chamber in the ${formatCongressOrdinal(viewCongress)} Congress?`}
-            description="How sponsorship and passage split by party and chamber this Congress. The left column shows who introduces; the right shows whose bills actually become law."
-          />
-          <PartyChamberChart
-            house={houseBreakdown}
-            senate={senateBreakdown}
-            onStateClick={(state) => handleDrillDown('state', state)}
-          />
-        </div>
-      </section>
-
-      {/* Monthly introduction cadence */}
-      <section className="border-b border-border">
-        <div className="container-editorial py-12">
-          <SectionHeader
-            eyebrow="Session rhythm"
-            title="Introductions, month by month"
-            askQuestion={`When during the ${formatCongressOrdinal(viewCongress)} Congress were bills actually introduced?`}
-            description="The pulse of the legislative calendar — when bills are actually filed, and how many of them eventually became law."
-          />
-          <MonthlyCadenceChart
-            house={houseBreakdown}
-            senate={senateBreakdown}
-          />
-        </div>
-      </section>
-
-      {/* Historical comparison */}
-      <section>
-        <div className="container-editorial py-12">
-          <SectionHeader
-            eyebrow="In context"
-            title="Volume across recent Congresses"
-            askQuestion={`How does the ${formatCongressOrdinal(viewCongress)} Congress compare to recent ones by volume?`}
-            description="Total bills introduced in each two-year session of Congress on record. Click a bar to switch the view."
-          />
-          <HistoricalChart
-            data={allCongressData}
-            selectedCongress={viewCongress}
-            onCongressClick={setSelectedCongress}
-          />
-        </div>
-      </section>
+              <HistoricalChart
+                data={allCongressData}
+                selectedCongress={viewCongress}
+                onCongressClick={setSelectedCongress}
+              />
+            </div>
+          </section>
         </div>
       </div>
 
@@ -527,267 +384,6 @@ function DashboardSkeleton() {
           <div key={i} className="h-64 bg-secondary rounded-sm animate-pulse" />
         ))}
       </div>
-    </div>
-  );
-}
-
-// Stats overview — borderless metric grid
-
-interface StatsOverviewProps {
-  stats?: {
-    congress: number;
-    totalCount: number;
-    houseCount: number;
-    senateCount: number;
-  };
-  dashboardData: {
-    statusBreakdown: {
-      introduced: number;
-      inCommittee: number;
-      passedOneChamber: number;
-      passedBothChambers: number;
-      vetoed: number;
-      toPresident: number;
-      signed: number;
-      becameLaw: number;
-    };
-  } | null;
-  onDrillDown: (filterType: string, filterValue: string | number) => void;
-}
-
-function StatsOverview({ stats, dashboardData, onDrillDown }: StatsOverviewProps) {
-  if (!stats || !dashboardData) return null;
-
-  // "House bills" / "Senate bills" count ALL house-originated (hr, hjres,
-  // hconres, hres) and senate-originated types. There is no single `billType`
-  // filter value that matches that union, so we omit drill-downs on those two
-  // cards rather than mislead the user with a narrower filter.
-  const items: Array<{
-    label: string;
-    value: number;
-    onClick?: () => void;
-  }> = [
-    { label: 'Bills introduced', value: stats.totalCount, onClick: () => onDrillDown('congress', stats.congress) },
-    { label: 'House bills', value: stats.houseCount },
-    { label: 'Senate bills', value: stats.senateCount },
-    { label: 'Became law', value: dashboardData.statusBreakdown.becameLaw, onClick: () => onDrillDown('status', 100) },
-  ];
-
-  return (
-    <dl className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border border-x border-border">
-      {items.map((item) => {
-        const isClickable = !!item.onClick;
-        const Tag = isClickable ? 'button' : 'div';
-        return (
-          <Tag
-            key={item.label}
-            onClick={item.onClick}
-            className={cn(
-              'group text-left px-5 py-4 transition-colors',
-              isClickable ? 'hover:bg-secondary/60 cursor-pointer' : 'cursor-default'
-            )}
-          >
-            <dt className="label-eyebrow mb-2">{item.label}</dt>
-            <dd className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight tabular text-foreground">
-              {formatCount(item.value)}
-            </dd>
-          </Tag>
-        );
-      })}
-    </dl>
-  );
-}
-
-// Status distribution — horizontal stacked bar (Tufte-style)
-
-interface StatusBarProps {
-  data: {
-    introduced: number;
-    inCommittee: number;
-    passedOneChamber: number;
-    passedBothChambers: number;
-    vetoed: number;
-    toPresident: number;
-    signed: number;
-    becameLaw: number;
-  };
-  totalBills: number;
-  onSegmentClick: (filterType: string, filterValue: string | number) => void;
-}
-
-function StatusBar({ data, totalBills, onSegmentClick }: StatusBarProps) {
-  const stages = [
-    { key: 'introduced',          label: 'Introduced',           color: 'hsl(var(--status-introduced))', value: data.introduced,          stage: 20 },
-    { key: 'inCommittee',         label: 'In committee',         color: 'hsl(var(--status-committee))',  value: data.inCommittee,         stage: 40 },
-    { key: 'passedOneChamber',    label: 'Passed one chamber',   color: 'hsl(var(--status-passed-one))', value: data.passedOneChamber,    stage: 60 },
-    { key: 'passedBothChambers',  label: 'Passed both chambers', color: 'hsl(var(--status-passed-both))', value: data.passedBothChambers, stage: 80 },
-    { key: 'toPresident',         label: 'To the President',     color: 'hsl(var(--status-president))',  value: data.toPresident,         stage: 90 },
-    { key: 'signed',              label: 'Signed',               color: 'hsl(var(--status-signed))',     value: data.signed,              stage: 95 },
-    // Vetoed (85) must be here even though it sits off the main path. Omitting it
-    // hid 13 vetoed bills in the 118th and 2 in the 119th, and — because the
-    // denominator below is every bill — made the visible shares silently fail to
-    // sum to 100%. A status chart that quietly drops a status is worse than no chart.
-    { key: 'vetoed',              label: 'Vetoed',               color: 'hsl(var(--status-vetoed))',     value: data.vetoed,              stage: 85 },
-    { key: 'becameLaw',           label: 'Became law',           color: 'hsl(var(--status-law))',        value: data.becameLaw,           stage: 100 },
-  ].filter((s) => s.value > 0);
-
-  if (totalBills === 0) {
-    return <p className="text-sm text-muted-foreground">No bill status data available.</p>;
-  }
-
-  return (
-    <div className="space-y-5">
-      {/* Stacked horizontal bar */}
-      <div className="flex h-3 w-full overflow-hidden rounded-sm border border-border">
-        {stages.map((s) => {
-          const w = (s.value / totalBills) * 100;
-          if (w <= 0) return null;
-          return (
-            <button
-              key={s.key}
-              onClick={() => onSegmentClick('status', s.stage)}
-              aria-label={`${s.label}: ${s.value} bills`}
-              className="block h-full hover:opacity-80 transition-opacity"
-              style={{ width: `${w}%`, backgroundColor: s.color }}
-            />
-          );
-        })}
-      </div>
-
-      {/* Legend / data table */}
-      <ul className="divide-y divide-border border-y border-border">
-        {stages.map((s) => {
-          const pct = ((s.value / totalBills) * 100).toFixed(1);
-          return (
-            <li key={s.key}>
-              <button
-                onClick={() => onSegmentClick('status', s.stage)}
-                className="grid grid-cols-12 items-center gap-3 w-full py-2.5 px-1 text-left hover:bg-secondary/60 transition-colors group"
-              >
-                <span
-                  className="col-span-1 inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-                  style={{ backgroundColor: s.color }}
-                  aria-hidden="true"
-                />
-                <span className="col-span-7 sm:col-span-7 text-sm text-foreground">
-                  {s.label}
-                </span>
-                <span className="col-span-2 text-right font-mono text-xs text-muted-foreground tabular">
-                  {pct}%
-                </span>
-                <span className="col-span-2 text-right font-mono text-sm font-medium text-foreground tabular">
-                  {formatCount(s.value)}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-// Top policy areas — minimal horizontal bar list
-
-interface PolicyAreaListProps {
-  data: Array<{ name: string; count: number }>;
-  /** Real destination, so these rows are crawlable links and not scripted jumps. */
-  hrefFor: (area: string) => string;
-  onItemClick: (area: string) => void;
-}
-
-function PolicyAreaList({ data, hrefFor, onItemClick }: PolicyAreaListProps) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground">No policy area data available.</p>;
-  }
-  const max = Math.max(...data.map((d) => d.count), 1);
-
-  return (
-    <ol className="space-y-2.5">
-      {data.slice(0, 8).map((item) => {
-        const w = (item.count / max) * 100;
-        return (
-          <li key={item.name}>
-            <Link
-              href={hrefFor(item.name)}
-              onClick={() => onItemClick(item.name)}
-              className="block w-full text-left group"
-            >
-              <div className="flex items-baseline justify-between gap-3 mb-1">
-                <span className="text-sm text-foreground group-hover:underline underline-offset-2 decoration-border truncate">
-                  {item.name}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground tabular shrink-0">
-                  {formatCount(item.count)}
-                </span>
-              </div>
-              <div className="h-[3px] w-full bg-secondary overflow-hidden">
-                <div
-                  className="h-full bg-foreground/80 group-hover:bg-foreground transition-colors"
-                  style={{ width: `${w}%` }}
-                />
-              </div>
-            </Link>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-// Sponsor leaderboard — proper editorial table
-
-interface SponsorTableProps {
-  data: Array<{ name: string; count: number; party?: string; state?: string }>;
-  onSponsorClick: (name: string) => void;
-}
-
-function SponsorTable({ data, onSponsorClick }: SponsorTableProps) {
-  if (!data || data.length === 0) {
-    return <p className="text-sm text-muted-foreground">No sponsor data available.</p>;
-  }
-
-  return (
-    <div className="border-y border-border">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border">
-            <th className="label-eyebrow text-left py-2 pr-3 w-8">#</th>
-            <th className="label-eyebrow text-left py-2 pr-3">Member</th>
-            <th className="label-eyebrow text-left py-2 px-3 hidden sm:table-cell">Party</th>
-            <th className="label-eyebrow text-left py-2 px-3 hidden sm:table-cell">State</th>
-            <th className="label-eyebrow text-right py-2 pl-3">Bills</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {data.slice(0, 10).map((s, i) => (
-            <tr
-              key={s.name}
-              className="hover:bg-secondary/50 transition-colors cursor-pointer"
-              onClick={() => onSponsorClick(s.name)}
-            >
-              <td className="py-2.5 pr-3 font-mono text-xs text-muted-foreground tabular">
-                {i + 1}
-              </td>
-              <td className="py-2.5 pr-3 text-sm font-medium text-foreground">
-                {s.name}
-                <span className="ml-2 sm:hidden font-mono text-xs text-muted-foreground">
-                  {[s.party, s.state].filter(Boolean).join(' · ')}
-                </span>
-              </td>
-              <td className="py-2.5 px-3 text-sm text-muted-foreground hidden sm:table-cell">
-                {s.party || '—'}
-              </td>
-              <td className="py-2.5 px-3 text-sm text-muted-foreground hidden sm:table-cell">
-                {s.state || '—'}
-              </td>
-              <td className="py-2.5 pl-3 text-right font-mono text-sm font-medium text-foreground tabular">
-                {formatCount(s.count)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -869,8 +465,7 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
   );
 }
 
-// Party & chamber — sponsorship share per chamber, beside the same breakdown
-// filtered to bills that actually became law.
+// Per-chamber breakdown, as returned by getChamberDeepBreakdown.
 
 type ChamberBreakdown = {
   chamber: 'house' | 'senate';
@@ -880,215 +475,6 @@ type ChamberBreakdown = {
   stateCounts: Record<string, number>;
   monthly: Array<{ month: string; count: number; becameLaw: number }>;
 };
-
-interface PartyChamberChartProps {
-  house: ChamberBreakdown | undefined;
-  senate: ChamberBreakdown | undefined;
-  onStateClick: (state: string) => void;
-}
-
-function PartyChamberChart({ house, senate, onStateClick }: PartyChamberChartProps) {
-  if (!house || !senate) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
-        <div className="lg:col-span-7 h-40 bg-secondary/60 rounded-sm animate-pulse" />
-        <div className="lg:col-span-5 h-40 bg-secondary/60 rounded-sm animate-pulse" />
-      </div>
-    );
-  }
-
-  const totalBills = house.total + senate.total;
-  const totalLaws =
-    house.partyLawCounts.D + house.partyLawCounts.R + house.partyLawCounts.I + house.partyLawCounts.U +
-    senate.partyLawCounts.D + senate.partyLawCounts.R + senate.partyLawCounts.I + senate.partyLawCounts.U;
-
-  // Combine top states from both chambers
-  const combinedStates = new Map<string, number>();
-  for (const [state, count] of Object.entries(house.stateCounts)) {
-    combinedStates.set(state, (combinedStates.get(state) || 0) + count);
-  }
-  for (const [state, count] of Object.entries(senate.stateCounts)) {
-    combinedStates.set(state, (combinedStates.get(state) || 0) + count);
-  }
-  const topStates = Array.from(combinedStates.entries())
-    .filter(([s]) => s && s !== '—')
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8);
-  const stateMax = topStates.length > 0 ? topStates[0][1] : 1;
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
-      {/* LEFT — chamber × party stacked bars */}
-      <div className="lg:col-span-7 space-y-8">
-        <ChamberPartyRow
-          label="House"
-          total={house.total}
-          parties={house.partyCounts}
-          laws={house.partyLawCounts}
-        />
-        <ChamberPartyRow
-          label="Senate"
-          total={senate.total}
-          parties={senate.partyCounts}
-          laws={senate.partyLawCounts}
-        />
-
-        {/* Footnote: totals & passage rate */}
-        <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
-          <span className="tabular">{formatCount(totalBills)}</span> bills
-          introduced in total;{' '}
-          <span className="tabular font-medium text-foreground">
-            {formatCount(totalLaws)}
-          </span>{' '}
-          became law
-          {totalBills > 0 && (
-            <>
-              {' '}— a passage rate of{' '}
-              <span className="tabular">
-                {((totalLaws / totalBills) * 100).toFixed(1)}%
-              </span>
-            </>
-          )}
-          .
-        </p>
-      </div>
-
-      {/* RIGHT — top sponsoring states */}
-      <div className="lg:col-span-5">
-        <p className="label-eyebrow mb-4">Top sponsoring states</p>
-        {topStates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No state data available.</p>
-        ) : (
-          <ol className="space-y-2.5">
-            {topStates.map(([state, count]) => {
-              const w = (count / stateMax) * 100;
-              return (
-                <li key={state}>
-                  <button
-                    onClick={() => onStateClick(state)}
-                    className="w-full text-left group"
-                    aria-label={`${state}: ${count} bills`}
-                  >
-                    <div className="flex items-baseline justify-between gap-3 mb-1">
-                      <span className="font-mono text-xs tabular text-foreground group-hover:underline underline-offset-2 decoration-border">
-                        {state}
-                      </span>
-                      <span className="font-mono text-xs text-muted-foreground tabular shrink-0">
-                        {formatCount(count)}
-                      </span>
-                    </div>
-                    <div className="h-[3px] w-full bg-secondary overflow-hidden">
-                      <div
-                        className="h-full bg-foreground/80 group-hover:bg-foreground transition-colors"
-                        style={{ width: `${w}%` }}
-                      />
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * One chamber row: name · total, a stacked party bar, a compact data grid
- * below it covering introduced + became-law counts per party.
- */
-function ChamberPartyRow({
-  label,
-  total,
-  parties,
-  laws,
-}: {
-  label: string;
-  total: number;
-  parties: { D: number; R: number; I: number; U: number };
-  laws: { D: number; R: number; I: number; U: number };
-}) {
-  const lawsTotal = laws.D + laws.R + laws.I + laws.U;
-  const order: Array<keyof typeof parties> = ['D', 'R', 'I', 'U'];
-  const partyLabel: Record<keyof typeof parties, string> = {
-    D: 'Democratic',
-    R: 'Republican',
-    I: 'Independent',
-    U: 'Unaffiliated',
-  };
-  const partyColor: Record<keyof typeof parties, string> = {
-    D: 'hsl(var(--party-d))',
-    R: 'hsl(var(--party-r))',
-    I: 'hsl(var(--party-i))',
-    U: 'hsl(var(--party-u))',
-  };
-
-  // Only show parties that actually have data
-  const presentParties = order.filter((p) => parties[p] > 0);
-
-  return (
-    <div>
-      {/* Title row */}
-      <div className="flex items-baseline justify-between mb-2.5">
-        <h3 className="font-serif text-lg font-semibold tracking-tight">{label}</h3>
-        <p className="font-mono text-xs text-muted-foreground tabular">
-          {formatCount(total)} introduced · {formatCount(lawsTotal)} became law
-        </p>
-      </div>
-
-      {/* Stacked bar for introductions */}
-      <div className="flex h-3 w-full overflow-hidden rounded-sm border border-border">
-        {presentParties.map((p) => {
-          const w = total > 0 ? (parties[p] / total) * 100 : 0;
-          if (w <= 0) return null;
-          return (
-            <div
-              key={p}
-              aria-label={`${partyLabel[p]}: ${formatCount(parties[p])} bills`}
-              className="block h-full"
-              style={{ width: `${w}%`, backgroundColor: partyColor[p] }}
-            />
-          );
-        })}
-      </div>
-
-      {/* Table: party rows with introduced count, law count, passage rate */}
-      <ul className="mt-3 divide-y divide-border border-y border-border">
-        {presentParties.map((p) => {
-          const pct = total > 0 ? (parties[p] / total) * 100 : 0;
-          const lawPct = parties[p] > 0 ? (laws[p] / parties[p]) * 100 : 0;
-          return (
-            <li key={p}>
-              <div className="grid grid-cols-12 items-center gap-3 w-full py-2 px-1">
-                <span
-                  className="col-span-1 inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-                  style={{ backgroundColor: partyColor[p] }}
-                  aria-hidden="true"
-                />
-                <span className="col-span-4 sm:col-span-3 text-sm text-foreground">
-                  {partyLabel[p]}
-                </span>
-                <span className="col-span-3 sm:col-span-2 text-right font-mono text-xs text-muted-foreground tabular">
-                  {pct.toFixed(1)}%
-                </span>
-                <span className="col-span-4 sm:col-span-3 text-right font-mono text-sm font-medium text-foreground tabular">
-                  {formatCount(parties[p])}
-                </span>
-                <span className="hidden sm:block col-span-3 text-right font-mono text-xs text-muted-foreground tabular">
-                  {laws[p]} law{laws[p] === 1 ? '' : 's'}{' '}
-                  <span className="text-muted-foreground/60">
-                    ({lawPct.toFixed(1)}%)
-                  </span>
-                </span>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
 
 // Monthly cadence — vertical bars for bills introduced each month, with
 // a thin inline marker showing how many of those eventually became law.

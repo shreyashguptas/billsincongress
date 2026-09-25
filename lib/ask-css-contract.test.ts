@@ -118,6 +118,30 @@ it('keeps the panel under the portaled dialogs and over the page', () => {
   assert.ok(css.includes('z-index: 45'), '.ask-panel no longer sits at z-index 45');
 });
 
+// The page wrapper (app/template.tsx) holds every page's content — not the
+// navigation or the ask panel, which live in the layout outside {children}. A
+// fill mode that keeps the last keyframe leaves `matrix(1, 0, 0, 1, 0, 0)` on
+// it, not `none`, which turns it into the containing block for every
+// `position: fixed` descendant (see the page-in note in globals.css). Only a
+// comment stood between `backwards` and a revert to the usual `both`, and
+// nothing on screen says anything is wrong until something fixed scrolls away
+// with the page.
+it('lets the page-enter animation leave no transform behind', () => {
+  const rule = css.match(/\.animate-page-in\s*\{([^}]*)\}/);
+  assert.ok(rule, 'globals.css has no .animate-page-in rule to check.');
+  const decl = rule[1];
+  assert.ok(
+    /animation\s*:[^;]*\bpage-in\b/.test(decl),
+    '.animate-page-in no longer runs the page-in animation; update this test with it.',
+  );
+  assert.ok(
+    !/\b(both|forwards)\b/.test(decl),
+    '.animate-page-in fills forwards (`both` or `forwards`). The finished animation then ' +
+      'keeps an identity transform on the page wrapper, and every position: fixed element ' +
+      'inside a page is pinned to the page instead of the viewport. Use `backwards`.',
+  );
+});
+
 console.log(`\nask-css-contract: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));

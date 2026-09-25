@@ -28,6 +28,11 @@
  *   export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)
  *   ./node_modules/.bin/tsx scripts/truth/dump.ts
  *
+ * Or, with no deploy key, as a user logged in with `npx convex login`:
+ *   ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment prod
+ * `prod` needs a checkout linked to the project (CONVEX_DEPLOYMENT set). Without
+ * one, pass the production deployment's name instead; anything else is refused.
+ *
  * NOT part of `pnpm test`: it needs production credentials and downloads ~170MB.
  * Named dump.ts, not dump.test.ts, so the suite's *.test.ts discovery cannot
  * pick it up.
@@ -38,6 +43,7 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readFileSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -68,6 +74,9 @@ const KEY_HELP =
   "CONVEX_DEPLOY_KEY is not set, so there is no deployment to export from.\n\n" +
   "  export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)\n" +
   "  ./node_modules/.bin/tsx scripts/truth/dump.ts\n\n" +
+  "Or, logged in with `npx convex login` and no key:\n" +
+  "  ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment prod\n" +
+  "  (or the production deployment's name, if this checkout is not linked to the project)\n\n" +
   "The key selects the deployment on its own — do NOT also pass --prod, and do\n" +
   "not point this at a dev deployment: the harness scores what readers actually\n" +
   "get, which is production.";
@@ -168,8 +177,54 @@ function removeStrays(): void {
   }
 }
 
+/**
+ * The production deployment's name, from the Convex URL `.env.example` commits.
+ * That file is the one place the repo states which deployment readers use.
+ */
+function productionDeploymentName(): string | null {
+  try {
+    const example = readFileSync(".env.example", "utf8");
+    const url = /^NEXT_PUBLIC_CONVEX_URL=(\S+)$/m.exec(example)?.[1];
+    return url ? new URL(url).hostname.split(".")[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `--deployment` for a logged-in user without a deploy key.
+ *
+ * The harness scores what READERS get, so this must select production and
+ * nothing else. `prod` is the CLI's own "default production deployment" and is
+ * the preferred form, but it needs a checkout linked to the project. A bare name
+ * works without one, and is accepted only if it IS production — a dev name
+ * would fill .truth-cache/ with rows no reader sees and still report the gate
+ * as passed. The value is an argument to `convex export`, so nothing flag- or
+ * path-like may ride along.
+ */
+function deploymentArg(): string[] {
+  const i = process.argv.indexOf("--deployment");
+  if (i === -1) return [];
+  const name = process.argv[i + 1] ?? "";
+  if (name === "prod") return ["--deployment", "prod"];
+  if (!/^[a-z]+-[a-z]+-\d+$/.test(name)) {
+    console.error(`--deployment needs "prod" or a deployment name like "happy-animal-123", got "${name}".`);
+    process.exit(1);
+  }
+  const production = productionDeploymentName() ?? "unknown: .env.example has no NEXT_PUBLIC_CONVEX_URL";
+  if (name !== production) {
+    console.error(
+      `--deployment ${name} is not production (${production}). The harness scores what ` +
+        `readers get; refusing to export anything else.`,
+    );
+    process.exit(1);
+  }
+  return ["--deployment", name];
+}
+
 function main(): void {
-  if (!process.env.CONVEX_DEPLOY_KEY) {
+  const deployment = deploymentArg();
+  if (!process.env.CONVEX_DEPLOY_KEY && deployment.length === 0) {
     console.error(KEY_HELP);
     process.exit(1);
   }
@@ -186,7 +241,9 @@ function main(): void {
     console.log(`Exporting production tables to ${ZIP_PATH} ...`);
     // No --include-file-storage: that flag only ADDS stored files, and we want
     // strictly less than the default, not more.
-    execFileSync("npx", ["convex", "export", "--path", ZIP_PATH], { stdio: "inherit" });
+    execFileSync("npx", ["convex", "export", "--path", ZIP_PATH, ...deployment], {
+      stdio: "inherit",
+    });
 
     const byTable = entriesByTable();
     const missing = TABLES.filter((t) => !byTable.has(t));

@@ -71,6 +71,7 @@ repository.
 | `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below. Since 13 Sep 2026 also reported explicitly by the error boundaries, which catch a render failure before the window-level handler can see it | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle), plus `analytics.captureException()` from `app/error.tsx` and `app/global-error.tsx` |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) | Project setting `heatmaps_opt_in: true` |
 | `$rageclick` | Repeated frustrated clicks on the same element | `defaults` preset |
+| `$workflows_email_*` | Delivery of each account email (sign-up and password-reset codes): `sent`, `delivered`, `bounced`, `blocked`. No opens or clicks, because tracking is off on those sends. All under one distinct id, `bills-congress-mailer`, so no per-recipient profiles are created; the recipient is in `$email_to` | PostHog Workflows, not the browser. The workflow is "Bills.Congress: sign-in codes"; see "Email" in `overview.md`. The site's request names its run `bic_email_requested`, but that is **not** an ingested event (the workflow has no "Capture event" step) and never appears in insights; the payload, code included, is kept only in the workflow's Invocations tab |
 
 Project-side settings worth knowing when reading this data, because none of them are
 visible in the repo:
@@ -114,7 +115,8 @@ Server-rendered pages with no interactivity (the About page and the legal pages 
 Four CTAs carry a `data-ph-capture-attribute-*` tag so they can be filtered by name in
 PostHog: `about-github` and `about-browse-bills` (`app/about/page.tsx`),
 `learn-browse-bills` (`app/learn/page.tsx`) and `home-browse-bills`
-(`components/dashboard/DashboardClient.tsx`). The legal pages carry **no** such tags —
+(`components/dashboard/home/shared.tsx`, the "Browse bills" link beside the hero's Congress
+picker). The legal pages carry **no** such tags —
 they have no analytics markup of any kind. The Learn page is interactive (civics guide)
 and fires its own custom events — see "Learn page" below.
 
@@ -142,8 +144,11 @@ and fires its own custom events — see "Learn page" below.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `dashboard_congress_selected` | User switches Congress on the home dashboard | `congress` | `components/dashboard/DashboardClient.tsx` |
-| `dashboard_drilldown_clicked` | User clicks any dashboard stat/chart that drills into the bills data (status bar, policy area, sponsor, state, metric). Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` |
+| `dashboard_congress_selected` | User switches Congress with the dropdown in the home hero | `congress` | `components/dashboard/home/shared.tsx` |
+| `dashboard_drilldown_clicked` | User clicks any home-page stat or chart that drills into the bills data: the four stat cards, a stage in "Where bills stand", a topic's "→" link or the pinned topic's "See these bills", the grey "Other topics, or none tagged" slice's browse link, a sponsor bar, a state tile or top-five row. Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page. `filter_type` is one of `congress`, `chamber` (House/Senate cards, since 24 Sep 2026), `status`, `policyArea`, `sponsor`, `state` | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` (`handleDrillDown`), `components/dashboard/home/topic-wheel.tsx` |
+| `home_chamber_party_focused` | Reader hovers a party's seats in the hero chamber, or hovers/focuses its legend entry. Once per party per page view | `party: "D" \| "R" \| "I" \| "U"`, `congress` | `components/dashboard/home/hero.tsx` |
+| `home_topic_selected` | Reader pins a slice of the topic wheel (clicking the slice or its legend row). Unpinning sends nothing | `policy_area`, `is_rest` (the grey "Other topics, or none tagged" slice), `congress` | `components/dashboard/home/topic-wheel.tsx` |
+| `home_state_map_measure_changed` | Reader switches the state map between total bills and bills per member | `measure: "total" \| "per_member"`, `congress` | `components/dashboard/home/state-map.tsx` |
 | `bills_filter_applied` | A filter moves off its default or changes value. Fires from one chokepoint, so it cannot drift per control | `filter_kind`, `filter_value` (omitted for `title` and `sponsor`), `query_length` (`title` only), `sponsor_count` (`sponsor` only), `surface`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bills_filter_removed` | A filter returns to its default outside the empty-result state | `filter_kind`, `surface`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bills_filter_panel_opened` | A filter picker or the "All filters" panel opens | `filter_kind` (or `"all"`), `layout`, `active_filter_count` | `components/bills/filters/filter-field.tsx`, `components/bills/filters/all-filters-panel.tsx` |
@@ -160,7 +165,7 @@ and fires its own custom events — see "Learn page" below.
 | `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
 | `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
-| `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub. **Not** the homepage policy-area rows, which link to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
+| `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, or a sibling row on another hub. **Not** the homepage topic wheel's links, which go to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
 
 **`filter_kind` vocabulary** (shared by `bills_filter_applied`,
 `bills_filter_removed`, `bills_filter_panel_*` and
@@ -241,12 +246,12 @@ No event carries card data, prices paid or Stripe ids. Revenue lives in Stripe.
 | `billing_portal_opened` | Reader pressed "Manage billing" and is being sent to the Stripe customer portal | — | `app/account/page.tsx` |
 | `bill_alerts_unsubscribed` | Reader used the link in an alert email to stop all alert emails | `removed` (number of bills unfollowed) | `app/alerts/unsubscribe/unsubscribe-form.tsx` |
 
-Not tracked: whether an alert email was sent, opened or clicked. Sends happen in Convex
-(`convex/alerts.ts`), which has no PostHog client, and open/click tracking would need
-tracking pixels and rewritten links in the email, which we do not add. Delivery status is
-in the Resend component's `emails` table in the Convex dashboard instead. A one-click
-unsubscribe from a mail client's own button posts straight to
-`/api/alerts/unsubscribe` and fires no event either.
+Not tracked by us: whether an alert email was opened or clicked — tracking is off on the
+alerts workflow, so there is no pixel and no rewritten link. Delivery (`sent`, `delivered`,
+`bounced`, `blocked`) arrives as PostHog's own `$workflows_email_*` events, like the sign-in
+codes (see the automatic-capture table). A one-click unsubscribe from a mail client's own
+button goes to PostHog, not to us: it records `$workflows_email_unsubscribed` and puts the
+address on PostHog's opt-out list, and `bill_alerts_unsubscribed` does not fire.
 
 ### Grounded answers
 
@@ -288,7 +293,7 @@ emits `list`.
 | `answer_history_thread_resumed` | Signed-in reader reopened a past conversation | `thread_id`, `age_days`, `message_count` | `components/answers/history-list.tsx` |
 | `answer_thread_deleted` | Reader deleted one conversation or all of them | `scope: "one" \| "all"`, `thread_count` | `components/answers/history-list.tsx` |
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
-| `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx`, `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
+| `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` (also every home chart's "Ask about this"), `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
 | `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
 
 > **`dropped` is the grounding-health number.** It counts citations the model

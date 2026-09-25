@@ -9,7 +9,13 @@ import { v } from "convex/values";
 import type { ActionCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { limitChatQuestion } from "./rateLimits";
-import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "./catalog/tools";
+import {
+  ANSWER_TOOLS,
+  buildSystemPrompt,
+  CURRENT_CONGRESS,
+  MAX_TOOL_ROUNDS,
+  primedDescriptions,
+} from "./catalog/tools";
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
@@ -372,6 +378,26 @@ async function runLoop(
     });
     note({ tool: "fetch", detail: detail(workLogLabel(seeded.report)) });
   };
+
+  // Spend no round on describing the datasets nearly every question needs
+  // (see PRIMED_DATASETS for the measurement). Placed first, so it reads as the
+  // model's own opening move in this turn.
+  const primed = primedDescriptions();
+  messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
+  for (const r of primed.results) messages.push({ role: "tool", ...r });
+
+  // The policy-area list, for the same reason: the model fetched it to spell a
+  // topic before filtering bills by one, and that cost a second round. Not on a
+  // bill page, where the question is about the bill on screen. Congress follows
+  // the page, so a reader studying the 117th gets the 117th's topics.
+  if (!opts.pageContext?.billId) {
+    await seed(
+      "topics_0",
+      "topics",
+      { congress: opts.pageContext?.congress ?? CURRENT_CONGRESS },
+      (count) => `policy areas · ${count}`,
+    );
+  }
 
   // The bill the reader has open (spec §6.4). Seeded rather than described, so
   // the answer can say what the bill IS — title, sponsor, where it has got to —

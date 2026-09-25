@@ -4,7 +4,7 @@
 
 Live at **[billsincongress.com](https://billsincongress.com)**
 
-![The Bills.Congress home page: the 119th Congress at a glance, with headline counts, a status-distribution bar and top policy areas](public/readme/preview.png)
+![The Bills.Congress home page: a chamber of dots showing the 119th Congress's bills by sponsor's party, with the 113 that became law in the inner rows, above a question box and the headline counts](public/readme/preview.png)
 
 ---
 
@@ -22,19 +22,23 @@ It is free to read, has no ads, and you do not need an account to read anything 
 
 ### The front page — one Congress at a glance
 
-At the top is a box for asking a question. As you type, bills whose title or number matches appear under it straight away. Pick one to go straight to its page, or press Enter to ask your question instead. The one exception: if you typed a bill number that matches exactly one bill, Enter opens that bill. Under the box are three quick links built from the live numbers, such as the bills that became law this Congress. Each one opens the full list rather than asking the AI, which cannot read hundreds of bills at once.
+The home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them).
 
-Below that, the home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them). It shows:
+It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover a party to see its own numbers.
+
+Right under the chamber is a box for asking a question. As you type, bills whose title or number matches appear under it straight away. Pick one to go straight to its page, or press Enter to ask your question instead. The one exception: if you typed a bill number that matches exactly one bill, Enter opens that bill. Under the box are three quick links built from the live numbers, such as the bills that became law this Congress. Each one opens the full list rather than asking the AI, which cannot read hundreds of bills at once.
+
+Below that, it shows:
 
 - **Four headline counts** — bills introduced, House bills, Senate bills, and how many became law.
-- **Where bills stand** — a stacked bar across the legislative pipeline, with each stage's share and count. It is a blunt picture: in the 119th Congress, about 96% of everything introduced is still sitting in committee.
-- **Top policy areas** — the subjects Congress is actually spending its time on, ranked.
-- **Leading sponsors** — the ten members who introduced the most bills, with party and state.
-- **Who's writing the bills** — sponsorship by party and chamber, next to how many of those bills actually became law, so you can see the gap between introducing and passing.
+- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 98% of everything introduced has not made it out of committee.
+- **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
+- **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
+- **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
 - **Introductions month by month** — bills introduced growing upward, laws signed growing downward, each on its own scale, ending in a written sentence naming the busiest and quietest months.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.
 
-Nearly every number on the page is clickable. Click a status segment, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.
+Nearly every number on the page is clickable. Click a stage, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.
 
 ### Every bill, browsable
 
@@ -117,7 +121,7 @@ A snapshot of what that holds, taken 29 August 2026:
 
 ### How it stays current
 
-Nine scheduled jobs keep the database in step with Congress, and two more send and tidy up bill-alert emails:
+Nine scheduled jobs keep the database in step with Congress, and a tenth sends bill-alert emails:
 
 | When | What it does |
 | --- | --- |
@@ -130,7 +134,6 @@ Nine scheduled jobs keep the database in step with Congress, and two more send a
 | 1st of the month, 05:00 UTC | Re-fetch the current Congress from scratch |
 | Twice daily, 01:30 and 13:30 UTC | Tell search engines which bill pages changed |
 | Daily, 11:00 UTC | Email Pro readers whose followed bills moved since their last alert |
-| Daily, 11:30 UTC | Delete stored copies of sent alert emails older than seven days |
 
 The sync throttles itself deliberately — three quarters of a second between calls, backing off on rate limits and pausing when Congress.gov's remaining quota runs low. It also skips the bill-record update when nothing a reader would see has changed, so a routine re-pull does not stamp a fake "updated" date on 18,000 bills or announce fake updates to search engines.
 
@@ -204,8 +207,9 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **The text of questions you ask the assistant is included in that analytics data.**
 - **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database. The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
+- **Account emails (sign-up and password-reset codes) are sent through PostHog**, the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **If you subscribe to Pro, Stripe handles the payment.** Your card details go to Stripe and never reach this site. What this site stores is your Stripe customer and subscription IDs, the plan's status and price, and when it renews or ends.
-- **If you follow bills on Pro, the list of bills you follow is stored with your account**, along with when each was last emailed. Alert emails are sent through Resend. A copy of each sent email is kept for seven days for delivery troubleshooting, then deleted. Alert emails carry no tracking pixels and no rewritten links.
+- **If you follow bills on Pro, the list of bills you follow is stored with your account**, along with when each was last emailed. Alert emails are sent through PostHog like the account emails, and PostHog keeps a record of each send. Alert emails carry no tracking pixels and no rewritten links.
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
@@ -251,16 +255,16 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
 | Styling | Tailwind CSS, shadcn/ui, Framer Motion |
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
-| Accounts | Convex Auth: Google sign-in, or email and password with a one-time code sent via Resend |
+| Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
 | Payments | Stripe Checkout and the Stripe customer portal; a signature-checked webhook is the only thing that sets a reader's plan (`convex/billing.ts`) |
-| Email | Resend — sign-in codes sent directly, bill alerts queued through the `@convex-dev/resend` component (`convex/alerts.ts`) |
+| Email | PostHog Workflows — sign-in codes sent inline (`convex/emailCodes.ts`), bill alerts scheduled from the digest run (`convex/alerts.ts` → `convex/email.ts`) |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |
 | Hosting | Cloudflare Workers via OpenNext, with Convex Cloud for the backend |
 | Analytics | PostHog |
 
 ```
 Congress.gov API
-      ↓   eleven scheduled jobs (convex/crons.ts): nine sync, two alert email
+      ↓   ten scheduled jobs (convex/crons.ts): nine sync, one alert email
 Sync and repair (convex/congressApi.ts, convex/sync.ts)
       ↓
 Convex database (convex/schema.ts) + precomputed statistics

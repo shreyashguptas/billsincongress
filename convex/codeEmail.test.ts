@@ -60,10 +60,10 @@ it("every send carries the shared secret and one distinct id", () => {
 });
 
 it("a missing webhook setting is an error, not a silent drop", () => {
-  delete process.env.POSTHOG_EMAIL_ALERTS_WEBHOOK_URL;
+  delete process.env.POSTHOG_EMAIL_CODES_WEBHOOK_URL;
   assert.throws(
-    () => emailRequest("alerts", { to: "a@b.test", subject: "S", text: "T" }),
-    /POSTHOG_EMAIL_ALERTS_WEBHOOK_URL/,
+    () => emailRequest("codes", { to: "a@b.test", subject: "S", text: "T" }),
+    /POSTHOG_EMAIL_CODES_WEBHOOK_URL/,
   );
 });
 

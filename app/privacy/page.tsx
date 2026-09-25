@@ -151,11 +151,16 @@ export default function PrivacyPage() {
                 with it: the bills you save and your bill-chat history. Once
                 you are signed in, our analytics link your activity to your
                 account (including your email address) so we can understand the
-                journey from first visit to sign-up. We send email through{' '}
-                <ExternalLink href="https://resend.com">Resend</ExternalLink>{' '}
-                for two reasons only: account emails (verification codes and
-                password resets), and bill alerts you have turned on yourself.
-                We do not send marketing email or newsletters.
+                journey from first visit to sign-up. We send email for two
+                reasons only: account emails (verification codes and password
+                resets), and bill alerts you have turned on yourself. Both go
+                through PostHog, the same provider that runs our analytics. To
+                deliver one, PostHog receives your email address and the
+                message, keeps a record of the send (including the code, which
+                expires after 15 minutes) for troubleshooting, and records
+                whether it was delivered or bounced. These
+                emails contain no tracking pixels or tracked links. We do not
+                send marketing email or newsletters.
               </p>
               <p>
                 Reading the site is free. If you subscribe to Pro, the one paid
@@ -402,7 +407,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (verification codes and password resets) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
@@ -411,10 +416,6 @@ const providers = [
   {
     name: 'Exa',
     role: 'Web search, used only when our own records cannot answer. Receives a rewritten neutral search phrase, never your question in your own words and never your identity.',
-  },
-  {
-    name: 'Resend',
-    role: 'Delivers account emails (verification codes and password resets) and the bill alerts you turn on. Receives your email address and the content of those emails.',
   },
   {
     name: 'Stripe',

@@ -115,7 +115,10 @@ async function main() {
 
   // --- D9: the defect a reader caught ---------------------------------------
 
-  await it("the most recent law is S. 629, and it is the first row", async () => {
+  await it("the most recent law leads a newest-first sort", async () => {
+    // A reader asked for the most recent law and got S. 1003; on 2026-08-30 the
+    // answer was S. 629. Which law it is moves as Congress acts, so the expected
+    // row is the one carrying the set's true maximum action date.
     const r = await fetchViaHandlers(
       ctx,
       "bills",
@@ -125,8 +128,28 @@ async function main() {
     assert.ok(r.ok);
     assert.equal(r.report.complete, true);
     assert.equal(r.report.order, "newest_action_first");
-    assert.equal(r.rows[0].billId, "629s119", "S. 629 must lead a newest-first sort");
-    assert.equal(r.report.total, 104);
+    const latestDate = truth.laws119.reduce(
+      (max: string, b: any) => ((b.latestActionDate ?? "") > max ? b.latestActionDate : max),
+      "",
+    );
+    const latestLaws = truth.laws119
+      .filter((b: any) => b.latestActionDate === latestDate)
+      .map((b: any) => b.billId);
+    assert.ok(
+      latestLaws.includes(r.rows[0].billId),
+      `${latestLaws.join(" or ")} (${latestDate}) must lead a newest-first sort, not ${r.rows[0].billId}`,
+    );
+    const expectedDates = truth.laws119
+      .map((b: any) => b.latestActionDate ?? "")
+      .sort()
+      .reverse()
+      .slice(0, 50);
+    assert.deepEqual(
+      r.rows.map((b: any) => b.latestActionDate ?? ""),
+      expectedDates,
+      "every row of the page must be the next-newest law, not only the first",
+    );
+    assert.equal(r.report.total, truth.laws119.length);
   });
 
   await it("without a sort, the order is declared arbitrary rather than implied", async () => {
@@ -292,7 +315,7 @@ async function main() {
       0,
     );
     assert.equal(partySum, houseLaws, "the only law count on this row must be the House's");
-    assert.notEqual(houseLaws, truth.laws119.length, "sanity: 64 and 104 are different numbers");
+    assert.notEqual(houseLaws, truth.laws119.length, "sanity: House laws (64 of 104 on 2026-08-30) are not all the laws");
   });
 
   await it("the whole-Congress stats row says in words that it covers both chambers", async () => {
@@ -800,14 +823,18 @@ async function main() {
   });
 
   await it("a genuine PAGE of a complete set is still warned about", async () => {
-    // The guard above must not blunt the real one: California's 54 members shown
-    // 50 at a time is a page, and reading the last row as "the fewest" is the
-    // error that named the wrong member.
+    // The guard above must not blunt the real one: California's members (54 on
+    // 2026-08-30) shown 50 at a time is a page, and reading the last row as "the
+    // fewest" is the error that named the wrong member.
     const { payloadFor } = await import("../../convex/catalog/completeness");
     const r = await fetchViaHandlers(ctx, "sponsors", { congress: 119, sponsorState: "CA" }, 50);
     assert.ok(r.ok);
     const payload = JSON.parse(payloadFor(r.rows, r.report));
-    assert.match(String(payload.rows_are_a_sample_of_a_known_total), /50 of 54/);
+    assert.ok(truth.caSponsors.length > 50, "sanity: California has more members than one page");
+    assert.match(
+      String(payload.rows_are_a_sample_of_a_known_total),
+      new RegExp(`\\b50 of ${truth.caSponsors.length}\\b`),
+    );
     assert.equal(payload.rows_are_a_complete_breakdown, undefined);
   });
 

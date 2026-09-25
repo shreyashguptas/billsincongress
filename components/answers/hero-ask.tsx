@@ -14,6 +14,9 @@ import { DEFAULT_FILTER_VALUES } from '@/app/bills/filter-signature';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { compactStageLabel } from '@/lib/utils/bill-stages';
 
+const PILL =
+  'rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors';
+
 /**
  * The masthead ask box (spec §6.1).
  *
@@ -28,7 +31,15 @@ import { compactStageLabel } from '@/lib/utils/bill-stages';
  * (`lib/bill-suggest.ts` has the numbers behind this). Picking one opens the
  * bill; Enter with nothing highlighted still asks the question as typed.
  */
-export function HeroAsk({ starters }: { starters: StarterInput }) {
+export function HeroAsk({
+  starters,
+  centered = false,
+}: {
+  starters: StarterInput;
+  /** The home hero's layout: centred under the chamber, a taller field, and the
+   *  starters as a wrapping row of pills instead of a list. Behaviour is identical. */
+  centered?: boolean;
+}) {
   const { ask, busy } = useAnswers();
   const router = useRouter();
   const [input, setInput] = useState('');
@@ -91,7 +102,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
     buildFilterQuery({ ...DEFAULT_FILTER_VALUES, title: input.trim(), congress: String(congress) });
 
   return (
-    <div className="mt-7 max-w-2xl">
+    <div className={centered ? 'mx-auto mt-6 max-w-2xl' : 'mt-7 max-w-2xl'}>
       <div className="relative">
         <form
           onSubmit={(e) => {
@@ -138,7 +149,9 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             autoComplete="off"
             maxLength={2000}
             disabled={busy}
-            className="flex-1 h-12 px-4 bg-transparent text-base border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground/70"
+            className={`flex-1 min-w-0 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground/70 ${
+              centered ? 'h-14 px-5 text-lg' : 'h-12 px-4 text-base'
+            }`}
           />
           <button
             // `type="button"`, not submit. Enter in the field submits the form by
@@ -245,7 +258,13 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
         )}
       </div>
 
-      <div className="mt-3 flex flex-col gap-1.5 items-start">
+      <div
+        className={
+          centered
+            ? 'mt-3 flex flex-wrap justify-center gap-2'
+            : 'mt-3 flex flex-col gap-1.5 items-start'
+        }
+      >
         {starterItems.map((s) =>
           s.href ? (
             <Link
@@ -259,11 +278,13 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                   destination: s.href,
                 })
               }
-              className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className={centered ? PILL : 'text-left text-sm text-muted-foreground hover:text-foreground transition-colors'}
             >
-              <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
-                ▸
-              </span>
+              {!centered && (
+                <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
+                  ▸
+                </span>
+              )}
               {s.text} <span aria-hidden="true">→</span>
             </Link>
           ) : (
@@ -279,11 +300,17 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                 void ask(s.text, { source: 'starter' });
               }}
               disabled={busy}
-              className="text-left text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              className={
+                centered
+                  ? `${PILL} disabled:opacity-50`
+                  : 'text-left text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50'
+              }
             >
-              <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
-                ▸
-              </span>
+              {!centered && (
+                <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
+                  ▸
+                </span>
+              )}
               {s.text}
             </button>
           ),
