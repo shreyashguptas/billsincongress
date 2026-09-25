@@ -87,6 +87,13 @@ visible in the repo:
 | `capture_dead_clicks` | `false` | No `$dead_click` events. |
 | `test_account_filters` | person not in cohort `341621` | The "internal users" filter in the UI relies on this cohort. |
 
+> **Every event loses the unsubscribe token before it is sent.** The same `before_send` hook
+> first runs `redactEvent` (`lib/redact-secrets.ts`): the bill-alert unsubscribe link carries a
+> token in its URL (`/alerts/unsubscribe?token=…`) that switches off a reader's alerts without
+> signing in, so it is replaced with `[redacted]` in `$current_url`, `$referrer`, the person's
+> `$initial_*` properties and a session replay's recorded page URL. Queries on those URLs still
+> work; only the token's value is gone. Tested in `lib/redact-secrets.test.ts`.
+
 > **`$exception` is filtered before it is sent.** Since 26 Aug 2026,
 > `instrumentation-client.ts` passes a `before_send` hook that drops exceptions
 > raised by software that is not this site: Microsoft Outlook's link scanner,

@@ -143,8 +143,9 @@ const LIVE_SUBSCRIPTION_STATUSES = new Set([
  * two tabs, would otherwise be billed twice. So ask Stripe, not our row:
  *
  * - a live subscription for this site already exists → refuse (ALREADY_PRO
- *   when it grants Pro, SUBSCRIPTION_NEEDS_ATTENTION when it is unpaid or
- *   paused, which the billing portal fixes);
+ *   when it grants Pro; SUBSCRIPTION_NEEDS_ATTENTION when it is unpaid or
+ *   paused, which the billing portal fixes; PAYMENT_PENDING while a first
+ *   payment is still incomplete);
  * - any Checkout page this customer still has open for this site is expired,
  *   so of two tabs only the newest can be paid.
  */
@@ -155,7 +156,13 @@ async function refuseSecondSubscription(stripe: Stripe, customerId: string): Pro
   );
   if (live) {
     throw new ConvexError(
-      planForStatus(live.status) === "pro" ? "ALREADY_PRO" : "SUBSCRIPTION_NEEDS_ATTENTION",
+      planForStatus(live.status) === "pro"
+        ? "ALREADY_PRO"
+        : // The portal cannot pay an incomplete subscription; Stripe expires
+          // it within about a day, after which Subscribe works again.
+          live.status === "incomplete"
+          ? "PAYMENT_PENDING"
+          : "SUBSCRIPTION_NEEDS_ATTENTION",
     );
   }
   const open = await stripe.checkout.sessions.list({ customer: customerId, status: "open", limit: 20 });

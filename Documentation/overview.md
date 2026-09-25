@@ -931,7 +931,10 @@ current state, so the first email reports only what happens next.
 Every day at 11:00 UTC `alerts.runDigests` pages through `billAlerts` and schedules one
 `alerts.sendDigestForUser` per reader. That mutation:
 
-- skips readers no longer on Pro (their list is kept, and resumes if they resubscribe);
+- skips readers no longer on Pro. Their list and watermarks are kept as they were, so on
+  resubscribing the first digest catches them up on everything that moved while Pro was off
+  (still at most 8 actions per bill, with "and N earlier new actions on the bill page"), and
+  later digests go back to one day's news;
 - reads a followed bill's actions only when `bills.latestActionDate` is on or after the
   watermark, or its stage changed;
 - decides what is new with `newActionsSince` (`convex/alertDigest.ts`): later-dated actions,
@@ -1101,7 +1104,8 @@ database with `convex-test`, which needs vitest's `import.meta.glob` — that is
 vitest is here. `convex/pro.spec.ts` covers the Pro plan end to end: plan changes from
 subscription events, question allowances, checkout refusing a second subscription (paid but
 not yet confirmed, unpaid, two open tabs), the digest (new, late same-day, status change,
-stage-only move on a long bill, lapsed reader, no double send, PostHog retries), the unsubscribe token, and the Stripe webhook with a signed payload
+stage-only move on a long bill, lapsed reader and their catch-up email on return, no double
+send, PostHog retries), the unsubscribe token, and the Stripe webhook with a signed payload
 (`fetch` is stubbed with a real sandbox subscription reply; a forged signature is rejected).
 Nothing in it reaches Stripe, PostHog or any deployment. `convex deploy` skips these files,
 like every file name with more than one dot.

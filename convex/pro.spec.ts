@@ -251,6 +251,15 @@ describe("daily digest", () => {
     const r = await t.mutation(internal.alerts.sendDigestForUser, { userId });
     expect(r).toMatchObject({ sent: false, reason: "not_eligible" });
     expect(await t.run((ctx) => ctx.db.query("billAlerts").collect())).toHaveLength(1);
+
+    // Resubscribing: the first digest catches the reader up on what moved
+    // while Pro was off, once, and then goes quiet again.
+    await billMoves(t, { actionDate: "2026-09-24", text: "Placed on the Union Calendar." });
+    await makePro(t, userId, "sub_2");
+    const back = await t.mutation(internal.alerts.sendDigestForUser, { userId });
+    expect(back).toMatchObject({ sent: true, bills: 1 });
+    const again = await t.mutation(internal.alerts.sendDigestForUser, { userId });
+    expect(again).toMatchObject({ sent: false, reason: "nothing_new" });
   });
 
   test("with alert emails off, the digest is recorded but nothing reaches PostHog", async () => {

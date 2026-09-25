@@ -181,7 +181,7 @@ function AccountInner() {
         </Card>
       </div>
 
-      <AlertsSection alerts={alerts} isPro={billing?.plan === "pro"} />
+      <AlertsSection alerts={alerts} isPro={billing === undefined ? undefined : billing?.plan === "pro"} />
 
       <section className="space-y-4">
         <h2 className="font-serif text-xl font-semibold tracking-tight">Saved bills</h2>
@@ -359,7 +359,15 @@ function PlanCard({
 
 type AlertRows = NonNullable<ReturnType<typeof useQuery<typeof api.alerts.listMine>>>;
 
-function AlertsSection({ alerts, isPro }: { alerts: AlertRows | undefined; isPro: boolean }) {
+function AlertsSection({
+  alerts,
+  isPro,
+}: {
+  alerts: AlertRows | undefined;
+  /** undefined while the plan is loading: say nothing about it yet. */
+  isPro: boolean | undefined;
+}) {
+  if (isPro === undefined) return null;
   const toggle = useMutation(api.alerts.toggle);
   const [removing, setRemoving] = React.useState<string | null>(null);
 
@@ -384,7 +392,7 @@ function AlertsSection({ alerts, isPro }: { alerts: AlertRows | undefined; isPro
         <h2 className="font-serif text-xl font-semibold tracking-tight">Bill alerts</h2>
         <p className="text-sm text-muted-foreground">
           {isPro
-            ? "One email around 7 AM Eastern on any day these bills move. Add bills with Email me updates on a bill page."
+            ? "One email early in the morning, US Eastern time, on any day these bills move. Add bills with Email me updates on a bill page."
             : "Your Pro plan has ended, so these alerts are paused. Subscribe again to resume them."}
         </p>
       </div>

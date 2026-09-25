@@ -44,7 +44,7 @@ const FREE = [
 const FAQ = [
   {
     q: 'When do alert emails arrive?',
-    a: 'Around 7 AM Eastern, on mornings when a bill you follow has something new. We sync with Congress.gov overnight, and Congress.gov sometimes posts an action a day or more after it happens, so an alert can trail the event.',
+    a: 'Early in the morning, US Eastern time (11:00 UTC: 7 AM in summer, 6 AM in winter), on mornings when a bill you follow has something new. We sync with Congress.gov overnight, and Congress.gov sometimes posts an action a day or more after it happens, so an alert can trail the event.',
   },
   {
     q: 'How do I cancel?',

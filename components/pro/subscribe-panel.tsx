@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 
 const FAILURE_COPY: Record<string, string> = {
   ALREADY_PRO: 'You are already on Pro. If your account page does not show it yet, give it a minute.',
+  PAYMENT_PENDING:
+    'Your last payment is still being confirmed. If it does not go through, Stripe cancels it within a day and you can subscribe again then.',
   SUBSCRIPTION_NEEDS_ATTENTION:
     'Your Pro subscription needs attention (a failed payment or a pause). Use "Manage billing" on your account page to fix it.',
   EMAIL_REQUIRED: 'Your account needs an email address before you can subscribe.',

@@ -75,7 +75,7 @@ It is not a general-purpose chatbot. It answers from this site's own database of
 
 ### Follow a bill (Pro)
 
-Every bill page has an **Email me updates** button. On Pro ($9 a month or $90 a year), it follows the bill: on any morning one of your followed bills has a new action or a new status, you get one email, around 7 AM Eastern, listing exactly what happened — each action quoted as Congress.gov records it, with a link back to the bill. No news, no email. Up to 100 bills per reader.
+Every bill page has an **Email me updates** button. On Pro ($9 a month or $90 a year), it follows the bill: on any morning one of your followed bills has a new action or a new status, you get one email early in the morning (11:00 UTC, which is 6 or 7 AM Eastern depending on daylight saving), listing exactly what happened — each action quoted as Congress.gov records it, with a link back to the bill. No news, no email. Up to 100 bills per reader.
 
 What "new" means is exact rather than approximate: each followed bill remembers the latest action date it has reported and a fingerprint of every action on that day, so a second action posted late for yesterday is still reported, and an action listed twice by two congressional offices appears once. Every email has a one-click unsubscribe that works without signing in.
 
