@@ -245,6 +245,14 @@ Patterns that appear on more than one page:
   compete with the page's one primary action. When both show, "Sign up" sits
   at the edge and is the only one kept below `sm`. A device that has had an
   account signed in sees "Sign in" alone.
+- **Footer**: only what has no other home. The lockup, a one-line serif
+  statement of what the site is, and "Not affiliated with the U.S.
+  government"; the install and theme controls opposite. Under that sit three
+  hub links (House bills, Senate bills, Bills that became law), then a
+  hairline and one row: Pro, Privacy, Terms, Source (GitHub glyph) on the
+  left, the mono copyright and Congress.gov credit on the right. Links are
+  `ink-2` text, underlined on hover, never pills. Anything in the header is
+  not repeated here.
 
 What stays hand-built, on purpose:
 

@@ -50,7 +50,8 @@ export default async function sitemap(props: {
       // disclosure in the /bills filter band (all 40, the only complete
       // index) and the homepage policy-area list (the top 8 topics, and the
       // only hub links on a page Google already indexes). The sitewide footer
-      // covers chamber and stage but no topics; a filter picker also links the
+      // links both chambers and /bills/enacted, whose sibling row reaches the
+      // other stage hubs; it has no topics. A filter picker also links the
       // hub for the value it is set to, but that picker renders nothing until
       // someone opens it, so the anchor is not in the document a crawler gets.
       ...ALL_HUBS.map((hub) => ({

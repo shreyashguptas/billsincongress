@@ -316,10 +316,11 @@ export const analytics = {
   }) => capture('hub_viewed', props),
 
   /**
-   * A link from one hub to a sibling hub, or from /bills into a hub.
+   * A link from one hub to a sibling hub, from /bills into a hub, or from the
+   * site footer's three hub links.
    *
    * `placement` distinguishes the browse disclosure on /bills from the
-   * sibling row on a hub page and from a picker footer. Worth having: this
+   * sibling row on a hub page, a picker footer, and the site footer (`footer`). Worth having: this
    * event had no call site on /bills at all, so "no one uses the category
    * list" was unfalsifiable from our own data.
    */
@@ -327,7 +328,7 @@ export const analytics = {
     from_path: string;
     to_path: string;
     hub_kind: 'chamber' | 'status' | 'topic';
-    placement?: 'directory' | 'filter_panel' | 'hub_siblings';
+    placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer';
   }) => capture('hub_link_clicked', props),
 
   /**
