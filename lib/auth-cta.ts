@@ -51,9 +51,13 @@ export function authCtas(pathname: string, knownDevice: boolean): AuthCta[] {
 /**
  * The link for a button: back to the page the reader was on, so signing in
  * from a bill lands on that bill. From the home page there is nothing to go
- * back to, so no redirect: the forms' default is the account page. On an auth page the page's own `?redirect=`
- * is carried across instead, so switching between the forms keeps it; the
- * forms validate it (components/auth/safe-redirect.ts).
+ * back to, so no redirect: the forms' default is the account page. On an auth
+ * page the page's own `?redirect=` is carried across instead, so switching
+ * between the forms keeps it; the forms validate it
+ * (components/auth/safe-redirect.ts).
+ *
+ * `search` must come from the router (`useSearchParams`), in step with
+ * `pathname`; `window.location.search` lags a client navigation by a render.
  */
 export function authCtaHref(cta: AuthCta, pathname: string, search: string): string {
   const base = cta === 'sign_in' ? '/sign-in' : '/sign-up';

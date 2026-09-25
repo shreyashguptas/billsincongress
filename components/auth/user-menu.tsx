@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
@@ -68,7 +68,15 @@ function UserMenuInner() {
     );
   }
 
-  if (!isAuthenticated) return <SignedOutActions />;
+  if (!isAuthenticated) {
+    return (
+      // useSearchParams() needs a boundary; this only renders client-side,
+      // after mount, but the boundary keeps that from being load-bearing.
+      <React.Suspense fallback={<div aria-hidden className="h-9 w-9" />}>
+        <SignedOutActions />
+      </React.Suspense>
+    );
+  }
 
   const displayName = user?.name ?? user?.email ?? "Account";
   const initials = initialsFor(user?.name ?? user?.email);
@@ -146,7 +154,11 @@ function SignedOutActions() {
   // Read once on mount: this component only renders client-side (see UserMenu).
   const [knownDevice] = React.useState(deviceKnowsAccount);
   const ctas = authCtas(pathname, knownDevice);
-  const search = typeof window === "undefined" ? "" : window.location.search;
+  // From the router, not window.location: on a client navigation the router
+  // re-renders this before it writes the new URL to the address bar, so
+  // window.location.search would still be the previous page's.
+  const searchParams = useSearchParams();
+  const search = searchParams.size ? `?${searchParams}` : "";
 
   return (
     <div className="flex items-center gap-1 sm:gap-2">
