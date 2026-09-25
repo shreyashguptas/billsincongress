@@ -157,7 +157,8 @@ export default function PrivacyPage() {
           you are signed in, our analytics link your activity to your
           account (including your email address) so we can understand the
           journey from first visit to sign-up. We send email only for
-          account purposes — verification codes and password resets —
+          account purposes — today only the sign-up verification code;
+          password-reset codes will join it once self-serve reset is built —
           through PostHog, the same provider that runs our analytics. To
           deliver one, PostHog receives your email address and the
           message, keeps a record of the send (including the code, which
@@ -253,8 +254,8 @@ export default function PrivacyPage() {
           You can read everything on this site without an account. You
           can block or clear cookies at any time — the site keeps working
           (you would be signed out, and analytics simply stops). Self-serve
-          password reset is not built yet; email us and we will reset it
-          for you.
+          password reset is not built yet — no reset email is sent today —
+          so email us and we will reset it for you.
         </p>
         <p>
           To delete your account — along with your saved bills and chat
@@ -340,7 +341,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (verification codes and password resets), for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (today, sign-up verification codes; password-reset codes once that flow is built), for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

@@ -809,8 +809,9 @@ handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly
 ## Email
 
 Every email goes out through **PostHog Workflows** from `no-reply@mail.billsincongress.com`.
-Today that is only the two account emails: the sign-up verification code and the
-password-reset code.
+Today that is only the sign-up verification code. The password-reset code is wired and
+rendered the same way, but nothing sends it until a page starts the reset flow (see "Not
+built" above).
 
 - **The site writes the email; PostHog only delivers it.** `convex/codeEmail.ts` renders the
   subject, plain text and HTML (letterhead in `convex/emailStyle.ts`), and

@@ -200,7 +200,7 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **The text of questions you ask the assistant is included in that analytics data.**
 - **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database. The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
-- **Account emails (sign-up and password-reset codes) are sent through PostHog**, the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
+- **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
@@ -229,7 +229,7 @@ Stated plainly, because they affect what you can trust:
 - **Older Congresses are not actively refreshed.** The nightly, weekly and monthly jobs track the current Congress only; the Monday reconciliation adds bills that were never synced but does not re-check ones already stored. An upstream correction to a 2022 bill may not be picked up.
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.
 - **There is no notification or "follow this bill" feature.** Saving a bill bookmarks it; it does not alert you when it moves.
-- **Password reset is not self-serve yet.** Email hi@billsincongress.com and it gets done by hand.
+- **Password reset is not self-serve yet.** The back end can already email a reset code, but no page on the site starts that flow, so no reset email is ever sent today. Email hi@billsincongress.com and it gets done by hand.
 - **The site is free and has no paid tier.** No payment details are collected anywhere.
 
 If you spot something wrong, that is the most useful thing you can send. See below.
