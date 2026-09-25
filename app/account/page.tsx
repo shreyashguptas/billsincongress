@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useSearchParams } from "next/navigation";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { ConvexError } from "convex/values";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
+import { billingErrorCode, planCardView } from "@/lib/pro";
 import { formatCongressProse } from "@/lib/congress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,12 +26,36 @@ export default function AccountPage() {
       </div>
     );
   }
-  return <AccountInner />;
+  // useSearchParams needs a Suspense boundary to prerender.
+  return (
+    <React.Suspense
+      fallback={
+        <div className="container-editorial py-16">
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
+      }
+    >
+      <AccountInner />
+    </React.Suspense>
+  );
 }
 
 function AccountInner() {
   const user = useQuery(api.users.currentUser, {});
   const savedBills = useQuery(api.savedBills.listSaved, {});
+  const billing = useQuery(api.billing.status, {});
+  const alerts = useQuery(api.alerts.listMine, {});
+  const params = useSearchParams();
+  // Back from Stripe Checkout. Read once, then dropped from the address so a
+  // reload or a bookmarked link cannot claim a payment that is not happening;
+  // the plan card says "confirming" until the webhook records the plan.
+  const [checkoutSucceeded] = React.useState(() => params.get("checkout") === "success");
+  React.useEffect(() => {
+    if (params.get("checkout") !== "success") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("checkout");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, [params]);
   const { signOut } = useAuthActions();
   const [chatUsage, setChatUsage] = React.useState<ChatUsageResult | null>(null);
 
@@ -46,7 +73,22 @@ function AccountInner() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, billing?.plan]);
+
+  // Returning from Stripe: record the return once, then the activation once
+  // the webhook has flipped the plan (the page updates live when it does).
+  const returnReported = React.useRef(false);
+  const activationReported = React.useRef(false);
+  React.useEffect(() => {
+    if (!checkoutSucceeded || returnReported.current) return;
+    returnReported.current = true;
+    analytics.proCheckoutReturned("success");
+  }, [checkoutSucceeded]);
+  React.useEffect(() => {
+    if (!checkoutSucceeded || activationReported.current || billing?.plan !== "pro") return;
+    activationReported.current = true;
+    analytics.proActivated(billing.interval ?? "unknown");
+  }, [checkoutSucceeded, billing?.plan, billing?.interval]);
 
   if (user === undefined) {
     return (
@@ -125,22 +167,7 @@ function AccountInner() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Plan</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div>
-              <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
-              <p className="text-xl font-serif">Free</p>
-              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                Bills.Congress is free and has no paid tier. Your account saves bills and
-                conversations and raises your daily question allowance — nothing here is
-                billed, and we collect no payment details.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <PlanCard billing={billing} checkoutSucceeded={checkoutSucceeded} />
 
         <Card>
           <CardHeader>
@@ -148,7 +175,9 @@ function AccountInner() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div>
-              <p className="text-muted-foreground text-xs uppercase tracking-wider">Free bill chat</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider">
+                {billing?.plan === "pro" ? "Questions today (Pro)" : "Questions today"}
+              </p>
               <p className="mt-1 font-serif text-2xl">
                 {chatUsed}
                 <span className="text-base text-muted-foreground"> / {chatMax}</span>
@@ -162,6 +191,8 @@ function AccountInner() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertsSection alerts={alerts} isPro={billing === undefined ? undefined : billing?.plan === "pro"} />
 
       <section className="space-y-4">
         <h2 className="font-serif text-xl font-semibold tracking-tight">Saved bills</h2>
@@ -237,5 +268,210 @@ function AccountInner() {
         </Button>
       </div>
     </div>
+  );
+}
+
+type BillingStatus = NonNullable<ReturnType<typeof useQuery<typeof api.billing.status>>>;
+
+/**
+ * Billing dates in US Eastern time, like the site's other clocks ("resets at
+ * midnight Eastern") and the plan-change emails (convex/billingEmail.ts), so a
+ * reader never sees one date here and another in their inbox. Stripe's own
+ * pages follow the Stripe account's timezone, which should be set to Eastern.
+ */
+function formatDay(unixSeconds: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/New_York",
+  }).format(new Date(unixSeconds * 1000));
+}
+
+function PlanCard({
+  billing,
+  checkoutSucceeded,
+}: {
+  billing: BillingStatus | null | undefined;
+  checkoutSucceeded: boolean;
+}) {
+  const openPortal = useAction(api.billing.openBillingPortal);
+  const [opening, setOpening] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const isPro = billing?.plan === "pro";
+
+  const manage = async () => {
+    setError(null);
+    setOpening(true);
+    try {
+      const { url } = await openPortal({});
+      analytics.billingPortalOpened();
+      window.location.href = url;
+    } catch (err) {
+      const code = err instanceof ConvexError ? billingErrorCode(err.data) : "UNKNOWN";
+      setError(
+        code === "RATE_LIMITED"
+          ? "Too many tries in a short time. Please wait a few minutes and try again."
+          : code === "NO_BILLING_ACCOUNT"
+            ? "There is no billing account to open any more. Subscribe again from the Pro page to start a new one."
+            : "Could not open billing. Please try again.",
+      );
+      setOpening(false);
+    }
+  };
+
+  // After a minute back from Checkout with no plan yet, say so plainly.
+  const [waitedLong, setWaitedLong] = React.useState(false);
+  React.useEffect(() => {
+    if (!checkoutSucceeded || isPro) return;
+    const timer = setTimeout(() => setWaitedLong(true), 60_000);
+    return () => clearTimeout(timer);
+  }, [checkoutSucceeded, isPro]);
+
+  const view = billing
+    ? planCardView(billing, { checkoutReturned: checkoutSucceeded, waitedLong, formatDate: formatDay })
+    : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Plan</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <div>
+          <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
+          <p className="text-xl font-serif">
+            {view ? view.label : "…"}
+            {view?.cadence && (
+              <span className="ml-2 text-sm font-sans text-muted-foreground">{view.cadence}</span>
+            )}
+          </p>
+          {view && (
+            <p
+              role={view.tone === "warning" ? "alert" : "status"}
+              className={`mt-2 text-xs leading-relaxed ${
+                view.tone === "warning" ? "text-destructive" : "text-muted-foreground"
+              }`}
+            >
+              {view.message}
+            </p>
+          )}
+        </div>
+        {view?.showManage && (
+          <Button variant="outline" size="sm" onClick={manage} disabled={opening}>
+            {opening ? "Opening…" : "Manage billing"}
+          </Button>
+        )}
+        {view?.subscribe && (
+          <Button asChild size="sm">
+            <Link href="/pro">{view.subscribe}</Link>
+          </Button>
+        )}
+        {error && (
+          <p role="alert" className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+type AlertRows = NonNullable<ReturnType<typeof useQuery<typeof api.alerts.listMine>>>;
+
+function AlertsSection({
+  alerts,
+  isPro,
+}: {
+  alerts: AlertRows | undefined;
+  /** undefined while the plan is loading: say nothing about it yet. */
+  isPro: boolean | undefined;
+}) {
+  // Hooks first: returning before them would change the hook count between
+  // renders once the plan arrives, which React rejects.
+  const toggle = useMutation(api.alerts.toggle);
+  const [removing, setRemoving] = React.useState<string | null>(null);
+  if (isPro === undefined) return null;
+
+  // Nothing to show a free reader who never followed anything.
+  if (!isPro && (alerts === undefined || alerts.length === 0)) return null;
+
+  const unfollow = async (billId: string) => {
+    setRemoving(billId);
+    try {
+      const { following } = await toggle({ billId });
+      if (!following) {
+        analytics.billAlertToggled({ bill_id: billId, action: "unfollowed", surface: "account" });
+      }
+    } finally {
+      setRemoving(null);
+    }
+  };
+
+  return (
+    <section id="alerts" className="space-y-4 scroll-mt-24">
+      <div className="space-y-1">
+        <h2 className="font-serif text-xl font-semibold tracking-tight">Bill alerts</h2>
+        <p className="text-sm text-muted-foreground">
+          {isPro
+            ? "One email early in the morning, US Eastern time, on any day these bills move. Add bills with Email me updates on a bill page."
+            : "Your Pro plan has ended, so these alerts are paused. Subscribe again to resume them."}
+        </p>
+      </div>
+      {alerts === undefined ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : alerts.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          You don&apos;t follow any bills yet.{" "}
+          <Link href="/bills" className="underline underline-offset-4">
+            Browse bills
+          </Link>
+          .
+        </p>
+      ) : (
+        <ul className="divide-y divide-border border-y border-border">
+          {alerts.map((row) => (
+            <li key={row.billId} className="flex items-baseline justify-between gap-4 py-4">
+              <Link href={`/bills/${row.billId}`} className="group min-w-0">
+                {row.bill ? (
+                  <>
+                    <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                      {row.bill.billTypeLabel} {row.bill.billNumber} ·{" "}
+                      {formatCongressProse(row.bill.congress)}
+                    </p>
+                    <p className="mt-1 font-serif font-medium leading-snug group-hover:underline underline-offset-4">
+                      {row.bill.title}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {row.bill.progressDescription ?? "Status unknown"}
+                      {row.lastEmailedAt
+                        ? ` · last emailed ${new Intl.DateTimeFormat("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          }).format(new Date(row.lastEmailedAt))}`
+                        : ""}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    This bill is no longer available{" "}
+                    <span className="font-mono text-xs">({row.billId})</span>
+                  </p>
+                )}
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                disabled={removing === row.billId}
+                onClick={() => unfollow(row.billId)}
+              >
+                {removing === row.billId ? "Removing…" : "Unfollow"}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

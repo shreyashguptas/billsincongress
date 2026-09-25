@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
-import { LogOut, User as UserIcon } from "lucide-react";
+import { Bell, LogOut, User as UserIcon } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
@@ -115,6 +115,13 @@ function UserMenuInner() {
             <UserIcon className="mr-2 h-4 w-4" /> Account
           </Link>
         </DropdownMenuItem>
+        {user?.plan !== "pro" && (
+          <DropdownMenuItem asChild>
+            <Link href="/pro" className="cursor-pointer">
+              <Bell className="mr-2 h-4 w-4" /> Get bill alerts (Pro)
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSignOut} className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" /> Sign out

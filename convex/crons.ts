@@ -74,4 +74,15 @@ crons.cron(
   {},
 );
 
+// Bill-alert digests for Pro readers. 11:00 UTC is 7 AM Eastern (6 AM in
+// winter): hours after the 01:00 incremental sync, so the day's actions are in,
+// and in the inbox before the working day. Sends only to readers whose bills
+// moved; see convex/alerts.ts.
+crons.cron(
+  "daily-bill-alert-digests",
+  "0 11 * * *",
+  internal.alerts.runDigests,
+  {},
+);
+
 export default crons;

@@ -18,6 +18,7 @@ import {
 import { billAnswerParagraph, billNoun, billSummaryText } from '@/lib/seo';
 import { AskAboutBill } from './ask-about-bill';
 import SaveBillButton from './save-bill-button';
+import BillAlertButton from './bill-alert-button';
 import PodcastPromo from '@/components/podcast-promo';
 import { ArrowLeft, FileText, Check } from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
@@ -180,6 +181,16 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                 </>
               )}
               <SaveBillButton
+                billId={String(bill.id)}
+                analyticsProps={{
+                  bill_type: bill.bill_type,
+                  bill_number: bill.bill_number,
+                  congress: bill.congress,
+                  policy_area: bill.bill_subjects?.policy_area_name ?? '',
+                  progress_stage: progressStage,
+                }}
+              />
+              <BillAlertButton
                 billId={String(bill.id)}
                 analyticsProps={{
                   bill_type: bill.bill_type,

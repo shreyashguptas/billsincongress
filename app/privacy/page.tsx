@@ -40,14 +40,14 @@ export default function PrivacyPage() {
             <Section number={1} title="Who we are">
               <p>
                 Bills.Congress (billsincongress.com) is an independent,
-                open-source, public-interest project operated by Shreyash
-                Gupta. It is not affiliated with the United States government.
+                open-source, public-interest project operated by OffGrid LLC, a
+                Maryland limited liability company. It is not affiliated with the United States government.
                 The legislative data we publish comes from the official{' '}
                 <ExternalLink href="https://api.congress.gov">
                   Congress.gov API
                 </ExternalLink>{' '}
                 and is in the public domain. In this policy, &ldquo;we&rdquo;
-                and &ldquo;us&rdquo; refer to the project and its operator.
+                and &ldquo;us&rdquo; refer to the project and OffGrid LLC.
               </p>
             </Section>
 
@@ -151,9 +151,12 @@ export default function PrivacyPage() {
                 with it: the bills you save and your bill-chat history. Once
                 you are signed in, our analytics link your activity to your
                 account (including your email address) so we can understand the
-                journey from first visit to sign-up. We send email only for
-                account purposes — verification codes and password resets —
-                through PostHog, the same provider that runs our analytics. To
+                journey from first visit to sign-up. We send email for three
+                reasons only: account emails (verification codes and password
+                resets), notices when your Pro plan starts, changes or ends,
+                and bill alerts you have turned on yourself. All of them go
+                through PostHog, the same provider that runs our analytics.
+                Payment receipts come from Stripe. To
                 deliver one, PostHog receives your email address and the
                 message, keeps a record of the send (including the code, which
                 expires after 15 minutes) for troubleshooting, and records
@@ -162,8 +165,23 @@ export default function PrivacyPage() {
                 send marketing email or newsletters.
               </p>
               <p>
-                The site is free and has no paid features today, so we do not
-                collect any payment information.
+                Reading the site is free. If you subscribe to Pro, the one paid
+                plan, payment is handled by{' '}
+                <ExternalLink href="https://stripe.com/privacy">Stripe</ExternalLink>:
+                your card details go to Stripe and never reach our servers. We
+                store your Stripe customer and subscription IDs, which price you
+                chose, the subscription&apos;s status, and when it renews or ends
+                — enough to know whether you are on Pro, nothing more. Stripe keeps
+                its own payment records as its privacy policy and the law require.
+              </p>
+              <p>
+                If you follow bills for email alerts, we store which bills you
+                follow and when each was last included in an alert. Alert emails
+                list public actions on those bills; they contain no tracking
+                pixels and no rewritten links, so we do not know whether you opened
+                or clicked one. We keep a copy of each sent alert email for seven
+                days so we can investigate delivery problems, then delete it. Every
+                alert email has a link that stops all alerts without signing in.
               </p>
             </Section>
 
@@ -350,8 +368,8 @@ const summary = [
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
-  'We email you only for account reasons — never marketing.',
-  'No payment data: the site is free.',
+  'We email you only for account reasons and bill alerts you turn on — never marketing.',
+  'Reading is free. If you pay for Pro, Stripe handles your card; we never see it.',
 ];
 
 const cookies = [
@@ -383,7 +401,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts, saved bills, chat history, and the public bill data.',
+    role: 'Our database and authentication backend. Stores accounts, saved bills, followed bills, chat history, your plan status, and the public bill data.',
   },
   {
     name: 'Cloudflare',
@@ -391,7 +409,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (verification codes and password resets), for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (verification codes, password resets and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
@@ -400,6 +418,10 @@ const providers = [
   {
     name: 'Exa',
     role: 'Web search, used only when our own records cannot answer. Receives a rewritten neutral search phrase, never your question in your own words and never your identity.',
+  },
+  {
+    name: 'Stripe',
+    role: 'Only if you subscribe to Pro: takes the payment and runs the subscription. Receives your email address, name and card details; we never see the card.',
   },
   {
     name: 'Google',
