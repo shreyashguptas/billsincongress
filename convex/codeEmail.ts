@@ -9,6 +9,7 @@
 import {
   BRAND,
   C,
+  CARD,
   MONO,
   SANS,
   emailDocument,
@@ -44,7 +45,7 @@ export function renderCodeEmail(purpose: CodePurpose, code: string): RenderedEma
   const bodyHtml = `${preheader(`${copy.lead} ${code}.`)}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.ground};">
 <tr><td align="center" style="padding:32px 12px;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;background:${C.card};border:1px solid ${C.rule};">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;${CARD}">
 ${masthead(copy.eyebrow)}
 <tr><td style="padding:24px 28px 8px;font:15px/1.55 ${SANS};color:${C.ink};">${escapeHtml(copy.lead)}</td></tr>
 <tr><td style="padding:4px 28px 8px;">

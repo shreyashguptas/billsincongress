@@ -21,6 +21,8 @@ export const C = {
   rule: "#e2e1db",
 };
 export const SERIF = "Georgia,'Times New Roman',serif";
+/** The card every email sits in: raised, a hairline edge, the site's 14px panel radius. */
+export const CARD = `background:${C.card};border:1px solid ${C.rule};border-radius:14px;border-collapse:separate;overflow:hidden;`;
 export const SANS = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 export const MONO = "'SFMono-Regular',Menlo,Consolas,monospace";
 
@@ -63,6 +65,6 @@ export function preheader(text: string): string {
 export function masthead(eyebrow: string): string {
   return `<tr><td style="padding:22px 28px 18px;border-bottom:1px solid ${C.rule};">
   <p style="margin:0;font:600 20px/1.2 ${SERIF};color:${C.ink};">${BRAND}</p>
-  <p style="margin:6px 0 0;font:11px/1.4 ${MONO};letter-spacing:.12em;text-transform:uppercase;color:${C.muted};">${escapeHtml(eyebrow)}</p>
+  <p style="margin:6px 0 0;font:600 11px/1.4 ${SANS};letter-spacing:.14em;text-transform:uppercase;color:${C.muted};">${escapeHtml(eyebrow)}</p>
 </td></tr>`;
 }
