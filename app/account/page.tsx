@@ -367,9 +367,11 @@ function AlertsSection({
   /** undefined while the plan is loading: say nothing about it yet. */
   isPro: boolean | undefined;
 }) {
-  if (isPro === undefined) return null;
+  // Hooks first: returning before them would change the hook count between
+  // renders once the plan arrives, which React rejects.
   const toggle = useMutation(api.alerts.toggle);
   const [removing, setRemoving] = React.useState<string | null>(null);
+  if (isPro === undefined) return null;
 
   // Nothing to show a free reader who never followed anything.
   if (!isPro && (alerts === undefined || alerts.length === 0)) return null;
