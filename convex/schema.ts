@@ -151,6 +151,12 @@ export default defineSchema({
       "progressStage",
     ])
     .index("by_congress_state_and_stage", ["congress", "sponsorState", "progressStage"])
+    // The home page seats every measure by its sponsor's party, including a
+    // "party not recorded" block (the 117th's eleven H.R. numbers reserved for the
+    // Speaker or the Minority Leader, which Congress.gov lists with no sponsor). Without this index the
+    // answer engine could not list them: a party filter over a whole Congress
+    // is past every scan cap. A missing party is indexed as undefined.
+    .index("by_congress_and_sponsor_party", ["congress", "sponsorParty"])
     // Ordering indexes. Without a real sort the answer engine had none at all:
     // it read rows in insertion order and then asserted a date sort that did not
     // exist, once naming a "most recent" law while a later row in its own result

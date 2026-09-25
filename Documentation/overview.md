@@ -733,6 +733,18 @@ instruction to use the past tense. Two of the three Congresses we hold are over 
 ~55,000 rows — and without this the model described them as still in progress. `stats` carries
 `dataLastSynced` so "how current is this?" has a real answer instead of an invented one.
 
+**Party.** The home page seats every measure by its sponsor's party, including a "party not
+recorded" block, so the answer engine can read the same split. `bills` takes a `sponsorParty`
+filter (`D`, `R`, `I`, or `none`), read through `by_congress_and_sponsor_party`, and the
+whole-Congress `stats` row carries `partyCounts` and `partyLawCounts` summed from both chamber
+breakdowns, as the page does. `U` in those objects is "no party recorded". Before this, a reader
+asking what the 117th's eleven unrecorded seats were was told the figure could not be verified:
+there was no party filter, and a grouped count stopped at 5,000 of 17,828 rows. The eleven are
+H.R. 2, 9 and 10 (reserved for the Speaker) and H.R. 11–17 and 20 (reserved for the Minority
+Leader). Congress.gov lists them with no sponsor. The `bills` gotcha tells the model what they are
+but not whom each was reserved for: it must read that off the row's title, and
+`scripts/truth/handlers.test.ts` checks the gotcha's claim against the data.
+
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has
 the Senate passed" is the canonical case, and it silently changes the answer by a factor of two.

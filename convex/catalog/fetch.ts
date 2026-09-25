@@ -31,7 +31,7 @@ import { validateFilters } from "./filters";
 import { mintHandle } from "./cite";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "../searchQuery";
 import type { DatasetName } from "./types";
-import { chooseBillsIndex, countInMemoryFilters } from "./billsIndex";
+import { NO_PARTY, chooseBillsIndex, countInMemoryFilters } from "./billsIndex";
 import {
   completeReport,
   reportFor,
@@ -171,6 +171,14 @@ const SORT_FIELD: Record<
   },
 };
 
+/**
+ * The value a `sponsorParty` filter matches in the table. "No party recorded" is
+ * a missing field, which an index reads as undefined.
+ */
+function storedParty(filter: string): string | undefined {
+  return filter === NO_PARTY ? undefined : filter;
+}
+
 /** The bucket a row falls into for a grouped count. */
 function groupValue(b: Doc<"bills">, field: string): string {
   switch (field) {
@@ -236,6 +244,9 @@ function chooseOrderingIndex(
   if (typeof f.titleFilter === "string" && f.titleFilter !== "") return null;
   // reachedStage spans several stage buckets, so no single ordered range covers it.
   if (typeof f.reachedStage === "number") return null;
+  // A handful of rows, all old: the newest-first window would miss every one.
+  // The party index reads them completely and the sort is then done in memory.
+  if (f.sponsorParty === NO_PARTY) return null;
 
   const byIntroduced = f.sort === "newest_introduced" || f.sort === "oldest_introduced";
   if (byIntroduced) {
@@ -258,6 +269,8 @@ function describeBillSet(f: Row): string {
   if (Array.isArray(f.sponsorFilter) && f.sponsorFilter.length > 0) {
     parts.push(`sponsored by ${(f.sponsorFilter as string[]).join(", ")}`);
   }
+  if (f.sponsorParty === NO_PARTY) parts.push("with no sponsor party recorded");
+  else if (typeof f.sponsorParty === "string") parts.push(`with a ${f.sponsorParty} sponsor`);
   if (typeof f.chamber === "string") parts.push(`originating in the ${f.chamber}`);
   if (typeof f.billType === "string") parts.push(`of type ${f.billType}`);
   if (typeof f.billNumber === "string") parts.push(`numbered ${f.billNumber}`);
@@ -488,6 +501,15 @@ async function fetchBills(
         .order("desc")
         .take(ceiling);
       break;
+    case "sponsorParty":
+      candidates = await ctx.db
+        .query("bills")
+        .withIndex("by_congress_and_sponsor_party", (q) =>
+          q.eq("congress", congress).eq("sponsorParty", storedParty(f.sponsorParty as string)),
+        )
+        .order("desc")
+        .take(ceiling);
+      break;
     case "progressStage":
       candidates = await ctx.db
         .query("bills")
@@ -543,6 +565,9 @@ async function fetchBills(
     // many bills has the Senate passed" with a number that omitted all 104 laws.
     if (reachedSet && !reachedSet.has(b.progressStage ?? 20)) return false;
     if (typeof f.sponsorState === "string" && b.sponsorState !== f.sponsorState) return false;
+    if (typeof f.sponsorParty === "string" && b.sponsorParty !== storedParty(f.sponsorParty)) {
+      return false;
+    }
     if (typeof f.billType === "string" && b.billType !== f.billType) return false;
     if (typeof f.billNumber === "string" && b.billNumber !== f.billNumber) return false;
     if (typeof f.policyArea === "string" && b.policyAreaName !== f.policyArea) return false;
@@ -1015,6 +1040,50 @@ function typeBreakdown(
   };
 }
 
+/**
+ * What the keys of partyCounts mean. U is whatever is not D, R or I — today only
+ * measures with no party at all, which is what `sponsorParty: "none"` lists.
+ */
+const PARTY_KEY =
+  "D Democrat, R Republican, I Independent, U anything else, shown on the home page as " +
+  "'party not recorded'. In our data U is measures with no party at all; list them with the " +
+  "bills filter sponsorParty 'none'.";
+
+/**
+ * The party split for both chambers together — the numbers the home page seats.
+ *
+ * The page adds the two chamber rows; this does the same. Without it the only
+ * party figures were per chamber, and a reader asking about the home page's
+ * "11 bills, party not recorded" was told the figure could not be verified.
+ */
+async function wholeCongressPartySplit(ctx: QueryCtx, congress: number): Promise<Row> {
+  const chambers = await ctx.db
+    .query("congressChamberBreakdowns")
+    .withIndex("by_congress_and_chamber", (q) => q.eq("congress", congress))
+    .take(3);
+  // Exactly one House row and one Senate row. Nothing in the writer makes a row
+  // unique per chamber, and a duplicate would count one chamber twice.
+  const kinds = chambers.map((c) => c.chamber).sort().join(",");
+  if (kinds !== "house,senate") {
+    return {
+      partyCounts_unavailable:
+        "We hold no party breakdown for both chambers of this Congress, so no party split can be given.",
+    };
+  }
+  const add = (key: "partyCounts" | "partyLawCounts") => {
+    const sum: Record<string, number> = {};
+    for (const c of chambers) {
+      for (const [party, n] of Object.entries(c[key])) sum[party] = (sum[party] ?? 0) + n;
+    }
+    return sum;
+  };
+  return {
+    partyCounts: add("partyCounts"),
+    partyLawCounts: add("partyLawCounts"),
+    partyKey: PARTY_KEY,
+  };
+}
+
 async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
   const congress = (f.congress as number) ?? 119;
   const stats = await ctx.db
@@ -1054,6 +1123,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
           senateMeasures: stats.senateCount,
           stageCounts: stats.stageCounts,
           ...typeBreakdown(stats.typeCounts),
+          ...(await wholeCongressPartySplit(ctx, congress)),
           ...freshness,
         },
       ],
@@ -1100,6 +1170,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     chamberMeasures: breakdown.total,
     partyCounts: breakdown.partyCounts,
     partyLawCounts: breakdown.partyLawCounts,
+    partyKey: PARTY_KEY,
     ...freshness,
   };
   if (breakdown.stageCounts) {

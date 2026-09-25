@@ -197,6 +197,17 @@ it("counts every unenforced filter on the bare congress scan", () => {
   assert.equal(countInMemoryFilters(filters, plan), 1);
 });
 
+it("'no party recorded' outranks the broad indexes; a named party yields to them", () => {
+  // Eleven rows against 2,276 Health bills: the party index is the narrow one.
+  const none = chooseBillsIndex({ congress: 117, sponsorParty: "none", policyArea: "Health" });
+  assert.equal(none.branch, "sponsorParty");
+  // Ten thousand Democratic rows against 365 laws: the stage index is the narrow one.
+  const named = chooseBillsIndex({ congress: 117, sponsorParty: "D", progressStage: 100 });
+  assert.equal(named.branch, "progressStage");
+  assert.equal(countInMemoryFilters({ congress: 117, sponsorParty: "D", progressStage: 100 }, named), 1);
+  assert.equal(chooseBillsIndex({ congress: 117, sponsorParty: "R" }).branch, "sponsorParty");
+});
+
 it("hands back a fresh indexed array so a caller cannot rewrite the rule table", () => {
   const first = chooseBillsIndex({ congress: 119, policyArea: "Health" });
   first.indexed.push("chamber");

@@ -203,15 +203,26 @@ it("rejects anything that is not an ISO date on a date filter", () => {
 });
 
 it("rejects a filter that exists as a FIELD but not as a filter", () => {
-  // sponsorParty is a real column on bills, so the model reaches for it; the
-  // list of what it may filter by is the only way it recovers.
-  const r = validateFilters("bills", { sponsorParty: "D" });
+  // latestActionDate is a real column on bills, so the model reaches for it;
+  // the list of what it may filter by is the only way it recovers.
+  const r = validateFilters("bills", { latestActionDate: "2026-01-01" });
   assert.equal(r.ok, false);
   if (!r.ok) {
-    assert.ok(r.error.includes("sponsorParty"));
+    assert.ok(r.error.includes("latestActionDate"));
     assert.ok(r.error.includes("sponsorState"), "error must list the filters that do exist");
     assert.ok(r.error.includes("describe_dataset"), "error must point at describe_dataset");
   }
+});
+
+it("sponsorParty accepts a party in any casing, or 'none' for no party recorded", () => {
+  const lower = validateFilters("bills", { sponsorParty: "r" });
+  assert.ok(lower.ok && lower.filters.sponsorParty === "R");
+  const none = validateFilters("bills", { sponsorParty: "None" });
+  assert.ok(none.ok && none.filters.sponsorParty === "none");
+  // "Republican" matches no stored value; accepting it would report a complete zero.
+  const word = validateFilters("bills", { sponsorParty: "Republican" });
+  assert.equal(word.ok, false);
+  if (!word.ok) assert.ok(word.error.includes("'none'"));
 });
 
 it("rejects a bills filter passed to a dataset that does not have it", () => {
