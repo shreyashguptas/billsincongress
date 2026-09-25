@@ -143,6 +143,7 @@ picker) and fires one custom event — see "Learn page" below.
 | `signin_submitted` | User submits the sign-in form | `method: "password"` | `components/auth/sign-in-form.tsx` |
 | `signin_completed` | Sign-in succeeded (password, or Google OAuth return for an existing account) | `method: "password" \| "google"` | `components/auth/sign-in-form.tsx`, `components/analytics/posthog-auth-sync.tsx` |
 | `signin_failed` | Sign-in failed | `reason: "invalid_credentials" \| "other"` | `components/auth/sign-in-form.tsx` |
+| `header_auth_clicked` | Signed-out reader clicks Sign in or Sign up in the header (added 2026-09-25). A device where an account has been signed in before is offered only Sign in; any other device gets both on desktop and Sign up alone on phones; an auth page shows only the other form (`lib/auth-cta.ts`) | `cta: "sign_in" \| "sign_up"`, `known_device` | `components/auth/user-menu.tsx` |
 | `auth_google_clicked` | User clicks a "Continue with Google" button (before OAuth redirect) | `intent: "sign_in" \| "sign_up"` | `components/auth/google-button.tsx` |
 | `signed_out` | User signs out | — | `components/auth/user-menu.tsx`, `app/account/page.tsx` |
 | `welcome_modal_shown` | New-user welcome/celebration modal appeared | — | `components/auth/welcome-new-user.tsx` |
@@ -393,6 +394,11 @@ Implemented in `components/analytics/posthog-auth-sync.tsx` (mounted in `app/lay
   first visit → signup → usage.
 - When a user **signs out** we call `posthog.reset()` so the next person on the same
   device isn't mixed into their profile.
+- Separately, and not part of PostHog: the header remembers that an account has been
+  signed in on this browser (`localStorage` key `bic_known_account`, value `1`, kept after
+  sign-out; `lib/auth-cta.ts`). It decides whether a signed-out visitor is offered Sign in
+  or Sign up, and reaches PostHog only as the `known_device` property of
+  `header_auth_clicked`.
 
 **Person properties.** The first four are `$set` (overwritten on every page load while
 signed in). `account_created_at` is `$set_once` — written the first time and never
@@ -433,6 +439,11 @@ These are the saved insights the project should maintain in the PostHog UI:
 
 1. **Sign-up funnel** — `$pageview (/sign-up)` → `signup_form_submitted` → `signup_completed`.
    Where do people abandon account creation?
+   The header's share of the way in: `header_auth_clicked` (`cta = sign_up`) →
+   `signup_completed`. Broken down by `known_device`, `header_auth_clicked` also shows
+   whether the device guess sends people to the right form: a `known_device = false` click
+   on Sign up followed by `signin_completed` means an existing account holder was shown the wrong
+   button first.
 2. **Rate-limit conversion funnel** — `answer_rate_limited` → `rate_limit_signup_clicked`
    → `signup_completed`. Does hitting the free limit convert visitors into accounts?
 3. **Discovery-to-engagement funnel** — `$pageview (/bills)` → `bill_card_clicked` →

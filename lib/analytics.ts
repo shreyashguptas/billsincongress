@@ -113,6 +113,15 @@ export const analytics = {
 
   authGoogleClicked: (intent: AuthIntent) => capture('auth_google_clicked', { intent }),
 
+  /**
+   * A signed-out reader clicked Sign in or Sign up in the header. Which one
+   * they were offered depends on `known_device` — whether an account has been
+   * signed in on this browser before (lib/auth-cta.ts) — so it rides along to
+   * show whether that guess sends people to the right form.
+   */
+  headerAuthClicked: (cta: AuthIntent, knownDevice: boolean) =>
+    capture('header_auth_clicked', { cta, known_device: knownDevice }),
+
   signedOut: () => {
     capture('signed_out');
     // Forget the person so the next visitor on this device starts fresh.

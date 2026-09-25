@@ -239,6 +239,12 @@ Patterns that appear on more than one page:
   It never becomes icon-only. After a copy it reads "Link copied" with `Check`
   for 2.5 seconds; a 9rem minimum width holds both labels, so the swap does
   not resize the button.
+- **Account slot** (header, right edge): signed in, the 36px avatar (see
+  "Pro"). Signed out, small (`sm`) buttons and never ink: "Sign up" is
+  `outline`, "Sign in" is `ghost`. The header is on every page and must not
+  compete with the page's one primary action. When both show, "Sign up" sits
+  at the edge and is the only one kept below `sm`. A device that has had an
+  account signed in sees "Sign in" alone.
 
 What stays hand-built, on purpose:
 
