@@ -239,6 +239,20 @@ Patterns that appear on more than one page:
   It never becomes icon-only. After a copy it reads "Link copied" with `Check`
   for 2.5 seconds; a 9rem minimum width holds both labels, so the swap does
   not resize the button.
+- **Account slot** (header, right edge): signed in, the 36px avatar (see
+  "Pro"). Signed out, small (`sm`) buttons and never ink: "Sign up" is
+  `outline`, "Sign in" is `ghost`. The header is on every page and must not
+  compete with the page's one primary action. When both show, "Sign up" sits
+  at the edge and is the only one kept below `sm`. A device that has had an
+  account signed in sees "Sign in" alone.
+- **Footer**: only what has no other home. The lockup, a one-line serif
+  statement of what the site is, and "Not affiliated with the U.S.
+  government"; the install and theme controls opposite. Under that sit three
+  hub links (House bills, Senate bills, Bills that became law), then a
+  hairline and one row: Pro, Privacy, Terms, Source (GitHub glyph) on the
+  left, the mono copyright and Congress.gov credit on the right. Links are
+  `ink-2` text, underlined on hover, never pills. Anything in the header is
+  not repeated here.
 
 What stays hand-built, on purpose:
 

@@ -357,6 +357,12 @@ const cookies = [
     lifespan: 'until cleared',
   },
   {
+    name: 'bic_known_account (local storage)',
+    purpose:
+      'Remembers that an account has been signed in on this browser, so the header offers “Sign in” rather than “Sign up”. Holds the value 1 and nothing else — no email, no account ID — stays after you sign out, and never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
     name: 'Offline page (service worker cache)',
     purpose:
       'A copy of the site’s one “You’re offline” page, shown if you open the site with no connection. Holds nothing about you and none of the pages you read.',

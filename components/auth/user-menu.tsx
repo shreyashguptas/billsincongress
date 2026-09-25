@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useConvexAuth } from "convex/react";
@@ -21,6 +21,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useConvexEnabled } from "@/components/convex-client-provider";
 import { AvatarMark, initialsFor, ProPill } from "@/components/brand/pro-mark";
+import {
+  authCtaHref,
+  authCtas,
+  deviceKnowsAccount,
+  rememberAccountOnDevice,
+  type AuthCta,
+} from "@/lib/auth-cta";
 
 export function UserMenu() {
   const enabled = useConvexEnabled();
@@ -46,6 +53,12 @@ function UserMenuInner() {
   const isLoading = auth?.isLoading ?? true;
   const user = useQuery(api.users.currentUser, isAuthenticated ? {} : "skip");
 
+  // Kept after sign-out: it is what lets the signed-out slot say "Sign in"
+  // rather than "Sign up" to someone who has an account (lib/auth-cta.ts).
+  React.useEffect(() => {
+    if (isAuthenticated) rememberAccountOnDevice();
+  }, [isAuthenticated]);
+
   if (isLoading) {
     return (
       <div
@@ -57,9 +70,11 @@ function UserMenuInner() {
 
   if (!isAuthenticated) {
     return (
-      <Button asChild variant="ghost" size="sm" className="font-medium">
-        <Link href="/sign-in">Sign in</Link>
-      </Button>
+      // useSearchParams() needs a boundary; this only renders client-side,
+      // after mount, but the boundary keeps that from being load-bearing.
+      <React.Suspense fallback={<div aria-hidden className="h-9 w-9" />}>
+        <SignedOutActions />
+      </React.Suspense>
     );
   }
 
@@ -123,5 +138,50 @@ function UserMenuInner() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+const CTA_LABEL: Record<AuthCta, string> = { sign_in: "Sign in", sign_up: "Sign up" };
+
+/**
+ * Signed out: "Sign up" for a device that has never had an account signed in,
+ * "Sign in" for one that has, and on an auth page only the other form. When
+ * both show, "Sign up" is the outline button at the edge and the only one kept
+ * on phones; the sign-up page links to sign-in.
+ */
+function SignedOutActions() {
+  const pathname = usePathname();
+  // Read once on mount: this component only renders client-side (see UserMenu).
+  const [knownDevice] = React.useState(deviceKnowsAccount);
+  const ctas = authCtas(pathname, knownDevice);
+  // From the router, not window.location: on a client navigation the router
+  // re-renders this before it writes the new URL to the address bar, so
+  // window.location.search would still be the previous page's.
+  const searchParams = useSearchParams();
+  const search = searchParams.size ? `?${searchParams}` : "";
+
+  return (
+    <div className="flex items-center gap-1 sm:gap-2">
+      {ctas.map((cta) => {
+        const primary = cta === "sign_up";
+        const hideOnPhone = ctas.length > 1 && !primary;
+        return (
+          <Button
+            key={cta}
+            asChild
+            variant={primary ? "outline" : "ghost"}
+            size="sm"
+            className={hideOnPhone ? "hidden sm:inline-flex" : undefined}
+          >
+            <Link
+              href={authCtaHref(cta, pathname, search)}
+              onClick={() => analytics.headerAuthClicked(cta, knownDevice)}
+            >
+              {CTA_LABEL[cta]}
+            </Link>
+          </Button>
+        );
+      })}
+    </div>
   );
 }

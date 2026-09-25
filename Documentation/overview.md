@@ -826,6 +826,16 @@ scrypt hash by the library.
 Sessions last **60 days** (both total and inactive), and the cookie `maxAge` in
 `middleware.ts` must stay ≥ that value.
 
+The header's account slot (`components/auth/user-menu.tsx`) is the avatar menu when signed
+in. Signed out, it guesses from this browser alone: once the slot has seen a signed-in reader
+it sets `localStorage.bic_known_account = "1"` and keeps it after sign-out, and a device with
+the flag is offered only **Sign in**. Any other device gets **Sign in** and **Sign up** (Sign
+up alone on phones), and on `/sign-in`, `/sign-up` or `/forgot-password` the slot offers only
+the other form. Each link carries `?redirect=` back to the current page (none from `/`, so the
+forms' default, `/account`, applies); the logic and its tests are `lib/auth-cta.ts`. There is
+no server lookup: the server cannot tell a signed-out visitor has an account without
+identifying them, and the flag holds no email or id.
+
 A free account gets you three things: bookmarking bills (the account page lists the most
 recent 200), saved conversation history, and the higher daily question allowance. Pro, the
 one paid plan, adds bill alerts and a higher allowance still — see the next section.

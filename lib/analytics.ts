@@ -113,6 +113,15 @@ export const analytics = {
 
   authGoogleClicked: (intent: AuthIntent) => capture('auth_google_clicked', { intent }),
 
+  /**
+   * A signed-out reader clicked Sign in or Sign up in the header. Which one
+   * they were offered depends on `known_device` — whether an account has been
+   * signed in on this browser before (lib/auth-cta.ts) — so it rides along to
+   * show whether that guess sends people to the right form.
+   */
+  headerAuthClicked: (cta: AuthIntent, knownDevice: boolean) =>
+    capture('header_auth_clicked', { cta, known_device: knownDevice }),
+
   signedOut: () => {
     capture('signed_out');
     // Forget the person so the next visitor on this device starts fresh.
@@ -307,10 +316,11 @@ export const analytics = {
   }) => capture('hub_viewed', props),
 
   /**
-   * A link from one hub to a sibling hub, or from /bills into a hub.
+   * A link from one hub to a sibling hub, from /bills into a hub, or from the
+   * site footer's three hub links.
    *
    * `placement` distinguishes the browse disclosure on /bills from the
-   * sibling row on a hub page and from a picker footer. Worth having: this
+   * sibling row on a hub page, a picker footer, and the site footer (`footer`). Worth having: this
    * event had no call site on /bills at all, so "no one uses the category
    * list" was unfalsifiable from our own data.
    */
@@ -318,7 +328,7 @@ export const analytics = {
     from_path: string;
     to_path: string;
     hub_kind: 'chamber' | 'status' | 'topic';
-    placement?: 'directory' | 'filter_panel' | 'hub_siblings';
+    placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer';
   }) => capture('hub_link_clicked', props),
 
   /**
