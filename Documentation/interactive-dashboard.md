@@ -18,9 +18,7 @@ illustrative of magnitude, not as live values.
 | Dashboard queries | `convex/bills.ts` — `getAllCongressOverview`, `getCongressDashboard`, `getChamberDeepBreakdown` |
 | Recompute jobs | `convex/mutations.ts`, orchestrated from `convex/congressApi.ts` |
 | Precomputed tables | `convex/schema.ts` |
-| Design tokens | `app/globals.css`, `tailwind.config.ts` |
-| Fonts | `app/layout.tsx` |
-| Closing decoration | `components/waving-flag.tsx` |
+| Design language | [`brand.md`](brand.md); tokens in `app/globals.css`, `tailwind.config.ts`; fonts in `app/layout.tsx` |
 
 **There is no charting library** — every chart is hand-built from `div`s or inline SVG with
 computed sizes. Every section in `home/` takes the same `HomeProps` object, built once in
@@ -30,83 +28,37 @@ computed sizes. Every section in `home/` takes the same `HomeProps` object, buil
 
 ## The design system
 
-### Typography
+The home page follows the site-wide design language in
+[`brand.md`](brand.md): tokens, type, the Night stage, charts. This section only
+records what is specific to the dashboard.
 
-Three fonts, loaded with `next/font/google` in `app/layout.tsx` and exposed as CSS
-variables:
-
-| Role | Font | CSS variable | Tailwind |
-| --- | --- | --- | --- |
-| Display / headings | **Fraunces** | `--font-serif` | `font-serif`, `font-display` |
-| Body / UI | **Inter** | `--font-sans` | `font-sans` |
-| Numbers and labels | **JetBrains Mono** | `--font-mono` | `font-mono` |
-
-A custom display scale runs `text-display-sm` (1.625rem) through `text-display-2xl`
-(4.5rem); the dashboard uses `display-md`/`lg`/`xl` for its `h1` and `display-sm` for every
-section `h2`. Two utility classes carry most of the editorial feel: `.label-eyebrow` (the
-small-caps label above every section) and `.tabular` (tabular figures, applied to every
-number so columns do not jitter).
-
-### Colour
-
-The design language comment in `app/globals.css` calls it *"Editorial Modernism — inspired
-by serious civic journalism (ProPublica, Economist). Single accent, restrained palette,
-typographic hierarchy."*
-
-Every colour is an **HSL triplet in a CSS variable**, consumed as `hsl(var(--token))`. Light
-mode is warm newsprint (hue ~40) with cool near-black ink (hue 220); dark mode is a genuine
-second palette, not an inversion. The single accent is a deep masthead red. Border radius is
-deliberately tiny (`--radius: 0.25rem`).
-
-Bill-stage colours ramp neutral → blue → ochre → orange → red → green, so a bill visually
-warms as it advances and only law is green:
-
-| Token | Stage |
-| --- | --- |
-| `--status-introduced` | 20 Introduced |
-| `--status-committee` | 40 In Committee |
-| `--status-passed-one` | 60 Passed One Chamber |
-| `--status-passed-both` | 80 Passed Both Chambers |
-| `--status-president` | 90 To President |
-| `--status-signed` | 95 Signed by President |
-| `--status-law` | 100 Became Law |
-| `--status-vetoed` | 85 Vetoed |
-
-`--status-vetoed` is a cool desaturated slate, deliberately outside the warm advancing ramp,
-because a veto is a dead end rather than a rung further up the ladder.
-
-Party colours are `--party-d` (muted editorial blue), `--party-r` (muted editorial red),
-`--party-i` (muted ochre) and `--party-u` (neutral grey). The three party hues brighten in
-dark mode; the neutral grey stays put.
-
-The dashboard applies status and party colours as **inline styles**, not Tailwind classes,
-because widths and colours are computed at runtime. The `status-*` / `party-*` Tailwind
-aliases exist for the rest of the site.
-
-Two chart-only palettes sit at the end of `app/globals.css`:
-
-- `--topic-1` … `--topic-6` colour the six biggest slices of the topic wheel. They are
-  plain hex, one set per theme, taken from a published eight-colour categorical palette and
-  checked with that palette's validator, an external script that is not part of this repo. It
-  simulates protan, deutan and tritan colour vision and measures the difference between
-  neighbouring slices in OKLab (ΔE × 100), against this site's own backgrounds (`#faf7f2`
-  light, `#111419` dark). The worst neighbouring pair was 9.2 light / 9.4 dark; 8 is the
-  usual target. To re-check without the script, any CVD simulator applied to adjacent
-  slices will do. Blue, red and
-  green are left out so a topic can never be read as a party or as "became law". Four of the
-  light-mode colours are under 3:1 contrast, which is why the wheel always ships its legend.
-- `--heat` is the single amber hue the state map shades in five opacity steps.
-
-> Anything describing Playfair Display, Source Sans 3, or a navy/gold `--congress-*` palette
-> is from a much older draft of this file. No such tokens exist in the codebase.
+- **The hero is the Night stage.** Its section carries `stage dark`, so every token inside
+  (party colours included) takes its Night value even in the Day theme. It is the only
+  place on the site that does this.
+- **Chart colours are read as CSS variables**, not Tailwind classes, because widths and
+  colours are computed at runtime: `hsl(var(--status-*))`, `hsl(var(--party-*))`,
+  `var(--topic-n)`, `hsl(var(--heat))`.
+- **Stage colours** ramp cool to warm and end in the site's only green, so a bill visibly
+  warms as it advances. `--status-vetoed` is a desaturated slate outside the ramp, because
+  a veto is a dead end rather than a rung further up.
+- **Topic colours** `--topic-1` … `--topic-6` colour the six biggest slices of the topic
+  wheel. They are plain hex, one set per theme, taken from a published eight-colour
+  categorical palette and checked with that palette's validator, an external script that is
+  not part of this repo. It simulates protan, deutan and tritan colour vision and measures
+  the difference between neighbouring slices in OKLab (ΔE × 100) against this site's own
+  backgrounds. The worst neighbouring pair was 9.2 light / 9.4 dark; 8 is the usual target.
+  To re-check without the script, any CVD simulator applied to adjacent slices will do.
+  Blue, red and green are left out so a topic can never be read as a party or as "became
+  law". Four of the light-mode colours are under 3:1 contrast, which is why the wheel always
+  ships its legend.
+- **`--heat`** is the single amber hue the state map shades in five opacity steps.
 
 ---
 
 ## What the page renders, in order
 
 `app/page.tsx` is a server component: it reads `?congress=` (defaulting to **119**), fetches
-four queries in one `Promise.all`, and hands them to `DashboardClient` as initial data. It
-then renders the decorative flag as a server-only section so it costs no client JavaScript.
+four queries in one `Promise.all`, and hands them to `DashboardClient` as initial data.
 
 Before any data renders, `DashboardClient` checks `useConvexEnabled()` and shows a
 "Backend not connected" panel if `NEXT_PUBLIC_CONVEX_URL` is unset — a missing backend
@@ -114,8 +66,8 @@ should look like a missing backend, not an empty dashboard.
 
 | # | Section | What it shows | Drills through? |
 | --- | --- | --- | --- |
-| 1 | Hero — the chamber (`home/hero.tsx`) | Headline "Who's writing America's laws?", one source line, and a parliament-style half circle. Outer seats: every bill split by the sponsor's party, one seat per ~N bills (N = bills ÷ 435, stated under the chart). Inner seats, ringed in green: the bills that became law, one seat each (scaled only past 400). The hollow shows the law count and swaps to a party's own numbers on hover. One legend row carries every party. Below, centred: the `HeroAsk` box (instant bill suggestions as you type) with its three starters as pills. A dropdown picks the Congress; "Browse bills" sits beside it | "Browse bills" link; suggested bills link to their pages; starters link to hubs or filtered `/bills` |
-| 2 | Stat cards (`home/stat-strip.tsx`) | Bills introduced · House bills · Senate bills · Became law, each with one line of context ("65% of all bills", "about 1 in 168 bills") | All four |
+| 1 | Hero — the chamber (`home/hero.tsx`), on the Night stage | Headline "Who's writing America's laws?", one source line, and a parliament-style half circle. Outer seats: every bill split by the sponsor's party, one seat per ~N bills (N = bills ÷ 435, stated under the chart). Inner seats, ringed in green: the bills that became law, one seat each (scaled only past 400). The hollow shows the law count and swaps to a party's own numbers on hover. One legend row carries every party. Below, centred: the `HeroAsk` box (instant bill suggestions as you type) with its three starters as pills. A dropdown picks the Congress; "Browse bills" sits beside it. A source line closes it with the date the counts were last rebuilt (the stats row's `updatedAt`) | "Browse bills" link; suggested bills link to their pages; starters link to hubs or filtered `/bills` |
+| 2 | Figures (`home/stat-strip.tsx`) — a row of four divided by hairlines, 2×2 on phones | Bills introduced · House bills · Senate bills · Became law, each with one line of context ("65% of all bills", "about 1 in 168 bills") | All four |
 | 3 | Where bills stand (`home/stage-zoom.tsx`) | Two panels at two stated scales. Left: bills still introduced or in committee, small squares of 1–1,000 bills each. Right, zoomed in: every bill that moved, one bigger square per bill, one row per stage | Every row and square |
 | 4 | What Congress is working on (`home/topic-wheel.tsx`) | Radial chart: the six biggest policy areas as coloured slices, every other topic plus bills with no policy area as one grey slice labelled "Other topics, or none tagged", one dot per ~N bills. Full names, shares and counts live in the legend beside it, never on the rim. Clicking a slice or row pins it and offers "See these bills" and "Ask what they're about" | Pinned topic |
 | 5 | Leading sponsors (`home/sponsors-chart.tsx`) | Top 10 members as horizontal bars from zero, coloured by party, count at the bar end | Every bar |
@@ -123,7 +75,6 @@ should look like a missing backend, not an empty dashboard.
 | 7 | Introductions month by month | Two-track chart — introductions up, laws down, **each track independently scaled** — closing with a generated sentence naming busiest, quietest, and most-laws months | No |
 | 8 | Volume across recent Congresses | One bar per Congress, max height 140px | Switches Congress |
 | 9 | Podcast promo | "The Federalist Papers: Explained" | External links |
-| 10 | Waving flag | Decorative, `aria-hidden`, reduced-motion aware | No |
 
 Sections 2–8 live inside a cross-fade wrapper. Switching Congress does **not** blank the
 page to a skeleton: the previous numbers stay on screen at 50% opacity and
@@ -322,18 +273,18 @@ one. If you add a new chart, route it through `handleDrillDown`.
 
 | Element | Filter | Example URL |
 | --- | --- | --- |
-| "Bills introduced" card | `congress` | `/bills?congress=119` |
-| "House bills" / "Senate bills" card | `chamber` | `/bills?congress=119&chamber=house` |
-| "Became law" card | `status=100` | `/bills?congress=119&status=100` |
+| "Bills introduced" figure | `congress` | `/bills?congress=119` |
+| "House bills" / "Senate bills" figure | `chamber` | `/bills?congress=119&chamber=house` |
+| "Became law" figure | `status=100` | `/bills?congress=119&status=100` |
 | Stage row or square | `status` | `/bills?congress=119&status=40` |
 | Topic legend "→", or pinned topic's "See these bills" | `policyArea` | Newest Congress: `/bills/topic/health` (the hub). Older: `/bills?congress=117&policyArea=Health` |
 | "Other topics, or none tagged" slice | `congress` | `/bills?congress=119` |
 | Sponsor bar | `sponsor` | `/bills?congress=119&sponsor=Rick+Scott` |
 | State tile or top-five row | `state` | `/bills?congress=119&state=CA` |
 
-The House and Senate cards used to be dead, because no single `billType` matches every
+The House and Senate figures used to be dead, because no single `billType` matches every
 House-originated type. The `/bills` page has since gained a whole-chamber `chamber` filter,
-which is exactly that union, so all four cards now drill through and share one hover.
+which is exactly that union, so all four figures now drill through and share one hover.
 
 ---
 

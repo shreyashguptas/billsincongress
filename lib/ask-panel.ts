@@ -47,8 +47,8 @@ export const RAIL_MIN_VIEWPORT_PX = 1024;
 export const DOCK_MIN_VIEWPORT_PX = MIN_CONTENT_PX + MIN_PANEL_PX;
 
 /**
- * The real rendered height of the sticky header, per breakpoint — main row plus
- * the `md:`-only eyebrow strip, each including its 1px bottom border. The sheet
+ * The real rendered height of the sticky header, per breakpoint — its one row
+ * plus its 1px bottom border. The sheet
  * sits directly beneath it, so a wrong number here is a visible seam or an
  * overlapped nav. Mirrored in `app/globals.css` as `--header-h`; the two are
  * kept honest by `lib/ask-css-contract.test.ts`.
@@ -56,7 +56,6 @@ export const DOCK_MIN_VIEWPORT_PX = MIN_CONTENT_PX + MIN_PANEL_PX;
 export const HEADER_H_PX: ReadonlyArray<{ minWidth: number; height: number }> = [
   { minWidth: 0, height: 57 },
   { minWidth: 640, height: 65 },
-  { minWidth: 768, height: 94 },
 ];
 
 /**

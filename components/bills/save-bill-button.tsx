@@ -8,10 +8,13 @@ import { Bookmark } from 'lucide-react';
 
 import { api } from '@/convex/_generated/api';
 import { analytics } from '@/lib/analytics';
+import { Button } from '@/components/ui/button';
 import { useConvexEnabled } from '@/components/convex-client-provider';
 
 interface SaveBillButtonProps {
   billId: string;
+  /** Sizing from the header row it sits in (the button is an outline Button). */
+  className?: string;
   analyticsProps: {
     bill_type: string;
     bill_number: string;
@@ -22,9 +25,9 @@ interface SaveBillButtonProps {
 }
 
 /**
- * Save/Saved bookmark toggle for the bill detail header. Self-contained so
- * bill-details.tsx stays free of Convex hooks. Renders nothing (including its
- * leading separator) when Convex isn't configured.
+ * Save/Saved bookmark toggle for the bill detail header, drawn as an outline
+ * button beside "Read full text". Self-contained so bill-details.tsx stays
+ * free of Convex hooks. Renders nothing when Convex isn't configured.
  */
 export default function SaveBillButton(props: SaveBillButtonProps) {
   const enabled = useConvexEnabled();
@@ -32,7 +35,7 @@ export default function SaveBillButton(props: SaveBillButtonProps) {
   return <SaveBillButtonInner {...props} />;
 }
 
-function SaveBillButtonInner({ billId, analyticsProps }: SaveBillButtonProps) {
+function SaveBillButtonInner({ billId, analyticsProps, className }: SaveBillButtonProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated } = useConvexAuth();
@@ -82,21 +85,21 @@ function SaveBillButtonInner({ billId, analyticsProps }: SaveBillButtonProps) {
   };
 
   return (
-    <>
-      <span className="hidden sm:inline">·</span>
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={isSaved === undefined}
-        aria-pressed={isSaved === true}
-        className="inline-flex items-center gap-1.5 text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground disabled:opacity-50"
-      >
-        <Bookmark
-          className="h-3.5 w-3.5"
-          fill={isSaved ? 'currentColor' : 'none'}
-        />
-        {isSaved ? 'Saved' : 'Save'}
-      </button>
-    </>
+    <Button
+      type="button"
+      variant="outline"
+      onClick={handleClick}
+      disabled={isSaved === undefined}
+      aria-pressed={isSaved === true}
+      className={className}
+    >
+      <Bookmark
+        className="h-4 w-4"
+        strokeWidth={1.75}
+        fill={isSaved ? 'currentColor' : 'none'}
+        aria-hidden="true"
+      />
+      {isSaved ? 'Saved' : 'Save'}
+    </Button>
   );
 }

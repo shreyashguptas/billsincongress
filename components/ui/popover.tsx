@@ -8,9 +8,7 @@ import { cn } from '@/lib/utils';
 /**
  * Anchored floating surface for pointer devices.
  *
- * Deliberately modelled on `select.tsx` (bg-popover, rounded-sm, border-border,
- * z-50) rather than on `dropdown-menu.tsx`, which uses bg-background and
- * rounded-md and is the inconsistent one of the two.
+ * Modelled on `select.tsx`: bg-popover, rounded-md, border-border, z-50.
  *
  * This exists because neither of the primitives already installed can host the
  * filter pickers: `DropdownMenu` imposes `role="menu"` and its own typeahead,
@@ -35,7 +33,7 @@ const PopoverContent = React.forwardRef<
         // z-50 matches the other portalled Radix surfaces and clears the z-40
         // site header. The listbox this replaced was a non-portalled z-30 div,
         // so it rendered underneath the nav.
-        'z-50 rounded-sm border border-border bg-popover text-popover-foreground shadow-sm outline-none',
+        'z-50 rounded-md border border-border bg-popover text-foreground shadow-float outline-none',
         'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
         className
       )}

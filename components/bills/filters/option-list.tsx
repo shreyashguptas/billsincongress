@@ -6,6 +6,8 @@ import { cn, formatCount } from '@/lib/utils';
 import { searchOptions } from '@/lib/option-search';
 import { analytics } from '@/lib/analytics';
 import type { FilterOption } from '@/lib/bills/filter-registry';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import type { SurfaceMode } from '@/hooks/use-surface-mode';
 
@@ -204,42 +206,44 @@ export function OptionList({
     <>
       {/* Grab handle — touch only. A sheet with no handle reads as stuck. */}
       {layout === 'touch' && (
-        <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border" aria-hidden="true" />
+        <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line-strong" aria-hidden="true" />
       )}
 
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border px-4 pb-3 pt-3">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 pb-3 pt-3">
         <div className="min-w-0">
-          <Heading className="font-serif text-base font-semibold tracking-tight text-foreground">
+          <Heading className="font-serif text-[19px] font-medium leading-snug text-ink">
             {title}
           </Heading>
-          <Helper className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+          <Helper className="mt-1 text-[13px] leading-snug text-ink-2">
             {helper}
           </Helper>
         </div>
         {hasValue && (
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => {
               onChange(multi ? [] : 'all');
               if (!multi) close();
             }}
-            className="shrink-0 text-xs font-medium text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+            className="shrink-0 rounded-xs text-[13px] decoration-1"
           >
             Clear
-          </button>
+          </Button>
         )}
       </div>
 
       {searchable && (
-        <div className="relative shrink-0 border-b border-border px-4 py-2">
+        <div className="relative shrink-0 border-b border-line px-4 py-2">
           <label htmlFor={searchId} className="sr-only">
             Search {title.toLowerCase()}
           </label>
           <Search
-            className="pointer-events-none absolute left-6 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute left-7 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"
+            strokeWidth={1.75}
             aria-hidden="true"
           />
-          <input
+          <Input
             ref={searchRef}
             id={searchId}
             type="text"
@@ -255,7 +259,9 @@ export function OptionList({
             }}
             onKeyDown={handleKeyDown}
             placeholder={`Search ${title.toLowerCase()}…`}
-            className="h-9 w-full rounded-sm border border-control bg-card pl-8 pr-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none focus:ring-1 focus:ring-foreground/10 touchable:h-11 touchable:text-base"
+            // The picker's own focus treatment: an ink edge and a 1px ring with
+            // no offset, tighter than the page-level ring Input carries.
+            className="pl-9 pr-3 text-sm focus:border-ink focus-visible:ring-1 focus-visible:ring-offset-0 touchable:text-base"
           />
         </div>
       )}
@@ -277,26 +283,27 @@ export function OptionList({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
       >
         {loading && (
-          <p className="px-4 py-3 text-sm text-muted-foreground">Loading…</p>
+          <p className="px-4 py-3 text-sm text-ink-3">Loading…</p>
         )}
 
         {error && (
           <div className="px-4 py-3">
-            <p className="text-sm text-muted-foreground">{error}</p>
+            <p className="text-sm text-error">{error}</p>
             {onRetry && (
-              <button
+              <Button
                 type="button"
+                variant="link"
                 onClick={onRetry}
-                className="mt-1.5 text-sm font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
+                className="mt-1.5 rounded-xs decoration-1"
               >
                 Retry
-              </button>
+              </Button>
             )}
           </div>
         )}
 
         {!loading && !error && items.length === 0 && (
-          <p className="px-4 py-3 text-sm text-muted-foreground">
+          <p className="px-4 py-3 text-sm text-ink-3">
             Nothing matches “{query}”.
           </p>
         )}
@@ -308,7 +315,7 @@ export function OptionList({
           return (
             <div key={option.value}>
               {heading && (
-                <p className="label-eyebrow !mb-0 px-4 pb-1 pt-3 text-muted-foreground">
+                <p className="label-eyebrow !mb-0 px-4 pb-1 pt-3">
                   {heading}
                 </p>
               )}
@@ -320,18 +327,19 @@ export function OptionList({
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => commit(option)}
                 className={cn(
-                  'flex h-10 cursor-pointer items-center gap-2 px-4 text-sm transition-colors touchable:h-12',
-                  i === activeIndex ? 'bg-secondary' : 'bg-transparent',
-                  isSelected ? 'font-medium text-foreground' : 'text-foreground'
+                  'flex h-10 cursor-pointer items-center gap-2.5 px-4 text-sm text-ink transition-colors touchable:h-12',
+                  i === activeIndex ? 'bg-sunken' : 'bg-transparent',
+                  isSelected && 'font-medium'
                 )}
               >
                 <Check
-                  className={cn('h-4 w-4 shrink-0', isSelected ? 'visible' : 'invisible')}
+                  className={cn('h-4 w-4 shrink-0 text-ink', isSelected ? 'visible' : 'invisible')}
+                  strokeWidth={2}
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1 truncate">{option.label}</span>
                 {option.count !== undefined && (
-                  <span className="shrink-0 font-mono text-xs tabular text-muted-foreground">
+                  <span className="shrink-0 font-mono text-xs tabular text-ink-3">
                     {formatCount(option.count)}
                   </span>
                 )}
@@ -341,7 +349,7 @@ export function OptionList({
         })}
 
         {truncated && (
-          <p className="px-4 py-3 text-xs text-muted-foreground">
+          <p className="px-4 py-3 text-xs text-ink-3">
             Showing the first{' '}
             <span className="font-mono tabular">{formatCount(items.length)}</span> of{' '}
             <span className="font-mono tabular">{formatCount(total)}</span> — keep typing
@@ -356,27 +364,25 @@ export function OptionList({
       </p>
 
       {multi && Array.isArray(value) && value.length > 0 && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-4 py-2.5">
-          <span className="text-xs text-muted-foreground">
-            <span className="font-mono tabular text-foreground">{value.length}</span>{' '}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 py-2.5">
+          <span className="text-[13px] text-ink-2">
+            <span className="font-mono tabular text-ink">{value.length}</span>{' '}
             selected
           </span>
           <div className="flex items-center gap-3">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => onChange([])}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+              className="gap-1 px-2 text-ink-2 hover:text-ink"
             >
-              <X className="h-3 w-3" aria-hidden="true" />
+              <X className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
               Clear
-            </button>
-            <button
-              type="button"
-              onClick={close}
-              className="rounded-sm border border-control bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/40"
-            >
+            </Button>
+            <Button type="button" size="sm" onClick={close}>
               Done
-            </button>
+            </Button>
           </div>
         </div>
       )}

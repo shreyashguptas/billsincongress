@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 import { analytics } from '@/lib/analytics';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+
+/** The site's inline error box (as on /bills): a tinted hairline, error words. */
+const ALERT_CLASS = 'rounded-md border-error/30 px-4 py-3 text-sm dark:border-error/30';
 
 type State =
   | { kind: 'idle' }
@@ -25,9 +29,9 @@ export function UnsubscribeForm() {
 
   if (!token) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-[15px] leading-relaxed text-ink-2">
         This link is incomplete. Open it again from the email, or manage alerts on{' '}
-        <Link href="/account#alerts" className="underline underline-offset-4">
+        <Link href="/account#alerts" className="link focus-ring rounded-xs">
           your account page
         </Link>
         .
@@ -58,7 +62,7 @@ export function UnsubscribeForm() {
 
   if (state.kind === 'done') {
     return (
-      <p role="status" className="rounded-md border border-border bg-secondary px-4 py-3 text-sm">
+      <p role="status" className="rounded-md bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">
         Done. You won&apos;t get any more bill alert emails
         {state.removed > 0 ? ` (${state.removed} bill${state.removed === 1 ? '' : 's'} unfollowed)` : ''}.
       </p>
@@ -66,23 +70,26 @@ export function UnsubscribeForm() {
   }
 
   return (
-    <div className="space-y-3">
-      <Button onClick={submit} disabled={state.kind === 'working'} className="w-full">
+    <div className="space-y-4">
+      <Button onClick={submit} disabled={state.kind === 'working'} className="w-full sm:w-auto">
         {state.kind === 'working' ? 'Stopping…' : 'Stop all bill alert emails'}
       </Button>
       {state.kind === 'invalid' && (
-        <p role="alert" className="text-sm text-destructive">
+        <Alert variant="destructive" className={ALERT_CLASS}>
           This link is not valid. Manage alerts on{' '}
-          <Link href="/account#alerts" className="underline underline-offset-4">
+          <Link
+            href="/account#alerts"
+            className="focus-ring rounded-xs underline decoration-error/50 underline-offset-[3px] hover:decoration-error"
+          >
             your account page
           </Link>{' '}
           instead.
-        </p>
+        </Alert>
       )}
       {state.kind === 'error' && (
-        <p role="alert" className="text-sm text-destructive">
+        <Alert variant="destructive" className={ALERT_CLASS}>
           Something went wrong. Please try again.
-        </p>
+        </Alert>
       )}
     </div>
   );

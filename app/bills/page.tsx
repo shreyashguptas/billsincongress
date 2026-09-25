@@ -5,7 +5,7 @@ import type { Bill } from '@/lib/types/bill';
 import BillsClient, { type UrlFilters } from './bills-client';
 import { HubDirectory } from './_hub/hub-directory';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
-import { lastPageFor } from '@/lib/pagination';
+import { pagesForCount } from '@/lib/pagination';
 import {
   DEFAULT_FILTER_VALUES,
   filterSignature,
@@ -182,7 +182,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
             crawl paths. */}
         <CrawlablePagination
           page={page}
-          lastPage={lastPageFor(initialTotal?.count ?? 0, ITEMS_PER_PAGE, MAX_PAGE)}
+          {...pagesForCount(initialTotal, page, initialHasMore, ITEMS_PER_PAGE, MAX_PAGE)}
           hrefForPage={(n) => hrefForPage(params, n)}
           className="mb-12 justify-center"
         />

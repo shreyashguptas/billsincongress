@@ -71,7 +71,7 @@ repository.
 | `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below. Since 13 Sep 2026 also reported explicitly by the error boundaries, which catch a render failure before the window-level handler can see it | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle), plus `analytics.captureException()` from `app/error.tsx` and `app/global-error.tsx` |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) | Project setting `heatmaps_opt_in: true` |
 | `$rageclick` | Repeated frustrated clicks on the same element | `defaults` preset |
-| `$workflows_email_*` | Delivery of each email the site sends (sign-in codes, bill alerts, Pro plan-change notices): `sent`, `delivered`, `bounced`, `blocked`. No opens or clicks, because tracking is off on those sends. All under one distinct id, `bills-congress-mailer`, so no per-recipient profiles are created; the recipient is in `$email_to` | PostHog Workflows, not the browser. The workflows are "Bills.Congress: sign-in codes", "…: bill alerts" and "…: billing"; see "Email" in `overview.md`. The site's request names its run `bic_email_requested`, but that is **not** an ingested event (the workflow has no "Capture event" step) and never appears in insights; the payload, code included, is kept only in the workflow's Invocations tab |
+| `$workflows_email_*` | Delivery of each email the site sends (sign-up codes, bill alerts, Pro plan-change notices; password-reset codes are wired but no page sends one yet — see `overview.md`): `sent`, `delivered`, `bounced`, `blocked`. No opens or clicks, because tracking is off on those sends. All under one distinct id, `bills-congress-mailer`, so no per-recipient profiles are created; the recipient is in `$email_to` | PostHog Workflows, not the browser. The workflows are "Bills.Congress: sign-in codes", "…: bill alerts" and "…: billing"; see "Email" in `overview.md`. The site's request names its run `bic_email_requested`, but that is **not** an ingested event (the workflow has no "Capture event" step) and never appears in insights; the payload, code included, is kept only in the workflow's Invocations tab |
 
 Project-side settings worth knowing when reading this data, because none of them are
 visible in the repo:
@@ -119,13 +119,13 @@ visible in the repo:
 
 Server-rendered pages with no interactivity (the About page and the legal pages — `/terms`,
 `/privacy`) intentionally have **no custom code** — their clicks are covered by autocapture.
-Four CTAs carry a `data-ph-capture-attribute-*` tag so they can be filtered by name in
+Five CTAs carry a `data-ph-capture-attribute-*` tag so they can be filtered by name in
 PostHog: `about-github` and `about-browse-bills` (`app/about/page.tsx`),
-`learn-browse-bills` (`app/learn/page.tsx`) and `home-browse-bills`
+`learn-enacted-bills` and `learn-browse-bills` (`app/learn/page.tsx`) and `home-browse-bills`
 (`components/dashboard/home/shared.tsx`, the "Browse bills" link beside the hero's Congress
 picker). The legal pages carry **no** such tags —
-they have no analytics markup of any kind. The Learn page is interactive (civics guide)
-and fires its own custom events — see "Learn page" below.
+they have no analytics markup of any kind. The Learn page has one interaction (the state
+picker) and fires one custom event — see "Learn page" below.
 
 ---
 
@@ -152,7 +152,7 @@ and fires its own custom events — see "Learn page" below.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `dashboard_congress_selected` | User switches Congress with the dropdown in the home hero | `congress` | `components/dashboard/home/shared.tsx` |
-| `dashboard_drilldown_clicked` | User clicks any home-page stat or chart that drills into the bills data: the four stat cards, a stage in "Where bills stand", a topic's "→" link or the pinned topic's "See these bills", the grey "Other topics, or none tagged" slice's browse link, a sponsor bar, a state tile or top-five row. Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page. `filter_type` is one of `congress`, `chamber` (House/Senate cards, since 24 Sep 2026), `status`, `policyArea`, `sponsor`, `state` | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` (`handleDrillDown`), `components/dashboard/home/topic-wheel.tsx` |
+| `dashboard_drilldown_clicked` | User clicks any home-page stat or chart that drills into the bills data: the four headline figures, a stage in "Where bills stand", a topic's "→" link or the pinned topic's "See these bills", the grey "Other topics, or none tagged" slice's browse link, a sponsor bar, a state tile or top-five row. Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page. `filter_type` is one of `congress`, `chamber` (House/Senate cards, since 24 Sep 2026), `status`, `policyArea`, `sponsor`, `state` | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` (`handleDrillDown`), `components/dashboard/home/topic-wheel.tsx` |
 | `home_chamber_party_focused` | Reader hovers a party's seats in the hero chamber, or hovers/focuses its legend entry. Once per party per page view | `party: "D" \| "R" \| "I" \| "U"`, `congress` | `components/dashboard/home/hero.tsx` |
 | `home_topic_selected` | Reader pins a slice of the topic wheel (clicking the slice or its legend row). Unpinning sends nothing | `policy_area`, `is_rest` (the grey "Other topics, or none tagged" slice), `congress` | `components/dashboard/home/topic-wheel.tsx` |
 | `home_state_map_measure_changed` | Reader switches the state map between total bills and bills per member | `measure: "total" \| "per_member"`, `congress` | `components/dashboard/home/state-map.tsx` |
@@ -164,10 +164,11 @@ and fires its own custom events — see "Learn page" below.
 | `bills_congress_scope_changed` | Reader switches which Congress /bills is showing | `congress`, `active_filter_count` | `components/bills/filters/congress-scope.tsx` |
 | `bills_results_truncated` | The backend reported the results list as a sample rather than the whole set (passive, once per filter set) | `filter_kinds`, `shown`, `known_total` | `app/bills/bills-client.tsx` |
 | `bills_filters_cleared` | User clicks "Clear all" filters | `active_filter_count`, `surface` | `app/bills/bills-client.tsx`, `components/bills/filters/filter-bar.tsx`, `components/bills/filters/all-filters-panel.tsx` |
+| `header_search_submitted` | Reader submits the search field in the site header (lg and up; added 2026-09-25 with the redesign). Lands on `/bills?title=…`, or plain `/bills` when empty | `query_length` | `components/navigation.tsx` |
 | `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `query_length` | `app/bills/bills-client.tsx` |
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
-| `bill_card_clicked` | User clicks a bill card in the results grid | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
+| `bill_card_clicked` | User clicks a bill row in a bill list (`/bills` or a hub page). Named for the card the row replaced in the 2026-09-25 redesign; the name is kept so saved insights keep working | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
 | `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set while the list is open (passive, 150ms debounce, once per settled query and Congress, including zero results) | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
 | `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
 | `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
@@ -236,7 +237,7 @@ fires roughly once per settled search.
 
 Added with the Pro plan. The upgrade funnel is
 `bill_alert_upsell_shown` / `rate_limit_upgrade_clicked` → `pro_checkout_started` →
-`pro_checkout_returned (success)` → `pro_activated`. `pro_activated` is the only event
+`pro_checkout_returned (success)` → `pro_activated` (→ `pro_welcome_step_clicked`). `pro_activated` is the only event
 that proves the Stripe webhook landed: it fires when the account page sees `users.plan`
 turn `pro`, never on the success URL alone (a reader can open that by hand).
 
@@ -245,12 +246,13 @@ No event carries card data, prices paid or Stripe ids. Revenue lives in Stripe.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `bill_alert_upsell_shown` | A reader not on Pro pressed "Email me updates" on a bill page and was sent to `/pro` | `bill_id`, `signed_in` | `components/bills/bill-alert-button.tsx` |
-| `bill_alert_toggled` | A reader followed or unfollowed a bill for email alerts | `bill_id`, `action: "followed" \| "unfollowed"`, `surface: "bill_page" \| "account"`; from the bill page also `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-alert-button.tsx`, `app/account/page.tsx` (Unfollow) |
+| `bill_alert_toggled` | A reader followed or unfollowed a bill for email alerts | `bill_id`, `action: "followed" \| "unfollowed"`, `surface: "bill_page" \| "account"`; from the bill page also `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-alert-button.tsx`, `app/account/account-view.tsx` (Unfollow) |
 | `pro_checkout_started` | Reader pressed a subscribe button and is about to leave for Stripe Checkout | `interval: "month" \| "year"`, `surface: "pro_page" \| "alert_prompt"` (`account` and `rate_limit` are accepted but not sent today) | `components/pro/subscribe-panel.tsx` |
 | `pro_checkout_failed` | Checkout could not be opened | `interval`, `reason` (our error code, e.g. `BILLING_NOT_CONFIGURED`) | `components/pro/subscribe-panel.tsx` |
 | `pro_checkout_returned` | Reader came back from Stripe: the success URL (`/account?checkout=success`) or the cancel URL (`/pro?checkout=canceled`) | `outcome: "success" \| "canceled"` | `app/account/page.tsx`, `components/pro/subscribe-panel.tsx` |
-| `pro_activated` | After a successful checkout, the account page saw the plan become Pro (the webhook landed) | `interval: "month" \| "year" \| "unknown"` | `app/account/page.tsx` |
-| `billing_portal_opened` | Reader pressed "Manage billing" and is being sent to the Stripe customer portal | — | `app/account/page.tsx` |
+| `pro_activated` | After a successful checkout, the account page saw the plan become Pro (the webhook landed). Since 2026-09-24 the same moment opens the one-time "Welcome to Pro" celebration (confetti and a dialog), so this event also counts the celebrations shown | `interval: "month" \| "year" \| "unknown"` | `app/account/page.tsx` |
+| `pro_welcome_step_clicked` | A new subscriber pressed a next step in the "Welcome to Pro" dialog: "Follow a bill" (goes to `/bills`) or "Ask away" (opens the ask panel, which also sends `answer_panel_opened` with trigger `manual`). Closing the dialog sends nothing | `step: "follow_bill" \| "ask"` | `components/pro/welcome-to-pro.tsx` |
+| `billing_portal_opened` | Reader pressed "Manage billing" and is being sent to the Stripe customer portal | — | `app/account/account-view.tsx` |
 | `bill_alerts_unsubscribed` | Reader used the link in an alert email to stop all alert emails | `removed` (number of bills unfollowed) | `app/alerts/unsubscribe/unsubscribe-form.tsx` |
 
 Not tracked by us: whether an alert email was opened or clicked — tracking is off on the
@@ -309,25 +311,23 @@ emits `list`.
 > `convex/catalog/datasets.ts` need strengthening — that is the fix, not a prompt
 > patch elsewhere.
 
-### Learn page (interactive civics guide)
+### Learn page (picture guide)
 
-The Learn page is an illustrated, interactive explainer of how Congress works. Each
-interactive element fires events so we can see which parts people actually engage with
-(and where they drop off). Static CTA clicks are still covered by autocapture.
+The Learn page explains how Congress works in pictures, for readers as young as eight. It
+was rebuilt on 2026-09-25 as a server-rendered page with one interaction, the state
+picker; the step-through journey and the quiz it used to have are retired (see "Retired
+events"). The two onward buttons carry `data-ph-capture-attribute-cta` tags and are
+covered by autocapture.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `learn_state_selected` | User picks their state in the "two rooms" seat-chart explorer | `state`, `representatives` | `app/learn/components/chamber-seats.tsx` |
-| `learn_journey_step_viewed` | User navigates to a step of the interactive bill journey (click on a step number, Next, or Back) | `step` (1–7), `step_title`, `method: "next" \| "back" \| "jump"` | `app/learn/components/bill-journey.tsx` |
-| `learn_quiz_answered` | User answers a civics-quiz question | `question` (1–5), `correct` | `app/learn/components/civics-quiz.tsx` |
-| `learn_quiz_completed` | User reaches the quiz results screen | `score`, `total` | `app/learn/components/civics-quiz.tsx` |
-| `learn_quiz_restarted` | User clicks "Take it again" on the results screen | — | `app/learn/components/civics-quiz.tsx` |
+| `learn_state_selected` | User picks their state in the "two rooms" seat pictures | `state`, `representatives` | `app/learn/components/two-rooms.tsx` |
 
 ### Podcast cross-promotion
 
 The owner's podcast ("The Federalist Papers: Explained") is promoted in three places:
-the home page (full promo section), the Learn page (full promo, "§ 06 — Go deeper")
-and the end of every bill detail page (compact promo after the Q&A). The `placement`
+the home page (full promo section), the foot of the Learn page (compact promo) and the
+end of every bill detail page (compact promo after the Q&A). The `placement`
 property exists to settle, with data, which placements earn their spot.
 
 | Event | Fired when | Properties | Where (file) |
@@ -580,6 +580,10 @@ feature has real usage behind it.
 
 | Event | Properties | Retired | Why |
 | --- | --- | --- | --- |
+| `learn_journey_step_viewed` | `step` (1–7), `step_title`, `method: "next" \| "back" \| "jump"` | 2026-09-25 | The seven-step journey stepper was replaced by a static picture path when the Learn page was rebuilt for young readers and page speed. Last 30 days before retirement: 125 events from 18 people. |
+| `learn_quiz_answered` | `question` (1–5), `correct` | 2026-09-25 | The civics quiz was removed in the same rebuild. Last 30 days: 86 events from 16 people. |
+| `learn_quiz_completed` | `score`, `total` | 2026-09-25 | Quiz removed (see above). Last 30 days: 16 events from 14 people. |
+| `learn_quiz_restarted` | — | 2026-09-25 | Quiz removed (see above). Last 30 days: 2 events from 1 person. |
 | `bill_chat_question_submitted` | `bill_id`, `question`, `question_length`, `source`, `question_number`, `user_type` | 2026-08-26 | Replaced by `answer_question_submitted` when bill chat became the grounded answer panel. Deliberately not renamed — renaming breaks saved insights and funnels. `surface: "bill"` is the closest equivalent of the old `bill_id`-scoped view. |
 | `bill_chat_answer_received` | `bill_id`, `response_ms`, `answer_length` | 2026-08-26 | Replaced by `answer_received`, which adds source counts and the grounding-health `dropped` property. |
 | `bill_chat_failed` | `bill_id`, `error` | 2026-08-26 | Replaced by `answer_failed`. |

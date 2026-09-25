@@ -9,12 +9,15 @@
 import {
   BRAND,
   C,
+  CARD,
   MONO,
   SANS,
   emailDocument,
   escapeHtml,
+  footer,
   masthead,
   preheader,
+  SPECTRUM,
   type RenderedEmail,
 } from "./emailStyle";
 
@@ -37,6 +40,18 @@ const COPY: Record<CodePurpose, { subject: string; eyebrow: string; lead: string
 
 export const CODE_LIFETIME_MINUTES = 15;
 
+/**
+ * Six digits, six spectrum colours: a short bar under the code, one band per
+ * digit (a 32px mono digit at .2em tracking advances about 26px). The code itself stays one plain string so it copies in one go.
+ */
+function codeUnderline(): string {
+  const cells = SPECTRUM.map(
+    (c, i) =>
+      `<td width="20" height="3" style="width:20px;height:3px;line-height:3px;font-size:0;background:${c};">&nbsp;</td>${i < 5 ? '<td width="6" style="width:6px;font-size:0;">&nbsp;</td>' : ""}`,
+  ).join("");
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:6px;"><tr>${cells}</tr></table>`;
+}
+
 export function renderCodeEmail(purpose: CodePurpose, code: string): RenderedEmail {
   const copy = COPY[purpose];
   const expiry = `It expires in ${CODE_LIFETIME_MINUTES} minutes.`;
@@ -44,14 +59,15 @@ export function renderCodeEmail(purpose: CodePurpose, code: string): RenderedEma
   const bodyHtml = `${preheader(`${copy.lead} ${code}.`)}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.ground};">
 <tr><td align="center" style="padding:32px 12px;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;background:${C.card};border:1px solid ${C.rule};">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:480px;${CARD}">
 ${masthead(copy.eyebrow)}
 <tr><td style="padding:24px 28px 8px;font:15px/1.55 ${SANS};color:${C.ink};">${escapeHtml(copy.lead)}</td></tr>
 <tr><td style="padding:4px 28px 8px;">
-  <p style="margin:0;font:600 32px/1.2 ${MONO};letter-spacing:.2em;color:${C.navy};">${escapeHtml(code)}</p>
+  <p style="margin:0;font:600 32px/1.2 ${MONO};letter-spacing:.2em;color:${C.ink};">${escapeHtml(code)}</p>
+  ${codeUnderline()}
 </td></tr>
 <tr><td style="padding:8px 28px 24px;font:15px/1.55 ${SANS};color:${C.ink};">${escapeHtml(expiry)}</td></tr>
-<tr><td style="padding:18px 28px 24px;border-top:1px solid ${C.rule};font:12px/1.6 ${SANS};color:${C.muted};">${escapeHtml(copy.ignore)}</td></tr>
+${footer(escapeHtml(copy.ignore))}
 </table>
 </td></tr>
 </table>

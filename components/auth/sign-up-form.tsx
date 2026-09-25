@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { analytics } from "@/lib/analytics";
+import { AuthDivider } from "./auth-card";
 import { GoogleButton } from "./google-button";
 import { safeRedirect } from "./safe-redirect";
 import { markSignupCelebrationPending } from "./welcome-new-user";
@@ -16,6 +18,10 @@ import { markSignupCelebrationPending } from "./welcome-new-user";
 type Step = "credentials" | "verify";
 
 const PASSWORD_RULES = "At least 10 characters, with upper-, lower-case, and a number.";
+
+// The verify step's two quiet actions: link Buttons at text height, in ink-2
+// so the submit stays the one strong control.
+const SECONDARY_ACTION = "rounded-xs font-normal text-ink-2 hover:text-ink";
 
 type ErrorState =
   | null
@@ -125,19 +131,17 @@ export function SignUpForm() {
   if (step === "verify") {
     return (
       <div className="space-y-6">
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            If this email can be used, we sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>.
-            It expires in 15 minutes.
-          </p>
-        </div>
+        <p className="text-[15px] leading-relaxed text-ink-2">
+          If this email can be used, we sent a 6-digit code to <span className="font-medium text-ink">{email}</span>.
+          It expires in 15 minutes.
+        </p>
         <form
           method="post"
           onSubmit={onVerifySubmit}
-          className="space-y-4"
+          className="space-y-5"
         >
-          <div className="space-y-1.5">
-            <Label htmlFor="code">Verification code</Label>
+          <div className="space-y-2">
+            <Label htmlFor="code" className="text-ink">Verification code</Label>
             <Input
               id="code"
               name="code"
@@ -150,33 +154,33 @@ export function SignUpForm() {
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               disabled={busy}
-              className="font-mono tracking-widest text-center"
+              className="text-center font-mono text-lg tracking-[0.3em] tabular"
             />
           </div>
-          {error?.kind === "message" && (
-            <p className="text-sm text-destructive" role="alert">{error.text}</p>
-          )}
-          <Button type="submit" className="w-full" disabled={busy || code.length !== 6}>
+          {error?.kind === "message" && <FormError>{error.text}</FormError>}
+          <Button type="submit" size="lg" className="w-full" disabled={busy || code.length !== 6}>
             {busy ? "Verifying…" : "Verify email"}
           </Button>
         </form>
         <div className="flex items-center justify-between text-sm">
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => setStep("credentials")}
-            className="text-muted-foreground hover:text-foreground"
+            className={SECONDARY_ACTION}
             disabled={busy}
           >
             ← Use a different email
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="link"
             onClick={onResend}
-            className="text-muted-foreground hover:text-foreground"
+            className={SECONDARY_ACTION}
             disabled={busy}
           >
             Resend code
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -186,22 +190,15 @@ export function SignUpForm() {
     <div className="space-y-6">
       <GoogleButton redirectTo={redirect} label="Sign up with Google" celebrateOnReturn />
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase tracking-wider">
-          <span className="bg-background px-2 text-muted-foreground">or with email</span>
-        </div>
-      </div>
+      <AuthDivider>or with email</AuthDivider>
 
       <form
         method="post"
         onSubmit={onCredentialsSubmit}
-        className="space-y-4"
+        className="space-y-5"
       >
-        <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-ink">Email</Label>
           <Input
             id="email"
             name="email"
@@ -213,8 +210,8 @@ export function SignUpForm() {
             disabled={busy}
           />
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="password">Password</Label>
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-ink">Password</Label>
           <Input
             id="password"
             name="password"
@@ -227,24 +224,31 @@ export function SignUpForm() {
             disabled={busy}
             aria-describedby="password-rules"
           />
-          <p id="password-rules" className="text-xs text-muted-foreground">
+          <p id="password-rules" className="text-[13px] leading-snug text-ink-3">
             {PASSWORD_RULES}
           </p>
         </div>
-        {error?.kind === "message" && (
-          <p className="text-sm text-destructive" role="alert">{error.text}</p>
-        )}
-        <Button type="submit" className="w-full" disabled={busy}>
+        {error?.kind === "message" && <FormError>{error.text}</FormError>}
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? "Creating account…" : "Create account"}
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-ink-3">
         Already have an account?{" "}
-        <Link href="/sign-in" className="font-medium text-foreground hover:underline">
+        <Link href="/sign-in" className="link focus-ring rounded-xs font-medium">
           Sign in
         </Link>
       </p>
     </div>
+  );
+}
+
+/** The one line of error text under the fields. Alert brings role="alert". */
+function FormError({ children }: { children: React.ReactNode }) {
+  return (
+    <Alert variant="destructive" className="border-0 p-0">
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   );
 }

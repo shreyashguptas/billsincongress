@@ -12,6 +12,11 @@ interface SyncStatusData {
   totalFailed: number | undefined;
 }
 
+/**
+ * " · Updated 3 hours ago" — the tail of a page's `SourceLine`, read from the
+ * last completed sync. Renders nothing until that is known, so the source line
+ * never claims a freshness it has not checked.
+ */
 export default function SyncStatus() {
   const [syncStatus, setSyncStatus] = useState<SyncStatusData | null>(null);
 
@@ -25,12 +30,13 @@ export default function SyncStatus() {
 
   if (!syncStatus?.completedAt) return null;
 
-  const timeAgo = formatDistanceToNow(new Date(syncStatus.completedAt), { addSuffix: true });
+  const completedAt = new Date(syncStatus.completedAt);
+  const timeAgo = formatDistanceToNow(completedAt, { addSuffix: true });
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span className="h-1.5 w-1.5 rounded-full bg-status-law" aria-hidden="true" />
-      Updated {timeAgo}
-    </span>
+    <>
+      <span aria-hidden="true"> · </span>
+      Updated <time dateTime={completedAt.toISOString()}>{timeAgo}</time>
+    </>
   );
 }

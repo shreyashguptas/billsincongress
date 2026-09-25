@@ -13,17 +13,22 @@ import { buildFilterQuery } from '@/lib/bills/filter-url';
 import { DEFAULT_FILTER_VALUES } from '@/app/bills/filter-signature';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { compactStageLabel } from '@/lib/utils/bill-stages';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
+// Starter questions: rounded-full outline pills (brand.md, "Ask composer"),
+// on the page rather than raised. Inline-block and wrapping, so a long starter
+// breaks like text instead of squeezing into Button's single line.
 const PILL =
-  'rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors';
+  'inline-block h-auto whitespace-normal rounded-full border-line bg-transparent px-4 py-2 text-center font-normal leading-5 text-ink-2 hover:border-line-strong hover:bg-transparent hover:text-ink touchable:h-auto touchable:py-3';
 
 /**
- * The masthead ask box (spec §6.1).
+ * The home hero's ask box (spec §6.1), centred under the chamber.
  *
- * Deliberately NOT a chat bubble: a single rule-bordered field at reading
- * width, with three generated starters beneath it as quiet text links. The
- * conversation itself belongs to the panel, so submitting here just calls
- * ask() and the panel takes over. The data starters open the page that answers
+ * Deliberately NOT a chat bubble: the ask composer (brand.md) — one raised
+ * field with an ink send button — and the generated starters beneath it as a
+ * wrapping row of pills. The conversation itself belongs to the panel, so
+ * submitting here just calls ask() and the panel takes over. The data starters open the page that answers
  * them rather than asking (`lib/starter-questions.ts` has why); only the
  * cold-start fallbacks are asked.
  *
@@ -31,15 +36,7 @@ const PILL =
  * (`lib/bill-suggest.ts` has the numbers behind this). Picking one opens the
  * bill; Enter with nothing highlighted still asks the question as typed.
  */
-export function HeroAsk({
-  starters,
-  centered = false,
-}: {
-  starters: StarterInput;
-  /** The home hero's layout: centred under the chamber, a taller field, and the
-   *  starters as a wrapping row of pills instead of a list. Behaviour is identical. */
-  centered?: boolean;
-}) {
+export function HeroAsk({ starters }: { starters: StarterInput }) {
   const { ask, busy } = useAnswers();
   const router = useRouter();
   const [input, setInput] = useState('');
@@ -54,7 +51,7 @@ export function HeroAsk({
   // While the next query is in flight the previous rows stay up, so the list
   // does not blink on every keystroke. They cannot be picked with Enter until
   // they belong to what is typed. Rows from another Congress are never kept:
-  // after a switch they would be clickable under the wrong masthead.
+  // after a switch they would be clickable under the wrong Congress.
   const bills = suggestions.forCongress === congress ? suggestions.bills : [];
   const showList =
     open && !busy && suggestions.kind !== null && (settled || bills.length > 0);
@@ -102,7 +99,7 @@ export function HeroAsk({
     buildFilterQuery({ ...DEFAULT_FILTER_VALUES, title: input.trim(), congress: String(congress) });
 
   return (
-    <div className={centered ? 'mx-auto mt-6 max-w-2xl' : 'mt-7 max-w-2xl'}>
+    <div className="mx-auto mt-10 max-w-[760px]">
       <div className="relative">
         <form
           onSubmit={(e) => {
@@ -115,9 +112,9 @@ export function HeroAsk({
             }
             askTyped();
           }}
-          className="flex items-center gap-2 border border-border rounded-sm bg-background focus-within:border-foreground transition-colors"
+          className="flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pr-2.5 transition-colors focus-within:border-ink focus-within:ring-1 focus-within:ring-ink"
         >
-          <input
+          <Input
             type="text"
             value={input}
             onChange={(e) => {
@@ -149,11 +146,10 @@ export function HeroAsk({
             autoComplete="off"
             maxLength={2000}
             disabled={busy}
-            className={`flex-1 min-w-0 bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-muted-foreground/70 ${
-              centered ? 'h-14 px-5 text-lg' : 'h-12 px-4 text-base'
-            }`}
+            // Bare: the form draws the edge and the focus treatment.
+            className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-5 text-[17px] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 touchable:h-full"
           />
-          <button
+          <Button
             // `type="button"`, not submit. Enter in the field submits the form by
             // synthesising a click on its submit button, so a submit button with
             // this handler would turn every Enter into an ask and nothing could
@@ -165,11 +161,12 @@ export function HeroAsk({
               if (input.trim()) askTyped();
             }}
             disabled={busy || !input.trim()}
+            size="icon"
             aria-label="Ask"
-            className="mr-1.5 inline-flex h-9 w-9 items-center justify-center rounded-sm bg-foreground text-background hover:bg-foreground/85 transition-colors disabled:opacity-40 shrink-0"
+            className="shrink-0 rounded-full disabled:opacity-40 touchable:h-10 touchable:w-10"
           >
-            <ArrowUp className="h-4 w-4" />
-          </button>
+            <ArrowUp className="h-5 w-5" strokeWidth={1.75} />
+          </Button>
         </form>
 
         {showList && (
@@ -177,7 +174,7 @@ export function HeroAsk({
             // Keeps focus in the field while a row is pressed, so blur does not
             // close the list before the click lands.
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute left-0 right-0 top-full z-30 mt-1 rounded-sm border border-border bg-background shadow-lg"
+            className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-line bg-raised text-left shadow-float"
           >
             {bills.length > 0 ? (
               <ul
@@ -208,17 +205,17 @@ export function HeroAsk({
                       }}
                       onMouseEnter={() => setHighlight(i)}
                       tabIndex={-1}
-                      className={`flex items-baseline gap-3 px-4 py-2 transition-colors ${
-                        i === active ? 'bg-muted' : 'hover:bg-muted'
+                      className={`flex items-baseline gap-3 px-4 py-2.5 transition-colors ${
+                        i === active ? 'bg-sunken' : 'hover:bg-sunken'
                       }`}
                     >
-                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground tabular shrink-0">
+                      <span className="shrink-0 font-mono text-xs text-ink-3 tabular">
                         {bill.bill_type_label || bill.bill_type?.toUpperCase()} {bill.bill_number}
                       </span>
-                      <span className="flex-1 min-w-0 text-sm text-foreground line-clamp-2 sm:truncate">
+                      <span className="flex-1 min-w-0 text-sm text-ink line-clamp-2 sm:truncate">
                         {bill.title}
                       </span>
-                      <span className="hidden sm:inline text-xs text-muted-foreground shrink-0">
+                      <span className="hidden shrink-0 text-xs text-ink-2 sm:inline">
                         {compactStageLabel(bill.progress_stage)}
                       </span>
                     </Link>
@@ -226,12 +223,12 @@ export function HeroAsk({
                 ))}
               </ul>
             ) : (
-              <p id={listId} className="px-4 py-2.5 text-sm text-muted-foreground">
+              <p id={listId} className="px-4 py-2.5 text-sm text-ink-3">
                 No {formatCongressOrdinal(congress)} Congress bill titles match. Press
                 Enter to ask instead.
               </p>
             )}
-            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 font-mono text-xs text-ink-3">
               <span className="hidden sm:inline">
                 {active >= 0 ? 'Enter opens this bill' : 'Enter asks the question'} · ↑↓ to pick a bill
               </span>
@@ -248,7 +245,7 @@ export function HeroAsk({
                     });
                     setOpen(false);
                   }}
-                  className="ml-auto hover:text-foreground underline underline-offset-2 decoration-border"
+                  className="link ml-auto font-sans"
                 >
                   See all matching bills →
                 </Link>
@@ -258,39 +255,29 @@ export function HeroAsk({
         )}
       </div>
 
-      <div
-        className={
-          centered
-            ? 'mt-3 flex flex-wrap justify-center gap-2'
-            : 'mt-3 flex flex-col gap-1.5 items-start'
-        }
-      >
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
         {starterItems.map((s) =>
           s.href ? (
-            <Link
-              key={s.kind}
-              href={s.href}
-              onClick={() =>
-                analytics.answerStarterClicked({
-                  surface: 'home',
-                  starter_text: s.text,
-                  action: 'open_page',
-                  destination: s.href,
-                })
-              }
-              className={centered ? PILL : 'text-left text-sm text-muted-foreground hover:text-foreground transition-colors'}
-            >
-              {!centered && (
-                <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
-                  ▸
-                </span>
-              )}
-              {s.text} <span aria-hidden="true">→</span>
-            </Link>
+            <Button key={s.kind} asChild variant="outline" className={PILL}>
+              <Link
+                href={s.href}
+                onClick={() =>
+                  analytics.answerStarterClicked({
+                    surface: 'home',
+                    starter_text: s.text,
+                    action: 'open_page',
+                    destination: s.href,
+                  })
+                }
+              >
+                {s.text}&nbsp;<span aria-hidden="true">→</span>
+              </Link>
+            </Button>
           ) : (
-            <button
+            <Button
               key={s.text}
               type="button"
+              variant="outline"
               onClick={() => {
                 analytics.answerStarterClicked({
                   surface: 'home',
@@ -300,19 +287,10 @@ export function HeroAsk({
                 void ask(s.text, { source: 'starter' });
               }}
               disabled={busy}
-              className={
-                centered
-                  ? `${PILL} disabled:opacity-50`
-                  : 'text-left text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50'
-              }
+              className={PILL}
             >
-              {!centered && (
-                <span className="text-muted-foreground/60 mr-1.5" aria-hidden="true">
-                  ▸
-                </span>
-              )}
               {s.text}
-            </button>
+            </Button>
           ),
         )}
       </div>

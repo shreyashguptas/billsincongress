@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ChamberMark } from '@/components/brand/logo';
+import { Button } from '@/components/ui/button';
+
 export const metadata: Metadata = {
   title: 'Page not found',
 };
@@ -11,30 +14,21 @@ export const metadata: Metadata = {
 // branded 404 inside the normal nav/footer shell from the root layout.
 export default function NotFound() {
   return (
-    <section className="border-b border-border">
-      <div className="container-editorial py-20 text-center sm:py-28">
-        <p className="label-eyebrow mb-3">Error 404</p>
-        <h1 className="font-serif text-display-md font-semibold leading-[1.05] tracking-tight sm:text-display-lg">
-          Page not found
-        </h1>
-        <p className="mx-auto mt-4 max-w-prose text-sm text-muted-foreground">
-          We couldn&rsquo;t find the page you&rsquo;re looking for. It may have
-          moved, or the link may be broken.
-        </p>
-        <div className="mt-8 flex items-center justify-center gap-3">
-          <Link
-            href="/"
-            className="inline-flex items-center rounded-sm bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
-          >
-            Go home
-          </Link>
-          <Link
-            href="/bills"
-            className="inline-flex items-center rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-card"
-          >
-            Browse bills
-          </Link>
-        </div>
+    <section className="container-editorial flex flex-col items-center py-20 text-center sm:py-28">
+      <ChamberMark className="h-12 w-12 text-ink-3" />
+      <p className="mt-6 font-mono text-xs leading-4 text-ink-3 tabular">404 · Not found</p>
+      <h1 className="mt-3 text-display-md text-ink">Page not found</h1>
+      <p className="mt-4 max-w-[48ch] text-[17px] leading-relaxed text-ink-2">
+        We couldn&rsquo;t find the page you&rsquo;re looking for. It may have
+        moved, or the link may be broken.
+      </p>
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Button asChild>
+          <Link href="/">Go home</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/bills">Browse bills</Link>
+        </Button>
       </div>
     </section>
   );

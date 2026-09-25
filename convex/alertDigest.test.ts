@@ -213,6 +213,20 @@ it("even with very long official titles, 100 moving bills stay under the budget"
   assert.ok(email.bodyHtml.includes(links.unsubscribeUrl));
 });
 
+it("the summary counts every bill that became law, not just whether one did", () => {
+  const email = renderDigestEmail(
+    [
+      change({ billId: "56s119", billTypeLabel: "S.", billNumber: "56", stageChange: { from: 95, to: 100 } }),
+      change({ billId: "57s119", billTypeLabel: "S.", billNumber: "57", stageChange: { from: 95, to: 100 } }),
+      change({ billId: "9hr119", billNumber: "9", stageChange: { from: 40, to: 60 } }),
+    ],
+    links,
+    new Date("2026-09-25T11:00:00Z"),
+  );
+  assert.match(email.bodyHtml, /moved, 2 to law/);
+  assert.doesNotMatch(email.bodyHtml, /moved, 1 to law/);
+});
+
 it("a normal day has no compact section", () => {
   const email = renderDigestEmail([change(), change({ billId: "5hr119", billNumber: "5" })], links, new Date("2026-09-25T11:00:00Z"));
   assert.ok(!email.bodyHtml.includes("Also moved"));

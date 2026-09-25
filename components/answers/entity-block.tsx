@@ -40,7 +40,8 @@ export function EntityBlock({
 
   if (block.kind === 'bill') {
     return (
-      <div className="my-3 space-y-1.5">
+      // font-sans resets the answer prose around it: the card sets its own type.
+      <div className="my-4 space-y-2 font-sans text-base">
         {block.refs.map((ref, i) => {
           const d = entities?.[`bills:${ref.id}`];
           const sponsor = str(d?.sponsor);
@@ -62,13 +63,13 @@ export function EntityBlock({
   }
 
   return (
-    <div className="my-3 flex flex-wrap gap-1.5">
+    <div className="my-4 flex flex-wrap gap-2 font-sans">
       {block.refs.map((ref, i) => (
         <Link
           key={ref.id}
           href={ref.href}
           onClick={() => track(i + 1, ref.id)}
-          className="inline-flex items-center rounded-sm border border-border px-2.5 py-1 text-[12px] text-foreground hover:border-foreground/40 transition-colors"
+          className="focus-ring inline-flex h-8 items-center rounded-sm border border-line-strong bg-raised px-2.5 font-mono text-xs text-ink transition-colors hover:bg-sunken"
         >
           {ref.id}
         </Link>

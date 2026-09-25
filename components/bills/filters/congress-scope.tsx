@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import { analytics } from '@/lib/analytics';
 import { formatCongressYearsShort, formatCongressOrdinal } from '@/lib/congress';
-import { cn } from '@/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export interface CongressScopeProps {
   /** Congresses with data. Comes from the server; this never fetches. */
@@ -23,9 +23,10 @@ export interface CongressScopeProps {
  * Which Congress is being browsed.
  *
  * This is scope, not a filter, and it is presented as one — a segmented control
- * on its own line rather than a pill among the constraints, and with no accent
- * marking, because narrowing to one two-year Congress is the page's normal
- * state rather than something the reader has restricted.
+ * beside the search field rather than a chip among the constraints. The chosen
+ * Congress is a raised segment, not an ink fill like a set filter, because
+ * narrowing to one two-year Congress is the page's normal state rather than
+ * something the reader has restricted.
  *
  * Two things it deliberately does NOT do:
  *
@@ -55,7 +56,7 @@ export function CongressScope({
 
   if (ordered.length === 0) {
     return (
-      <span className="text-xs text-muted-foreground" aria-disabled="true">
+      <span className="font-mono text-xs text-ink-3" aria-disabled="true">
         Congress unavailable
       </span>
     );
@@ -88,38 +89,41 @@ export function CongressScope({
   };
 
   return (
-    <div
+    // Radix renders the radiogroup/radio roles. Its roving focus is off because
+    // it moves focus without selecting; the handler above keeps the
+    // radiogroup behaviour, where the arrows change the selection.
+    <ToggleGroup
       ref={ref}
-      role="radiogroup"
+      type="single"
+      rovingFocus={false}
+      value={String(selected)}
+      // Radix reports '' when the chosen segment is pressed again. Re-selecting
+      // it instead keeps a segment always chosen.
+      onValueChange={(next) => select(next ? Number(next) : selected)}
       aria-label="Congress"
       onKeyDown={onKeyDown}
-      className="inline-flex h-10 items-center rounded-sm border border-control bg-card p-0.5 touchable:h-11"
+      className="inline-flex h-[52px] shrink-0 items-stretch justify-start gap-0.5 rounded-md bg-sunken p-1"
     >
       {ordered.map((congress) => {
         const isSelected = congress === selected;
         return (
-          <button
+          <ToggleGroupItem
             key={congress}
-            type="button"
-            role="radio"
+            value={String(congress)}
             data-congress={congress}
-            aria-checked={isSelected}
             // Only the selected segment is a tab stop; arrows move within.
             tabIndex={isSelected ? 0 : -1}
-            onClick={() => select(congress)}
             title={`${formatCongressOrdinal(congress)} Congress`}
-            className={cn(
-              'h-9 rounded-sm px-2.5 font-mono text-[11px] tabular transition-colors touchable:h-10',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              isSelected
-                ? 'bg-secondary font-medium text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
+            className={
+              'h-auto min-w-min flex-1 rounded-[6px] px-3 font-mono text-[13px] font-normal tabular text-ink-2 ' +
+              'hover:bg-transparent hover:text-ink ' +
+              'data-[state=on]:bg-raised data-[state=on]:font-medium data-[state=on]:text-ink data-[state=on]:shadow-sm'
+            }
           >
             {formatCongressYearsShort(congress)}
-          </button>
+          </ToggleGroupItem>
         );
       })}
-    </div>
+    </ToggleGroup>
   );
 }

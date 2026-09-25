@@ -3,51 +3,43 @@
 @tailwind utilities;
 
 /*
- * Editorial Modernism — design language
- * Inspired by serious civic journalism (ProPublica, Economist).
- * Single accent, restrained palette, typographic hierarchy.
- * All colours expressed as HSL triplets so Tailwind CSS variables work.
+ * Bills in Congress — design tokens.
+ *
+ * Documentation/brand.md is the source of truth for everything in this block:
+ * what each token is for, which grounds it is legible on, and why the chrome
+ * has no hue of its own ("color belongs to the data"). Change a value here and
+ * the brand doc in the same commit.
+ *
+ * Every colour is an HSL triplet so Tailwind can add an alpha
+ * (`bg-ink/5`). tailwind.config.ts maps each one to a utility of the same
+ * name: `bg-paper`, `text-ink-2`, `border-line-strong`, `bg-status-law`.
+ *
+ * The dark palette is "Night". `.dark` on <html> switches the whole page;
+ * `.dark` on any element switches just that subtree, which is how the home
+ * page's chamber sits on a Night stage in the Day theme (see .stage below).
  */
 
 @layer base {
   :root {
-    /* Surface — warm newsprint */
-    --background: 40 30% 97%;
-    --foreground: 220 15% 12%;
+    /* Surfaces */
+    --paper: 48 22% 95%;         /* page ground — stone-white, not cream */
+    --raised: 0 0% 100%;         /* cards, inputs, the ask composer */
+    --sunken: 51 16% 92%;        /* quiet bands, unfilled progress, hover fills */
 
-    --card: 40 30% 99%;
-    --card-foreground: 220 15% 12%;
+    /* Ink */
+    --ink: 210 20% 8%;           /* headlines, body, every primary action */
+    --ink-2: 214 10% 32%;        /* secondary text (≥7:1 on every surface) */
+    --ink-3: 215 8% 43%;         /* captions, keys, placeholders (≥4.5:1) */
+    --on-ink: 48 22% 95%;        /* text and icons on an ink fill */
 
-    --popover: 40 30% 99%;
-    --popover-foreground: 220 15% 12%;
+    /* Rules */
+    --line: 51 11% 87%;          /* decorative hairlines — never a control's only edge */
+    --line-strong: 217 6% 55%;   /* the edge of a control (≥3:1 on paper and raised) */
 
-    /* Primary — civic ink */
-    --primary: 220 25% 14%;
-    --primary-foreground: 40 30% 98%;
+    /* The one hue that is not data: an error message and the field it names. */
+    --error: 3 71% 41%;
 
-    --secondary: 40 15% 92%;
-    --secondary-foreground: 220 15% 18%;
-
-    --muted: 40 15% 94%;
-    --muted-foreground: 220 8% 42%;
-
-    /* Single accent — deep editorial red (masthead red) */
-    --accent: 358 65% 38%;
-    --accent-foreground: 40 30% 98%;
-
-    --destructive: 358 65% 38%;
-    --destructive-foreground: 40 30% 98%;
-
-    --border: 35 15% 85%;
-    --input: 35 15% 85%;
-    --ring: 220 25% 14%;
-
-    /* Boundary of an interactive control. --border is 1.37:1 against --card,
-       which is fine for a decorative rule but fails WCAG 1.4.11 (3:1) when it
-       is the only thing telling a reader that a thing is a control. */
-    --control-border: 35 15% 52%;
-
-    /* Stage / status colours used in dashboard charts */
+    /* Bill stages — a cool-to-warm ramp that ends in the site's only green. */
     --status-introduced: 220 8% 55%;
     --status-committee: 220 25% 38%;
     --status-passed-one: 35 65% 42%;
@@ -55,61 +47,49 @@
     --status-president: 18 70% 42%;
     --status-signed: 358 65% 38%;
     --status-law: 145 40% 32%;
-    /* Vetoed is a dead end, not a rung on the warm advancing ramp: a cool,
-       desaturated slate so it reads as "stopped" rather than "nearly there". */
+    /* Vetoed is a dead end, not a rung on the warm ramp: a cool slate. */
     --status-vetoed: 222 12% 42%;
 
-    /* Party colours — muted to match editorial palette, not saturated. */
-    --party-d: 214 45% 42%;      /* muted editorial blue */
-    --party-r: 358 55% 42%;      /* muted editorial red  */
-    --party-i: 42 45% 42%;       /* muted ochre          */
-    --party-u: 220 5% 55%;       /* neutral grey         */
+    /* Parties — muted, and only ever where the data is about party. */
+    --party-d: 214 45% 42%;
+    --party-r: 358 55% 42%;
+    --party-i: 42 45% 42%;       /* ochre, so it never reads as a blend */
+    --party-u: 220 5% 55%;
 
-    /* Waving flag (home page) — the flag drawn in the site palette rather
-       than literal red/white/blue, so it belongs to the page. The field is
-       deliberately a shade below the page background so the white stripes
-       read as cloth against newsprint instead of disappearing. */
-    --flag-canton: 220 28% 22%;
-    --flag-stripe: 358 60% 42%;
-    --flag-field: 40 22% 91%;
+    /* Topics — six categorical slots in rank order, checked for colour-vision
+       deficiency against these surfaces (adjacent CVD ΔE ≥ 9.2 Day / 9.4
+       Night). Party blue/red and the "became law" green are left out on
+       purpose. Four slots are under 3:1 on paper, so a topic chart always
+       ships its legend. Hex, not triplets: they are only ever fills. */
+    --topic-1: #eb6834; --topic-2: #1baf7a; --topic-3: #4a3aa7;
+    --topic-4: #eda100; --topic-5: #2a78d6; --topic-6: #e87ba4;
 
-    --radius: 0.25rem;
+    /* State map — one amber, stepped by opacity, so it can't be mistaken for
+       a party or for "became law". */
+    --heat: 28 80% 40%;
+
+    --radius: 0.5rem;
   }
 
   .dark {
-    /* Surface — warm dark, like newsprint at night */
-    --background: 220 18% 8%;
-    --foreground: 40 20% 92%;
+    --paper: 216 19% 5%;
+    --raised: 214 15% 9%;
+    --sunken: 213 14% 12%;
 
-    --card: 220 18% 11%;
-    --card-foreground: 40 20% 92%;
+    --ink: 75 11% 93%;
+    --ink-2: 215 9% 73%;
+    --ink-3: 214 8% 58%;
+    --on-ink: 216 19% 5%;
 
-    --popover: 220 18% 11%;
-    --popover-foreground: 40 20% 92%;
+    --line: 216 12% 16%;
+    --line-strong: 215 8% 41%;
 
-    --primary: 40 20% 92%;
-    --primary-foreground: 220 18% 8%;
+    --error: 5 84% 68%;
 
-    --secondary: 220 12% 18%;
-    --secondary-foreground: 40 20% 92%;
-
-    --muted: 220 12% 16%;
-    --muted-foreground: 40 8% 65%;
-
-    --accent: 358 70% 58%;
-    --accent-foreground: 220 18% 8%;
-
-    --destructive: 358 70% 58%;
-    --destructive-foreground: 220 18% 8%;
-
-    --border: 220 12% 22%;
-    --input: 220 12% 22%;
-    --ring: 40 20% 92%;
-
-    --control-border: 220 12% 44%;
-
-    --status-introduced: 220 8% 60%;
-    --status-committee: 220 20% 60%;
+    /* Introduced and committee sit side by side in the stuck waffle, so they
+       differ in lightness, not just saturation. */
+    --status-introduced: 220 8% 74%;
+    --status-committee: 220 26% 52%;
     --status-passed-one: 35 60% 60%;
     --status-passed-both: 28 65% 60%;
     --status-president: 18 65% 58%;
@@ -117,21 +97,58 @@
     --status-law: 145 40% 55%;
     --status-vetoed: 222 12% 62%;
 
-    /* Party colours — slightly brighter in dark mode for contrast. */
     --party-d: 214 55% 62%;
     --party-r: 358 60% 62%;
     --party-i: 42 55% 62%;
     --party-u: 220 6% 55%;
 
-    --flag-canton: 220 30% 26%;
-    --flag-stripe: 358 52% 46%;
-    --flag-field: 40 14% 76%;
+    --topic-1: #d95926; --topic-2: #199e70; --topic-3: #9085e9;
+    --topic-4: #c98500; --topic-5: #3987e5; --topic-6: #d55181;
+
+    --heat: 34 85% 60%;
+  }
+}
+
+/*
+ * shadcn/ui's semantic variables, pointed at the brand. components/ui is
+ * shadcn/ui, and every component in it — and any added later with the shadcn
+ * CLI — reads these names, so it arrives on-brand with no restyling. The
+ * mapping is in Documentation/brand.md ("Components").
+ *
+ * Declared on `.dark` as well as `:root` on purpose: a custom property that
+ * references another is resolved where it is declared, so without the second
+ * selector a Night subtree (the home page's `stage dark`) would inherit the
+ * Day values already resolved on :root.
+ */
+@layer base {
+  :root,
+  .dark {
+    --background: var(--paper);
+    --foreground: var(--ink);
+    --card: var(--raised);
+    --card-foreground: var(--ink);
+    --popover: var(--raised);
+    --popover-foreground: var(--ink);
+    --primary: var(--ink);
+    --primary-foreground: var(--on-ink);
+    --secondary: var(--sunken);
+    --secondary-foreground: var(--ink);
+    --muted: var(--sunken);
+    --muted-foreground: var(--ink-3);
+    /* shadcn's "accent" is its hover and selected fill: neutral, never a hue. */
+    --accent: var(--sunken);
+    --accent-foreground: var(--ink);
+    --destructive: var(--error);
+    --destructive-foreground: var(--on-ink);
+    --border: var(--line);
+    --input: var(--line-strong);
+    --ring: var(--ink);
   }
 }
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-line;
   }
 
   html {
@@ -139,8 +156,7 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     /* Tells the browser which way to paint the chrome it owns — scrollbars,
-       form controls, the overscroll gutter. Without it a reader on the dark
-       theme with a light OS gets white scrollbars out of a dark page. */
+       form controls, the overscroll gutter. */
     color-scheme: light;
   }
 
@@ -149,51 +165,90 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-paper text-ink font-sans;
     font-feature-settings: 'kern', 'liga', 'calt';
   }
 
+  /* Newsreader picks its optical size from the font size on its own
+     (font-optical-sizing: auto), so a 72px headline gets the display cut and
+     a 19px summary the text cut with no extra work. */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-serif;
-    font-feature-settings: 'kern', 'liga', 'dlig', 'onum';
-    letter-spacing: -0.01em;
+    @apply font-serif font-medium;
+    font-feature-settings: 'kern', 'liga', 'lnum';
+    letter-spacing: -0.012em;
+    text-wrap: balance;
   }
 
-  /* Editorial small caps for labels */
+  /* Section eyebrow — the only all-caps style on the site. */
   .label-eyebrow {
-    @apply text-[11px] font-sans font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+    @apply text-[11px] font-sans font-semibold uppercase leading-4 tracking-[0.14em] text-ink-3;
   }
 
-  /* Pull-quote / dropped capital initial */
-  .first-letter-drop::first-letter {
-    @apply font-serif text-foreground;
-    float: left;
-    font-size: 4rem;
-    line-height: 0.9;
-    padding-right: 0.5rem;
-    padding-top: 0.3rem;
-  }
-
-  /* Tabular numerals for data */
+  /* Every number that sits in a row, a legend or a figure. */
   .tabular {
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: lining-nums tabular-nums;
   }
 
-  /* Subtle horizontal rule used between sections */
+  /* Hairline between sections. */
   .rule {
-    @apply border-0 border-t border-border;
+    @apply border-0 border-t border-line;
+  }
+
+  /* Links in running text: ink with a quiet underline that darkens on hover. */
+  .link {
+    @apply text-ink underline decoration-line-strong decoration-1 underline-offset-[3px] transition-colors hover:decoration-ink;
+  }
+
+  /* Keyboard focus on every control: a paper gap, then a solid ink ring. */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-paper;
   }
 }
 
 @layer components {
-  /* Editorial container — slightly tighter than default */
+  /* Content width — 1200px of content inside the gutters. */
   .container-editorial {
-    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+    @apply mx-auto w-full max-w-[1264px] px-4 sm:px-6 lg:px-8;
   }
 
-  /* Article reading width */
+  /* Reading width for summaries and articles (~68 characters). */
   .container-prose {
-    @apply mx-auto w-full max-w-2xl px-4 sm:px-6;
+    @apply mx-auto w-full max-w-[680px] px-4 sm:px-6;
+  }
+
+  /* The Night stage: a dark band on a light page. Always pair it with
+     `dark` (`className="stage dark"`): that class switches every token
+     inside, party and topic colours included, so the chamber reads the same
+     in both themes. In the Night theme the whole page is already the stage. */
+  .stage {
+    @apply bg-paper text-ink;
+  }
+
+  /* The Pro mark (brand.md, "Pro"): the six topic colours as a ring around a
+     Pro reader's avatar, and as a strip along the top of their plan card.
+     The only decorative uses of the spectrum besides the logo and the email
+     signature. Hard stops, so each colour reads as its own band. */
+  .spectrum-ring {
+    background: conic-gradient(
+      from -30deg,
+      var(--topic-1) 0deg 60deg,
+      var(--topic-2) 60deg 120deg,
+      var(--topic-3) 120deg 180deg,
+      var(--topic-4) 180deg 240deg,
+      var(--topic-5) 240deg 300deg,
+      var(--topic-6) 300deg 360deg
+    );
+  }
+  .spectrum-strip {
+    background: linear-gradient(
+      90deg,
+      var(--topic-1) 0 16.667%,
+      var(--topic-2) 16.667% 33.333%,
+      var(--topic-3) 33.333% 50%,
+      var(--topic-4) 50% 66.667%,
+      var(--topic-5) 66.667% 83.333%,
+      var(--topic-6) 83.333% 100%
+    );
   }
 }
 
@@ -307,327 +362,6 @@
   to   { opacity: 0; transform: translateY(-4px) scale(0.98); }
 }
 
-/* ── Waving flag ──────────────────────────────────────────────────────────
-   Decorative flag that closes the home page. Drawn entirely from the theme
-   tokens above so it re-tints in dark mode instead of glaring.
-
-   The cloth is cut into vertical strips that each rise and fall on the same
-   slow cycle, staggered so a wave travels from the hoist to the fly end.
-   Strips further from the hoist swing wider, the way real cloth does. Each
-   strip also shears by the local slope of the wave, which is what stops the
-   strips reading as a staircase: sheared, neighbouring strips meet edge to
-   edge and the stripes flow through as continuous lines.
-
-   Only `transform` animates, so the whole thing stays on the compositor even
-   at full-bleed size — the alternative (an SVG turbulence/displacement filter)
-   looks better frozen but repaints the entire band every frame.
-
-   `--amp`, `--lean`, `--delay`, `--rest`, `--rest-lean` and `--slice` are set
-   per strip by components/waving-flag.tsx. */
-.flag {
-  /* Half the vertical swing at the fly end. Sized in container units so it
-     stays a fixed fraction of the flag's width at every viewport — the strips'
-     lean is derived from that fraction, so it must not drift. */
-  --peak: 2.1cqw;
-  --wave: 6.5s;
-  container-type: inline-size;
-  position: relative;
-  width: 100%;
-  aspect-ratio: 19 / 10;
-}
-
-.flag-cloth,
-.flag-canton {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-}
-
-.flag-cloth {
-  inset: 0;
-}
-
-/* The canton covers 2/5 of the flag's width and the top 7 of its 13 stripes. */
-.flag-canton {
-  --canton-width: 40cqw;
-  width: var(--canton-width);
-  height: 53.846%;
-}
-
-.flag-strip {
-  position: relative;
-  height: 100%;
-  /* `flex: 1 1 0` rather than a percentage width so the browser distributes
-     sub-pixel remainders instead of leaving a gap at the fly end. */
-  flex: 1 1 0;
-  min-width: 0;
-  /* Bleed half a pixel into both neighbours. Strips are separate composited
-     layers, and antialiasing along their edges otherwise leaves hairline seams
-     of bare page showing through the cloth.
-
-     Nothing is painted behind the strips on purpose. An earlier version parked
-     a still copy of the flag back there to swallow those seams, but a still
-     copy is a rectangle: wherever the cloth lifted away from it, its flat edge
-     showed as a dead-straight bar running the full width of the flag, top and
-     bottom. The strips have to be the only flag there is. */
-  margin-inline: -0.5px;
-  animation: flag-wave var(--wave) linear infinite;
-  animation-delay: var(--delay);
-}
-
-/* The 13 stripes. One gradient period covers two stripes and 13 is odd, so the
-   flag correctly starts and ends on a stripe. Horizontally uniform, so the
-   bleed above costs them nothing. */
-.flag-cloth .flag-strip {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    hsl(var(--flag-stripe)) 0 7.6923%,
-    hsl(var(--flag-field)) 7.6923% 15.3846%
-  );
-}
-
-/* Every canton strip carries the whole star field and slides it left to its own
-   slice, so the stars stay continuous across the cuts. Sized and offset against
-   the canton's own width rather than as a percentage of the strip, which the
-   half-pixel bleed would otherwise walk out of register a little further with
-   every strip. `--slice` arrives pre-divided from the component, so the strip
-   count is not duplicated here.
-
-   The stars are baked into the image at a fixed warm off-white: they only ever
-   sit on the dark canton, so they need no light/dark variant. */
-.flag-canton .flag-strip {
-  background-color: hsl(var(--flag-canton));
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1411 1000' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpath id='s' d='M0.0,-57.0L12.8,-17.6L54.2,-17.6L20.7,6.7L33.5,46.1L0.0,21.8L-33.5,46.1L-20.7,6.7L-54.2,-17.6L-12.8,-17.6Z' fill='%23F0EBE0'/%3E%3C/defs%3E%3Cuse href='%23s' x='118' y='100'/%3E%3Cuse href='%23s' x='353' y='100'/%3E%3Cuse href='%23s' x='588' y='100'/%3E%3Cuse href='%23s' x='823' y='100'/%3E%3Cuse href='%23s' x='1058' y='100'/%3E%3Cuse href='%23s' x='1293' y='100'/%3E%3Cuse href='%23s' x='235' y='200'/%3E%3Cuse href='%23s' x='470' y='200'/%3E%3Cuse href='%23s' x='706' y='200'/%3E%3Cuse href='%23s' x='941' y='200'/%3E%3Cuse href='%23s' x='1176' y='200'/%3E%3Cuse href='%23s' x='118' y='300'/%3E%3Cuse href='%23s' x='353' y='300'/%3E%3Cuse href='%23s' x='588' y='300'/%3E%3Cuse href='%23s' x='823' y='300'/%3E%3Cuse href='%23s' x='1058' y='300'/%3E%3Cuse href='%23s' x='1293' y='300'/%3E%3Cuse href='%23s' x='235' y='400'/%3E%3Cuse href='%23s' x='470' y='400'/%3E%3Cuse href='%23s' x='706' y='400'/%3E%3Cuse href='%23s' x='941' y='400'/%3E%3Cuse href='%23s' x='1176' y='400'/%3E%3Cuse href='%23s' x='118' y='500'/%3E%3Cuse href='%23s' x='353' y='500'/%3E%3Cuse href='%23s' x='588' y='500'/%3E%3Cuse href='%23s' x='823' y='500'/%3E%3Cuse href='%23s' x='1058' y='500'/%3E%3Cuse href='%23s' x='1293' y='500'/%3E%3Cuse href='%23s' x='235' y='600'/%3E%3Cuse href='%23s' x='470' y='600'/%3E%3Cuse href='%23s' x='706' y='600'/%3E%3Cuse href='%23s' x='941' y='600'/%3E%3Cuse href='%23s' x='1176' y='600'/%3E%3Cuse href='%23s' x='118' y='700'/%3E%3Cuse href='%23s' x='353' y='700'/%3E%3Cuse href='%23s' x='588' y='700'/%3E%3Cuse href='%23s' x='823' y='700'/%3E%3Cuse href='%23s' x='1058' y='700'/%3E%3Cuse href='%23s' x='1293' y='700'/%3E%3Cuse href='%23s' x='235' y='800'/%3E%3Cuse href='%23s' x='470' y='800'/%3E%3Cuse href='%23s' x='706' y='800'/%3E%3Cuse href='%23s' x='941' y='800'/%3E%3Cuse href='%23s' x='1176' y='800'/%3E%3Cuse href='%23s' x='118' y='900'/%3E%3Cuse href='%23s' x='353' y='900'/%3E%3Cuse href='%23s' x='588' y='900'/%3E%3Cuse href='%23s' x='823' y='900'/%3E%3Cuse href='%23s' x='1058' y='900'/%3E%3Cuse href='%23s' x='1293' y='900'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-size: var(--canton-width) 100%;
-  background-position-x: calc(var(--slice) * var(--canton-width));
-}
-
-/* Sampled from the true wave rather than eased between a handful of
-   keyframes: the lean has to stay the exact slope of the lift at every
-   instant, and an easing curve applied to both breaks that relationship —
-   which shows up as a sawtooth along every stripe edge. Hence `linear`
-   timing and many samples. Generated, not hand-written. */
-@keyframes flag-wave {
-  0% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -1.0))
-      skewY(calc(var(--lean) * 0.0deg));
-  }
-  2.0833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.9914))
-      skewY(calc(var(--lean) * 0.1305deg));
-  }
-  4.1667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.9659))
-      skewY(calc(var(--lean) * 0.2588deg));
-  }
-  6.25% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.9239))
-      skewY(calc(var(--lean) * 0.3827deg));
-  }
-  8.3333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.866))
-      skewY(calc(var(--lean) * 0.5deg));
-  }
-  10.4167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.7934))
-      skewY(calc(var(--lean) * 0.6088deg));
-  }
-  12.5% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.7071))
-      skewY(calc(var(--lean) * 0.7071deg));
-  }
-  14.5833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.6088))
-      skewY(calc(var(--lean) * 0.7934deg));
-  }
-  16.6667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.5))
-      skewY(calc(var(--lean) * 0.866deg));
-  }
-  18.75% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.3827))
-      skewY(calc(var(--lean) * 0.9239deg));
-  }
-  20.8333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.2588))
-      skewY(calc(var(--lean) * 0.9659deg));
-  }
-  22.9167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.1305))
-      skewY(calc(var(--lean) * 0.9914deg));
-  }
-  25% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.0))
-      skewY(calc(var(--lean) * 1.0deg));
-  }
-  27.0833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.1305))
-      skewY(calc(var(--lean) * 0.9914deg));
-  }
-  29.1667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.2588))
-      skewY(calc(var(--lean) * 0.9659deg));
-  }
-  31.25% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.3827))
-      skewY(calc(var(--lean) * 0.9239deg));
-  }
-  33.3333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.5))
-      skewY(calc(var(--lean) * 0.866deg));
-  }
-  35.4167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.6088))
-      skewY(calc(var(--lean) * 0.7934deg));
-  }
-  37.5% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.7071))
-      skewY(calc(var(--lean) * 0.7071deg));
-  }
-  39.5833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.7934))
-      skewY(calc(var(--lean) * 0.6088deg));
-  }
-  41.6667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.866))
-      skewY(calc(var(--lean) * 0.5deg));
-  }
-  43.75% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.9239))
-      skewY(calc(var(--lean) * 0.3827deg));
-  }
-  45.8333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.9659))
-      skewY(calc(var(--lean) * 0.2588deg));
-  }
-  47.9167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.9914))
-      skewY(calc(var(--lean) * 0.1305deg));
-  }
-  50% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 1.0))
-      skewY(calc(var(--lean) * 0.0deg));
-  }
-  52.0833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.9914))
-      skewY(calc(var(--lean) * -0.1305deg));
-  }
-  54.1667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.9659))
-      skewY(calc(var(--lean) * -0.2588deg));
-  }
-  56.25% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.9239))
-      skewY(calc(var(--lean) * -0.3827deg));
-  }
-  58.3333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.866))
-      skewY(calc(var(--lean) * -0.5deg));
-  }
-  60.4167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.7934))
-      skewY(calc(var(--lean) * -0.6088deg));
-  }
-  62.5% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.7071))
-      skewY(calc(var(--lean) * -0.7071deg));
-  }
-  64.5833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.6088))
-      skewY(calc(var(--lean) * -0.7934deg));
-  }
-  66.6667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.5))
-      skewY(calc(var(--lean) * -0.866deg));
-  }
-  68.75% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.3827))
-      skewY(calc(var(--lean) * -0.9239deg));
-  }
-  70.8333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.2588))
-      skewY(calc(var(--lean) * -0.9659deg));
-  }
-  72.9167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.1305))
-      skewY(calc(var(--lean) * -0.9914deg));
-  }
-  75% {
-    transform: translateY(calc(var(--amp) * var(--peak) * 0.0))
-      skewY(calc(var(--lean) * -1.0deg));
-  }
-  77.0833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.1305))
-      skewY(calc(var(--lean) * -0.9914deg));
-  }
-  79.1667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.2588))
-      skewY(calc(var(--lean) * -0.9659deg));
-  }
-  81.25% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.3827))
-      skewY(calc(var(--lean) * -0.9239deg));
-  }
-  83.3333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.5))
-      skewY(calc(var(--lean) * -0.866deg));
-  }
-  85.4167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.6088))
-      skewY(calc(var(--lean) * -0.7934deg));
-  }
-  87.5% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.7071))
-      skewY(calc(var(--lean) * -0.7071deg));
-  }
-  89.5833% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.7934))
-      skewY(calc(var(--lean) * -0.6088deg));
-  }
-  91.6667% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.866))
-      skewY(calc(var(--lean) * -0.5deg));
-  }
-  93.75% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.9239))
-      skewY(calc(var(--lean) * -0.3827deg));
-  }
-  95.8333% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.9659))
-      skewY(calc(var(--lean) * -0.2588deg));
-  }
-  97.9167% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -0.9914))
-      skewY(calc(var(--lean) * -0.1305deg));
-  }
-  100% {
-    transform: translateY(calc(var(--amp) * var(--peak) * -1.0))
-      skewY(calc(var(--lean) * -0.0deg));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Reduced motion: freeze the flag into the still wave it would be holding
-   mid-cycle rather than snapping it flat. Overrides the blanket rule above,
-   which would otherwise collapse every strip to the same resting position. */
-@media (prefers-reduced-motion: reduce) {
-  .flag-strip {
-    animation: none !important;
-    transform: translateY(calc(var(--rest) * var(--peak)))
-      skewY(calc(var(--rest-lean) * 1deg));
-  }
-}
-
 /* ── The ask panel ─────────────────────────────────────────────────────────
    Geometry for the persistent "Ask" companion. Three shapes, and the mode is
    decided HERE, by media query, never by JavaScript reading window.innerWidth
@@ -656,7 +390,6 @@
   --ask-kb: 0px;      /* on-screen keyboard overlap, from visualViewport */
 }
 @media (min-width: 640px) { :root { --header-h: 65px; } }   /* sm:h-16 + border */
-@media (min-width: 768px) { :root { --header-h: 94px; } }   /* + md eyebrow strip */
 
 /* The push. Only the docked band moves the page. */
 .ask-shell {
@@ -763,23 +496,6 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 }
 
 /* ── Home page charts (components/dashboard/home) ───────────────────────── */
-
-/* Topic wheel: six categorical slots, checked with a colour-vision-deficiency
-   validator (not part of this repo) against this site's own surfaces — adjacent CVD ΔE ≥ 9.2 light / 9.4 dark.
-   Party blue/red and the "became law" green are left out on purpose. Light-mode
-   contrast is below 3:1 for four slots, so the wheel always ships its legend. */
-:root {
-  --topic-1: #eb6834; --topic-2: #1baf7a; --topic-3: #4a3aa7;
-  --topic-4: #eda100; --topic-5: #2a78d6; --topic-6: #e87ba4;
-  /* State map: one hue, shaded by opacity in five steps. Amber, so it can't be
-     mistaken for either party or for "became law". */
-  --heat: 28 80% 40%;
-}
-.dark {
-  --topic-1: #d95926; --topic-2: #199e70; --topic-3: #9085e9;
-  --topic-4: #c98500; --topic-5: #3987e5; --topic-6: #d55181;
-  --heat: 34 85% 60%;
-}
 
 @keyframes odds-in {
   from { opacity: 0; transform: scale(0.4); }

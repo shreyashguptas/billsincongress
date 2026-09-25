@@ -174,6 +174,11 @@ export const analytics = {
     surface?: 'bar' | 'panel' | 'empty_state';
   }) => capture('bills_filters_cleared', props ?? {}),
 
+  /** The header's search field (lg and up). Length, not the text — the same
+   *  rule as `bills_no_results`. An empty submit just opens /bills. */
+  headerSearchSubmitted: (queryLength: number) =>
+    capture('header_search_submitted', { query_length: queryLength }),
+
   billsLoadMoreClicked: (nextPage: number, loadedCount: number) =>
     capture('bills_load_more_clicked', { next_page: nextPage, loaded_count: loadedCount }),
 
@@ -426,6 +431,13 @@ export const analytics = {
   proActivated: (interval: 'month' | 'year' | 'unknown') =>
     capture('pro_activated', { interval }),
 
+  /**
+   * A reader pressed one of the next steps in the "Welcome to Pro" dialog the
+   * account page shows once, after a successful checkout turns the plan Pro.
+   */
+  proWelcomeStepClicked: (step: 'follow_bill' | 'ask') =>
+    capture('pro_welcome_step_clicked', { step }),
+
   /** Reader opened the Stripe billing portal (change card, switch, cancel). */
   billingPortalOpened: () => capture('billing_portal_opened'),
 
@@ -637,24 +649,9 @@ export const analytics = {
     bill_id?: string;
   }) => capture('podcast_promo_clicked', props),
 
-  // Learn page (interactive civics guide)
+  // Learn page (the picture guide). Its only interaction is the state picker.
 
-  /** User picked their state in the "two chambers" seat-chart explorer. */
+  /** User picked their state in the "two rooms" seat pictures. */
   learnStateSelected: (state: string, representatives: number) =>
     capture('learn_state_selected', { state, representatives }),
-
-  /** User navigated to a step of the interactive bill journey. */
-  learnJourneyStepViewed: (step: number, stepTitle: string, method: 'next' | 'back' | 'jump') =>
-    capture('learn_journey_step_viewed', { step, step_title: stepTitle, method }),
-
-  /** User answered a civics-quiz question. */
-  learnQuizAnswered: (question: number, correct: boolean) =>
-    capture('learn_quiz_answered', { question, correct }),
-
-  /** User finished the civics quiz. */
-  learnQuizCompleted: (score: number, total: number) =>
-    capture('learn_quiz_completed', { score, total }),
-
-  /** User restarted the civics quiz from the results screen. */
-  learnQuizRestarted: () => capture('learn_quiz_restarted'),
 };

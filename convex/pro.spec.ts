@@ -736,7 +736,7 @@ describe("plan-change emails", () => {
     await makePro(t, userId); // the same state again, as a redelivery would apply it
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ url: ENV.POSTHOG_EMAIL_BILLING_WEBHOOK_URL, subject: "Welcome to Bills.Congress Pro", to: "reader@example.com" });
+    expect(sent[0]).toMatchObject({ url: ENV.POSTHOG_EMAIL_BILLING_WEBHOOK_URL, subject: "Welcome to Bills in Congress Pro", to: "reader@example.com" });
   });
 
   test("cancel, then the period ends, then resubscribe: three emails, in order", async () => {
@@ -759,10 +759,10 @@ describe("plan-change emails", () => {
     await apply({ stripeSubscriptionId: "sub_2" });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(sent.map((m) => m.subject)).toEqual([
-      "Welcome to Bills.Congress Pro",
+      "Welcome to Bills in Congress Pro",
       "Your Pro plan ends on January 15, 2027",
       "Your Pro plan has ended",
-      "Welcome back to Bills.Congress Pro",
+      "Welcome back to Bills in Congress Pro",
     ]);
   });
 
@@ -785,7 +785,7 @@ describe("plan-change emails", () => {
     await apply("canceled");
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(sent.map((m) => m.subject)).toEqual([
-      "Welcome to Bills.Congress Pro",
+      "Welcome to Bills in Congress Pro",
       "Your Pro payment didn't go through",
       "Your Pro plan has ended: payment didn't go through",
     ]);

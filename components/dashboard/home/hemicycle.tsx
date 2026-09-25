@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * The chamber chart shared by both hero variants (after The Lobby's roll-call
+ * The chamber chart at the top of the home page (after The Lobby's roll-call
  * page). Outer seats: every bill, split by the sponsor's party, one seat per a
  * fixed number of bills. Inner seats, ringed in green: the bills that became
  * law, one seat each. `well` renders in the hollow of the arc.
  */
 
 import { useMemo } from 'react';
+import { PartyDot } from '@/components/brand/party';
 import { fmt } from './shared';
 
 export const PARTIES = [
@@ -121,9 +122,10 @@ export function Hemicycle({
   // read its party colour. Six rows at most keeps the hollow wide enough for
   // the readout.
   const lawRows = Math.min(6, Math.max(3, Math.ceil(lawSeatCount / 60)));
+  const lawInner = 222 - (lawRows - 1) * 16;
   const lawSeats = useMemo(
-    () => layout(laws, lawSeatCount, 222 - (lawRows - 1) * 16, 222, lawRows),
-    [JSON.stringify(laws), lawSeatCount, lawRows], // eslint-disable-line react-hooks/exhaustive-deps
+    () => layout(laws, lawSeatCount, lawInner, 222, lawRows),
+    [JSON.stringify(laws), lawSeatCount, lawInner, lawRows], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const dim = (p: PartyKey) => hover !== null && hover !== p;
@@ -133,8 +135,8 @@ export function Hemicycle({
   // in the list — an all-Republican chamber that no data supports.
   if (totalBills === 0) {
     return (
-      <div className="flex aspect-[80/41] w-full items-center justify-center rounded-t-full border border-dashed border-border">
-        <p className="max-w-xs text-center text-sm text-muted-foreground">
+      <div className="flex aspect-[80/41] w-full items-center justify-center rounded-t-full border border-dashed border-line">
+        <p className="max-w-xs text-center text-sm text-ink-3">
           The party breakdown for this Congress hasn&rsquo;t been built yet. It fills in after the next nightly update.
         </p>
       </div>
@@ -142,7 +144,13 @@ export function Hemicycle({
   }
 
   return (
-    <div className="relative">
+    // `--hollow` is the empty radius inside the law seats as a share of the
+    // chart's width. The well's figure sizes from it (in container units), so a
+    // Congress with more laws, and so more rows, never pushes it into the seats.
+    <div
+      className="relative [container-type:inline-size]"
+      style={{ '--hollow': round2((lawInner - 8) / W) } as React.CSSProperties}
+    >
       <svg
         viewBox={`0 0 ${W} ${CY + 10}`}
         className="w-full h-auto"
@@ -183,10 +191,10 @@ export function Hemicycle({
         <>
           {/* The hollow of the arc: centred, bottom-aligned, ~40% of the width.
               Too narrow on a phone, so there it sits under the arc instead. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto hidden w-[40%] flex-col items-center justify-end text-center sm:flex">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto hidden w-[44%] flex-col items-center justify-end text-center sm:flex">
             {well}
           </div>
-          <div className="mt-2 text-center sm:hidden">{well}</div>
+          <div className="mt-4 text-center sm:hidden">{well}</div>
         </>
       )}
     </div>
@@ -207,16 +215,22 @@ function perSeatLabel(total: number, seats: number, one: string, many: string) {
 export function HemicycleKey({ totalBills, totalLaws }: { totalBills: number; totalLaws: number }) {
   if (totalBills === 0) return null;
   return (
-    <p className="font-mono text-[10px] text-muted-foreground">
+    <p className="text-center font-mono text-xs leading-5 text-ink-3">
       outer seat {perSeatLabel(totalBills, OUTER_SEATS, 'bill', 'bills')}
-      <span className="mx-2 opacity-50">|</span>
-      <span className="inline-block h-2 w-2 rounded-full align-middle mr-1 ring-1" style={{ '--tw-ring-color': 'hsl(var(--status-law))' } as React.CSSProperties} />
-      inner seat {perSeatLabel(totalLaws, MAX_LAW_SEATS, 'law', 'laws')}
+      <span className="mx-2" aria-hidden="true">·</span>
+      <span className="whitespace-nowrap">
+        <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle ring-1 ring-status-law" />
+        inner seat, ringed green {perSeatLabel(totalLaws, MAX_LAW_SEATS, 'law', 'laws')}
+      </span>
     </p>
   );
 }
 
-/** Big number in the well: the headline fact, or the hovered party's. */
+/**
+ * Big number in the well: the headline fact, or the hovered party's. Ink, not
+ * green: the ring on the seats already says "law", and the figure is the one
+ * moment of awe (brand.md, "Principles").
+ */
 export function WellReadout({
   hover,
   bills,
@@ -232,15 +246,16 @@ export function WellReadout({
   const b = p ? bills[p.key] : PARTIES.reduce((s, x) => s + bills[x.key], 0);
   const l = p ? laws[p.key] : PARTIES.reduce((s, x) => s + laws[x.key], 0);
   return (
-    <div key={hover ?? 'all'} className="animate-fade-in pb-1">
-      <p className="label-eyebrow" style={p ? { color: p.color } : undefined}>
+    <div key={hover ?? 'all'} className="animate-fade-in">
+      <p className="label-eyebrow inline-flex items-center gap-1.5 text-ink-2">
+        {p && <PartyDot party={p.key} />}
         {p ? p.label : scope ?? 'All bills'}
       </p>
-      <p className="font-serif text-4xl sm:text-5xl font-semibold tabular leading-none mt-1" style={{ color: 'hsl(var(--status-law))' }}>
+      <p className="mt-1 font-serif text-[64px] font-normal leading-none tracking-[-0.03em] text-ink tabular sm:text-[length:min(128px,calc(var(--hollow)*62cqw))]">
         {fmt(l)}
       </p>
-      <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-        became law, of <span className="font-mono text-foreground">{fmt(b)}</span> bills
+      <p className="mt-2 text-[15px] text-ink-2 sm:text-base">
+        became law, of <span className="font-mono tabular">{fmt(b)}</span> bills
       </p>
     </div>
   );

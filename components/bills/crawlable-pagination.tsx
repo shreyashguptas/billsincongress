@@ -1,15 +1,27 @@
 import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { GAP, paginationWindow } from '@/lib/pagination';
+import { cn } from '@/lib/utils';
 
 interface CrawlablePaginationProps {
   /** 1-based current page. */
   page: number;
   /** Total pages available, already clamped to what the backend can serve. */
   lastPage: number;
+  /**
+   * More pages may exist past `lastPage` — the count was a floor or unknown
+   * (see `pagesForCount`). The bar then ends in an ellipsis instead of a
+   * number that would claim to be the last page.
+   */
+  openEnded?: boolean;
   /** URL for a given page. The caller owns query-string composition. */
   hrefForPage: (page: number) => string;
   className?: string;
 }
+
+// 36px targets under a mouse, 44px under a finger.
+const slotClass =
+  'inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 font-mono text-sm tabular transition-colors focus-ring touchable:h-11 touchable:min-w-11';
 
 /**
  * Page links as real anchors, server-rendered.
@@ -25,6 +37,7 @@ interface CrawlablePaginationProps {
 export function CrawlablePagination({
   page,
   lastPage,
+  openEnded = false,
   hrefForPage,
   className,
 }: CrawlablePaginationProps) {
@@ -34,16 +47,14 @@ export function CrawlablePagination({
   const slots = paginationWindow(current, lastPage);
 
   return (
-    <nav
-      aria-label="Pagination"
-      className={`flex flex-wrap items-center gap-2 ${className ?? ''}`}
-    >
+    <nav aria-label="Pagination" className={cn('flex flex-wrap items-center gap-1', className)}>
       {current > 1 && (
         <Link
           href={hrefForPage(current - 1)}
           rel="prev"
-          className="px-3 py-2 text-sm border rounded-md hover:bg-muted"
+          className={cn(slotClass, 'gap-1 pl-1.5 pr-3 font-sans font-medium text-ink hover:bg-sunken')}
         >
+          <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           Previous
         </Link>
       )}
@@ -53,7 +64,7 @@ export function CrawlablePagination({
           <span
             key={`gap-${i}`}
             aria-hidden="true"
-            className="px-2 py-2 text-sm text-muted-foreground"
+            className="inline-flex h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11"
           >
             …
           </span>
@@ -62,22 +73,33 @@ export function CrawlablePagination({
             key={slot}
             href={hrefForPage(slot)}
             aria-current={slot === current ? 'page' : undefined}
-            className={`px-3 py-2 text-sm border rounded-md hover:bg-muted ${
-              slot === current ? 'bg-muted font-medium' : ''
-            }`}
+            className={cn(
+              slotClass,
+              slot === current
+                ? 'bg-ink font-medium text-on-ink'
+                : 'text-ink-2 hover:bg-sunken hover:text-ink'
+            )}
           >
             {slot}
           </Link>
         ),
       )}
 
+      {openEnded && (
+        <span className="inline-flex h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11">
+          <span aria-hidden="true">…</span>
+          <span className="sr-only">and possibly more pages</span>
+        </span>
+      )}
+
       {current < lastPage && (
         <Link
           href={hrefForPage(current + 1)}
           rel="next"
-          className="px-3 py-2 text-sm border rounded-md hover:bg-muted"
+          className={cn(slotClass, 'gap-1 pl-3 pr-1.5 font-sans font-medium text-ink hover:bg-sunken')}
         >
           Next
+          <ChevronRight className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
         </Link>
       )}
     </nav>

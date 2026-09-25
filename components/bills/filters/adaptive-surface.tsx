@@ -123,7 +123,7 @@ export function AdaptiveSurface({
           hideClose
           // Deliberately unnamed here: the body renders a real dialog title (see
           // option-list.tsx), and an aria-label on the content would override it.
-          className="flex flex-col gap-0 rounded-t-sm p-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          className="flex flex-col gap-0 rounded-t-lg border-line bg-raised p-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
           {open && layout === 'touch' && children({ layout: 'touch', close })}

@@ -3,6 +3,7 @@
 import { useAnswers } from './answer-provider';
 import { analytics } from '@/lib/analytics';
 import type { AnswerScope } from '@/lib/answer-scope';
+import { Button } from '@/components/ui/button';
 
 /**
  * The ask bar on a filtered list (spec §6.3).
@@ -19,16 +20,17 @@ export function ScopeAskBar({ scope, count }: { scope: AnswerScope | null; count
   const question = `What do these ${scope.label} have in common, and which matter most?`;
 
   return (
-    <button
+    <Button
       type="button"
+      variant="link"
       disabled={busy}
       onClick={() => {
         analytics.answerStarterClicked({ surface: 'filtered', starter_text: question });
         void ask(question, { source: 'starter', scope });
       }}
-      className="text-[12px] text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground transition-colors disabled:opacity-50 whitespace-nowrap"
+      className="rounded-sm text-[13px] decoration-1"
     >
       Ask about these →
-    </button>
+    </Button>
   );
 }

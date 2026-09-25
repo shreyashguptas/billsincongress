@@ -96,19 +96,14 @@ it('declares a --header-h for every breakpoint the module lists', () => {
 it('derives the header heights from the navigation the reader actually sees', () => {
   // Read back off the component rather than trusting a copied number: the sheet
   // is positioned by subtracting these, so being wrong is visible immediately.
-  assert.ok(nav.includes('flex h-14 sm:h-16'), 'navigation.tsx no longer uses h-14 / sm:h-16');
-  assert.ok(nav.includes('hidden md:block'), 'navigation.tsx no longer has an md-only eyebrow');
-  assert.ok(nav.includes('flex h-7'), 'the eyebrow strip is no longer h-7');
+  assert.ok(nav.includes('h-14 sm:h-16'), 'navigation.tsx no longer uses h-14 / sm:h-16');
+  assert.ok(!nav.includes('hidden md:block'), 'navigation.tsx has grown an md-only strip the heights do not count');
 
   const BORDER = 1;
   const byWidth = new Map(HEADER_H_PX.map((h) => [h.minWidth, h.height]));
   assert.equal(byWidth.get(0), 56 + BORDER, 'h-14 (56px) + the header border');
   assert.equal(byWidth.get(640), 64 + BORDER, 'sm:h-16 (64px) + the header border');
-  assert.equal(
-    byWidth.get(768),
-    64 + BORDER + 28 + BORDER,
-    'sm:h-16 + border + the h-7 eyebrow + its own border',
-  );
+  assert.equal(byWidth.size, 2, 'one header row: a height per breakpoint where h-14 / sm:h-16 changes');
 });
 
 it('keeps the panel under the portaled dialogs and over the page', () => {

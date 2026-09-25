@@ -2,138 +2,136 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { Menu, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { analytics } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { routes } from '@/lib/constants/routes';
 import { UserMenu } from '@/components/auth/user-menu';
+import { Logo } from '@/components/brand/logo';
 
+/**
+ * The site header: logo, the four sections, a bill search and the account
+ * slot. One row, h-14 / sm:h-16 plus its border — lib/ask-panel.ts mirrors
+ * those heights (HEADER_H_PX) because the ask sheet sits directly beneath it,
+ * and lib/ask-css-contract.test.ts reads the classes back off this file.
+ */
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
   const pathname = usePathname();
-
-  // Compute the date after hydration. Cache Components disallows `new Date()`
-  // during prerender; this defers it to the client so the prerendered HTML
-  // doesn't lock in a stale date string.
-  const [today, setToday] = React.useState('');
-  React.useEffect(() => {
-    setToday(
-      new Date().toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-    );
-  }, []);
+  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      {/* Eyebrow strip — date + tagline (newspaper convention) */}
-      <div className="hidden md:block border-b border-border/60">
-        <div className="container-editorial flex h-7 items-center justify-between text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-          <span>{today}</span>
-          <span className="font-medium">An independent record of the U.S. Congress</span>
-        </div>
-      </div>
-
-      <div className="container-editorial flex h-14 sm:h-16 items-center justify-between gap-4">
-        {/* Mobile menu */}
-        <div className="flex md:hidden">
+    <header className="sticky top-0 z-40 w-full border-b border-line bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
+      <div className="container-editorial grid h-14 sm:h-16 grid-cols-[1fr_auto_1fr] items-center gap-4">
+        <div className="flex items-center gap-1">
+          {/* Mobile menu */}
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="-ml-2"
-                aria-label="Open menu"
-              >
+              <Button variant="ghost" size="icon" className="-ml-2 md:hidden" aria-label="Open menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[88%] max-w-sm border-r border-border bg-background p-0">
-              <div className="flex items-center justify-between border-b border-border px-5 py-4">
-                <span className="font-serif text-lg font-semibold tracking-tight">
-                  Bills in Congress
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen(false)}
-                  aria-label="Close menu"
-                >
+            <SheetContent side="left" hideClose className="w-[88%] max-w-sm border-r border-line p-0">
+              <div className="flex items-center justify-between border-b border-line px-4 py-3">
+                <SheetTitle className="sr-only">Menu</SheetTitle>
+                <Logo />
+                <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close menu">
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-              <nav className="flex flex-col px-2 py-4">
-                {routes.map((route) => {
-                  const active = pathname === route.href;
-                  return (
-                    <Link
-                      key={route.href}
-                      href={route.href}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        'flex items-center justify-between rounded-sm px-3 py-3 text-base font-sans border-l-2 border-transparent',
-                        active
-                          ? 'border-l-accent text-foreground font-medium'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                      )}
-                    >
-                      {route.label}
-                    </Link>
-                  );
-                })}
+              <nav aria-label="Main" className="flex flex-col px-2 py-3">
+                {routes.map((route) => (
+                  <Link
+                    key={route.href}
+                    href={route.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={isActive(route.href) ? 'page' : undefined}
+                    className={cn(
+                      'focus-ring flex min-h-11 items-center rounded-md px-3 text-base',
+                      isActive(route.href) ? 'bg-sunken font-medium text-ink' : 'text-ink-2 hover:bg-sunken hover:text-ink',
+                    )}
+                  >
+                    {route.label}
+                  </Link>
+                ))}
               </nav>
             </SheetContent>
           </Sheet>
+          <Logo className="hidden md:inline-flex" />
         </div>
 
-        {/* Masthead title */}
-        <Link
-          href="/"
-          className="flex items-baseline gap-2 group"
-          aria-label="Bills in Congress — Home"
-        >
-          <span className="font-serif text-xl sm:text-2xl font-semibold tracking-tight text-foreground leading-none">
-            Bills<span className="text-accent">.</span>Congress
-          </span>
-          <span className="hidden lg:inline label-eyebrow">
-            Tracker
-          </span>
-        </Link>
-
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1 text-sm">
-          {routes.map((route) => {
-            const active = pathname === route.href;
-            return (
-              <Link
-                key={route.href}
-                href={route.href}
-                className={cn(
-                  'relative px-3 py-2 font-medium transition-colors',
-                  active
-                    ? 'text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {route.label}
-                {active && (
-                  <span className="absolute inset-x-3 -bottom-px h-px bg-foreground" />
-                )}
-              </Link>
-            );
-          })}
+        {/* Centre: the logo on phones, the sections from md up. */}
+        <Logo className="md:hidden" />
+        <nav aria-label="Main" className="hidden items-center gap-8 md:flex">
+          {routes.map((route) => (
+            <Link
+              key={route.href}
+              href={route.href}
+              aria-current={isActive(route.href) ? 'page' : undefined}
+              className={cn(
+                'focus-ring relative rounded-sm py-2 text-[15px] font-medium transition-colors',
+                isActive(route.href) ? 'text-ink' : 'text-ink-2 hover:text-ink',
+              )}
+            >
+              {route.label}
+              {isActive(route.href) && (
+                <span aria-hidden="true" className="absolute inset-x-0 -bottom-[13px] h-0.5 bg-ink sm:-bottom-[17px]" />
+              )}
+            </Link>
+          ))}
         </nav>
 
-        {/* Account slot — UserMenu when authed, Sign in link when not */}
-        <div className="ml-auto md:ml-0 flex items-center">
+        <div className="flex items-center justify-end gap-1 sm:gap-2">
+          <HeaderSearch />
           <UserMenu />
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Search from anywhere. A full field from lg up; an icon that opens /bills
+ * below that, where the search box is the first thing on the page. Submitting
+ * lands on /bills?title=…, the same URL the bills page's own search writes.
+ */
+function HeaderSearch() {
+  const router = useRouter();
+  const [query, setQuery] = React.useState('');
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = query.trim();
+    analytics.headerSearchSubmitted(q.length);
+    router.push(q ? `/bills?title=${encodeURIComponent(q)}` : '/bills');
+    setQuery('');
+  }
+
+  return (
+    <>
+      <form role="search" onSubmit={onSubmit} className="relative hidden lg:block">
+        <label htmlFor="header-search" className="sr-only">
+          Search bills
+        </label>
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+        <Input
+          id="header-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search bills, or S. 2878"
+          className="w-64 pl-9 text-sm xl:w-72"
+        />
+      </form>
+      <Button asChild variant="ghost" size="icon" className="lg:hidden">
+        <Link href="/bills" aria-label="Search bills">
+          <Search className="h-5 w-5" />
+        </Link>
+      </Button>
+    </>
   );
 }

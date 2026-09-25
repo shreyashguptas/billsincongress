@@ -6,6 +6,7 @@ import { useConvexAuth } from 'convex/react';
 import { X, History, Plus, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
+import { Button } from '@/components/ui/button';
 import { layoutModeFor, viewportWidth } from '@/lib/ask-panel';
 import { launcherVisible, panelInert } from '@/lib/ask-panel-state';
 import { surfaceFor } from '@/lib/page-context';
@@ -160,10 +161,9 @@ export function AnswerPanel() {
     swipeBy.current = 0;
   };
 
-  const iconButton =
-    'inline-flex h-11 w-11 items-center justify-center rounded-sm hover:text-foreground ' +
-    'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ' +
-    'lg:h-9 lg:w-9';
+  // Ghost icon buttons (brand.md, "Button"): 40px, 44px on touch screens,
+  // resting at ink-2.
+  const iconButton = 'text-ink-2 hover:text-ink';
 
   return (
     <>
@@ -200,8 +200,12 @@ export function AnswerPanel() {
         aria-labelledby="ask-title"
         onClickCapture={onClickCapture}
         className={cn(
-          'ask-panel flex flex-col border-border bg-background',
-          'border-t lg:border-l lg:border-t-0',
+          'ask-panel flex flex-col border-line bg-paper',
+          // Sheet: a top edge and rounded top corners. Rail and dock: a left edge.
+          'rounded-t-lg border-t lg:rounded-none lg:border-l lg:border-t-0',
+          // It floats over the page as a sheet and as a rail; docked, it sits
+          // beside the page and a shadow would say otherwise.
+          'shadow-float min-[1344px]:shadow-none',
         )}
       >
         <ResizeHandle surface={surfaceFor(pathname)} />
@@ -215,33 +219,34 @@ export function AnswerPanel() {
           aria-hidden="true"
           className="flex shrink-0 cursor-grab touch-none justify-center py-2 active:cursor-grabbing lg:hidden"
         >
-          <span className="h-1 w-9 rounded-full bg-border" />
+          <span className="h-1 w-9 rounded-full bg-line-strong" />
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2 lg:px-5 lg:py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-law" aria-hidden="true" />
-            <h2 id="ask-title" className="label-eyebrow !mb-0 truncate font-sans">
-              {showHistory ? 'Your conversations' : 'Ask'}
-            </h2>
-          </div>
-          <div className="-mr-2 flex shrink-0 items-center text-muted-foreground lg:-mr-1.5">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pl-4 pr-2 lg:py-2 lg:pl-5 lg:pr-3">
+          <h2 id="ask-title" className="label-eyebrow min-w-0 truncate">
+            {showHistory ? 'Your conversations' : 'Ask'}
+          </h2>
+          <div className="flex shrink-0 items-center gap-0.5">
             {isAuthenticated && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowHistory((v) => !v)}
                 aria-label={showHistory ? 'Back to conversation' : 'Your conversations'}
                 className={iconButton}
               >
                 {showHistory ? (
-                  <MessageSquare className="h-4 w-4" />
+                  <MessageSquare className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 ) : (
-                  <History className="h-4 w-4" />
+                  <History className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 )}
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => {
                 newChat();
                 setShowHistory(false);
@@ -249,16 +254,18 @@ export function AnswerPanel() {
               aria-label="New conversation"
               className={iconButton}
             >
-              <Plus className="h-4 w-4" />
-            </button>
-            <button
+              <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => setOpen(false, 'manual')}
               aria-label="Close the ask panel"
               className={iconButton}
             >
-              <X className="h-4 w-4" />
-            </button>
+              <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+            </Button>
           </div>
         </div>
 
@@ -267,25 +274,17 @@ export function AnswerPanel() {
           the reader chose to be anonymous for those turns.
         */}
         {pendingHandoff && !showHistory && (
-          <div className="shrink-0 space-y-2 border-b border-border px-4 py-3 lg:px-5">
-            <p className="text-sm leading-relaxed">
+          <div className="shrink-0 space-y-3 border-b border-line bg-sunken px-4 py-4 lg:px-5">
+            <p className="text-[15px] leading-relaxed text-ink">
               Keep the conversation you started before signing in?
             </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void acceptHandoff()}
-                className="text-xs text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground"
-              >
+            <div className="flex items-center gap-2">
+              <Button type="button" size="sm" onClick={() => void acceptHandoff()}>
                 Keep it
-              </button>
-              <button
-                type="button"
-                onClick={declineHandoff}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={declineHandoff}>
                 Discard
-              </button>
+              </Button>
             </div>
           </div>
         )}

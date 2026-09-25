@@ -22,58 +22,57 @@ module.exports = {
       },
     },
     extend: {
+      // Documentation/brand.md is the source of truth for every value below.
       fontFamily: {
-        // Editorial display serif
-        serif: ['var(--font-serif)', 'Fraunces', 'Charter', 'Georgia', 'serif'],
-        display: ['var(--font-serif)', 'Fraunces', 'Charter', 'Georgia', 'serif'],
-        // UI / body sans
-        sans: ['var(--font-sans)', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        // Tabular monospace for bill numbers, vote tallies, etc.
-        mono: ['var(--font-mono)', 'JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        // Newsreader: headlines, bill titles, summaries, the big figures.
+        serif: ['var(--font-serif)', 'Iowan Old Style', 'Georgia', 'serif'],
+        // Geist: everything a reader operates or scans.
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        // Geist Mono: bill numbers, counts, dates — anything that lines up.
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       fontSize: {
-        // Tightened editorial scale
-        'display-2xl': ['4.5rem', { lineHeight: '1.02', letterSpacing: '-0.025em' }],
-        'display-xl':  ['3.5rem', { lineHeight: '1.05', letterSpacing: '-0.022em' }],
-        'display-lg':  ['2.75rem', { lineHeight: '1.08', letterSpacing: '-0.02em' }],
-        'display-md':  ['2.125rem', { lineHeight: '1.15', letterSpacing: '-0.018em' }],
-        'display-sm':  ['1.625rem', { lineHeight: '1.2', letterSpacing: '-0.015em' }],
+        'display-2xl': ['4.5rem', { lineHeight: '1.03', letterSpacing: '-0.025em' }],   // 72 — the home hero only
+        'display-xl':  ['3.5rem', { lineHeight: '1.05', letterSpacing: '-0.022em' }],   // 56 — page titles
+        'display-lg':  ['2.75rem', { lineHeight: '1.09', letterSpacing: '-0.02em' }],   // 44 — finding headlines
+        'display-md':  ['2.125rem', { lineHeight: '1.15', letterSpacing: '-0.018em' }], // 34 — section headlines
+        'display-sm':  ['1.625rem', { lineHeight: '1.2', letterSpacing: '-0.015em' }],  // 26 — panel titles
+        title:         ['1.25rem', { lineHeight: '1.35', letterSpacing: '-0.01em' }],   // 20 — bill titles in lists
+        reading:       ['1.1875rem', { lineHeight: '1.63' }],                           // 19 — summaries, articles
+        'reading-sm':  ['1.0625rem', { lineHeight: '1.6' }],                            // 17 — answers, phone reading
       },
       colors: {
+        // shadcn/ui's semantic names — aliases of the brand tokens below
+        // (app/globals.css). components/ui uses these; app code uses the brand names.
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: { DEFAULT: 'hsl(var(--card))', foreground: 'hsl(var(--card-foreground))' },
+        popover: { DEFAULT: 'hsl(var(--popover))', foreground: 'hsl(var(--popover-foreground))' },
+        primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
+        secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
+        muted: { DEFAULT: 'hsl(var(--muted))', foreground: 'hsl(var(--muted-foreground))' },
+        accent: { DEFAULT: 'hsl(var(--accent))', foreground: 'hsl(var(--accent-foreground))' },
+        destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+
+        // The brand (Documentation/brand.md).
+        paper: 'hsl(var(--paper))',
+        raised: 'hsl(var(--raised))',
+        sunken: 'hsl(var(--sunken))',
+        ink: {
+          DEFAULT: 'hsl(var(--ink))',
+          2: 'hsl(var(--ink-2))',
+          3: 'hsl(var(--ink-3))',
         },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+        'on-ink': 'hsl(var(--on-ink))',
+        line: {
+          DEFAULT: 'hsl(var(--line))',
+          strong: 'hsl(var(--line-strong))',
         },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-        // Bill-stage status palette — used in dashboard and badges
+        error: 'hsl(var(--error))',
+        // Bill stages — StatusPill, StageTrack and every stage chart.
         status: {
           introduced: 'hsl(var(--status-introduced))',
           committee: 'hsl(var(--status-committee))',
@@ -84,24 +83,38 @@ module.exports = {
           law: 'hsl(var(--status-law))',
           vetoed: 'hsl(var(--status-vetoed))',
         },
-        // Party palette — used for sponsor indicators and dashboard charts
+        // Parties — only where the data is about party.
         party: {
           d: 'hsl(var(--party-d))',
           r: 'hsl(var(--party-r))',
           i: 'hsl(var(--party-i))',
           u: 'hsl(var(--party-u))',
         },
+        topic: {
+          1: 'var(--topic-1)',
+          2: 'var(--topic-2)',
+          3: 'var(--topic-3)',
+          4: 'var(--topic-4)',
+          5: 'var(--topic-5)',
+          6: 'var(--topic-6)',
+        },
+        heat: 'hsl(var(--heat))',
       },
-      borderColor: {
-        // The boundary of an interactive control, which needs 3:1 against its
-        // fill to satisfy WCAG 1.4.11. `border` is a decorative rule and is
-        // deliberately lighter; do not use it to outline a control.
-        control: 'hsl(var(--control-border))',
+      ringColor: {
+        DEFAULT: 'hsl(var(--ink))',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 1px)',
-        sm: 'calc(var(--radius) - 2px)',
+        xs: '2px',       // waffle squares, progress segments
+        sm: '4px',       // status pills, filter chips
+        md: '8px',       // buttons, cards, inputs
+        lg: '14px',      // the ask composer, the status panel, sheets
+      },
+      boxShadow: {
+        // Borders carry structure; a shadow only means "this floats".
+        float: '0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px -8px rgb(0 0 0 / 0.2)',
+      },
+      maxWidth: {
+        measure: '680px',
       },
       // Keyframes are written out in app/globals.css; these entries exist so
       // Tailwind GENERATES the matching `animate-*` utilities. A variant such
@@ -148,6 +161,10 @@ module.exports = {
   },
   plugins: [
     require('@tailwindcss/forms'),
+    // The enter/exit utilities (animate-in, fade-in-0, zoom-in-95…) that
+    // shadcn/ui components ship with. Every blanket rule under
+    // prefers-reduced-motion in globals.css still applies to them.
+    require('tailwindcss-animate'),
     // Adapt to the INPUT DEVICE rather than to the screen width. A 1280px-wide
     // touchscreen laptop needs 44px hit targets; a 768px iPad with a trackpad
     // does not need a bottom sheet. Width breakpoints answer neither question.

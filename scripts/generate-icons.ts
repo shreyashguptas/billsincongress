@@ -2,54 +2,39 @@ import sharp from 'sharp';
 import { mkdir } from 'fs/promises';
 import { join } from 'path';
 
-const sizes = [16, 32, 48, 64, 96, 128, 192, 384, 512];
-const inputFile = join(process.cwd(), 'public', 'images', 'logo.webp');
+// Builds every favicon and app icon from the brand marks in public/brand/
+// (Documentation/brand.md, "Logo"). Below 64px the favicon cut is used — five
+// seats, the well and the floor — because the full mark's inner row turns to
+// mush at that size. Runs before every build (`pnpm build`).
+
+const brandDir = join(process.cwd(), 'public', 'brand');
+const small = join(brandDir, 'favicon.svg');
+const large = join(brandDir, 'app-icon.svg');
 const outputDir = join(process.cwd(), 'public', 'icons');
+
+const sizes = [16, 32, 48, 64, 96, 128, 192, 384, 512];
+
+const render = (source: string, size: number, file: string) =>
+  sharp(source, { density: 600 }).resize(size, size).png().toFile(file);
 
 async function generateIcons() {
   try {
-    // Create output directory if it doesn't exist
     await mkdir(outputDir, { recursive: true });
 
-    // Generate PNG icons
     for (const size of sizes) {
-      await sharp(inputFile)
-        .resize(size, size, {
-          fit: 'contain',
-          background: { r: 255, g: 255, b: 255, alpha: 0 }
-        })
-        .png()
-        .toFile(join(outputDir, `icon-${size}x${size}.png`));
-      
+      await render(size < 64 ? small : large, size, join(outputDir, `icon-${size}x${size}.png`));
       console.log(`Generated ${size}x${size} icon`);
     }
 
-    // Generate favicon.ico (32x32 PNG)
-    await sharp(inputFile)
-      .resize(32, 32, {
-        fit: 'contain',
-        background: { r: 255, g: 255, b: 255, alpha: 0 }
-      })
-      .png()
-      .toFile(join(process.cwd(), 'public', 'favicon.png'));
-    
+    await render(small, 32, join(process.cwd(), 'public', 'favicon.png'));
     console.log('Generated favicon.png');
 
-    // Generate Apple Touch Icon
-    await sharp(inputFile)
-      .resize(180, 180, {
-        fit: 'contain',
-        background: { r: 255, g: 255, b: 255, alpha: 0 }
-      })
-      .png()
-      .toFile(join(process.cwd(), 'public', 'apple-touch-icon.png'));
-    
+    await render(large, 180, join(process.cwd(), 'public', 'apple-touch-icon.png'));
     console.log('Generated apple-touch-icon.png');
-
   } catch (error) {
     console.error('Error generating icons:', error);
     process.exit(1);
   }
 }
 
-generateIcons(); 
+generateIcons();

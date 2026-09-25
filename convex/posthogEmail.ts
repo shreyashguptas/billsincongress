@@ -9,7 +9,7 @@
  * fields. The site renders every email itself, so the wording lives in this
  * repository, not in PostHog's editor.
  *
- * The URL alone would let anyone who learned it send mail as Bills.Congress,
+ * The URL alone would let anyone who learned it send mail as Bills in Congress,
  * so each workflow's trigger also requires `Authorization: Bearer <secret>`
  * (the trigger's "Authorization header value" setting) and rejects anything
  * else with a 401.

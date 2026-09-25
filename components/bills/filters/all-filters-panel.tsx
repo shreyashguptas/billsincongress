@@ -12,6 +12,8 @@ import {
   isSet,
   type FilterDefinition,
 } from '@/lib/bills/filter-registry';
+import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { AdaptiveSurface } from './adaptive-surface';
 import { OptionList } from './option-list';
@@ -54,29 +56,24 @@ export function AllFiltersPanel({
     <AdaptiveSurface
       popoverClassName="w-[min(32rem,calc(100vw_-_2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
       trigger={
-        <button
+        <Button
           type="button"
+          // A ghost button: the chips beside it are the controls, this is the
+          // way to the rest of them.
+          variant="ghost"
           aria-haspopup="dialog"
           aria-label="All filters"
-          className={cn(
-            'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-sm border px-3 text-[13px] transition-colors touchable:h-11',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            count > 0
-              ? 'border-foreground/40 bg-secondary text-foreground'
-              : 'border-control bg-card text-muted-foreground hover:border-foreground/40 hover:text-foreground'
-          )}
+          className="h-9 shrink-0 px-3"
         >
-          <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">All filters</span>
+          {/* A span, not Badge: Badge renders a <div>, which a button cannot hold. */}
           {count > 0 && (
-            // The single use of the accent colour in the whole band. Marking
-            // every active pill in red would put six red marks on a page whose
-            // language rations accent to about five uses sitewide.
-            <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] tabular text-accent-foreground">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-ink px-1 font-mono text-xs tabular text-on-ink">
               {count}
             </span>
           )}
-        </button>
+        </Button>
       }
       onOpenChange={(open, layout) => {
         const props = {
@@ -150,15 +147,16 @@ function PanelBody({
   if (drilldown) {
     return (
       <>
-        <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-2">
-          <button
+        <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-2">
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setDrilldown(null)}
-            className="inline-flex h-9 items-center gap-1 rounded-sm px-2 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touchable:h-11"
+            className="h-9 gap-1 px-2 text-ink-2 hover:text-ink"
           >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             All filters
-          </button>
+          </Button>
         </div>
         <OptionList
           kind={drilldown.kind}
@@ -197,11 +195,11 @@ function PanelBody({
   return (
     <>
       {layout === 'touch' && (
-        <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border" aria-hidden="true" />
+        <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line-strong" aria-hidden="true" />
       )}
 
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 pb-3 pt-3">
-        <Heading className="font-serif text-base font-semibold tracking-tight text-foreground">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 pb-3 pt-3">
+        <Heading className="font-serif text-[19px] font-medium leading-snug text-ink">
           All filters
         </Heading>
         {layout === 'touch' && (
@@ -211,8 +209,9 @@ function PanelBody({
           </SheetDescription>
         )}
         {activeFilterCount(values) > 0 && (
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => {
               analytics.billsFiltersCleared({
                 active_filter_count: activeFilterCount(values),
@@ -220,10 +219,10 @@ function PanelBody({
               });
               onClearAll();
             }}
-            className="text-xs font-medium text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+            className="rounded-xs text-[13px] decoration-1"
           >
             Clear all
-          </button>
+          </Button>
         )}
       </div>
 
@@ -237,74 +236,76 @@ function PanelBody({
 
           if (inline) {
             return (
-              <div key={definition.field} className="border-b border-border last:border-b-0">
+              <div key={definition.field} className="border-b border-line last:border-b-0">
                 <p className="label-eyebrow !mb-0 px-4 pb-1.5 pt-3">{definition.label}</p>
-                <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-                  {options.map((option) => {
-                    const selected = (value as string) === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() =>
-                          onChange(
-                            { [definition.field]: option.value } as Partial<BillsFilterValues>,
-                            'panel'
-                          )
-                        }
-                        className={cn(
-                          'inline-flex h-9 items-center rounded-sm border px-2.5 text-[13px] transition-colors touchable:h-11',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                          selected
-                            ? 'border-foreground/40 bg-secondary font-medium text-foreground'
-                            : 'border-control bg-card text-muted-foreground hover:border-foreground/40 hover:text-foreground'
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <ToggleGroup
+                  type="single"
+                  // Every chip stays a tab stop, as before; Radix's roving focus
+                  // would collapse each row to one.
+                  rovingFocus={false}
+                  value={value as string}
+                  // Radix reports '' when the chosen chip is pressed again; that
+                  // re-applies it rather than leaving the filter with no value.
+                  onValueChange={(next) =>
+                    onChange(
+                      { [definition.field]: next || (value as string) } as Partial<BillsFilterValues>,
+                      'panel'
+                    )
+                  }
+                  aria-label={definition.label}
+                  className="flex-wrap justify-start gap-1.5 px-4 pb-3"
+                >
+                  {options.map((option) => (
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={option.value}
+                      className={
+                        'h-9 min-w-0 rounded-sm border border-line-strong bg-raised text-ink hover:bg-sunken hover:text-ink touchable:h-11 ' +
+                        'data-[state=on]:border-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink'
+                      }
+                    >
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
               </div>
             );
           }
 
           return (
-            <button
+            <Button
               key={definition.field}
               type="button"
+              variant="ghost"
               onClick={() => setDrilldown(definition)}
-              className="flex h-12 w-full items-center justify-between gap-3 border-b border-border px-4 text-left text-sm transition-colors last:border-b-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring touchable:h-14"
+              // A full-width row: square, with the focus ring drawn inside it.
+              className="flex h-12 w-full justify-between gap-3 rounded-none border-b border-line px-4 text-left font-normal last:border-b-0 focus-visible:ring-inset focus-visible:ring-offset-0 touchable:h-14"
             >
-              <span className="shrink-0 text-foreground">{definition.label}</span>
+              <span className="shrink-0 font-medium text-ink">{definition.label}</span>
               <span className="flex min-w-0 items-center gap-1">
                 <span
                   className={cn(
                     'truncate',
-                    set ? 'font-medium text-foreground' : 'text-muted-foreground'
+                    set ? 'font-medium text-ink' : 'text-ink-3'
                   )}
                 >
                   {set ? definition.describe(value) : definition.emptyLabel}
                 </span>
                 <ChevronRight
-                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  className="h-4 w-4 shrink-0 text-ink-3"
+                  strokeWidth={1.75}
                   aria-hidden="true"
                 />
               </span>
-            </button>
+            </Button>
           );
         })}
       </div>
 
-      <div className="shrink-0 border-t border-border px-4 py-3">
-        <button
-          type="button"
-          onClick={close}
-          className="h-10 w-full rounded-sm border border-control bg-card text-sm font-medium text-foreground transition-colors hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touchable:h-12"
-        >
+      <div className="shrink-0 border-t border-line px-4 py-3">
+        <Button type="button" onClick={close} className="w-full">
           Show bills
-        </button>
+        </Button>
       </div>
     </>
   );

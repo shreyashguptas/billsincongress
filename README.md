@@ -1,10 +1,10 @@
-# Bills.Congress
+# Bills in Congress
 
 **An independent, open record of every bill in the United States Congress — built from the government's own data and presented so an ordinary person can actually read it.**
 
 Live at **[billsincongress.com](https://billsincongress.com)**
 
-![The Bills.Congress home page: a chamber of dots showing the 119th Congress's bills by sponsor's party, with the 113 that became law in the inner rows, above a question box and the headline counts](public/readme/preview.png)
+![The Bills in Congress home page: a chamber of dots showing the 119th Congress's bills by sponsor's party, with the 113 that became law in the inner rows, on a dark band above the question box](public/readme/preview.png)
 
 ---
 
@@ -12,7 +12,7 @@ Live at **[billsincongress.com](https://billsincongress.com)**
 
 Congress.gov already publishes everything you need to follow legislation. But it is built for legislative staff, not for citizens. Titles are jargon, status codes are cryptic, and you have to know what you are looking for before you can find it.
 
-Bills.Congress takes exactly the same primary data and reorganises it the way a newspaper of record would: clearly indexed, plainly labelled, fast to read, and honest about what it does and does not know.
+Bills in Congress takes exactly the same primary data and reorganises it the way a newspaper of record would: clearly indexed, plainly labelled, fast to read, and honest about what it does and does not know.
 
 It is free to read, has no ads, and you do not need an account to read anything on it. An optional paid plan, **Pro**, emails you when bills you follow move and raises the daily question allowance; nothing that was free before it existed went behind it.
 
@@ -58,7 +58,7 @@ Each bill page shows the bill number and Congress, its policy area, the official
 
 Below that:
 
-- **A progress pipeline** showing how far the bill has travelled, from introduced through to law.
+- **A status panel** naming the bill's current stage and showing, on a seven-step track, how far it has travelled from introduced to law. A vetoed bill's track stops at the President and says so.
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
 - **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever advanced. It is labelled as a description of that group of past bills, not a prediction about this one.
@@ -81,19 +81,24 @@ What "new" means is exact rather than approximate: each followed bill remembers 
 
 Pro also raises the question limit from 100 a day to 500. Payment is handled by Stripe; card details never reach this site. Cancel from your account page at any time.
 
+The [Pro page](https://billsincongress.com/pro) shows all of this in pictures. Your account page shows your plan, how many questions you have left today, and each bill you follow or saved with the stage it has reached.
+
 ### How Congress works
 
-`/learn` is a hand-built illustrated civics guide for people who never got the classroom version:
+`/learn` explains how Congress works in pictures, simply enough for a child of about eight: one short caption per picture and no paragraphs.
 
-- A line drawing of the Capitol that draws itself.
-- Real seat charts — all 435 House seats and 100 Senate seats — where picking your state lights up the seats it sends.
-- A "100 bills, 3 survive" animation of what actually happens to legislation.
-- A seven-step walkthrough from idea to law, each step with its own illustration, a piece of trivia (the House's mahogany "hopper" box; the President's ten-day window), and a note telling you which label that step carries on a real bill page here.
-- A five-question quiz that scores you from Campaign Volunteer to Speaker of the House.
+- **Who is Congress?** People vote, they pick people to speak for them, and those people meet in two rooms. Both rooms are drawn seat by seat — all 435 House seats and 100 Senate seats — and picking your state fills in the seats it sends.
+- **How an idea becomes a law**, in six pictures, each in the colour that stage has everywhere else on the site: the idea is written down as a bill, a small group checks it, one room votes yes, the other room votes yes, the President signs, and it is a law.
+- **Most bills never make it:** 100 dots, 2 of them green. About 2 in 100 bills became law in the last two full Congresses (639 of 31,807, 2021–2024).
+- Buttons onward to the bills that became law and to every bill.
+
+The page is drawn on the server and ships almost no JavaScript of its own; the state picker is its only interactive part.
 
 ### Reading comfort
 
-Light, dark, and follow-your-system themes. A layout that works on a phone. Every animation on the site — including the flag on the home page — respects your operating system's "reduce motion" setting. Keyboard navigation, skip links, and screen-reader labels on the charts and seat diagrams. The bill lists and browse pages are server-rendered as ordinary links, so they still work with JavaScript switched off.
+The design is neutral on purpose. The site itself has no colour of its own: everything you click is black on off-white. Colour appears only where it carries information — a topic, a stage, a party — and party red and blue appear only where the data is about party. The rules are written down in [`Documentation/brand.md`](Documentation/brand.md).
+
+Light, dark, and follow-your-system themes. A layout that works on a phone. Every animation on the site respects your operating system's "reduce motion" setting. Keyboard navigation, skip links, and screen-reader labels on the charts and seat diagrams. The bill lists and browse pages are server-rendered as ordinary links, so they still work with JavaScript switched off.
 
 ---
 
@@ -207,7 +212,7 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **The text of questions you ask the assistant is included in that analytics data.**
 - **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database. The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
-- **Account emails (sign-up and password-reset codes) are sent through PostHog**, the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
+- **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **If you subscribe to Pro, Stripe handles the payment.** Your card details go to Stripe and never reach this site. What this site stores is your Stripe customer and subscription IDs, the plan's status and price, and when it renews or ends.
 - **If you follow bills on Pro, the list of bills you follow is stored with your account**, along with when each was last emailed. Alert emails are sent through PostHog like the account emails, and PostHog keeps a record of each send. Alert emails carry no tracking pixels and no rewritten links.
 - **No IP addresses are stored in this site's own database.**
@@ -239,7 +244,7 @@ Stated plainly, because they affect what you can trust:
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.
 - **Bill alerts trail Congress.gov.** They go out once a day, after the overnight sync, and Congress.gov itself can post an action a day or more after it happens. An alert says what the record shows, not what happened on the floor an hour ago.
 - **Alerts cover actions and status only** — not new cosponsors, amendments, text versions or hearings, which this site does not store.
-- **Password reset is not self-serve yet.** Email hi@billsincongress.com and it gets done by hand.
+- **Password reset is not self-serve yet.** The back end can already email a reset code, but no page on the site starts that flow, so no reset email is ever sent today. Email hi@billsincongress.com and it gets done by hand.
 - **Bill alerts are paid; saving a bill is not.** Saving bookmarks a bill for free; it does not email you.
 
 If you spot something wrong, that is the most useful thing you can send. See below.
@@ -253,7 +258,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Layer | What it is |
 | --- | --- |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
-| Styling | Tailwind CSS, shadcn/ui, Framer Motion |
+| Design | [shadcn/ui](https://ui.shadcn.com) components (Radix underneath) and Tailwind CSS, themed by the tokens in [`Documentation/brand.md`](Documentation/brand.md) — the design language: colour, type, logo, components |
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
 | Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
 | Payments | Stripe Checkout and the Stripe customer portal; a signature-checked webhook is the only thing that sets a reader's plan (`convex/billing.ts`) |
@@ -306,6 +311,6 @@ Anything else: **hi@billsincongress.com**.
 
 ## Independence and licensing
 
-Bills.Congress is a public-interest project operated by OffGrid LLC, a Maryland limited liability company, which also sells the optional Pro plan. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
+Bills in Congress is a public-interest project operated by OffGrid LLC, a Maryland limited liability company, which also sells the optional Pro plan. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
 
 The legislative data is a work of the U.S. government and is in the public domain. The source code is released under the [MIT License](LICENSE) — free to use, copy, modify and distribute, including commercially.

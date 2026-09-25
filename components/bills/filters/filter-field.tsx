@@ -140,8 +140,8 @@ export function FilterField({
           }}
           footer={
             hubDefinition ? (
-              <div className="shrink-0 border-t border-border px-4 py-3">
-                <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+              <div className="shrink-0 border-t border-line px-4 py-3">
+                <p className="line-clamp-3 text-[13px] leading-snug text-ink-2">
                   {hubDefinition.explainer}
                 </p>
                 <Link
@@ -154,7 +154,7 @@ export function FilterField({
                       placement: 'filter_panel',
                     })
                   }
-                  className="mt-2 inline-block text-sm text-foreground underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground"
+                  className="link mt-2 inline-block rounded-xs text-sm font-medium focus-ring"
                 >
                   Read the {hubDefinition.heading.toLowerCase()} guide →
                 </Link>

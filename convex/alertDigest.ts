@@ -13,12 +13,17 @@ import { formatCongressOrdinal } from "../lib/congress";
 import {
   BRAND,
   C,
+  CARD,
   MONO,
   SANS,
   SERIF,
   emailDocument,
   escapeHtml,
+  footer,
   masthead,
+  pill,
+  STAGE,
+  stageTrack,
   preheader,
   type RenderedEmail,
 } from "./emailStyle";
@@ -128,8 +133,25 @@ export function billLabel(change: Pick<BillChange, "billTypeLabel" | "billNumber
   return `${change.billTypeLabel} ${change.billNumber}`;
 }
 
+/** Stage names as the site writes them: sentence case (lib/utils/bill-stages.ts, stageLabel). */
+const STAGE_LABEL: Record<number, string> = {
+  20: "Introduced",
+  40: "In committee",
+  60: "Passed one chamber",
+  80: "Passed both chambers",
+  85: "Vetoed",
+  90: "On the President’s desk",
+  95: "Signed by the President",
+  100: "Became law",
+};
+
 function stageName(stage: number): string {
-  return BillStageDescriptions[stage] ?? "Status updated";
+  return STAGE_LABEL[stage] ?? BillStageDescriptions[stage] ?? "Status updated";
+}
+
+/** "was in committee": lower-case the first letter only, so "President" keeps its capital. */
+function wasStage(stage: number): string {
+  return `was ${stageName(stage).replace(/^./, (ch) => ch.toLowerCase())}`;
 }
 
 /** "Passed One Chamber" → "passed one chamber" for mid-sentence use. */
@@ -229,13 +251,16 @@ function renderBillHtml(change: BillChange, links: DigestLinks): string {
   const hidden = change.newActions.length - shown.length;
   const url = billUrl(links, change.billId);
 
+  // A stage move is the news, so it gets the colour: the stage's pill and the
+  // site's seven-step track. A bill with only a new action stays neutral.
   const stage = change.stageChange
-    ? `<p style="margin:0 0 14px;font:600 13px/1.4 ${SANS};color:${C.accent};">Now: ${escapeHtml(stageName(change.stageChange.to))}${
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 6px;"><tr><td style="padding:0 10px 8px 0;">${pill(stageName(change.stageChange.to), STAGE[change.stageChange.to] ?? STAGE[20])}</td>${
         change.stageChange.from !== undefined
-          ? `<span style="font-weight:400;color:${C.muted};"> &nbsp;(was ${escapeHtml(stageName(change.stageChange.from))})</span>`
+          ? `<td style="padding:0 0 8px;font:13px/1.3 ${SANS};color:${C.muted};">${escapeHtml(wasStage(change.stageChange.from))}</td>`
           : ""
-      }</p>`
-    : "";
+      }</tr></table>
+  <div style="margin:0 0 16px;">${stageTrack(change.stageChange.to)}</div>`
+    : `<p style="margin:0 0 12px;"><span style="display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid ${C.rule};font:600 12px/1.3 ${SANS};color:${C.muted};">New action</span></p>`;
 
   const rows = shown
     .map(
@@ -257,7 +282,7 @@ function renderBillHtml(change: BillChange, links: DigestLinks): string {
   ${stage}
   ${rows ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${rows}</table>` : ""}
   ${more}
-  <p style="margin:14px 0 0;font:600 14px/1.4 ${SANS};"><a href="${escapeHtml(url)}" style="color:${C.accent};text-decoration:underline;">Open ${escapeHtml(billLabel(change))} &rarr;</a></p>
+  <p style="margin:16px 0 0;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:7px 14px;border-radius:999px;border:1px solid #858a92;font:600 13px/1.2 ${SANS};color:${C.ink};text-decoration:none;">Open ${escapeHtml(billLabel(change))} &rarr;</a></p>
 </td></tr>`;
 }
 
@@ -281,6 +306,25 @@ function renderBillText(change: BillChange, links: DigestLinks): string {
  * The daily digest. Newest action first within a bill; bills in the order
  * given (the caller puts status changes first).
  */
+/** Three figures under the masthead: bills with news, stage moves (dotted in the stage's colour), new actions. */
+function summary(changes: readonly BillChange[]): string {
+  const moved = changes.filter((c) => c.stageChange);
+  const actions = changes.reduce((n, c) => n + c.newActions.length, 0);
+  // A count, not a flag: two bills signed together must read "2 to law".
+  const toLaw = moved.filter((c) => c.stageChange!.to === 100).length;
+  const dot = moved.length ? (toLaw ? STAGE[100] : STAGE[moved[0].stageChange!.to] ?? STAGE[20]).fill : null;
+  const fig = (n: number, label: string, colour: string | null, first: boolean) =>
+    `<td valign="top" width="33%" style="width:33%;padding:18px 16px 20px ${first ? "0" : "16px"};${first ? "" : `border-left:1px solid ${C.rule};`}">
+      <div style="font:300 36px/1 ${SANS};letter-spacing:-0.02em;font-variant-numeric:lining-nums tabular-nums;color:${C.ink};">${n}</div>
+      <div style="margin-top:6px;font:13px/1.35 ${SANS};color:${C.muted};">${colour ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colour};margin-right:6px;vertical-align:1px;"></span>` : ""}${label}</div>
+    </td>`;
+  return `<tr><td style="padding:0 28px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+    ${fig(changes.length, changes.length === 1 ? "bill with news" : "bills with news", null, true)}
+    ${fig(moved.length, toLaw ? `moved, ${toLaw} to law` : "moved a stage", dot, false)}
+    ${fig(actions, actions === 1 ? "new action" : "new actions", null, false)}
+  </tr></table></td></tr>`;
+}
+
 export function renderDigestEmail(
   changes: readonly BillChange[],
   links: DigestLinks,
@@ -312,16 +356,14 @@ export function renderDigestEmail(
     return `${preheader(`${count}.`)}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.ground};">
 <tr><td align="center" style="padding:32px 12px;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;background:${C.card};border:1px solid ${C.rule};">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;${CARD}">
 ${masthead(`Bill alerts · ${dateLine}`)}
-<tr><td style="padding:20px 28px 4px;font:15px/1.55 ${SANS};color:${C.ink};">${escapeHtml(count)} since your last alert.</td></tr>
+${summary(changes)}
 ${changes.slice(0, full).map((c) => renderBillHtml(c, links)).join("\n")}
 ${rest.length > 0 ? renderCompactHtml(rest, links, full > 0) : ""}
-<tr><td style="padding:20px 28px 26px;border-top:1px solid ${C.rule};font:12px/1.6 ${SANS};color:${C.muted};">
-  Actions and status come from Congress.gov, shown as the official record states them. Congress.gov can post an action a day or more after it happens.<br><br>
+${footer(`Actions and status come from Congress.gov, shown as the official record states them. Congress.gov can post an action a day or more after it happens.<br><br>
   You get this because you follow these bills with ${BRAND} Pro. It only arrives on days something changes.<br>
-  <a href="${escapeHtml(links.manageUrl)}" style="color:${C.muted};">Choose which bills</a> &middot; <a href="${escapeHtml(links.unsubscribeUrl)}" style="color:${C.muted};">Stop all bill alert emails</a>
-</td></tr>
+  <a href="${escapeHtml(links.manageUrl)}" style="color:${C.muted};">Choose which bills</a> &middot; <a href="${escapeHtml(links.unsubscribeUrl)}" style="color:${C.muted};">Stop all bill alert emails</a>`)}
 </table>
 </td></tr>
 </table>

@@ -9,9 +9,12 @@ import { Bell, BellRing } from 'lucide-react';
 import { api } from '@/convex/_generated/api';
 import { analytics } from '@/lib/analytics';
 import { useConvexEnabled } from '@/components/convex-client-provider';
+import { Button } from '@/components/ui/button';
 
 interface BillAlertButtonProps {
   billId: string;
+  /** Sizing from the header row it sits in (the button is an outline Button, like Save). */
+  className?: string;
   analyticsProps: {
     bill_type: string;
     bill_number: string;
@@ -37,7 +40,7 @@ const ERROR_COPY: Record<string, string> = {
   EMAIL_REQUIRED: 'Your account has no email address to send alerts to.',
 };
 
-function BillAlertButtonInner({ billId, analyticsProps }: BillAlertButtonProps) {
+function BillAlertButtonInner({ billId, analyticsProps, className }: BillAlertButtonProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,9 +99,9 @@ function BillAlertButtonInner({ billId, analyticsProps }: BillAlertButtonProps) 
 
   return (
     <>
-      <span className="hidden sm:inline">·</span>
-      <button
+      <Button
         type="button"
+        variant="outline"
         onClick={handleClick}
         disabled={status === undefined || pending}
         aria-pressed={following}
@@ -109,13 +112,13 @@ function BillAlertButtonInner({ billId, analyticsProps }: BillAlertButtonProps) 
               ? 'You get an email on any day this bill moves'
               : 'Get an email on any day this bill moves (Pro)'
         }
-        className="inline-flex items-center gap-1.5 text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground disabled:opacity-50"
+        className={className}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
         {paused ? 'Updates paused' : following ? 'Emailing you updates' : 'Email me updates'}
-      </button>
+      </Button>
       {error && (
-        <span role="alert" className="basis-full text-xs text-destructive">
+        <span role="alert" className="basis-full text-xs text-error sm:text-right">
           {error}
         </span>
       )}

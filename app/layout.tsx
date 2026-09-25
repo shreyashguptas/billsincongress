@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Newsreader } from 'next/font/google';
 import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Navigation } from '@/components/navigation';
@@ -94,20 +94,22 @@ const SITE_GRAPH = {
   ],
 };
 
-const fraunces = Fraunces({
+// The three faces of Documentation/brand.md. Newsreader carries its optical-size
+// axis so headlines get the display cut and summaries the text cut.
+const newsreader = Newsreader({
   subsets: ['latin'],
   variable: '--font-serif',
   display: 'swap',
-  axes: ['opsz', 'SOFT'],
+  axes: ['opsz'],
 });
 
-const inter = Inter({
+const geist = Geist({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
   display: 'swap',
@@ -138,6 +140,9 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
+      // The chamber mark (public/brand/, Documentation/brand.md). The SVG stays
+      // sharp at any tab size; the PNGs are generated from it for everything else.
+      { url: '/brand/favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
       { url: '/icons/icon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/icons/icon-32x32.png', sizes: '32x32', type: 'image/png' },
@@ -171,9 +176,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${newsreader.variable} ${geist.variable} ${geistMono.variable}`}
     >
-      <body className="min-h-screen bg-background text-foreground font-sans antialiased">
+      <body className="min-h-screen bg-paper text-ink font-sans antialiased">
         <JsonLd data={SITE_GRAPH} />
         <ConvexAuthNextjsServerProvider>
           <ConvexClientProvider>
@@ -189,7 +194,7 @@ export default function RootLayout({
               <AnswerProvider>
                 <a
                   href="#main"
-                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-foreground focus:text-background focus:px-3 focus:py-2 focus:text-sm"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-ink focus:text-on-ink focus:px-3 focus:py-2 focus:text-sm"
                 >
                   Skip to content
                 </a>

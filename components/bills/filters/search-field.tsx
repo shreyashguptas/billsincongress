@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 /** Long enough to absorb a word, short enough not to feel laggy. */
 const DEBOUNCE_MS = 250;
@@ -79,10 +81,11 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
         Search bills
       </label>
       <Search
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3"
+        strokeWidth={1.75}
         aria-hidden="true"
       />
-      <input
+      <Input
         id={id}
         type="search"
         value={draft}
@@ -97,20 +100,22 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
         placeholder="Search bills, or type a bill number"
         // text-base on touch: anything smaller makes iOS Safari zoom in on
         // focus and never zoom back out.
-        className="h-10 w-full rounded-sm border border-control bg-card pl-10 pr-10 font-sans text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/10 touchable:h-11 touchable:text-base [&::-webkit-search-cancel-button]:hidden"
+        className="h-[52px] pl-11 pr-12 focus:border-ink touchable:h-[52px] touchable:text-base [&::-webkit-search-cancel-button]:hidden"
       />
       {draft !== '' && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={() => {
             setDraft('');
             commit('');
           }}
           aria-label="Clear search"
-          className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute right-1 top-1/2 h-11 w-11 -translate-y-1/2 text-ink-3 hover:text-ink"
         >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
+          <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+        </Button>
       )}
     </div>
   );

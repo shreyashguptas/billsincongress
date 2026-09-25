@@ -119,15 +119,16 @@ it("leaves describe and web lines untouched", () => {
 });
 
 it("does not dim any of its own text below the contrast floor", () => {
-  // The first fix for D26 dimmed the "(no count available)" caveat to 70%.
-  // --muted-foreground is already only 5.26:1 against --background (40 30% 97%,
-  // the surface the ask panel is painted on); at 70% it composites to 2.62:1,
-  // under the 4.5:1 WCAG AA floor for this 11px text and under even the 3:1
-  // large-text floor. Because the base is 5.26:1 there is no dimming budget at
-  // all — any alpha here fails — so the rule is that the trail dims nothing.
+  // The first fix for D26 dimmed the "(no count available)" caveat to 70%,
+  // back when the muted ink measured 5.26:1 and 70% composited to 2.62:1.
+  // Today --ink-3 is 4.79:1 against --paper (#f6f5f1, the surface the ask
+  // panel is painted on, Day theme) — barely over the 4.5:1 WCAG AA floor for
+  // this 12px text — so there is no dimming budget at all: any alpha fails.
+  // The rule is that the trail dims nothing, whether by opacity or by an alpha
+  // on an ink token (`text-ink-3/70`, or the pre-redesign `-foreground/70`).
   // The brackets carry the footnote weight instead.
   const source = readFileSync("components/answers/work-log.tsx", "utf8");
-  const dimmed = source.match(/opacity-\d|-foreground\/\d/g);
+  const dimmed = source.match(/opacity-\d|text-ink(?:-\d)?\/\d|-foreground\/\d/g);
   assert.equal(dimmed, null, `work-log.tsx dims its own text: ${dimmed?.join(", ")}`);
 });
 

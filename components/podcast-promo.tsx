@@ -2,6 +2,7 @@
 
 import { analytics } from '@/lib/analytics';
 import { Headphones, Podcast } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 // Cross-promotion for the site owner's podcast, "The Federalist Papers:
 // Explained". Rendered on the home page, the Learn page and at the end of
@@ -50,14 +51,14 @@ export default function PodcastPromo({
           width={640}
           height={640}
           loading="lazy"
-          className="w-20 sm:w-24 h-auto rounded-sm border border-border shrink-0"
+          className="h-auto w-20 shrink-0 rounded-md border border-line sm:w-24"
         />
         <div className="min-w-0">
           <p className="label-eyebrow mb-1.5">{eyebrow ?? 'Before you go'}</p>
-          <p className="font-serif text-xl font-semibold tracking-tight">
+          <p className="font-serif text-title font-medium text-ink">
             {PODCAST.title}
           </p>
-          <p className="mt-1 text-sm text-muted-foreground leading-relaxed">
+          <p className="mt-1 text-sm leading-relaxed text-ink-2">
             The ideas behind everything Congress does — each Federalist Paper
             explained in plain English, one short episode at a time.
           </p>
@@ -67,9 +68,9 @@ export default function PodcastPromo({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackClick('spotify')}
-              className="inline-flex items-center gap-1.5 text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground"
+              className="link focus-ring inline-flex items-center gap-1.5 rounded-sm"
             >
-              <Headphones className="h-3.5 w-3.5" />
+              <Headphones className="h-4 w-4" strokeWidth={1.75} />
               Listen on Spotify
             </a>
             <a
@@ -77,9 +78,9 @@ export default function PodcastPromo({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackClick('apple')}
-              className="inline-flex items-center gap-1.5 text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground"
+              className="link focus-ring inline-flex items-center gap-1.5 rounded-sm"
             >
-              <Podcast className="h-3.5 w-3.5" />
+              <Podcast className="h-4 w-4" strokeWidth={1.75} />
               Listen on Apple Podcasts
             </a>
           </div>
@@ -96,39 +97,31 @@ export default function PodcastPromo({
         width={640}
         height={640}
         loading="lazy"
-        className="w-40 sm:w-48 h-auto rounded-sm border border-border shrink-0"
+        className="h-auto w-40 shrink-0 rounded-md border border-line sm:w-48"
       />
       <div className="max-w-xl">
-        <p className="label-eyebrow mb-2">{eyebrow ?? 'From our podcast'}</p>
-        <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">
+        <p className="label-eyebrow mb-3">{eyebrow ?? 'From our podcast'}</p>
+        <h2 className="text-display-sm text-ink sm:text-display-md">
           {PODCAST.title}
         </h2>
-        <p className="mt-3 text-sm sm:text-base text-muted-foreground leading-relaxed">
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2 sm:text-base">
           The essays that argued America into existence — and that explain why
           Congress works the way it does. Each Federalist Paper, retold in
           plain English, one short episode at a time.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <a
-            href={PODCAST.spotifyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackClick('spotify')}
-            className="inline-flex items-center gap-2 rounded-sm bg-foreground px-4 py-2.5 text-sm font-medium text-background hover:bg-foreground/85 transition-colors"
-          >
-            <Headphones className="h-4 w-4" />
-            Listen on Spotify
-          </a>
-          <a
-            href={PODCAST.appleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => trackClick('apple')}
-            className="inline-flex items-center gap-2 rounded-sm border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-          >
-            <Podcast className="h-4 w-4" />
-            Listen on Apple Podcasts
-          </a>
+          <Button asChild variant="outline">
+            <a href={PODCAST.spotifyUrl} target="_blank" rel="noopener noreferrer" onClick={() => trackClick('spotify')}>
+              <Headphones className="h-4 w-4" strokeWidth={1.75} />
+              Listen on Spotify
+            </a>
+          </Button>
+          <Button asChild variant="outline">
+            <a href={PODCAST.appleUrl} target="_blank" rel="noopener noreferrer" onClick={() => trackClick('apple')}>
+              <Podcast className="h-4 w-4" strokeWidth={1.75} />
+              Listen on Apple Podcasts
+            </a>
+          </Button>
         </div>
       </div>
     </div>

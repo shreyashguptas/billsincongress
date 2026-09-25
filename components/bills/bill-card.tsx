@@ -1,26 +1,23 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { PartyDot, PartyTag } from '@/components/brand/party';
+import { StageTrack, StatusPill } from '@/components/brand/status';
 import { Bill } from '@/lib/types/bill';
 import { analytics } from '@/lib/analytics';
-import { compactStageLabel } from '@/lib/utils/bill-stages';
-import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
+import { compactStageLabel, getStageStep } from '@/lib/utils/bill-stages';
+import { formatCongressProse } from '@/lib/congress';
 import { billNoun } from '@/lib/seo';
-import { BillProgress } from './bill-progress';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 
 interface BillCardProps {
   bill: Bill;
   /** `compact` is the in-answer density: fits a 400px panel. */
   variant?: 'full' | 'compact';
+  /** Leave out the topic tag — on a topic hub every row would repeat it. */
+  hideTopic?: boolean;
 }
-
-const PARTY_DOT_COLOR: Record<string, string> = {
-  D: 'bg-party-d',
-  R: 'bg-party-r',
-  I: 'bg-party-i',
-};
 
 /**
  * The compact card body, taking primitives rather than a `Bill`.
@@ -54,28 +51,19 @@ export function CompactBillCard({
    */
   noun?: string;
 }) {
-  const partyDot = PARTY_DOT_COLOR[sponsorParty ?? ''] ?? 'bg-party-u';
   return (
     <Link
       href={href}
       onClick={onClick}
-      className="group block rounded-sm border border-border bg-card px-3 py-2.5 hover:border-foreground/40 transition-colors"
+      className="group block rounded-md border border-line bg-raised px-3 py-2.5 transition-colors hover:border-line-strong focus-ring"
     >
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground tabular">
-        {label}
+      <p className="font-mono text-xs font-medium text-ink-2 tabular">{label}</p>
+      <p className="mt-1 line-clamp-2 font-serif text-[15px] font-medium leading-snug text-ink group-hover:underline group-hover:decoration-line-strong group-hover:underline-offset-[3px]">
+        {title || `Open this ${noun} →`}
       </p>
-      {title ? (
-        <p className="font-serif text-[13px] leading-snug mt-1 line-clamp-2 text-foreground">
-          {title}
-        </p>
-      ) : (
-        <p className="font-serif text-[13px] leading-snug mt-1 text-foreground">
-          Open this {noun} →
-        </p>
-      )}
       {(sponsorLastName || stage !== undefined) && (
-        <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${partyDot}`} aria-hidden="true" />
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-3">
+          {sponsorLastName && <PartyDot party={sponsorParty} className="h-1.5 w-1.5" />}
           <span className="truncate">
             {sponsorLastName ? `${sponsorLastName} · ` : ''}
             {stage !== undefined ? compactStageLabel(stage) : ''}
@@ -86,24 +74,16 @@ export function CompactBillCard({
   );
 }
 
-export default function BillCard({ bill, variant = 'full' }: BillCardProps) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString + 'T00:00:00Z');
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      timeZone: 'UTC',
-    }).format(date);
-  };
-
+/**
+ * One bill as a row of the register (Documentation/brand.md, "Lists are
+ * rows"): number and date, then the title and sponsor, then the stage. The
+ * whole row is the link. On phones the three columns stack in that order.
+ */
+export default function BillCard({ bill, variant = 'full', hideTopic = false }: BillCardProps) {
   const stage =
     typeof bill.progress_stage === 'string'
       ? parseInt(bill.progress_stage, 10)
       : bill.progress_stage;
-
-  const billNumberLabel = formatBillNumber(bill);
-  const partyDot = PARTY_DOT_COLOR[bill.sponsor_party] ?? 'bg-party-u';
 
   const track = () =>
     analytics.billCardClicked({
@@ -130,88 +110,104 @@ export default function BillCard({ bill, variant = 'full' }: BillCardProps) {
     );
   }
 
+  const { step, total, isVetoed } = getStageStep(stage);
+  const sponsorName = [bill.sponsor_first_name, bill.sponsor_last_name].filter(Boolean).join(' ');
+  const policyArea = hideTopic ? undefined : bill.bill_subjects?.policy_area_name;
+
   return (
     <Link
       href={`/bills/${bill.id}`}
-      onClick={() =>
-        analytics.billCardClicked({
-          bill_id: String(bill.id),
-          bill_type: bill.bill_type,
-          bill_number: bill.bill_number,
-          congress: bill.congress,
-          policy_area: bill.bill_subjects?.policy_area_name ?? '',
-          progress_stage: stage,
-        })
-      }
-      className="group block rounded-sm border border-border bg-card hover:border-foreground/40 transition-colors h-full"
+      onClick={track}
+      className="group grid gap-x-10 gap-y-3 border-b border-line py-6 focus-ring md:grid-cols-[120px_minmax(0,1fr)_220px]"
     >
-      <article className="flex flex-col h-full p-6">
-        {/* Header — bill number + congress */}
-        <p
-          className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground tabular mb-3"
+      {/* Number and date. A row on phones, a column from md up. */}
+      <div className="flex items-baseline gap-3 md:flex-col md:gap-1">
+        <span
+          className="font-mono text-sm font-medium text-ink tabular"
           title={formatCongressProse(bill.congress)}
         >
-          {billNumberLabel}
-        </p>
+          {formatBillNumber(bill)}
+        </span>
+        {bill.introduced_date && (
+          <span className="font-mono text-xs text-ink-3 tabular">
+            <span className="sr-only">Introduced </span>
+            <time dateTime={bill.introduced_date}>{formatDate(bill.introduced_date)}</time>
+          </span>
+        )}
+      </div>
 
-        {/* Title */}
-        <h3 className="font-serif text-xl font-semibold leading-snug tracking-tight text-foreground line-clamp-4 min-h-[5.25rem] group-hover:underline underline-offset-4 decoration-border">
+      {/* Title and sponsor */}
+      <div className="min-w-0">
+        <h3 className="line-clamp-3 max-w-[64ch] text-title text-ink [text-wrap:pretty] decoration-line-strong decoration-1 underline-offset-4 group-hover:underline">
           {bill.title}
         </h3>
+        {(sponsorName || policyArea) && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {sponsorName && (
+              <PartyTag name={sponsorName} party={bill.sponsor_party} state={bill.sponsor_state} />
+            )}
+            {policyArea && <Badge variant="secondary">{policyArea}</Badge>}
+          </div>
+        )}
+      </div>
 
-        {/* Meta — labeled date + policy area */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] text-muted-foreground">
-          <span>
-            Introduced{' '}
-            <span className="text-foreground font-medium">
-              {formatDate(bill.introduced_date)}
+      {/* Stage */}
+      <div className="flex flex-col gap-2.5 md:pt-0.5">
+        <div className="flex items-center justify-between gap-3">
+          <StatusPill stage={stage} />
+          {!isVetoed && step > 0 && (
+            // The track below carries the same fact as its accessible name.
+            // An unrecognised stage (step 0) shows no counter: "Unknown · 1 of 7"
+            // would contradict itself.
+            <span className="font-mono text-xs text-ink-3 tabular" aria-hidden="true">
+              {step} of {total}
             </span>
-          </span>
-          {bill.bill_subjects?.policy_area_name && (
-            <Badge variant="muted">{bill.bill_subjects.policy_area_name}</Badge>
           )}
         </div>
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Progress */}
-        <div className="mt-6">
-          <BillProgress stage={stage} />
-        </div>
-
-        {/* Footer — sponsor */}
-        <div className="mt-5 pt-4 border-t border-border flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground mb-1">
-              Sponsor
-            </p>
-            <p className="flex items-center gap-2 text-[15px] font-medium text-foreground">
-              <span
-                className={`h-2 w-2 rounded-full shrink-0 ${partyDot}`}
-                aria-hidden="true"
-              />
-              <span className="truncate">
-                {bill.sponsor_first_name} {bill.sponsor_last_name}
-                {bill.sponsor_party && bill.sponsor_state && (
-                  <span className="font-mono text-xs text-muted-foreground tabular">
-                    {' '}· {bill.sponsor_party}-{bill.sponsor_state}
-                  </span>
-                )}
-              </span>
-            </p>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
-        </div>
-      </article>
+        <StageTrack stage={stage} />
+      </div>
     </Link>
   );
 }
 
+/** A row's shape while its bill is loading. Same grid, so nothing jumps. */
+export function BillRowSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="grid gap-x-10 gap-y-3 border-b border-line py-6 md:grid-cols-[120px_minmax(0,1fr)_220px]"
+    >
+      <div className="flex gap-3 md:flex-col md:gap-2">
+        <Skeleton className="h-4 w-16 rounded-xs" />
+        <Skeleton className="h-3 w-20 rounded-xs" />
+      </div>
+      <div className="space-y-2.5">
+        <Skeleton className="h-5 w-full max-w-[56ch] rounded-xs" />
+        <Skeleton className="h-5 w-3/4 max-w-[40ch] rounded-xs" />
+        <Skeleton className="mt-4 h-4 w-40 rounded-xs" />
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-6 w-28 rounded-sm" />
+        <Skeleton className="h-1.5 w-full rounded-xs" />
+      </div>
+    </div>
+  );
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString + 'T00:00:00Z');
+  if (Number.isNaN(date.getTime())) return dateString;
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+}
+
+/** "S. 5446". The Congress is on the row's `title`: every list is one Congress. */
 function formatBillNumber(bill: Bill): string {
   const typeLabel = bill.bill_type_label || bill.bill_type?.toUpperCase();
-  if (typeLabel && bill.bill_number) {
-    return `${typeLabel} ${bill.bill_number} · ${formatCongressOrdinal(bill.congress)} Congress`;
-  }
-  return typeof bill.id === 'string' ? bill.id.replace(/-/g, ' · ').toUpperCase() : 'BILL';
+  if (typeLabel && bill.bill_number) return `${typeLabel} ${bill.bill_number}`;
+  return typeof bill.id === 'string' ? bill.id.replace(/-/g, ' ').toUpperCase() : 'Bill';
 }

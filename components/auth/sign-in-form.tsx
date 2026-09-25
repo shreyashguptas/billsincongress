@@ -4,10 +4,12 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { analytics } from "@/lib/analytics";
+import { AuthDivider } from "./auth-card";
 import { GoogleButton } from "./google-button";
 import { safeRedirect } from "./safe-redirect";
 
@@ -65,18 +67,11 @@ export function SignInForm() {
     <div className="space-y-6">
       <GoogleButton redirectTo={redirect} label="Sign in with Google" />
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase tracking-wider">
-          <span className="bg-background px-2 text-muted-foreground">or with email</span>
-        </div>
-      </div>
+      <AuthDivider>or with email</AuthDivider>
 
-      <form method="post" onSubmit={onSubmit} className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+      <form method="post" onSubmit={onSubmit} className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-ink">Email</Label>
           <Input
             id="email"
             name="email"
@@ -88,12 +83,12 @@ export function SignInForm() {
             disabled={busy}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <div className="flex items-baseline justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="text-ink">Password</Label>
             <Link
               href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="link focus-ring rounded-xs text-[13px]"
             >
               Forgot password?
             </Link>
@@ -110,18 +105,20 @@ export function SignInForm() {
           />
         </div>
         {error && (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
+          // Alert brings role="alert"; border and padding off so it reads as
+          // the one line of error text under the fields.
+          <Alert variant="destructive" className="border-0 p-0">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-ink-3">
         Don&apos;t have an account?{" "}
-        <Link href="/sign-up" className="font-medium text-foreground hover:underline">
+        <Link href="/sign-up" className="link focus-ring rounded-xs font-medium">
           Sign up
         </Link>
       </p>

@@ -55,6 +55,7 @@ longer matches — not only the section you touched.
 - `Documentation/interactive-dashboard.md` covers the home-page dashboard and the
   precomputed-analytics pattern.
 - `Documentation/ANALYTICS.md` is the event registry described above.
+- `Documentation/brand.md` is the design language — see the next section.
 
 This repository is public, and its value rests on a reader being able to verify how it
 works. Documentation describing a version of the site that no longer exists is worse than
@@ -65,6 +66,34 @@ documenting four cron jobs when there were nine.
 Treat "docs updated" as an acceptance criterion, in the same commit as the code. Before
 saying the work is done, state explicitly what you updated — or that you checked and nothing
 needed updating.
+
+# Design — mandatory for anything a reader sees
+
+**`Documentation/brand.md` is the source of truth for how the site looks and reads**: the
+principles, voice, colour tokens, type scale, layout, components, charts, logo and icons.
+Everything visual is downstream of it:
+
+- colours and themes live in `app/globals.css` as tokens, exposed by `tailwind.config.ts` as
+  classes named the same way (`bg-paper`, `text-ink-2`, `border-line-strong`, `bg-status-law`);
+- the logo and the shared pieces (stage pill and track, party tag, section header, source
+  line) live in `components/brand/`;
+- **shadcn/ui is the component library**: `components/ui/` is shadcn/ui, themed through its
+  CSS variables (mapped to the brand in `app/globals.css`). Use its components for every
+  control — Button, Dialog, ToggleGroup, Select, Skeleton, Alert — and add a missing one
+  with `npx shadcn@2.3.0 add <component>` (the Tailwind 3 CLI). Files in `components/ui/`
+  keep shadcn's class names; app code uses the brand names.
+
+Rules:
+
+1. Build from those tokens and components. A colour literal in a component is a bug (chart
+   code reading `var(--topic-n)` / `hsl(var(--party-x))` is the one exception).
+2. **Colour belongs to the data.** The chrome is ink on paper; a hue only ever encodes a
+   topic, a party or a stage. There is no accent colour — do not add one. Party colours
+   appear only where the data is about party.
+3. Changing the design means changing `Documentation/brand.md` first, then the code, in the
+   same commit.
+4. Check every visual change in both themes (Day and Night) and at phone (390px) and desktop
+   (1440px) widths before calling it done.
 
 # Answer accuracy — mandatory for anything touching `convex/catalog/` or `convex/answer.ts`
 
