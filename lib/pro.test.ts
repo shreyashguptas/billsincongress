@@ -3,7 +3,7 @@
  * reader. node:assert, no framework. Run via `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { planCardView, type PlanCardInput } from "./pro";
+import { billingErrorCode, planCardView, type PlanCardInput } from "./pro";
 
 let passed = 0;
 const failures: string[] = [];
@@ -74,9 +74,10 @@ it("ended normally: Free, followed bills kept, Subscribe again, invoices still r
   assert.match(v.message, /still saved/);
 });
 
-it("an old ?checkout=success link does not claim a payment on an ended plan", () => {
+it("a returning subscriber just back from Checkout sees 'confirming', not 'your plan has ended'", () => {
   const v = planCardView({ ...base, subscriptionStatus: "canceled", hasBillingAccount: true }, { ...opts, checkoutReturned: true });
-  assert.doesNotMatch(v.message, /Payment received/);
+  assert.match(v.message, /Payment received/);
+  assert.equal(v.subscribe, null);
 });
 
 it("stopped for non-payment: fix the card, not a new purchase", () => {
@@ -104,6 +105,13 @@ it("no state ever offers a second purchase to someone on Pro", () => {
       assert.equal(v.subscribe, null, `${status}/${cancel}`);
     }
   }
+});
+
+it("billing errors map to a code the copy and analytics can use", () => {
+  assert.equal(billingErrorCode("ALREADY_PRO"), "ALREADY_PRO");
+  assert.equal(billingErrorCode({ kind: "RateLimited", name: "billingActionPerUser", retryAfter: 1000 }), "RATE_LIMITED");
+  assert.equal(billingErrorCode({ something: 1 }), "UNKNOWN");
+  assert.equal(billingErrorCode(undefined), "UNKNOWN");
 });
 
 if (failures.length > 0) {

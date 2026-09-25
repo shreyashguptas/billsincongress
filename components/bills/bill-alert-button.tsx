@@ -89,7 +89,10 @@ function BillAlertButtonInner({ billId, analyticsProps }: BillAlertButtonProps) 
   };
 
   const following = status?.following === true;
-  const Icon = following ? BellRing : Bell;
+  // Still on the list after Pro ended: nothing is being sent, so say so. A
+  // click unfollows (always allowed); resubscribing resumes it.
+  const paused = following && status?.pro === false;
+  const Icon = following && !paused ? BellRing : Bell;
 
   return (
     <>
@@ -100,14 +103,16 @@ function BillAlertButtonInner({ billId, analyticsProps }: BillAlertButtonProps) 
         disabled={status === undefined || pending}
         aria-pressed={following}
         title={
-          following
-            ? 'You get an email on any day this bill moves'
-            : 'Get an email on any day this bill moves (Pro)'
+          paused
+            ? 'Your Pro plan has ended, so emails for this bill are paused. Click to stop following it.'
+            : following
+              ? 'You get an email on any day this bill moves'
+              : 'Get an email on any day this bill moves (Pro)'
         }
         className="inline-flex items-center gap-1.5 text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground disabled:opacity-50"
       >
         <Icon className="h-3.5 w-3.5" />
-        {following ? 'Emailing you updates' : 'Email me updates'}
+        {paused ? 'Updates paused' : following ? 'Emailing you updates' : 'Email me updates'}
       </button>
       {error && (
         <span role="alert" className="basis-full text-xs text-destructive">

@@ -920,12 +920,32 @@ nothing sends nothing.
 | `incomplete` (first payment processing) | Free | "Still being confirmed…" | Manage billing | — |
 | `incomplete_expired` | Free | "Your last checkout didn't finish… you weren't charged" | Subscribe again | — (it failed in front of the reader) |
 
+`/account?checkout=success` (Stripe's return link) is read once and then removed from the address
+bar, so the card says "confirming" until the webhook lands — also for a returning subscriber whose
+old subscription had ended — and a reload or bookmark cannot repeat it. The page updates live when
+the plan is recorded.
+
+On a bill page the follow button reads **"Email me updates"**, **"Emailing you updates"** (Pro,
+following) or **"Updates paused"** (following, but Pro has ended; a click unfollows).
+
 **Stripe sends the money emails, we send the plan emails.** In the Stripe dashboard (live, and
 the sandbox for testing) turn on, under Settings → Business → Customer emails, **Successful
 payments** and **Refunds**, and under Settings → Billing → Subscriptions and emails, **Send
 emails about expiring cards**. Leave **Send emails when card payments fail** off: our
 "payment didn't go through" email covers it, and both would mean two emails for one failure.
 Stripe does not email a cancellation or a start of service, which is why those are ours.
+
+**Operating notes** (each checked against the sandbox):
+
+- **A refund does not end Pro.** Refunding a payment leaves the subscription active in Stripe, so
+  the reader keeps Pro. To take Pro away, cancel the subscription too.
+- **To give someone Pro for free**, create the subscription in Stripe with metadata
+  `app = billsincongress` and `userId = <their users _id>` (a 100%-off coupon makes it free).
+  A subscription without that tag is ignored, by design.
+- **Don't use "pause payment collection"** on a subscription: it keeps the status `active`, so
+  the reader keeps Pro while paying nothing. Cancel instead.
+- **A subscription whose `userId` matches no account** (the account was deleted) changes nothing
+  and logs `Stripe subscription … matches no user`; cancel it in Stripe.
 
 **A customer deleted in the Stripe dashboard** (for example on an account-deletion request)
 arrives as `customer.deleted`; the webhook drops the link (`_forgetCustomer`) so "Manage
@@ -1012,6 +1032,12 @@ Every day at 11:00 UTC `alerts.runDigests` pages through `billAlerts` and schedu
   (see [Email](#email)) and retries twice, 1 and 10 minutes later, only when PostHog is
   unreachable or answers 429/5xx. A timeout after PostHog accepted could in principle send one
   digest twice; that is preferred over dropping it.
+
+**A heavy day stays one readable email.** Bills are listed status changes first, then by number
+of new actions. Up to 12 are shown in full (up to 8 actions each); every other changed bill gets
+one line with its link under "Also moved". If the HTML would pass 80 KB, fewer are shown in full.
+Gmail clips a message over ~102 KB (hiding the unsubscribe link) and PostHog refuses a request over
+500 KB; 100 bills with 10 actions each measured 432 KB before this cap and 79 KB after.
 
 Two ways to stop alerts, and they are not the same:
 

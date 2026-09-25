@@ -137,13 +137,16 @@ async function customerFor(
       stripeCustomerId: user.stripeCustomerId,
     });
   }
-  // Keyed by user and a 10-minute window, so a retried or doubled request
-  // creates ONE customer, while a reader whose customer was deleted in the
-  // dashboard can get a new one shortly after (a key with no window would
-  // hand back the deleted customer for Stripe's 24-hour key lifetime). We do
-  // not look customers up by email: the Stripe account can hold customers of
-  // other products, and a matching address is not the same person's billing.
-  const window = Math.floor(Date.now() / (10 * 60 * 1000));
+  // Keyed by user and a one-minute window, so a doubled click or a retried
+  // request creates ONE customer, while a reader whose customer was deleted
+  // in the dashboard gets a new one a minute later (a key with no window would
+  // hand back the deleted customer for Stripe's 24-hour key lifetime). Two
+  // tabs straddling a minute boundary can create two customers; the row keeps
+  // the first (`_setCustomerId` never overwrites) and the other stays empty.
+  // We do not look customers up by email: the Stripe account can hold
+  // customers of other products, and a matching address is not the same
+  // person's billing.
+  const window = Math.floor(Date.now() / (60 * 1000));
   const customer = await stripe.customers.create(
     {
       email: user.email,

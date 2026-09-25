@@ -26,6 +26,17 @@ import {
 /** Actions shown per bill before "and N more on the bill page". */
 export const MAX_ACTIONS_PER_BILL = 8;
 
+/** Bills shown in full (with their actions) in one digest; the rest are listed compactly. */
+export const MAX_BILLS_IN_FULL = 12;
+
+/**
+ * Size ceiling for a digest's HTML body. Gmail clips a message over ~102 KB
+ * (hiding everything after the cut, including the unsubscribe link), and
+ * PostHog wraps the body in its own template, so leave room: a digest that
+ * would exceed this shows fewer bills in full and lists the rest compactly.
+ */
+export const MAX_DIGEST_HTML_BYTES = 80 * 1024;
+
 export interface ActionRow {
   actionDate: string; // YYYY-MM-DD
   text: string;
@@ -165,6 +176,42 @@ function billUrl(links: DigestLinks, billId: string): string {
   return `${links.siteUrl}/bills/${encodeURIComponent(billId)}`;
 }
 
+function byteLength(s: string): number {
+  return new TextEncoder().encode(s).length;
+}
+
+/** "H.R. 4318 — Rural Broadband… · now Passed One Chamber · 3 new actions" */
+function compactLine(change: BillChange): string {
+  const parts = [`${billLabel(change)} — ${change.title}`];
+  if (change.stageChange) parts.push(`now ${stageName(change.stageChange.to)}`);
+  const n = change.newActions.length;
+  if (n > 0) parts.push(`${n} new action${n === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}
+
+function renderCompactHtml(rest: readonly BillChange[], links: DigestLinks, afterFull: boolean): string {
+  const items = rest
+    .map((c) => {
+      const url = billUrl(links, c.billId);
+      const detail = [
+        c.stageChange ? `now ${escapeHtml(stageName(c.stageChange.to))}` : "",
+        c.newActions.length > 0
+          ? `${c.newActions.length} new action${c.newActions.length === 1 ? "" : "s"}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return `<tr><td style="padding:5px 0;font:14px/1.45 ${SANS};color:${C.ink};"><a href="${escapeHtml(url)}" style="color:${C.ink};font-weight:600;">${escapeHtml(billLabel(c))}</a> ${escapeHtml(c.title)}<span style="color:${C.muted};"> &middot; ${detail}</span></td></tr>`;
+    })
+    .join("\n");
+  return `<tr><td style="padding:22px 28px 18px;border-top:1px solid ${C.rule};">
+  <p style="margin:0 0 8px;font:11px/1.4 ${MONO};letter-spacing:.12em;text-transform:uppercase;color:${C.muted};">${afterFull ? "Also moved" : "The bills"} (${rest.length})</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+${items}
+  </table>
+</td></tr>`;
+}
+
 function renderBillHtml(change: BillChange, links: DigestLinks): string {
   const shown = [...change.newActions].reverse().slice(0, MAX_ACTIONS_PER_BILL);
   const hidden = change.newActions.length - shown.length;
@@ -237,13 +284,27 @@ export function renderDigestEmail(
   });
   const count = `${changes.length} bill${changes.length === 1 ? "" : "s"} you follow ${changes.length === 1 ? "has" : "have"} new activity`;
 
-  const bodyHtml = `${preheader(`${count}.`)}
+  // Most important first (the caller sorts: status changes, then most
+  // actions). Show as many in full as fit the size budget, the rest as one
+  // line each, so a heavy day never produces an email Gmail clips or PostHog
+  // refuses. Every changed bill still appears.
+  let inFull = Math.min(changes.length, MAX_BILLS_IN_FULL);
+  let bodyHtml = buildBody(inFull);
+  while (inFull > 0 && byteLength(bodyHtml) > MAX_DIGEST_HTML_BYTES) {
+    inFull -= 1;
+    bodyHtml = buildBody(inFull);
+  }
+
+  function buildBody(full: number): string {
+    const rest = changes.slice(full);
+    return `${preheader(`${count}.`)}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.ground};">
 <tr><td align="center" style="padding:32px 12px;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;background:${C.card};border:1px solid ${C.rule};">
 ${masthead(`Bill alerts · ${dateLine}`)}
 <tr><td style="padding:20px 28px 4px;font:15px/1.55 ${SANS};color:${C.ink};">${escapeHtml(count)} since your last alert.</td></tr>
-${changes.map((c) => renderBillHtml(c, links)).join("\n")}
+${changes.slice(0, full).map((c) => renderBillHtml(c, links)).join("\n")}
+${rest.length > 0 ? renderCompactHtml(rest, links, full > 0) : ""}
 <tr><td style="padding:20px 28px 26px;border-top:1px solid ${C.rule};font:12px/1.6 ${SANS};color:${C.muted};">
   Actions and status come from Congress.gov, shown as the official record states them. Congress.gov can post an action a day or more after it happens.<br><br>
   You get this because you follow these bills with ${BRAND} Pro. It only arrives on days something changes.<br>
@@ -253,15 +314,24 @@ ${changes.map((c) => renderBillHtml(c, links)).join("\n")}
 </td></tr>
 </table>
 `;
+  }
 
   const html = emailDocument(subject, bodyHtml);
+  const rest = changes.slice(inFull);
 
   const text = [
     `${BRAND} — bill alerts, ${dateLine}`,
     "",
     `${count} since your last alert.`,
     "",
-    changes.map((c) => renderBillText(c, links)).join("\n\n"),
+    changes.slice(0, inFull).map((c) => renderBillText(c, links)).join("\n\n"),
+    ...(rest.length > 0
+      ? [
+          "",
+          inFull > 0 ? `Also moved (${rest.length}):` : `The bills (${rest.length}):`,
+          ...rest.map((c) => `- ${compactLine(c)}: ${billUrl(links, c.billId)}`),
+        ]
+      : []),
     "",
     "---",
     "Actions and status come from Congress.gov, shown as the official record states them.",

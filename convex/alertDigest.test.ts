@@ -13,6 +13,8 @@ import {
   formatActionDate,
   hasNews,
   MAX_ACTIONS_PER_BILL,
+  MAX_BILLS_IN_FULL,
+  MAX_DIGEST_HTML_BYTES,
   newActionsSince,
   renderDigestEmail,
   watermarkFor,
@@ -169,6 +171,36 @@ it("sends PostHog the email without a second document shell", () => {
   assert.ok(email.html.includes(email.bodyHtml));
   assert.ok(email.bodyHtml.includes("https://billsincongress.com/bills/1234hr119"));
   assert.ok(email.bodyHtml.includes(links.unsubscribeUrl));
+});
+
+it("a heavy day (100 bills, 10 actions each) stays under the size Gmail clips, and lists every bill", () => {
+  const long = "A bill to amend the Internal Revenue Code of 1986 to provide for a credit against tax for certain expenses, and for other purposes";
+  const many = Array.from({ length: 100 }, (_, i) =>
+    change({
+      billId: `${2000 + i}hr119`,
+      billNumber: String(2000 + i),
+      title: long,
+      newActions: Array.from({ length: 10 }, (_, j) => ({ actionDate: "2026-09-25", text: `Referred to the Subcommittee on Health, Employment, Labor, and Pensions ${j}` })),
+    }),
+  );
+  const email = renderDigestEmail(many, links, new Date("2026-09-25T11:00:00Z"));
+  assert.ok(new TextEncoder().encode(email.bodyHtml).length <= MAX_DIGEST_HTML_BYTES, "over budget");
+  for (const c of many) {
+    assert.ok(email.bodyHtml.includes(`/bills/${c.billId}`), `html missing ${c.billId}`);
+    assert.ok(email.text.includes(`/bills/${c.billId}`), `text missing ${c.billId}`);
+  }
+  // At most MAX_BILLS_IN_FULL bills show their action lines.
+  const fullBills = (email.bodyHtml.match(/Referred to the Subcommittee on Health, Employment, Labor, and Pensions 9/g) ?? []).length;
+  assert.ok(fullBills <= MAX_BILLS_IN_FULL, `${fullBills} in full`);
+  assert.ok(email.bodyHtml.includes("Also moved (")); 
+  assert.ok(email.bodyHtml.includes(links.unsubscribeUrl), "unsubscribe link must survive");
+  assert.match(email.subject, /and 99 more bills you follow/);
+});
+
+it("a normal day has no compact section", () => {
+  const email = renderDigestEmail([change(), change({ billId: "5hr119", billNumber: "5" })], links, new Date("2026-09-25T11:00:00Z"));
+  assert.ok(!email.bodyHtml.includes("Also moved"));
+  assert.ok(!email.text.includes("Also moved"));
 });
 
 it("caps actions per bill and says how many more there are", () => {

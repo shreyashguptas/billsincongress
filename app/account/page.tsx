@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { ConvexError } from "convex/values";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
-import { planCardView } from "@/lib/pro";
+import { billingErrorCode, planCardView } from "@/lib/pro";
 import { formatCongressProse } from "@/lib/congress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +46,16 @@ function AccountInner() {
   const billing = useQuery(api.billing.status, {});
   const alerts = useQuery(api.alerts.listMine, {});
   const params = useSearchParams();
-  const checkoutSucceeded = params.get("checkout") === "success";
+  // Back from Stripe Checkout. Read once, then dropped from the address so a
+  // reload or a bookmarked link cannot claim a payment that is not happening;
+  // the plan card says "confirming" until the webhook records the plan.
+  const [checkoutSucceeded] = React.useState(() => params.get("checkout") === "success");
+  React.useEffect(() => {
+    if (params.get("checkout") !== "success") return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("checkout");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }, [params]);
   const { signOut } = useAuthActions();
   const [chatUsage, setChatUsage] = React.useState<ChatUsageResult | null>(null);
 
@@ -297,8 +307,13 @@ function PlanCard({
       const { url } = await openPortal({});
       analytics.billingPortalOpened();
       window.location.href = url;
-    } catch {
-      setError("Could not open billing. Please try again.");
+    } catch (err) {
+      const code = err instanceof ConvexError ? billingErrorCode(err.data) : "UNKNOWN";
+      setError(
+        code === "RATE_LIMITED"
+          ? "Too many tries in a short time. Please wait a few minutes and try again."
+          : "Could not open billing. Please try again.",
+      );
       setOpening(false);
     }
   };

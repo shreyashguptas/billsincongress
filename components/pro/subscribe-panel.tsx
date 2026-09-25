@@ -10,7 +10,7 @@ import { api } from '@/convex/_generated/api';
 import { analytics } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
 import { useConvexEnabled } from '@/components/convex-client-provider';
-import { PRO_PRICE_USD, yearlySavingsMonths, type ProInterval } from '@/lib/pro';
+import { billingErrorCode, PRO_PRICE_USD, yearlySavingsMonths, type ProInterval } from '@/lib/pro';
 import { cn } from '@/lib/utils';
 
 const FAILURE_COPY: Record<string, string> = {
@@ -21,6 +21,7 @@ const FAILURE_COPY: Record<string, string> = {
     'Your Pro subscription needs attention (a failed payment or a pause). Use "Manage billing" on your account page to fix it.',
   EMAIL_REQUIRED: 'Your account needs an email address before you can subscribe.',
   BILLING_NOT_CONFIGURED: 'Subscriptions are not open yet. Please check back soon.',
+  RATE_LIMITED: 'Too many tries in a short time. Please wait a few minutes and try again.',
 };
 
 /**
@@ -66,7 +67,7 @@ function SubscribePanelInner() {
       const { url } = await startCheckout({ interval });
       window.location.href = url;
     } catch (err) {
-      const code = err instanceof ConvexError ? String(err.data) : 'UNKNOWN';
+      const code = err instanceof ConvexError ? billingErrorCode(err.data) : 'UNKNOWN';
       analytics.proCheckoutFailed({ interval, reason: code });
       setError(FAILURE_COPY[code] ?? 'Could not open checkout. Please try again.');
       setBusy(null);

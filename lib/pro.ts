@@ -81,7 +81,7 @@ export function planCardView(
 
   // Back from Stripe with the webhook not yet recorded. The plan updates live
   // when it lands; if it has not after a minute, something is wrong.
-  if (opts.checkoutReturned && b.subscriptionStatus !== "canceled") {
+  if (opts.checkoutReturned) {
     return opts.waitedLong
       ? view(
           "This is taking longer than usual. If you were charged and this page still says Free in a few minutes, email hi@billsincongress.com and we'll sort it out.",
@@ -123,4 +123,18 @@ export function planCardView(
         "Reading the site is free. Pro emails you when bills you follow move and raises your daily questions.",
       );
   }
+}
+
+/**
+ * The error code a failed billing action carries, for copy and analytics.
+ * Our own refusals are ConvexError strings ("ALREADY_PRO"); the rate limiter's
+ * is an object ({ kind: "RateLimited", ... }), which String() would turn into
+ * "[object Object]".
+ */
+export function billingErrorCode(data: unknown): string {
+  if (typeof data === "string") return data;
+  if (data && typeof data === "object" && (data as { kind?: unknown }).kind === "RateLimited") {
+    return "RATE_LIMITED";
+  }
+  return "UNKNOWN";
 }
