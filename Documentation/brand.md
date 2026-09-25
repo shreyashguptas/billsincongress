@@ -227,6 +227,31 @@ Patterns that appear on more than one page:
 - **Don't**: put it on a photograph, in a shield or badge, or beside a flag or
   eagle.
 
+## Email
+
+Every email is written by the site (`convex/emailStyle.ts` and one renderer per
+email). PostHog only delivers it, wrapped in a plain shell on `paper`. Email
+clients ignore CSS variables, web fonts and remote images, so the palette is
+literal in `emailStyle.ts` and the faces fall back to system fonts (Georgia for
+the wordmark and titles).
+
+- **The card**: white (`raised`), a `line` hairline and 14px corners (`CARD`),
+  on `paper`. Outlook squares the corners; nothing else changes.
+- **The spectrum signs it**: `masthead()` opens every card with a six-band
+  strip in the topic colours, and `footer()` closes it with six spectrum dots.
+  The code emails put a band under each digit of the code.
+- **Colour still means something**: a stage move gets its stage colour, as a
+  `pill()` and the seven-step `stageTrack()`. "Became law" is the only green.
+  A plan state gets one pill: Pro indigo, a heads-up amber, a problem the
+  error red, the free plan grey. A bill with only a new action stays neutral.
+- **Actions**: one ink button per email for the thing it is for. Repeated
+  links (one per bill) are outlined pills.
+- **Figures**: a digest opens with up to three numbers in a light sans with
+  lining figures, divided by hairlines, like the site's figures.
+- **Never**: images, tracking pixels, web fonts, or anything that breaks when
+  remote content is blocked. A code stays one plain string, so it copies in
+  one go.
+
 ## Accessibility
 
 - Focus is visible on every control (`.focus-ring`).
