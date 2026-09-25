@@ -67,7 +67,9 @@ Below that:
 
 Every bill page has a **Share** button. On a phone it opens your phone's own share sheet — Messages, WhatsApp, Mail, AirDrop, whatever you have — and on a computer one click copies the link. The link is always the bill's plain address, `billsincongress.com/bills/<bill>`, with nothing added to track who shared it or who opened it.
 
-Paste that link into iMessage, WhatsApp, Slack, an email or a post, and it unfurls into a card for that bill: its number, title, sponsor and date, and its current stage on the same seven-step track as the page. The card is drawn from the record at the moment the preview is made, so it states the stage the bill is at then. A preview already sitting in a conversation is a picture and does not change when the bill moves later.
+Paste that link into iMessage, WhatsApp, Slack, an email or a post, and it unfurls into a picture of where the bill stands: its current stage in large type and the same seven-step track as the page. The bill's number and title appear as the preview's own text underneath, so the picture does not repeat them. It is drawn from the record at the moment the preview is made, so it states the stage the bill is at then. A preview already sitting in a conversation is a picture and does not change when the bill moves later.
+
+The status, chamber and topic pages unfurl the same way, into their headline figure for the current Congress — how many bills became law, how many a chamber introduced, how a topic ranks against the others. Every number on those pictures is a complete count; one the site could not count in full is left off rather than estimated.
 
 ### Ask the record
 
@@ -278,7 +280,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Email | PostHog Workflows — sign-in codes sent inline (`convex/emailCodes.ts`); bill alerts and Pro plan-change notices scheduled from Convex (`convex/alerts.ts`, `convex/billing.ts` → `convex/email.ts`). Receipts and refunds come from Stripe |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |
 | Hosting | Cloudflare Workers via OpenNext, with Convex Cloud for the backend |
-| Link previews | Each bill's share card is drawn on request with `next/og` from `lib/og/bill-share-card.tsx`, in the brand fonts, which are embedded |
+| Link previews | Share cards for bills and the status, chamber and topic pages, drawn on request with `next/og` from `lib/og/`, in the brand fonts, which are embedded |
 | Installed app | A web app manifest (`app/manifest.ts`) and a service worker (`public/sw.js`) whose only job is the offline page |
 | Analytics | PostHog |
 

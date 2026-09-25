@@ -4,7 +4,8 @@
  *
  * The card states a bill's status in the site's voice, on someone else's
  * screen, so the status has to be the bill's own and the URL has to change
- * when it does. The last group renders real PNGs, which is also what proves
+ * when it does. (Since v2 it draws only the stage: the number and title are in
+ * the text every app prints under the picture.) The last group renders real PNGs, which is also what proves
  * the embedded fonts decode.
  *
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
@@ -14,12 +15,9 @@ import { createElement } from 'react';
 import { ImageResponse } from 'next/og';
 import type { Bill } from '@/lib/types/bill';
 import { billShareImagePath, billShareUrl, SHARE_CARD_SIZE, SITE_URL } from '@/lib/seo';
-import {
-  BillShareCard,
-  shareCardFonts,
-  shareCardStageNote,
-  shareCardTitle,
-} from './bill-share-card';
+import { BillShareCard, shareCardFonts, shareCardStageNote } from './bill-share-card';
+import { stageHeadlineSize } from './card-parts';
+import { stageLabel } from '@/lib/utils/bill-stages';
 
 let passed = 0;
 const failures: string[] = [];
@@ -81,13 +79,12 @@ async function main() {
     assert.equal(shareCardStageNote(55), 'Stage unknown');
   });
 
-  await it('sets short titles large and cuts long ones at a word', () => {
-    assert.equal(shareCardTitle('JUDGES Act of 2024').fontSize, 76);
-    const long = shareCardTitle(`To amend title 38, United States Code, ${'to improve benefits '.repeat(20)}`);
-    assert.equal(long.fontSize, 44);
-    assert.ok(long.text.length <= 151, `cut to ${long.text.length} chars`);
-    assert.ok(long.text.endsWith('…'));
-    assert.ok(!/\s…$/.test(long.text), 'no space before the ellipsis');
+  await it('sets long stage names smaller so they stay on one line', () => {
+    // 880px beside the glyph: "On the President's desk" overflowed at full size.
+    assert.equal(stageHeadlineSize(stageLabel(40)), 104);
+    for (const stage of [80, 90, 95]) {
+      assert.ok(stageHeadlineSize(stageLabel(stage)) <= 72, stageLabel(stage));
+    }
   });
 
   // It draws

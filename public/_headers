@@ -26,3 +26,6 @@
   Cache-Control: no-cache
 /offline.html
   Cache-Control: no-cache
+# Where Cloudflare actually serves it: /offline.html redirects here.
+/offline
+  Cache-Control: no-cache

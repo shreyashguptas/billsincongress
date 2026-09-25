@@ -11,7 +11,7 @@ import { formatCount } from '@/lib/utils';
 import { pagesForCount } from '@/lib/pagination';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { hubsOfKind, type HubDefinition } from '@/lib/hubs';
-import { SITE_URL } from '@/lib/seo';
+import { SHARE_CARD_SIZE, SITE_URL, hubShareImagePath } from '@/lib/seo';
 import { HubViewTracker, HubLink } from './hub-view-tracker';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { scopeFromHub } from '@/lib/answer-scope';
@@ -53,6 +53,19 @@ export async function hubMetadata(hub: HubDefinition, page: number): Promise<Met
   // than a 404 — but it must not be offered to search engines as a document.
   // Only a complete count can prove a hub empty.
   const empty = exact && count === 0;
+  // The page's own card (app/share-image/[...path]). Named for both Open Graph
+  // and X: a page-level openGraph replaces the root one wholesale, which until
+  // this card existed left hub links with no picture at all.
+  const exactCount = exact ? count : null;
+  const shareImage = {
+    url: hubShareImagePath(hub.path, exactCount),
+    ...SHARE_CARD_SIZE,
+    type: 'image/png',
+    alt:
+      exactCount !== null
+        ? `${hub.heading}: ${formatCount(exactCount)} in the current Congress`
+        : hub.heading,
+  };
   return {
     title: hub.metaTitle,
     description: hub.metaDescription,
@@ -63,6 +76,13 @@ export async function hubMetadata(hub: HubDefinition, page: number): Promise<Met
       description: hub.metaDescription,
       url: `${SITE_URL}${canonical}`,
       type: 'website',
+      images: [shareImage],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: hub.metaTitle,
+      description: hub.metaDescription,
+      images: [shareImage],
     },
   };
 }

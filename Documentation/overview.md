@@ -132,7 +132,9 @@ lib/                       Pure client/shared modules — 30 modules + 27 test f
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
-  og/                      The share card (bill-share-card.tsx, tested) and its embedded fonts (fonts.ts, generated)
+  og/                      The share cards: card-parts.tsx (frame, headline, track), bill-share-card.tsx,
+                           hub-share-card.tsx + hub-share-data.ts (page cards and their figures), both
+                           tested; fonts.ts (embedded fonts, generated)
   services/bills-service.ts  constants/  types/  utils/
 
 convex/                    Backend — 30 top-level modules + catalog/ + 9 test files
@@ -172,6 +174,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
+| `/share-image/<hub path>?v=` | GET — a status, chamber or topic page's share card, e.g. `/share-image/bills/topic/health` for `/bills/topic/health`. 404 for a path that is not a hub |
 | `/robots.txt`, `/sitemap_index.xml`, `/sitemap/<n>.xml`, `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
 | `/sw.js`, `/offline.html` | The service worker and the one page it serves (static files) |
 
@@ -1149,50 +1152,73 @@ bar, so this button is the only way to get a bill's link out. Every press is rec
 `bill_share_clicked` with the method and whether the link went out; the share sheet does not
 tell a page which app was chosen, so nothing records where it went.
 
-### Link previews: the share card
+### Link previews: the share cards
 
 A link pasted into iMessage, WhatsApp, Slack, Discord, LinkedIn, X or an email client unfurls
-into the bill's own **share card**: the lockup, the identifier and Congress, the policy area,
-the title, the status panel (stage glyph, stage, "Stage n of 7", the seven-step track) and the
-sponsor and introduction date. It is drawn on request by
-`app/bills/[id]/share-image/route.tsx` from `lib/og/bill-share-card.tsx`, with `next/og`
-(satori and resvg), from the bill as it stands at that moment. The design rules are in
+into a **share card** drawn for that page. Bill pages and the 40 hub pages (status, chamber,
+topic) each have one; every other page uses the generic card from `app/layout.tsx`
+(`DEFAULT_OG_IMAGE`, built by `scripts/generate-og-image.ts`). Cards are drawn on request with
+`next/og` (satori and resvg) from the record as it stands at that moment. The design rules,
+including why a card never repeats the title or number the app already prints under it, are in
 `Documentation/brand.md`, "Share card".
 
-- **Tags.** `generateMetadata` in `app/bills/[id]/page.tsx` names the card for both
-  `openGraph.images` and `twitter.images`, with width, height, type and alt text. The page's
-  title and description tags were already specific to each bill. Messaging apps read these from
-  the `<head>`, which is why the bill page must not gain a Suspense boundary that streams
-  metadata into the body (the comment on the page records the other reasons).
-- **Freshness.** The card states a status, and a status is exactly what goes stale. Its URL
-  carries the stage and a design version, `?v=<SHARE_CARD_VERSION>.<stage>`
-  (`billShareImagePath` in `lib/seo.ts`), so when a bill moves its page names a new image URL
-  and no platform keeps an old stage it cached by URL. The query only busts caches: the route
-  ignores it. Bump `SHARE_CARD_VERSION` whenever the card's design changes.
-- **Caching.** The route sends `public, max-age=86400, s-maxage=86400,
+| Page | Card | Route | Drawn from |
+|---|---|---|---|
+| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
+| A status hub | "113 became law", out of all introduced, the track filled to that stage | `app/share-image/[...path]/route.tsx` | `lib/og/hub-share-card.tsx` |
+| A chamber hub | The chamber's count, how many became law, its share against the other chamber | same | same |
+| A topic hub | The topic's count and rank, beside the six largest topics as bars | same | same |
+
+- **Tags.** `generateMetadata` in `app/bills/[id]/page.tsx`, and `hubMetadata` in
+  `app/bills/_hub/hub-view.tsx`, name the card for both `openGraph.images` and
+  `twitter.images`, with width, height, type and alt text. Until the hub cards existed, a hub's
+  page-level `openGraph` replaced the root one wholesale and hub links had no picture at all.
+  Messaging apps read these tags from the `<head>`, which is why neither page may gain a
+  Suspense boundary that streams metadata into the body.
+- **Figures are complete or absent** (AGENTS.md, "Answer accuracy"). `lib/og/hub-share-data.ts`
+  reads the current Congress (the one the hub page counts) and uses a `listCount` answer only
+  when it is `exact`. The headline figure is required: without it the route sends the generic
+  card. A chamber's "became law" is summed from its monthly rollup
+  (`getChamberDeepBreakdown`) and used only when that rollup accounts for exactly the bills the
+  page counts. A topic's rank is computed from all 33 topic counts, each exact, sorted here —
+  not taken from `congressPolicyAreas`' stored order, which daily updates patch in place — and
+  dropped, rather than guessed, if any count is a floor. That is 33 small Convex reads per topic
+  render, once a day per topic thanks to caching.
+- **Freshness.** A card states a status or a count, and both go stale. Each URL carries a design
+  version and the figure it shows: `?v=<SHARE_CARD_VERSION>.<stage>` for a bill
+  (`billShareImagePath`) and `?v=<SHARE_CARD_VERSION>.<count>` for a hub (`hubShareImagePath`),
+  both in `lib/seo.ts`. When the figure moves, the page names a new image URL, so no platform
+  keeps an old one it cached by URL. The query only busts caches: the routes ignore it. Bump
+  `SHARE_CARD_VERSION` whenever a card's design changes (2 is the stage-only redesign and the
+  hub cards).
+- **Caching.** Both routes send `public, max-age=86400, s-maxage=86400,
   stale-while-revalidate=604800`, replacing `next/og`'s default of a year and `immutable`.
-  The middleware leaves it alone (`setsOwnCacheControl`).
-- **Failures.** An unknown bill is a 404. A failed Convex lookup is a `307` to the site's
-  generic card, `/images/og-default.png`, sent `no-store`: a 404 there would be cached by
-  crawlers as "this link has no picture" for as long as they like. `lookupBill` in
-  `app/bills/[id]/get-bill.ts` keeps those two cases apart; the page treats both as a 404,
-  as before.
+  The middleware leaves the bill route alone (`setsOwnCacheControl`); the hub route sits
+  outside `/bills`, where the middleware sets no cache policy at all.
+- **Failures.** An unknown bill or hub is a 404. A failed lookup is a `307` to the generic card,
+  sent `no-store`: a 404 there would be cached by crawlers as "this link has no picture" for as
+  long as they like. `lookupBill` in `app/bills/[id]/get-bill.ts` keeps "no such bill" and "could
+  not ask" apart; the page treats both as a 404, as before.
 - **Fonts.** A Worker has no filesystem to read a `.ttf` from, and fetching one from Google on
   every render would put a third party in the path of every preview, so Newsreader (500, 600),
   Geist 500 and Geist Mono 500 are embedded in `lib/og/fonts.ts` as base64 TTF, subset to
   Latin-1 and common punctuation (~130 KB). `scripts/generate-og-fonts.ts` rebuilds that file
   (manual, needs `pip install fonttools`). A character outside the subset falls back to
   `next/og`'s bundled Geist Regular.
+- **Satori is not a browser.** Every `<div>` with more than one child needs `display: flex`,
+  text pieces must be one string, and a fragment's children are laid out in a row — so each
+  card body is a real column. The size tests below cannot see layout: look at a rendered card
+  after any change.
 - **Cost.** About 100 ms of CPU and 60–90 KB of PNG per render. `next/og` added ~0.86 MB
   gzipped to the Worker (1.78 → 2.64 MB, measured with `wrangler deploy --dry-run` on
   2026-09-25), mostly resvg's WebAssembly. OpenNext's build swaps in `next/og`'s edge
-  build for Workers (`patchVercelOgLibrary`); the route was checked in local `wrangler dev`
+  build for Workers (`patchVercelOgLibrary`); the routes were checked in local `wrangler dev`
   as well as `next start`.
-- **Other pages** still use the generic card from `app/layout.tsx` (`DEFAULT_OG_IMAGE`,
-  built by `scripts/generate-og-image.ts`).
-- **Tests.** `lib/og/bill-share-card.test.ts` checks the stage wording, the title cut, the
-  versioned URL, and renders a real PNG for every awkward case (vetoed, an unknown stage, no
-  sponsor, a 280-character title with characters outside the font subset).
+- **Tests.** `lib/og/bill-share-card.test.ts` checks the stage wording and sizing and the
+  versioned URL, and renders a PNG for every awkward bill (vetoed, an unknown stage, no sponsor).
+  `lib/og/hub-share-card.test.ts` checks ordinals, ranking (by count; tied topics share a
+  rank, never split by name into an order the data does not support; a topic outside the six), the share line, renders every card variant including the partial ones, and
+  runs the loader against a stubbed service to prove a floor never reaches a card.
 
 A preview that has already been sent is a picture in someone's conversation: it does not
 change when the bill moves. Only new shares, and platforms that re-read the page, see the new
@@ -1213,7 +1239,12 @@ The site installs to a phone's Home Screen or a computer's dock and opens full s
   serve `public/offline.html` instead of the browser's error screen. It caches nothing else —
   every page, chunk and API call goes to the network as if it were not there — so it cannot
   hide a deploy behind a stale copy or fight skew protection. Navigation preload is on, so it
-  costs a navigation no time. `public/_headers` serves both files `no-cache`. If it ever
+  costs a navigation no time. `public/_headers` serves both files `no-cache`.
+  Cloudflare serves static HTML without its extension (`/offline.html` answers 307 →
+  `/offline`), and a browser rejects a *redirected* response as the answer to a page load,
+  so the worker stores a fresh copy of the page rather than the fetched response. Version 1
+  cached the redirected copy and its offline page never showed in production; test offline
+  behaviour under `wrangler dev`, not only `next start`, which does not redirect. If it ever
   grows a page or asset cache, deploy skew (`deploymentId` in `next.config.mjs`) has to be
   handled first. Bump `OFFLINE_CACHE` in it when `offline.html` changes.
 - **"Install the app"** in the footer (`components/pwa/install-app-button.tsx`) appears only
@@ -1481,8 +1512,8 @@ theme script — producing `ReferenceError: __name is not defined` in the browse
 
 **`next/og` works on Workers** because OpenNext's build replaces its Node build with the edge
 build and bundles the WebAssembly (`patchVercelOgLibrary` in `@opennextjs/cloudflare`). Fonts
-cannot be read from disk at request time, which is why the share card embeds its own
-(see [Link previews](#link-previews-the-share-card)).
+cannot be read from disk at request time, which is why the share cards embed their own
+(see [Link previews](#link-previews-the-share-cards)).
 
 **`middleware.ts`, not `proxy.ts`.** Next 16's `proxy.ts` convention is locked to the Node.js
 runtime, which the Cloudflare/OpenNext adapter does not support; it requires Edge middleware.
