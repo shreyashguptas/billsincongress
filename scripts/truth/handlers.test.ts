@@ -358,6 +358,41 @@ async function main() {
     }
   });
 
+  await it("every stored party is one the party filter can reach", async () => {
+    // The filter reads D, R, I/ID/IND, and missing or "" (catalog/fetch.ts,
+    // PARTY_SPELLINGS). The home page's split files anything else under U, where
+    // no filter could list it and the two would disagree. Congress.gov's value
+    // is stored raw, so a new spelling shows up here first.
+    const reachable = new Set(["D", "R", "I", "ID", "IND", ""]);
+    const stray = bills.filter(
+      (b: any) => b.sponsorParty !== undefined && !reachable.has(b.sponsorParty),
+    );
+    assert.equal(
+      stray.length,
+      0,
+      `unreachable sponsorParty values: ${[...new Set(stray.map((b: any) => b.sponsorParty))].join(", ")} ` +
+        `— add them to PARTY_SPELLINGS in convex/catalog/fetch.ts`,
+    );
+  });
+
+  await it("each party filter's total matches the home page's split, in every Congress", async () => {
+    const congresses = [...new Set(bills.map((b: any) => b.congress))];
+    for (const congress of congresses) {
+      const stats = await fetchViaHandlers(ctx, "stats", { congress });
+      assert.ok(stats.ok && stats.rows[0].partyCounts, `no party split for the ${congress}th`);
+      for (const [filter, key] of [["none", "U"], ["I", "I"]] as const) {
+        const r = await fetchViaHandlers(ctx, "bills", { congress, sponsorParty: filter }, 0);
+        assert.ok(r.ok, `fetch failed: ${r.error}`);
+        assert.equal(r.report.complete, true, `${congress}th ${filter}: read was not complete`);
+        assert.equal(
+          r.report.total,
+          stats.rows[0].partyCounts[key],
+          `${congress}th: filter '${filter}' and partyCounts.${key} disagree`,
+        );
+      }
+    }
+  });
+
   await it("asking for them sorted still finds them all", async () => {
     // They are the oldest rows in the Congress, so a newest-first ordering
     // window read without the party index would hold none of them.

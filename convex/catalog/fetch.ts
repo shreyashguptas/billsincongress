@@ -172,12 +172,21 @@ const SORT_FIELD: Record<
 };
 
 /**
- * The value a `sponsorParty` filter matches in the table. "No party recorded" is
- * a missing field, which an index reads as undefined.
+ * Every stored spelling a `sponsorParty` filter matches — the same buckets the
+ * home page's party split uses (`normaliseParty` in convex/mutations.ts), so a
+ * filtered total can never contradict `stats.partyCounts`. Congress.gov's value
+ * is stored raw: "ID" and "IND" are Independents there, and an empty string is
+ * as unrecorded as a missing field (which an index reads as undefined).
+ *
+ * A stored value outside these lists would sit in the split's U without being
+ * reachable here. scripts/truth/handlers.test.ts fails if production holds one.
  */
-function storedParty(filter: string): string | undefined {
-  return filter === NO_PARTY ? undefined : filter;
-}
+const PARTY_SPELLINGS: Record<string, Array<string | undefined>> = {
+  D: ["D"],
+  R: ["R"],
+  I: ["I", "ID", "IND"],
+  [NO_PARTY]: [undefined, ""],
+};
 
 /** The bucket a row falls into for a grouped count. */
 function groupValue(b: Doc<"bills">, field: string): string {
@@ -501,15 +510,26 @@ async function fetchBills(
         .order("desc")
         .take(ceiling);
       break;
-    case "sponsorParty":
-      candidates = await ctx.db
-        .query("bills")
-        .withIndex("by_congress_and_sponsor_party", (q) =>
-          q.eq("congress", congress).eq("sponsorParty", storedParty(f.sponsorParty as string)),
-        )
-        .order("desc")
-        .take(ceiling);
+    case "sponsorParty": {
+      // One read per stored spelling, sharing one budget, as the milestone
+      // branch does for its stage buckets.
+      const collectedParty: Doc<"bills">[] = [];
+      for (const spelling of PARTY_SPELLINGS[f.sponsorParty as string]) {
+        if (collectedParty.length >= ceiling) break;
+        const rows = await ctx.db
+          .query("bills")
+          .withIndex("by_congress_and_sponsor_party", (q) =>
+            q.eq("congress", congress).eq("sponsorParty", spelling),
+          )
+          .order("desc")
+          .take(ceiling - collectedParty.length);
+        collectedParty.push(...rows);
+      }
+      candidates = collectedParty;
+      ownCapping = true;
+      windowFilled = collectedParty.length >= ceiling;
       break;
+    }
     case "progressStage":
       candidates = await ctx.db
         .query("bills")
@@ -565,7 +585,10 @@ async function fetchBills(
     // many bills has the Senate passed" with a number that omitted all 104 laws.
     if (reachedSet && !reachedSet.has(b.progressStage ?? 20)) return false;
     if (typeof f.sponsorState === "string" && b.sponsorState !== f.sponsorState) return false;
-    if (typeof f.sponsorParty === "string" && b.sponsorParty !== storedParty(f.sponsorParty)) {
+    if (
+      typeof f.sponsorParty === "string" &&
+      !PARTY_SPELLINGS[f.sponsorParty].includes(b.sponsorParty)
+    ) {
       return false;
     }
     if (typeof f.billType === "string" && b.billType !== f.billType) return false;

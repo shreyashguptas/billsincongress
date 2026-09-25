@@ -737,7 +737,10 @@ instruction to use the past tense. Two of the three Congresses we hold are over 
 recorded" block, so the answer engine can read the same split. `bills` takes a `sponsorParty`
 filter (`D`, `R`, `I`, or `none`), read through `by_congress_and_sponsor_party`, and the
 whole-Congress `stats` row carries `partyCounts` and `partyLawCounts` summed from both chamber
-breakdowns, as the page does. `U` in those objects is "no party recorded". Before this, a reader
+breakdowns, as the page does. `U` in those objects is "no party recorded". The filter reads
+every stored spelling the split counts under the same letter (`ID`/`IND` are Independents, an
+empty string is unrecorded), so a filtered total always equals its `partyCounts` entry; a truth
+case fails if production ever holds a party value the filter cannot reach. Before this, a reader
 asking what the 117th's eleven unrecorded seats were was told the figure could not be verified:
 there was no party filter, and a grouped count stopped at 5,000 of 17,828 rows. The eleven are
 H.R. 2, 9 and 10 (reserved for the Speaker) and H.R. 11–17 and 20 (reserved for the Minority
