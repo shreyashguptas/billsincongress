@@ -310,8 +310,9 @@ function renderBillText(change: BillChange, links: DigestLinks): string {
 function summary(changes: readonly BillChange[]): string {
   const moved = changes.filter((c) => c.stageChange);
   const actions = changes.reduce((n, c) => n + c.newActions.length, 0);
-  const law = moved.some((c) => c.stageChange!.to === 100);
-  const dot = moved.length ? (law ? STAGE[100] : STAGE[moved[0].stageChange!.to] ?? STAGE[20]).fill : null;
+  // A count, not a flag: two bills signed together must read "2 to law".
+  const toLaw = moved.filter((c) => c.stageChange!.to === 100).length;
+  const dot = moved.length ? (toLaw ? STAGE[100] : STAGE[moved[0].stageChange!.to] ?? STAGE[20]).fill : null;
   const fig = (n: number, label: string, colour: string | null, first: boolean) =>
     `<td valign="top" width="33%" style="width:33%;padding:18px 16px 20px ${first ? "0" : "16px"};${first ? "" : `border-left:1px solid ${C.rule};`}">
       <div style="font:300 36px/1 ${SANS};letter-spacing:-0.02em;font-variant-numeric:lining-nums tabular-nums;color:${C.ink};">${n}</div>
@@ -319,7 +320,7 @@ function summary(changes: readonly BillChange[]): string {
     </td>`;
   return `<tr><td style="padding:0 28px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
     ${fig(changes.length, changes.length === 1 ? "bill with news" : "bills with news", null, true)}
-    ${fig(moved.length, law ? "moved, 1 to law" : "moved a stage", dot, false)}
+    ${fig(moved.length, toLaw ? `moved, ${toLaw} to law` : "moved a stage", dot, false)}
     ${fig(actions, actions === 1 ? "new action" : "new actions", null, false)}
   </tr></table></td></tr>`;
 }

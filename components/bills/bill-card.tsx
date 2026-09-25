@@ -155,8 +155,10 @@ export default function BillCard({ bill, variant = 'full', hideTopic = false }: 
       <div className="flex flex-col gap-2.5 md:pt-0.5">
         <div className="flex items-center justify-between gap-3">
           <StatusPill stage={stage} />
-          {!isVetoed && (
+          {!isVetoed && step > 0 && (
             // The track below carries the same fact as its accessible name.
+            // An unrecognised stage (step 0) shows no counter: "Unknown · 1 of 7"
+            // would contradict itself.
             <span className="font-mono text-xs text-ink-3 tabular" aria-hidden="true">
               {step} of {total}
             </span>

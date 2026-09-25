@@ -24,6 +24,7 @@ import PodcastPromo from '@/components/podcast-promo';
 import {
   ArrowLeft,
   Ban,
+  CircleHelp,
   FilePlus,
   FileText,
   Landmark,
@@ -128,11 +129,12 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bill.id]);
 
-  // An unrecognised stage code draws as Introduced, the way the old pipeline
-  // did, rather than as an empty panel.
-  const stage: BillStage = isValidStage(progressStage) ? progressStage : BillStages.INTRODUCED;
+  // An unrecognised stage code is shown as unknown — heading "Unknown", no
+  // step, an empty track — never as Introduced: that is a status the record
+  // does not hold. Only the glyph needs a stand-in.
+  const stage = progressStage;
   const { step, total, isVetoed } = getStageStep(stage);
-  const StageGlyph = STAGE_GLYPH[stage];
+  const StageGlyph = isValidStage(stage) ? STAGE_GLYPH[stage] : CircleHelp;
 
   const stateName = STATE_NAMES[bill.sponsor_state] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party] || bill.sponsor_party;
@@ -282,7 +284,9 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                     and stopped there, off the path to law. */}
                 {isVetoed
                   ? 'Stopped at the President'
-                  : `Stage ${step} of ${total}`}
+                  : step > 0
+                    ? `Stage ${step} of ${total}`
+                    : 'Stage unknown'}
               </p>
             </div>
 

@@ -99,8 +99,11 @@ export function getStageStep(stage: number): {
   total: number;
   isVetoed: boolean;
 } {
+  // An unrecognised code proves no step at all. Step 0, not 1: every caller
+  // draws the step ("Stage 1 of 7", a filled segment), and a confidently wrong
+  // stage is worse than none.
   if (!isValidStage(stage)) {
-    return { step: 1, total: TOTAL_STAGE_STEPS, isVetoed: false };
+    return { step: 0, total: TOTAL_STAGE_STEPS, isVetoed: false };
   }
   return {
     step: StageSteps[stage],

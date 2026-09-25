@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge';
 import {
   BillStages,
   getStageStep,
-  isValidStage,
   MAIN_PATH_LABELS,
   stageLabel,
   type BillStage,
@@ -58,9 +57,8 @@ export function StageTrack({
   size?: 'sm' | 'lg';
   className?: string;
 }) {
-  const { total, isVetoed } = getStageStep(stage);
-  // An unrecognised stage proves nothing, so it fills nothing.
-  const step = isValidStage(stage) ? getStageStep(stage).step : 0;
+  // An unrecognised stage is step 0, so it fills nothing.
+  const { step, total, isVetoed } = getStageStep(stage);
   const fill = stageFill(stage);
   return (
     <div className={className}>

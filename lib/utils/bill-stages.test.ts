@@ -88,6 +88,15 @@ it("no stage reaches past the end of the track", () => {
   }
 });
 
+it("an unrecognised stage reaches no step at all", () => {
+  // A missing progress_stage parses to NaN; a code outside BillStages is just as
+  // unproven. Neither may be drawn as "Stage 1 of 7" or fill a segment.
+  for (const stage of [NaN, -1, 55]) {
+    assert.deepEqual(getStageStep(stage), { step: 0, total: 7, isVetoed: false }, `stage ${stage}`);
+    assert.deepEqual(reached(stage), [], `stage ${stage} reached nothing`);
+  }
+});
+
 // Labels
 
 it("every stage has a sentence-case label", () => {
