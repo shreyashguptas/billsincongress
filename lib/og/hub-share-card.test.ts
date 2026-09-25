@@ -19,6 +19,7 @@ import { shareCardFonts } from './card-parts';
 import {
   HubShareCard,
   ordinal,
+  statusHeadline,
   statusShareLine,
   topicRankLine,
   topicRows,
@@ -55,6 +56,15 @@ async function main() {
   await it('states a share only when it is big enough to mean something', () => {
     assert.equal(statusShareLine(18255, 19067), '95.7% of the 19,067 bills and resolutions introduced');
     assert.equal(statusShareLine(113, 19067), 'Out of 19,067 bills and resolutions introduced');
+  });
+
+  await it('never calls a subset "introduced" over a line counting every bill introduced', () => {
+    // "499 introduced / 2.6% of the 19,067 bills and resolutions introduced"
+    // contradicts itself: all 19,067 were introduced.
+    assert.equal(statusHeadline(20), 'not yet in committee');
+    assert.ok(!/introduced/i.test(statusHeadline(20)));
+    assert.equal(statusHeadline(100), 'became law');
+    assert.equal(statusHeadline(40), 'in committee');
   });
 
   // Ranking topics

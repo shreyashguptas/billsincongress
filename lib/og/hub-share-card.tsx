@@ -56,6 +56,17 @@ const COLUMN = { display: 'flex', flexDirection: 'column' } as const;
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /**
+ * The words beside a status page's figure: the stage, as the hub means it.
+ * "Introduced" needs its own wording, because the line under the figure counts
+ * every bill *introduced*; the hub is the ones still at that first step, not
+ * yet sent to a committee (its heading: "Newly introduced bills").
+ */
+export function statusHeadline(stage: number): string {
+  if (stage === 20) return 'not yet in committee';
+  return lowerFirst(stageLabel(stage));
+}
+
+/**
  * The line under a status page's figure. A share is stated only when it rounds
  * to something visible; "0.6% of" says less than the plain denominator.
  */
@@ -123,9 +134,9 @@ function StatusCard({ stage, count, total }: { stage: number; count: number; tot
       <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 12 }}>
         <BigFigure>{formatCount(count)}</BigFigure>
         <div
-          style={{ fontFamily: 'Newsreader', fontWeight: 500, fontSize: 60, marginLeft: 28, marginBottom: 12 }}
+          style={{ fontFamily: 'Newsreader', fontWeight: 500, fontSize: 60, lineHeight: 1.05, marginLeft: 28, marginBottom: 12 }}
         >
-          {lowerFirst(stageLabel(stage))}
+          {statusHeadline(stage)}
         </div>
       </div>
       <div style={{ fontSize: 30, color: INK_2, marginBottom: 48 }}>{statusShareLine(count, total)}</div>

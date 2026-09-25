@@ -354,7 +354,8 @@ The cards:
 - **A status page** (`hub-share-card.tsx`): the finding as the headline, "113
   became law" with the figure at 176px, then "Out of 19,067 bills and
   resolutions introduced" (a percentage once it is at least 1%), then the track
-  filled to that stage.
+  filled to that stage. The Introduced page says "not yet in committee" rather
+  than "introduced", because the line under it counts every bill introduced.
 - **A chamber page**: "12,437 House bills and resolutions", "70 became law" in
   the law green, the chamber's share of the Congress, and one bar: the chamber
   in ink against the other in `sunken`.

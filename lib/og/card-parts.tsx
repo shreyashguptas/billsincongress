@@ -244,6 +244,8 @@ export function BigFigure({ children }: { children: string }) {
         fontSize: 176,
         lineHeight: 0.9,
         letterSpacing: '-0.03em',
+        // The words beside it wrap; the figure never shrinks into them.
+        flexShrink: 0,
       }}
     >
       {children}
