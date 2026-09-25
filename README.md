@@ -306,6 +306,6 @@ Anything else: **hi@billsincongress.com**.
 
 ## Independence and licensing
 
-Bills.Congress is a public-interest project operated by Shreyash Gupta. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
+Bills.Congress is a public-interest project operated by OffGrid LLC, a Maryland limited liability company, which also sells the optional Pro plan. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
 
 The legislative data is a work of the U.S. government and is in the public domain. The source code is released under the [MIT License](LICENSE) — free to use, copy, modify and distribute, including commercially.

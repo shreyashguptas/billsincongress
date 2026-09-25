@@ -40,14 +40,14 @@ export default function PrivacyPage() {
             <Section number={1} title="Who we are">
               <p>
                 Bills.Congress (billsincongress.com) is an independent,
-                open-source, public-interest project operated by Shreyash
-                Gupta. It is not affiliated with the United States government.
+                open-source, public-interest project operated by OffGrid LLC, a
+                Maryland limited liability company. It is not affiliated with the United States government.
                 The legislative data we publish comes from the official{' '}
                 <ExternalLink href="https://api.congress.gov">
                   Congress.gov API
                 </ExternalLink>{' '}
                 and is in the public domain. In this policy, &ldquo;we&rdquo;
-                and &ldquo;us&rdquo; refer to the project and its operator.
+                and &ldquo;us&rdquo; refer to the project and OffGrid LLC.
               </p>
             </Section>
 

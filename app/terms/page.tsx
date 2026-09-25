@@ -41,8 +41,10 @@ export default function TermsPage() {
             <Section number={1} title="Agreement to these terms">
               <p>
                 Bills.Congress (billsincongress.com) is an independent,
-                open-source project operated by Shreyash Gupta. By using the
-                site, you agree to these terms. If you do not agree with them,
+                open-source project operated by OffGrid LLC, a Maryland limited
+                liability company. In these terms, &ldquo;we&rdquo; and
+                &ldquo;us&rdquo; mean OffGrid LLC. By using the site, you agree
+                to these terms. If you do not agree with them,
                 please do not use the site.
               </p>
             </Section>
@@ -117,15 +119,16 @@ export default function TermsPage() {
 
             <Section number={5} title="Pro subscriptions">
               <p>
-                Pro is an optional paid plan. It adds email alerts for bills
-                you follow and a higher daily question allowance. Everything
-                that is free without it stays free.
+                Pro is an optional paid plan, sold by OffGrid LLC. It adds email
+                alerts for bills you follow and a higher daily question
+                allowance. Everything that is free without it stays free.
               </p>
               <ul className="space-y-2 list-disc pl-5">
                 <li>
                   <strong className="text-foreground">Billing.</strong> Pro renews
                   automatically each month or year, at the price shown when you
-                  subscribe, until you cancel. Payments are processed by Stripe.
+                  subscribe, until you cancel. Payments are processed by Stripe,
+                  and appear on your statement as BILLS.CONGRESS PRO.
                   If we change the price, we will tell you by email before it
                   applies to your next renewal.
                 </li>
@@ -266,7 +269,9 @@ export default function TermsPage() {
 
             <Section number={12} title="Governing law and contact">
               <p>
-                These terms are governed by the laws of the United States.
+                These terms are governed by the laws of the State of Maryland
+                and applicable federal law of the United States, without regard
+                to conflict-of-law rules.
                 Questions about them are welcome at{' '}
                 <a
                   href="mailto:hi@billsincongress.com"
