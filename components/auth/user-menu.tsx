@@ -60,7 +60,7 @@ function UserMenuInner() {
     return (
       <div
         aria-hidden
-        className="h-9 w-9 rounded-full border border-border bg-muted/40"
+        className="h-9 w-9 rounded-full border border-line-strong bg-sunken"
       />
     );
   }
@@ -91,7 +91,7 @@ function UserMenuInner() {
         <button
           type="button"
           aria-label="Account menu"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-muted/30 text-xs font-semibold uppercase text-foreground transition-colors hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="focus-ring flex h-9 w-9 items-center justify-center rounded-full border border-line-strong bg-sunken font-mono text-xs font-medium uppercase text-ink transition-colors hover:border-ink"
         >
           {initials}
         </button>
@@ -99,11 +99,11 @@ function UserMenuInner() {
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="px-2 pb-1 pt-2">
           <div className="space-y-0.5 normal-case tracking-normal">
-            <p className="text-sm font-medium text-foreground truncate">{displayName}</p>
+            <p className="truncate text-sm font-medium text-ink">{displayName}</p>
             {user?.email && user.email !== displayName && (
-              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+              <p className="truncate font-mono text-xs text-ink-3">{user.email}</p>
             )}
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-ink-3">
               {user?.plan === "pro" ? "Pro plan" : "Free plan"}
               {!verified && " · email unverified"}
             </p>
@@ -112,12 +112,12 @@ function UserMenuInner() {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/account" className="cursor-pointer">
-            <UserIcon className="mr-2 h-4 w-4" /> Account
+            <UserIcon className="mr-2 h-4 w-4" strokeWidth={1.75} aria-hidden="true" /> Account
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onSignOut} className="cursor-pointer">
-          <LogOut className="mr-2 h-4 w-4" /> Sign out
+          <LogOut className="mr-2 h-4 w-4" strokeWidth={1.75} aria-hidden="true" /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

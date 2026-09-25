@@ -17,6 +17,11 @@ function hostOf(url: string): string {
   }
 }
 
+/** Citations are mono 12 in ink-2 (brand.md, "Show the receipts"). */
+const SOURCE_LINK =
+  'focus-ring rounded-xs text-ink-2 underline decoration-line-strong underline-offset-[3px] ' +
+  'transition-colors hover:text-ink hover:decoration-ink';
+
 /**
  * The printed source apparatus (spec §7.2).
  *
@@ -45,7 +50,7 @@ export function SourceList({
   if (db.length === 0 && web.length === 0) return null;
 
   return (
-    <div className="mt-4 border-t border-border pt-3 space-y-3">
+    <div className="mt-5 space-y-4 border-t border-line pt-4">
       {db.length > 0 && (
         <div>
           <p className="label-eyebrow !mb-2">
@@ -53,8 +58,8 @@ export function SourceList({
           </p>
           <ol className="space-y-1">
             {db.map(({ number, source: s }) => (
-              <li key={s.handle} className="flex gap-2 text-sm">
-                <span className="font-mono text-[11px] text-muted-foreground tabular pt-0.5">
+              <li key={s.handle} className="flex gap-2.5 font-mono text-xs leading-5">
+                <span className="w-4 shrink-0 text-right text-ink-3 tabular">
                   {number}
                 </span>
                 {s.href ? (
@@ -69,12 +74,12 @@ export function SourceList({
                         position: number,
                       })
                     }
-                    className="text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground"
+                    className={SOURCE_LINK}
                   >
                     {s.label}
                   </Link>
                 ) : (
-                  <span className="text-muted-foreground">{s.label}</span>
+                  <span className="text-ink-3">{s.label}</span>
                 )}
               </li>
             ))}
@@ -88,14 +93,14 @@ export function SourceList({
             <span aria-hidden="true">□</span> Not from our database
           </p>
           {webReason && (
-            <p className="text-sm text-muted-foreground leading-relaxed mb-2">
+            <p className="mb-2 text-sm leading-relaxed text-ink-2">
               {webReason} So this came from the web:
             </p>
           )}
           <ol className="space-y-1">
             {web.map(({ number, handle, web: s }, i) => (
-              <li key={`${handle}:${i}`} className="flex gap-2 text-sm">
-                <span className="font-mono text-[11px] text-muted-foreground tabular pt-0.5">
+              <li key={`${handle}:${i}`} className="flex gap-2.5 font-mono text-xs leading-5">
+                <span className="w-4 shrink-0 text-right text-ink-3 tabular">
                   {/* No number for a result the answer never cited: nothing in
                       the prose points here, and a number would imply it does. */}
                   {number ?? <span aria-hidden="true">·</span>}
@@ -116,10 +121,10 @@ export function SourceList({
                         position: number ?? 0,
                       })
                     }
-                    className="text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground"
+                    className={SOURCE_LINK}
                   >
                     {s.title || hostOf(s.url)}
-                    <span className="text-muted-foreground">
+                    <span className="text-ink-3">
                       {' · '}
                       {hostOf(s.url)}
                       <span aria-hidden="true"> ↗</span>
@@ -129,7 +134,7 @@ export function SourceList({
                   // Cited, but the result detail did not survive into this turn.
                   // Printed anyway: a number in the prose with no row under it
                   // is worse than a row that only says a web page was used.
-                  <span className="text-muted-foreground">A web page (link not stored)</span>
+                  <span className="text-ink-3">A web page (link not stored)</span>
                 )}
               </li>
             ))}

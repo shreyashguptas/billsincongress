@@ -95,12 +95,14 @@ app/                       Next.js App Router — 19 page.tsx files
 components/                Shared React components
   answers/                 The ask panel: provider, panel, thread, sources, work log, history;
                            hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
-  bills/                   Card, details, progress, save button
+  brand/                   The design language in code (Documentation/brand.md): logo and
+                           chamber mark, stage pill and track, party tag, section header
+  bills/                   Card, details, save button
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
     home/                  The home page hero (the chamber) and its chart sections
   auth/ analytics/ legal/ seo/ theme/ ui/
-  navigation.tsx footer.tsx podcast-promo.tsx waving-flag.tsx
+  navigation.tsx footer.tsx podcast-promo.tsx
   convex-client-provider.tsx theme-provider.tsx
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
@@ -524,8 +526,8 @@ sized near the dock threshold, to have JavaScript believing the panel is docked 
 still drawing it over the page.
 
 `app/globals.css` cannot import those constants, so `lib/ask-css-contract.test.ts` reads the
-stylesheet as text and asserts the breakpoints, the three `--header-h` values (57/65/**94**px
-— the header really is three heights) and the panel's z-index match `lib/ask-panel.ts` and
+stylesheet as text and asserts the breakpoints, the two `--header-h` values (57/65px — one
+header row, `h-14` / `sm:h-16`, plus its border) and the panel's z-index match `lib/ask-panel.ts` and
 `components/navigation.tsx`. That drift is guaranteed otherwise, not merely possible.
 
 **The panel is never unmounted** — only translated off-screen and marked `inert`. The phase

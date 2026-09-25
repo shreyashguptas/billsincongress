@@ -3,6 +3,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { billsService } from '@/lib/services/bills-service';
 import BillCard from '@/components/bills/bill-card';
+import SyncStatus from '@/components/bills/sync-status';
+import { SourceLine } from '@/components/brand/section';
 import { JsonLd } from '@/components/seo/json-ld';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { formatCount } from '@/lib/utils';
@@ -141,7 +143,7 @@ export async function HubView({
   const siblings = hubsOfKind(hub.kind).filter((h) => h.path !== hub.path);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl">
+    <div>
       <JsonLd data={hubJsonLd(hub, total)} />
       <Suspense fallback={null}>
         <HubViewTracker hubKind={hub.kind} hubPath={hub.path} billCount={total} />
@@ -155,82 +157,94 @@ export async function HubView({
         scope={scopeFromHub(hub)}
       />
 
-      <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground mb-4">
-        <Link href="/" className="hover:underline">Home</Link>
-        <span className="mx-2">/</span>
-        <Link href="/bills" className="hover:underline">Bills</Link>
-        <span className="mx-2">/</span>
-        <span className="text-foreground">{hub.heading}</span>
-      </nav>
+      {/* Page head — the breadcrumb sits where /bills has its eyebrow. */}
+      <header className="container-editorial pb-8 pt-10 sm:pb-10 sm:pt-16">
+        <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
+          <Link href="/" className="rounded-xs hover:text-ink hover:underline focus-ring">Home</Link>
+          <span className="mx-2" aria-hidden="true">/</span>
+          <Link href="/bills" className="rounded-xs hover:text-ink hover:underline focus-ring">Bills</Link>
+          <span className="mx-2" aria-hidden="true">/</span>
+          <span className="text-ink-2" aria-current="page">{hub.heading}</span>
+        </nav>
 
-      <h1 className="text-3xl font-semibold tracking-tight mb-3">{hub.heading}</h1>
+        <h1 className="mt-3 text-display-md text-ink sm:text-display-xl">{hub.heading}</h1>
 
-      <p className="text-base text-muted-foreground leading-relaxed mb-4 max-w-3xl">
-        {hub.explainer}
-      </p>
-
-      <p className="text-sm text-muted-foreground mb-8">
-        {total === null ? (
-          <>Showing bills from the current Congress.</>
-        ) : (
-          <>
-            <span className="font-mono font-medium text-foreground tabular-nums">
-              {formatCount(total)}
-            </span>{' '}
-            {total === 1 ? 'bill' : 'bills'}
-            {congress !== null && (
-              <> in the {formatCongressOrdinal(congress)} Congress ({formatCongressYears(congress)})</>
-            )}
-            .
-          </>
-        )}
-      </p>
-
-      {bills.data.length === 0 ? (
-        <p className="text-muted-foreground mb-10">
-          No bills match this in the current Congress.{' '}
-          <Link href="/bills" className="underline">Browse all bills</Link> to look at earlier ones.
+        <p className="mt-4 max-w-measure text-[17px] leading-[1.6] text-ink-2">
+          {hub.explainer}
         </p>
-      ) : (
-        <div className="grid gap-4 mb-10">
-          {bills.data.map((bill) => (
-            <BillCard key={bill.id} bill={bill} />
-          ))}
-        </div>
-      )}
 
-      <CrawlablePagination
-        page={page}
-        lastPage={lastPage}
-        hrefForPage={(n) => (n === 1 ? hub.path : `${hub.path}?page=${n}`)}
-        className="mb-12"
-      />
+        <SourceLine className="mt-4">
+          Source: Congress.gov
+          <SyncStatus />
+        </SourceLine>
+      </header>
 
-      {siblings.length > 0 && (
-        <section className="border-t pt-6">
-          <h2 className="text-sm font-medium mb-3">
-            {hub.kind === 'topic'
-              ? 'Other policy areas'
-              : hub.kind === 'chamber'
-                ? 'The other chamber'
-                : 'Other stages'}
-          </h2>
-          <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-            {siblings.map((sibling) => (
-              <li key={sibling.path}>
-                <HubLink
-                  href={sibling.path}
-                  hubKind={sibling.kind}
-                  placement="hub_siblings"
-                  className="text-muted-foreground hover:text-foreground hover:underline"
-                >
-                  {sibling.heading}
-                </HubLink>
-              </li>
+      <div className="container-editorial pb-16">
+        {/* The results bar. The ink rule under it is where the register starts. */}
+        <p className="border-b border-ink pb-3 text-sm text-ink-2">
+          {total === null ? (
+            <>Showing bills from the current Congress.</>
+          ) : (
+            <>
+              <span className="font-mono font-medium text-ink tabular">
+                {formatCount(total)}
+              </span>{' '}
+              {total === 1 ? 'bill' : 'bills'}
+              {congress !== null && (
+                <> in the {formatCongressOrdinal(congress)} Congress ({formatCongressYears(congress)})</>
+              )}
+              .
+            </>
+          )}
+        </p>
+
+        {bills.data.length === 0 ? (
+          <p className="border-b border-line py-14 text-center text-[15px] text-ink-2">
+            No bills match this in the current Congress.{' '}
+            <Link href="/bills" className="link rounded-xs focus-ring">Browse all bills</Link> to look at
+            earlier ones.
+          </p>
+        ) : (
+          <div>
+            {bills.data.map((bill) => (
+              <BillCard key={bill.id} bill={bill} hideTopic={hub.kind === 'topic'} />
             ))}
-          </ul>
-        </section>
-      )}
+          </div>
+        )}
+
+        <CrawlablePagination
+          page={page}
+          lastPage={lastPage}
+          hrefForPage={(n) => (n === 1 ? hub.path : `${hub.path}?page=${n}`)}
+          className="mt-10 justify-center"
+        />
+
+        {siblings.length > 0 && (
+          <section className="mt-16 border-t border-line pt-8">
+            <h2 className="label-eyebrow">
+              {hub.kind === 'topic'
+                ? 'Other policy areas'
+                : hub.kind === 'chamber'
+                  ? 'The other chamber'
+                  : 'Other stages'}
+            </h2>
+            <ul className="mt-3 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
+              {siblings.map((sibling) => (
+                <li key={sibling.path} className="border-b border-line">
+                  <HubLink
+                    href={sibling.path}
+                    hubKind={sibling.kind}
+                    placement="hub_siblings"
+                    className="flex min-h-10 items-center py-2 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring"
+                  >
+                    {sibling.heading}
+                  </HubLink>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

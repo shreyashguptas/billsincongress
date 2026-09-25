@@ -32,8 +32,8 @@ export function AskAbout({
         void ask(question, { source: 'starter' });
       }}
       className={cn(
-        'text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50',
-        className ?? 'text-[12px] whitespace-nowrap',
+        'text-ink-2 transition-colors hover:text-ink disabled:opacity-50',
+        className ?? 'focus-ring whitespace-nowrap rounded-sm text-[13px] font-medium',
       )}
     >
       {children}

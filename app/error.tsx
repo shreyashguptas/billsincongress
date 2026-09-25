@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 
+import { ChamberMark } from '@/components/brand/logo';
+import { Button } from '@/components/ui/button';
 import { useChunkErrorRecovery } from '@/lib/use-chunk-error-recovery';
 
 // Route-level error boundary. Before this file existed the app had no boundary
@@ -19,32 +21,26 @@ export default function Error({
   const chunkError = useChunkErrorRecovery(error);
 
   return (
-    <section className="border-b border-border">
-      <div className="container-editorial py-20 text-center sm:py-28">
-        <p className="label-eyebrow mb-3">{chunkError ? 'Update needed' : 'Error'}</p>
-        <h1 className="font-serif text-display-md font-semibold leading-[1.05] tracking-tight sm:text-display-lg">
-          {chunkError ? 'A new version is available' : 'Something went wrong'}
-        </h1>
-        <p className="mx-auto mt-4 max-w-prose text-sm text-muted-foreground">
-          {chunkError
-            ? 'The site updated since you opened this page. Reload to load the latest version.'
-            : 'An unexpected error interrupted this page. Try again, or head back home.'}
-        </p>
-        <div className="mt-8 flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => (chunkError ? window.location.reload() : reset())}
-            className="inline-flex items-center rounded-sm bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
-          >
-            {chunkError ? 'Reload page' : 'Try again'}
-          </button>
-          <Link
-            href="/"
-            className="inline-flex items-center rounded-sm border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-card"
-          >
-            Go home
-          </Link>
-        </div>
+    <section className="container-editorial flex flex-col items-center py-20 text-center sm:py-28">
+      <ChamberMark className="h-12 w-12 text-ink-3" />
+      <p className="mt-6 font-mono text-xs leading-4 text-ink-3 tabular">
+        {chunkError ? 'Update needed' : 'Error'}
+      </p>
+      <h1 className="mt-3 text-display-md text-ink">
+        {chunkError ? 'A new version is available' : 'Something went wrong'}
+      </h1>
+      <p className="mt-4 max-w-[48ch] text-[17px] leading-relaxed text-ink-2">
+        {chunkError
+          ? 'The site updated since you opened this page. Reload to load the latest version.'
+          : 'An unexpected error interrupted this page. Try again, or head back home.'}
+      </p>
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Button type="button" onClick={() => (chunkError ? window.location.reload() : reset())}>
+          {chunkError ? 'Reload page' : 'Try again'}
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/">Go home</Link>
+        </Button>
       </div>
     </section>
   );

@@ -21,12 +21,11 @@ export interface WorkLine {
   text: string;
   /**
    * Rendered in brackets, in the same ink as the rest of the line. The brackets
-   * alone carry the "footnote" weight, and they have to: --muted-foreground is
-   * already only 5.26:1 against --background (the panel's own surface), so any
-   * opacity below ~0.9 puts this under the 4.5:1 WCAG AA floor for 11px text —
-   * at 70% it measures 2.62:1, worse even than the 3:1 large-text floor. There
-   * is no dimming budget left, and the caveat that we have no audited number is
-   * the last string in this trail that should be hard to read.
+   * alone carry the "footnote" weight, and they have to: --ink-3 is
+   * already only 4.79:1 against --paper (the panel's own surface, Day theme),
+   * so any opacity below ~0.95 puts this under the 4.5:1 WCAG AA floor for 12px
+   * text. There is no dimming budget left, and the caveat that we have no
+   * audited number is the last string in this trail that should be hard to read.
    */
   aside?: string;
 }
@@ -69,7 +68,7 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+        className="focus-ring rounded-xs font-mono text-xs text-ink-3 transition-colors hover:text-ink"
       >
         ✓ {entries.length} lookup{entries.length === 1 ? '' : 's'} · show
       </button>
@@ -77,7 +76,7 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
   }
 
   return (
-    <div className="space-y-0.5 font-mono text-[11px] text-muted-foreground">
+    <div className="space-y-0.5 font-mono text-xs leading-5 text-ink-3">
       {entries.map((e, i) => {
         const line = workLine(e);
         return (
@@ -92,7 +91,7 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="hover:text-foreground transition-colors"
+          className="focus-ring rounded-xs transition-colors hover:text-ink"
         >
           hide
         </button>

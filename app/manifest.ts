@@ -2,13 +2,14 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Congressional Bill Tracker',
-    short_name: 'Bill Tracker',
-    description: 'Track and analyze congressional bills with AI-powered insights',
+    name: 'Bills in Congress',
+    short_name: 'Bills',
+    description: 'An independent, nonpartisan record of every bill in the U.S. Congress.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#000000',
+    // Paper and ink — Documentation/brand.md.
+    background_color: '#f6f5f1',
+    theme_color: '#101418',
     icons: [
       {
         src: '/icons/icon-192x192.png',

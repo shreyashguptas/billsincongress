@@ -20,7 +20,8 @@ import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { AskAbout } from '@/components/answers/ask-about';
-import { fmt, type HomeProps } from './shared';
+import { SectionHeader } from '@/components/brand/section';
+import { SectionAsk, fmt, type HomeProps } from './shared';
 
 const COLORED = 6;
 const S = 640;
@@ -64,7 +65,7 @@ export function TopicWheel({
     const rest = Math.max(0, dashboard.totalBills - topSum);
     const items = [
       ...top.map((a, i) => ({ name: a.name, count: a.count, color: `var(--topic-${i + 1})`, isRest: false })),
-      ...(rest > 0 ? [{ name: 'Other topics, or none tagged', count: rest, color: 'hsl(var(--muted-foreground))', isRest: true }] : []),
+      ...(rest > 0 ? [{ name: 'Other topics, or none tagged', count: rest, color: 'hsl(var(--ink-3))', isRest: true }] : []),
     ];
     const total = items.reduce((s, a) => s + a.count, 0) || 1;
     const perDot = Math.max(1, Math.round(total / 1100));
@@ -100,21 +101,19 @@ export function TopicWheel({
   };
 
   return (
-    <section className="border-b border-border">
-      <div className="container-editorial py-12">
-        <header className="mb-6">
-          <p className="label-eyebrow mb-2">By subject</p>
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">
-              What Congress is working on
-            </h2>
-            <div className="shrink-0 pt-1.5">
-              <AskAbout question={`What are the biggest policy areas in the ${formatCongressOrdinal(congress)} Congress and what do those bills do?`} />
-            </div>
-          </div>
-        </header>
+    <section className="border-b border-line">
+      <div className="container-editorial py-16 sm:py-24">
+        <SectionHeader
+          eyebrow="By subject"
+          title="What Congress is working on"
+          action={
+            <SectionAsk
+              question={`What are the biggest policy areas in the ${formatCongressOrdinal(congress)} Congress and what do those bills do?`}
+            />
+          }
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        <div className="mt-10 grid grid-cols-1 items-center gap-10 sm:mt-12 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-7">
             <svg
               viewBox={`0 0 ${S} ${S}`}
@@ -149,29 +148,42 @@ export function TopicWheel({
                   </g>
                 );
               })}
-              <circle cx={C} cy={C} r={R_IN - 8} fill="hsl(var(--background))" stroke="hsl(var(--border))" />
-              <text x={C} y={C - 4} textAnchor="middle" className="fill-foreground font-serif" style={{ fontSize: 36, fontWeight: 600 }}>
+              <circle cx={C} cy={C} r={R_IN - 8} fill="hsl(var(--paper))" stroke="hsl(var(--line))" />
+              <text
+                x={C}
+                y={C + 2}
+                textAnchor="middle"
+                className="fill-ink font-serif tabular"
+                style={{ fontSize: 48, fontWeight: 400, letterSpacing: '-0.02em' }}
+              >
                 {fmt(f ? f.count : dashboard.totalBills)}
               </text>
-              <text x={C} y={C + 22} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 11, letterSpacing: '0.14em' }}>
-                {f ? `${(f.share * 100).toFixed(1)}% OF BILLS` : 'BILLS · ALL TOPICS'}
+              {/* Set like .label-eyebrow; SVG text cannot take the class's layout rules. */}
+              <text
+                x={C}
+                y={C + 28}
+                textAnchor="middle"
+                className="fill-ink-3 font-sans"
+                style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' }}
+              >
+                {f ? `${(f.share * 100).toFixed(1)}% of bills` : 'Bills · all topics'}
               </text>
             </svg>
-            <p className="mt-2 text-center font-mono text-[10px] text-muted-foreground">
+            <p className="mt-3 text-center font-mono text-xs text-ink-3">
               each dot ≈ {fmt(wheel.perDot)} bills
             </p>
           </div>
 
           {/* Legend — full names, counts, and the pinned topic's actions */}
           <div className="lg:col-span-5">
-            <ul className="divide-y divide-border border-y border-border" onMouseLeave={() => setHover(null)}>
+            <ul className="border-b border-line" onMouseLeave={() => setHover(null)}>
               {wheel.items.map((w, i) => (
                 <li
                   key={w.name}
                   className={cn(
-                    'flex items-center transition-opacity',
-                    focus !== null && focus !== i && 'opacity-40',
-                    pinned === i && 'bg-secondary/60',
+                    'flex min-h-[52px] items-center border-t border-line transition-opacity',
+                    focus !== null && focus !== i && 'opacity-35',
+                    pinned === i && 'bg-sunken',
                   )}
                 >
                   <button
@@ -181,24 +193,24 @@ export function TopicWheel({
                     onBlur={() => setHover(null)}
                     onClick={() => toggle(i)}
                     aria-pressed={pinned === i}
-                    className="grid flex-1 grid-cols-[auto_1fr_auto_auto] items-center gap-3 py-2.5 px-1 text-left"
+                    className="focus-ring grid min-h-[52px] flex-1 grid-cols-[12px_1fr_auto_4rem] items-center gap-x-3 rounded-sm py-2 pl-1 text-left"
                   >
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: w.color }} />
-                    <span className="text-sm">{w.name}</span>
-                    <span className="font-mono text-xs text-muted-foreground tabular">{(w.share * 100).toFixed(1)}%</span>
-                    <span className="w-14 text-right font-mono text-sm tabular">{fmt(w.count)}</span>
+                    <span className="text-[15px] leading-5 text-ink">{w.name}</span>
+                    <span className="text-right font-mono text-[13px] text-ink-3 tabular">{(w.share * 100).toFixed(1)}%</span>
+                    <span className="text-right font-mono text-[15px] font-medium text-ink tabular">{fmt(w.count)}</span>
                   </button>
                   {/* A real link, not a scripted jump: this is the one page search
                       engines index, and these rows are how link equity reaches the
                       topic hubs. The grey "everything else" slice has no hub. */}
                   {w.isRest ? (
-                    <span className="w-8" aria-hidden="true" />
+                    <span className="w-10 shrink-0" aria-hidden="true" />
                   ) : (
                     <Link
                       href={policyAreaHref(w.name)}
                       onClick={() => analytics.dashboardDrilldownClicked('policyArea', w.name, congress)}
                       aria-label={`See the ${w.name.toLowerCase()} bills`}
-                      className="w-8 py-2.5 text-center text-muted-foreground hover:text-foreground"
+                      className="focus-ring flex h-11 w-10 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:text-ink"
                     >
                       →
                     </Link>
@@ -207,10 +219,10 @@ export function TopicWheel({
               ))}
             </ul>
 
-            <div className="mt-4 min-h-[3rem] text-sm">
+            <div className="mt-5 min-h-[3rem] text-sm">
               {pinnedItem ? (
                 pinnedItem.isRest ? (
-                  <button type="button" onClick={() => onDrillDown('congress', congress)} className="underline underline-offset-2 decoration-border hover:decoration-foreground">
+                  <button type="button" onClick={() => onDrillDown('congress', congress)} className="link focus-ring rounded-sm">
                     Browse every bill →
                   </button>
                 ) : (
@@ -218,20 +230,20 @@ export function TopicWheel({
                     <Link
                       href={policyAreaHref(pinnedItem.name)}
                       onClick={() => analytics.dashboardDrilldownClicked('policyArea', pinnedItem.name, congress)}
-                      className="underline underline-offset-2 decoration-border hover:decoration-foreground"
+                      className="link focus-ring rounded-sm"
                     >
                       See the {fmt(pinnedItem.count)} {pinnedItem.name.toLowerCase()} bills →
                     </Link>
                     <AskAbout
                       question={`What are the ${pinnedItem.name.toLowerCase()} bills in the ${formatCongressOrdinal(congress)} Congress about?`}
-                      className="text-sm"
+                      className="focus-ring rounded-sm text-sm"
                     >
                       Ask what they&rsquo;re about →
                     </AskAbout>
                   </div>
                 )
               ) : (
-                <p className="text-muted-foreground">Click a topic to see its bills or ask about them.</p>
+                <p className="text-ink-3">Click a topic to see its bills or ask about them.</p>
               )}
             </div>
           </div>

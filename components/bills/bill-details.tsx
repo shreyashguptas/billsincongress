@@ -4,10 +4,11 @@ import Link from 'next/link';
 import type { Bill } from '@/lib/types/bill';
 import { useEffect } from 'react';
 import {
-  getStageDescription,
-  getProgressDots,
+  stageLabel,
+  getStageStep,
   isValidStage,
   BillStages,
+  type BillStage,
 } from '@/lib/utils/bill-stages';
 import { analytics } from '@/lib/analytics';
 import {
@@ -19,9 +20,23 @@ import { billAnswerParagraph, billNoun, billSummaryText } from '@/lib/seo';
 import { AskAboutBill } from './ask-about-bill';
 import SaveBillButton from './save-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
-import { ArrowLeft, FileText, Check } from 'lucide-react';
+import {
+  ArrowLeft,
+  Ban,
+  FilePlus,
+  FileText,
+  Landmark,
+  PenLine,
+  ScrollText,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { PartyDot, PartyTag } from '@/components/brand/party';
+import { SourceLine } from '@/components/brand/section';
+import { StageTrack, stageFill } from '@/components/brand/status';
 import { STATE_NAMES } from '@/lib/constants/filters';
 
 const PARTY_NAMES: Record<string, string> = {
@@ -34,6 +49,24 @@ const PARTY_NAMES: Record<string, string> = {
   G: 'Green Party',
   '': 'No Party Affiliation',
 };
+
+/** Each stage's fixed glyph (Documentation/brand.md, "Iconography"). */
+const STAGE_GLYPH: Record<BillStage, LucideIcon> = {
+  [BillStages.INTRODUCED]: FilePlus,
+  [BillStages.IN_COMMITTEE]: Users,
+  [BillStages.PASSED_ONE_CHAMBER]: Landmark,
+  [BillStages.PASSED_BOTH_CHAMBERS]: Landmark,
+  [BillStages.VETOED]: Ban,
+  [BillStages.TO_PRESIDENT]: PenLine,
+  [BillStages.SIGNED_BY_PRESIDENT]: PenLine,
+  [BillStages.BECAME_LAW]: ScrollText,
+};
+
+/**
+ * Past this many characters a title set at 56px runs to six or seven lines and
+ * pushes the status panel below the fold, so it steps down one size.
+ */
+const LONG_TITLE_CHARS = 90;
 
 interface BillDetailsProps {
   bill: Bill;
@@ -94,192 +127,242 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bill.id]);
 
-  const displayDescription = getStageDescription(progressStage);
-  const progressDots = isValidStage(progressStage)
-    ? getProgressDots(progressStage)
-    : getProgressDots(BillStages.INTRODUCED);
-  // Length of the pipeline's progress line: reaches the furthest completed
-  // step. Derived from the steps themselves — NOT an invented "percent done".
-  const completedDots = progressDots.filter((d) => d.isComplete).length;
-  const lineFraction =
-    progressDots.length > 1
-      ? (completedDots - 1) / (progressDots.length - 1)
-      : 0;
+  // An unrecognised stage code draws as Introduced, the way the old pipeline
+  // did, rather than as an empty panel.
+  const stage: BillStage = isValidStage(progressStage) ? progressStage : BillStages.INTRODUCED;
+  const { step, total, isVetoed } = getStageStep(stage);
+  const StageGlyph = STAGE_GLYPH[stage];
 
   const stateName = STATE_NAMES[bill.sponsor_state] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party] || bill.sponsor_party;
+  const sponsorName = `${bill.sponsor_first_name ?? ''} ${bill.sponsor_last_name ?? ''}`.trim();
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString + 'T00:00:00Z');
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
       timeZone: 'UTC',
     }).format(date);
   };
 
   const billLabel = `${bill.bill_type_label || bill.bill_type?.toUpperCase()} ${bill.bill_number}`;
+  const longTitle = bill.title.length > LONG_TITLE_CHARS;
+
+  const hasBaseRate =
+    bill.base_rate_percent !== undefined &&
+    bill.base_rate_sample !== undefined &&
+    bill.days_in_committee !== undefined;
 
   return (
     <article className="animate-fade-in">
       {/* Article header */}
-      <header className="border-b border-border">
-        <div className="container-editorial pt-6 pb-10 sm:pt-8 sm:pb-14">
-          <Link
-            href="/bills"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            All bills
-          </Link>
+      <header className="container-editorial pt-6 sm:pt-8">
+        <Link
+          href="/bills"
+          className="focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink-2 transition-colors hover:text-ink"
+        >
+          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+          All bills
+        </Link>
 
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mb-4">
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground tabular">
-                {billLabel} · {formatCongressProse(bill.congress)}
-              </span>
-              {bill.bill_subjects?.policy_area_name && (
-                <Badge variant="muted">{bill.bill_subjects.policy_area_name}</Badge>
-              )}
-            </div>
+        <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-10">
+          <span className="font-mono text-sm font-medium text-ink tabular">{billLabel}</span>
+          <span className="font-mono text-sm text-ink-3 tabular">
+            {formatCongressProse(bill.congress)}
+          </span>
+          {bill.bill_subjects?.policy_area_name && (
+            <Badge variant="muted">{bill.bill_subjects.policy_area_name}</Badge>
+          )}
+        </div>
 
-            <h1 className="font-serif text-display-md sm:text-display-lg font-semibold leading-[1.08] tracking-tight">
-              {bill.title}
-            </h1>
+        <h1
+          className={cn(
+            'mt-4 text-ink',
+            longTitle
+              ? 'max-w-[28ch] text-[28px] leading-[1.15] sm:text-display-md lg:text-display-lg'
+              : 'max-w-[24ch] text-[34px] leading-[1.1] sm:text-display-xl',
+          )}
+        >
+          {bill.title}
+        </h1>
 
-            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              <span>
-                Introduced <span className="text-foreground">{formatDate(bill.introduced_date)}</span>
-              </span>
-              <span className="hidden sm:inline">·</span>
-              <span>
-                By{' '}
-                <span className="text-foreground font-medium">
-                  {bill.sponsor_first_name} {bill.sponsor_last_name}
-                </span>{' '}
-                {bill.sponsor_party && bill.sponsor_state && (
-                  <span className="font-mono tabular">
-                    ({bill.sponsor_party}-{bill.sponsor_state})
-                  </span>
-                )}
-              </span>
-              {bill.pdf_url && (
-                <>
-                  <span className="hidden sm:inline">·</span>
-                  <a
-                    href={bill.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => analytics.billPdfOpened(String(bill.id))}
-                    className="inline-flex items-center gap-1.5 text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    Read full text (PDF)
-                  </a>
-                </>
-              )}
-              <SaveBillButton
-                billId={String(bill.id)}
-                analyticsProps={{
-                  bill_type: bill.bill_type,
-                  bill_number: bill.bill_number,
-                  congress: bill.congress,
-                  policy_area: bill.bill_subjects?.policy_area_name ?? '',
-                  progress_stage: progressStage,
-                }}
-              />
-            </div>
+        <div className="mt-6 flex flex-col gap-4 sm:mt-8 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          {/* Two lines on a phone, one row with a separator from `sm` up, so the
+              dot never dangles at the end of a wrapped line. */}
+          <div className="flex min-w-0 flex-col gap-y-2 text-sm text-ink-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
+            <span>
+              Introduced{' '}
+              <span className="font-mono text-ink tabular">{formatDate(bill.introduced_date)}</span>
+            </span>
+            {sponsorName && (
+              <>
+                <span aria-hidden="true" className="hidden text-ink-3 sm:inline">
+                  ·
+                </span>
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  By
+                  <PartyTag name={sponsorName} party={bill.sponsor_party} state={bill.sponsor_state} />
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="flex shrink-0 gap-2">
+            {bill.pdf_url && (
+              <Button asChild variant="outline" className="h-11 flex-1 sm:h-10 sm:flex-none">
+                <a
+                  href={bill.pdf_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => analytics.billPdfOpened(String(bill.id))}
+                >
+                  <FileText className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                  Read full text (PDF)
+                </a>
+              </Button>
+            )}
+            <SaveBillButton
+              className="h-11 flex-1 sm:h-10 sm:flex-none"
+              billId={String(bill.id)}
+              analyticsProps={{
+                bill_type: bill.bill_type,
+                bill_number: bill.bill_number,
+                congress: bill.congress,
+                policy_area: bill.bill_subjects?.policy_area_name ?? '',
+                progress_stage: progressStage,
+              }}
+            />
           </div>
         </div>
       </header>
 
-      {/* Status pipeline */}
-      <section className="border-b border-border bg-secondary/30">
-        <div className="container-editorial py-8">
-          <div className="grid lg:grid-cols-3 gap-8 items-start">
+      {/* Status panel — the page's one bold element (brand.md, "Principles" 6). */}
+      <div className="container-editorial mt-10 sm:mt-12">
+        <section
+          aria-labelledby="bill-status-label"
+          className="rounded-lg border border-line bg-raised p-6 sm:px-8 sm:py-7"
+        >
+          <div className="grid gap-6 sm:grid-cols-[280px_minmax(0,1fr)] sm:items-center sm:gap-12">
             <div>
-              <p className="label-eyebrow mb-2">Current status</p>
-              <p className="font-serif text-2xl font-semibold tracking-tight leading-tight">
-                {displayDescription}
+              <p id="bill-status-label" className="label-eyebrow">
+                Current status
               </p>
-              {bill.base_rate_percent !== undefined &&
-                bill.base_rate_sample !== undefined &&
-                bill.days_in_committee !== undefined && (
-                  <div className="mt-3 space-y-1">
-                    <p className="text-sm text-muted-foreground leading-snug">
-                      In committee for{' '}
-                      <span className="text-foreground font-medium">
-                        {formatCount(bill.days_in_committee)} days
-                      </span>
-                      . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'}{' '}
-                      bills and resolutions from past Congresses still in
-                      committee this long, about{' '}
-                      <span className="text-foreground font-medium">
-                        {bill.base_rate_percent}%
-                      </span>{' '}
-                      ever advanced further.
-                    </p>
-                    <p className="text-[11px] text-muted-foreground/80 leading-snug">
-                      Based on {formatCount(bill.base_rate_sample)} past bills
-                      and resolutions — a description of that group, not a
-                      prediction for this {noun}.
-                    </p>
-                  </div>
-                )}
+              <div className="mt-3 flex items-center gap-3">
+                <span
+                  className={cn(
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-ink',
+                    stageFill(stage),
+                  )}
+                  aria-hidden="true"
+                >
+                  <StageGlyph className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                </span>
+                <p className="font-serif text-display-sm font-medium text-ink sm:text-display-md">
+                  {stageLabel(stage)}
+                </p>
+              </div>
+              <p className="mt-2 font-mono text-sm text-ink-3 tabular">
+                {/* A vetoed bill is not "stage 5 of 7": it reached the President
+                    and stopped there, off the path to law. */}
+                {isVetoed
+                  ? 'Stopped at the President'
+                  : `Stage ${step} of ${total}`}
+              </p>
             </div>
 
-            <div className="lg:col-span-2">
-              <ProgressPipeline dots={progressDots} fraction={lineFraction} />
+            <div>
+              <StageTrack stage={stage} labels size="lg" />
+              {/* StageTrack drops its seven step names below `sm`; the two ends
+                  still say which way the track runs. */}
+              <div
+                className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden"
+                aria-hidden="true"
+              >
+                <span className="text-ink">Introduced</span>
+                <span className={step === total ? 'text-ink' : 'text-ink-3'}>Law</span>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Body: summary + sponsor sidebar */}
-      <section className="container-editorial py-12 sm:py-16">
-        <div className="grid lg:grid-cols-12 gap-10 lg:gap-16">
-          <div className="lg:col-span-8">
+          {hasBaseRate && (
+            <div className="mt-6 max-w-measure space-y-1.5 border-t border-line pt-5">
+              <p className="text-sm leading-relaxed text-ink-2">
+                In committee for{' '}
+                <span className="font-medium text-ink tabular">
+                  {formatCount(bill.days_in_committee!)} days
+                </span>
+                . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'} bills and
+                resolutions from past Congresses still in committee this long, about{' '}
+                <span className="font-medium text-ink tabular">{bill.base_rate_percent}%</span>{' '}
+                ever advanced further.
+              </p>
+              <p className="text-xs leading-4 text-ink-3">
+                Based on <span className="tabular">{formatCount(bill.base_rate_sample!)}</span> past
+                bills and resolutions — a description of that group, not a prediction for this{' '}
+                {noun}.
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Body: the answer and the summary, beside the sponsor */}
+      <div className="container-editorial py-16 sm:py-20">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-20">
+          <div className="min-w-0 max-w-measure">
             {/* The one-paragraph answer: what this bill is and where it stands.
                 For bills Congress has not summarised yet this is the page's only
                 substantive prose, so it always renders. */}
-            <p className="label-eyebrow mb-3">At a glance</p>
-            <p className="font-serif text-lg leading-[1.7] text-foreground">{answer}</p>
+            <p className="label-eyebrow">At a glance</p>
+            <p className="mt-3 font-serif text-[19px] leading-[30px] text-ink sm:text-[22px] sm:leading-[34px]">
+              {answer}
+            </p>
 
             {summary && (
-              <div className="mt-10">
-                <p className="label-eyebrow mb-3">Plain-English summary</p>
-                <div className="font-serif text-lg leading-[1.7] text-foreground whitespace-pre-wrap">
+              <>
+                <hr className="rule my-10" />
+                <p className="label-eyebrow">Summary</p>
+                <div className="mt-3 whitespace-pre-wrap font-serif text-reading-sm text-ink sm:text-reading">
                   {summary}
                 </div>
-              </div>
+                {/* Say who wrote it (brand.md, "Voice"). The summary is the
+                    CRS text as Congress.gov publishes it, markup removed. */}
+                <SourceLine className="mt-5">
+                  Summary by the Congressional Research Service · via Congress.gov
+                </SourceLine>
+              </>
             )}
           </div>
 
-          <aside className="lg:col-span-4 space-y-8 lg:border-l lg:border-border lg:pl-10">
-            <div>
-              <p className="label-eyebrow mb-3">Sponsor</p>
-              <p className="font-serif text-xl font-semibold tracking-tight">
-                {bill.sponsor_first_name} {bill.sponsor_last_name}
+          <aside className="min-w-0" aria-labelledby="bill-sponsor-label">
+            <div className="rounded-md border border-line bg-raised p-6">
+              <p id="bill-sponsor-label" className="label-eyebrow">
+                Sponsor
               </p>
-              <dl className="mt-4 space-y-3 text-sm">
-                <div className="flex justify-between gap-3 border-b border-border pb-2">
-                  <dt className="text-muted-foreground">Party</dt>
-                  <dd className="text-foreground font-medium">{partyName}</dd>
-                </div>
-                <div className="flex justify-between gap-3 border-b border-border pb-2">
-                  <dt className="text-muted-foreground">State</dt>
-                  <dd className="text-foreground font-medium">{stateName}</dd>
-                </div>
-                <div className="flex justify-between gap-3 border-b border-border pb-2">
-                  <dt className="text-muted-foreground">Bill number</dt>
-                  <dd className="text-foreground font-mono tabular">
-                    {bill.bill_type?.toUpperCase()} {bill.bill_number}
+              <p className="mt-2 font-serif text-display-sm font-semibold text-ink">
+                {sponsorName}
+              </p>
+              <dl className="mt-5 text-sm">
+                <div className="flex justify-between gap-3 border-t border-line py-3">
+                  <dt className="text-ink-3">Party</dt>
+                  <dd className="inline-flex items-center gap-2 font-medium text-ink">
+                    <PartyDot party={bill.sponsor_party} />
+                    {partyName}
                   </dd>
                 </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-muted-foreground">Congress</dt>
-                  <dd className="text-foreground font-mono tabular">
+                <div className="flex justify-between gap-3 border-t border-line py-3">
+                  <dt className="text-ink-3">State</dt>
+                  <dd className="font-medium text-ink">{stateName}</dd>
+                </div>
+                <div className="flex justify-between gap-3 border-t border-line py-3">
+                  <dt className="text-ink-3">Bill number</dt>
+                  <dd className="font-mono text-ink tabular">{billLabel}</dd>
+                </div>
+                <div className="flex justify-between gap-3 border-t border-line pt-3">
+                  <dt className="text-ink-3">Congress</dt>
+                  <dd className="font-mono text-ink tabular">
                     {formatCongressOrdinal(bill.congress)} ({formatCongressYears(bill.congress)})
                   </dd>
                 </div>
@@ -287,114 +370,21 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             </div>
           </aside>
         </div>
-      </section>
+      </div>
 
-      {/* Q&A */}
-      <section className="border-t border-border bg-secondary/30">
-        <div className="container-editorial py-12 sm:py-16">
-          <div className="max-w-3xl">
-            <p className="label-eyebrow mb-3">Ask the record</p>
-            <h2 className="font-serif text-display-sm font-semibold tracking-tight mb-2">
-              Have a question about this {noun}?
-            </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-              Every answer cites the records it came from, and the conversation
-              follows you as you read.
-            </p>
-            <AskAboutBill title={bill.title} noun={noun} />
-          </div>
+      {/* Ask the record — the page's quiet closing band */}
+      <section aria-labelledby="bill-ask-title" className="bg-sunken py-16 sm:py-[72px]">
+        <div className="container-editorial">
+          <AskAboutBill title={bill.title} noun={noun} headingId="bill-ask-title" />
         </div>
       </section>
 
       {/* Podcast cross-promotion (end of page — never mid-read) */}
-      <section className="border-t border-border">
+      <section className="border-t border-line">
         <div className="container-editorial py-10 sm:py-12">
-          <PodcastPromo
-            placement="bill"
-            variant="compact"
-            billId={String(bill.id)}
-          />
+          <PodcastPromo placement="bill" variant="compact" billId={String(bill.id)} />
         </div>
       </section>
     </article>
-  );
-}
-
-/* Editorial pipeline visualisation: dots on a horizontal line */
-function ProgressPipeline({
-  dots,
-  fraction,
-}: {
-  dots: Array<{ stage: string; isComplete: boolean }>;
-  fraction: number;
-}) {
-  return (
-    <div>
-      {/* Horizontal pipeline (sm+) */}
-      <ol className="hidden sm:block">
-        <div className="relative">
-          {/* base line */}
-          <div className="absolute left-2 right-2 top-2 h-px bg-border" aria-hidden="true" />
-          {/* progress line */}
-          <div
-            className="absolute left-2 top-2 h-px bg-foreground transition-all duration-500"
-            style={{ width: `calc((100% - 1rem) * ${fraction})` }}
-            aria-hidden="true"
-          />
-          <div className="flex items-start justify-between gap-1">
-            {dots.map(({ stage, isComplete }) => (
-              <li
-                key={stage}
-                className="relative flex flex-col items-center text-center"
-                style={{ flex: '1 1 0' }}
-              >
-                <span
-                  className={cn(
-                    'flex h-4 w-4 items-center justify-center rounded-full border bg-background z-10',
-                    isComplete
-                      ? 'border-foreground bg-foreground text-background'
-                      : 'border-border'
-                  )}
-                  aria-hidden="true"
-                >
-                  {isComplete && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-                </span>
-                <span
-                  className={cn(
-                    'mt-2 text-[11px] leading-tight max-w-[8ch]',
-                    isComplete ? 'text-foreground font-medium' : 'text-muted-foreground'
-                  )}
-                >
-                  {stage}
-                </span>
-              </li>
-            ))}
-          </div>
-        </div>
-      </ol>
-
-      {/* Vertical pipeline (mobile) */}
-      <ol className="sm:hidden space-y-2.5">
-        {dots.map(({ stage, isComplete }) => (
-          <li key={stage} className="flex items-center gap-3">
-            <span
-              className={cn(
-                'flex h-3 w-3 items-center justify-center rounded-full border shrink-0',
-                isComplete ? 'border-foreground bg-foreground' : 'border-border'
-              )}
-              aria-hidden="true"
-            />
-            <span
-              className={cn(
-                'text-sm',
-                isComplete ? 'text-foreground font-medium' : 'text-muted-foreground'
-              )}
-            >
-              {stage}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
   );
 }

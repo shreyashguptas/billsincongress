@@ -10,15 +10,16 @@
  * from the 118th Congress on; for earlier Congresses that view is not offered
  * rather than computed against the wrong seat counts.
  *
- * Shading is one hue in five equal-count steps (quintiles), with a legend.
+ * Shading is the one `heat` amber in five equal-count steps (quintiles), with
+ * a legend, so it is never mistaken for a party or for "became law".
  */
 
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
-import { AskAbout } from '@/components/answers/ask-about';
-import { fmt, type HomeProps } from './shared';
+import { SectionHeader } from '@/components/brand/section';
+import { SectionAsk, fmt, type HomeProps } from './shared';
 
 // [column, row] on an 11 × 8 grid.
 const TILES: Record<string, [number, number]> = {
@@ -118,42 +119,41 @@ export function StateMap({
         onClick={() => onDrillDown('state', st)}
         aria-label={`${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
         className={cn(
-          'relative flex aspect-square flex-col items-center justify-center rounded-[3px] transition-[opacity,box-shadow]',
-          bin >= 3 ? 'text-background' : 'text-foreground',
-          hover === st && 'ring-2 ring-foreground',
+          'focus-ring relative flex aspect-square flex-col items-center justify-center rounded-xs transition-[opacity,box-shadow]',
+          bin >= 3 ? 'text-on-ink' : 'text-ink',
+          bin < 0 && 'bg-sunken',
+          hover === st && 'ring-2 ring-ink',
           hover && hover !== st && 'opacity-60',
           extra,
         )}
-        style={{
-          backgroundColor: bin >= 0 ? `hsl(var(--heat) / ${ALPHA[bin]})` : 'hsl(var(--secondary))',
-        }}
+        style={bin >= 0 ? { backgroundColor: `hsl(var(--heat) / ${ALPHA[bin]})` } : undefined}
       >
-        <span className="font-mono text-[9px] sm:text-[11px] font-semibold leading-none">{st}</span>
+        <span className="font-mono text-[9px] font-medium leading-none sm:text-xs">{st}</span>
       </button>
     );
   };
 
   return (
-    <section className="border-b border-border">
-      <div className="container-editorial py-12">
-        <header className="mb-6">
-          <p className="label-eyebrow mb-2">Across the country</p>
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight">Where bills come from</h2>
-            <div className="shrink-0 pt-1.5">
-              <AskAbout question={`Which states' members sponsor the most bills in the ${formatCongressOrdinal(congress)} Congress?`} />
-            </div>
-          </div>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground leading-relaxed">
-            Bills sponsored by each state&rsquo;s members this Congress.
-            {perMemberAvailable && ' Big delegations file more bills, so switch to per member for a fairer comparison.'}
-          </p>
-        </header>
+    <section className="border-b border-line">
+      <div className="container-editorial py-16 sm:py-24">
+        <SectionHeader
+          eyebrow="Across the country"
+          title="Where bills come from"
+          action={
+            <SectionAsk
+              question={`Which states' members sponsor the most bills in the ${formatCongressOrdinal(congress)} Congress?`}
+            />
+          }
+        />
+        <p className="mt-4 max-w-measure text-[15px] leading-relaxed text-ink-2">
+          Bills sponsored by each state&rsquo;s members this Congress.
+          {perMemberAvailable && ' Big delegations file more bills, so switch to per member for a fairer comparison.'}
+        </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          <div className="lg:col-span-8 max-w-[36rem]" onMouseLeave={() => setHover(null)}>
+        <div className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12">
+          <div className="max-w-[36rem] lg:col-span-8" onMouseLeave={() => setHover(null)}>
             {perMemberAvailable && (
-              <div className="mb-4 inline-flex rounded-sm border border-border p-0.5" role="tablist" aria-label="Measure">
+              <div className="mb-5 inline-flex rounded-md border border-line-strong p-0.5" role="tablist" aria-label="Measure">
                 {(
                   [
                     ['total', 'Total bills'],
@@ -171,8 +171,8 @@ export function StateMap({
                       analytics.homeStateMapMeasureChanged(id === 'total' ? 'total' : 'per_member', congress);
                     }}
                     className={cn(
-                      'rounded-[3px] px-3 py-1.5 text-xs transition-colors',
-                      metric === id ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground',
+                      'focus-ring h-8 rounded-sm px-3 text-[13px] font-medium transition-colors touchable:h-10',
+                      metric === id ? 'bg-ink text-on-ink' : 'text-ink-2 hover:text-ink',
                     )}
                   >
                     {label}
@@ -200,11 +200,11 @@ export function StateMap({
             )}
 
             {/* Legend */}
-            <div className="mt-4 flex flex-wrap items-center gap-3 font-mono text-[10px] text-muted-foreground">
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-ink-3">
               <span>fewer</span>
               {ALPHA.map((a, i) => (
-                <span key={i} className="inline-flex items-center gap-1">
-                  <span className="h-3 w-5 rounded-[2px]" style={{ backgroundColor: `hsl(var(--heat) / ${a})` }} />
+                <span key={i} className="inline-flex items-center gap-1.5 tabular">
+                  <span className="h-3 w-5 rounded-xs" style={{ backgroundColor: `hsl(var(--heat) / ${a})` }} />
                   {i === 0 ? `< ${fmtVal(breaks[0])}` : i === 4 ? `≥ ${fmtVal(breaks[3])}` : `${fmtVal(breaks[i - 1])}–${fmtVal(breaks[i])}`}
                 </span>
               ))}
@@ -215,39 +215,39 @@ export function StateMap({
           {/* Readout: the hovered state, or the top five */}
           <div className="lg:col-span-4" onMouseLeave={() => setHover(null)}>
             {focus ? (
-              <div key={focus.st} className="animate-fade-in rounded-sm border border-border p-5">
+              <div key={focus.st} className="animate-fade-in border-y border-line py-5">
                 <p className="label-eyebrow">{focus.st}</p>
-                <p className="font-serif text-2xl font-semibold tracking-tight">{focus.name}</p>
-                <p className="mt-3 font-serif text-4xl font-semibold tabular">{fmt(focus.bills)}</p>
-                <p className="text-sm text-muted-foreground">bills sponsored</p>
+                <p className="mt-1 font-serif text-display-sm font-medium text-ink">{focus.name}</p>
+                <p className="mt-4 font-serif text-[44px] font-normal leading-none text-ink tabular">{fmt(focus.bills)}</p>
+                <p className="mt-1 text-sm text-ink-2">bills sponsored</p>
                 {perMemberAvailable && focus.seats > 0 && (
-                  <p className="mt-2 text-sm">
-                    <span className="font-mono tabular">{focus.perMember.toFixed(1)}</span>{' '}
-                    <span className="text-muted-foreground">
+                  <p className="mt-3 text-sm">
+                    <span className="font-mono text-ink tabular">{focus.perMember.toFixed(1)}</span>{' '}
+                    <span className="text-ink-2">
                       per member · {focus.seats} {focus.seats === 1 ? 'seat' : 'seats'}
                     </span>
                   </p>
                 )}
-                <p className="mt-2 font-mono text-xs text-muted-foreground">
+                <p className="mt-2 font-mono text-xs text-ink-3">
                   #{ranked.findIndex((r) => r.st === focus.st) + 1} of {ranked.length} by {metric === 'total' ? 'total' : 'per member'}
                 </p>
-                <p className="mt-3 text-xs text-muted-foreground">Click to see its bills →</p>
+                <p className="mt-4 text-sm text-ink-3">Click to see its bills →</p>
               </div>
             ) : (
               <div>
-                <p className="label-eyebrow mb-2">Top five · {metric === 'total' ? 'total bills' : 'per member'}</p>
-                <ol className="divide-y divide-border border-y border-border">
+                <p className="label-eyebrow mb-3">Top five · {metric === 'total' ? 'total bills' : 'per member'}</p>
+                <ol className="border-b border-line">
                   {ranked.slice(0, 5).map((r, i) => (
-                    <li key={r.st}>
+                    <li key={r.st} className="border-t border-line">
                       <button
                         type="button"
                         onMouseEnter={() => setHover(r.st)}
                         onClick={() => onDrillDown('state', r.st)}
-                        className="grid w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 py-2.5 text-left hover:bg-secondary/50"
+                        className="focus-ring grid min-h-12 w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm text-left hover:bg-sunken"
                       >
-                        <span className="font-mono text-xs text-muted-foreground">{i + 1}</span>
-                        <span className="text-sm">{r.name}</span>
-                        <span className="font-mono text-sm tabular">{fmtVal(value(r))}</span>
+                        <span className="font-mono text-xs text-ink-3 tabular">{i + 1}</span>
+                        <span className="text-[15px] text-ink">{r.name}</span>
+                        <span className="font-mono text-sm text-ink tabular">{fmtVal(value(r))}</span>
                       </button>
                     </li>
                   ))}

@@ -4,7 +4,9 @@ import { motion } from 'framer-motion';
 
 // One hand-drawn, animated illustration per stage of a bill's journey.
 // Each plays when mounted (the journey stepper remounts them on navigation).
-// All strokes use currentColor; accent red and law green mark the key moments.
+// All strokes use currentColor (ink). The one hue in each drawing is that step's
+// own stage colour — the status-* token its StatusPill dot uses — so the key
+// moment and the pill beside it read as the same stage.
 
 const VIEWBOX = '0 0 240 200';
 
@@ -42,8 +44,8 @@ export function IntroducedIllustration() {
         animate={{ y: 0, opacity: 1, rotate: 0 }}
         transition={{ duration: 1.1, ease, delay: 0.2 }}
       >
-        <rect x={92} y={28} width={56} height={72} rx={2} stroke="currentColor" strokeWidth={2} className="fill-background" />
-        <text x={120} y={46} textAnchor="middle" fontSize={11} className="fill-accent font-mono font-bold">
+        <rect x={92} y={28} width={56} height={72} rx={2} stroke="currentColor" strokeWidth={2} className="fill-paper" />
+        <text x={120} y={46} textAnchor="middle" fontSize={11} className="fill-current font-mono font-bold">
           H.R. 1
         </text>
         <DocLines x={100} y={58} width={40} />
@@ -63,7 +65,7 @@ export function IntroducedIllustration() {
           stroke="currentColor"
           strokeWidth={2}
           strokeLinejoin="round"
-          className="fill-background"
+          className="fill-paper"
         />
         <path d="M 70 104 L 78 96 M 170 104 L 162 96" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
         <text x={120} y={138} textAnchor="middle" fontSize={10} letterSpacing={2} className="fill-current font-mono" opacity={0.6}>
@@ -125,7 +127,7 @@ export function CommitteeIllustration() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.3 }}
       >
-        <rect x={104} y={114} width={32} height={40} rx={1.5} stroke="currentColor" strokeWidth={1.5} className="fill-background" />
+        <rect x={104} y={114} width={32} height={40} rx={1.5} stroke="currentColor" strokeWidth={1.5} className="fill-paper" />
         <DocLines x={109} y={123} width={22} count={3} />
       </motion.g>
 
@@ -138,7 +140,7 @@ export function CommitteeIllustration() {
           transition={{ delay: 0.4 + i * 0.15, duration: 0.4, ease: 'backOut' }}
           style={{ transformOrigin: `${m.x}px ${m.y}px` }}
         >
-          <circle cx={m.x} cy={m.y} r={9} stroke="currentColor" strokeWidth={2} className="fill-background" />
+          <circle cx={m.x} cy={m.y} r={9} stroke="currentColor" strokeWidth={2} className="fill-paper" />
           <path
             d={`M ${m.x - 13} ${m.y + 26} C ${m.x - 13} ${m.y + 14}, ${m.x + 13} ${m.y + 14}, ${m.x + 13} ${m.y + 26}`}
             stroke="currentColor"
@@ -158,8 +160,8 @@ export function CommitteeIllustration() {
           y: { delay: 1.6, duration: 2.4, repeat: Infinity, repeatType: 'mirror' },
         }}
       >
-        <circle cx={132} cy={122} r={16} className="stroke-accent fill-background/60" strokeWidth={2.5} />
-        <line x1={143} y1={134} x2={156} y2={148} className="stroke-accent" strokeWidth={3.5} strokeLinecap="round" />
+        <circle cx={132} cy={122} r={16} className="stroke-status-committee fill-paper/60" strokeWidth={2.5} />
+        <line x1={143} y1={134} x2={156} y2={148} className="stroke-status-committee" strokeWidth={3.5} strokeLinecap="round" />
       </motion.g>
     </svg>
   );
@@ -177,7 +179,7 @@ export function VoteIllustration() {
       <motion.rect
         x={62}
         width={44}
-        className="fill-status-law"
+        className="fill-status-passed-one"
         initial={{ y: 160, height: 0 }}
         animate={{ y: 64, height: 96 }}
         transition={{ duration: 1.1, ease, delay: 0.3 }}
@@ -186,7 +188,7 @@ export function VoteIllustration() {
       <motion.rect
         x={134}
         width={44}
-        className="fill-foreground/25"
+        className="fill-ink/25"
         initial={{ y: 160, height: 0 }}
         animate={{ y: 76, height: 84 }}
         transition={{ duration: 1.1, ease, delay: 0.45 }}
@@ -234,8 +236,8 @@ export function VoteIllustration() {
         transition={{ delay: 1.9, duration: 0.35, ease: 'backOut' }}
         style={{ transformOrigin: '120px 30px' }}
       >
-        <rect x={84} y={16} width={72} height={28} rx={2} className="stroke-status-law" strokeWidth={2} fill="none" />
-        <text x={120} y={35} textAnchor="middle" fontSize={13} letterSpacing={2} className="fill-status-law font-mono font-bold">
+        <rect x={84} y={16} width={72} height={28} rx={2} className="stroke-status-passed-one" strokeWidth={2} fill="none" />
+        <text x={120} y={35} textAnchor="middle" fontSize={13} letterSpacing={2} className="fill-current font-mono font-bold">
           PASSES
         </text>
       </motion.g>
@@ -292,10 +294,10 @@ export function BothChambersIllustration() {
           transition={{ delay: 0.9 + i * 0.5, duration: 0.45, ease: 'backOut' }}
           style={{ transformOrigin: `${cx}px 38px` }}
         >
-          <circle cx={cx} cy={38} r={15} className="fill-status-law" />
+          <circle cx={cx} cy={38} r={15} className="fill-status-passed-both" />
           <path
             d={`M ${cx - 7} 38 L ${cx - 2} 44 L ${cx + 8} 32`}
-            stroke="white"
+            className="stroke-on-ink"
             strokeWidth={3}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -371,7 +373,7 @@ export function ToPresidentIllustration() {
         animate={{ x: [-36, 30, 110], y: [0, -38, -34], opacity: [0, 1, 1] }}
         transition={{ duration: 1.8, ease: 'easeInOut', delay: 0.5 }}
       >
-        <rect x={86} y={66} width={30} height={38} rx={1.5} stroke="currentColor" strokeWidth={2} className="fill-background" />
+        <rect x={86} y={66} width={30} height={38} rx={1.5} stroke="currentColor" strokeWidth={2} className="fill-paper" />
         <DocLines x={91} y={75} width={20} count={3} />
       </motion.g>
     </svg>
@@ -389,7 +391,7 @@ export function SignedIllustration() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease }}
       >
-        <rect x={64} y={22} width={112} height={146} rx={2} stroke="currentColor" strokeWidth={2} className="fill-background" />
+        <rect x={64} y={22} width={112} height={146} rx={2} stroke="currentColor" strokeWidth={2} className="fill-paper" />
         <DocLines x={78} y={42} width={84} count={6} />
         {/* signature line */}
         <line x1={78} y1={140} x2={162} y2={140} stroke="currentColor" strokeWidth={1.5} opacity={0.5} />
@@ -398,10 +400,10 @@ export function SignedIllustration() {
         </text>
       </motion.g>
 
-      {/* The signature draws itself in accent ink */}
+      {/* The signature draws itself in the "signed" stage colour */}
       <motion.path
         d="M 82 134 C 86 120, 90 140, 96 128 C 102 116, 104 140, 112 128 C 118 119, 120 138, 128 127 C 136 116, 138 137, 148 126 C 152 121, 156 130, 160 124"
-        className="stroke-accent"
+        className="stroke-status-signed"
         strokeWidth={2.5}
         strokeLinecap="round"
         fill="none"
@@ -417,7 +419,7 @@ export function SignedIllustration() {
         transition={{ delay: 2.3, duration: 0.4, ease: 'backOut' }}
         style={{ transformOrigin: '196px 48px' }}
       >
-        <circle cx={196} cy={48} r={20} stroke="currentColor" strokeWidth={2} className="fill-background" />
+        <circle cx={196} cy={48} r={20} stroke="currentColor" strokeWidth={2} className="fill-paper" />
         <line x1={196} y1={48} x2={196} y2={36} stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
         <line x1={196} y1={48} x2={204} y2={52} stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
         <text x={196} y={82} textAnchor="middle" fontSize={8} letterSpacing={1} className="fill-current font-mono" opacity={0.6}>
@@ -439,7 +441,7 @@ export function LawIllustration() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <rect x={70} y={26} width={100} height={130} rx={2} stroke="currentColor" strokeWidth={2} className="fill-background" />
+        <rect x={70} y={26} width={100} height={130} rx={2} stroke="currentColor" strokeWidth={2} className="fill-paper" />
         <DocLines x={84} y={44} width={72} count={5} />
         <text x={120} y={120} textAnchor="middle" fontSize={9} letterSpacing={1.5} className="fill-current font-mono font-bold">
           PUBLIC LAW
@@ -456,7 +458,7 @@ export function LawIllustration() {
         transition={{ delay: 0.8, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
         style={{ transformOrigin: '162px 142px' }}
       >
-        <circle cx={162} cy={142} r={26} className="stroke-status-law fill-background" strokeWidth={2.5} />
+        <circle cx={162} cy={142} r={26} className="stroke-status-law fill-paper" strokeWidth={2.5} />
         <circle cx={162} cy={142} r={19} className="stroke-status-law" strokeWidth={1.25} fill="none" />
         {/* star */}
         <path

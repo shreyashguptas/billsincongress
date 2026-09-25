@@ -7,29 +7,31 @@
  * left committee are one small block on the left, each square standing for
  * many bills. The few that got out are zoomed in on the right: bigger squares,
  * one per bill, a row per stage — so the part of the story that is actually
- * happening is the part you can see. Each panel states its own scale.
+ * happening is the part you can see. Each panel states its own scale, and
+ * every square takes its stage's `status-*` colour (brand.md, "The data").
  */
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { formatCongressOrdinal } from '@/lib/congress';
-import { AskAbout } from '@/components/answers/ask-about';
-import { fmt, type HomeProps } from './shared';
+import { SectionHeader } from '@/components/brand/section';
+import { stageFill } from '@/components/brand/status';
+import { SectionAsk, fmt, type HomeProps } from './shared';
 
 type SB = HomeProps['dashboard']['statusBreakdown'];
 
 const STUCK = [
-  { key: 'introduced', label: 'Introduced, no action yet', color: 'hsl(var(--status-introduced))', stage: 20 },
-  { key: 'inCommittee', label: 'In committee', color: 'hsl(var(--status-committee))', stage: 40 },
+  { key: 'introduced', label: 'Introduced, no action yet', stage: 20 },
+  { key: 'inCommittee', label: 'In committee', stage: 40 },
 ] as const;
 
 const MOVED = [
-  { key: 'passedOneChamber', label: 'Passed one chamber', color: 'hsl(var(--status-passed-one))', stage: 60 },
-  { key: 'passedBothChambers', label: 'Passed both chambers', color: 'hsl(var(--status-passed-both))', stage: 80 },
-  { key: 'toPresident', label: 'On the President’s desk', color: 'hsl(var(--status-president))', stage: 90 },
-  { key: 'signed', label: 'Signed', color: 'hsl(var(--status-signed))', stage: 95 },
-  { key: 'becameLaw', label: 'Became law', color: 'hsl(var(--status-law))', stage: 100 },
-  { key: 'vetoed', label: 'Vetoed', color: 'hsl(var(--status-vetoed))', stage: 85 },
+  { key: 'passedOneChamber', label: 'Passed one chamber', stage: 60 },
+  { key: 'passedBothChambers', label: 'Passed both chambers', stage: 80 },
+  { key: 'toPresident', label: 'On the President’s desk', stage: 90 },
+  { key: 'signed', label: 'Signed', stage: 95 },
+  { key: 'becameLaw', label: 'Became law', stage: 100 },
+  { key: 'vetoed', label: 'Vetoed', stage: 85 },
 ] as const;
 
 /** Smallest "nice" unit that keeps a block under `maxSquares`. */
@@ -39,6 +41,8 @@ function unitFor(total: number, maxSquares: number) {
   }
   return Math.ceil(total / maxSquares);
 }
+
+const billsLabel = (n: number) => `${fmt(n)} ${n === 1 ? 'bill' : 'bills'}`;
 
 export function StageZoom({
   congress,
@@ -67,26 +71,30 @@ export function StageZoom({
   const faded = (k: string) => hover !== null && hover !== k;
 
   return (
-    <section className="border-b border-border">
-      <div className="container-editorial py-12">
-        <header className="mb-8">
-          <p className="label-eyebrow mb-2">Where bills stand</p>
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="font-serif text-display-sm font-semibold tracking-tight leading-tight max-w-2xl">
-              {((stuckTotal / all) * 100).toFixed(1)}% of bills haven&rsquo;t made it out of committee. Here are the ones that have.
-            </h2>
-            <div className="shrink-0 pt-1.5">
-              <AskAbout question={`Why do most bills never leave committee in the ${formatCongressOrdinal(congress)} Congress?`} />
-            </div>
-          </div>
-        </header>
+    <section className="border-b border-line">
+      <div className="container-editorial py-16 sm:py-24">
+        <SectionHeader
+          eyebrow="Where bills stand"
+          finding
+          title={
+            <>
+              {((stuckTotal / all) * 100).toFixed(1)}% of bills haven&rsquo;t made it out of committee. Here are the
+              ones that have.
+            </>
+          }
+          action={
+            <SectionAsk
+              question={`Why do most bills never leave committee in the ${formatCongressOrdinal(congress)} Congress?`}
+            />
+          }
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-0">
+        <div className="mt-10 grid grid-cols-1 gap-12 sm:mt-12 lg:grid-cols-12 lg:gap-0">
           {/* Stuck — small squares, many bills each */}
-          <div className="lg:col-span-4 lg:pr-8 lg:border-r lg:border-border">
-            <p className="label-eyebrow">Stuck · {fmt(stuckTotal)} bills</p>
-            <p className="font-mono text-[10px] text-muted-foreground mb-3">each square = {fmt(stuckUnit)} bills</p>
-            <div className="flex flex-wrap gap-[2px]">
+          <div className="lg:col-span-4 lg:border-r lg:border-line lg:pr-10">
+            <p className="label-eyebrow">Stuck · {billsLabel(stuckTotal)}</p>
+            <p className="mt-1 font-mono text-xs text-ink-3">each square = {fmt(stuckUnit)} bills</p>
+            <div className="mt-4 flex flex-wrap gap-[2px]">
               {stuck.flatMap((s) =>
                 Array.from({ length: squares(s.value, stuckUnit) }, (_, i) => (
                   <button
@@ -95,19 +103,25 @@ export function StageZoom({
                     tabIndex={-1}
                     aria-hidden="true"
                     {...row(s)}
-                    className={cn('h-[7px] w-[7px] rounded-[1px] transition-opacity', faded(s.key) && 'opacity-20')}
-                    style={{ backgroundColor: s.color }}
+                    className={cn('h-2 w-2 rounded-xs transition-opacity', stageFill(s.stage), faded(s.key) && 'opacity-35')}
                   />
                 )),
               )}
             </div>
-            <ul className="mt-4 space-y-1">
+            <ul className="mt-6 border-b border-line">
               {stuck.map((s) => (
-                <li key={s.key}>
-                  <button type="button" {...row(s)} className={cn('flex w-full items-center gap-2 text-sm text-left transition-opacity', faded(s.key) && 'opacity-40')}>
-                    <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: s.color }} />
+                <li key={s.key} className="border-t border-line">
+                  <button
+                    type="button"
+                    {...row(s)}
+                    className={cn(
+                      'focus-ring flex min-h-11 w-full items-center gap-3 rounded-sm text-left text-[15px] text-ink transition-opacity',
+                      faded(s.key) && 'opacity-35',
+                    )}
+                  >
+                    <span className={cn('h-3 w-3 shrink-0 rounded-xs', stageFill(s.stage))} aria-hidden="true" />
                     <span className="flex-1">{s.label}</span>
-                    <span className="font-mono tabular">{fmt(s.value)}</span>
+                    <span className="font-mono text-sm text-ink-2 tabular">{fmt(s.value)}</span>
                   </button>
                 </li>
               ))}
@@ -115,37 +129,40 @@ export function StageZoom({
           </div>
 
           {/* Moved — zoomed in, one bigger square per bill */}
-          <div className="lg:col-span-8 lg:pl-8">
+          <div className="lg:col-span-8 lg:pl-10">
             <p className="label-eyebrow">
-              Zoomed in · the {fmt(movedTotal)} that moved{' '}
-              <span className="normal-case tracking-normal font-normal">({((movedTotal / all) * 100).toFixed(1)}%)</span>
+              Zoomed in · the {fmt(movedTotal)} that moved ({((movedTotal / all) * 100).toFixed(1)}%)
             </p>
-            <p className="font-mono text-[10px] text-muted-foreground mb-3">
+            <p className="mt-1 font-mono text-xs text-ink-3">
               each square = {movedUnit === 1 ? '1 bill' : `${fmt(movedUnit)} bills`}
             </p>
-            <div className="space-y-3">
+            <div className="mt-4 border-b border-line">
               {moved.map((s) => (
                 <button
                   key={s.key}
                   type="button"
                   {...row(s)}
                   className={cn(
-                    'grid w-full grid-cols-[9.5rem_1fr] sm:grid-cols-[11rem_1fr] items-start gap-3 text-left transition-opacity group',
-                    faded(s.key) && 'opacity-30',
+                    'focus-ring group grid w-full grid-cols-1 items-start gap-x-6 gap-y-3 rounded-sm border-t border-line py-4 text-left transition-opacity sm:grid-cols-[200px_1fr]',
+                    faded(s.key) && 'opacity-35',
                   )}
                 >
-                  <span className="text-sm leading-tight">
-                    {s.label}
-                    <span className="block font-mono text-xs text-muted-foreground tabular group-hover:text-foreground">
-                      {fmt(s.value)} {s.value === 1 ? 'bill' : 'bills'} →
+                  <span className="flex items-baseline justify-between gap-3 sm:block">
+                    <span className="block text-[15px] font-medium leading-5 text-ink">{s.label}</span>
+                    <span className="mt-1 block font-mono text-[13px] text-ink-2 tabular group-hover:text-ink">
+                      {billsLabel(s.value)} →
                     </span>
                   </span>
-                  <span className="flex flex-wrap gap-[3px] pt-0.5">
+                  <span className="flex flex-wrap gap-[3px] sm:pt-1">
                     {Array.from({ length: squares(s.value, movedUnit) }, (_, i) => (
                       <span
                         key={i}
-                        className={cn('h-3 w-3 rounded-[2px] animate-odds-in', s.key === 'becameLaw' && 'odds-law')}
-                        style={{ backgroundColor: s.color, animationDelay: `${Math.min(i, 200) * 4}ms` }}
+                        className={cn(
+                          'h-3 w-3 rounded-xs animate-odds-in',
+                          stageFill(s.stage),
+                          s.key === 'becameLaw' && 'odds-law',
+                        )}
+                        style={{ animationDelay: `${Math.min(i, 200) * 4}ms` }}
                       />
                     ))}
                   </span>

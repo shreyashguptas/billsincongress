@@ -48,7 +48,7 @@ export function renderCodeEmail(purpose: CodePurpose, code: string): RenderedEma
 ${masthead(copy.eyebrow)}
 <tr><td style="padding:24px 28px 8px;font:15px/1.55 ${SANS};color:${C.ink};">${escapeHtml(copy.lead)}</td></tr>
 <tr><td style="padding:4px 28px 8px;">
-  <p style="margin:0;font:600 32px/1.2 ${MONO};letter-spacing:.2em;color:${C.navy};">${escapeHtml(code)}</p>
+  <p style="margin:0;font:600 32px/1.2 ${MONO};letter-spacing:.2em;color:${C.ink};">${escapeHtml(code)}</p>
 </td></tr>
 <tr><td style="padding:8px 28px 24px;font:15px/1.55 ${SANS};color:${C.ink};">${escapeHtml(expiry)}</td></tr>
 <tr><td style="padding:18px 28px 24px;border-top:1px solid ${C.rule};font:12px/1.6 ${SANS};color:${C.muted};">${escapeHtml(copy.ignore)}</td></tr>

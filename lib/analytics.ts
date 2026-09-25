@@ -174,6 +174,11 @@ export const analytics = {
     surface?: 'bar' | 'panel' | 'empty_state';
   }) => capture('bills_filters_cleared', props ?? {}),
 
+  /** The header's search field (lg and up). Length, not the text — the same
+   *  rule as `bills_no_results`. An empty submit just opens /bills. */
+  headerSearchSubmitted: (queryLength: number) =>
+    capture('header_search_submitted', { query_length: queryLength }),
+
   billsLoadMoreClicked: (nextPage: number, loadedCount: number) =>
     capture('bills_load_more_clicked', { next_page: nextPage, loaded_count: loadedCount }),
 

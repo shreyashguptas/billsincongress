@@ -6,7 +6,8 @@ import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // "Watch what happens to 100 bills" — a grid of 100 documents pops in, then
-// nearly all of them fade away. Only ~3 survive and turn law-green.
+// nearly all of them fade away. Only ~3 survive and take the "became law"
+// stage colour (status-law), the one hue in the figure.
 
 const TOTAL = 100;
 /** The lucky few, scattered across the grid so survival looks random. */
@@ -36,35 +37,35 @@ export function BillSurvival() {
     <div ref={ref} className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
       {/* Narrative side */}
       <div className="lg:col-span-5 space-y-5">
-        <p className="font-serif text-lg sm:text-xl leading-[1.7]">
-          Here are <span className="font-semibold tabular">100</span> bills, freshly
+        <p className="font-serif text-reading text-ink">
+          Here are <span className="font-medium tabular">100</span> bills, freshly
           introduced into Congress.
         </p>
         <p
           className={cn(
-            'font-serif text-lg sm:text-xl leading-[1.7] transition-opacity duration-700',
+            'font-serif text-reading text-ink transition-opacity duration-700',
             phase === 'resolved' ? 'opacity-100' : 'opacity-30',
           )}
           aria-hidden={phase !== 'resolved'}
         >
           Only about{' '}
-          <span className="font-semibold text-status-law tabular">3 of them</span> will
+          <span className="font-medium tabular">3 of them</span> will
           ever become law. The rest run out of time, never get a vote, or were only ever
           introduced to make a point.
         </p>
         <div
           className={cn(
-            'flex flex-wrap gap-x-6 gap-y-2 text-sm transition-opacity duration-700 delay-300',
+            'flex flex-wrap gap-x-6 gap-y-2 font-mono text-xs transition-opacity duration-700 delay-300',
             phase === 'resolved' ? 'opacity-100' : 'opacity-0',
           )}
           aria-hidden={phase !== 'resolved'}
         >
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <FileText className="h-3.5 w-3.5 text-border" aria-hidden="true" />
+          <span className="inline-flex items-center gap-2 text-ink-2">
+            <FileText className="h-4 w-4 text-line-strong" strokeWidth={1.5} aria-hidden="true" />
             Died along the way
           </span>
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <FileText className="h-3.5 w-3.5 text-status-law" aria-hidden="true" />
+          <span className="inline-flex items-center gap-2 text-ink-2">
+            <FileText className="h-4 w-4 text-status-law" strokeWidth={1.5} aria-hidden="true" />
             Became law
           </span>
         </div>
@@ -98,8 +99,8 @@ export function BillSurvival() {
                     phase === 'resolved'
                       ? survives
                         ? 'text-status-law scale-125'
-                        : 'text-border'
-                      : 'text-foreground/70',
+                        : 'text-line-strong/60'
+                      : 'text-ink-2',
                   )}
                   style={{
                     transitionDelay: phase === 'resolved' && !reduceMotion ? `${i * 9}ms` : '0ms',

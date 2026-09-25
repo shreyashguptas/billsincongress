@@ -13,7 +13,8 @@ import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 // "Congress is two rooms" — parliament-style seat charts for the House (435)
-// and Senate (100), with a state picker that lights up your state's seats.
+// and Senate (100), with a state picker that picks out your state's seats in
+// solid ink. These seats are not party data, so no party colour appears here.
 
 /** House seats per state, 2020-census apportionment. Sums to 435. */
 const STATE_HOUSE_SEATS: Record<string, number> = {
@@ -134,9 +135,7 @@ function SeatChart({
               r={dotRadius}
               className={cn(
                 'transition-[fill] duration-500',
-                seat.sweepIndex < highlightCount
-                  ? 'fill-accent'
-                  : 'fill-foreground/25 dark:fill-foreground/30',
+                seat.sweepIndex < highlightCount ? 'fill-ink' : 'fill-ink/20',
               )}
             />
           ))}
@@ -162,7 +161,7 @@ export function ChamberSeats() {
   return (
     <div className="space-y-8">
       {/* State picker */}
-      <div className="border border-border bg-card p-5 sm:p-6">
+      <div className="rounded-md border border-line bg-raised p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
           <div className="flex-1">
             <label
@@ -171,7 +170,7 @@ export function ChamberSeats() {
             >
               Make it personal
             </label>
-            <p className="font-serif text-lg sm:text-xl font-semibold tracking-tight">
+            <p className="font-serif text-title font-medium text-ink">
               Where do you live?
             </p>
           </div>
@@ -199,18 +198,18 @@ export function ChamberSeats() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="mt-4 border-t border-border pt-4 text-sm sm:text-base leading-relaxed"
+              className="mt-4 border-t border-line pt-4 text-[15px] leading-relaxed text-ink-2 sm:text-base"
             >
-              <span className="font-semibold">{stateName}</span> sends{' '}
-              <span className="font-semibold text-accent tabular">
+              <span className="font-semibold text-ink">{stateName}</span> sends{' '}
+              <span className="font-semibold text-ink tabular">
                 {repCount} {repCount === 1 ? 'Representative' : 'Representatives'}
               </span>{' '}
               to the House and — like every state, big or small —{' '}
-              <span className="font-semibold text-accent tabular">2 Senators</span> to the
-              Senate. They're shown in red below.
+              <span className="font-semibold text-ink tabular">2 Senators</span> to the
+              Senate. They're the solid seats below.
             </motion.p>
           ) : (
-            <p className="mt-4 border-t border-border pt-4 text-sm text-muted-foreground">
+            <p className="mt-4 border-t border-line pt-4 text-sm text-ink-3">
               Pick your state to light up its seats in the two chambers below.
             </p>
           )}
@@ -218,14 +217,14 @@ export function ChamberSeats() {
       </div>
 
       {/* The two chambers, side by side */}
-      <div className="grid sm:grid-cols-2 gap-px bg-border border border-border">
-        <div className="bg-background p-6 sm:p-8">
-          <p className="label-eyebrow mb-1">The People's Chamber</p>
-          <h3 className="font-serif text-xl sm:text-2xl font-semibold tracking-tight mb-1">
+      <div className="grid gap-px overflow-hidden rounded-md border border-line bg-line sm:grid-cols-2">
+        <div className="bg-paper p-6 sm:p-8">
+          <p className="label-eyebrow">The People's Chamber</p>
+          <h3 className="mt-2 mb-2 text-display-sm text-ink">
             House of Representatives
           </h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            <span className="font-mono tabular text-foreground">435</span> members · seats
+          <p className="mb-6 text-sm text-ink-2">
+            <span className="font-mono tabular text-ink">435</span> members · seats
             divided by population — bigger states, more seats.
           </p>
           <SeatChart
@@ -236,33 +235,33 @@ export function ChamberSeats() {
             highlightCount={repCount}
             label={`Seat chart of the House of Representatives showing 435 seats${stateName ? `, with ${stateName}'s ${repCount} seats highlighted` : ''}`}
           />
-          <dl className="mt-6 space-y-2 border-t border-border pt-4 text-sm">
+          <dl className="mt-6 space-y-2 border-t border-line pt-4 text-sm">
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Elected every</dt>
-              <dd className="font-mono tabular">2 years</dd>
+              <dt className="text-ink-2">Elected every</dt>
+              <dd className="font-mono tabular text-ink">2 years</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Minimum age</dt>
-              <dd className="font-mono tabular">25</dd>
+              <dt className="text-ink-2">Minimum age</dt>
+              <dd className="font-mono tabular text-ink">25</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Led by</dt>
-              <dd>the Speaker of the House</dd>
+              <dt className="text-ink-2">Led by</dt>
+              <dd className="text-ink">the Speaker of the House</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Personality</dt>
-              <dd>Big, loud, fast-moving</dd>
+              <dt className="text-ink-2">Personality</dt>
+              <dd className="text-ink">Big, loud, fast-moving</dd>
             </div>
           </dl>
         </div>
 
-        <div className="bg-background p-6 sm:p-8">
-          <p className="label-eyebrow mb-1">The States' Chamber</p>
-          <h3 className="font-serif text-xl sm:text-2xl font-semibold tracking-tight mb-1">
+        <div className="bg-paper p-6 sm:p-8">
+          <p className="label-eyebrow">The States' Chamber</p>
+          <h3 className="mt-2 mb-2 text-display-sm text-ink">
             Senate
           </h3>
-          <p className="text-sm text-muted-foreground mb-6">
-            <span className="font-mono tabular text-foreground">100</span> members · every
+          <p className="mb-6 text-sm text-ink-2">
+            <span className="font-mono tabular text-ink">100</span> members · every
             state gets exactly 2, no matter its size.
           </p>
           <div className="max-w-[280px] mx-auto sm:mx-0">
@@ -275,28 +274,28 @@ export function ChamberSeats() {
               label={`Seat chart of the Senate showing 100 seats${stateName ? `, with ${stateName}'s 2 seats highlighted` : ''}`}
             />
           </div>
-          <dl className="mt-6 space-y-2 border-t border-border pt-4 text-sm">
+          <dl className="mt-6 space-y-2 border-t border-line pt-4 text-sm">
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Elected every</dt>
-              <dd className="font-mono tabular">6 years</dd>
+              <dt className="text-ink-2">Elected every</dt>
+              <dd className="font-mono tabular text-ink">6 years</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Minimum age</dt>
-              <dd className="font-mono tabular">30</dd>
+              <dt className="text-ink-2">Minimum age</dt>
+              <dd className="font-mono tabular text-ink">30</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Led by</dt>
-              <dd>the Vice President</dd>
+              <dt className="text-ink-2">Led by</dt>
+              <dd className="text-ink">the Vice President</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">Personality</dt>
-              <dd>Small, slow, deliberate</dd>
+              <dt className="text-ink-2">Personality</dt>
+              <dd className="text-ink">Small, slow, deliberate</dd>
             </div>
           </dl>
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">
+      <p className="max-w-measure text-sm leading-relaxed text-ink-2">
         Why two chambers? The founders wanted big states and small states to both feel
         fairly treated — and they wanted every new law to be checked twice, by two
         differently-shaped rooms, before it could touch anyone's life.

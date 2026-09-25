@@ -187,12 +187,12 @@ export function ResizeHandle({ surface }: { surface: string }) {
         // which is 64px short of where docking actually begins.
         'min-[1344px]:block',
         enabled
-          ? 'cursor-col-resize hover:bg-foreground/30 focus-visible:bg-foreground/40'
+          ? 'cursor-col-resize hover:bg-ink/30 focus-visible:bg-ink/40'
           : 'pointer-events-none',
         // A 1px line is impossible to hit; a padded pseudo-element widens the
         // target to 20px without widening anything the reader can see.
         'before:absolute before:inset-y-0 before:-left-2.5 before:-right-2.5 before:content-[""]',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink',
       )}
     />
   );

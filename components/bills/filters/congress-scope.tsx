@@ -23,9 +23,10 @@ export interface CongressScopeProps {
  * Which Congress is being browsed.
  *
  * This is scope, not a filter, and it is presented as one — a segmented control
- * on its own line rather than a pill among the constraints, and with no accent
- * marking, because narrowing to one two-year Congress is the page's normal
- * state rather than something the reader has restricted.
+ * beside the search field rather than a chip among the constraints. The chosen
+ * Congress is a raised segment, not an ink fill like a set filter, because
+ * narrowing to one two-year Congress is the page's normal state rather than
+ * something the reader has restricted.
  *
  * Two things it deliberately does NOT do:
  *
@@ -55,7 +56,7 @@ export function CongressScope({
 
   if (ordered.length === 0) {
     return (
-      <span className="text-xs text-muted-foreground" aria-disabled="true">
+      <span className="font-mono text-xs text-ink-3" aria-disabled="true">
         Congress unavailable
       </span>
     );
@@ -93,7 +94,7 @@ export function CongressScope({
       role="radiogroup"
       aria-label="Congress"
       onKeyDown={onKeyDown}
-      className="inline-flex h-10 items-center rounded-sm border border-control bg-card p-0.5 touchable:h-11"
+      className="inline-flex h-[52px] shrink-0 items-stretch gap-0.5 rounded-md bg-sunken p-1"
     >
       {ordered.map((congress) => {
         const isSelected = congress === selected;
@@ -109,11 +110,10 @@ export function CongressScope({
             onClick={() => select(congress)}
             title={`${formatCongressOrdinal(congress)} Congress`}
             className={cn(
-              'h-9 rounded-sm px-2.5 font-mono text-[11px] tabular transition-colors touchable:h-10',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'flex-1 rounded-[6px] px-3 font-mono text-[13px] tabular transition-colors focus-ring',
               isSelected
-                ? 'bg-secondary font-medium text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-raised font-medium text-ink shadow-sm'
+                : 'text-ink-2 hover:text-ink'
             )}
           >
             {formatCongressYearsShort(congress)}

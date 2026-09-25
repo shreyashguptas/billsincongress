@@ -23,7 +23,7 @@ export function ModeToggle() {
     <div
       role="radiogroup"
       aria-label="Color theme"
-      className="inline-flex items-center rounded-sm border border-border bg-background p-0.5"
+      className="inline-flex items-center gap-0.5 rounded-md bg-sunken p-[3px]"
     >
       {options.map((opt) => {
         const active = mounted && theme === opt.value;
@@ -36,10 +36,10 @@ export function ModeToggle() {
             aria-label={opt.label}
             onClick={() => setTheme(opt.value)}
             className={cn(
-              'inline-flex h-7 w-7 items-center justify-center rounded-sm transition-colors',
+              'focus-ring inline-flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors',
               active
-                ? 'bg-foreground text-background'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-raised text-ink shadow-sm'
+                : 'text-ink-3 hover:text-ink'
             )}
           >
             {opt.icon}

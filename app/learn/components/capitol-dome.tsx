@@ -2,9 +2,9 @@
 
 import { motion } from 'framer-motion';
 
-// The U.S. Capitol, as an editorial line drawing that draws itself in.
-// Every path is stroked in currentColor so it works in light and dark mode;
-// the two flags pick up the masthead accent red.
+// The U.S. Capitol, as a line drawing that draws itself in. Every path is
+// stroked in currentColor (ink) so it works in both themes. A line drawing, not
+// a photograph, and no flags: Documentation/brand.md keeps civic clichés out.
 
 type Stroke = {
   d: string;
@@ -126,12 +126,6 @@ const STROKES: Stroke[] = [
   { d: 'M 320 40 L 320 28 M 320 34 L 314 38 M 320 34 L 326 38', delay: 2.6, duration: 0.35 },
 ];
 
-// Flags fade in last, in accent red.
-const FLAGS = [
-  { pole: 'M 139 274 L 139 248', flag: 'M 139 248 L 154 252 L 139 257 Z' },
-  { pole: 'M 501 274 L 501 248', flag: 'M 501 248 L 516 252 L 501 257 Z' },
-];
-
 // Reduced motion is handled globally by LearnMotionProvider — `initial` props
 // must stay identical between server and client renders.
 export function CapitolDome({ className }: { className?: string }) {
@@ -172,19 +166,6 @@ export function CapitolDome({ className }: { className?: string }) {
             ease: 'easeInOut',
           }}
         />
-      ))}
-
-      {/* Flags — masthead red, the only colour in the drawing */}
-      {FLAGS.map((f, i) => (
-        <motion.g
-          key={i}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 2.8 + i * 0.15, duration: 0.5 }}
-        >
-          <path d={f.pole} stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
-          <path d={f.flag} className="fill-accent" />
-        </motion.g>
       ))}
     </svg>
   );

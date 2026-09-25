@@ -1,19 +1,22 @@
 /**
- * Tests for the bill-page progress pipeline.
+ * Tests for the bill-page stage track.
  *
- * This exists because of a real defect: the pipeline rendered eight steps with
- * "Vetoed" inline at index 4 and marked every step at or before the bill's
+ * This exists because of a real defect: the old pipeline rendered eight steps
+ * with "Vetoed" inline at index 4 and marked every step at or before the bill's
  * current stage complete. A bill that became law therefore displayed a
  * check-marked "Vetoed" step it had never been through — a confident, visible
- * falsehood about legislation on the page a reader trusts most.
+ * falsehood about legislation on the page a reader trusts most. The track that
+ * replaced it (components/brand/status.tsx) fills `getStageStep(stage).step` of
+ * `MAIN_PATH_LABELS`; these tests hold both to the path a bill can travel.
  *
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from "node:assert/strict";
 import {
   BillStages,
-  getProgressDots,
   getStageStep,
+  MAIN_PATH_LABELS,
+  stageLabel,
   TOTAL_STAGE_STEPS,
 } from "./bill-stages";
 
@@ -31,137 +34,69 @@ function it(name: string, fn: () => void) {
   }
 }
 
-const labels = (stage: number) => getProgressDots(stage).map((d) => d.stage);
-const completed = (stage: number) =>
-  getProgressDots(stage).filter((d) => d.isComplete).map((d) => d.stage);
+/** The step names a bill at `stage` shows as reached. */
+const reached = (stage: number) => MAIN_PATH_LABELS.slice(0, getStageStep(stage).step);
 
 // The defect this file exists for
 
-it("a bill that became law never shows a completed Vetoed step", () => {
-  const dots = getProgressDots(BillStages.BECAME_LAW);
-  assert.equal(
-    dots.some((d) => d.stage === "Vetoed"),
-    false,
-    "Vetoed must not appear on the path of a bill that became law",
-  );
-  assert.deepEqual(
-    dots.filter((d) => !d.isComplete),
-    [],
-    "every step on the main path is complete once a bill is law",
-  );
+it("the track never names a Vetoed step", () => {
+  assert.equal((MAIN_PATH_LABELS as readonly string[]).includes("Vetoed"), false);
 });
 
-it("no non-vetoed stage renders a Vetoed step at all", () => {
-  for (const stage of [
-    BillStages.INTRODUCED,
-    BillStages.IN_COMMITTEE,
-    BillStages.PASSED_ONE_CHAMBER,
-    BillStages.PASSED_BOTH_CHAMBERS,
-    BillStages.TO_PRESIDENT,
-    BillStages.SIGNED_BY_PRESIDENT,
-    BillStages.BECAME_LAW,
-  ]) {
-    assert.equal(
-      labels(stage).includes("Vetoed"),
-      false,
-      `stage ${stage} must not include a Vetoed step`,
-    );
-  }
+it("a bill that became law has reached every step, and only those", () => {
+  assert.deepEqual(reached(BillStages.BECAME_LAW), [...MAIN_PATH_LABELS]);
 });
 
 // The main path
 
 it("the main path is the seven steps a bill can actually travel", () => {
-  assert.deepEqual(labels(BillStages.INTRODUCED), [
+  assert.equal(MAIN_PATH_LABELS.length, TOTAL_STAGE_STEPS);
+  assert.deepEqual(MAIN_PATH_LABELS, [
     "Introduced",
     "Committee",
-    "One Chamber",
-    "Both Chambers",
+    "One chamber",
+    "Both chambers",
     "To President",
     "Signed",
     "Law",
   ]);
 });
 
-it("completion stops at the bill's current stage", () => {
-  assert.deepEqual(completed(BillStages.INTRODUCED), ["Introduced"]);
-  assert.deepEqual(completed(BillStages.IN_COMMITTEE), ["Introduced", "Committee"]);
-  assert.deepEqual(completed(BillStages.PASSED_ONE_CHAMBER), [
-    "Introduced",
-    "Committee",
-    "One Chamber",
-  ]);
-  assert.equal(completed(BillStages.TO_PRESIDENT).length, 5);
-  assert.equal(completed(BillStages.SIGNED_BY_PRESIDENT).length, 6);
-  assert.equal(completed(BillStages.BECAME_LAW).length, 7);
+it("the track stops at the bill's current stage", () => {
+  assert.deepEqual(reached(BillStages.INTRODUCED), ["Introduced"]);
+  assert.deepEqual(reached(BillStages.IN_COMMITTEE), ["Introduced", "Committee"]);
+  assert.deepEqual(reached(BillStages.PASSED_ONE_CHAMBER), ["Introduced", "Committee", "One chamber"]);
+  assert.equal(reached(BillStages.TO_PRESIDENT).length, 5);
+  assert.equal(reached(BillStages.SIGNED_BY_PRESIDENT).length, 6);
+  assert.equal(reached(BillStages.BECAME_LAW).length, 7);
 });
 
-// Vetoed gets its own, shorter path
+// Vetoed stops at the President
 
-it("a vetoed bill's path ends at the veto", () => {
-  const dots = getProgressDots(BillStages.VETOED);
-  assert.deepEqual(dots.map((d) => d.stage), [
-    "Introduced",
-    "Committee",
-    "One Chamber",
-    "Both Chambers",
-    "Vetoed",
-  ]);
-  assert.equal(
-    dots.every((d) => d.isComplete),
-    true,
-    "a vetoed bill did travel every step it is shown",
-  );
-  assert.equal(dots[dots.length - 1].isVetoed, true, "the veto is flagged for styling");
-  assert.equal(
-    dots.some((d) => d.stage === "Law"),
-    false,
-    "a vetoed bill must never show a Law step",
-  );
-});
-
-it("a vetoed bill shows no step it did not reach", () => {
-  const stages = labels(BillStages.VETOED);
-  for (const unreached of ["To President", "Signed", "Law"]) {
-    assert.equal(stages.includes(unreached), false, `must not show ${unreached}`);
+it("a vetoed bill reaches the President and nothing after", () => {
+  assert.deepEqual(getStageStep(BillStages.VETOED), { step: 5, total: 7, isVetoed: true });
+  for (const unreached of ["Signed", "Law"]) {
+    assert.equal((reached(BillStages.VETOED) as string[]).includes(unreached), false, `must not reach ${unreached}`);
   }
+  assert.equal(stageLabel(BillStages.VETOED), "Vetoed", "the track says the veto in words");
 });
 
-// The progress line derives its length from the dots, so the counts must agree
-
-it("the progress-line fraction can never exceed 1", () => {
+it("no stage reaches past the end of the track", () => {
   for (const stage of Object.values(BillStages)) {
-    const dots = getProgressDots(stage);
-    const done = dots.filter((d) => d.isComplete).length;
-    const fraction = dots.length > 1 ? (done - 1) / (dots.length - 1) : 0;
-    assert.ok(
-      fraction >= 0 && fraction <= 1,
-      `stage ${stage} produced an out-of-range line fraction ${fraction}`,
-    );
+    const { step, total } = getStageStep(stage);
+    assert.ok(step >= 1 && step <= total, `stage ${stage} reached step ${step} of ${total}`);
   }
 });
 
-// An unknown stage must degrade to "nothing proven", not to a wrong story
+// Labels
 
-it("an unrecognised stage shows the main path with nothing completed", () => {
-  const dots = getProgressDots(-1);
-  assert.equal(dots.length, TOTAL_STAGE_STEPS);
-  assert.deepEqual(dots.filter((d) => d.isComplete), []);
-});
-
-// getStageStep still treats vetoed as off the main path
-
-it("getStageStep puts a vetoed bill at the presidential step, out of seven", () => {
-  assert.deepEqual(getStageStep(BillStages.VETOED), {
-    step: 5,
-    total: 7,
-    isVetoed: true,
-  });
-  assert.deepEqual(getStageStep(BillStages.BECAME_LAW), {
-    step: 7,
-    total: 7,
-    isVetoed: false,
-  });
+it("every stage has a sentence-case label", () => {
+  for (const stage of Object.values(BillStages)) {
+    const label = stageLabel(stage);
+    assert.notEqual(label, "Unknown");
+    assert.equal(label.slice(1), label.slice(1).replace(/\b(Committee|Chamber|Chambers|Law)\b/g, (w) => w.toLowerCase()), `"${label}" is not sentence case`);
+  }
+  assert.equal(stageLabel(-1), "Unknown");
 });
 
 if (failures.length) {

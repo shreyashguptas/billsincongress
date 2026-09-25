@@ -58,21 +58,27 @@ const STATS = [
   { value: 3, prefix: '~', suffix: ' in 100', label: 'bills', sub: 'ever become law' },
 ];
 
-/** The data strip under the hero — three big counting numbers. */
+/**
+ * The three figures under the page head: Newsreader numerals in a row with
+ * hairline dividers, each captioned in mono (Documentation/brand.md, "Numbers
+ * sit in a row … not in cards").
+ */
 export function HeroStats() {
   return (
-    <dl className="grid grid-cols-3 divide-x divide-border border-y border-border">
+    <dl className="grid divide-y divide-line border-y border-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
       {STATS.map((stat) => (
-        <div key={stat.label} className="px-4 py-6 sm:px-8 text-center sm:text-left">
+        <div key={stat.label} className="py-4 sm:py-8 sm:pl-8 sm:pr-8 sm:first:pl-0">
           <dt className="sr-only">
             {stat.label} {stat.sub}
           </dt>
-          <dd>
-            <span className="block font-serif text-3xl sm:text-display-md font-semibold tracking-tight tabular">
+          {/* On a phone each figure is a row (number, then caption); from sm
+              up the three sit side by side. */}
+          <dd className="flex items-baseline gap-4 sm:block">
+            <span className="block w-32 shrink-0 font-serif text-display-sm font-medium leading-none text-ink tabular sm:w-auto sm:text-display-lg">
               <CountUp to={stat.value} prefix={stat.prefix} suffix={stat.suffix} />
             </span>
-            <span className="mt-1 block text-xs sm:text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{stat.label}</span> {stat.sub}
+            <span className="block font-mono text-xs leading-4 text-ink-3 sm:mt-3">
+              <span className="text-ink-2">{stat.label}</span> {stat.sub}
             </span>
           </dd>
         </div>

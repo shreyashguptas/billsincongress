@@ -8,6 +8,6 @@ export const sharedViewport: Viewport = {
 };
 
 export const sharedThemeColor = [
-  { media: '(prefers-color-scheme: light)', color: '#f6f3ec' },
-  { media: '(prefers-color-scheme: dark)', color: '#16181d' },
+  { media: '(prefers-color-scheme: light)', color: '#f6f5f1' },
+  { media: '(prefers-color-scheme: dark)', color: '#0b0d10' },
 ]; 

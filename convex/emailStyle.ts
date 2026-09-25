@@ -8,18 +8,17 @@
  * only. The tests for each email check this.
  */
 
-export const BRAND = "Bills.Congress";
+export const BRAND = "Bills in Congress";
 
-// Mirrors the site's light theme (app/globals.css); mail clients ignore CSS
-// variables and most ignore dark-mode media queries, so it is literal.
+// The site's Day palette (Documentation/brand.md): paper, raised, ink, ink-3
+// and line. Mail clients ignore CSS variables and most ignore dark-mode media
+// queries, so it is literal. Like the site, the letterhead has no accent.
 export const C = {
-  ground: "#f6f3ec",
-  card: "#fdfcfa",
-  ink: "#1c1f26",
-  muted: "#626873",
-  rule: "#e0d9cc",
-  accent: "#9f2229",
-  navy: "#1d2433",
+  ground: "#f6f5f1",
+  card: "#ffffff",
+  ink: "#101418",
+  muted: "#666d77",
+  rule: "#e2e1db",
 };
 export const SERIF = "Georgia,'Times New Roman',serif";
 export const SANS = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -60,10 +59,10 @@ export function preheader(text: string): string {
   return `<span style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(text)}</span>`;
 }
 
-/** The masthead at the top of every email: brand, then a small caps line. */
+/** The masthead at the top of every email: the wordmark, then an eyebrow. */
 export function masthead(eyebrow: string): string {
-  return `<tr><td style="padding:22px 28px 18px;border-bottom:3px double ${C.rule};">
-  <p style="margin:0;font:600 20px/1.2 ${SERIF};color:${C.navy};">${BRAND}</p>
+  return `<tr><td style="padding:22px 28px 18px;border-bottom:1px solid ${C.rule};">
+  <p style="margin:0;font:600 20px/1.2 ${SERIF};color:${C.ink};">${BRAND}</p>
   <p style="margin:6px 0 0;font:11px/1.4 ${MONO};letter-spacing:.12em;text-transform:uppercase;color:${C.muted};">${escapeHtml(eyebrow)}</p>
 </td></tr>`;
 }

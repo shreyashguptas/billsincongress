@@ -10,8 +10,10 @@ import {
   formatCongressYearSpan,
 } from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import BillCard from '@/components/bills/bill-card';
+import { SourceLine } from '@/components/brand/section';
+import BillCard, { BillRowSkeleton } from '@/components/bills/bill-card';
 import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { validCongress } from '@/lib/page-context';
@@ -343,38 +345,35 @@ export default function BillsClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [truncated, currentSignature]);
 
-  // Re-keying the results grid on the filter signature makes new cards
+  // Re-keying the results list on the filter signature makes new rows
   // cross-fade/stagger in when filters change, while a "load more" (same
-  // signature) leaves the existing cards untouched.
+  // signature) leaves the existing rows untouched.
   const resultsKey = currentSignature;
 
   return (
     <div>
-      {/* Page header — editorial */}
-      <section className="border-b border-border">
-        <div className="container-editorial py-10 sm:py-12">
-          <p className="label-eyebrow mb-3">The record</p>
-          <h1 className="font-serif text-display-md sm:text-display-lg font-semibold leading-[1.05] tracking-tight">
-            All bills
-          </h1>
-          <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span>
-              Browse legislation introduced in Congress
-              {congressRange && (
-                <>
-                  {' '}
-                  <span className="font-mono tabular">
-                    ({formatCongressYearSpan(congressRange.oldest, congressRange.newest)} ·{' '}
-                    {formatCongressOrdinalSpan(congressRange.oldest, congressRange.newest)})
-                  </span>
-                </>
-              )}
-              .
-            </span>
-            <SyncStatus />
-          </div>
-        </div>
-      </section>
+      {/* Page head */}
+      <header className="container-editorial pb-8 pt-10 sm:pb-10 sm:pt-16">
+        <p className="label-eyebrow">The record</p>
+        <h1 className="mt-3 text-display-md text-ink sm:text-display-xl">All bills</h1>
+        <p className="mt-4 max-w-measure text-[17px] leading-[1.6] text-ink-2">
+          Browse legislation introduced in Congress
+          {congressRange && (
+            <>
+              {' '}
+              <span className="whitespace-nowrap font-mono text-[15px] tabular">
+                ({formatCongressYearSpan(congressRange.oldest, congressRange.newest)} ·{' '}
+                {formatCongressOrdinalSpan(congressRange.oldest, congressRange.newest)})
+              </span>
+            </>
+          )}
+          .
+        </p>
+        <SourceLine className="mt-4">
+          Source: Congress.gov
+          <SyncStatus />
+        </SourceLine>
+      </header>
 
       <FilterBar
         values={filters}
@@ -384,17 +383,19 @@ export default function BillsClient({
         browseDirectory={browseDirectory}
       />
 
-      <div className="container-editorial py-8 lg:py-10">
+      <div className="container-editorial pb-10 pt-8 lg:pt-10">
         <div className="flex flex-col gap-10 lg:gap-12">
           {/* Results column */}
           <div className="flex-1 min-w-0">
-            <div className="mb-5 flex items-baseline justify-between gap-3 border-b border-border pb-3">
-              <p className="text-sm text-muted-foreground">
+            {/* The results bar. The ink rule under it is where the register
+                starts. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-ink pb-3">
+              <p className="text-sm text-ink-2">
                 {bills.length > 0 ? (
                   <>
                     Showing{' '}
-                    <span className="font-mono font-medium text-foreground tabular">
-                      {bills.length}
+                    <span className="font-mono font-medium text-ink tabular">
+                      {formatCount(bills.length)}
                     </span>
                     {/*
                       Three different states, and they must not be conflated:
@@ -413,7 +414,7 @@ export default function BillsClient({
                     {totalBills?.count != null ? (
                       <>
                         {' '}of{' '}
-                        <span className="font-mono font-medium text-foreground tabular">
+                        <span className="font-mono font-medium text-ink tabular">
                           {formatCount(totalBills.count)}
                           {totalBills.exact ? '' : '+'}
                         </span>
@@ -421,7 +422,7 @@ export default function BillsClient({
                     ) : totalBills === null ? (
                       <>
                         {' '}of{' '}
-                        <span className="font-mono font-medium text-muted-foreground tabular">…</span>
+                        <span className="font-mono font-medium text-ink-3 tabular">…</span>
                       </>
                     ) : null}
                     {/* "Showing 1 bills" — the plural only ever showed up once
@@ -467,19 +468,14 @@ export default function BillsClient({
             </div>
 
             {error && (
-              <div className="mb-6 border border-destructive/30 bg-destructive/5 text-destructive px-4 py-3 text-sm rounded-sm">
+              <div role="alert" className="mt-6 rounded-md border border-error/30 px-4 py-3 text-sm text-error">
                 {error}
               </div>
             )}
 
-            <div
-              key={resultsKey}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
-            >
+            <div key={resultsKey}>
               {isLoading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-80 border border-border bg-card rounded-sm animate-pulse" />
-                ))
+                Array.from({ length: 4 }).map((_, i) => <BillRowSkeleton key={i} />)
               ) : bills.length > 0 ? (
                 bills.map((bill, i) => (
                   <div
@@ -487,24 +483,24 @@ export default function BillsClient({
                     className="animate-rise-in"
                     style={{ animationDelay: `${(i % ITEMS_PER_PAGE) * 35}ms` }}
                   >
-                    <Suspense fallback={<div className="h-80 border border-border rounded-sm bg-card" />}>
+                    <Suspense fallback={<BillRowSkeleton />}>
                       <BillCard bill={bill} />
                     </Suspense>
                   </div>
                 ))
               ) : (
-                <div className="col-span-full border border-dashed border-border rounded-sm p-8 sm:p-12 text-center">
-                  <p className="font-serif text-xl tracking-tight mb-2">No bills found</p>
+                <div className="border-b border-line px-4 py-14 text-center sm:py-20">
+                  <p className="font-serif text-display-sm text-ink">No bills found</p>
                   {filtersActive ? (
                     <>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="mx-auto mt-3 max-w-measure text-[15px] text-ink-2">
                         No bill matches{' '}
                         {chips.length === 1
                           ? 'this filter'
                           : `all ${chips.length} of these filters`}
                         . Remove one to widen the search.
                       </p>
-                      <div className="mt-5 flex flex-wrap justify-center gap-2">
+                      <div className="mt-6 flex flex-wrap justify-center gap-2">
                         {chips.map((chip) => (
                           <button
                             key={chip.definition.field}
@@ -526,19 +522,22 @@ export default function BillsClient({
                                 'empty_state',
                               );
                             }}
-                            className="group inline-flex max-w-full items-center gap-1.5 rounded-sm border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="group inline-flex h-9 max-w-full items-center gap-1.5 rounded-sm border border-line-strong bg-raised pl-3 pr-2 text-sm text-ink transition-colors hover:bg-sunken focus-ring touchable:h-11"
                           >
                             <span className="truncate">
-                              {chip.definition.label}: {chip.label}
+                              <span className="text-ink-2">{chip.definition.label}:</span>{' '}
+                              <span className="font-medium">{chip.label}</span>
                             </span>
-                            <span aria-hidden="true" className="text-muted-foreground group-hover:text-foreground">
-                              ×
-                            </span>
+                            <X
+                              className="h-4 w-4 shrink-0 text-ink-3 group-hover:text-ink"
+                              strokeWidth={1.75}
+                              aria-hidden="true"
+                            />
                             <span className="sr-only">Remove this filter</span>
                           </button>
                         ))}
                       </div>
-                      <div className="mt-5">
+                      <div className="mt-6">
                         <Button
                           onClick={() => {
                             analytics.billsFiltersCleared({
@@ -555,7 +554,7 @@ export default function BillsClient({
                       </div>
                     </>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="mt-3 text-[15px] text-ink-2">
                       No bills are available right now. Please try again shortly.
                     </p>
                   )}
@@ -566,7 +565,7 @@ export default function BillsClient({
 
             {hasMore && (
               <div className="mt-10 text-center">
-                <Button onClick={handleLoadMore} disabled={isLoadingMore} variant="outline" size="lg">
+                <Button onClick={handleLoadMore} disabled={isLoadingMore} size="lg">
                   {isLoadingMore ? 'Loading…' : 'Load more bills'}
                 </Button>
               </div>

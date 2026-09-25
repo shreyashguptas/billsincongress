@@ -15,9 +15,9 @@ import type { AskPhase } from '@/lib/ask-panel-state';
  *
  * Two shapes, one button, so the same click always means the same thing:
  *
- *   closed     A corner pill. Square border and a hairline rule, not a circular
- *              chat bubble — this is an editorial site, and the masthead ask box
- *              it echoes is deliberately not a chat bubble either.
+ *   closed     A corner pill (brand.md): 48px, rounded-full, raised, a
+ *              line-strong edge and the float shadow, because it is the one
+ *              control that sits over the page rather than in it.
  *   minimized  On a phone, a full-width bar along the bottom. That phase is only
  *              ever reached by tapping a bill inside an answer, so the panel has
  *              just moved out of the reader's way and the return target should be
@@ -47,24 +47,21 @@ export const AskLauncher = forwardRef<
           : 'Ask a question about Congress'
       }
       className={cn(
-        'ask-launcher inline-flex h-11 items-center gap-2 rounded-sm border border-border',
-        'bg-background px-3.5 text-sm shadow-sm transition-colors',
-        'hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2',
-        'focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'ask-launcher focus-ring inline-flex h-12 items-center gap-2 rounded-full border border-line-strong',
+        'bg-raised px-5 text-[15px] font-medium text-ink shadow-float transition-colors hover:bg-sunken',
       )}
     >
-      {resuming ? (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-law" aria-hidden="true" />
-      ) : (
-        <MessageSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
-      )}
+      {/* The same glyph either way: a hue here would be colour without data
+          (brand.md, "Color belongs to the data"); the words say "continue". */}
+      <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
       <span className="truncate">
         {resuming ? (phase === 'minimized' ? 'Back to your questions' : 'Continue asking') : 'Ask'}
       </span>
       {/* Only drawn in the bottom-bar shape, where there is room to spare and the
           bar needs a right-hand terminus to read as a control rather than a note. */}
       <ArrowUp
-        className="ask-launcher-arrow h-4 w-4 shrink-0 text-muted-foreground"
+        className="ask-launcher-arrow ml-auto h-4 w-4 shrink-0 text-ink-2"
+        strokeWidth={1.75}
         aria-hidden="true"
       />
     </button>

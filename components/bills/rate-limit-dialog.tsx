@@ -51,35 +51,37 @@ export function RateLimitDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-50 bg-black/70 backdrop-blur-sm",
+            // The same paper scrim as components/ui/sheet.tsx: an ink tint would
+            // lighten the page in the Night theme, where ink is near-white.
+            "fixed inset-0 z-50 bg-paper/70 backdrop-blur-[2px]",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           )}
         />
         <DialogPrimitive.Content
           className={cn(
             "fixed left-[50%] top-[50%] z-50 w-[92%] max-w-md translate-x-[-50%] translate-y-[-50%]",
-            "rounded-md border border-border bg-background p-6 shadow-lg",
+            "rounded-lg border border-line bg-raised p-6 shadow-float sm:p-7",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           )}
         >
           <DialogPrimitive.Close
             aria-label="Close"
-            className="absolute right-3 top-3 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="focus-ring absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-md text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </DialogPrimitive.Close>
 
           {kind === "anonymous" ? (
             <>
-              <DialogPrimitive.Title className="font-serif text-2xl font-semibold tracking-tight">
+              <DialogPrimitive.Title className="pr-10 font-serif text-display-sm font-medium text-ink">
                 You&apos;ve hit the free daily limit
               </DialogPrimitive.Title>
-              <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                Anonymous browsers can ask up to <span className="font-medium text-foreground">{max} questions a day</span>.{" "}
-                Create a free account and ask up to <span className="font-medium text-foreground">100 a day</span>.
+              <DialogPrimitive.Description className="mt-3 text-[15px] leading-relaxed text-ink-2">
+                Anonymous browsers can ask up to <span className="font-medium text-ink">{max} questions a day</span>.{" "}
+                Create a free account and ask up to <span className="font-medium text-ink">100 a day</span>.
               </DialogPrimitive.Description>
 
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row">
                 <Button asChild className="w-full sm:flex-1">
                   <Link href={signUpHref} onClick={() => analytics.rateLimitSignupClicked(kind)}>
                     Sign up free
@@ -92,21 +94,21 @@ export function RateLimitDialog({
                 </Button>
               </div>
 
-              <p className="mt-4 text-xs text-muted-foreground">
-                Or come back after <span className="font-medium text-foreground">{resetLabel}</span> when your daily quota resets.
+              <p className="mt-4 text-[13px] leading-5 text-ink-3">
+                Or come back after <span className="font-medium text-ink">{resetLabel}</span> when your daily quota resets.
               </p>
             </>
           ) : (
             <>
-              <DialogPrimitive.Title className="font-serif text-2xl font-semibold tracking-tight">
+              <DialogPrimitive.Title className="pr-10 font-serif text-display-sm font-medium text-ink">
                 Daily chat limit reached
               </DialogPrimitive.Title>
-              <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                You&apos;ve asked the maximum of <span className="font-medium text-foreground">{max} questions</span> today. Your quota resets at{" "}
-                <span className="font-medium text-foreground">{resetLabel}</span>.
+              <DialogPrimitive.Description className="mt-3 text-[15px] leading-relaxed text-ink-2">
+                You&apos;ve asked the maximum of <span className="font-medium text-ink">{max} questions</span> today. Your quota resets at{" "}
+                <span className="font-medium text-ink">{resetLabel}</span>.
               </DialogPrimitive.Description>
 
-              <div className="mt-5">
+              <div className="mt-6">
                 <Button
                   type="button"
                   variant="outline"

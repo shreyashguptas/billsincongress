@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
 import { safeLocalStorage, safeSessionStorage } from "@/lib/safe-storage";
+import { ChamberMark } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useConvexEnabled } from "@/components/convex-client-provider";
@@ -49,72 +50,41 @@ export function WelcomeNewUser() {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            "fixed inset-0 z-50 bg-black/65 backdrop-blur-sm",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+            // The same paper scrim as components/ui/sheet.tsx: an ink tint would
+            // lighten the page in the Night theme, where ink is near-white.
+            "fixed inset-0 z-50 bg-paper/70 backdrop-blur-[2px]",
+            "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
           )}
         />
         <DialogPrimitive.Content
           className={cn(
-            "fixed left-[50%] top-[50%] z-50 w-[92%] max-w-md translate-x-[-50%] translate-y-[-50%] overflow-hidden",
-            "rounded-xl border border-border bg-background p-0 shadow-2xl",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
+            "fixed left-[50%] top-[50%] z-50 w-[92%] max-w-md translate-x-[-50%] translate-y-[-50%]",
+            "rounded-lg border border-line bg-raised p-6 shadow-float sm:p-8",
+            // Opacity only: a keyframe transform would replace the centring
+            // translate above for the length of the animation.
+            "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
           )}
         >
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-            {Array.from({ length: 22 }).map((_, index) => (
-              <span
-                key={index}
-                className="absolute h-2 w-2 rounded-[2px]"
-                style={{
-                  left: `${10 + ((index * 37) % 80)}%`,
-                  top: `${18 + ((index * 19) % 20)}%`,
-                  backgroundColor: ["#2563eb", "#f59e0b", "#10b981", "#ef4444"][index % 4],
-                  animation: "welcome-confetti 900ms ease-out forwards",
-                  animationDelay: `${index * 28}ms`,
-                  transform: `rotate(${index * 23}deg)`,
-                  "--confetti-x": `${((index % 2 === 0 ? 1 : -1) * (24 + (index % 5) * 11))}px`,
-                } as React.CSSProperties}
-              />
-            ))}
-          </div>
-
           <DialogPrimitive.Close
             aria-label="Close"
-            className="absolute right-3 top-3 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="focus-ring absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-md text-ink-2 transition-colors hover:bg-sunken hover:text-ink"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           </DialogPrimitive.Close>
 
-          <div className="relative px-6 pb-6 pt-8 text-center">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-border bg-secondary/70">
-              <span className="font-serif text-3xl leading-none">B</span>
-            </div>
-            <DialogPrimitive.Title className="font-serif text-3xl font-semibold tracking-tight">
+          <div className="flex flex-col items-center pt-2 text-center">
+            {/* The spectrum mark: once on this surface, at 48px (brand.md, "Logo"). */}
+            <ChamberMark spectrum className="h-12 w-12" />
+            <DialogPrimitive.Title className="mt-5 font-serif text-display-sm font-medium text-ink">
               Thank you for joining
             </DialogPrimitive.Title>
-            <DialogPrimitive.Description className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
+            <DialogPrimitive.Description className="mt-3 max-w-sm text-[15px] leading-relaxed text-ink-2">
               Your free account is ready. You can ask up to 100 bill chat questions each day and keep your conversations tied to your profile.
             </DialogPrimitive.Description>
-            <Button className="mt-6 w-full" onClick={() => setOpen(false)}>
+            <Button size="lg" className="mt-6 w-full" onClick={() => setOpen(false)}>
               Start exploring
             </Button>
           </div>
-
-          <style>{`
-            @keyframes welcome-confetti {
-              0% {
-                opacity: 0;
-                transform: translate3d(0, -18px, 0) scale(0.5) rotate(0deg);
-              }
-              18% {
-                opacity: 1;
-              }
-              100% {
-                opacity: 0;
-                transform: translate3d(var(--confetti-x, 0), 150px, 0) scale(1) rotate(220deg);
-              }
-            }
-          `}</style>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

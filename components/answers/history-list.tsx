@@ -37,15 +37,19 @@ export function HistoryList({
   if (chats === undefined) {
     return (
       <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-5 w-5 border-2 border-foreground border-t-transparent" />
+        <div
+          role="status"
+          aria-label="Loading your conversations"
+          className="h-5 w-5 animate-spin rounded-full border-2 border-ink border-t-transparent"
+        />
       </div>
     );
   }
 
   if (chats.length === 0) {
     return (
-      <div className="px-5 py-8">
-        <p className="text-sm text-muted-foreground leading-relaxed">
+      <div className="px-4 py-8 lg:px-5">
+        <p className="text-[15px] leading-relaxed text-ink-2">
           No saved conversations yet. Sign in and your questions are kept here so you can
           pick them up later. Signed-out conversations are never stored.
         </p>
@@ -55,9 +59,9 @@ export function HistoryList({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+      <div className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3 lg:px-3">
         {chats.map((chat) => (
-          <div key={chat._id} className="group flex items-start gap-2">
+          <div key={chat._id} className="group flex items-start gap-1">
             <button
               type="button"
               onClick={() => {
@@ -69,10 +73,10 @@ export function HistoryList({
                 onResume(chat._id);
                 onClose();
               }}
-              className="flex-1 text-left rounded-sm px-2 py-2 hover:bg-secondary transition-colors"
+              className="focus-ring min-w-0 flex-1 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-sunken"
             >
-              <p className="font-serif text-[13px] leading-snug line-clamp-2">{chat.title}</p>
-              <p className="font-mono text-[10px] text-muted-foreground tabular mt-1">
+              <p className="line-clamp-2 font-serif text-[16px] leading-snug text-ink">{chat.title}</p>
+              <p className="mt-1 font-mono text-xs text-ink-3 tabular">
                 {new Date(chat.lastActivityAt).toLocaleDateString(undefined, {
                   month: 'short',
                   day: 'numeric',
@@ -88,18 +92,26 @@ export function HistoryList({
                 await remove({ chatId: chat._id });
                 analytics.answerThreadDeleted({ scope: 'one', thread_count: 1 });
               }}
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 mt-2 text-muted-foreground hover:text-destructive transition-all"
+              // Revealed on hover with a mouse; always shown on a touch screen,
+              // where there is no hover to reveal it.
+              className={
+                'focus-ring mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-ink-3 ' +
+                'opacity-0 transition-all hover:bg-sunken hover:text-error focus:opacity-100 ' +
+                'group-hover:opacity-100 touchable:opacity-100'
+              }
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             </button>
           </div>
         ))}
       </div>
 
-      <div className="border-t border-border px-5 py-3 shrink-0">
+      <div className="shrink-0 border-t border-line px-4 py-3 lg:px-5">
         {confirmingAll ? (
-          <div className="flex items-center gap-3">
-            <p className="text-xs text-muted-foreground flex-1">Delete all {chats.length}?</p>
+          <div className="flex items-center gap-2">
+            <p className="flex-1 text-sm text-ink">
+              Delete all <span className="font-mono tabular">{chats.length}</span> conversations?
+            </p>
             <button
               type="button"
               onClick={async () => {
@@ -107,14 +119,14 @@ export function HistoryList({
                 analytics.answerThreadDeleted({ scope: 'all', thread_count: res.deleted });
                 setConfirmingAll(false);
               }}
-              className="text-xs text-destructive hover:underline"
+              className="focus-ring inline-flex h-8 items-center rounded-md border border-error px-3 text-[13px] font-medium text-error transition-colors hover:bg-sunken"
             >
               Delete
             </button>
             <button
               type="button"
               onClick={() => setConfirmingAll(false)}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="focus-ring inline-flex h-8 items-center rounded-md px-3 text-[13px] font-medium text-ink transition-colors hover:bg-sunken"
             >
               Cancel
             </button>
@@ -123,7 +135,7 @@ export function HistoryList({
           <button
             type="button"
             onClick={() => setConfirmingAll(true)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="focus-ring rounded-sm text-[13px] text-ink-2 transition-colors hover:text-error"
           >
             Delete all conversations
           </button>

@@ -1,10 +1,10 @@
-# Bills.Congress
+# Bills in Congress
 
 **An independent, open record of every bill in the United States Congress — built from the government's own data and presented so an ordinary person can actually read it.**
 
 Live at **[billsincongress.com](https://billsincongress.com)**
 
-![The Bills.Congress home page: a chamber of dots showing the 119th Congress's bills by sponsor's party, with the 113 that became law in the inner rows, above a question box and the headline counts](public/readme/preview.png)
+![The Bills in Congress home page: a chamber of dots showing the 119th Congress's bills by sponsor's party, with the 113 that became law in the inner rows, on a dark band above the question box](public/readme/preview.png)
 
 ---
 
@@ -12,7 +12,7 @@ Live at **[billsincongress.com](https://billsincongress.com)**
 
 Congress.gov already publishes everything you need to follow legislation. But it is built for legislative staff, not for citizens. Titles are jargon, status codes are cryptic, and you have to know what you are looking for before you can find it.
 
-Bills.Congress takes exactly the same primary data and reorganises it the way a newspaper of record would: clearly indexed, plainly labelled, fast to read, and honest about what it does and does not know.
+Bills in Congress takes exactly the same primary data and reorganises it the way a newspaper of record would: clearly indexed, plainly labelled, fast to read, and honest about what it does and does not know.
 
 It is free, has no ads, and you do not need an account to read anything on it.
 
@@ -58,7 +58,7 @@ Each bill page shows the bill number and Congress, its policy area, the official
 
 Below that:
 
-- **A progress pipeline** showing how far the bill has travelled, from introduced through to law.
+- **A status panel** naming the bill's current stage and showing, on a seven-step track, how far it has travelled from introduced to law. A vetoed bill's track stops at the President and says so.
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
 - **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever advanced. It is labelled as a description of that group of past bills, not a prediction about this one.
@@ -85,7 +85,9 @@ It is not a general-purpose chatbot. It answers from this site's own database of
 
 ### Reading comfort
 
-Light, dark, and follow-your-system themes. A layout that works on a phone. Every animation on the site — including the flag on the home page — respects your operating system's "reduce motion" setting. Keyboard navigation, skip links, and screen-reader labels on the charts and seat diagrams. The bill lists and browse pages are server-rendered as ordinary links, so they still work with JavaScript switched off.
+The design is neutral on purpose. The site itself has no colour of its own: everything you click is black on off-white. Colour appears only where it carries information — a topic, a stage, a party — and party red and blue appear only where the data is about party. The rules are written down in [`Documentation/brand.md`](Documentation/brand.md).
+
+Light, dark, and follow-your-system themes. A layout that works on a phone. Every animation on the site respects your operating system's "reduce motion" setting. Keyboard navigation, skip links, and screen-reader labels on the charts and seat diagrams. The bill lists and browse pages are server-rendered as ordinary links, so they still work with JavaScript switched off.
 
 ---
 
@@ -241,7 +243,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Layer | What it is |
 | --- | --- |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
-| Styling | Tailwind CSS, shadcn/ui, Framer Motion |
+| Design | Tailwind CSS on the tokens in [`Documentation/brand.md`](Documentation/brand.md) (the design language: colour, type, logo, components), Radix UI primitives, Framer Motion |
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
 | Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |
@@ -292,6 +294,6 @@ Anything else: **hi@billsincongress.com**.
 
 ## Independence and licensing
 
-Bills.Congress is a public-interest project operated by Shreyash Gupta. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
+Bills in Congress is a public-interest project operated by Shreyash Gupta. It is **not affiliated with, endorsed by, or operated by the United States government**. It is an educational and informational resource — nothing on it is legal or professional advice, and for official purposes you should rely on Congress.gov.
 
 The legislative data is a work of the U.S. government and is in the public domain. The source code is released under the [MIT License](LICENSE) — free to use, copy, modify and distribute, including commercially.

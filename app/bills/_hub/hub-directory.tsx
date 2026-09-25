@@ -31,7 +31,7 @@ import { HubLinkTracker } from './hub-view-tracker';
  * It used to sit at the very bottom of the page as a single 920px column of 40
  * links, which read as a dump rather than an index and which nobody scrolled
  * to. Closed by default, next to the filters, it costs 44px at rest and opens
- * into columns.
+ * into columns of quiet, hairline-ruled link lists.
  */
 export function HubDirectory(): ReactElement {
   const groups = [
@@ -40,38 +40,39 @@ export function HubDirectory(): ReactElement {
   ];
   const topics = hubsOfKind('topic');
 
+  const linkClass =
+    'flex min-h-10 items-center py-2 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring';
+
   return (
-    <details className="group border-t border-border">
-      <summary className="flex h-11 cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-        <span className="label-eyebrow !mb-0">Guides to every topic and stage</span>
+    <details className="group mt-4 border-y border-line">
+      <summary className="flex h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xs text-sm font-medium text-ink-2 transition-colors hover:text-ink focus-ring [&::-webkit-details-marker]:hidden">
+        <span>Guides to every topic and stage</span>
         <span className="flex shrink-0 items-center gap-2">
-          <span className="font-mono text-xs tabular text-muted-foreground">
+          <span className="font-mono text-xs font-normal tabular text-ink-3">
             {topics.length + groups.reduce((n, g) => n + g.hubs.length, 0)} pages
           </span>
           <ChevronDown
-            className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180"
+            className="h-4 w-4 text-ink-3 transition-transform group-open:rotate-180"
+            strokeWidth={1.75}
             aria-hidden="true"
           />
         </span>
       </summary>
 
-      <HubLinkTracker placement="directory" className="pb-5 pt-1">
-        <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
+      <HubLinkTracker placement="directory" className="pb-6 pt-2">
+        <p className="mb-5 max-w-measure text-sm text-ink-2">
           Each of these is a page in its own right, with an explanation of what the
           grouping means and the bills currently in it.
         </p>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
           {groups.map((group) => (
             <div key={group.title}>
-              <p className="label-eyebrow mb-2">{group.title}</p>
-              <ul className="space-y-1.5 text-sm">
+              <p className="label-eyebrow border-b border-line pb-2">{group.title}</p>
+              <ul>
                 {group.hubs.map((hub) => (
-                  <li key={hub.path}>
-                    <Link
-                      href={hub.path}
-                      className="text-muted-foreground hover:text-foreground hover:underline"
-                    >
+                  <li key={hub.path} className="border-b border-line">
+                    <Link href={hub.path} className={linkClass}>
                       {hub.heading}
                     </Link>
                   </li>
@@ -81,16 +82,13 @@ export function HubDirectory(): ReactElement {
           ))}
 
           <div className="sm:col-span-2">
-            <p className="label-eyebrow mb-2">By policy area</p>
+            <p className="label-eyebrow border-b border-line pb-2">By policy area</p>
             {/* CSS columns rather than a grid: 33 items of uneven length flow
                 into balanced columns without ordering them across the page. */}
-            <ul className="columns-2 gap-6 space-y-1.5 text-sm lg:columns-2">
+            <ul className="columns-1 gap-x-8 min-[480px]:columns-2">
               {topics.map((hub) => (
-                <li key={hub.path} className="break-inside-avoid">
-                  <Link
-                    href={hub.path}
-                    className="text-muted-foreground hover:text-foreground hover:underline"
-                  >
+                <li key={hub.path} className="break-inside-avoid border-b border-line">
+                  <Link href={hub.path} className={linkClass}>
                     {hub.heading}
                   </Link>
                 </li>

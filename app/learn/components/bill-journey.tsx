@@ -3,8 +3,11 @@
 import { useRef, useState } from 'react';
 import { AnimatePresence, motion, useInView } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Lightbulb, RotateCcw } from 'lucide-react';
+import { StatusPill } from '@/components/brand/status';
+import { Button } from '@/components/ui/button';
 import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
+import { BillStages } from '@/lib/utils/bill-stages';
 import {
   IntroducedIllustration,
   CommitteeIllustration,
@@ -17,6 +20,9 @@ import {
 
 // "From idea to law" — the interactive heart of the Learn page. Seven steps,
 // each with its own animated illustration, walked through at the reader's pace.
+// The stepper is ink: the current step is an ink fill, steps already walked are
+// ink outlines. The only hue is the stage itself, in the StatusPill that shows
+// how each step appears on a bill's page.
 
 const STEPS = [
   {
@@ -24,7 +30,7 @@ const STEPS = [
     title: 'Every law starts with an idea',
     body: 'Anyone can have an idea for a law — a citizen, a teacher, even a kid. But only a member of Congress can introduce it. They write the idea down, give it a number like H.R. 1, and drop it into a real wooden box called the hopper. The journey begins.',
     fact: 'The hopper is an actual mahogany box at the front of the House chamber. It has been used for over a century.',
-    siteLabel: 'Introduced',
+    stage: BillStages.INTRODUCED,
     Illustration: IntroducedIllustration,
   },
   {
@@ -32,7 +38,7 @@ const STEPS = [
     title: 'A small group studies it closely',
     body: 'The bill is sent to a committee — members who specialize in that topic, like farming, defense, or health. They hold hearings, question experts, and rewrite whole sections. This is the toughest stop on the journey: most bills never leave this room.',
     fact: 'Roughly 9 out of 10 bills die quietly in committee — they simply never get scheduled for a vote.',
-    siteLabel: 'In Committee',
+    stage: BillStages.IN_COMMITTEE,
     Illustration: CommitteeIllustration,
   },
   {
@@ -40,7 +46,7 @@ const STEPS = [
     title: 'One chamber debates and votes',
     body: 'If the committee approves, the bill goes to the full chamber — all 435 Representatives or all 100 Senators. They debate it, sometimes amend it, then vote. More than half must say yes: 218 votes in the House, or 51 in the Senate.',
     fact: 'In the Senate, opponents can talk for hours to delay a vote — the famous filibuster. It takes 60 votes to cut one off.',
-    siteLabel: 'Passed One Chamber',
+    stage: BillStages.PASSED_ONE_CHAMBER,
     Illustration: VoteIllustration,
   },
   {
@@ -48,7 +54,7 @@ const STEPS = [
     title: 'Then it all happens again',
     body: 'A bill that passes the House must also pass the Senate (or the other way around) — committee, debate, and vote, all over again. Both chambers must approve the exact same words. If their versions differ, they negotiate one text and vote once more.',
     fact: 'The House and Senate sit in opposite wings of the Capitol — a bill literally travels across the building.',
-    siteLabel: 'Passed Both Chambers',
+    stage: BillStages.PASSED_BOTH_CHAMBERS,
     Illustration: BothChambersIllustration,
   },
   {
@@ -56,7 +62,7 @@ const STEPS = [
     title: 'Congress agrees. One desk left.',
     body: 'Once both chambers pass identical text, the bill is printed on parchment, signed by the Speaker of the House and the Vice President, and hand-delivered to the White House.',
     fact: 'The final copy is still printed on parchment-style paper — a tradition as old as Congress itself.',
-    siteLabel: 'To President',
+    stage: BillStages.TO_PRESIDENT,
     Illustration: ToPresidentIllustration,
   },
   {
@@ -64,7 +70,7 @@ const STEPS = [
     title: 'The President has ten days to decide',
     body: "Sign it, and it becomes law. Veto it, and it goes back to Congress with a 'no'. But a veto isn't always the end — if two-thirds of both chambers vote yes again, the bill becomes law anyway, with no signature at all.",
     fact: 'If the President simply ignores a bill for 10 days while Congress is in session, it becomes law automatically.',
-    siteLabel: 'Signed by President',
+    stage: BillStages.SIGNED_BY_PRESIDENT,
     Illustration: SignedIllustration,
   },
   {
@@ -72,7 +78,7 @@ const STEPS = [
     title: 'The idea is now the law of the land',
     body: 'The bill receives a Public Law number and joins the United States Code — the books that hold every federal law. From this day on, it applies to all 340 million Americans. From a thought in one person’s head to a rule for an entire country.',
     fact: "Laws are numbered by Congress: ‘Public Law 119–42’ means the 42nd law passed during the 119th Congress.",
-    siteLabel: 'Became Law',
+    stage: BillStages.BECAME_LAW,
     Illustration: LawIllustration,
   },
 ];
@@ -103,10 +109,10 @@ export function BillJourney() {
           <div key={s.short} className={cn('flex items-start', i > 0 && 'flex-1')}>
             {/* Connecting line */}
             {i > 0 && (
-              <div className="flex-1 h-px mt-4 sm:mt-[18px] bg-border relative overflow-hidden" aria-hidden="true">
+              <div className="relative mt-4 h-px flex-1 overflow-hidden bg-line-strong/40 sm:mt-[18px]" aria-hidden="true">
                 <div
                   className={cn(
-                    'absolute inset-0 bg-accent origin-left transition-transform duration-500 ease-out',
+                    'absolute inset-0 origin-left bg-ink transition-transform duration-500 ease-out',
                     i <= step ? 'scale-x-100' : 'scale-x-0',
                   )}
                 />
@@ -121,20 +127,20 @@ export function BillJourney() {
                 aria-label={`Step ${i + 1}: ${s.short}`}
                 onClick={() => go(i, 'jump')}
                 className={cn(
-                  'flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full border font-mono text-xs sm:text-sm tabular transition-all duration-300',
+                  'focus-ring flex h-8 w-8 items-center justify-center rounded-full border font-mono text-xs tabular transition-colors duration-300 sm:h-9 sm:w-9 sm:text-sm',
                   i === step
-                    ? 'border-accent bg-accent text-accent-foreground scale-110'
+                    ? 'border-ink bg-ink text-on-ink'
                     : i < step
-                      ? 'border-accent bg-accent/15 text-accent'
-                      : 'border-border bg-background text-muted-foreground hover:border-foreground/50 hover:text-foreground',
+                      ? 'border-ink bg-raised text-ink hover:bg-sunken'
+                      : 'border-line-strong bg-raised text-ink-3 hover:border-ink hover:text-ink',
                 )}
               >
                 {i + 1}
               </button>
               <span
                 className={cn(
-                  'hidden md:block text-[11px] leading-tight text-center max-w-[72px] transition-colors',
-                  i === step ? 'text-foreground font-medium' : 'text-muted-foreground',
+                  'hidden max-w-[76px] text-center text-xs leading-tight transition-colors md:block',
+                  i === step ? 'font-medium text-ink' : 'text-ink-3',
                 )}
               >
                 {s.short}
@@ -145,7 +151,7 @@ export function BillJourney() {
       </div>
 
       {/* Stage card */}
-      <div className="border border-border bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-md border border-line bg-raised">
         <AnimatePresence mode="wait" initial={false} custom={direction}>
           <motion.div
             key={step}
@@ -157,70 +163,48 @@ export function BillJourney() {
             className="grid md:grid-cols-12"
           >
             {/* Illustration */}
-            <div className="md:col-span-5 border-b md:border-b-0 md:border-r border-border bg-background p-6 sm:p-8 flex items-center justify-center">
-              <div className="w-full max-w-[300px] text-foreground">
+            <div className="flex items-center justify-center border-b border-line bg-paper p-6 sm:p-8 md:col-span-5 md:border-b-0 md:border-r">
+              <div className="w-full max-w-[300px] text-ink">
                 {inView && <Illustration key={`ill-${step}`} />}
               </div>
             </div>
 
             {/* Narrative */}
-            <div className="md:col-span-7 p-6 sm:p-8 flex flex-col">
-              <p className="label-eyebrow mb-2">
+            <div className="flex flex-col p-6 sm:p-8 md:col-span-7">
+              <p className="label-eyebrow tabular">
                 Step {step + 1} of {STEPS.length}
               </p>
-              <h3 className="font-serif text-xl sm:text-2xl font-semibold tracking-tight mb-3">
-                {current.title}
-              </h3>
-              <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-5">
-                {current.body}
-              </p>
+              <h3 className="mt-2 text-display-sm text-ink">{current.title}</h3>
+              <p className="mt-3 text-[15px] leading-relaxed text-ink-2 sm:text-base">{current.body}</p>
 
-              {/* Fun fact */}
-              <div className="border-l-2 border-accent bg-secondary/60 px-4 py-3 mb-6">
-                <p className="flex gap-2 text-sm leading-relaxed">
-                  <Lightbulb className="h-4 w-4 shrink-0 mt-0.5 text-accent" aria-hidden="true" />
-                  <span>{current.fact}</span>
-                </p>
+              {/* Did you know — a quiet sunken note */}
+              <div className="mt-5 flex gap-2.5 rounded-md bg-sunken px-4 py-3 text-sm leading-relaxed text-ink">
+                <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-ink-2" strokeWidth={1.75} aria-hidden="true" />
+                <p>{current.fact}</p>
               </div>
 
               {/* Tie back to the product */}
-              <p className="text-xs text-muted-foreground mb-6">
-                On a bill's page, this step appears as{' '}
-                <span className="font-mono text-[11px] uppercase tracking-wide text-foreground">
-                  {current.siteLabel}
-                </span>
-                .
+              <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-2">
+                On a bill&apos;s page, this step appears as
+                <StatusPill stage={current.stage} />
               </p>
 
               {/* Controls */}
-              <div className="mt-auto flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => go(step - 1, 'back')}
-                  disabled={step === 0}
-                  className="inline-flex items-center gap-2 rounded-sm border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors disabled:opacity-40 disabled:pointer-events-none"
-                >
+              <div className="mt-8 flex items-center justify-between gap-3 md:mt-auto md:pt-8">
+                <Button type="button" variant="outline" onClick={() => go(step - 1, 'back')} disabled={step === 0}>
                   <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                   Back
-                </button>
+                </Button>
                 {step < STEPS.length - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => go(step + 1, 'next')}
-                    className="inline-flex items-center gap-2 rounded-sm bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:bg-foreground/85 transition-colors"
-                  >
+                  <Button type="button" onClick={() => go(step + 1, 'next')}>
                     Next step
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                  </Button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => go(0, 'jump')}
-                    className="inline-flex items-center gap-2 rounded-sm border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-                  >
+                  <Button type="button" variant="outline" onClick={() => go(0, 'jump')}>
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
                     Start over
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

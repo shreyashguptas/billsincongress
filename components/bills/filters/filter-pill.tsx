@@ -31,9 +31,12 @@ export interface FilterPillProps
  *    was applied, while a screen-reader user was told outright — an unusual way
  *    round.
  *
- * Sentence case at 13px rather than the 11px uppercase eyebrow the old pills
+ * Sentence case at 14px rather than the 11px uppercase eyebrow the old pills
  * used: seven identical all-caps labels is the wall this redesign is undoing,
  * and uppercase tracking makes the same words about 1.8x wider.
+ *
+ * A set filter turns the chip ink (Documentation/brand.md: the chrome is ink,
+ * never a hue), so what is narrowing the list reads at a glance.
  */
 export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
   ({ name, value, describedAs, className, ...props }, ref) => {
@@ -45,20 +48,21 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
         aria-haspopup="dialog"
         aria-label={describedAs ?? name}
         className={cn(
-          'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-sm border px-3 text-[13px] transition-colors touchable:h-11',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-sm border px-3 text-sm font-medium transition-colors focus-ring touchable:h-11',
           active
-            ? 'border-foreground/40 bg-secondary text-foreground'
-            : 'border-control bg-card text-muted-foreground hover:border-foreground/40 hover:text-foreground',
+            ? 'border-ink bg-ink text-on-ink hover:bg-ink/85'
+            : 'border-line-strong bg-raised text-ink hover:bg-sunken',
           className
         )}
         {...props}
       >
-        <span className="shrink-0">{name}</span>
-        {active && (
-          <span className="max-w-[14ch] truncate font-medium text-foreground">{value}</span>
-        )}
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className={cn('shrink-0', active && 'font-normal text-on-ink/75')}>{name}</span>
+        {active && <span className="max-w-[14ch] truncate">{value}</span>}
+        <ChevronDown
+          className={cn('h-4 w-4 shrink-0', active ? 'text-on-ink/75' : 'text-ink-3')}
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
       </button>
     );
   }

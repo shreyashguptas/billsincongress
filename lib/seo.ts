@@ -2,7 +2,7 @@ import type { Bill } from '@/lib/types/bill';
 import { formatCongressOrdinal } from '@/lib/congress';
 
 export const SITE_URL = 'https://billsincongress.com';
-export const SITE_NAME = 'Congressional Bill Tracker';
+export const SITE_NAME = 'Bills in Congress';
 
 /** Shared OG image descriptor — page-level `openGraph` overrides replace the
  * root object wholesale, so pages that customize OG must re-include this. */
@@ -10,7 +10,7 @@ export const DEFAULT_OG_IMAGE = {
   url: '/images/og-default.png',
   width: 1200,
   height: 630,
-  alt: 'Congressional Bill Tracker — every bill in the U.S. Congress',
+  alt: 'Bills in Congress — every bill in the U.S. Congress',
 };
 
 /** Strip HTML tags/entities from CRS summary markup into plain text. */

@@ -110,61 +110,42 @@ export function getStageStep(stage: number): {
 }
 
 /**
- * The dots shown on a bill page's pipeline.
+ * The seven step names under a bill page's `StageTrack`
+ * (components/brand/status.tsx), in step order, matching `StageSteps` above.
  *
- * Vetoed is NOT a step on the main path — it is where a bill stops. Rendering
- * it inline meant every bill that became law displayed a completed, check-marked
- * "Vetoed" step it had never been through, which is the opposite of true. So a
- * vetoed bill gets its own shorter path ending in Vetoed, and every other bill
- * gets the seven-step main path. This mirrors `StageSteps` above, where VETOED
- * and TO_PRESIDENT share step 5: a vetoed bill reached the President and stopped.
+ * Vetoed is NOT one of them — it is where a bill stops, not a step on the way to
+ * law. An earlier pipeline drew "Vetoed" inline as an eighth step and marked
+ * every step up to the current one complete, so every bill that became law
+ * displayed a check-marked veto it had never been through. The track instead
+ * fills a vetoed bill to step 5 in the vetoed colour and says "Vetoed" in words.
  */
-const MAIN_PATH_LABELS = [
+export const MAIN_PATH_LABELS = [
   'Introduced',
   'Committee',
-  'One Chamber',
-  'Both Chambers',
+  'One chamber',
+  'Both chambers',
   'To President',
   'Signed',
   'Law',
 ] as const;
 
-/** Where each stage sits on MAIN_PATH_LABELS. Vetoed is absent by design. */
-const MAIN_PATH_INDEX: Partial<Record<BillStage, number>> = {
-  [BillStages.INTRODUCED]: 0,
-  [BillStages.IN_COMMITTEE]: 1,
-  [BillStages.PASSED_ONE_CHAMBER]: 2,
-  [BillStages.PASSED_BOTH_CHAMBERS]: 3,
-  [BillStages.TO_PRESIDENT]: 4,
-  [BillStages.SIGNED_BY_PRESIDENT]: 5,
-  [BillStages.BECAME_LAW]: 6,
+/**
+ * A stage as the interface writes it: sentence case, the way a reader would say
+ * it (Documentation/brand.md, "Voice"). `BillStageDescriptions` above stays as
+ * the stored vocabulary — it mirrors convex/billStage.ts, and the account page
+ * maps saved descriptions back to stage codes through it.
+ */
+export const StageLabel: Record<BillStage, string> = {
+  [BillStages.INTRODUCED]: 'Introduced',
+  [BillStages.IN_COMMITTEE]: 'In committee',
+  [BillStages.PASSED_ONE_CHAMBER]: 'Passed one chamber',
+  [BillStages.PASSED_BOTH_CHAMBERS]: 'Passed both chambers',
+  [BillStages.VETOED]: 'Vetoed',
+  [BillStages.TO_PRESIDENT]: 'On the President’s desk',
+  [BillStages.SIGNED_BY_PRESIDENT]: 'Signed by the President',
+  [BillStages.BECAME_LAW]: 'Became law',
 };
 
-/** The path a vetoed bill actually travelled: it stopped at the veto. */
-const VETOED_PATH_LABELS = [
-  'Introduced',
-  'Committee',
-  'One Chamber',
-  'Both Chambers',
-  'Vetoed',
-] as const;
-
-export function getProgressDots(currentStage: number): { stage: string; isComplete: boolean; isVetoed?: boolean }[] {
-  if (!isValidStage(currentStage)) {
-    return MAIN_PATH_LABELS.map((stage) => ({ stage, isComplete: false }));
-  }
-
-  if (currentStage === BillStages.VETOED) {
-    return VETOED_PATH_LABELS.map((stage, index) => ({
-      stage,
-      isComplete: true,
-      ...(index === VETOED_PATH_LABELS.length - 1 ? { isVetoed: true } : {}),
-    }));
-  }
-
-  const currentIndex = MAIN_PATH_INDEX[currentStage] ?? 0;
-  return MAIN_PATH_LABELS.map((stage, index) => ({
-    stage,
-    isComplete: index <= currentIndex,
-  }));
-} 
+export function stageLabel(stage: number): string {
+  return isValidStage(stage) ? StageLabel[stage] : 'Unknown';
+}

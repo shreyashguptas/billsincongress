@@ -3,21 +3,17 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
 
+// A label, never a status: a stage is a StatusPill (components/bills/status-pill.tsx)
+// so it always carries its colour dot and word together.
 const badgeVariants = cva(
-  'inline-flex items-center rounded-sm px-2 py-0.5 font-sans text-[11px] font-medium uppercase tracking-[0.08em] transition-colors',
+  'inline-flex h-6 items-center rounded-sm px-2 font-sans text-[13px] font-medium leading-none transition-colors',
   {
     variants: {
       variant: {
-        default:
-          'bg-foreground text-background',
-        secondary:
-          'bg-secondary text-secondary-foreground',
-        outline:
-          'border border-border text-foreground bg-transparent',
-        accent:
-          'bg-accent text-accent-foreground',
-        muted:
-          'bg-transparent text-muted-foreground border border-border/70',
+        // A topic or category tag.
+        muted: 'bg-sunken text-ink-2',
+        outline: 'border border-line bg-raised text-ink',
+        solid: 'bg-ink text-on-ink',
       },
     },
     defaultVariants: {

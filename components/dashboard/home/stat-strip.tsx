@@ -1,12 +1,15 @@
 'use client';
 
 /**
- * Four headline counts under the hero. Every cell behaves the same way — the
- * old row had two clickable cells and two dead ones, which read as broken. Each
- * one now opens its bills, carries one line of context, and shares one hover.
+ * Four headline counts under the hero, in a row with hairline dividers rather
+ * than cards (brand.md, "Layout and shape"); two by two on a phone. Every cell
+ * behaves the same way — the old row had two clickable cells and two dead
+ * ones, which read as broken. Each one opens its bills, carries one line of
+ * context, and shares one hover.
  */
 
 import { ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { fmt, type HomeProps } from './shared';
 
 export function StatStrip({ congress, dashboard, onDrillDown }: Pick<HomeProps, 'congress' | 'dashboard' | 'onDrillDown'>) {
@@ -23,28 +26,46 @@ export function StatStrip({ congress, dashboard, onDrillDown }: Pick<HomeProps, 
       value: laws,
       note: laws > 0 ? `about 1 in ${fmt(Math.round(total / laws))} bills` : 'none yet',
       go: () => onDrillDown('status', 100),
+      law: true,
     },
   ];
 
   return (
-    <section className="border-b border-border">
-      <div className="container-editorial py-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px overflow-hidden rounded-sm border border-border bg-border">
-          {cells.map((c) => (
+    <section className="border-b border-line">
+      <div className="container-editorial py-12 sm:py-16">
+        <div className="grid grid-cols-2 lg:grid-cols-4">
+          {cells.map((c, i) => (
             <button
               key={c.label}
               type="button"
               onClick={c.go}
-              className="group bg-background px-5 py-4 text-left transition-colors hover:bg-secondary/60 focus-visible:bg-secondary/60 focus-visible:outline-none"
+              className={cn(
+                'focus-ring group rounded-sm py-5 pr-4 text-left sm:pr-8 lg:py-1',
+                // Hairlines between cells: a column rule before the right-hand
+                // cell of each phone row and before all but the first on
+                // desktop, and a row rule above the second phone row.
+                i % 2 === 1 && 'border-l border-line pl-4 sm:pl-8',
+                i === 2 && 'lg:border-l lg:pl-8',
+                i >= 2 && 'border-t border-line lg:border-t-0',
+              )}
             >
-              <span className="flex items-center justify-between label-eyebrow">
+              <span className="flex items-center justify-between gap-2 text-sm font-medium text-ink-2">
                 {c.label}
-                <ArrowRight className="h-3.5 w-3.5 opacity-0 -translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
+                <ArrowRight
+                  aria-hidden="true"
+                  strokeWidth={1.75}
+                  className="h-4 w-4 -translate-x-1 text-ink-3 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"
+                />
               </span>
-              <span className="mt-2 block font-serif text-3xl sm:text-4xl font-semibold tracking-tight tabular">
+              <span
+                className={cn(
+                  'mt-3 block font-serif text-[40px] font-normal leading-none tracking-[-0.02em] tabular sm:text-[56px]',
+                  c.law ? 'text-status-law' : 'text-ink',
+                )}
+              >
                 {fmt(c.value)}
               </span>
-              <span className="mt-1 block font-mono text-[11px] text-muted-foreground">{c.note}</span>
+              <span className="mt-3 block font-mono text-xs text-ink-3">{c.note}</span>
             </button>
           ))}
         </div>

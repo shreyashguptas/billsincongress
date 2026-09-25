@@ -21,7 +21,7 @@ function it(name: string, fn: () => void) {
 
 it("the code is plain text in both the HTML and text parts", () => {
   const email = renderCodeEmail("verify", "042917");
-  assert.equal(email.subject, "Verify your email — Bills.Congress");
+  assert.equal(email.subject, "Verify your email — Bills in Congress");
   assert.ok(email.text.startsWith("Your verification code is 042917."));
   assert.ok(email.bodyHtml.includes(">042917</p>"));
   assert.ok(email.text.includes("15 minutes"));
@@ -29,7 +29,7 @@ it("the code is plain text in both the HTML and text parts", () => {
 
 it("the reset email says it is a reset, not a sign-up", () => {
   const email = renderCodeEmail("reset", "123456");
-  assert.equal(email.subject, "Reset your password — Bills.Congress");
+  assert.equal(email.subject, "Reset your password — Bills in Congress");
   assert.ok(email.text.startsWith("Your password-reset code is 123456."));
   assert.ok(email.bodyHtml.includes("Reset your password"));
 });

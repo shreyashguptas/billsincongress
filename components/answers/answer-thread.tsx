@@ -15,15 +15,21 @@ const PINNED_PX = 72;
 
 const MARKDOWN_COMPONENTS = {
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="mb-2 last:mb-0">{children}</p>
+    <p className="mb-3 last:mb-0">{children}</p>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="list-disc ml-5 mb-2 space-y-1">{children}</ul>
+    <ul className="mb-3 ml-5 list-disc space-y-1.5 marker:text-ink-3">{children}</ul>
   ),
   ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="list-decimal ml-5 mb-2 space-y-1">{children}</ol>
+    <ol className="mb-3 ml-5 list-decimal space-y-1.5 marker:font-mono marker:text-ink-3">{children}</ol>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-ink">{children}</strong>
   ),
 };
+
+/** Answer prose (brand.md, "Type"): Newsreader at the panel's reading size. */
+const PROSE = 'font-serif text-reading-sm text-ink';
 
 /**
  * The assistant asking the reader something, rather than answering.
@@ -42,13 +48,13 @@ function ReaderQuestionTurn({ turn, awaiting }: { turn: Turn; awaiting: boolean 
   return (
     <div className="space-y-2">
       <WorkLog entries={turn.work ?? []} done={Boolean(turn.done)} />
-      <div className="border-l-2 border-border pl-3 space-y-2">
+      <div className="space-y-2 border-l-2 border-line-strong pl-4">
         <p className="label-eyebrow">One question first</p>
-        <div className="font-serif text-[15px] leading-relaxed">
+        <div className={PROSE}>
           <ReactMarkdown components={MARKDOWN_COMPONENTS}>{turn.content}</ReactMarkdown>
         </div>
         {awaiting && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[13px] leading-5 text-ink-3">
             Answer below and the thread carries on from there.
           </p>
         )}
@@ -67,9 +73,9 @@ function AssistantTurn({ turn, surface }: { turn: Turn; surface: string }) {
   const blocks = splitAnswer(turn.content, new Set(turn.allowed ?? []));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <WorkLog entries={turn.work ?? []} done={Boolean(turn.done)} />
-      <div className="font-serif text-[15px] leading-relaxed">
+      <div className={PROSE}>
         {blocks.map((block, i) =>
           block.type === 'prose' ? (
             <ReactMarkdown key={i} components={MARKDOWN_COMPONENTS}>
@@ -125,10 +131,10 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
     <div className="flex flex-col flex-1 min-h-0">
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 lg:px-5"
+        className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 lg:px-5"
       >
         {turns.length === 0 && (
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <p className="text-[15px] leading-relaxed text-ink-2">
             Ask anything about bills in Congress — what one does, where it stands, who wrote
             it. Every answer cites the records it came from.
           </p>
@@ -136,9 +142,14 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
 
         {turns.map((turn) =>
           turn.role === 'user' ? (
-            <p key={turn.id} className="font-serif text-lg leading-snug">
-              {turn.content}
-            </p>
+            // The reader's own words: right-aligned in a quiet sunken block,
+            // in the interface face, so the answer's serif stays the voice
+            // of the record.
+            <div key={turn.id} className="flex justify-end">
+              <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-lg bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">
+                {turn.content}
+              </p>
+            </div>
           ) : turn.askedReader ? (
             <ReaderQuestionTurn
               key={turn.id}
@@ -151,8 +162,8 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
         )}
 
         {error && (
-          <div className="px-3 py-2 border border-destructive/30 bg-destructive/5 rounded-sm">
-            <p className="text-sm text-destructive">{error}</p>
+          <div className="rounded-md border border-error/40 px-4 py-3">
+            <p className="text-sm leading-relaxed text-error">{error}</p>
           </div>
         )}
       </div>
@@ -169,7 +180,9 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
               : ''}
       </p>
 
-      <div className="shrink-0 border-t border-border px-4 py-3 lg:px-5">
+      {/* The ask composer (brand.md, "Patterns"): raised, a line-strong edge,
+          rounded-lg, the send button a 40px ink circle. */}
+      <div className="shrink-0 px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-2 lg:px-5 lg:pb-5">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -177,7 +190,10 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             setInput('');
             void ask(q, { source: 'typed' });
           }}
-          className="flex items-center gap-2"
+          className={cn(
+            'flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pl-4 pr-2.5',
+            'transition-shadow focus-within:ring-2 focus-within:ring-ink focus-within:ring-offset-2 focus-within:ring-offset-paper',
+          )}
         >
           <input
             id="ask-composer"
@@ -198,9 +214,10 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             // whole page in when a focused input is any smaller, and then never
             // zooms back out.
             className={cn(
-              'h-11 flex-1 rounded-sm border border-border bg-background px-3 text-base',
-              'focus:border-foreground focus:outline-none disabled:opacity-60',
-              'lg:h-10 lg:text-sm',
+              // The form draws the edge and the focus ring; the field itself is
+              // bare (border-0, p-0 and ring-0 undo the forms plugin's input box).
+              'h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-ink placeholder:text-ink-3',
+              'focus:outline-none focus:ring-0 disabled:cursor-not-allowed lg:text-[15px]',
             )}
             disabled={busy}
             maxLength={2000}
@@ -210,14 +227,14 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             disabled={busy || !input.trim()}
             aria-label="Send"
             className={cn(
-              'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-sm bg-foreground text-background',
-              'transition-colors hover:bg-foreground/85 disabled:opacity-40 lg:h-10 lg:w-10',
+              'focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-on-ink',
+              'transition-colors hover:bg-ink/85 disabled:opacity-40',
             )}
           >
             {busy ? (
-              <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-background border-t-transparent" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-on-ink border-t-transparent" />
             ) : (
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             )}
           </button>
         </form>

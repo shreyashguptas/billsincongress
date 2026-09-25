@@ -21,10 +21,10 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      // bg-background/70, not a foreground tint: --foreground is near-white in
+      // bg-paper/70, not a foreground tint: --ink is near-white in
       // dark mode, so a foreground scrim would LIGHTEN the page behind the
       // sheet. This also removes the only hard-coded colour in the system.
-      'fixed inset-0 z-50 bg-background/70 backdrop-blur-[2px]',
+      'fixed inset-0 z-50 bg-paper/70 backdrop-blur-[2px]',
       'data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
       className
     )}
@@ -47,7 +47,7 @@ SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
  * nothing to an animation either.
  */
 const sheetVariants = cva(
-  'fixed z-50 gap-4 bg-background p-6 shadow-lg',
+  'fixed z-50 gap-4 bg-paper p-6 shadow-float',
   {
     variants: {
       side: {
@@ -90,7 +90,7 @@ const SheetContent = React.forwardRef<
     >
       {children}
       {!hideClose && (
-        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-ring disabled:pointer-events-none data-[state=open]:bg-sunken">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </SheetPrimitive.Close>
@@ -134,7 +134,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold text-foreground', className)}
+    className={cn('font-serif text-display-sm text-ink', className)}
     {...props}
   />
 ));
@@ -146,7 +146,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-muted-foreground', className)}
+    className={cn('text-sm text-ink-3', className)}
     {...props}
   />
 ));

@@ -2,17 +2,19 @@
 
 /**
  * Shared pieces for the home page's hero and chart sections: the props
- * contract, a compact Congress picker and the browse link. The hero's ask box is `components/answers/hero-ask.tsx`.
+ * contract, a compact Congress picker, the browse link and the "Ask about
+ * this" action each section header carries. The hero's ask box is
+ * `components/answers/hero-ask.tsx`.
  */
 
 import Link from 'next/link';
-import { ArrowUp } from 'lucide-react';
 import type { FunctionReturnType } from 'convex/server';
 import type { api } from '@/convex/_generated/api';
 import { analytics } from '@/lib/analytics';
 import type { StarterInput } from '@/lib/starter-questions';
 import { cn } from '@/lib/utils';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
+import { AskAbout } from '@/components/answers/ask-about';
 
 type Dashboard = NonNullable<FunctionReturnType<typeof api.bills.getCongressDashboard>>;
 type Breakdown = FunctionReturnType<typeof api.bills.getChamberDeepBreakdown>;
@@ -67,7 +69,7 @@ export function CongressSelect({
           analytics.dashboardCongressSelected(c);
           onSelectCongress(c);
         }}
-        className="h-8 rounded-sm border border-border bg-background pl-2 pr-7 font-mono text-xs text-foreground hover:border-foreground/40 focus:border-foreground focus:outline-none"
+        className="focus-ring h-9 rounded-md border border-line-strong bg-transparent py-0 pl-3 pr-8 font-mono text-[13px] text-ink transition-colors hover:border-ink focus:border-ink focus:ring-ink touchable:h-11"
       >
         {[...congressNumbers]
           .sort((a, b) => b - a)
@@ -87,11 +89,23 @@ export function BrowseLink({ className, label = 'Or browse all bills →' }: { c
       href="/bills"
       data-ph-capture-attribute-cta="home-browse-bills"
       className={cn(
-        'text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 decoration-border hover:decoration-foreground transition-colors',
+        'link focus-ring rounded-sm text-sm',
         className,
       )}
     >
       {label}
     </Link>
+  );
+}
+
+/**
+ * A section header's one action (brand.md, "SectionHeader"): hands the reader
+ * the section's own question. Sits beside the drill-downs, never replaces them.
+ */
+export function SectionAsk({ question }: { question: string }) {
+  return (
+    <AskAbout question={question} className="focus-ring whitespace-nowrap rounded-sm text-sm font-medium">
+      Ask about this →
+    </AskAbout>
   );
 }

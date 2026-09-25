@@ -3,11 +3,14 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Check, RotateCcw, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 // "Think you've got it?" — a five-question civics quiz with instant feedback
-// and a congressional rank for a score.
+// and a congressional rank for a score. Feedback is never colour alone: the
+// right answer is status-law green with a check and the word "Correct"; a
+// wrong pick is the error colour with an X and the words "Your answer".
 
 const QUESTIONS = [
   {
@@ -106,7 +109,7 @@ export function CivicsQuiz() {
   const rank = RANKS.find((r) => score >= r.min) ?? RANKS[RANKS.length - 1];
 
   return (
-    <div className="border border-border bg-card">
+    <div className="rounded-md border border-line bg-raised">
       <AnimatePresence mode="wait" initial={false}>
         {finished ? (
           // Results
@@ -116,26 +119,20 @@ export function CivicsQuiz() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
-            className="p-8 sm:p-12 text-center"
+            className="p-8 text-center sm:p-12"
           >
-            <p className="label-eyebrow mb-4">Your result</p>
-            <p className="font-serif text-display-lg sm:text-display-xl font-semibold tracking-tight tabular mb-2">
+            <p className="label-eyebrow">Your result</p>
+            <p className="mt-4 font-serif text-display-lg font-medium text-ink tabular sm:text-display-xl">
               {score}/{QUESTIONS.length}
             </p>
-            <p className="font-serif text-xl sm:text-2xl font-semibold tracking-tight text-accent mb-2">
-              {rank.title}
-            </p>
-            <p className="text-sm sm:text-base text-muted-foreground max-w-md mx-auto leading-relaxed mb-8">
+            <p className="mt-2 font-serif text-display-sm font-medium text-ink">{rank.title}</p>
+            <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-ink-2 sm:text-base">
               {rank.note}
             </p>
-            <button
-              type="button"
-              onClick={restart}
-              className="inline-flex items-center gap-2 rounded-sm border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
-            >
+            <Button type="button" variant="outline" onClick={restart} className="mt-8">
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               Take it again
-            </button>
+            </Button>
           </motion.div>
         ) : (
           // Question
@@ -147,31 +144,25 @@ export function CivicsQuiz() {
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="p-6 sm:p-10"
           >
-            {/* Progress dots */}
-            <div className="flex items-center justify-between mb-6">
-              <p className="label-eyebrow">
+            {/* Progress segments */}
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <p className="label-eyebrow tabular">
                 Question {questionIndex + 1} of {QUESTIONS.length}
               </p>
-              <div className="flex gap-1.5" aria-hidden="true">
+              <div className="flex gap-1" aria-hidden="true">
                 {QUESTIONS.map((_, i) => (
                   <span
                     key={i}
                     className={cn(
-                      'h-1.5 w-5 rounded-full transition-colors',
-                      i < questionIndex
-                        ? 'bg-accent'
-                        : i === questionIndex
-                          ? 'bg-foreground'
-                          : 'bg-border',
+                      'h-1.5 w-5 rounded-xs transition-colors',
+                      i <= questionIndex ? 'bg-ink' : 'bg-line',
                     )}
                   />
                 ))}
               </div>
             </div>
 
-            <h3 className="font-serif text-xl sm:text-2xl font-semibold tracking-tight mb-6">
-              {current.question}
-            </h3>
+            <h3 className="mb-6 text-display-sm text-ink">{current.question}</h3>
 
             <div className="space-y-2.5" role="group" aria-label="Answer choices">
               {current.options.map((option, i) => {
@@ -185,20 +176,26 @@ export function CivicsQuiz() {
                     onClick={() => choose(i)}
                     disabled={selected !== null}
                     className={cn(
-                      'flex w-full items-center justify-between gap-3 rounded-sm border px-4 py-3.5 text-left text-sm sm:text-base transition-all duration-300',
-                      !showState &&
-                        'border-border bg-background hover:border-foreground/50 hover:bg-secondary cursor-pointer',
-                      showState && correctOption && 'border-status-law bg-status-law/10 font-medium',
-                      showState && chosen && !correctOption && 'border-accent bg-accent/10',
-                      showState && !chosen && !correctOption && 'border-border opacity-50',
+                      'focus-ring flex min-h-[3rem] w-full items-center justify-between gap-3 rounded-md border bg-raised px-4 py-3 text-left text-[15px] text-ink transition-colors duration-300 sm:text-base',
+                      !showState && 'cursor-pointer border-line-strong hover:border-ink hover:bg-sunken',
+                      showState && correctOption && 'border-status-law',
+                      showState && chosen && correctOption && 'ring-1 ring-inset ring-status-law',
+                      showState && chosen && !correctOption && 'border-error ring-1 ring-inset ring-error',
+                      showState && !chosen && !correctOption && 'border-line text-ink-3',
                     )}
                   >
                     <span>{option}</span>
                     {showState && correctOption && (
-                      <Check className="h-5 w-5 shrink-0 text-status-law" aria-label="Correct answer" />
+                      <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-status-law">
+                        <Check className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+                        Correct{chosen ? '' : ' answer'}
+                      </span>
                     )}
                     {showState && chosen && !correctOption && (
-                      <X className="h-5 w-5 shrink-0 text-accent" aria-label="Your incorrect answer" />
+                      <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-error">
+                        <X className="h-4 w-4" strokeWidth={2.25} aria-hidden="true" />
+                        Your answer<span className="sr-only">, incorrect</span>
+                      </span>
                     )}
                   </button>
                 );
@@ -214,26 +211,17 @@ export function CivicsQuiz() {
                   transition={{ duration: 0.35 }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border pt-5">
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      <span
-                        className={cn(
-                          'font-semibold',
-                          isCorrect ? 'text-status-law' : 'text-accent',
-                        )}
-                      >
+                  <div className="mt-6 flex flex-col justify-between gap-4 border-t border-line pt-5 sm:flex-row sm:items-center">
+                    <p className="text-[15px] leading-relaxed text-ink-2">
+                      <span className={cn('font-semibold', isCorrect ? 'text-status-law' : 'text-error')}>
                         {isCorrect ? 'Correct. ' : 'Not quite. '}
                       </span>
                       {current.explanation}
                     </p>
-                    <button
-                      type="button"
-                      onClick={next}
-                      className="shrink-0 inline-flex items-center justify-center gap-2 rounded-sm bg-foreground px-5 py-2.5 text-sm font-medium text-background hover:bg-foreground/85 transition-colors"
-                    >
+                    <Button type="button" onClick={next} className="shrink-0">
                       {questionIndex === QUESTIONS.length - 1 ? 'See my result' : 'Next question'}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </button>
+                    </Button>
                   </div>
                 </motion.div>
               )}

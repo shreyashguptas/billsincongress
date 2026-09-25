@@ -6,31 +6,27 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
 
+// Ink is the only action colour (Documentation/brand.md, "Actions"): a primary
+// button is an ink fill, everything else is outlined, quiet, or a link. No
+// variant takes a hue — on this site a hue means data.
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm font-sans text-sm font-medium transition-all ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-sans text-sm font-medium transition-colors focus-ring disabled:pointer-events-none disabled:opacity-50 select-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        default:
-          'bg-foreground text-background hover:bg-foreground/85 active:bg-foreground/95',
-        accent:
-          'bg-accent text-accent-foreground hover:bg-accent/90 active:bg-accent',
-        outline:
-          'border border-border bg-transparent text-foreground hover:bg-secondary',
-        secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/70',
-        ghost:
-          'text-foreground hover:bg-secondary',
-        link:
-          'text-foreground underline underline-offset-4 decoration-border hover:decoration-foreground p-0 h-auto rounded-none',
-        destructive:
-          'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        // Once per view, for the thing the page is for.
+        default: 'bg-ink text-on-ink hover:bg-ink/85 active:bg-ink/95',
+        // Everything else a reader can do.
+        outline: 'border border-line-strong bg-raised text-ink hover:bg-sunken',
+        // Inside dense rows and headers.
+        ghost: 'text-ink hover:bg-sunken',
+        link: 'h-auto rounded-none p-0 text-ink underline decoration-line-strong underline-offset-[3px] hover:decoration-ink',
       },
       size: {
-        sm: 'h-8 px-3 text-xs',
-        default: 'h-10 px-4',
-        lg: 'h-11 px-6 text-[15px]',
-        icon: 'h-9 w-9',
+        sm: 'h-8 px-3 text-[13px]',
+        default: 'h-10 px-4 touchable:h-11',
+        lg: 'h-11 px-5 text-[15px]',
+        icon: 'h-10 w-10',
       },
     },
     defaultVariants: {
