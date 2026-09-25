@@ -7,7 +7,10 @@ export const SITE_NAME = 'Bills in Congress';
 /** Shared OG image descriptor — page-level `openGraph` overrides replace the
  * root object wholesale, so pages that customize OG must re-include this. */
 export const DEFAULT_OG_IMAGE = {
-  url: '/images/og-default.png',
+  // Versioned like the live cards (SHARE_CARD_VERSION below): the file keeps
+  // its name when it is redrawn, and platforms cache images by URL. Bump it
+  // with every new og-default.png.
+  url: '/images/og-default.png?v=2',
   width: 1200,
   height: 630,
   alt: 'Bills in Congress — every bill in the U.S. Congress',
@@ -48,6 +51,17 @@ export function billShareImagePath(bill: Pick<Bill, 'id' | 'progress_stage'>): s
 export function hubShareImagePath(hubPath: string, count: number | null): string {
   const v = count === null ? `${SHARE_CARD_VERSION}` : `${SHARE_CARD_VERSION}.${count}`;
   return `/share-image${hubPath}?v=${v}`;
+}
+
+/**
+ * The home page's share card (app/share-image/home), versioned by UTC day. Its
+ * figures move with the daily sync, and the home page renders without fetching
+ * them for its metadata, so the day stands in for the count: the URL changes at
+ * most once a day, and a platform caching by URL is never more than a day
+ * behind.
+ */
+export function homeShareImagePath(now: Date = new Date()): string {
+  return `/share-image/home?v=${SHARE_CARD_VERSION}.${now.toISOString().slice(0, 10)}`;
 }
 
 /** Strip HTML tags/entities from CRS summary markup into plain text. */

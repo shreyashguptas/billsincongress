@@ -133,7 +133,8 @@ lib/                       Pure client/shared modules — 30 modules + 27 test f
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
   og/                      The share cards: card-parts.tsx (frame, headline, track), bill-share-card.tsx,
-                           hub-share-card.tsx + hub-share-data.ts (page cards and their figures), both
+                           hub-share-card.tsx + hub-share-data.ts (page cards and their figures),
+                           home-share-card.tsx + home-share-data.ts, generic-share-card.tsx, all
                            tested; fonts.ts (embedded fonts, generated)
   services/bills-service.ts  constants/  types/  utils/
 
@@ -174,6 +175,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
+| `/share-image/home?v=` | GET — the home page's share card. A static segment, so it wins over the hub catch-all beside it |
 | `/share-image/<hub path>?v=` | GET — a status, chamber or topic page's share card, e.g. `/share-image/bills/topic/health` for `/bills/topic/health`. 404 for a path that is not a hub |
 | `/robots.txt`, `/sitemap_index.xml`, `/sitemap/<n>.xml`, `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
 | `/sw.js`, `/offline.html` | The service worker and the one page it serves (static files) |
@@ -1155,9 +1157,14 @@ tell a page which app was chosen, so nothing records where it went.
 ### Link previews: the share cards
 
 A link pasted into iMessage, WhatsApp, Slack, Discord, LinkedIn, X or an email client unfurls
-into a **share card** drawn for that page. Bill pages and the 40 hub pages (status, chamber,
-topic) each have one; every other page uses the generic card from `app/layout.tsx`
-(`DEFAULT_OG_IMAGE`, built by `scripts/generate-og-image.ts`). Cards are drawn on request with
+into a **share card** drawn for that page. The home page, bill pages and the 40 hub pages
+(status, chamber, topic) each have one; every other page (About, Learn, Pro) uses the generic
+card from `app/layout.tsx` (`DEFAULT_OG_IMAGE`, `public/images/og-default.png`), which
+`scripts/generate-og-image.ts` builds from `lib/og/generic-share-card.tsx` with the same frame
+and embedded fonts — run it by hand after changing that card, commit the PNG, and bump the
+`?v=` on `DEFAULT_OG_IMAGE.url` (`lib/seo.ts`), since the file keeps its name and platforms cache
+by URL. It is also
+what any card route sends when it cannot read its figures. Cards are drawn on request with
 `next/og` (satori and resvg) from the record as it stands at that moment. The design rules,
 including why a card never repeats the title or number the app already prints under it, are in
 `Documentation/brand.md`, "Share card".
@@ -1168,9 +1175,10 @@ including why a card never repeats the title or number the app already prints un
 | A status hub | "113 became law", out of all introduced, the track filled to that stage | `app/share-image/[...path]/route.tsx` | `lib/og/hub-share-card.tsx` |
 | A chamber hub | The chamber's count, how many became law, its share against the other chamber | same | same |
 | A topic hub | The topic's count and rank, beside the six largest topics as bars | same | same |
+| The home page | The Congress's total and how many became law, beside one bar per stage that holds bills | `app/share-image/home/route.tsx` | `lib/og/home-share-card.tsx` |
 
-- **Tags.** `generateMetadata` in `app/bills/[id]/page.tsx`, and `hubMetadata` in
-  `app/bills/_hub/hub-view.tsx`, name the card for both `openGraph.images` and
+- **Tags.** `generateMetadata` in `app/page.tsx` and `app/bills/[id]/page.tsx`, and `hubMetadata`
+  in `app/bills/_hub/hub-view.tsx`, name the card for both `openGraph.images` and
   `twitter.images`, with width, height, type and alt text. Until the hub cards existed, a hub's
   page-level `openGraph` replaced the root one wholesale and hub links had no picture at all.
   Messaging apps read these tags from the `<head>`, which is why neither page may gain a
@@ -1186,7 +1194,9 @@ including why a card never repeats the title or number the app already prints un
   render, once a day per topic thanks to caching.
 - **Freshness.** A card states a status or a count, and both go stale. Each URL carries a design
   version and the figure it shows: `?v=<SHARE_CARD_VERSION>.<stage>` for a bill
-  (`billShareImagePath`) and `?v=<SHARE_CARD_VERSION>.<count>` for a hub (`hubShareImagePath`),
+  (`billShareImagePath`) and `?v=<SHARE_CARD_VERSION>.<count>` for a hub (`hubShareImagePath`) and
+  `?v=<SHARE_CARD_VERSION>.<UTC date>` for the home page (`homeShareImagePath`: the home page
+  does not fetch its figures for metadata, and they move once a day with the sync),
   both in `lib/seo.ts`. When the figure moves, the page names a new image URL, so no platform
   keeps an old one it cached by URL. The query only busts caches: the routes ignore it. Bump
   `SHARE_CARD_VERSION` whenever a card's design changes (2 is the stage-only redesign and the
@@ -1219,6 +1229,9 @@ including why a card never repeats the title or number the app already prints un
   `lib/og/hub-share-card.test.ts` checks ordinals, ranking (by count; tied topics share a
   rank, never split by name into an order the data does not support; a topic outside the six), the share line, renders every card variant including the partial ones, and
   runs the loader against a stubbed service to prove a floor never reaches a card.
+  `lib/og/home-share-card.test.ts` checks the stage rows (path order, empty stages dropped),
+  refuses a breakdown that does not add up to the total, checks the dated URL, and renders the
+  home card with and without its breakdown and the generic card.
 
 A preview that has already been sent is a picture in someone's conversation: it does not
 change when the bill moves. Only new shares, and platforms that re-read the page, see the new

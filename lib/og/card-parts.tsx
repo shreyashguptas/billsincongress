@@ -235,13 +235,13 @@ export function StageTrack({ stage }: { stage: number }) {
 }
 
 /** A figure set large in Newsreader, lining numerals — the page cards' headline. */
-export function BigFigure({ children }: { children: string }) {
+export function BigFigure({ children, size = 176 }: { children: string; size?: number }) {
   return (
     <div
       style={{
         fontFamily: 'Newsreader',
         fontWeight: 500,
-        fontSize: 176,
+        fontSize: size,
         lineHeight: 0.9,
         letterSpacing: '-0.03em',
         // The words beside it wrap; the figure never shrinks into them.

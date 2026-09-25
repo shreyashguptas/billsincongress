@@ -1,23 +1,54 @@
 import type { Metadata } from 'next';
 import { fetchQuery } from 'convex/nextjs';
 import { api } from '@/convex/_generated/api';
+import { SHARE_CARD_SIZE, SITE_NAME, homeShareImagePath } from '@/lib/seo';
 import DashboardClient, {
   type InitialDashboardData,
 } from '@/components/dashboard/DashboardClient';
 
-export const metadata: Metadata = {
-  title: {
-    // Bypass the layout template — the homepage title should carry the full
-    // positioning rather than "Home · Bills in Congress".
-    absolute: 'Bills in Congress — Track Every Bill in the U.S. Congress',
-  },
-  description:
-    'Track every bill in the United States Congress: live status, plain-language summaries, sponsors, and progress. Independent, sourced from Congress.gov.',
-  alternates: {
-    // `?congress=` views are variations of the same dashboard.
-    canonical: '/',
-  },
-};
+const HOME_TITLE = 'Bills in Congress — Track Every Bill in the U.S. Congress';
+const HOME_DESCRIPTION =
+  'Track every bill in the United States Congress: live status, plain-language summaries, sponsors, and progress. Independent, sourced from Congress.gov.';
+
+// A function rather than a constant only so the share card's URL carries
+// today's date (`homeShareImagePath`); nothing here is fetched.
+export function generateMetadata(): Metadata {
+  // The home page's own card (app/share-image/home). A page-level openGraph
+  // replaces the root one wholesale, so everything it held is restated.
+  const shareImage = {
+    url: homeShareImagePath(),
+    ...SHARE_CARD_SIZE,
+    type: 'image/png',
+    alt: 'Bills in Congress: every bill and resolution in the current Congress, and where each one stands',
+  };
+  return {
+    title: {
+      // Bypass the layout template — the homepage title should carry the full
+      // positioning rather than "Home · Bills in Congress".
+      absolute: HOME_TITLE,
+    },
+    description: HOME_DESCRIPTION,
+    alternates: {
+      // `?congress=` views are variations of the same dashboard.
+      canonical: '/',
+    },
+    openGraph: {
+      type: 'website',
+      siteName: SITE_NAME,
+      locale: 'en_US',
+      url: '/',
+      title: HOME_TITLE,
+      description: HOME_DESCRIPTION,
+      images: [shareImage],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: HOME_TITLE,
+      description: HOME_DESCRIPTION,
+      images: [shareImage],
+    },
+  };
+}
 
 export default async function Home({
   searchParams,
