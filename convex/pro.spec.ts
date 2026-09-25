@@ -445,7 +445,7 @@ describe("checkout", () => {
       if (url.pathname === "/v1/checkout/sessions" && method === "GET") return json(list(state.open));
       if (url.pathname.endsWith("/expire")) return json({ id: url.pathname.split("/")[4], object: "checkout.session", status: "expired" });
       if (url.pathname === "/v1/checkout/sessions" && method === "POST")
-        return json({ id: "cs_new", object: "checkout.session", url: "https://checkout.stripe.test/cs_new" });
+        return json({ id: "cs_new", object: "checkout.session", created: 2000, url: "https://checkout.stripe.test/cs_new" });
       throw new Error(`unexpected Stripe call ${method} ${url.pathname}`);
     });
     return calls;
@@ -494,6 +494,16 @@ describe("checkout", () => {
     expect(user?.stripeCustomerId).toBe("cus_fresh");
   });
 
+  test("the billing portal for a customer that no longer exists unlinks it instead of failing", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await t.run((ctx) => ctx.db.patch(userId, { stripeCustomerId: "cus_gone" }));
+    fakeStripe({ subs: [], open: [], missingCustomers: ["cus_gone"] });
+    await expect(asUser(t, userId).action(api.billing.openBillingPortal, {})).rejects.toThrow(/NO_BILLING_ACCOUNT/);
+    const user = await t.run((ctx) => ctx.db.get(userId));
+    expect(user?.stripeCustomerId).toBeUndefined();
+  });
+
   test("a script cannot hammer Stripe through one account", async () => {
     const t = setup();
     const userId = await freeReaderWithCustomer(t);
@@ -506,7 +516,7 @@ describe("checkout", () => {
     ).rejects.toThrow(/RateLimited|rate/i);
   });
 
-  test("two tabs: the older open Checkout is expired so only one can be paid; other products are untouched", async () => {
+  test("two tabs: only older open Checkouts are expired (the newest survives); other products are untouched", async () => {
     const t = setup();
     const userId = await freeReaderWithCustomer(t);
     const calls = fakeStripe({
@@ -515,8 +525,10 @@ describe("checkout", () => {
         { id: "sub_other", object: "subscription", status: "active", metadata: { app: "something-else" } },
       ],
       open: [
-        { id: "cs_tab1", object: "checkout.session", status: "open", metadata: { app: "billsincongress", userId } },
-        { id: "cs_other", object: "checkout.session", status: "open", metadata: { app: "something-else" } },
+        { id: "cs_tab1", object: "checkout.session", status: "open", created: 1000, metadata: { app: "billsincongress", userId } },
+        { id: "cs_other", object: "checkout.session", status: "open", created: 1000, metadata: { app: "something-else" } },
+        // A tab opened a moment AFTER this one is newer: it must survive.
+        { id: "cs_newer_tab", object: "checkout.session", status: "open", created: 3000, metadata: { app: "billsincongress", userId } },
       ],
     });
     const { url } = await asUser(t, userId).action(api.billing.startCheckout, { interval: "month" });
@@ -656,6 +668,43 @@ describe("Stripe webhook", () => {
     const [a, b] = await t.run(async (ctx) => [await ctx.db.get(userId), await ctx.db.get(other)]);
     expect(a?.stripeCustomerId).toBeUndefined();
     expect(b?.stripeCustomerId).toBe("cus_theirs");
+  });
+});
+
+describe("out-of-order customer deletion", () => {
+  test("customer.deleted before subscription.deleted does not re-link the dead customer", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await makePro(t, userId); // links cus_1, sub_1
+    // Stripe delivers the customer's deletion first...
+    await t.mutation(internal.billing._forgetCustomer, { stripeCustomerId: "cus_1" });
+    // ...then the subscription's end.
+    await t.mutation(internal.billing.applySubscription, {
+      userId,
+      stripeCustomerId: "cus_1",
+      stripeSubscriptionId: "sub_1",
+      status: "canceled",
+      cancelAtPeriodEnd: false,
+    });
+    const user = await t.run((ctx) => ctx.db.get(userId));
+    expect(user?.plan).toBe("free");
+    expect(user?.stripeCustomerId).toBeUndefined();
+  });
+
+  test("a subscription that grants Pro still links its customer (e.g. one comped in the dashboard)", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await makePro(t, userId);
+    const user = await t.run((ctx) => ctx.db.get(userId));
+    expect(user?.stripeCustomerId).toBe("cus_1");
+  });
+
+  test("two customer links racing: the first wins and both callers get it back", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    const a = await t.mutation(internal.billing._setCustomerId, { userId, stripeCustomerId: "cus_first" });
+    const b = await t.mutation(internal.billing._setCustomerId, { userId, stripeCustomerId: "cus_second" });
+    expect([a, b]).toEqual(["cus_first", "cus_first"]);
   });
 });
 

@@ -878,9 +878,15 @@ those sections say otherwise.
    **No double billing:** Stripe Checkout will sell a customer the same subscription twice,
    and `users.plan` lags payment by the seconds the webhook takes. So before creating a
    session the action asks Stripe (not our row): a live subscription tagged for this site
-   refuses the request (`ALREADY_PRO`, or `SUBSCRIPTION_NEEDS_ATTENTION` when it is unpaid or
-   paused, which the billing portal fixes), and any Checkout page the customer still has open
-   for this site is expired, so of two tabs only the newest can be paid.
+   refuses the request (`ALREADY_PRO`; `SUBSCRIPTION_NEEDS_ATTENTION` when it is unpaid or
+   paused, which the billing portal fixes; `PAYMENT_PENDING` while a first payment is
+   incomplete). After creating the new Checkout page it closes every OLDER open one for this
+   site, so however many tabs race, exactly the newest stays payable (three simultaneous calls
+   against the sandbox: one open, two expired). If two payments still land, the webhook logs
+   `DUPLICATE_SUBSCRIPTION …`; cancel and refund one in Stripe.
+   The customer is created without an idempotency key of our own (a key made Stripe replay a
+   customer deleted minutes earlier); racing calls each create one, the first link wins, and the
+   loser deletes its empty customer.
 2. Stripe calls `POST https://<deployment>.convex.site/stripe/webhook`.
    `billing.handleStripeWebhook` verifies the signature, records the event id in
    `stripeEvents` (a redelivery is acknowledged and skipped), then **re-reads the subscription
@@ -950,7 +956,10 @@ Stripe does not email a cancellation or a start of service, which is why those a
 **A customer deleted in the Stripe dashboard** (for example on an account-deletion request)
 arrives as `customer.deleted`; the webhook drops the link (`_forgetCustomer`) so "Manage
 billing" does not open a portal for a customer that no longer exists and a later Subscribe
-creates a new one. To delete a reader's account: cancel their subscription in Stripe (or delete
+creates a new one. Stripe does not promise order: an ending subscription processed after
+`customer.deleted` does not re-link the customer (only a Pro-granting subscription links one).
+If the webhook is missed entirely, `startCheckout` and `openBillingPortal` both check the
+customer still exists and drop a dead link themselves. To delete a reader's account: cancel their subscription in Stripe (or delete
 the Stripe customer), then delete the account rows.
 
 **Stripe account: OffGrid LLC** (`acct_1UJKPkCylyXxQEhV`, in the BillsInCongress Stripe

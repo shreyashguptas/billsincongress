@@ -102,11 +102,14 @@ export const _setCustomerId = internalMutation({
     const user = await ctx.db.get(userId);
     if (!user) throw new ConvexError("USER_MISSING");
     // Never overwrite an existing link: two tabs racing to Checkout must end
-    // up on one customer. The idempotency key below makes both calls return
-    // the same customer anyway; this keeps the row honest if it ever doesn't.
+    // up on one customer. The idempotency key makes both calls return the same
+    // customer anyway; when they straddle its window, the first link wins and
+    // BOTH callers get it back, so neither checks out on an unlinked customer.
     if (user.stripeCustomerId === undefined) {
       await ctx.db.patch(userId, { stripeCustomerId });
+      return stripeCustomerId;
     }
+    return user.stripeCustomerId;
   },
 });
 
@@ -137,29 +140,28 @@ async function customerFor(
       stripeCustomerId: user.stripeCustomerId,
     });
   }
-  // Keyed by user and a one-minute window, so a doubled click or a retried
-  // request creates ONE customer, while a reader whose customer was deleted
-  // in the dashboard gets a new one a minute later (a key with no window would
-  // hand back the deleted customer for Stripe's 24-hour key lifetime). Two
-  // tabs straddling a minute boundary can create two customers; the row keeps
-  // the first (`_setCustomerId` never overwrites) and the other stays empty.
+  // No idempotency key of our own: a key would make Stripe hand back a
+  // customer deleted in the dashboard minutes earlier (it replays the saved
+  // response). Two racing calls instead each create a customer; the first
+  // link wins (`_setCustomerId` never overwrites), both callers continue with
+  // it, and the loser deletes its unused, empty customer. stripe-node still
+  // adds its own key when it retries a request after a network error.
   // We do not look customers up by email: the Stripe account can hold
   // customers of other products, and a matching address is not the same
   // person's billing.
-  const window = Math.floor(Date.now() / (60 * 1000));
-  const customer = await stripe.customers.create(
-    {
-      email: user.email,
-      name: user.name,
-      metadata: { app: APP_TAG, userId: user._id },
-    },
-    { idempotencyKey: `bic-customer-${user._id}-${window}` },
-  );
-  await ctx.runMutation(internal.billing._setCustomerId, {
+  const customer = await stripe.customers.create({
+    email: user.email,
+    name: user.name,
+    metadata: { app: APP_TAG, userId: user._id },
+  });
+  const linked: string = await ctx.runMutation(internal.billing._setCustomerId, {
     userId: user._id,
     stripeCustomerId: customer.id,
   });
-  return customer.id;
+  if (linked !== customer.id) {
+    await stripe.customers.del(customer.id).catch(() => undefined);
+  }
+  return linked;
 }
 
 /** Subscription states that are still a live billing relationship. */
@@ -181,9 +183,9 @@ const LIVE_SUBSCRIPTION_STATUSES = new Set([
  * - a live subscription for this site already exists → refuse (ALREADY_PRO
  *   when it grants Pro; SUBSCRIPTION_NEEDS_ATTENTION when it is unpaid or
  *   paused, which the billing portal fixes; PAYMENT_PENDING while a first
- *   payment is still incomplete);
- * - any Checkout page this customer still has open for this site is expired,
- *   so of two tabs only the newest can be paid.
+ *   payment is still incomplete).
+ * Older open Checkout pages are closed separately, after the new one exists
+ * (`expireOlderCheckouts`).
  */
 async function refuseSecondSubscription(stripe: Stripe, customerId: string): Promise<void> {
   const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 20 });
@@ -201,9 +203,29 @@ async function refuseSecondSubscription(stripe: Stripe, customerId: string): Pro
           : "SUBSCRIPTION_NEEDS_ATTENTION",
     );
   }
+}
+
+/**
+ * Closes the OLDER Checkout pages this customer has open for this site, so of
+ * several tabs only the newest can be paid. Run after creating the new page,
+ * and only ever closing pages older than it (by creation time, then id): every
+ * racing call agrees which page is newest, so however they interleave exactly
+ * that one stays open. (Closing everything else, or closing before creating,
+ * left either two payable pages or none; both were seen against the sandbox
+ * with three simultaneous clicks.)
+ */
+async function expireOlderCheckouts(
+  stripe: Stripe,
+  customerId: string,
+  mine: { id: string; created: number },
+): Promise<void> {
   const open = await stripe.checkout.sessions.list({ customer: customerId, status: "open", limit: 20 });
   for (const session of open.data) {
-    if (session.metadata?.app === APP_TAG) await stripe.checkout.sessions.expire(session.id);
+    const older =
+      session.created < mine.created || (session.created === mine.created && session.id < mine.id);
+    if (older && session.metadata?.app === APP_TAG) {
+      await stripe.checkout.sessions.expire(session.id).catch(() => undefined);
+    }
   }
 }
 
@@ -245,6 +267,7 @@ export const startCheckout = action({
       cancel_url: `${siteUrl()}/pro?checkout=canceled`,
     });
     if (!session.url) throw new ConvexError("CHECKOUT_UNAVAILABLE");
+    await expireOlderCheckouts(stripe, customerId, session);
     return { url: session.url };
   },
 });
@@ -261,6 +284,15 @@ export const openBillingPortal = action({
     });
     if (!user?.stripeCustomerId) throw new ConvexError("NO_BILLING_ACCOUNT");
     const stripe = stripeClient();
+    // A customer deleted in the dashboard (with the webhook missed or late)
+    // would make the portal fail; drop the dead link instead, so the page
+    // stops offering "Manage billing" and Subscribe starts fresh.
+    if (!(await customerExists(stripe, user.stripeCustomerId))) {
+      await ctx.runMutation(internal.billing._forgetCustomer, {
+        stripeCustomerId: user.stripeCustomerId,
+      });
+      throw new ConvexError("NO_BILLING_ACCOUNT");
+    }
     const portal = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
       return_url: `${siteUrl()}/account`,
@@ -362,6 +394,20 @@ export const applySubscription = internalMutation({
       return { applied: false as const };
     }
 
+    // Two live subscriptions for one reader means they paid twice (two tabs
+    // completed at once, or one made in the dashboard). Say so loudly: the
+    // newer one should be cancelled and refunded in Stripe.
+    if (
+      grantsPro &&
+      user.stripeSubscriptionId !== undefined &&
+      user.stripeSubscriptionId !== args.stripeSubscriptionId &&
+      planForStatus(user.stripeSubscriptionStatus) === "pro"
+    ) {
+      console.error(
+        `DUPLICATE_SUBSCRIPTION user ${user._id}: ${args.stripeSubscriptionId} while ${user.stripeSubscriptionId} is still ${user.stripeSubscriptionStatus}. Cancel and refund one in Stripe.`,
+      );
+    }
+
     const notice = billingNotice(
       {
         plan: user.plan,
@@ -401,7 +447,10 @@ export const applySubscription = internalMutation({
 
     await ctx.db.patch(user._id, {
       plan: planForStatus(args.status),
-      stripeCustomerId: user.stripeCustomerId ?? args.stripeCustomerId,
+      // Link the customer only for a subscription that grants Pro. An ending
+      // subscription processed after `customer.deleted` (Stripe does not
+      // promise order) must not re-link the customer that event just dropped.
+      stripeCustomerId: user.stripeCustomerId ?? (grantsPro ? args.stripeCustomerId : undefined),
       stripeSubscriptionId: args.stripeSubscriptionId,
       stripeSubscriptionStatus: args.status,
       stripePriceId: args.priceId,

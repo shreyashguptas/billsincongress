@@ -312,7 +312,9 @@ function PlanCard({
       setError(
         code === "RATE_LIMITED"
           ? "Too many tries in a short time. Please wait a few minutes and try again."
-          : "Could not open billing. Please try again.",
+          : code === "NO_BILLING_ACCOUNT"
+            ? "There is no billing account to open any more. Subscribe again from the Pro page to start a new one."
+            : "Could not open billing. Please try again.",
       );
       setOpening(false);
     }
