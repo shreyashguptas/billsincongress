@@ -4,7 +4,7 @@ import {
   createRouteMatcher,
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
-import { isPubliclyCacheable } from "./lib/cacheable-routes";
+import { isPubliclyCacheable, setsOwnCacheControl } from "./lib/cacheable-routes";
 
 // Kept as "middleware.ts" (not Next.js 16's "proxy.ts") on purpose: proxy.ts is
 // locked to the Node.js runtime, which the Cloudflare/OpenNext adapter doesn't
@@ -76,7 +76,10 @@ export default convexAuthNextjsMiddleware(
     // deliberately. A page missing from the list is merely uncached, which is
     // today's behaviour; a personalised page wrongly matching a denylist gap
     // would be a correctness bug. New public routes must be added here.
-    if (isPubliclyCacheable(pathname)) {
+    //
+    // A route that sets its own Cache-Control (the share card) keeps it: a
+    // header set here would replace the route's.
+    if (isPubliclyCacheable(pathname) && !setsOwnCacheControl(pathname)) {
       const hasAuthCookie =
         request.cookies.has("__Host-__convexAuthJWT") ||
         request.cookies.has("__convexAuthJWT") ||

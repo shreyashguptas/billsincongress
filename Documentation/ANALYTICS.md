@@ -223,9 +223,17 @@ fires roughly once per settled search.
 | `bill_pdf_opened` | User clicks "Read full text (PDF)" | `bill_id` | `components/bills/bill-details.tsx` |
 | `bill_save_toggled` | Signed-in user saves or unsaves a bill on the detail page | `bill_id`, `action: "saved" \| "unsaved"`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/save-bill-button.tsx` |
 | `bill_save_signin_redirected` | Signed-out user clicked Save and was sent to sign-in (conversion moment) | `bill_id` | `components/bills/save-bill-button.tsx` |
+| `bill_share_clicked` | Reader pressed Share on a bill page (added 2026-09-25). One event per press, whatever came of it | `bill_id`, `method: "native" \| "copy"` (system share sheet on touch devices, clipboard elsewhere), `outcome: "shared" \| "cancelled" \| "copied" \| "failed"`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/share-bill-button.tsx` |
 | `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx`, now rendered only from `components/answers/answer-panel.tsx` |
 | `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx`, same render site |
 | `rate_limit_upgrade_clicked` | A signed-in free reader at the daily cap clicks "See Pro" in the rate-limit dialog | — | `components/bills/rate-limit-dialog.tsx`, same render site |
+
+> **Reading `bill_share_clicked`.** `outcome: "shared"` means the reader picked a
+> target in the share sheet; the browser never says which app, so nothing records where a
+> link went. `cancelled` is a reader who opened the sheet and closed it — a real signal
+> (they looked), not an error. There is no event for a shared link being *opened*: the
+> link is deliberately the bare canonical URL, with no tracking parameter, and messaging
+> apps send no referrer. Arrivals from shares show up only as direct traffic.
 
 > **Reading `has_summary`.** It means "Congress has published a CRS summary for
 > this bill" — nothing more. Since 18 Aug 2026 every bill page also renders an
@@ -333,6 +341,24 @@ property exists to settle, with data, which placements earn their spot.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `podcast_promo_clicked` | User clicks "Listen on Spotify" / "Listen on Apple Podcasts" in any podcast promo | `placement: "home" \| "learn" \| "bill"`, `platform: "spotify" \| "apple"`, `bill_id` (bill pages only) | `components/podcast-promo.tsx` (rendered by `components/dashboard/DashboardClient.tsx`, `app/learn/page.tsx`, `components/bills/bill-details.tsx`) |
+
+### Installed app (PWA)
+
+Added 2026-09-25 with the installable app (Documentation/overview.md, "The installed
+app"). The funnel is `app_install_clicked` → `app_installed`, and `display_mode` says how
+much of the site's use happens inside the installed app.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `app_install_clicked` | Reader pressed "Install the app" in the footer. On Chrome, Edge and Android it raises the browser's install prompt and fires after the reader answers; on iPhone and iPad it opens the Add to Home Screen instructions | `method: "browser_prompt" \| "ios_instructions"`; with `browser_prompt`, `outcome: "accepted" \| "dismissed"` | `components/pwa/install-app-button.tsx` |
+| `app_installed` | The browser reports the site was installed (`appinstalled`), from our button or the browser's own install UI. Chromium only — Safari sends no install signal, so iOS installs are never counted | — | `components/pwa/pwa-setup.tsx` |
+
+**Super property `display_mode`** (`"browser"` \| `"standalone"`), registered once per page
+load by `components/pwa/pwa-setup.tsx` via `analytics.registerDisplayMode()`, rides on
+every event after it. `standalone` means the site was opened from the Home Screen or dock,
+iOS included. Break any insight down by it to compare installed-app readers with browser
+readers. Events captured before the component mounts (the first `$pageview`) do not carry
+it.
 
 ### Server-side events
 

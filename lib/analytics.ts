@@ -32,6 +32,14 @@ const PENDING_GOOGLE_AUTH_KEY = 'ph_pending_google_auth';
  */
 export type FilterSurface = 'rail' | 'panel' | 'scope' | 'empty_state';
 
+/** How a bill's link left the page: the system share sheet, or the clipboard. */
+export type ShareMethod = 'native' | 'copy';
+/** `shared`/`cancelled` come from the share sheet, `copied`/`failed` from the clipboard. */
+export type ShareOutcome = 'shared' | 'cancelled' | 'copied' | 'failed';
+
+/** How the page is being shown: in the browser, or as the installed app. */
+export type DisplayMode = 'browser' | 'standalone';
+
 export type AuthIntent = 'sign_in' | 'sign_up';
 export type LimitKind = 'anonymous' | 'authed';
 
@@ -383,6 +391,50 @@ export const analytics = {
   /** Signed-out user clicked Save — the save-as-signup-driver conversion moment. */
   billSaveSigninRedirected: (billId: string) =>
     capture('bill_save_signin_redirected', { bill_id: billId }),
+
+  /**
+   * Reader pressed Share on a bill page. One event per press, whatever came of
+   * it: `outcome` says whether the link went out. A `cancelled` share sheet is
+   * a reader who looked and changed their mind, not an error.
+   */
+  billShareClicked: (props: {
+    bill_id: string;
+    method: ShareMethod;
+    outcome: ShareOutcome;
+    bill_type: string;
+    bill_number: string;
+    congress: number;
+    policy_area: string;
+    progress_stage: number | string;
+  }) => capture('bill_share_clicked', props),
+
+  // Installed app (PWA)
+
+  /**
+   * Tag every later event with how the site is being shown, so installed-app
+   * use can be told apart from the browser without an event of its own. A
+   * super property: it rides on every capture from this page load onwards.
+   */
+  registerDisplayMode(mode: DisplayMode) {
+    if (!ready()) return;
+    posthog.register({ display_mode: mode });
+  },
+
+  /**
+   * Reader pressed "Install the app" in the footer. `browser_prompt` is the
+   * browser's own install dialog (Chrome, Edge, Android), with the reader's
+   * answer; `ios_instructions` is the how-to dialog shown on iPhone and iPad,
+   * where Safari has no prompt to call.
+   */
+  appInstallClicked: (props:
+    | { method: 'browser_prompt'; outcome: 'accepted' | 'dismissed' }
+    | { method: 'ios_instructions' }) => capture('app_install_clicked', props),
+
+  /**
+   * The browser reports the site was installed (`appinstalled`), from our
+   * button or its own install UI. Chromium only: Safari sends no such signal.
+   */
+  appInstalled: () => capture('app_installed'),
 
   // Pro plan: bill alerts + higher question allowance
 

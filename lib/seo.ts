@@ -13,6 +13,32 @@ export const DEFAULT_OG_IMAGE = {
   alt: 'Bills in Congress — every bill in the U.S. Congress',
 };
 
+/** The link a reader shares for a bill: canonical, absolute, no query string. */
+export function billShareUrl(billId: string): string {
+  return `${SITE_URL}/bills/${encodeURIComponent(billId)}`;
+}
+
+/**
+ * Bump whenever the share card's design (lib/og/bill-share-card.tsx) changes.
+ * It rides in the image URL beside the stage, so a platform that caches images
+ * by URL — Facebook, LinkedIn, WhatsApp — fetches the new drawing rather than
+ * keeping the old one.
+ */
+export const SHARE_CARD_VERSION = 1;
+
+/** The share card's canvas: Open Graph's 1.91:1 at the width every platform expects. */
+export const SHARE_CARD_SIZE = { width: 1200, height: 630 } as const;
+
+/**
+ * The bill's share card (app/bills/[id]/share-image/route.tsx), versioned by
+ * stage. The card states the bill's status, and a status is exactly what goes
+ * stale: when the bill moves, its pages start naming a new image URL, so no
+ * platform keeps showing "In committee" under a law it cached a month ago.
+ */
+export function billShareImagePath(bill: Pick<Bill, 'id' | 'progress_stage'>): string {
+  return `/bills/${encodeURIComponent(bill.id)}/share-image?v=${SHARE_CARD_VERSION}.${bill.progress_stage}`;
+}
+
 /** Strip HTML tags/entities from CRS summary markup into plain text. */
 export function stripHtml(html: string): string {
   return html

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'September 24, 2026';
+const LAST_UPDATED = 'September 25, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -354,6 +354,12 @@ const cookies = [
   {
     name: 'Theme preference (local storage)',
     purpose: 'Remembers your light/dark mode choice. Never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
+    name: 'Offline page (service worker cache)',
+    purpose:
+      'A copy of the site’s one “You’re offline” page, shown if you open the site with no connection. Holds nothing about you and none of the pages you read.',
     lifespan: 'until cleared',
   },
 ];

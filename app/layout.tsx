@@ -9,6 +9,7 @@ import { AnswerProvider } from '@/components/answers/answer-provider';
 import { AnswerPanel } from '@/components/answers/answer-panel';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
+import { PwaSetup } from '@/components/pwa/pwa-setup';
 import { ConvexClientProvider } from '@/components/convex-client-provider';
 import { sharedViewport, sharedThemeColor } from './shared-metadata';
 import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
@@ -219,6 +220,7 @@ export default function RootLayout({
                 <AnswerPanel />
                 <WelcomeNewUser />
                 <PostHogAuthSync />
+                <PwaSetup />
               </AnswerProvider>
             </ThemeProvider>
           </ConvexClientProvider>

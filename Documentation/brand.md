@@ -234,6 +234,11 @@ Patterns that appear on more than one page:
   `display-md` beside a `StageTrack` with labels.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
+- **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the
+  "All bills" link at the top of the page, where a phone reader looks for it.
+  It never becomes icon-only. After a copy it reads "Link copied" with `Check`
+  for 2.5 seconds; a 9rem minimum width holds both labels, so the swap does
+  not resize the button.
 
 What stays hand-built, on purpose:
 
@@ -280,8 +285,9 @@ What stays hand-built, on purpose:
 - **Small sizes**: below 32px use the favicon cut, which keeps five seats, the
   well and the floor.
 - **Files**: `public/brand/`. `scripts/generate-icons.ts` builds every favicon
-  and app icon from them, and `scripts/generate-og-image.ts` builds the social
-  card.
+  and app icon from them, `scripts/generate-og-image.ts` builds the site's
+  generic social card, and each bill's share card draws the mark in code (see
+  Share card, below).
 - **Don't**: put it on a photograph, in a shield or badge, or beside a flag or
   eagle.
 
@@ -309,6 +315,49 @@ the wordmark and titles).
 - **Never**: images, tracking pixels, web fonts, or anything that breaks when
   remote content is blocked. A code stays one plain string, so it copies in
   one go.
+
+## Share card
+
+The picture a bill's link unfurls into in iMessage, WhatsApp, Slack, email and
+everywhere else that reads Open Graph (`lib/og/bill-share-card.tsx`, 1200×630).
+It is the bill page's header, reduced to what still reads at a thumbnail's
+size, roughly a quarter of the canvas on a phone.
+
+- **Day palette**, on `paper`, whatever the viewer's theme: a message thread
+  can be either, and paper reads as the record in both.
+- **The masthead**: the spectrum chamber mark at 52px (its one use on this
+  surface) and the wordmark in Newsreader 600; on the right the identifier in
+  mono ink and "· 119th Congress" in mono `ink-3`.
+- **The title** in Newsreader 500, as large as its length allows: 76px up to
+  42 characters, then 62, 50, and 44 for anything longer, which is cut at a
+  word to 150 characters and three lines. The policy area sits above it as an
+  eyebrow.
+- **The status panel**, the card's one bold element as it is the page's: the
+  stage glyph in a 60px circle of the stage colour, the stage in Newsreader,
+  "Stage n of 7" (or "Stopped at the President", or "Stage unknown") in mono,
+  and the seven-step track with "Introduced" and "Law" at its ends. Stage
+  colour is the only hue besides the mark. An unrecognised stage is `ink-3`,
+  never a neighbour's colour.
+- **The byline**: "By" and the sponsor, then party-state and the introduction
+  date in mono `ink-3`, and `billsincongress.com` on the right. No party colour:
+  the card is about the bill, not the party.
+- **Type** is the real brand faces, embedded (Newsreader 500 and 600, Geist
+  500, Geist Mono 500).
+
+The renderer takes inline styles only, so the colours are literal, the same
+values the emails use (`C`, `SPECTRUM` and `STAGE` in `convex/emailStyle.ts`),
+plus `ink-2` and `sunken` named in the card file. Change the card and bump
+`SHARE_CARD_VERSION` in `lib/seo.ts`, or platforms that cache by URL keep the
+old drawing.
+
+## Offline page
+
+`public/offline.html` is what the installed app shows when a page is opened
+with no connection. It must work with nothing else loaded, so it carries its
+own styles: the Day and Night tokens as literals under `prefers-color-scheme`,
+system faces (Iowan Old Style or Georgia for the serif), the ink chamber mark,
+one sentence and one ink "Try again" button. It reloads by itself when the
+connection returns.
 
 ## Pictures
 
@@ -364,8 +413,10 @@ This is the site's one moment of play. Nothing else gets confetti.
 ## Adding something new
 
 1. Build it from the components above and the tokens in `app/globals.css`.
-   A colour literal in a component is a bug. The only exceptions are the chart
-   components, which read the `--topic-*` and `--party-*` variables directly.
+   A colour literal in a component is a bug. The exceptions are the chart
+   components, which read the `--topic-*` and `--party-*` variables directly,
+   and the three surfaces that cannot read CSS variables at all: the emails,
+   the share card and the offline page, each described above.
 2. If it needs a colour that is not here, it is data (add a token and a row
    to "The data") or it is chrome (it is ink).
 3. Check it in Day, Night, at 390px and at 1440px before calling it done.

@@ -25,6 +25,7 @@ Figures were verified against production on **29 August 2026**.
 - [Accounts and auth](#accounts-and-auth)
 - [Email](#email)
 - [Pro: billing and bill alerts](#pro-billing-and-bill-alerts)
+- [Sharing and the installed app](#sharing-and-the-installed-app)
 - [Environment variables](#environment-variables)
 - [Build, test and deploy](#build-test-and-deploy)
 - [Hosting and Cloudflare constraints](#hosting-and-cloudflare-constraints)
@@ -85,6 +86,8 @@ app/                       Next.js App Router — 19 page.tsx files
   page.tsx                 Home dashboard (server) → components/dashboard/DashboardClient
   bills/                   Browser, bill detail, and the 40 hub pages
     [id]/page.tsx          One bill
+    [id]/share-image/      Its share card, drawn on request (next/og)
+    [id]/get-bill.ts       The bill lookup the page and the card share
     _hub/                  Hub view, directory and view-tracker (route-private)
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|in-committee|passed-one-chamber|introduced|vetoed/
@@ -107,18 +110,19 @@ components/                Shared React components
                            the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx)
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
-  bills/                   Card, details, save button
+  bills/                   Card, details, save, alert and share buttons
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
     home/                  The home page hero (the chamber) and its chart sections
   ui/                      shadcn/ui components, themed via CSS variables (Documentation/brand.md)
+  pwa/                     Installed app: service-worker registration, "Install the app"
   auth/ analytics/ legal/ seo/ theme/
   navigation.tsx footer.tsx podcast-promo.tsx
   convex-client-provider.tsx theme-provider.tsx
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 27 modules + 25 test files
+lib/                       Pure client/shared modules — 30 modules + 27 test files, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
@@ -127,6 +131,8 @@ lib/                       Pure client/shared modules — 27 modules + 25 test f
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
+  pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
+  og/                      The share card (bill-share-card.tsx, tested) and its embedded fonts (fonts.ts, generated)
   services/bills-service.ts  constants/  types/  utils/
 
 convex/                    Backend — 30 top-level modules + catalog/ + 9 test files
@@ -141,8 +147,8 @@ convex/                    Backend — 30 top-level modules + catalog/ + 9 test 
   billStage.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts                    Pure, unit-tested
 
-scripts/                   run-tests.ts, two CI guards, three AI probes, image tooling
-public/                    Icons, images, _headers, the IndexNow key file
+scripts/                   run-tests.ts, two CI guards, three AI probes, image and font tooling
+public/                    Icons, images, _headers, the IndexNow key file, sw.js + offline.html
 ```
 
 ---
@@ -165,7 +171,9 @@ public/                    Icons, images, _headers, the IndexNow key file
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
+| `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
 | `/robots.txt`, `/sitemap_index.xml`, `/sitemap/<n>.xml`, `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
+| `/sw.js`, `/offline.html` | The service worker and the one page it serves (static files) |
 
 **Sitemaps** are `/sitemap_index.xml` (a route handler) listing `/sitemap/0.xml` (static pages
 and hubs) plus one file per Congress from `app/sitemap.ts`, about 56,000 URLs. Both take their
@@ -198,6 +206,9 @@ visitor's page in a shared cache. Signed-out responses on `/`, `/about`, `/learn
 `/privacy`, `/pro`, `/terms` and anything under `/bills` get
 `public, max-age=0, s-maxage=300, stale-while-revalidate=86400`; any request carrying an
 auth cookie gets `private, no-store`. **New public routes must be added to that file.**
+A route that writes its own `Cache-Control` is listed in `setsOwnCacheControl` in the same
+file, and the middleware leaves it alone — its header would otherwise replace the route's.
+The share card is the one such route today.
 
 **Error boundaries.** `app/error.tsx` catches client render failures for a route segment;
 `app/global-error.tsx` catches failures in the root layout and renders its own
@@ -1118,6 +1129,105 @@ Stripe automatically.
 
 ---
 
+## Sharing and the installed app
+
+### The Share button
+
+Every bill page has a **Share** button opposite "All bills"
+(`components/bills/share-bill-button.tsx`). On a touch-first device with a system share sheet
+it opens that sheet (`navigator.share`: Messages, WhatsApp, Mail, AirDrop, Copy); everywhere
+else it copies the link and the button reads "Link copied" for a moment, announced to screen
+readers too. Desktop Safari and Chrome also implement `navigator.share`, but a desktop reader
+pressing Share expects a link on the clipboard, so the sheet is kept for `(pointer: coarse)`.
+Where the Clipboard API is missing or refuses, a hidden textarea and `execCommand('copy')` are
+tried before the button says "Copy failed".
+
+The link is always `billShareUrl()` in `lib/seo.ts` — the canonical
+`https://billsincongress.com/bills/<billId>` — never `location.href`, so a reader who arrived
+with a query string or a hash does not pass it on. In the installed app there is no address
+bar, so this button is the only way to get a bill's link out. Every press is recorded as
+`bill_share_clicked` with the method and whether the link went out; the share sheet does not
+tell a page which app was chosen, so nothing records where it went.
+
+### Link previews: the share card
+
+A link pasted into iMessage, WhatsApp, Slack, Discord, LinkedIn, X or an email client unfurls
+into the bill's own **share card**: the lockup, the identifier and Congress, the policy area,
+the title, the status panel (stage glyph, stage, "Stage n of 7", the seven-step track) and the
+sponsor and introduction date. It is drawn on request by
+`app/bills/[id]/share-image/route.tsx` from `lib/og/bill-share-card.tsx`, with `next/og`
+(satori and resvg), from the bill as it stands at that moment. The design rules are in
+`Documentation/brand.md`, "Share card".
+
+- **Tags.** `generateMetadata` in `app/bills/[id]/page.tsx` names the card for both
+  `openGraph.images` and `twitter.images`, with width, height, type and alt text. The page's
+  title and description tags were already specific to each bill. Messaging apps read these from
+  the `<head>`, which is why the bill page must not gain a Suspense boundary that streams
+  metadata into the body (the comment on the page records the other reasons).
+- **Freshness.** The card states a status, and a status is exactly what goes stale. Its URL
+  carries the stage and a design version, `?v=<SHARE_CARD_VERSION>.<stage>`
+  (`billShareImagePath` in `lib/seo.ts`), so when a bill moves its page names a new image URL
+  and no platform keeps an old stage it cached by URL. The query only busts caches: the route
+  ignores it. Bump `SHARE_CARD_VERSION` whenever the card's design changes.
+- **Caching.** The route sends `public, max-age=86400, s-maxage=86400,
+  stale-while-revalidate=604800`, replacing `next/og`'s default of a year and `immutable`.
+  The middleware leaves it alone (`setsOwnCacheControl`).
+- **Failures.** An unknown bill is a 404. A failed Convex lookup is a `307` to the site's
+  generic card, `/images/og-default.png`, sent `no-store`: a 404 there would be cached by
+  crawlers as "this link has no picture" for as long as they like. `lookupBill` in
+  `app/bills/[id]/get-bill.ts` keeps those two cases apart; the page treats both as a 404,
+  as before.
+- **Fonts.** A Worker has no filesystem to read a `.ttf` from, and fetching one from Google on
+  every render would put a third party in the path of every preview, so Newsreader (500, 600),
+  Geist 500 and Geist Mono 500 are embedded in `lib/og/fonts.ts` as base64 TTF, subset to
+  Latin-1 and common punctuation (~130 KB). `scripts/generate-og-fonts.ts` rebuilds that file
+  (manual, needs `pip install fonttools`). A character outside the subset falls back to
+  `next/og`'s bundled Geist Regular.
+- **Cost.** About 100 ms of CPU and 60–90 KB of PNG per render. `next/og` added ~0.86 MB
+  gzipped to the Worker (1.78 → 2.64 MB, measured with `wrangler deploy --dry-run` on
+  2026-09-25), mostly resvg's WebAssembly. OpenNext's build swaps in `next/og`'s edge
+  build for Workers (`patchVercelOgLibrary`); the route was checked in local `wrangler dev`
+  as well as `next start`.
+- **Other pages** still use the generic card from `app/layout.tsx` (`DEFAULT_OG_IMAGE`,
+  built by `scripts/generate-og-image.ts`).
+- **Tests.** `lib/og/bill-share-card.test.ts` checks the stage wording, the title cut, the
+  versioned URL, and renders a real PNG for every awkward case (vetoed, an unknown stage, no
+  sponsor, a 280-character title with characters outside the font subset).
+
+A preview that has already been sent is a picture in someone's conversation: it does not
+change when the bill moves. Only new shares, and platforms that re-read the page, see the new
+stage.
+
+### The installed app (PWA)
+
+The site installs to a phone's Home Screen or a computer's dock and opens full screen.
+
+- **Manifest** (`app/manifest.ts`): a fixed `id` so a later `start_url` change is not a new
+  app, `scope`, standalone display, paper and ink colours, the 192 and 512 icons listed once
+  as `any` and once as `maskable` (the app icon already keeps the chamber inside the maskable
+  safe zone), and three shortcuts on a long press: All bills, Bills that became law, Your
+  saved bills. iOS reads the name, the `apple-touch-icon` and `appleWebApp` from
+  `app/layout.tsx`.
+- **Service worker** (`public/sw.js`), registered in production only by
+  `components/pwa/pwa-setup.tsx`. It has one job: when a page is opened with no connection,
+  serve `public/offline.html` instead of the browser's error screen. It caches nothing else —
+  every page, chunk and API call goes to the network as if it were not there — so it cannot
+  hide a deploy behind a stale copy or fight skew protection. Navigation preload is on, so it
+  costs a navigation no time. `public/_headers` serves both files `no-cache`. If it ever
+  grows a page or asset cache, deploy skew (`deploymentId` in `next.config.mjs`) has to be
+  handled first. Bump `OFFLINE_CACHE` in it when `offline.html` changes.
+- **"Install the app"** in the footer (`components/pwa/install-app-button.tsx`) appears only
+  where it can act: on Chrome, Edge and Android once the browser has offered its install
+  prompt (held in `lib/pwa.ts`, without `preventDefault`, so the browser's own install UI is
+  unchanged), and on iPhone and iPad, where it opens a three-step "Add to Home Screen" dialog
+  because iOS has no prompt to call. It is hidden once the site runs as the app.
+- **Analytics.** Every event carries a `display_mode` super property (`browser` or
+  `standalone`), and installs are recorded as `app_install_clicked` and `app_installed`
+  (Chromium only; Safari sends no install signal).
+
+Not done: push notifications (bill alerts stay email), offline reading of bills, and store
+screenshots in the manifest.
+
 ## Environment variables
 
 ### Frontend / build-time
@@ -1369,6 +1479,11 @@ limits background timers.
 injects a `__name` helper into stringified inline scripts — such as next-themes' pre-paint
 theme script — producing `ReferenceError: __name is not defined` in the browser.
 
+**`next/og` works on Workers** because OpenNext's build replaces its Node build with the edge
+build and bundles the WebAssembly (`patchVercelOgLibrary` in `@opennextjs/cloudflare`). Fonts
+cannot be read from disk at request time, which is why the share card embeds its own
+(see [Link previews](#link-previews-the-share-card)).
+
 **`middleware.ts`, not `proxy.ts`.** Next 16's `proxy.ts` convention is locked to the Node.js
 runtime, which the Cloudflare/OpenNext adapter does not support; it requires Edge middleware.
 `convex/auth.ts` still contains a comment pointing at `proxy.ts` — that pointer is stale; the
@@ -1386,7 +1501,8 @@ inside browsers and is slow to undo.
 Convex deployment, Google OAuth endpoints and the analytics origin, and would break things if
 rolled in unattended. It is a separate exercise.
 
-`public/_headers` sets caching only, and reaches **only** Cloudflare's static-asset layer —
+`public/_headers` sets caching only (fingerprinted chunks for a year, `sw.js` and
+`offline.html` `no-cache`), and reaches **only** Cloudflare's static-asset layer —
 anything site-wide must be set in both that file and `next.config.mjs`.
 
 ---

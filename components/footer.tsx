@@ -3,6 +3,7 @@ import { Github } from 'lucide-react';
 import Link from 'next/link';
 import { hubsOfKind } from '@/lib/hubs';
 import { Logo } from '@/components/brand/logo';
+import { InstallAppButton } from '@/components/pwa/install-app-button';
 
 const linkClass = 'focus-ring rounded-sm text-sm text-ink-2 transition-colors hover:text-ink';
 
@@ -21,6 +22,8 @@ export function Footer() {
               An independent record of legislation in the United States Congress, sourced from the public
               Congress.gov API. Not affiliated with the U.S. government.
             </p>
+            {/* Renders only where installing is possible (see the component). */}
+            <InstallAppButton />
           </div>
 
           <div>

@@ -20,6 +20,7 @@ import { billAnswerParagraph, billNoun, billSummaryText } from '@/lib/seo';
 import { AskAboutBill } from './ask-about-bill';
 import SaveBillButton from './save-bill-button';
 import BillAlertButton from './bill-alert-button';
+import ShareBillButton from './share-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
 import {
   ArrowLeft,
@@ -153,6 +154,15 @@ export default function BillDetails({ bill }: BillDetailsProps) {
   const billLabel = `${bill.bill_type_label || bill.bill_type?.toUpperCase()} ${bill.bill_number}`;
   const longTitle = bill.title.length > LONG_TITLE_CHARS;
 
+  // The same five properties ride on every bill-page action event.
+  const actionAnalytics = {
+    bill_type: bill.bill_type,
+    bill_number: bill.bill_number,
+    congress: bill.congress,
+    policy_area: bill.bill_subjects?.policy_area_name ?? '',
+    progress_stage: progressStage,
+  };
+
   const hasBaseRate =
     bill.base_rate_percent !== undefined &&
     bill.base_rate_sample !== undefined &&
@@ -162,15 +172,26 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     <article className="animate-fade-in">
       {/* Article header */}
       <header className="container-editorial pt-6 sm:pt-8">
-        <Link
-          href="/bills"
-          className="focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink-2 transition-colors hover:text-ink"
-        >
-          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-          All bills
-        </Link>
+        {/* Share sits opposite the way back, where a phone reader looks for
+            it — and in the installed app, which has no address bar, it is the
+            only way to get this page's link. */}
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href="/bills"
+            className="focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink-2 transition-colors hover:text-ink"
+          >
+            <ArrowLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+            All bills
+          </Link>
+          <ShareBillButton
+            billId={String(bill.id)}
+            shareTitle={`${billLabel}: ${bill.title}`}
+            className="min-w-[9rem]"
+            analyticsProps={actionAnalytics}
+          />
+        </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-10">
+        <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-8">
           <span className="font-mono text-sm font-medium text-ink tabular">{billLabel}</span>
           <span className="font-mono text-sm text-ink-3 tabular">
             {formatCongressProse(bill.congress)}
@@ -231,24 +252,12 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             <SaveBillButton
               className="h-11 flex-1 sm:h-10 sm:flex-none"
               billId={String(bill.id)}
-              analyticsProps={{
-                bill_type: bill.bill_type,
-                bill_number: bill.bill_number,
-                congress: bill.congress,
-                policy_area: bill.bill_subjects?.policy_area_name ?? '',
-                progress_stage: progressStage,
-              }}
+              analyticsProps={actionAnalytics}
             />
             <BillAlertButton
               className="h-11 flex-1 sm:h-10 sm:flex-none"
               billId={String(bill.id)}
-              analyticsProps={{
-                bill_type: bill.bill_type,
-                bill_number: bill.bill_number,
-                congress: bill.congress,
-                policy_area: bill.bill_subjects?.policy_area_name ?? '',
-                progress_stage: progressStage,
-              }}
+              analyticsProps={actionAnalytics}
             />
           </div>
         </div>
