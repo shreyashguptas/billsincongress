@@ -19,6 +19,7 @@ import { shareCardFonts } from './card-parts';
 import {
   HubShareCard,
   ordinal,
+  rowLabel,
   statusHeadline,
   statusShareLine,
   topicRankLine,
@@ -88,10 +89,43 @@ async function main() {
     assert.ok(rows[5].isThis);
   });
 
-  await it('breaks a tie by name, so the rank does not change between renders', () => {
-    const tied = [{ name: 'Taxation', count: 10 }, { name: 'Health', count: 10 }];
-    assert.equal(topicRows('Health', tied).rank, 1);
-    assert.equal(topicRows('Health', [...tied].reverse()).rank, 1);
+  await it('gives tied topics the same rank instead of inventing an order', () => {
+    // Two topics with equal counts are tied, not 4th and 5th by alphabet.
+    const counts = [
+      { name: 'Health', count: 50 },
+      { name: 'Taxation', count: 40 },
+      { name: 'Animals', count: 30 },
+      { name: 'Education', count: 20 },
+      { name: 'Energy', count: 20 },
+      { name: 'Commerce', count: 10 },
+    ];
+    for (const topic of ['Education', 'Energy']) {
+      const { rank, tied } = topicRows(topic, counts);
+      assert.equal(rank, 4, topic);
+      assert.ok(tied, topic);
+      assert.equal(topicRankLine(rank, 20, tied), 'Tied for the 4th most of any topic');
+    }
+    // The next topic down is 6th, not 5th: two topics are above it at 4th.
+    assert.equal(topicRows('Commerce', counts).rank, 6);
+    assert.equal(topicRows('Commerce', counts).tied, false);
+    // Rows show the shared rank too, and their order is stable either way round.
+    const rows = topicRows('Health', [...counts].reverse()).rows;
+    assert.deepEqual(rows.map((r) => r.rank), [1, 2, 3, 4, 4, 6]);
+    assert.deepEqual(rows.map((r) => r.name), ['Health', 'Taxation', 'Animals', 'Education', 'Energy', 'Commerce']);
+  });
+
+  await it('labels a row outside the six with its rank, and a tie as a tie', () => {
+    const row = { name: 'Energy', count: 20, rank: 12, tied: false, colour: '#000', isThis: true };
+    assert.equal(rowLabel(row), '12th · Energy');
+    assert.equal(rowLabel({ ...row, tied: true }), 'Tied 12th · Energy');
+    assert.equal(rowLabel({ ...row, rank: 3 }), 'Energy');
+    // Two empty topics share last place; neither is given a place at all.
+    assert.equal(rowLabel({ ...row, count: 0, rank: 32, tied: true }), 'Energy');
+  });
+
+  await it('says a tie for first plainly', () => {
+    const { rank, tied } = topicRows('Health', [{ name: 'Health', count: 9 }, { name: 'Taxation', count: 9 }]);
+    assert.equal(topicRankLine(rank, 9, tied), 'Tied for the most of any topic');
   });
 
   await it('says a topic with no bills has none, rather than ranking it', () => {

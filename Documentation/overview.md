@@ -1216,8 +1216,8 @@ including why a card never repeats the title or number the app already prints un
   as well as `next start`.
 - **Tests.** `lib/og/bill-share-card.test.ts` checks the stage wording and sizing and the
   versioned URL, and renders a PNG for every awkward bill (vetoed, an unknown stage, no sponsor).
-  `lib/og/hub-share-card.test.ts` checks ordinals, ranking (by count, ties by name, a topic
-  outside the six), the share line, renders every card variant including the partial ones, and
+  `lib/og/hub-share-card.test.ts` checks ordinals, ranking (by count; tied topics share a
+  rank, never split by name into an order the data does not support; a topic outside the six), the share line, renders every card variant including the partial ones, and
   runs the loader against a stubbed service to prove a floor never reaches a card.
 
 A preview that has already been sent is a picture in someone's conversation: it does not

@@ -79,7 +79,10 @@ export function statusShareLine(count: number, total: number): string {
 export interface TopicRow {
   name: string;
   count: number;
+  /** Competition rank: 1 + the number of topics with more bills. Ties share it. */
   rank: number;
+  /** Another topic has the same count. */
+  tied: boolean;
   colour: string;
   isThis: boolean;
 }
@@ -93,31 +96,51 @@ export interface TopicRow {
  * Ranked here from complete counts rather than taken from stored order: the
  * nightly rollup writes the areas largest first, but daily updates patch counts
  * in place, so stored order can drift between rebuilds.
+ *
+ * A rank is a claim about order, so ties share one ("Tied for the 4th most")
+ * rather than being split by name into a 4th and a 5th the data does not
+ * support. Name only orders the rows on the card.
  */
 export function topicRows(
   topic: string,
   ranking: { name: string; count: number }[],
-): { rows: TopicRow[]; rank: number } {
+): { rows: TopicRow[]; rank: number; tied: boolean } {
   const sorted = [...ranking].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  const rank = sorted.findIndex((t) => t.name === topic) + 1;
+  const rankOf = (count: number) => 1 + sorted.filter((t) => t.count > count).length;
+  const position = sorted.findIndex((t) => t.name === topic);
+  const mine = sorted[position];
+  const rank = mine ? rankOf(mine.count) : 0;
+  const tied = mine ? sorted.some((t) => t.name !== topic && t.count === mine.count) : false;
   const toRow = (t: { name: string; count: number }, i: number): TopicRow => ({
     ...t,
-    rank: i + 1,
+    rank: rankOf(t.count),
+    tied: sorted.some((o) => o.name !== t.name && o.count === t.count),
     colour: i < TOPIC_COLOURS.length ? TOPIC_COLOURS[i] : C.muted,
     isThis: t.name === topic,
   });
   const rows =
-    rank === 0 || rank <= 6
+    position < 6
       ? sorted.slice(0, 6).map(toRow)
-      : [...sorted.slice(0, 5).map(toRow), toRow(sorted[rank - 1], rank - 1)];
-  return { rows, rank };
+      : [...sorted.slice(0, 5).map(toRow), toRow(mine, position)];
+  return { rows, rank, tied };
 }
 
-/** "The most of any topic", "The 5th most of any topic". */
-export function topicRankLine(rank: number, count: number): string | null {
+/**
+ * A row's name, with its rank when it sits outside the six ("12th · Energy",
+ * "Tied 12th · Energy"). A topic with no bills gets no rank: a place in a
+ * list of nothing says nothing.
+ */
+export function rowLabel(row: TopicRow): string {
+  if (row.rank <= 6 || row.count === 0) return row.name;
+  return `${row.tied ? 'Tied ' : ''}${ordinal(row.rank)} · ${row.name}`;
+}
+
+/** "The most of any topic", "The 5th most of any topic", "Tied for the 4th most of any topic". */
+export function topicRankLine(rank: number, count: number, tied = false): string | null {
   if (count === 0) return 'None yet this Congress';
   if (rank <= 0) return null;
-  return rank === 1 ? 'The most of any topic' : `The ${ordinal(rank)} most of any topic`;
+  const place = rank === 1 ? 'the most' : `the ${ordinal(rank)} most`;
+  return tied ? `Tied for ${place} of any topic` : `${place.charAt(0).toUpperCase()}${place.slice(1)} of any topic`;
 }
 
 /** Long policy-area names ("Civil Rights and Liberties, Minority Issues") step down. */
@@ -203,7 +226,7 @@ function TopicCard({
   ranking: { name: string; count: number }[] | null;
 }) {
   const ranked = ranking ? topicRows(topic, ranking) : null;
-  const rankLine = topicRankLine(ranked?.rank ?? 0, count);
+  const rankLine = topicRankLine(ranked?.rank ?? 0, count, ranked?.tied);
   const max = ranked ? Math.max(1, ...ranked.rows.map((r) => r.count)) : 1;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
@@ -225,8 +248,8 @@ function TopicCard({
         >
           {topic}
         </div>
-        <div style={{ fontFamily: 'Newsreader', fontWeight: 500, fontSize: 44, marginTop: 18 }}>
-          {`${formatCount(count)} ${count === 1 ? 'bill' : 'bills'}`}
+        <div style={{ fontFamily: 'Newsreader', fontWeight: 500, fontSize: 36, lineHeight: 1.15, marginTop: 18 }}>
+          {`${formatCount(count)} ${count === 1 ? 'bill or resolution' : 'bills and resolutions'}`}
         </div>
         {rankLine && <div style={{ fontSize: 26, color: INK_2, marginTop: 8 }}>{rankLine}</div>}
       </div>
@@ -243,7 +266,7 @@ function TopicCard({
                   color: row.isThis ? C.ink : C.muted,
                 }}
               >
-                <span>{row.rank > 6 ? `${ordinal(row.rank)} · ${row.name}` : row.name}</span>
+                <span>{rowLabel(row)}</span>
                 <span style={{ fontFamily: 'Geist Mono' }}>{formatCount(row.count)}</span>
               </div>
               <div style={{ display: 'flex', marginTop: 6, height: 16, width: '100%', borderRadius: 4, background: SUNKEN }}>
