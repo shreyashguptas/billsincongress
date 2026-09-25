@@ -89,9 +89,10 @@ app/                       Next.js App Router — 19 page.tsx files
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
-    components/            Route-private: the SVG pictures, the hemicycle maths, the state picker
+    components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
   about/ privacy/ terms/   Content and legal
-  account/                 The only signed-in page
+  pro/                     The Pro plan page, in pictures (server-rendered; the subscribe panel is the only client code)
+  account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
   sign-in/ sign-up/ forgot-password/
   api/                     answer/, bill-chat/send, bill-chat/usage
   robots.ts sitemap.ts sitemap_index.xml/ llms.txt/ manifest.ts
@@ -102,7 +103,10 @@ components/                Shared React components
   answers/                 The ask panel: provider, panel, thread, sources, work log, history;
                            hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
   brand/                   The design language in code (Documentation/brand.md): logo and
-                           chamber mark, stage pill and track, party tag, section header
+                           chamber mark, stage pill and track, party tag, section header,
+                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx)
+  pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
+                           (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
   bills/                   Card, details, save button
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
@@ -154,8 +158,8 @@ public/                    Icons, images, _headers, the IndexNow key file
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/enacted`, `/vetoed` | 5 stage hubs |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
-| `/pro` | The Pro plan: prices, what it adds, subscribe buttons (Stripe Checkout) |
-| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, "Manage billing" (Stripe portal) and followed bills |
+| `/pro` | The Pro plan in pictures: what it adds, the two prices, subscribe buttons (Stripe Checkout), the questions as picture cards |
+| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
@@ -934,6 +938,15 @@ nothing sends nothing.
 bar, so the card says "confirming" until the webhook lands — also for a returning subscriber whose
 old subscription had ended — and a reload or bookmark cannot repeat it. The page updates live when
 the plan is recorded.
+
+**The welcome.** The moment the page sees the plan turn Pro after that return (the moment
+`pro_activated` fires) it celebrates once: three seconds of confetti in the six topic colours
+(one canvas, no dependency, nothing under reduced motion) and a "Welcome to Pro" dialog with the
+reader's avatar in the Pro ring and two next steps, follow a bill or ask a question. Both files
+(`components/pro/welcome-to-pro.tsx`, `confetti.tsx`) are loaded only then. The success URL alone
+never celebrates, and because the parameter is gone from the address a reload does not either.
+From then on the Pro mark (brand.md, "Pro") shows the plan: the spectrum ring around the avatar in
+the header and on `/account`, and a Pro pill in the account menu.
 
 On a bill page the follow button reads **"Email me updates"**, **"Emailing you updates"** (Pro,
 following) or **"Updates paused"** (following, but Pro has ended; a click unfollows).

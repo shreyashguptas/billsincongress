@@ -431,6 +431,13 @@ export const analytics = {
   proActivated: (interval: 'month' | 'year' | 'unknown') =>
     capture('pro_activated', { interval }),
 
+  /**
+   * A reader pressed one of the next steps in the "Welcome to Pro" dialog the
+   * account page shows once, after a successful checkout turns the plan Pro.
+   */
+  proWelcomeStepClicked: (step: 'follow_bill' | 'ask') =>
+    capture('pro_welcome_step_clicked', { step }),
+
   /** Reader opened the Stripe billing portal (change card, switch, cancel). */
   billingPortalOpened: () => capture('billing_portal_opened'),
 

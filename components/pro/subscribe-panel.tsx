@@ -14,6 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useConvexEnabled } from '@/components/convex-client-provider';
 import { billingErrorCode, PRO_PRICE_USD, yearlySavingsMonths, type ProInterval } from '@/lib/pro';
 import { cn } from '@/lib/utils';
+import { ProPill, SpectrumStrip } from '@/components/brand/pro-mark';
+import { MonthDots } from '@/components/pro/pictures';
 
 const FAILURE_COPY: Record<string, string> = {
   ALREADY_PRO: 'You are already on Pro. If your account page does not show it yet, give it a minute.',
@@ -78,20 +80,21 @@ function SubscribePanelInner() {
 
   if (billing?.plan === 'pro') {
     return (
-      <div className="rounded-lg border border-line bg-raised p-6 sm:p-8">
-        <p className="flex items-center gap-2.5 font-serif text-display-sm font-medium text-ink">
-          {/* Pro's indigo, as in the plan emails (brand.md, "Email"). */}
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-topic-3" aria-hidden="true" />
-          You&apos;re on Pro.
-        </p>
-        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
-          Follow bills from any bill page with <span className="font-medium text-ink">Email me updates</span>.
-          Manage your plan and followed bills on{' '}
-          <Link href="/account" className="link focus-ring rounded-xs">
-            your account page
-          </Link>
-          .
-        </p>
+      <div className="overflow-hidden rounded-lg border border-line bg-raised">
+        {/* The Pro mark: the spectrum strip that opens the plan emails (brand.md, "Pro"). */}
+        <SpectrumStrip />
+        <div className="p-6 sm:p-8">
+          <ProPill />
+          <p className="mt-4 font-serif text-display-sm font-medium text-ink">You&apos;re on Pro.</p>
+          <p className="mt-2 text-[15px] leading-relaxed text-ink-2">
+            Follow bills from any bill page with <span className="font-medium text-ink">Email me updates</span>.
+            Manage your plan and followed bills on{' '}
+            <Link href="/account" className="link focus-ring rounded-xs">
+              your account page
+            </Link>
+            .
+          </p>
+        </div>
       </div>
     );
   }
@@ -129,7 +132,11 @@ function Notice({ children }: { children: ReactNode }) {
   return <p className="rounded-md bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">{children}</p>;
 }
 
-/** Monthly and yearly side by side. Yearly carries the page's one ink button. */
+/**
+ * Monthly and yearly side by side, as pictures: the price, and the year as
+ * twelve month dots (on yearly, the free months in Pro's indigo). Yearly
+ * carries the page's one ink button.
+ */
 function PlanCards({
   onChoose,
   busy,
@@ -137,41 +144,43 @@ function PlanCards({
   onChoose: ((interval: ProInterval) => void) | null;
   busy: ProInterval | null;
 }) {
-  const plans: Array<{ interval: ProInterval; price: string; per: string; note: string }> = [
-    { interval: 'month', price: `$${PRO_PRICE_USD.month}`, per: 'a month', note: 'Cancel any time.' },
-    {
-      interval: 'year',
-      price: `$${PRO_PRICE_USD.year}`,
-      per: 'a year',
-      note: `${yearlySavingsMonths()} months free compared with monthly.`,
-    },
+  const free = yearlySavingsMonths();
+  const plans: Array<{ interval: ProInterval; price: string; per: string; free: number }> = [
+    { interval: 'month', price: `$${PRO_PRICE_USD.month}`, per: 'a month', free: 0 },
+    { interval: 'year', price: `$${PRO_PRICE_USD.year}`, per: 'a year', free },
   ];
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      {plans.map((plan) => (
-        <div
-          key={plan.interval}
-          className={cn(
-            'flex flex-col rounded-lg border bg-raised p-6',
-            plan.interval === 'year' ? 'border-ink' : 'border-line',
-          )}
-        >
-          <p className="label-eyebrow">{plan.interval === 'year' ? 'Yearly' : 'Monthly'}</p>
-          <p className="mt-4 flex items-baseline gap-2">
-            <span className="font-serif text-display-lg font-medium text-ink tabular">{plan.price}</span>
-            <span className="text-[15px] text-ink-2">{plan.per}</span>
-          </p>
-          <p className="mt-2 flex-1 text-[15px] leading-relaxed text-ink-2 tabular">{plan.note}</p>
-          <Button
-            className="mt-6 w-full"
-            variant={plan.interval === 'year' ? 'default' : 'outline'}
-            disabled={onChoose === null || busy !== null}
-            onClick={() => onChoose?.(plan.interval)}
+      {plans.map((plan) => {
+        const yearly = plan.interval === 'year';
+        return (
+          <div
+            key={plan.interval}
+            className={cn('flex flex-col rounded-lg border bg-raised p-6', yearly ? 'border-ink' : 'border-line')}
           >
-            {busy === plan.interval ? 'Opening checkout…' : `Subscribe ${plan.interval === 'year' ? 'yearly' : 'monthly'}`}
-          </Button>
-        </div>
-      ))}
+            <div className="flex items-center justify-between gap-3">
+              <p className="label-eyebrow">{yearly ? 'Yearly' : 'Monthly'}</p>
+              {yearly && <ProPill className="tabular">{plan.free} months free</ProPill>}
+            </div>
+            <p className="mt-4 flex items-baseline gap-2">
+              <span className="font-serif text-display-lg font-medium text-ink tabular">{plan.price}</span>
+              <span className="text-[15px] text-ink-2">{plan.per}</span>
+            </p>
+            <MonthDots free={plan.free} className="mt-5" />
+            <p className="mt-3 flex-1 text-[13px] leading-relaxed text-ink-3 tabular">
+              {yearly ? `Pay for ${12 - plan.free} months, get 12.` : 'Cancel any time.'}
+            </p>
+            <Button
+              className="mt-6 w-full"
+              variant={yearly ? 'default' : 'outline'}
+              disabled={onChoose === null || busy !== null}
+              onClick={() => onChoose?.(plan.interval)}
+            >
+              {busy === plan.interval ? 'Opening checkout…' : `Subscribe ${yearly ? 'yearly' : 'monthly'}`}
+            </Button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -184,7 +193,8 @@ export function PlanCardsSkeleton() {
         <div key={i} className="rounded-lg border border-line bg-raised p-6">
           <Skeleton className="h-4 w-16 rounded-xs" />
           <Skeleton className="mt-4 h-12 w-32 rounded-xs" />
-          <Skeleton className="mt-3 h-4 w-3/4 rounded-xs" />
+          <Skeleton className="mt-5 h-6 w-full rounded-xs" />
+          <Skeleton className="mt-3 h-4 w-1/2 rounded-xs" />
           <Skeleton className="mt-9 h-10 w-full" />
         </div>
       ))}

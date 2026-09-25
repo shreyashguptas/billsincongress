@@ -20,17 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConvexEnabled } from "@/components/convex-client-provider";
-
-function initialsFor(nameOrEmail: string | undefined | null): string {
-  if (!nameOrEmail) return "·";
-  const trimmed = nameOrEmail.trim();
-  const atIdx = trimmed.indexOf("@");
-  const base = atIdx > 0 ? trimmed.slice(0, atIdx) : trimmed;
-  const parts = base.split(/[\s._-]+/).filter(Boolean);
-  if (parts.length === 0) return "·";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+import { AvatarMark, initialsFor, ProPill } from "@/components/brand/pro-mark";
 
 export function UserMenu() {
   const enabled = useConvexEnabled();
@@ -76,6 +66,7 @@ function UserMenuInner() {
   const displayName = user?.name ?? user?.email ?? "Account";
   const initials = initialsFor(user?.name ?? user?.email);
   const verified = Boolean(user?.emailVerificationTime);
+  const isPro = user?.plan === "pro";
 
   async function onSignOut() {
     // Capture + reset PostHog identity before the auth state changes.
@@ -88,15 +79,16 @@ function UserMenuInner() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {/* The initials avatar: an outline icon Button in a 36px circle. */}
+        {/* The initials avatar, 36px. On Pro it wears the spectrum ring, the
+            Pro mark (Documentation/brand.md, "Pro"); the label says so too. */}
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
-          aria-label="Account menu"
-          className="h-9 w-9 rounded-full border-line-strong bg-sunken font-mono text-xs uppercase hover:border-ink hover:bg-sunken touchable:h-9 touchable:w-9"
+          aria-label={isPro ? "Account menu, Pro plan" : "Account menu"}
+          className="group h-9 w-9 rounded-full p-0 hover:bg-transparent touchable:h-9 touchable:w-9"
         >
-          {initials}
+          <AvatarMark initials={initials} pro={isPro} size="sm" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
@@ -106,9 +98,9 @@ function UserMenuInner() {
             {user?.email && user.email !== displayName && (
               <p className="truncate font-mono text-xs text-ink-3">{user.email}</p>
             )}
-            <p className="text-xs text-ink-3">
-              {user?.plan === "pro" ? "Pro plan" : "Free plan"}
-              {!verified && " · email unverified"}
+            <p className="flex items-center gap-2 pt-1 text-xs text-ink-3">
+              {isPro ? <ProPill /> : <span>Free plan</span>}
+              {!verified && <span>email unverified</span>}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -118,7 +110,7 @@ function UserMenuInner() {
             <UserIcon className="mr-2 h-4 w-4" strokeWidth={1.75} aria-hidden="true" /> Account
           </Link>
         </DropdownMenuItem>
-        {user?.plan !== "pro" && (
+        {!isPro && (
           <DropdownMenuItem asChild>
             <Link href="/pro" className="cursor-pointer">
               <Bell className="mr-2 h-4 w-4" /> Get bill alerts (Pro)

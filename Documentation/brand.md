@@ -220,6 +220,8 @@ These live in `components/brand/` and compose the primitives above.
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
+| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's initials in a circle, and the Pro mark. See Pro, below |
+| `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
 
 Patterns that appear on more than one page:
 
@@ -307,6 +309,49 @@ the wordmark and titles).
 - **Never**: images, tracking pixels, web fonts, or anything that breaks when
   remote content is blocked. A code stays one plain string, so it copies in
   one go.
+
+## Pictures
+
+The Learn and Pro pages explain with pictures first and a few words after. The
+pictures are flat SVG scenes drawn on the server (no client JavaScript), built
+from the primitives in `components/brand/pictures.tsx`: people, a page of
+writing, an arrow, the alert email as an envelope, a seven-step track.
+
+- Ink on paper, like the chrome. One colour per scene, and it means something:
+  a stage in its stage colour, the alert email signed by the spectrum strip, or
+  Pro's indigo (`topic-3`) for what Pro adds.
+- A big number beside a picture is Newsreader, with lining figures; the unit
+  sits beside it in `title`.
+- Small diagrams (a two-step path, "card → Stripe") are Lucide icons in 44px
+  `sunken` circles joined by `ink-3` arrows; the step that matters is filled ink.
+- Every picture has a text alternative (`role="img"` and an `aria-label`) that
+  says what it shows, figures included.
+
+## Pro
+
+A reader on Pro is shown so in one consistent way, the **Pro mark**:
+
+- **The spectrum ring**: the six topic colours as a ring around the reader's
+  initials, then a paper gap, then the circle (`AvatarMark pro`). It appears on
+  the header's account button (36px overall, focus ring outside it), on the
+  account page's "you" card, and in the Welcome to Pro dialog. Free readers get
+  the plain circle with a `line-strong` edge.
+- **The strip**: the same six colours as a band along the top of the Pro plan
+  card, as they open every email. Only while the plan is healthy: a payment
+  problem drops it.
+- **The pill**: `ProPill`, an outline badge with Pro's indigo dot and a word,
+  in the account menu and beside the plan. The colour is never the only signal.
+
+The ring and the strip are the only decorative uses of the spectrum on the site
+besides the logo's spectrum mark and the email signature. They mean "this
+reader pays for the site", so they never appear for anything else.
+
+**The welcome** happens once, when a checkout has just turned the plan Pro:
+three seconds of confetti in the six topic colours (rectangles, dots and
+chamber-seat half-rounds, from one canvas, never taking a click) and a dialog
+with the ringed avatar and two next steps. Under `prefers-reduced-motion` there
+is no confetti; the dialog's still ring of spectrum rays is the celebration.
+This is the site's one moment of play. Nothing else gets confetti.
 
 ## Accessibility
 

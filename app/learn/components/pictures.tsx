@@ -1,69 +1,12 @@
-import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { Arrow, Floor, Paper, Person, Scene } from '@/components/brand/pictures';
 import { buildHemicycle } from './hemicycle';
 
 // The Learn page's pictures: small flat scenes drawn in SVG on the server, so
 // they cost no client JavaScript. Everything is ink except the one stage colour
 // each step of a bill's path is shown in (Documentation/brand.md, "The data").
-// Every scene is 240 x 150 and carries its own text alternative.
-
-function Scene({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <svg
-      viewBox="0 0 240 150"
-      role="img"
-      aria-label={label}
-      className="h-auto w-full"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {children}
-    </svg>
-  );
-}
-
-/** A standing figure: a head over rounded shoulders, feet at y + 16·s. */
-function Person({ x, y, s = 1, className = 'fill-ink' }: { x: number; y: number; s?: number; className?: string }) {
-  return (
-    <g className={className}>
-      <circle cx={x} cy={y - 15 * s} r={8 * s} />
-      <path d={`M${x - 13 * s} ${y + 16 * s}v${-8 * s}a${13 * s} ${13 * s} 0 0 1 ${26 * s} 0v${8 * s}z`} />
-    </g>
-  );
-}
-
-/** A page of writing: a raised sheet, a title bar in `accent`, grey lines. */
-function Paper({ x, y, w, h, accent, lines = Math.max(2, Math.floor((h - 34) / 12)) }: { x: number; y: number; w: number; h: number; accent: string; lines?: number }) {
-  return (
-    <g>
-      <rect x={x} y={y} width={w} height={h} rx={4} className="fill-raised stroke-ink" strokeWidth={2} />
-      <rect x={x + 10} y={y + 12} width={w * 0.5} height={6} rx={3} className={accent} />
-      {Array.from({ length: lines }, (_, i) => (
-        <rect
-          key={i}
-          x={x + 10}
-          y={y + 28 + i * 12}
-          width={(w - 20) * (i === lines - 1 ? 0.6 : 1)}
-          height={4}
-          rx={2}
-          className="fill-ink/25"
-        />
-      ))}
-    </g>
-  );
-}
-
-function Arrow({ from, to, y }: { from: number; to: number; y: number }) {
-  return (
-    <path
-      d={`M${from} ${y}H${to}M${to - 9} ${y - 8}L${to} ${y}L${to - 9} ${y + 8}`}
-      className="fill-none stroke-ink-3"
-      strokeWidth={3}
-    />
-  );
-}
-
-const Floor = () => <rect x={16} y={134} width={208} height={3} rx={1.5} className="fill-ink/20" />;
+// Every scene is 240 x 150 and carries its own text alternative. The shared
+// primitives (Scene, Person, Paper…) live in components/brand/pictures.tsx.
 
 /** 1 — People vote: four voters around a ballot box, one ballot going in. */
 export function VotePicture() {

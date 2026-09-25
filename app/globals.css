@@ -223,6 +223,33 @@
   .stage {
     @apply bg-paper text-ink;
   }
+
+  /* The Pro mark (brand.md, "Pro"): the six topic colours as a ring around a
+     Pro reader's avatar, and as a strip along the top of their plan card.
+     The only decorative uses of the spectrum besides the logo and the email
+     signature. Hard stops, so each colour reads as its own band. */
+  .spectrum-ring {
+    background: conic-gradient(
+      from -30deg,
+      var(--topic-1) 0deg 60deg,
+      var(--topic-2) 60deg 120deg,
+      var(--topic-3) 120deg 180deg,
+      var(--topic-4) 180deg 240deg,
+      var(--topic-5) 240deg 300deg,
+      var(--topic-6) 300deg 360deg
+    );
+  }
+  .spectrum-strip {
+    background: linear-gradient(
+      90deg,
+      var(--topic-1) 0 16.667%,
+      var(--topic-2) 16.667% 33.333%,
+      var(--topic-3) 33.333% 50%,
+      var(--topic-4) 50% 66.667%,
+      var(--topic-5) 66.667% 83.333%,
+      var(--topic-6) 83.333% 100%
+    );
+  }
 }
 
 @keyframes fade-in {
