@@ -111,3 +111,60 @@ export function subscriptionUpdate(sub: StripeSubscriptionLike, appTag: string) 
     cancelAtPeriodEnd: sub.cancel_at_period_end || sub.cancel_at !== null,
   };
 }
+
+/** What a subscription looked like before and after one webhook applied it. */
+export interface BillingState {
+  plan?: Plan;
+  status?: SubscriptionStatus;
+  cancelAtPeriodEnd?: boolean;
+  subscriptionId?: string;
+}
+
+export type BillingNotice =
+  /** Pro just started. `returning` when the reader had an earlier subscription. */
+  | { kind: "welcome"; returning: boolean }
+  /** The reader cancelled; Pro runs to the end of the paid period. */
+  | { kind: "cancel_scheduled" }
+  /** The reader undid a scheduled cancellation. */
+  | { kind: "cancel_withdrawn" }
+  /** A renewal failed; Stripe is retrying and the reader keeps Pro meanwhile. */
+  | { kind: "payment_failed" }
+  /** Pro is over. */
+  | { kind: "ended"; reason: "canceled" | "payment_failed" | "paused" };
+
+/**
+ * Which email, if any, a change in a reader's subscription deserves. Computed
+ * from the stored row before and after `applySubscription`, so a redelivered
+ * or out-of-order webhook that changes nothing sends nothing, and each real
+ * change is announced once.
+ *
+ * Receipts, refunds and card-expiry notices are Stripe's to send (turned on in
+ * its dashboard); these are the plan changes Stripe does not announce.
+ */
+export function billingNotice(before: BillingState, after: BillingState): BillingNotice | null {
+  const wasPro = before.plan === "pro";
+  const isPro = planForStatus(after.status) === "pro";
+
+  if (!wasPro && isPro) {
+    return {
+      kind: "welcome",
+      returning:
+        before.subscriptionId !== undefined && before.subscriptionId !== after.subscriptionId,
+    };
+  }
+  if (wasPro && !isPro) {
+    if (after.status === "paused") return { kind: "ended", reason: "paused" };
+    if (after.status === "unpaid" || before.status === "past_due") {
+      return { kind: "ended", reason: "payment_failed" };
+    }
+    return { kind: "ended", reason: "canceled" };
+  }
+  if (wasPro && isPro) {
+    if (after.status === "past_due" && before.status !== "past_due") return { kind: "payment_failed" };
+    if (after.cancelAtPeriodEnd && !before.cancelAtPeriodEnd) return { kind: "cancel_scheduled" };
+    if (!after.cancelAtPeriodEnd && before.cancelAtPeriodEnd) return { kind: "cancel_withdrawn" };
+  }
+  // A first payment that never went through (incomplete → incomplete_expired)
+  // happened in front of the reader on Stripe's page; no email.
+  return null;
+}

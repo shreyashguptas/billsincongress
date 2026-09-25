@@ -422,7 +422,7 @@ describe("checkout", () => {
   const list = (data: object[]) => ({ object: "list", data, has_more: false, url: "/v1/x" });
 
   /** A fake Stripe that records every request and answers from `subs`/`open`. */
-  function fakeStripe(state: { subs: object[]; open: object[] }) {
+  function fakeStripe(state: { subs: object[]; open: object[]; missingCustomers?: string[] }) {
     const calls: Array<{ method: string; path: string }> = [];
     vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
@@ -430,6 +430,17 @@ describe("checkout", () => {
       calls.push({ method, path: url.pathname });
       const json = (body: object) =>
         new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      if (url.pathname.startsWith("/v1/customers/") && method === "GET") {
+        const id = url.pathname.split("/")[3];
+        if (state.missingCustomers?.includes(id)) {
+          return new Response(
+            JSON.stringify({ error: { type: "invalid_request_error", code: "resource_missing", message: `No such customer: '${id}'` } }),
+            { status: 404, headers: { "content-type": "application/json" } },
+          );
+        }
+        return json({ id, object: "customer" });
+      }
+      if (url.pathname === "/v1/customers" && method === "POST") return json({ id: "cus_fresh", object: "customer" });
       if (url.pathname === "/v1/subscriptions") return json(list(state.subs));
       if (url.pathname === "/v1/checkout/sessions" && method === "GET") return json(list(state.open));
       if (url.pathname.endsWith("/expire")) return json({ id: url.pathname.split("/")[4], object: "checkout.session", status: "expired" });
@@ -469,6 +480,30 @@ describe("checkout", () => {
     await expect(
       asUser(t, userId).action(api.billing.startCheckout, { interval: "month" }),
     ).rejects.toThrow(/SUBSCRIPTION_NEEDS_ATTENTION/);
+  });
+
+  test("a stored customer that no longer exists in Stripe is replaced, not a dead end", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await t.run((ctx) => ctx.db.patch(userId, { stripeCustomerId: "cus_gone" }));
+    const calls = fakeStripe({ subs: [], open: [], missingCustomers: ["cus_gone"] });
+    const { url } = await asUser(t, userId).action(api.billing.startCheckout, { interval: "month" });
+    expect(url).toBe("https://checkout.stripe.test/cs_new");
+    expect(calls.some((c) => c.method === "POST" && c.path === "/v1/customers")).toBe(true);
+    const user = await t.run((ctx) => ctx.db.get(userId));
+    expect(user?.stripeCustomerId).toBe("cus_fresh");
+  });
+
+  test("a script cannot hammer Stripe through one account", async () => {
+    const t = setup();
+    const userId = await freeReaderWithCustomer(t);
+    fakeStripe({ subs: [], open: [] });
+    for (let i = 0; i < 20; i++) {
+      await asUser(t, userId).action(api.billing.startCheckout, { interval: "month" });
+    }
+    await expect(
+      asUser(t, userId).action(api.billing.startCheckout, { interval: "month" }),
+    ).rejects.toThrow(/RateLimited|rate/i);
   });
 
   test("two tabs: the older open Checkout is expired so only one can be paid; other products are untouched", async () => {
@@ -595,5 +630,115 @@ describe("Stripe webhook", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ignored: "invoice.paid" });
+  });
+
+  test("a customer deleted in the dashboard is unlinked; another product's customer is not", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await t.run((ctx) => ctx.db.patch(userId, { stripeCustomerId: "cus_ours" }));
+    const other = await seed(t, { plan: "free", email: "other@example.com" });
+    await t.run((ctx) => ctx.db.patch(other, { stripeCustomerId: "cus_theirs" }));
+
+    const ours = await deliver(t, {
+      id: "evt_del_1",
+      object: "event",
+      type: "customer.deleted",
+      data: { object: { id: "cus_ours", object: "customer", metadata: { app: "billsincongress", userId } } },
+    });
+    expect(ours.status).toBe(200);
+    const theirs = await deliver(t, {
+      id: "evt_del_2",
+      object: "event",
+      type: "customer.deleted",
+      data: { object: { id: "cus_theirs", object: "customer", metadata: { app: "something-else" } } },
+    });
+    expect(theirs.status).toBe(200);
+    const [a, b] = await t.run(async (ctx) => [await ctx.db.get(userId), await ctx.db.get(other)]);
+    expect(a?.stripeCustomerId).toBeUndefined();
+    expect(b?.stripeCustomerId).toBe("cus_theirs");
+  });
+});
+
+describe("plan-change emails", () => {
+  const ENV = {
+    POSTHOG_EMAIL_BILLING_WEBHOOK_URL: "https://webhooks.posthog.test/billing",
+    POSTHOG_EMAIL_WEBHOOK_SECRET: "test-webhook-secret",
+  };
+  let sent: Array<{ url: string; subject: string; to: string }> = [];
+  beforeEach(() => {
+    Object.assign(process.env, ENV);
+    vi.useFakeTimers();
+    sent = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      sent.push({ url, subject: body.subject, to: body.to });
+      return new Response('{"status":"ok"}', { status: 200 });
+    });
+  });
+  afterEach(() => {
+    for (const k of Object.keys(ENV)) delete process.env[k];
+    vi.useRealTimers();
+  });
+
+  test("starting Pro sends one welcome; a redelivered event sends nothing more", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await makePro(t, userId);
+    await makePro(t, userId); // the same state again, as a redelivery would apply it
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ url: ENV.POSTHOG_EMAIL_BILLING_WEBHOOK_URL, subject: "Welcome to Bills.Congress Pro", to: "reader@example.com" });
+  });
+
+  test("cancel, then the period ends, then resubscribe: three emails, in order", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await makePro(t, userId);
+    const apply = (over: object) =>
+      t.mutation(internal.billing.applySubscription, {
+        userId,
+        stripeCustomerId: "cus_1",
+        stripeSubscriptionId: "sub_1",
+        status: "active",
+        priceId: "price_monthly",
+        currentPeriodEnd: 1_800_000_000,
+        cancelAtPeriodEnd: false,
+        ...over,
+      });
+    await apply({ cancelAtPeriodEnd: true });
+    await apply({ status: "canceled", cancelAtPeriodEnd: true });
+    await apply({ stripeSubscriptionId: "sub_2" });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(sent.map((m) => m.subject)).toEqual([
+      "Welcome to Bills.Congress Pro",
+      "Your Pro plan ends on January 15, 2027",
+      "Your Pro plan has ended",
+      "Welcome back to Bills.Congress Pro",
+    ]);
+  });
+
+  test("a failed renewal is announced once; running out of retries ends Pro with that reason", async () => {
+    const t = setup();
+    const userId = await seed(t, { plan: "free" });
+    await makePro(t, userId);
+    const apply = (status: "past_due" | "canceled") =>
+      t.mutation(internal.billing.applySubscription, {
+        userId,
+        stripeCustomerId: "cus_1",
+        stripeSubscriptionId: "sub_1",
+        status,
+        priceId: "price_monthly",
+        currentPeriodEnd: 1_800_000_000,
+        cancelAtPeriodEnd: false,
+      });
+    await apply("past_due");
+    await apply("past_due"); // Stripe retries: no second email
+    await apply("canceled");
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(sent.map((m) => m.subject)).toEqual([
+      "Welcome to Bills.Congress Pro",
+      "Your Pro payment didn't go through",
+      "Your Pro plan has ended: payment didn't go through",
+    ]);
   });
 });

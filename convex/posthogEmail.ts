@@ -24,9 +24,12 @@
  *            List-Unsubscribe header mail clients show as a button, and skips
  *            anyone who used it. Our own unsubscribe link stays in the footer.
  *            Tracking off.
+ *   billing — Pro plan changes (started, cancelling, payment failed, ended),
+ *            workflow "Bills.Congress: billing". Transactional, tracking off:
+ *            a reader who opted out of alerts still hears their plan changed.
  */
 
-export type EmailStream = "codes" | "alerts";
+export type EmailStream = "codes" | "alerts" | "billing";
 
 export interface OutgoingEmail {
   to: string;
@@ -59,6 +62,7 @@ export const EMAIL_EVENT = "bic_email_requested";
 const WEBHOOK_ENV: Record<EmailStream, string> = {
   codes: "POSTHOG_EMAIL_CODES_WEBHOOK_URL",
   alerts: "POSTHOG_EMAIL_ALERTS_WEBHOOK_URL",
+  billing: "POSTHOG_EMAIL_BILLING_WEBHOOK_URL",
 };
 
 /** Why a send failed, and whether trying again could help. */

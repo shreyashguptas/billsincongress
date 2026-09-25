@@ -6,7 +6,7 @@
  * Daily run (convex/crons.ts, after the overnight sync has landed):
  *   runDigests pages through billAlerts by user and schedules one
  *   sendDigestForUser per reader. That mutation reads the reader's bills,
- *   schedules at most one email (email.deliverAlert, which hands it to
+ *   schedules at most one email (email.deliver, which hands it to
  *   PostHog), and advances the watermarks in the SAME transaction — so a bill
  *   is never reported twice, and never marked reported without the email
  *   having been scheduled.
@@ -346,7 +346,8 @@ export const sendDigestForUser = internalMutation({
 
     // PostHog adds the one-click List-Unsubscribe header itself (the alerts
     // workflow sends as a "marketing" category); the footer link is ours.
-    await ctx.scheduler.runAfter(0, internal.email.deliverAlert, {
+    await ctx.scheduler.runAfter(0, internal.email.deliver, {
+      stream: "alerts",
       to: user.email,
       subject: email.subject,
       html: email.bodyHtml,

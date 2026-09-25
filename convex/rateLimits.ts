@@ -54,6 +54,15 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 5,
     period: HOUR,
   },
+  // Opening Stripe Checkout or the billing portal, per signed-in reader. Each
+  // call makes several Stripe API requests; a reader needs a handful an hour at
+  // most, and this stops a script from spending the account's Stripe rate
+  // limit (shared with the webhook re-reads) through one account.
+  billingActionPerUser: {
+    kind: "fixed window",
+    rate: 20,
+    period: HOUR,
+  },
 });
 
 // Read-only chat quota status — never consumes a token. The UI calls it after

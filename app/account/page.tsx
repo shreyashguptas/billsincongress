@@ -8,6 +8,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
+import { planCardView } from "@/lib/pro";
 import { formatCongressProse } from "@/lib/congress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -262,11 +263,18 @@ function AccountInner() {
 
 type BillingStatus = NonNullable<ReturnType<typeof useQuery<typeof api.billing.status>>>;
 
+/**
+ * Billing dates in US Eastern time, like the site's other clocks ("resets at
+ * midnight Eastern") and the plan-change emails (convex/billingEmail.ts), so a
+ * reader never sees one date here and another in their inbox. Stripe's own
+ * pages follow the Stripe account's timezone, which should be set to Eastern.
+ */
 function formatDay(unixSeconds: number): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: "America/New_York",
   }).format(new Date(unixSeconds * 1000));
 }
 
@@ -295,6 +303,18 @@ function PlanCard({
     }
   };
 
+  // After a minute back from Checkout with no plan yet, say so plainly.
+  const [waitedLong, setWaitedLong] = React.useState(false);
+  React.useEffect(() => {
+    if (!checkoutSucceeded || isPro) return;
+    const timer = setTimeout(() => setWaitedLong(true), 60_000);
+    return () => clearTimeout(timer);
+  }, [checkoutSucceeded, isPro]);
+
+  const view = billing
+    ? planCardView(billing, { checkoutReturned: checkoutSucceeded, waitedLong, formatDate: formatDay })
+    : null;
+
   return (
     <Card>
       <CardHeader>
@@ -304,47 +324,30 @@ function PlanCard({
         <div>
           <p className="text-muted-foreground text-xs uppercase tracking-wider">Current plan</p>
           <p className="text-xl font-serif">
-            {billing === undefined ? "…" : isPro ? "Pro" : "Free"}
-            {isPro && billing?.interval && (
-              <span className="ml-2 text-sm font-sans text-muted-foreground">
-                {billing.interval === "year" ? "yearly" : "monthly"}
-              </span>
+            {view ? view.label : "…"}
+            {view?.cadence && (
+              <span className="ml-2 text-sm font-sans text-muted-foreground">{view.cadence}</span>
             )}
           </p>
-          {checkoutSucceeded && !isPro && billing !== undefined && (
-            <p role="status" className="mt-2 text-xs text-muted-foreground leading-relaxed">
-              Payment received — confirming with Stripe. This page updates on its own in a
-              few seconds.
-            </p>
-          )}
-          {isPro && billing?.subscriptionStatus === "past_due" && (
-            <p className="mt-2 text-xs text-destructive leading-relaxed">
-              Your last payment didn&apos;t go through. Update your card under Manage
-              billing to keep Pro.
-            </p>
-          )}
-          {isPro && billing?.currentPeriodEnd && (
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-              {billing.cancelAtPeriodEnd
-                ? `Ends ${formatDay(billing.currentPeriodEnd)}. You won't be charged again.`
-                : `Renews ${formatDay(billing.currentPeriodEnd)}.`}
-            </p>
-          )}
-          {!isPro && billing !== undefined && !checkoutSucceeded && (
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-              Reading the site is free. Pro emails you when bills you follow move and
-              raises your daily questions.
+          {view && (
+            <p
+              role={view.tone === "warning" ? "alert" : "status"}
+              className={`mt-2 text-xs leading-relaxed ${
+                view.tone === "warning" ? "text-destructive" : "text-muted-foreground"
+              }`}
+            >
+              {view.message}
             </p>
           )}
         </div>
-        {isPro || billing?.hasBillingAccount ? (
+        {view?.showManage && (
           <Button variant="outline" size="sm" onClick={manage} disabled={opening}>
             {opening ? "Opening…" : "Manage billing"}
           </Button>
-        ) : null}
-        {!isPro && (
+        )}
+        {view?.subscribe && (
           <Button asChild size="sm">
-            <Link href="/pro">See Pro</Link>
+            <Link href="/pro">{view.subscribe}</Link>
           </Button>
         )}
         {error && (

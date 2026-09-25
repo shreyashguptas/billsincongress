@@ -257,7 +257,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
 | Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
 | Payments | Stripe Checkout and the Stripe customer portal; a signature-checked webhook is the only thing that sets a reader's plan (`convex/billing.ts`) |
-| Email | PostHog Workflows — sign-in codes sent inline (`convex/emailCodes.ts`), bill alerts scheduled from the digest run (`convex/alerts.ts` → `convex/email.ts`) |
+| Email | PostHog Workflows — sign-in codes sent inline (`convex/emailCodes.ts`); bill alerts and Pro plan-change notices scheduled from Convex (`convex/alerts.ts`, `convex/billing.ts` → `convex/email.ts`). Receipts and refunds come from Stripe |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |
 | Hosting | Cloudflare Workers via OpenNext, with Convex Cloud for the backend |
 | Analytics | PostHog |

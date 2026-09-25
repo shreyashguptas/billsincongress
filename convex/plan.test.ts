@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  billingNotice,
   ANONYMOUS_CHAT_DAILY_LIMIT,
   AUTHED_CHAT_DAILY_LIMIT,
   PRO_CHAT_DAILY_LIMIT,
@@ -104,6 +105,54 @@ it("another product's subscription on the same Stripe account is ignored", () =>
   const other = { ...sandboxActive, metadata: { app: "something-else" } };
   assert.equal(subscriptionUpdate(other, "billsincongress"), null);
   assert.equal(subscriptionUpdate({ ...sandboxActive, metadata: null }, "billsincongress"), null);
+});
+
+
+// ── Which plan change gets an email ─────────────────────────────────────────
+
+const free = { plan: "free" as const };
+const active = { plan: "pro" as const, status: "active" as const, cancelAtPeriodEnd: false, subscriptionId: "sub_1" };
+
+it("first subscription: a welcome, not a welcome back", () => {
+  assert.deepEqual(billingNotice({}, { ...active }), { kind: "welcome", returning: false });
+  // Checkout often records `incomplete` before `active` on the SAME subscription.
+  assert.deepEqual(
+    billingNotice({ ...free, status: "incomplete", subscriptionId: "sub_1" }, { ...active }),
+    { kind: "welcome", returning: false },
+  );
+});
+
+it("a new subscription after an old one ended: welcome back", () => {
+  assert.deepEqual(
+    billingNotice({ ...free, status: "canceled", subscriptionId: "sub_old" }, { ...active }),
+    { kind: "welcome", returning: true },
+  );
+});
+
+it("cancel at period end, and undoing it", () => {
+  assert.deepEqual(billingNotice(active, { ...active, cancelAtPeriodEnd: true }), { kind: "cancel_scheduled" });
+  assert.deepEqual(billingNotice({ ...active, cancelAtPeriodEnd: true }, active), { kind: "cancel_withdrawn" });
+});
+
+it("a failed renewal is announced once, not on every retry", () => {
+  assert.deepEqual(billingNotice(active, { ...active, status: "past_due" }), { kind: "payment_failed" });
+  assert.equal(billingNotice({ ...active, status: "past_due" }, { ...active, status: "past_due" }), null);
+  // The retry succeeding needs no email: Stripe sends the receipt.
+  assert.equal(billingNotice({ ...active, status: "past_due" }, active), null);
+});
+
+it("the end of Pro says why", () => {
+  assert.deepEqual(billingNotice(active, { ...active, plan: "free", status: "canceled" }), { kind: "ended", reason: "canceled" });
+  assert.deepEqual(billingNotice({ ...active, status: "past_due" }, { ...active, status: "canceled" }), { kind: "ended", reason: "payment_failed" });
+  assert.deepEqual(billingNotice({ ...active, status: "past_due" }, { ...active, status: "unpaid" }), { kind: "ended", reason: "payment_failed" });
+  assert.deepEqual(billingNotice(active, { ...active, status: "paused" }), { kind: "ended", reason: "paused" });
+});
+
+it("changes that are not news send nothing", () => {
+  assert.equal(billingNotice(active, active), null); // a redelivered webhook
+  assert.equal(billingNotice(active, { ...active, subscriptionId: "sub_1" }), null); // monthly ↔ yearly switch
+  assert.equal(billingNotice({ ...free, status: "incomplete" }, { ...free, status: "incomplete_expired" }), null);
+  assert.equal(billingNotice({ ...free, status: "canceled" }, { ...free, status: "canceled" }), null);
 });
 
 if (failures.length > 0) {

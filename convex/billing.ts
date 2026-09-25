@@ -32,7 +32,15 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { planForStatus, subscriptionUpdate, PRO_CHAT_DAILY_LIMIT, MAX_ALERTS_PER_USER } from "./plan";
+import {
+  billingNotice,
+  planForStatus,
+  subscriptionUpdate,
+  PRO_CHAT_DAILY_LIMIT,
+  MAX_ALERTS_PER_USER,
+} from "./plan";
+import { renderBillingEmail } from "./billingEmail";
+import { rateLimiter } from "./rateLimits";
 
 export const APP_TAG = "billsincongress";
 
@@ -102,22 +110,47 @@ export const _setCustomerId = internalMutation({
   },
 });
 
+async function customerExists(stripe: Stripe, customerId: string): Promise<boolean> {
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    return !("deleted" in customer && customer.deleted);
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeInvalidRequestError && err.code === "resource_missing") {
+      return false;
+    }
+    throw err;
+  }
+}
+
 async function customerFor(
   stripe: Stripe,
   ctx: ActionCtx,
   user: Doc<"users">,
 ): Promise<string> {
-  if (user.stripeCustomerId) return user.stripeCustomerId;
-  // Keyed by user, so a retried or doubled request creates ONE customer. We do
+  if (user.stripeCustomerId) {
+    // The stored customer can be gone: deleted in the dashboard with the
+    // webhook missed, or created on another Stripe account (sandbox vs live).
+    // Checking costs one call and turns a dead end ("No such customer") into a
+    // fresh customer for this reader.
+    if (await customerExists(stripe, user.stripeCustomerId)) return user.stripeCustomerId;
+    await ctx.runMutation(internal.billing._forgetCustomer, {
+      stripeCustomerId: user.stripeCustomerId,
+    });
+  }
+  // Keyed by user and a 10-minute window, so a retried or doubled request
+  // creates ONE customer, while a reader whose customer was deleted in the
+  // dashboard can get a new one shortly after (a key with no window would
+  // hand back the deleted customer for Stripe's 24-hour key lifetime). We do
   // not look customers up by email: the Stripe account can hold customers of
   // other products, and a matching address is not the same person's billing.
+  const window = Math.floor(Date.now() / (10 * 60 * 1000));
   const customer = await stripe.customers.create(
     {
       email: user.email,
       name: user.name,
       metadata: { app: APP_TAG, userId: user._id },
     },
-    { idempotencyKey: `bic-customer-${user._id}` },
+    { idempotencyKey: `bic-customer-${user._id}-${window}` },
   );
   await ctx.runMutation(internal.billing._setCustomerId, {
     userId: user._id,
@@ -177,6 +210,7 @@ export const startCheckout = action({
   handler: async (ctx, { interval }): Promise<{ url: string }> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("UNAUTHENTICATED");
+    await rateLimiter.limit(ctx, "billingActionPerUser", { key: userId, throws: true });
     const user: Doc<"users"> | null = await ctx.runQuery(internal.billing._userForBilling, {
       userId,
     });
@@ -218,6 +252,7 @@ export const openBillingPortal = action({
   handler: async (ctx): Promise<{ url: string }> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("UNAUTHENTICATED");
+    await rateLimiter.limit(ctx, "billingActionPerUser", { key: userId, throws: true });
     const user: Doc<"users"> | null = await ctx.runQuery(internal.billing._userForBilling, {
       userId,
     });
@@ -324,6 +359,43 @@ export const applySubscription = internalMutation({
       return { applied: false as const };
     }
 
+    const notice = billingNotice(
+      {
+        plan: user.plan,
+        status: user.stripeSubscriptionStatus,
+        cancelAtPeriodEnd: user.cancelAtPeriodEnd,
+        subscriptionId: user.stripeSubscriptionId,
+      },
+      {
+        plan: planForStatus(args.status),
+        status: args.status,
+        cancelAtPeriodEnd: args.cancelAtPeriodEnd,
+        subscriptionId: args.stripeSubscriptionId,
+      },
+    );
+    // Queued in this transaction, so the email goes out exactly when the new
+    // plan is recorded (a redelivered webhook changes nothing and sends
+    // nothing). Stripe sends the receipt; this says what changed.
+    if (notice && user.email) {
+      const email = renderBillingEmail(notice, {
+        siteUrl: siteUrl(),
+        periodEnd: args.currentPeriodEnd,
+        interval:
+          args.priceId === undefined
+            ? undefined
+            : args.priceId === process.env.STRIPE_PRICE_PRO_YEARLY
+              ? "year"
+              : "month",
+      });
+      await ctx.scheduler.runAfter(0, internal.email.deliver, {
+        stream: "billing",
+        to: user.email,
+        subject: email.subject,
+        html: email.bodyHtml,
+        text: email.text,
+      });
+    }
+
     await ctx.db.patch(user._id, {
       plan: planForStatus(args.status),
       stripeCustomerId: user.stripeCustomerId ?? args.stripeCustomerId,
@@ -333,7 +405,7 @@ export const applySubscription = internalMutation({
       stripeCurrentPeriodEnd: args.currentPeriodEnd,
       cancelAtPeriodEnd: args.cancelAtPeriodEnd,
     });
-    return { applied: true as const, userId: user._id as Id<"users"> };
+    return { applied: true as const, userId: user._id as Id<"users">, notice: notice?.kind ?? null };
   },
 });
 
@@ -344,7 +416,28 @@ const SUBSCRIPTION_EVENTS = new Set<string>([
   "customer.subscription.deleted",
   "customer.subscription.paused",
   "customer.subscription.resumed",
+  "customer.deleted",
 ]);
+
+/**
+ * A customer deleted in the Stripe dashboard (by the operator, e.g. on an
+ * account-deletion request). Stripe cancels its subscriptions first, which
+ * arrive as their own events; this only drops the dead link, so "Manage
+ * billing" does not open a portal for a customer that no longer exists and a
+ * later Subscribe creates a new one.
+ */
+export const _forgetCustomer = internalMutation({
+  args: { stripeCustomerId: v.string() },
+  handler: async (ctx, { stripeCustomerId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_stripeCustomerId", (q) => q.eq("stripeCustomerId", stripeCustomerId))
+      .unique();
+    if (!user) return { forgotten: false as const };
+    await ctx.db.patch(user._id, { stripeCustomerId: undefined });
+    return { forgotten: true as const };
+  },
+});
 
 /**
  * POST /stripe/webhook. Signature-verified; every other request is a 400.
@@ -384,6 +477,14 @@ export const handleStripeWebhook = httpAction(async (ctx, request) => {
   if (!fresh) return new Response(JSON.stringify({ received: true, duplicate: true }), { status: 200 });
 
   try {
+    if (event.type === "customer.deleted") {
+      const customer = event.data.object as Stripe.Customer;
+      if (customer.metadata?.app === APP_TAG) {
+        await ctx.runMutation(internal.billing._forgetCustomer, { stripeCustomerId: customer.id });
+      }
+      await ctx.runMutation(internal.billing._finishEvent, { eventId: event.id });
+      return new Response(JSON.stringify({ received: true }), { status: 200 });
+    }
     const obj = event.data.object as Stripe.Subscription | Stripe.Checkout.Session;
     const subscriptionId =
       obj.object === "subscription"
