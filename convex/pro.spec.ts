@@ -329,6 +329,38 @@ describe("daily digest", () => {
     });
   });
 
+  test("a bill with a long history: only what is new is reported, and a stage-only move keeps the action watermark", async () => {
+    const t = setup();
+    const userId = await followedByPro(t);
+    // A long bill: hundreds of older actions the daily check must not re-report.
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 400; i++) {
+        await ctx.db.insert("billActions", { billId: BILL, actionDate: "2026-08-01", text: `Old action ${i}` });
+      }
+    });
+    await billMoves(t, { actionDate: "2026-09-23", text: "Ordered to be Reported." });
+    const first = await t.mutation(internal.alerts.sendDigestForUser, { userId });
+    expect(first).toMatchObject({ sent: true, bills: 1 });
+
+    // Quiet day: nothing new, nothing sent, watermark unchanged.
+    const quiet = await t.mutation(internal.alerts.sendDigestForUser, { userId });
+    expect(quiet).toMatchObject({ sent: false, reason: "nothing_new" });
+
+    // Stage moves with no new action row: reported once, and the action
+    // watermark stays on 2026-09-23 rather than resetting to empty.
+    await t.run(async (ctx) => {
+      const bill = await ctx.db.query("bills").withIndex("by_billId", (q) => q.eq("billId", BILL)).unique();
+      await ctx.db.patch(bill!._id, { progressStage: 60, progressDescription: "Passed One Chamber" });
+    });
+    const staged = await t.mutation(internal.alerts.sendDigestForUser, { userId });
+    expect(staged).toMatchObject({ sent: true, bills: 1 });
+    const [alert] = await t.run((ctx) => ctx.db.query("billAlerts").collect());
+    expect(alert.lastSeenActionDate).toBe("2026-09-23");
+    expect(alert.lastSeenStage).toBe(60);
+    const after = await t.mutation(internal.alerts.sendDigestForUser, { userId });
+    expect(after).toMatchObject({ sent: false, reason: "nothing_new" });
+  });
+
   test("the daily run schedules one digest per reader", async () => {
     const t = setup();
     await followedByPro(t);
@@ -371,6 +403,82 @@ describe("unsubscribe link", () => {
     });
     const r = await asUser(t, userId).mutation(api.alerts.toggle, { billId: BILL });
     expect(r.following).toBe(false);
+  });
+});
+
+describe("checkout", () => {
+  process.env.STRIPE_PRICE_PRO_MONTHLY = "price_monthly_test";
+  process.env.STRIPE_PRICE_PRO_YEARLY = "price_yearly_test";
+
+  const list = (data: object[]) => ({ object: "list", data, has_more: false, url: "/v1/x" });
+
+  /** A fake Stripe that records every request and answers from `subs`/`open`. */
+  function fakeStripe(state: { subs: object[]; open: object[] }) {
+    const calls: Array<{ method: string; path: string }> = [];
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+      const method = (init?.method ?? "GET").toUpperCase();
+      calls.push({ method, path: url.pathname });
+      const json = (body: object) =>
+        new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      if (url.pathname === "/v1/subscriptions") return json(list(state.subs));
+      if (url.pathname === "/v1/checkout/sessions" && method === "GET") return json(list(state.open));
+      if (url.pathname.endsWith("/expire")) return json({ id: url.pathname.split("/")[4], object: "checkout.session", status: "expired" });
+      if (url.pathname === "/v1/checkout/sessions" && method === "POST")
+        return json({ id: "cs_new", object: "checkout.session", url: "https://checkout.stripe.test/cs_new" });
+      throw new Error(`unexpected Stripe call ${method} ${url.pathname}`);
+    });
+    return calls;
+  }
+
+  async function freeReaderWithCustomer(t: T) {
+    const userId = await seed(t, { plan: "free" });
+    await t.run((ctx) => ctx.db.patch(userId, { stripeCustomerId: "cus_1" }));
+    return userId;
+  }
+
+  test("paid but not yet confirmed by the webhook: a second Subscribe is refused, no second Checkout", async () => {
+    const t = setup();
+    const userId = await freeReaderWithCustomer(t);
+    const calls = fakeStripe({
+      subs: [{ id: "sub_1", object: "subscription", status: "active", metadata: { app: "billsincongress", userId } }],
+      open: [],
+    });
+    await expect(
+      asUser(t, userId).action(api.billing.startCheckout, { interval: "month" }),
+    ).rejects.toThrow(/ALREADY_PRO/);
+    expect(calls.some((c) => c.method === "POST" && c.path === "/v1/checkout/sessions")).toBe(false);
+  });
+
+  test("an unpaid subscription sends the reader to billing, not to a new purchase", async () => {
+    const t = setup();
+    const userId = await freeReaderWithCustomer(t);
+    fakeStripe({
+      subs: [{ id: "sub_1", object: "subscription", status: "unpaid", metadata: { app: "billsincongress", userId } }],
+      open: [],
+    });
+    await expect(
+      asUser(t, userId).action(api.billing.startCheckout, { interval: "month" }),
+    ).rejects.toThrow(/SUBSCRIPTION_NEEDS_ATTENTION/);
+  });
+
+  test("two tabs: the older open Checkout is expired so only one can be paid; other products are untouched", async () => {
+    const t = setup();
+    const userId = await freeReaderWithCustomer(t);
+    const calls = fakeStripe({
+      subs: [
+        // Another OffGrid product's subscription on the same customer is not ours.
+        { id: "sub_other", object: "subscription", status: "active", metadata: { app: "something-else" } },
+      ],
+      open: [
+        { id: "cs_tab1", object: "checkout.session", status: "open", metadata: { app: "billsincongress", userId } },
+        { id: "cs_other", object: "checkout.session", status: "open", metadata: { app: "something-else" } },
+      ],
+    });
+    const { url } = await asUser(t, userId).action(api.billing.startCheckout, { interval: "month" });
+    expect(url).toBe("https://checkout.stripe.test/cs_new");
+    const expired = calls.filter((c) => c.path.endsWith("/expire")).map((c) => c.path);
+    expect(expired).toEqual(["/v1/checkout/sessions/cs_tab1/expire"]);
   });
 });
 

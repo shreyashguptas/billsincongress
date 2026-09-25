@@ -191,7 +191,12 @@ export default defineSchema({
     sourceSystemName: v.optional(v.string()),
     text: v.string(),
     type: v.optional(v.string()),
-  }).index("by_billId", ["billId"]),
+  })
+    .index("by_billId", ["billId"])
+    // Bill alerts read only the actions on or after the last reported day
+    // (convex/alerts.ts), so a quiet followed bill costs a row or two a day
+    // instead of its whole history.
+    .index("by_billId_and_actionDate", ["billId", "actionDate"]),
 
   // Bill subjects / policy areas (one-to-one: bill -> subject)
   billSubjects: defineTable({

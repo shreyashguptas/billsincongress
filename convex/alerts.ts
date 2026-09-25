@@ -28,7 +28,7 @@ import {
   type BillChange,
 } from "./alertDigest";
 
-/** Actions read per bill. The longest bills carry a few hundred. */
+/** Upper bound on actions read for one bill. The longest carry a few hundred. */
 const MAX_ACTIONS_READ = 1000;
 /** Alert rows handled per page of the daily run. */
 const DIGEST_PAGE_SIZE = 200;
@@ -37,10 +37,23 @@ function siteUrl(): string {
   return (process.env.SITE_URL ?? "https://billsincongress.com").replace(/\/+$/, "");
 }
 
-async function readActions(ctx: QueryCtx, billId: string): Promise<ActionRow[]> {
+/**
+ * A bill's actions dated on or after `since`, or all of them when `since` is
+ * undefined. Read through the date index, so checking a followed bill that did
+ * not move reads only the actions on its last reported day (usually one or
+ * two), never its whole history. That keeps a reader following 100 long bills
+ * well inside one mutation's read limits.
+ */
+async function readActionsSince(
+  ctx: QueryCtx,
+  billId: string,
+  since: string | undefined,
+): Promise<ActionRow[]> {
   const rows = await ctx.db
     .query("billActions")
-    .withIndex("by_billId", (q) => q.eq("billId", billId))
+    .withIndex("by_billId_and_actionDate", (q) =>
+      since === undefined ? q.eq("billId", billId) : q.eq("billId", billId).gte("actionDate", since),
+    )
     .take(MAX_ACTIONS_READ);
   return rows.map((r) => ({ actionDate: r.actionDate, text: r.text }));
 }
@@ -150,7 +163,12 @@ export const toggle = mutation({
 
     // Start from "everything so far is known": the first email reports only
     // what happens after the reader pressed the button.
-    const watermark = watermarkFor(await readActions(ctx, billId), bill.progressStage);
+    // Only the latest day's actions are needed: the watermark is that day plus
+    // the fingerprints of what is on it.
+    const watermark = watermarkFor(
+      await readActionsSince(ctx, billId, bill.latestActionDate),
+      bill.progressStage,
+    );
     await ctx.db.insert("billAlerts", {
       userId: user._id,
       billId,
@@ -274,15 +292,18 @@ export const sendDigestForUser = internalMutation({
 
       const stageMoved =
         bill.progressStage !== undefined && bill.progressStage !== alert.lastSeenStage;
-      // Only read the action list when the bill's latest action date says
-      // something may be new: on or after the watermark's day.
+      // A bill whose latest action is older than the watermark cannot have
+      // anything new. Every other bill is checked, including the usual quiet
+      // one whose latest action IS the watermark's day, because an action can
+      // be posted late for that same day. That check reads only that day's
+      // actions (readActionsSince), so it stays cheap.
       const maybeNewActions =
         bill.latestActionDate !== undefined &&
         (alert.lastSeenActionDate === undefined ||
           bill.latestActionDate >= alert.lastSeenActionDate);
       if (!stageMoved && !maybeNewActions) continue;
 
-      const actions = await readActions(ctx, alert.billId);
+      const actions = await readActionsSince(ctx, alert.billId, alert.lastSeenActionDate);
       const fresh = newActionsSince(actions, alert);
       const change: BillChange = {
         billId: bill.billId,
@@ -295,7 +316,20 @@ export const sendDigestForUser = internalMutation({
       };
       if (!hasNews(change)) continue;
       changes.push(change);
-      advance.push({ alert, next: watermarkFor(actions, bill.progressStage) });
+      advance.push({
+        alert,
+        // Nothing on or after the old watermark (only the stage moved): keep
+        // the action watermark as it was rather than resetting it to empty,
+        // which would report the bill's whole history tomorrow.
+        next:
+          actions.length > 0
+            ? watermarkFor(actions, bill.progressStage)
+            : {
+                lastSeenActionDate: alert.lastSeenActionDate,
+                lastSeenActionFingerprints: alert.lastSeenActionFingerprints,
+                lastSeenStage: bill.progressStage,
+              },
+      });
     }
 
     if (changes.length === 0) return { sent: false, reason: "nothing_new" };

@@ -372,7 +372,7 @@ total.
 | Table | Purpose |
 | --- | --- |
 | `bills` | One row per (congress, type, number). Identity, title, primary sponsor, introduced date, derived stage, latest action date, denormalised policy area, sync bitmask |
-| `billActions` | Legislative actions, up to 250 per bill |
+| `billActions` | Legislative actions, up to 250 per bill. Indexed by bill, and by bill + date for bill alerts |
 | `billSubjects` | The single official policy area |
 | `billSummaries` | CRS summary versions, keyed by update date |
 | `billText` | Links to official PDF and text versions |
@@ -872,6 +872,12 @@ password-reset code.
    `bic-customer-<userId>`) a Stripe customer tagged `metadata.app = "billsincongress"`,
    links it on `users.stripeCustomerId`, and returns a hosted Checkout URL. The subscription is
    tagged with the same `app` and the reader's `userId`.
+   **No double billing:** Stripe Checkout will sell a customer the same subscription twice,
+   and `users.plan` lags payment by the seconds the webhook takes. So before creating a
+   session the action asks Stripe (not our row): a live subscription tagged for this site
+   refuses the request (`ALREADY_PRO`, or `SUBSCRIPTION_NEEDS_ATTENTION` when it is unpaid or
+   paused, which the billing portal fixes), and any Checkout page the customer still has open
+   for this site is expired, so of two tabs only the newest can be paid.
 2. Stripe calls `POST https://<deployment>.convex.site/stripe/webhook`.
    `billing.handleStripeWebhook` verifies the signature, records the event id in
    `stripeEvents` (a redelivery is acknowledged and skipped), then **re-reads the subscription
@@ -1093,8 +1099,9 @@ Last, `vitest run` executes the **Convex function specs**, `convex/**/*.spec.ts`
 `vitest.config.mts`). These run real queries, mutations and HTTP actions against an in-memory
 database with `convex-test`, which needs vitest's `import.meta.glob` — that is the only reason
 vitest is here. `convex/pro.spec.ts` covers the Pro plan end to end: plan changes from
-subscription events, question allowances, the digest (new, late same-day, status change, lapsed
-reader, no double send), the unsubscribe token, and the Stripe webhook with a signed payload
+subscription events, question allowances, checkout refusing a second subscription (paid but
+not yet confirmed, unpaid, two open tabs), the digest (new, late same-day, status change,
+stage-only move on a long bill, lapsed reader, no double send, PostHog retries), the unsubscribe token, and the Stripe webhook with a signed payload
 (`fetch` is stubbed with a real sandbox subscription reply; a forged signature is rejected).
 Nothing in it reaches Stripe, PostHog or any deployment. `convex deploy` skips these files,
 like every file name with more than one dot.

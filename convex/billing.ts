@@ -126,6 +126,44 @@ async function customerFor(
   return customer.id;
 }
 
+/** Subscription states that are still a live billing relationship. */
+const LIVE_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "incomplete",
+  "unpaid",
+  "paused",
+]);
+
+/**
+ * Stripe Checkout does not stop a customer from buying the same subscription
+ * twice, and `users.plan` lags payment by the few seconds the webhook takes.
+ * A reader who pays, goes Back and presses Subscribe again, or who has /pro in
+ * two tabs, would otherwise be billed twice. So ask Stripe, not our row:
+ *
+ * - a live subscription for this site already exists → refuse (ALREADY_PRO
+ *   when it grants Pro, SUBSCRIPTION_NEEDS_ATTENTION when it is unpaid or
+ *   paused, which the billing portal fixes);
+ * - any Checkout page this customer still has open for this site is expired,
+ *   so of two tabs only the newest can be paid.
+ */
+async function refuseSecondSubscription(stripe: Stripe, customerId: string): Promise<void> {
+  const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 20 });
+  const live = subs.data.find(
+    (s) => s.metadata?.app === APP_TAG && LIVE_SUBSCRIPTION_STATUSES.has(s.status),
+  );
+  if (live) {
+    throw new ConvexError(
+      planForStatus(live.status) === "pro" ? "ALREADY_PRO" : "SUBSCRIPTION_NEEDS_ATTENTION",
+    );
+  }
+  const open = await stripe.checkout.sessions.list({ customer: customerId, status: "open", limit: 20 });
+  for (const session of open.data) {
+    if (session.metadata?.app === APP_TAG) await stripe.checkout.sessions.expire(session.id);
+  }
+}
+
 /** Returns the Stripe Checkout URL to send the reader to. */
 export const startCheckout = action({
   args: { interval: v.union(v.literal("month"), v.literal("year")) },
@@ -137,11 +175,12 @@ export const startCheckout = action({
     });
     if (!user) throw new ConvexError("USER_MISSING");
     if (!user.email) throw new ConvexError("EMAIL_REQUIRED");
-    // A second subscription would bill twice for the same plan.
+    // Fast path; the authoritative check is refuseSecondSubscription below.
     if (user.plan === "pro") throw new ConvexError("ALREADY_PRO");
 
     const stripe = stripeClient();
     const customerId = await customerFor(stripe, ctx, user);
+    await refuseSecondSubscription(stripe, customerId);
     const tag = { app: APP_TAG, userId };
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
