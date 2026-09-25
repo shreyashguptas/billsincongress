@@ -26,8 +26,9 @@ const STAGE_FILL: Record<BillStage, string> = {
   [BillStages.BECAME_LAW]: 'bg-status-law',
 };
 
+/** An unrecognised stage takes neutral ink-3, never a stage's hue: the colour is the stage. */
 export function stageFill(stage: number): string {
-  return STAGE_FILL[stage as BillStage] ?? 'bg-status-introduced';
+  return STAGE_FILL[stage as BillStage] ?? 'bg-ink-3';
 }
 
 /** The stage as a dot and a word: an outline `Badge` with the stage's dot. */
