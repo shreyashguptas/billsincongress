@@ -63,6 +63,12 @@ Below that:
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
 - **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever advanced. It is labelled as a description of that group of past bills, not a prediction about this one.
 
+### Sharing a bill
+
+Every bill page has a **Share** button. On a phone it opens your phone's own share sheet — Messages, WhatsApp, Mail, AirDrop, whatever you have — and on a computer one click copies the link. The link is always the bill's plain address, `billsincongress.com/bills/<bill>`, with nothing added to track who shared it or who opened it.
+
+Paste that link into iMessage, WhatsApp, Slack, an email or a post, and it unfurls into a card for that bill: its number, title, sponsor and date, and its current stage on the same seven-step track as the page. The card is drawn from the record at the moment the preview is made, so it states the stage the bill is at then. A preview already sitting in a conversation is a picture and does not change when the bill moves later.
+
 ### Ask the record
 
 A question panel is available from every page — including the topic and status pages and the `/learn` guide — and it follows you as you move around the site, so a conversation survives navigation.
@@ -93,6 +99,12 @@ The [Pro page](https://billsincongress.com/pro) shows all of this in pictures. Y
 - Buttons onward to the bills that became law and to every bill.
 
 The page is drawn on the server and ships almost no JavaScript of its own; the state picker is its only interactive part.
+
+### On your Home Screen
+
+The site installs like an app: on an iPhone or iPad, use **Share → Add to Home Screen** in the browser (the footer's **Install the app** button walks you through it); on Android, Chrome and Edge the footer button raises the browser's own install prompt. It then opens full screen from its own icon. On Android and on a computer, a long press or right-click on that icon offers shortcuts to all bills, bills that became law, and your saved bills.
+
+It is the same site, not a copy: there is no offline reading and no push notification. If you open it with no connection you get a short "You're offline" page instead of the browser's error screen. The small background script that makes this work (a service worker) keeps that one page on your device and nothing else — no bills, no pages you have read.
 
 ### Reading comfort
 
@@ -210,6 +222,7 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 
 - **Product analytics run on every page** (PostHog, US cloud) — pages visited, clicks, performance, errors, and session replay. There is currently no cookie banner and no opt-out control on the site.
 - **The text of questions you ask the assistant is included in that analytics data.**
+- **Pressing Share is recorded** — which bill, and whether the link was shared, copied or cancelled. Not where it went or to whom: your phone's share sheet does not tell the site which app you picked, and the shared link carries no tracking code. Analytics also note whether you are using the site in a browser or as the installed app, and when the browser reports an install.
 - **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database. The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
 - **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
@@ -265,6 +278,8 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Email | PostHog Workflows — sign-in codes sent inline (`convex/emailCodes.ts`); bill alerts and Pro plan-change notices scheduled from Convex (`convex/alerts.ts`, `convex/billing.ts` → `convex/email.ts`). Receipts and refunds come from Stripe |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |
 | Hosting | Cloudflare Workers via OpenNext, with Convex Cloud for the backend |
+| Link previews | Each bill's share card is drawn on request with `next/og` from `lib/og/bill-share-card.tsx`, in the brand fonts, which are embedded |
+| Installed app | A web app manifest (`app/manifest.ts`) and a service worker (`public/sw.js`) whose only job is the offline page |
 | Analytics | PostHog |
 
 ```

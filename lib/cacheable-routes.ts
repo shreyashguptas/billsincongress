@@ -52,3 +52,19 @@ export function isPubliclyCacheable(pathname: string): boolean {
   if (PUBLIC_EXACT.has(path)) return true;
   return PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
 }
+
+/**
+ * Routes that write their own Cache-Control, which the middleware must leave
+ * alone. The middleware's page policy (five minutes at the edge) would
+ * otherwise overwrite it: a response header set there wins over the route's.
+ *
+ * `/bills/<id>/share-image` is the share card, whose URL carries the bill's
+ * stage, so it can be cached for a day where a page cannot.
+ */
+const OWN_CACHE_CONTROL = [/^\/bills\/[^/]+\/share-image$/];
+
+/** True when the route at this path sets its own Cache-Control. */
+export function setsOwnCacheControl(pathname: string): boolean {
+  const path = pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  return OWN_CACHE_CONTROL.some((pattern) => pattern.test(path));
+}

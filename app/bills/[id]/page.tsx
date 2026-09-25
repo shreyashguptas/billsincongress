@@ -1,16 +1,17 @@
-import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import BillDetails from '../../../components/bills/bill-details';
-import { billsService } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import {
   SITE_NAME,
   SITE_URL,
-  DEFAULT_OG_IMAGE,
   billSeoDescription,
+  billShareImagePath,
+  SHARE_CARD_SIZE,
   billSeoTitle,
+  billIdentifier,
+  billStatusPhrase,
   billSummaryText,
   congressOrdinal,
   congressGovUrl,
@@ -18,6 +19,7 @@ import {
   truncateAtWord,
 } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/json-ld';
+import { getBill } from './get-bill';
 
 // schema.org Legislation + BreadcrumbList nodes for a bill page. Stage
 // thresholds mirror convex/billStage.ts (80 = passed both chambers,
@@ -92,26 +94,6 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-// Bill IDs look like "1hr119" / "4199s118": number + type + congress. Anything
-// else can 404 without a Convex round-trip.
-const BILL_ID_PATTERN = /^\d{1,5}[a-z]{1,7}\d{2,3}$/;
-
-// Fetch the bill once per request. React's `cache()` dedupes the call shared
-// between generateMetadata and the page render (request-scoped only — no
-// persistent cache). The page renders dynamically on each request; returns
-// null on any failure so the caller can route to notFound() cleanly.
-const getBill = cache(async (id: string): Promise<Bill | null> => {
-  if (!BILL_ID_PATTERN.test(id)) {
-    return null;
-  }
-  try {
-    return await billsService.fetchBillById(id);
-  } catch (error) {
-    console.error(`getBill(${id}) failed:`, error);
-    return null;
-  }
-});
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const bill = await getBill(id);
@@ -124,24 +106,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const description = billSeoDescription(bill);
   const canonical = `/bills/${id}`;
 
+  // The bill's own card (app/bills/[id]/share-image), so a link pasted into
+  // iMessage, WhatsApp or Slack unfurls into this bill and its stage rather
+  // than the site's generic picture. Named explicitly for both Open Graph and
+  // X: a page-level openGraph replaces the root object wholesale.
+  const shareImage = {
+    url: billShareImagePath(bill),
+    ...SHARE_CARD_SIZE,
+    type: 'image/png',
+    alt: truncateAtWord(`${billIdentifier(bill)}, ${billStatusPhrase(bill).toLowerCase()}: ${bill.title}`, 300),
+  };
+
   return {
     title,
     description,
     alternates: { canonical },
     openGraph: {
-      // Page-level openGraph replaces the root object, so re-include the
-      // shared image.
       type: 'article',
       url: canonical,
       title,
       description,
       siteName: SITE_NAME,
-      images: [DEFAULT_OG_IMAGE],
+      images: [shareImage],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
+      images: [shareImage],
     },
   };
 }

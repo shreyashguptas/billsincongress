@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<title>You're offline · Bills in Congress</title>
+<!--
+  Served by public/sw.js when a page is opened with no connection. It has to
+  work with nothing else loaded, so it carries its own styles, and the Day and
+  Night values of the brand tokens are literal here, as in the emails
+  (Documentation/brand.md, "Offline page").
+-->
+<style>
+  :root { --paper:#f6f5f1; --raised:#ffffff; --ink:#101418; --ink-2:#4a515a; --ink-3:#666d77; --line-strong:#858a92; --on-ink:#f6f5f1; }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper:#0b0d10; --raised:#14171b; --ink:#edeeea; --ink-2:#b4b9c0; --ink-3:#8d949d; --line-strong:#5f6670; --on-ink:#0b0d10; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font: 16px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+  }
+  main { max-width: 480px; }
+  .lockup { display: flex; align-items: center; gap: 10px; font: 600 21px/1 "Iowan Old Style", Georgia, serif; letter-spacing: -0.012em; }
+  svg { width: 32px; height: 32px; fill: var(--ink); flex-shrink: 0; }
+  h1 { margin: 40px 0 12px; font: 500 34px/1.15 "Iowan Old Style", Georgia, serif; text-wrap: balance; }
+  p { margin: 0; color: var(--ink-2); }
+  button {
+    margin-top: 28px; height: 44px; padding: 0 20px; border: 0; border-radius: 8px;
+    background: var(--ink); color: var(--on-ink); font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer;
+  }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="lockup">
+    <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="6.53" cy="26.65" r="3.2"/><circle cx="11.14" cy="18.41" r="3.2"/><circle cx="19.28" cy="13.63" r="3.2"/><circle cx="28.72" cy="13.63" r="3.2"/><circle cx="36.86" cy="18.41" r="3.2"/><circle cx="41.47" cy="26.65" r="3.2"/><circle cx="14.91" cy="25.75" r="2.8"/><circle cx="20.41" cy="21.13" r="2.8"/><circle cx="27.59" cy="21.13" r="2.8"/><circle cx="33.09" cy="25.75" r="2.8"/><circle cx="24" cy="31" r="3.4"/><rect x="4" y="37.5" width="40" height="3" rx="1.5"/></svg>
+    Bills in Congress
+  </div>
+  <h1>You&rsquo;re offline</h1>
+  <p>The record needs a connection. This page will work again as soon as you&rsquo;re back online.</p>
+  <button type="button" onclick="location.reload()">Try again</button>
+</main>
+<script>window.addEventListener('online', function () { location.reload(); });</script>
+</body>
+</html>

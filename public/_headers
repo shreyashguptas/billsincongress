@@ -18,3 +18,11 @@
 # pin a stale logo with no way to bust it.
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable
+
+# The service worker (public/sw.js) and the offline page it serves. Browsers
+# already re-check a worker script at least daily, but `no-cache` makes a fix
+# reach every install on its next page load rather than tomorrow.
+/sw.js
+  Cache-Control: no-cache
+/offline.html
+  Cache-Control: no-cache

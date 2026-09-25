@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isPubliclyCacheable } from "./cacheable-routes";
+import { isPubliclyCacheable, setsOwnCacheControl } from "./cacheable-routes";
 
 let passed = 0;
 const failures: string[] = [];
@@ -84,6 +84,21 @@ it("normalises trailing slashes and casing", () => {
 
 it("does not cache an unknown route", () => {
   assert.equal(isPubliclyCacheable("/whatever-this-is"), false);
+});
+
+// Routes that set their own Cache-Control
+
+it("leaves the share card's own caching alone", () => {
+  // The card sets a day; the middleware's page policy would cut it to five
+  // minutes at the edge, silently, because its header wins.
+  assert.equal(setsOwnCacheControl("/bills/1hr119/share-image"), true);
+  assert.equal(setsOwnCacheControl("/bills/1hr119/share-image/"), true);
+});
+
+it("still applies the page policy to the pages around it", () => {
+  for (const path of ["/bills/1hr119", "/bills", "/bills/share-image", "/", "/learn"]) {
+    assert.equal(setsOwnCacheControl(path), false, path);
+  }
 });
 
 // The list must not drift from the routes that exist
