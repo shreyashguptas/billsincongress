@@ -8,6 +8,7 @@ import { SourceLine } from '@/components/brand/section';
 import { JsonLd } from '@/components/seo/json-ld';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { formatCount } from '@/lib/utils';
+import { pagesForCount } from '@/lib/pagination';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { hubsOfKind, type HubDefinition } from '@/lib/hubs';
 import { SITE_URL } from '@/lib/seo';
@@ -33,7 +34,7 @@ function filterFor(hub: HubDefinition) {
 }
 
 /**
- * Exact bill count for a hub.
+ * The bill count for a hub — exact, a floor (`exact: false`), or unknown.
  *
  * `cache` dedupes this across `generateMetadata` and the page render, which run
  * in the same request — metadata needs the count to decide whether to noindex,
@@ -46,11 +47,12 @@ const hubCount = cache(async (hub: HubDefinition) =>
 
 export async function hubMetadata(hub: HubDefinition, page: number): Promise<Metadata> {
   const canonical = page > 1 ? `${hub.path}?page=${page}` : hub.path;
-  const { count } = await hubCount(hub);
+  const { count, exact } = await hubCount(hub);
   // A hub with no bills is the doorway page this design exists to avoid. It
   // still renders — someone following a link deserves an explanation rather
   // than a 404 — but it must not be offered to search engines as a document.
-  const empty = count === 0;
+  // Only a complete count can prove a hub empty.
+  const empty = exact && count === 0;
   return {
     title: hub.metaTitle,
     description: hub.metaDescription,
@@ -65,7 +67,8 @@ export async function hubMetadata(hub: HubDefinition, page: number): Promise<Met
   };
 }
 
-function hubJsonLd(hub: HubDefinition, count: number | null): object {
+/** `exactCount` is null unless the count was complete — a floor is not a numberOfItems. */
+function hubJsonLd(hub: HubDefinition, exactCount: number | null): object {
   const segments = hub.path.split('/').filter(Boolean);
   return {
     '@context': 'https://schema.org',
@@ -77,7 +80,7 @@ function hubJsonLd(hub: HubDefinition, count: number | null): object {
         name: hub.metaTitle,
         description: hub.metaDescription,
         isPartOf: { '@id': `${SITE_URL}/#website` },
-        ...(count !== null ? { numberOfItems: count } : {}),
+        ...(exactCount !== null ? { numberOfItems: exactCount } : {}),
       },
       {
         '@type': 'BreadcrumbList',
@@ -138,8 +141,12 @@ export async function HubView({
   ]);
 
   const congress = congressNumbers.length > 0 ? Math.max(...congressNumbers) : null;
-  const total = count.count;
-  const lastPage = total === null ? 1 : Math.min(Math.ceil(total / PER_PAGE), MAX_PAGE);
+  // A total is stated only when the read was complete (AGENTS.md, "Answer
+  // accuracy"). A floor is shown as "N+", and never reaches the JSON-LD, the
+  // analytics event or the last page of the pagination bar.
+  const total = count.exact ? count.count : null;
+  const floor = count.exact ? null : count.count;
+  const { lastPage, openEnded } = pagesForCount(count, page, bills.hasMore, PER_PAGE, MAX_PAGE);
   const siblings = hubsOfKind(hub.kind).filter((h) => h.path !== hub.path);
 
   return (
@@ -182,12 +189,12 @@ export async function HubView({
       <div className="container-editorial pb-16">
         {/* The results bar. The ink rule under it is where the register starts. */}
         <p className="border-b border-ink pb-3 text-sm text-ink-2">
-          {total === null ? (
+          {total === null && floor === null ? (
             <>Showing bills from the current Congress.</>
           ) : (
             <>
               <span className="font-mono font-medium text-ink tabular">
-                {formatCount(total)}
+                {total !== null ? formatCount(total) : `${formatCount(floor ?? 0)}+`}
               </span>{' '}
               {total === 1 ? 'bill' : 'bills'}
               {congress !== null && (
@@ -215,6 +222,7 @@ export async function HubView({
         <CrawlablePagination
           page={page}
           lastPage={lastPage}
+          openEnded={openEnded}
           hrefForPage={(n) => (n === 1 ? hub.path : `${hub.path}?page=${n}`)}
           className="mt-10 justify-center"
         />

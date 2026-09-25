@@ -8,6 +8,12 @@ interface CrawlablePaginationProps {
   page: number;
   /** Total pages available, already clamped to what the backend can serve. */
   lastPage: number;
+  /**
+   * More pages may exist past `lastPage` — the count was a floor or unknown
+   * (see `pagesForCount`). The bar then ends in an ellipsis instead of a
+   * number that would claim to be the last page.
+   */
+  openEnded?: boolean;
   /** URL for a given page. The caller owns query-string composition. */
   hrefForPage: (page: number) => string;
   className?: string;
@@ -31,6 +37,7 @@ const slotClass =
 export function CrawlablePagination({
   page,
   lastPage,
+  openEnded = false,
   hrefForPage,
   className,
 }: CrawlablePaginationProps) {
@@ -76,6 +83,13 @@ export function CrawlablePagination({
             {slot}
           </Link>
         ),
+      )}
+
+      {openEnded && (
+        <span className="inline-flex h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11">
+          <span aria-hidden="true">…</span>
+          <span className="sr-only">and possibly more pages</span>
+        </span>
       )}
 
       {current < lastPage && (

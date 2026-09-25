@@ -63,3 +63,32 @@ export function lastPageFor(
   if (totalItems <= 0 || itemsPerPage <= 0) return 0;
   return Math.min(maxPage, Math.ceil(totalItems / itemsPerPage));
 }
+
+/**
+ * How many numbered pages to offer for a result set, and whether the set may
+ * run on past them.
+ *
+ * Only an exact count may name a last page. `listCount` can answer with a
+ * floor (`exact: false`, "at least this many") or not at all (`count: null`),
+ * and a pagination bar ending in "10" says there is no page 11 — the same
+ * too-small total AGENTS.md's answer-accuracy rules forbid, just drawn as
+ * links. Without an exact count this offers only the pages that provably
+ * exist — the floor's pages, plus the next one when the current page says it
+ * has more — and marks the bar open-ended.
+ */
+export function pagesForCount(
+  total: { count: number | null; exact: boolean } | null,
+  page: number,
+  hasMore: boolean,
+  itemsPerPage: number,
+  maxPage: number,
+): { lastPage: number; openEnded: boolean } {
+  if (total?.exact && total.count !== null) {
+    return { lastPage: lastPageFor(total.count, itemsPerPage, maxPage), openEnded: false };
+  }
+  const floorPages = total?.count != null ? lastPageFor(total.count, itemsPerPage, maxPage) : 0;
+  const lastPage = Math.min(Math.max(floorPages, hasMore ? page + 1 : page), maxPage);
+  // Standing on the last page with nothing after it is proof the set ends here.
+  const provenEnd = page >= lastPage && !hasMore;
+  return { lastPage, openEnded: lastPage < maxPage && !provenEnd };
+}

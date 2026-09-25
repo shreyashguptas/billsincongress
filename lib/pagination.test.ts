@@ -8,7 +8,7 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from "node:assert/strict";
-import { GAP, lastPageFor, paginationWindow, type PaginationSlot } from "./pagination";
+import { GAP, lastPageFor, pagesForCount, paginationWindow, type PaginationSlot } from "./pagination";
 
 let passed = 0;
 const failures: string[] = [];
@@ -93,6 +93,34 @@ it("counts pages, and respects the backend's ceiling", () => {
   // 18,000 bills at 10 a page is 1,800 pages; Convex caps the offset at 500,
   // so 51 is as far as the list can actually go.
   assert.equal(lastPageFor(18000, 10, 51), 51);
+});
+
+// Only an exact count may name a last page
+
+it("an exact count names its last page and closes the bar", () => {
+  assert.deepEqual(pagesForCount({ count: 120, exact: true }, 1, true, 50, 10), { lastPage: 3, openEnded: false });
+});
+
+it("a floor never becomes the last page", () => {
+  // "At least 120" on page 1 of 50-per-page: pages 1–3 provably exist, more may.
+  assert.deepEqual(pagesForCount({ count: 120, exact: false }, 1, true, 50, 10), { lastPage: 3, openEnded: true });
+});
+
+it("a floor still reaches the next page the current one proves", () => {
+  assert.deepEqual(pagesForCount({ count: 120, exact: false }, 3, true, 50, 10), { lastPage: 4, openEnded: true });
+});
+
+it("no count at all still links onward instead of stranding page 2", () => {
+  assert.deepEqual(pagesForCount({ count: null, exact: false }, 1, true, 50, 10), { lastPage: 2, openEnded: true });
+  assert.deepEqual(pagesForCount(null, 1, true, 50, 10), { lastPage: 2, openEnded: true });
+});
+
+it("the last page with nothing after it closes the bar even without a count", () => {
+  assert.deepEqual(pagesForCount({ count: null, exact: false }, 2, false, 50, 10), { lastPage: 2, openEnded: false });
+});
+
+it("never offers a page past what the backend can serve", () => {
+  assert.deepEqual(pagesForCount({ count: 9000, exact: false }, 10, true, 50, 10), { lastPage: 10, openEnded: false });
 });
 
 if (failures.length) {
