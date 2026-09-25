@@ -3,17 +3,20 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
 
-// A label, never a status: a stage is a StatusPill (components/bills/status-pill.tsx)
-// so it always carries its colour dot and word together.
+// shadcn/ui's Badge on the brand tokens. A label, never a status: a stage is a
+// StatusPill (components/brand/status.tsx) so it always carries its colour dot
+// and word together.
 const badgeVariants = cva(
   'inline-flex h-6 items-center rounded-sm px-2 font-sans text-[13px] font-medium leading-none transition-colors',
   {
     variants: {
       variant: {
-        // A topic or category tag.
-        muted: 'bg-sunken text-ink-2',
-        outline: 'border border-line bg-raised text-ink',
-        solid: 'bg-ink text-on-ink',
+        default: 'bg-primary text-primary-foreground',
+        // A topic or category tag. ink-2, not muted-foreground: ink-3 on the
+        // sunken fill is just under 4.5:1.
+        secondary: 'bg-secondary text-ink-2',
+        outline: 'border border-border bg-card text-foreground',
+        destructive: 'bg-destructive text-destructive-foreground',
       },
     },
     defaultVariants: {

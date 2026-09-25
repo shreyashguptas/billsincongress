@@ -243,7 +243,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Layer | What it is |
 | --- | --- |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript |
-| Design | Tailwind CSS on the tokens in [`Documentation/brand.md`](Documentation/brand.md) (the design language: colour, type, logo, components), Radix UI primitives, Framer Motion |
+| Design | [shadcn/ui](https://ui.shadcn.com) components (Radix underneath) and Tailwind CSS, themed by the tokens in [`Documentation/brand.md`](Documentation/brand.md) — the design language: colour, type, logo, components. Framer Motion for the Learn page |
 | Backend | Convex — database, queries, scheduled jobs, and the answer stream |
 | Accounts | Convex Auth: Google sign-in, or email and password with a one-time code emailed through PostHog Workflows |
 | AI | OpenRouter, with the grounding and citation-checking layer in `convex/catalog/` and `convex/answer.ts` |

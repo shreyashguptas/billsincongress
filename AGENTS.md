@@ -76,7 +76,12 @@ Everything visual is downstream of it:
 - colours and themes live in `app/globals.css` as tokens, exposed by `tailwind.config.ts` as
   classes named the same way (`bg-paper`, `text-ink-2`, `border-line-strong`, `bg-status-law`);
 - the logo and the shared pieces (stage pill and track, party tag, section header, source
-  line) live in `components/brand/`; the primitives in `components/ui/`.
+  line) live in `components/brand/`;
+- **shadcn/ui is the component library**: `components/ui/` is shadcn/ui, themed through its
+  CSS variables (mapped to the brand in `app/globals.css`). Use its components for every
+  control — Button, Dialog, ToggleGroup, Select, Skeleton, Alert — and add a missing one
+  with `npx shadcn@2.3.0 add <component>` (the Tailwind 3 CLI). Files in `components/ui/`
+  keep shadcn's class names; app code uses the brand names.
 
 Rules:
 

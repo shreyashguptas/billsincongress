@@ -173,7 +173,7 @@ export default function BillDetails({ bill }: BillDetailsProps) {
             {formatCongressProse(bill.congress)}
           </span>
           {bill.bill_subjects?.policy_area_name && (
-            <Badge variant="muted">{bill.bill_subjects.policy_area_name}</Badge>
+            <Badge variant="secondary">{bill.bill_subjects.policy_area_name}</Badge>
           )}
         </div>
 

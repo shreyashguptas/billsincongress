@@ -161,6 +161,10 @@ module.exports = {
   },
   plugins: [
     require('@tailwindcss/forms'),
+    // The enter/exit utilities (animate-in, fade-in-0, zoom-in-95…) that
+    // shadcn/ui components ship with. Every blanket rule under
+    // prefers-reduced-motion in globals.css still applies to them.
+    require('tailwindcss-animate'),
     // Adapt to the INPUT DEVICE rather than to the screen width. A 1280px-wide
     // touchscreen laptop needs 44px hit targets; a 768px iPad with a trackpad
     // does not need a bottom sheet. Width breakpoints answer neither question.

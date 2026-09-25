@@ -21,10 +21,10 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      // bg-paper/70, not a foreground tint: --ink is near-white in
+      // bg-background/70, not a foreground tint: --ink is near-white in
       // dark mode, so a foreground scrim would LIGHTEN the page behind the
       // sheet. This also removes the only hard-coded colour in the system.
-      'fixed inset-0 z-50 bg-paper/70 backdrop-blur-[2px]',
+      'fixed inset-0 z-50 bg-background/70 backdrop-blur-[2px]',
       'data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
       className
     )}
@@ -40,14 +40,13 @@ SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
  * immediately and the sheet snaps out of existence.
  *
  * The animation utilities come from tailwind.config.ts (keyframes live in
- * app/globals.css). The classes this replaced — `animate-in`,
- * `slide-in-from-bottom`, `duration-500` — are tailwindcss-animate's, and that
- * package is not installed, so every sheet on this site has been appearing with
- * no transition at all. `duration-*` sets transition-duration, which does
- * nothing to an animation either.
+ * app/globals.css). They were written when tailwindcss-animate was not
+ * installed and every sheet opened with no transition; the plugin is installed
+ * now (for the shadcn/ui components added later), but these are tuned to the
+ * sheet's own easing and exit timing, so the sheet keeps them.
  */
 const sheetVariants = cva(
-  'fixed z-50 gap-4 bg-paper p-6 shadow-float',
+  'fixed z-50 gap-4 bg-background p-6 shadow-float',
   {
     variants: {
       side: {
@@ -90,7 +89,7 @@ const SheetContent = React.forwardRef<
     >
       {children}
       {!hideClose && (
-        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-ring disabled:pointer-events-none data-[state=open]:bg-sunken">
+        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none data-[state=open]:bg-accent">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </SheetPrimitive.Close>
@@ -134,7 +133,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
-    className={cn('font-serif text-display-sm text-ink', className)}
+    className={cn('font-serif text-display-sm text-foreground', className)}
     {...props}
   />
 ));
@@ -146,7 +145,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-ink-3', className)}
+    className={cn('text-sm text-muted-foreground', className)}
     {...props}
   />
 ));

@@ -120,7 +120,7 @@ function AccountInner() {
                 <dd className="mt-0.5 flex flex-wrap items-center gap-2 text-[15px] text-ink">
                   <span className="[overflow-wrap:anywhere]">{user.email ?? "—"}</span>
                   {verified ? (
-                    <Badge variant="muted">Verified</Badge>
+                    <Badge variant="secondary">Verified</Badge>
                   ) : (
                     <Badge variant="outline">Unverified</Badge>
                   )}

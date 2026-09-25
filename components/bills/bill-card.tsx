@@ -145,7 +145,7 @@ export default function BillCard({ bill, variant = 'full', hideTopic = false }: 
             {sponsorName && (
               <PartyTag name={sponsorName} party={bill.sponsor_party} state={bill.sponsor_state} />
             )}
-            {policyArea && <Badge variant="muted">{policyArea}</Badge>}
+            {policyArea && <Badge variant="secondary">{policyArea}</Badge>}
           </div>
         )}
       </div>

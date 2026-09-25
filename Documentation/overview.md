@@ -101,7 +101,8 @@ components/                Shared React components
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
     home/                  The home page hero (the chamber) and its chart sections
-  auth/ analytics/ legal/ seo/ theme/ ui/
+  ui/                      shadcn/ui components, themed via CSS variables (Documentation/brand.md)
+  auth/ analytics/ legal/ seo/ theme/
   navigation.tsx footer.tsx podcast-promo.tsx
   convex-client-provider.tsx theme-provider.tsx
 

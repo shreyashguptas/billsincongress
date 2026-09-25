@@ -160,20 +160,66 @@ All three load through `next/font/google` in `app/layout.tsx`.
 
 ## Components
 
-These live in `components/brand/` and `components/ui/`. Reach for them before
-writing new markup.
+**[shadcn/ui](https://ui.shadcn.com) is the component library.** Everything in
+`components/ui/` is a shadcn/ui component (Radix underneath), themed to the
+brand through CSS variables rather than restyled. Reach for one before writing a
+control by hand: a button is `Button`, a modal is `Dialog`, a segmented switch
+is `ToggleGroup`, a dropdown is `Select` or `DropdownMenu`, a loading
+placeholder is `Skeleton`, an error box is `Alert`.
+
+### How the theme reaches shadcn
+
+shadcn/ui components read shadcn's semantic variables. `app/globals.css` points
+each one at a brand token, so a component arrives on-brand with no edits —
+including one added later:
+
+| shadcn variable | Brand token | Note |
+|---|---|---|
+| `--background` / `--foreground` | `paper` / `ink` | |
+| `--card`, `--popover` (+ `-foreground`) | `raised` / `ink` | Cards, inputs, menus, dialogs |
+| `--primary` / `--primary-foreground` | `ink` / `on-ink` | The primary button is ink |
+| `--secondary`, `--muted`, `--accent` | `sunken` | `accent` is shadcn's hover fill: neutral, never a hue |
+| `--muted-foreground` | `ink-3` | |
+| `--destructive` | `error` | Irreversible deletes and errors only |
+| `--border` / `--input` / `--ring` | `line` / `line-strong` / `ink` | |
+
+Two vocabularies, one rule: **files in `components/ui/` use shadcn's names**
+(`bg-primary`, `text-muted-foreground`) so they stay as shadcn ships them;
+**app code uses the brand names** (`bg-ink`, `text-ink-3`) so it reads the way
+this document does. Both resolve to the same values.
+
+### Adding a component
+
+```bash
+npx shadcn@2.3.0 add <component>
+```
+
+Version 2.3.0 is the last CLI for Tailwind 3, which this site uses. The CLI
+writes to `components/ui/` and installs its Radix package; the enter/exit
+utilities it relies on come from `tailwindcss-animate`, already installed. After
+adding one, change only what the brand needs and say so in a comment. The
+existing brand edits:
+
+| Component | Brand edit |
+|---|---|
+| `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch |
+| `Badge` | 24px tall, sentence case, `rounded-sm`; `secondary` text is `ink-2` for contrast |
+| `Dialog`, `Sheet` | The scrim is paper at 70% with a slight blur, not black (a dark scrim lightens nothing in Night); `shadow-float` |
+| `Sheet`, `Popover` | Their own enter/exit keyframes, tuned before `tailwindcss-animate` was installed |
+| `Input`, `Select` | On `card`, 15px text, 44px on touch |
+
+### Brand pieces built on top
+
+These live in `components/brand/` and compose the primitives above.
 
 | Component | File | Rule |
 |---|---|---|
 | `Logo`, `ChamberMark` | `components/brand/logo.tsx` | See Logo, below |
-| `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `stageLabel()` in `lib/utils/bill-stages.ts` (Introduced · In committee · Passed one chamber · Passed both chambers · On the President's desk · Signed by the President · Became law · Vetoed). Never fill the whole pill with the stage colour |
+| `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `stageLabel()` in `lib/utils/bill-stages.ts`. Never fill the whole pill with the stage colour |
 | `StageTrack` | `components/brand/status.tsx` | Seven equal segments. Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
-| `Button` | `components/ui/button.tsx` | `default` is the ink primary, once per view. `outline` for everything else. `ghost` in headers and dense rows. `link` inline. No variant takes a hue |
-| `Badge` | `components/ui/badge.tsx` | A label or tag (`muted` for a topic). Never a stage: that is `StatusPill` |
-| `Input`, `Select`, `Sheet`, `Popover`, `DropdownMenu` | `components/ui/` | Raised surface, `line-strong` edge, `focus-ring` |
 
 Patterns that appear on more than one page:
 
@@ -186,6 +232,10 @@ Patterns that appear on more than one page:
   `display-md` beside a `StageTrack` with labels.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
+
+What stays hand-built: the charts. A seat, a slice or a waffle square is data,
+not a control, so the hemicycle, topic wheel, state map and the rest draw their
+own marks.
 
 ## Charts
 
