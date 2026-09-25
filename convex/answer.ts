@@ -8,7 +8,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { ActionCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { rateLimiter } from "./rateLimits";
+import { limitChatQuestion } from "./rateLimits";
 import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "./catalog/tools";
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
@@ -31,9 +31,6 @@ const SITE_URL = "https://billsincongress.com";
 const MAX_HISTORY_TURNS = 10;
 const MAX_HISTORY_CHARS = 8000;
 const MAX_QUESTION_LENGTH = 2000;
-/** Mirrors convex/rateLimits.ts. Shown to the reader, so it must match. */
-const ANONYMOUS_CHAT_DAILY_LIMIT = 5;
-const AUTHED_CHAT_DAILY_LIMIT = 100;
 /** Search engine behind the web fallback. Named on the privacy page. */
 const WEB_ENGINE = "exa";
 /**
@@ -704,15 +701,18 @@ export const stream = httpAction(async (ctx, request) => {
 
       // Consume the daily token BEFORE calling the model (spec §9): this is the
       // only spend cap on this path, which bypasses the one in convex/llm.ts.
-      const limitStatus = userId
-        ? await rateLimiter.limit(ctx, "chatAuthedPerDay", { key: userId })
-        : await rateLimiter.limit(ctx, "chatAnonPerDay", { key: anonymousSessionId! });
+      // Which allowance applies (anonymous, free or Pro) is decided in one
+      // place, convex/rateLimits.ts, from the stored plan.
+      const limitStatus = await limitChatQuestion(
+        ctx,
+        userId ? { userId } : { anonymousSessionId: anonymousSessionId! },
+      );
 
       if (!limitStatus.ok) {
         const retryAfterMs = limitStatus.retryAfter ?? 0;
         send("rate_limited", {
           kind: userId ? "authed" : "anonymous",
-          max: userId ? AUTHED_CHAT_DAILY_LIMIT : ANONYMOUS_CHAT_DAILY_LIMIT,
+          max: limitStatus.max,
           resetAt: Date.now() + retryAfterMs,
         });
         controller.close();

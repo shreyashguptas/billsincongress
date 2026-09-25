@@ -212,12 +212,41 @@ fires roughly once per settled search.
 | `bill_save_signin_redirected` | Signed-out user clicked Save and was sent to sign-in (conversion moment) | `bill_id` | `components/bills/save-bill-button.tsx` |
 | `rate_limit_signup_clicked` | User clicks "Sign up free" in the rate-limit dialog (key conversion moment) | `limit_kind` | `components/bills/rate-limit-dialog.tsx`, now rendered only from `components/answers/answer-panel.tsx` |
 | `rate_limit_signin_clicked` | User clicks "I have an account" in the rate-limit dialog | `limit_kind` | `components/bills/rate-limit-dialog.tsx`, same render site |
+| `rate_limit_upgrade_clicked` | A signed-in free reader at the daily cap clicks "See Pro" in the rate-limit dialog | — | `components/bills/rate-limit-dialog.tsx`, same render site |
 
 > **Reading `has_summary`.** It means "Congress has published a CRS summary for
 > this bill" — nothing more. Since 18 Aug 2026 every bill page also renders an
 > "At a glance" paragraph built from the bill's own fields, so `has_summary:
 > false` no longer implies the page had no prose on it. The property is
 > deliberately unrenamed: existing insights and funnels are built on it.
+
+### Pro plan (billing + bill alerts)
+
+Added with the Pro plan. The upgrade funnel is
+`bill_alert_upsell_shown` / `rate_limit_upgrade_clicked` → `pro_checkout_started` →
+`pro_checkout_returned (success)` → `pro_activated`. `pro_activated` is the only event
+that proves the Stripe webhook landed: it fires when the account page sees `users.plan`
+turn `pro`, never on the success URL alone (a reader can open that by hand).
+
+No event carries card data, prices paid or Stripe ids. Revenue lives in Stripe.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `bill_alert_upsell_shown` | A reader not on Pro pressed "Email me updates" on a bill page and was sent to `/pro` | `bill_id`, `signed_in` | `components/bills/bill-alert-button.tsx` |
+| `bill_alert_toggled` | A reader followed or unfollowed a bill for email alerts | `bill_id`, `action: "followed" \| "unfollowed"`, `surface: "bill_page" \| "account"`; from the bill page also `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-alert-button.tsx`, `app/account/page.tsx` (Unfollow) |
+| `pro_checkout_started` | Reader pressed a subscribe button and is about to leave for Stripe Checkout | `interval: "month" \| "year"`, `surface: "pro_page" \| "alert_prompt"` (`account` and `rate_limit` are accepted but not sent today) | `components/pro/subscribe-panel.tsx` |
+| `pro_checkout_failed` | Checkout could not be opened | `interval`, `reason` (our error code, e.g. `BILLING_NOT_CONFIGURED`) | `components/pro/subscribe-panel.tsx` |
+| `pro_checkout_returned` | Reader came back from Stripe: the success URL (`/account?checkout=success`) or the cancel URL (`/pro?checkout=canceled`) | `outcome: "success" \| "canceled"` | `app/account/page.tsx`, `components/pro/subscribe-panel.tsx` |
+| `pro_activated` | After a successful checkout, the account page saw the plan become Pro (the webhook landed) | `interval: "month" \| "year" \| "unknown"` | `app/account/page.tsx` |
+| `billing_portal_opened` | Reader pressed "Manage billing" and is being sent to the Stripe customer portal | — | `app/account/page.tsx` |
+| `bill_alerts_unsubscribed` | Reader used the link in an alert email to stop all alert emails | `removed` (number of bills unfollowed) | `app/alerts/unsubscribe/unsubscribe-form.tsx` |
+
+Not tracked: whether an alert email was sent, opened or clicked. Sends happen in Convex
+(`convex/alerts.ts`), which has no PostHog client, and open/click tracking would need
+tracking pixels and rewritten links in the email, which we do not add. Delivery status is
+in the Resend component's `emails` table in the Convex dashboard instead. A one-click
+unsubscribe from a mail client's own button posts straight to
+`/api/alerts/unsubscribe` and fires no event either.
 
 ### Grounded answers
 
@@ -335,7 +364,7 @@ updated, so it stays the true account age.
 |---|---|---|
 | `email` | `$set` | Account email |
 | `name` | `$set` | Display name (if any) |
-| `plan` | `$set` | `free` or `pro`. Nothing in the codebase ever sets `pro`; there is no billing. |
+| `plan` | `$set` | `free` or `pro`. `pro` is written to `users.plan` only by the Stripe webhook (`convex/billing.ts`) and reaches PostHog on the reader's next page load. |
 | `email_verified` | `$set` | Whether email verification completed |
 | `account_created_at` | `$set_once` | Account creation timestamp (ISO string) |
 

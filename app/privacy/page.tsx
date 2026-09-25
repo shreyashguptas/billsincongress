@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'August 29, 2026';
+const LAST_UPDATED = 'September 24, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -151,14 +151,30 @@ export default function PrivacyPage() {
                 with it: the bills you save and your bill-chat history. Once
                 you are signed in, our analytics link your activity to your
                 account (including your email address) so we can understand the
-                journey from first visit to sign-up. We send email only for
-                account purposes — verification codes and password resets — via{' '}
-                <ExternalLink href="https://resend.com">Resend</ExternalLink>.
+                journey from first visit to sign-up. We send email through{' '}
+                <ExternalLink href="https://resend.com">Resend</ExternalLink>{' '}
+                for two reasons only: account emails (verification codes and
+                password resets), and bill alerts you have turned on yourself.
                 We do not send marketing email or newsletters.
               </p>
               <p>
-                The site is free and has no paid features today, so we do not
-                collect any payment information.
+                Reading the site is free. If you subscribe to Pro, the one paid
+                plan, payment is handled by{' '}
+                <ExternalLink href="https://stripe.com/privacy">Stripe</ExternalLink>:
+                your card details go to Stripe and never reach our servers. We
+                store your Stripe customer and subscription IDs, which price you
+                chose, the subscription&apos;s status, and when it renews or ends
+                — enough to know whether you are on Pro, nothing more. Stripe keeps
+                its own payment records as its privacy policy and the law require.
+              </p>
+              <p>
+                If you follow bills for email alerts, we store which bills you
+                follow and when each was last included in an alert. Alert emails
+                list public actions on those bills; they contain no tracking
+                pixels and no rewritten links, so we do not know whether you opened
+                or clicked one. We keep a copy of each sent alert email for seven
+                days so we can investigate delivery problems, then delete it. Every
+                alert email has a link that stops all alerts without signing in.
               </p>
             </Section>
 
@@ -345,8 +361,8 @@ const summary = [
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
-  'We email you only for account reasons — never marketing.',
-  'No payment data: the site is free.',
+  'We email you only for account reasons and bill alerts you turn on — never marketing.',
+  'Reading is free. If you pay for Pro, Stripe handles your card; we never see it.',
 ];
 
 const cookies = [
@@ -378,7 +394,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts, saved bills, chat history, and the public bill data.',
+    role: 'Our database and authentication backend. Stores accounts, saved bills, followed bills, chat history, your plan status, and the public bill data.',
   },
   {
     name: 'Cloudflare',
@@ -398,7 +414,11 @@ const providers = [
   },
   {
     name: 'Resend',
-    role: 'Delivers account emails: verification codes and password resets.',
+    role: 'Delivers account emails (verification codes and password resets) and the bill alerts you turn on. Receives your email address and the content of those emails.',
+  },
+  {
+    name: 'Stripe',
+    role: 'Only if you subscribe to Pro: takes the payment and runs the subscription. Receives your email address, name and card details; we never see the card.',
   },
   {
     name: 'Google',

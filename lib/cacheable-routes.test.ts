@@ -120,10 +120,12 @@ it("every page route is a deliberate yes or no, none forgotten", () => {
     "/about",
     "/learn",
     "/privacy",
+    "/pro",
     "/terms",
   ]);
   const KNOWN_PRIVATE = new Set([
     "/account",
+    "/alerts/unsubscribe",
     "/sign-in",
     "/sign-up",
     "/forgot-password",

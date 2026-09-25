@@ -15,7 +15,9 @@
  */
 
 /** Routes whose anonymous response is identical for every visitor. */
-const PUBLIC_EXACT = new Set(['/', '/about', '/learn', '/privacy', '/terms']);
+// `/pro` qualifies: its server HTML is the same for everyone, and the plan
+// state and subscribe buttons are rendered client-side from the reader's session.
+const PUBLIC_EXACT = new Set(['/', '/about', '/learn', '/privacy', '/pro', '/terms']);
 
 /** Route trees whose anonymous responses are identical for every visitor. */
 const PUBLIC_PREFIXES = ['/bills'];
@@ -30,6 +32,7 @@ const NEVER_CACHEABLE_PREFIXES = [
   '/sign-in',
   '/sign-up',
   '/forgot-password',
+  '/alerts', // carries a reader's unsubscribe token in the URL
   '/api',
 ];
 

@@ -18,7 +18,7 @@ export default function SignUpPage() {
             Create your account
           </h1>
           <p className="text-sm text-muted-foreground">
-            Free, with no paid tier.
+            Free. Save bills and ask more questions each day.
           </p>
         </div>
         <Suspense fallback={<div className="h-96" aria-hidden />}>

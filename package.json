@@ -45,21 +45,25 @@
     "posthog-node": "^5.51.6",
     "react": "^19.2.8",
     "react-markdown": "^10.1.0",
-    "resend": "6.12.2",
+    "stripe": "^22.6.2",
     "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@posthog/cli": "^0.7.34",
     "@tailwindcss/forms": "^0.5.11",
     "@types/node": "^22.20.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "autoprefixer": "^10.5.4",
+    "convex-test": "0.0.60",
     "postcss": "^8.5.26",
     "sharp": "^0.33.5",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
+    "vite": "8.3.1",
+    "vitest": "^5.0.1",
     "wrangler": "^4.128.0"
   }
 }

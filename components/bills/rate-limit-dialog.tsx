@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { analytics } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AUTHED_CHAT_DAILY_LIMIT, PRO_CHAT_DAILY_LIMIT } from "@/convex/plan";
 
 interface RateLimitDialogProps {
   open: boolean;
@@ -76,7 +77,7 @@ export function RateLimitDialog({
               </DialogPrimitive.Title>
               <DialogPrimitive.Description className="mt-2 text-sm text-muted-foreground leading-relaxed">
                 Anonymous browsers can ask up to <span className="font-medium text-foreground">{max} questions a day</span>.{" "}
-                Create a free account and ask up to <span className="font-medium text-foreground">100 a day</span>.
+                Create a free account and ask up to <span className="font-medium text-foreground">{AUTHED_CHAT_DAILY_LIMIT} a day</span>.
               </DialogPrimitive.Description>
 
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">
@@ -106,16 +107,41 @@ export function RateLimitDialog({
                 <span className="font-medium text-foreground">{resetLabel}</span>.
               </DialogPrimitive.Description>
 
-              <div className="mt-5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => onOpenChange(false)}
-                >
-                  Got it
-                </Button>
-              </div>
+              {/* Free accounts can raise the cap; Pro readers are already at the top. */}
+              {max < PRO_CHAT_DAILY_LIMIT ? (
+                <>
+                  <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                    Pro raises this to <span className="font-medium text-foreground">{PRO_CHAT_DAILY_LIMIT} a day</span>{" "}
+                    and emails you when bills you follow move.
+                  </p>
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                    <Button asChild className="w-full sm:flex-1">
+                      <Link href="/pro" onClick={() => analytics.rateLimitUpgradeClicked()}>
+                        See Pro
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:flex-1"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      Not now
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => onOpenChange(false)}
+                  >
+                    Got it
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </DialogPrimitive.Content>
