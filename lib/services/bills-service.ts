@@ -1,6 +1,14 @@
 import { Bill } from '@/lib/types/bill';
 import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
 import { getConvexHttpClient } from '@/lib/convex-client';
+import {
+  BILLS_RELAY_PATH,
+  isUnreachable,
+  type RelayedBillsQuery,
+} from '@/lib/bills-relay';
+import { jsonToConvex, type JSONValue } from 'convex/values';
+import type { FunctionArgs, FunctionReturnType } from 'convex/server';
+import type { api as Api } from '../../convex/_generated/api';
 
 /**
  * Bills service that fetches data from Convex backend.
@@ -99,6 +107,64 @@ function resolveTextQuery(
   };
 }
 
+type BillsQueries = typeof Api.bills;
+
+/**
+ * Set once a direct call from this page has failed to connect, so the rest of
+ * the visit goes straight to the relay instead of paying a failed request
+ * first every time.
+ */
+let convexUnreachable = false;
+
+/**
+ * Run one of the public bills queries.
+ *
+ * On the server this is a plain Convex call. In the browser it tries Convex
+ * directly and, when the network will not let the request out (some school and
+ * workplace networks block `*.convex.cloud`), runs it through this site's own
+ * origin instead — see `lib/bills-relay.ts`. Either way a failure throws; it
+ * never turns into an empty result.
+ */
+async function queryBills<Name extends RelayedBillsQuery>(
+  name: Name,
+  args: FunctionArgs<BillsQueries[Name]>,
+): Promise<FunctionReturnType<BillsQueries[Name]>> {
+  const client = getConvexHttpClient();
+  if (!client) throw new Error('Convex is not configured');
+
+  const inBrowser = typeof window !== 'undefined';
+  if (!inBrowser || !convexUnreachable) {
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      // The generic signature cannot follow `name` through an indexed access;
+      // the public signature of this function carries the real types.
+      const run = client.query.bind(client) as (
+        query: BillsQueries[Name],
+        args: FunctionArgs<BillsQueries[Name]>,
+      ) => Promise<FunctionReturnType<BillsQueries[Name]>>;
+      return await run(api.bills[name], args);
+    } catch (error) {
+      if (!inBrowser || !isUnreachable(error)) throw error;
+      convexUnreachable = true;
+      try {
+        const { analytics } = await import('@/lib/analytics');
+        analytics.billsQueryRelayed(name);
+      } catch {
+        // Analytics must never be the reason bills fail to load.
+      }
+    }
+  }
+
+  const response = await fetch(BILLS_RELAY_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, args }),
+  });
+  if (!response.ok) throw new Error(`Bills relay failed with status ${response.status}`);
+  const { value } = (await response.json()) as { value: JSONValue };
+  return jsonToConvex(value) as FunctionReturnType<BillsQueries[Name]>;
+}
+
 /**
  * Transform a Convex bill document to the frontend Bill interface.
  * Maps camelCase Convex fields to snake_case Bill fields.
@@ -169,11 +235,14 @@ export const billsService = {
       return { data: [], hasMore: false, truncated: false };
     }
 
+    // Rethrows rather than returning an empty page. A failed request used to
+    // come back as `data: []`, which the list rendered as "No bills found" —
+    // telling readers on networks that block Convex that no bill matched
+    // `?congress=118` or `?chamber=house`.
     try {
-      const { api } = await import('../../convex/_generated/api');
       const offset = (page - 1) * itemsPerPage;
 
-      const result = await client.query(api.bills.list, {
+      const result = await queryBills('list', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
@@ -196,7 +265,7 @@ export const billsService = {
       };
     } catch (error) {
       console.error('Error fetching bills from Convex:', error);
-      return { data: [], hasMore: false, truncated: false };
+      throw error;
     }
   },
 
@@ -226,8 +295,7 @@ export const billsService = {
     if (!client) return { count: null, exact: false };
 
     try {
-      const { api } = await import('../../convex/_generated/api');
-      return await client.query(api.bills.listCount, {
+      return await queryBills('listCount', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
@@ -257,8 +325,7 @@ export const billsService = {
     if (!client) return null;
 
     try {
-      const { api } = await import('../../convex/_generated/api');
-      return await client.query(api.bills.getSyncStatus);
+      return await queryBills('getSyncStatus', {});
     } catch (error) {
       console.error('Error fetching sync status from Convex:', error);
       return null;
@@ -276,8 +343,7 @@ export const billsService = {
     if (!client) throw new Error('Convex is not configured');
 
     try {
-      const { api } = await import('../../convex/_generated/api');
-      const rows = await client.query(api.bills.listAllSponsors);
+      const rows = await queryBills('listAllSponsors', {});
       return rows as SponsorOption[];
     } catch (error) {
       console.error('Error fetching sponsors from Convex:', error);

@@ -172,6 +172,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
+| `/api/bills/query` | POST — runs one of four public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`) on the server, for browsers that cannot reach Convex. See below |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/api/bill-chat/send` | POST — **dead**, see [Dead code](#dead-code-and-known-gaps) |
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
@@ -179,6 +180,22 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/share-image/<hub path>?v=` | GET — a status, chamber or topic page's share card, e.g. `/share-image/bills/topic/health` for `/bills/topic/health`. 404 for a path that is not a hub |
 | `/robots.txt`, `/sitemap_index.xml`, `/sitemap/<n>.xml`, `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
 | `/sw.js`, `/offline.html` | The service worker and the one page it serves (static files) |
+
+**Browsers that cannot reach Convex.** The `/bills` list, its count, the sponsor picker and
+the sync-status line are fetched from the browser with `ConvexHttpClient`, straight to
+`*.convex.cloud`. Some school and workplace networks block that host while letting the site
+through: from 11 to 25 Sep 2026, 35 recorded sessions (almost all Edge on Windows) had every
+one of those requests fail with `TypeError: Failed to fetch`. The server-rendered first page
+looked fine, and every filter change after it said "No bills found", because
+`billsService.fetchBills` returned a failure as an empty page. Now `queryBills` in
+`lib/services/bills-service.ts` retries a connection failure through `/api/bills/query` on the
+site's own origin (the Worker can always reach Convex, as server rendering shows), and keeps
+using the relay for the rest of the page load. The relay is an allowlist in
+`lib/bills-relay.ts` of queries that are already public at the Convex URL, so it exposes
+nothing new. A Convex error is never relayed, and when both paths fail `fetchBills` throws and
+the list says the bills did not load, never that none matched. `bills_query_relayed` counts the
+readers this reaches. The home dashboard, the ask panel's live history and account widgets use
+Convex's WebSocket client and are not covered.
 
 **Sitemaps** are `/sitemap_index.xml` (a route handler) listing `/sitemap/0.xml` (static pages
 and hubs) plus one file per Congress from `app/sitemap.ts`, about 56,000 URLs. Both take their

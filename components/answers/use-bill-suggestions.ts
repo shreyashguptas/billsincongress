@@ -76,9 +76,9 @@ export function useBillSuggestions(query: string, congress: number): BillSuggest
           setState({ bills: data, kind, forQuery: key, forCongress: congress, loading: false });
         })
         .catch(() => {
-          // fetchBills already degrades to an empty list; this only guards a
-          // throw from the dynamic import itself. Suggestions are optional —
-          // the ask path still works — so fail quietly.
+          // fetchBills throws when neither Convex nor the same-origin relay
+          // answered. Suggestions are optional — the ask path still works —
+          // so fail quietly.
           if (latest.current !== cacheKey) return;
           setState({ bills: [], kind, forQuery: key, forCongress: congress, loading: false });
         });

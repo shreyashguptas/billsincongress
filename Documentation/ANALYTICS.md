@@ -167,6 +167,7 @@ picker) and fires one custom event — see "Learn page" below.
 | `header_search_submitted` | Reader submits the search field in the site header (lg and up; added 2026-09-25 with the redesign). Lands on `/bills?title=…`, or plain `/bills` when empty | `query_length` | `components/navigation.tsx` |
 | `bills_load_more_clicked` | User clicks "Load more bills" | `next_page`, `loaded_count` | `app/bills/bills-client.tsx` |
 | `bills_no_results` | A filtered search returned zero bills (UX friction signal) | `active_filter_count`, `query_length` | `app/bills/bills-client.tsx` |
+| `bills_query_relayed` | The browser could not reach Convex directly (a connection failure, not a Convex error), so this page load's bills reads — list, count, sponsor picker, sync status — switch to the same-origin `/api/bills/query` relay. Once per page load, at the first failed call. Added 2026-09-25 | `query` (`list` \| `listCount` \| `listAllSponsors` \| `getSyncStatus`: the call that failed first) | `lib/services/bills-service.ts` |
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill row in a bill list (`/bills` or a hub page). Named for the card the row replaced in the 2026-09-25 redesign; the name is kept so saved insights keep working | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
 | `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set while the list is open (passive, 150ms debounce, once per settled query and Congress, including zero results) | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
@@ -206,6 +207,13 @@ reader types replaces those waits. Read them against `answer_question_submitted`
 (`surface: "home"`, `source: "typed"`) in the same session: a falling share of short
 typed questions alongside rising `bill_suggestion_clicked` is the win. Like the
 events above, no query text is sent.
+
+**`bills_no_results` before 2026-09-25 also counts failed requests.** `fetchBills` returned a
+request that never reached Convex as an empty page, so readers on networks that block
+`*.convex.cloud` fired this event on every filter change — 105 of 439 events (17 of 89 people)
+in the week to 25 Sep 2026 came from sessions whose console shows the request failing, and
+those are only the sessions that were recorded. Failed requests now go through a same-origin
+relay (`bills_query_relayed`) or show an error, and fire nothing here.
 
 **`bills_no_results` volumes before 2026-08-29 are inflated and not comparable.**
 The search box had no debounce, so every keystroke fired a query and every
