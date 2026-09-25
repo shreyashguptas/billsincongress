@@ -285,9 +285,9 @@ What stays hand-built, on purpose:
 - **Small sizes**: below 32px use the favicon cut, which keeps five seats, the
   well and the floor.
 - **Files**: `public/brand/`. `scripts/generate-icons.ts` builds every favicon
-  and app icon from them, `scripts/generate-og-image.ts` builds the site's
-  generic social card, and each bill's share card draws the mark in code (see
-  Share card, below).
+  and app icon from them, and every share card, the generic one included
+  (`scripts/generate-og-image.ts`), draws the mark in code (see Share card,
+  below).
 - **Don't**: put it on a photograph, in a shield or badge, or beside a flag or
   eagle.
 
@@ -319,9 +319,10 @@ the wordmark and titles).
 ## Share card
 
 The picture a link unfurls into in iMessage, WhatsApp, Slack, email and
-everywhere else that reads Open Graph (1200×630, `lib/og/`). Bills, and the
-status, chamber and topic pages, each get one; the rest of the site uses the
-generic card.
+everywhere else that reads Open Graph (1200×630, `lib/og/`). The home page,
+every bill, and the status, chamber and topic pages each get one drawn from
+live figures; the rest of the site (About, Learn, Pro) uses the generic card,
+drawn the same way.
 
 **Show what the text under it cannot.** Every app that shows the picture also
 prints the page's title and the domain beneath it ("S.Res. 873 — In committee:
@@ -367,6 +368,18 @@ The cards:
   share a rank ("Tied for the 4th most of any topic"), and a topic tied into the
   six is always drawn inside them, in its colour. The count reads "bills
   and resolutions", as on the other page cards.
+- **The home page** (`home-share-card.tsx`): the Congress's total at 150px,
+  "bills and resolutions introduced", and how many became law in the law
+  green; on the right one row per stage that holds bills, in path order with
+  Vetoed after the President, as bars in the stage colours at true scale. The
+  rows draw the home page's finding without saying it: nearly everything is in
+  committee. A stage with bills is never drawn as an empty bar: its bar is at
+  least 6px, and the exact count sits beside it. No party colour, though the
+  home page's hero is about party: the card is about the Congress.
+- **The generic card** (`generic-share-card.tsx`, built into
+  `public/images/og-default.png` by `scripts/generate-og-image.ts`): the lockup
+  and "Every bill in the U.S. Congress, drawn so anyone can read it." in
+  Newsreader at 76px. No data, so no colour but the mark.
 
 **Every figure is a complete count.** A number a card could not read in full
 is left off (the chamber's "became law", the topic ranking), and a card whose
