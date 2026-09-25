@@ -19,12 +19,12 @@ export function billShareUrl(billId: string): string {
 }
 
 /**
- * Bump whenever the share card's design (lib/og/bill-share-card.tsx) changes.
- * It rides in the image URL beside the stage, so a platform that caches images
- * by URL — Facebook, LinkedIn, WhatsApp — fetches the new drawing rather than
- * keeping the old one.
+ * Bump whenever a share card's design (lib/og/) changes. It rides in every
+ * card's image URL, so a platform that caches images by URL — Facebook,
+ * LinkedIn, WhatsApp — fetches the new drawing rather than keeping the old one.
+ * 2: the stage-only redesign, and cards for the status, chamber and topic pages.
  */
-export const SHARE_CARD_VERSION = 1;
+export const SHARE_CARD_VERSION = 2;
 
 /** The share card's canvas: Open Graph's 1.91:1 at the width every platform expects. */
 export const SHARE_CARD_SIZE = { width: 1200, height: 630 } as const;
@@ -37,6 +37,17 @@ export const SHARE_CARD_SIZE = { width: 1200, height: 630 } as const;
  */
 export function billShareImagePath(bill: Pick<Bill, 'id' | 'progress_stage'>): string {
   return `/bills/${encodeURIComponent(bill.id)}/share-image?v=${SHARE_CARD_VERSION}.${bill.progress_stage}`;
+}
+
+/**
+ * A status, chamber or topic page's share card (app/share-image/[...path]),
+ * versioned by the page's headline count so a card that states a number is
+ * re-fetched when the number moves. `count` is null when the page's own count
+ * was not exact; the URL then carries only the design version.
+ */
+export function hubShareImagePath(hubPath: string, count: number | null): string {
+  const v = count === null ? `${SHARE_CARD_VERSION}` : `${SHARE_CARD_VERSION}.${count}`;
+  return `/share-image${hubPath}?v=${v}`;
 }
 
 /** Strip HTML tags/entities from CRS summary markup into plain text. */

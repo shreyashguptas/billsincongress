@@ -318,35 +318,60 @@ the wordmark and titles).
 
 ## Share card
 
-The picture a bill's link unfurls into in iMessage, WhatsApp, Slack, email and
-everywhere else that reads Open Graph (`lib/og/bill-share-card.tsx`, 1200×630).
-It is the bill page's header, reduced to what still reads at a thumbnail's
-size, roughly a quarter of the canvas on a phone.
+The picture a link unfurls into in iMessage, WhatsApp, Slack, email and
+everywhere else that reads Open Graph (1200×630, `lib/og/`). Bills, and the
+status, chamber and topic pages, each get one; the rest of the site uses the
+generic card.
+
+**Show what the text under it cannot.** Every app that shows the picture also
+prints the page's title and the domain beneath it ("S.Res. 873 — In committee:
+A resolution requesting…", "billsincongress.com"). So the card never repeats
+the bill number, the title, the sponsor or the address. It carries one idea,
+drawn large enough to read at a thumbnail's size, roughly a quarter of the
+canvas on a phone.
+
+Shared by every card (`lib/og/card-parts.tsx`):
 
 - **Day palette**, on `paper`, whatever the viewer's theme: a message thread
   can be either, and paper reads as the record in both.
-- **The masthead**: the spectrum chamber mark at 52px (its one use on this
-  surface) and the wordmark in Newsreader 600; on the right the identifier in
-  mono ink and "· 119th Congress" in mono `ink-3`.
-- **The title** in Newsreader 500, as large as its length allows: 76px up to
-  42 characters, then 62, 50, and 44 for anything longer, which is cut at a
-  word to 150 characters and three lines. The policy area sits above it as an
-  eyebrow.
-- **The status panel**, the card's one bold element as it is the page's: the
-  stage glyph in a 60px circle of the stage colour, the stage in Newsreader,
-  "Stage n of 7" (or "Stopped at the President", or "Stage unknown") in mono,
-  and the seven-step track with "Introduced" and "Law" at its ends. Stage
-  colour is the only hue besides the mark. An unrecognised stage is `ink-3`,
-  never a neighbour's colour.
-- **The byline**: "By" and the sponsor, then party-state and the introduction
-  date in mono `ink-3`, and `billsincongress.com` on the right. No party colour:
-  the card is about the bill, not the party.
+- **The lockup** top left: the spectrum chamber mark at 64px (its one use on
+  the surface) and the wordmark in Newsreader 600 at 42px. Page cards put
+  "119th Congress" top right in mono `ink-3`; a bill card has nothing there.
+- **The track**: the seven-step `StageTrack`, full width, 30px segments, every
+  step named under its segment. Reached segments take the stage colour; the
+  current step's name is in the stage's text colour, earlier ones ink, later
+  ones `ink-3`. Vetoed fills to "To President" in slate. An unrecognised stage
+  is `ink-3`, never a neighbour's colour.
 - **Type** is the real brand faces, embedded (Newsreader 500 and 600, Geist
   500, Geist Mono 500).
 
+The cards:
+
+- **A bill** (`bill-share-card.tsx`): the stage glyph in a 136px circle of the
+  stage colour, the stage in Newsreader at 104px (88 or 72 for the longer
+  names, so "On the President's desk" stays on one line), "Stage n of 7" (or
+  "Stopped at the President", or "Stage unknown") in mono, and the track.
+- **A status page** (`hub-share-card.tsx`): the finding as the headline, "113
+  became law" with the figure at 176px, then "Out of 19,067 bills and
+  resolutions introduced" (a percentage once it is at least 1%), then the track
+  filled to that stage.
+- **A chamber page**: "12,437 House bills and resolutions", "70 became law" in
+  the law green, the chamber's share of the Congress, and one bar: the chamber
+  in ink against the other in `sunken`.
+- **A topic page**: the topic and its count on the left; on the right the six
+  largest topics as bars in the home page's topic colours (`topic-1` …
+  `topic-6`, rank order), this one at full strength and the rest at 35%. A
+  topic outside the six takes the sixth row itself, named with its rank, in
+  `ink-3`, the colour everything past six folds into.
+
+**Every figure is a complete count.** A number a card could not read in full
+is left off (the chamber's "became law", the topic ranking), and a card whose
+headline figure cannot be read is not drawn: the route sends the generic card
+instead.
+
 The renderer takes inline styles only, so the colours are literal, the same
 values the emails use (`C`, `SPECTRUM` and `STAGE` in `convex/emailStyle.ts`),
-plus `ink-2` and `sunken` named in the card file. Change the card and bump
+plus `ink-2` and `sunken` named in `card-parts.tsx`. Change a card and bump
 `SHARE_CARD_VERSION` in `lib/seo.ts`, or platforms that cache by URL keep the
 old drawing.
 
