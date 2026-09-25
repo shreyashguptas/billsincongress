@@ -109,6 +109,43 @@
   }
 }
 
+/*
+ * shadcn/ui's semantic variables, pointed at the brand. components/ui is
+ * shadcn/ui, and every component in it — and any added later with the shadcn
+ * CLI — reads these names, so it arrives on-brand with no restyling. The
+ * mapping is in Documentation/brand.md ("Components").
+ *
+ * Declared on `.dark` as well as `:root` on purpose: a custom property that
+ * references another is resolved where it is declared, so without the second
+ * selector a Night subtree (the home page's `stage dark`) would inherit the
+ * Day values already resolved on :root.
+ */
+@layer base {
+  :root,
+  .dark {
+    --background: var(--paper);
+    --foreground: var(--ink);
+    --card: var(--raised);
+    --card-foreground: var(--ink);
+    --popover: var(--raised);
+    --popover-foreground: var(--ink);
+    --primary: var(--ink);
+    --primary-foreground: var(--on-ink);
+    --secondary: var(--sunken);
+    --secondary-foreground: var(--ink);
+    --muted: var(--sunken);
+    --muted-foreground: var(--ink-3);
+    /* shadcn's "accent" is its hover and selected fill: neutral, never a hue. */
+    --accent: var(--sunken);
+    --accent-foreground: var(--ink);
+    --destructive: var(--error);
+    --destructive-foreground: var(--on-ink);
+    --border: var(--line);
+    --input: var(--line-strong);
+    --ring: var(--ink);
+  }
+}
+
 @layer base {
   * {
     @apply border-line;
