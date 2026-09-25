@@ -87,13 +87,18 @@ const run = async () => {
     progressStage: 40,
   };
 
-  globalThis.fetch = (async (input: RequestInfo | URL) => {
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === BILLS_RELAY_PATH) {
       calls.push('relay');
       if (relayStatus !== 200) return new Response('{"error":"Query failed"}', { status: relayStatus });
+      const { name } = JSON.parse(String(init?.body)) as { name: string };
       return Response.json({
-        value: convexToJson({ data: [ROW], hasMore: true, truncated: false }),
+        value: convexToJson(
+          name === 'listCount'
+            ? { count: 19315, exact: true }
+            : { data: [ROW], hasMore: true, truncated: false },
+        ),
       });
     }
     calls.push('convex');
@@ -131,7 +136,7 @@ const run = async () => {
     ]);
     assert.deepEqual(calls.filter((c) => c === 'convex').length, 2);
     assert.deepEqual(calls.filter((c) => c === 'relay').length, 2);
-    assert.notEqual(count, null);
+    assert.deepEqual(count, { count: 19315, exact: true });
     assert.equal(response.data.length, 1);
     assert.equal(response.data[0].id, '5193hr118');
     assert.equal(response.hasMore, true);
