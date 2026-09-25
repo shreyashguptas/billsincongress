@@ -233,7 +233,7 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
-An account is free and gets you three things: bookmarking bills, saved conversation history, and a higher daily question allowance. Pro, the one paid plan, adds bill alerts and a higher allowance still. Account deletion is handled by emailing **hi@billsincongress.com** — there is no self-serve delete button yet. If you are on Pro, cancel first from your account page (Manage billing) so you are not charged again.
+An account is free and gets you three things: bookmarking bills, saved conversation history, and a higher daily question allowance. Pro, the one paid plan, adds bill alerts and a higher allowance still. Signed out, the header offers "Sign up" or "Sign in" depending on whether an account has been signed in on that browser before; it remembers that with a single local-storage flag (`bic_known_account`) holding no email or account id, kept after sign-out and never sent to the server. Account deletion is handled by emailing **hi@billsincongress.com** — there is no self-serve delete button yet. If you are on Pro, cancel first from your account page (Manage billing) so you are not charged again.
 
 ---
 
