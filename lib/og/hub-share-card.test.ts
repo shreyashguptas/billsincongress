@@ -15,7 +15,7 @@ import { POLICY_AREAS } from '@/lib/constants/filters';
 import { hubByPath } from '@/lib/hubs';
 import { hubShareImagePath, SHARE_CARD_SIZE, SHARE_CARD_VERSION } from '@/lib/seo';
 import { billsService } from '@/lib/services/bills-service';
-import { shareCardFonts } from './card-parts';
+import { shareCardFonts, TOPIC_COLOURS } from './card-parts';
 import {
   HubShareCard,
   ordinal,
@@ -121,6 +121,31 @@ async function main() {
     assert.equal(rowLabel({ ...row, rank: 3 }), 'Energy');
     // Two empty topics share last place; neither is given a place at all.
     assert.equal(rowLabel({ ...row, count: 0, rank: 32, tied: true }), 'Energy');
+  });
+
+  await it('draws a topic tied into the six inside them, in its colour', () => {
+    // Three topics tied for 5th straddle the six-row cut. The card's own topic
+    // sorts last by name, but it is in the six by rank, so it must be drawn
+    // there in topic-6, not as a grey row from outside.
+    const counts = [
+      { name: 'Health', count: 90 },
+      { name: 'Taxation', count: 80 },
+      { name: 'Animals', count: 70 },
+      { name: 'Commerce', count: 60 },
+      { name: 'Energy', count: 50 },
+      { name: 'Law', count: 50 },
+      { name: 'Zoology', count: 50 },
+      { name: 'Families', count: 10 },
+    ];
+    const { rows, rank, tied } = topicRows('Zoology', counts);
+    assert.equal(rank, 5);
+    assert.ok(tied);
+    const mine = rows.find((r) => r.isThis);
+    assert.ok(mine, 'the topic is on the card');
+    assert.ok(rows.indexOf(mine!) < 6);
+    assert.equal(mine!.colour, TOPIC_COLOURS[rows.indexOf(mine!)]);
+    assert.equal(rowLabel(mine!), 'Zoology');
+    assert.deepEqual(rows.map((r) => r.rank), [1, 2, 3, 4, 5, 5]);
   });
 
   await it('says a tie for first plainly', () => {

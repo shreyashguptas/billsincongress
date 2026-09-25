@@ -364,7 +364,8 @@ The cards:
   `topic-6`, rank order), this one at full strength and the rest at 35%. A
   topic outside the six takes the sixth row itself, named with its rank, in
   `ink-3`, the colour everything past six folds into. Topics with equal counts
-  share a rank ("Tied for the 4th most of any topic"). The count reads "bills
+  share a rank ("Tied for the 4th most of any topic"), and a topic tied into the
+  six is always drawn inside them, in its colour. The count reads "bills
   and resolutions", as on the other page cards.
 
 **Every figure is a complete count.** A number a card could not read in full

@@ -99,13 +99,21 @@ export interface TopicRow {
  *
  * A rank is a claim about order, so ties share one ("Tied for the 4th most")
  * rather than being split by name into a 4th and a 5th the data does not
- * support. Name only orders the rows on the card.
+ * support. Order among equal counts only lays out the rows.
  */
 export function topicRows(
   topic: string,
   ranking: { name: string; count: number }[],
 ): { rows: TopicRow[]; rank: number; tied: boolean } {
-  const sorted = [...ranking].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  // Among equal counts this card's own topic goes first, so a topic tied into
+  // the six is always drawn inside them, in its colour, rather than falling
+  // past the cut by alphabet. Name orders everything else.
+  const sorted = [...ranking].sort(
+    (a, b) =>
+      b.count - a.count ||
+      Number(b.name === topic) - Number(a.name === topic) ||
+      a.name.localeCompare(b.name),
+  );
   const rankOf = (count: number) => 1 + sorted.filter((t) => t.count > count).length;
   const position = sorted.findIndex((t) => t.name === topic);
   const mine = sorted[position];
