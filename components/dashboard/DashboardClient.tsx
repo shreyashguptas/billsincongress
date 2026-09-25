@@ -11,7 +11,7 @@ import { AskPageContext } from '@/components/answers/ask-page-context';
 import { SectionHeader } from '@/components/brand/section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { analytics } from '@/lib/analytics';
-import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
+import { HOME_CONGRESS, formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
 import { hubByPath, topicSlug } from '@/lib/hubs';
 import { SectionAsk, type HomeProps } from './home/shared';
@@ -45,7 +45,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({
-  initialCongress = 119,
+  initialCongress = HOME_CONGRESS,
   initialData = null,
 }: DashboardProps) {
   const convexEnabled = useConvexEnabled();
@@ -84,7 +84,7 @@ function ConvexNotConfigured() {
 }
 
 function DashboardInner({
-  initialCongress = 119,
+  initialCongress = HOME_CONGRESS,
   initialData = null,
 }: DashboardProps) {
   const router = useRouter();

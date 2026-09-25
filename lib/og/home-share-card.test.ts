@@ -8,12 +8,17 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { ImageResponse } from 'next/og';
 import { homeShareImagePath, SHARE_CARD_SIZE, SHARE_CARD_VERSION } from '@/lib/seo';
 import { shareCardFonts } from './card-parts';
 import { GenericShareCard } from './generic-share-card';
+import { HOME_CONGRESS } from '@/lib/congress';
 import { HomeShareCard, homeCardFromDashboard, type DashboardStats } from './home-share-card';
+import { loadHomeCardData } from './home-share-data';
 
 let passed = 0;
 const failures: string[] = [];
@@ -59,6 +64,28 @@ async function main() {
     const short = { ...DASHBOARD, statusBreakdown: { ...DASHBOARD.statusBreakdown, inCommittee: 18000 } };
     assert.equal(homeCardFromDashboard(short).stages, null);
     assert.equal(homeCardFromDashboard(short).total, 19067, 'the total alone still stands');
+  });
+
+  // The card describes the Congress the page shows
+
+  await it('reads the Congress the home page shows by default, not the newest one', async () => {
+    const asked: number[] = [];
+    const data = await loadHomeCardData(async (congress) => {
+      asked.push(congress);
+      return { ...DASHBOARD, congress };
+    });
+    assert.deepEqual(asked, [HOME_CONGRESS]);
+    assert.equal(data?.congress, HOME_CONGRESS);
+  });
+
+  await it('app/page.tsx defaults to the same constant', () => {
+    // When a new Congress convenes, a card that followed the newest synced
+    // Congress would describe a few hundred bills while the page still shows
+    // the last one. Both must read HOME_CONGRESS.
+    const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+    const page = readFileSync(join(root, 'app', 'page.tsx'), 'utf8');
+    assert.match(page, /Number\(params\.congress\) \|\| HOME_CONGRESS/);
+    assert.doesNotMatch(page, /\|\|\s*\d{3}\b/, 'no literal Congress number as the default');
   });
 
   // What the rows say

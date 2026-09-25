@@ -1191,7 +1191,9 @@ including why a card never repeats the title or number the app already prints un
   page counts. A topic's rank is computed from all 33 topic counts, each exact, sorted here —
   not taken from `congressPolicyAreas`' stored order, which daily updates patch in place — and
   dropped, rather than guessed, if any count is a floor. That is 33 small Convex reads per topic
-  render, once a day per topic thanks to caching.
+  render, once a day per topic thanks to caching. The home card reads `HOME_CONGRESS`
+  (`lib/congress.ts`), the Congress `app/page.tsx` shows by default, not the newest synced one:
+  when a new Congress convenes the page stays put until someone moves it, and its card with it.
 - **Freshness.** A card states a status or a count, and both go stale. Each URL carries a design
   version and the figure it shows: `?v=<SHARE_CARD_VERSION>.<stage>` for a bill
   (`billShareImagePath`) and `?v=<SHARE_CARD_VERSION>.<count>` for a hub (`hubShareImagePath`) and
@@ -1230,7 +1232,8 @@ including why a card never repeats the title or number the app already prints un
   rank, never split by name into an order the data does not support; a topic outside the six), the share line, renders every card variant including the partial ones, and
   runs the loader against a stubbed service to prove a floor never reaches a card.
   `lib/og/home-share-card.test.ts` checks the stage rows (path order, empty stages dropped),
-  refuses a breakdown that does not add up to the total, checks the dated URL, and renders the
+  refuses a breakdown that does not add up to the total, pins the card to the page's Congress,
+  checks the dated URL, and renders the
   home card with and without its breakdown and the generic card.
 
 A preview that has already been sent is a picture in someone's conversation: it does not

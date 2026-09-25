@@ -9,6 +9,16 @@
 
 const FIRST_CONGRESS_YEAR = 1789;
 
+/**
+ * The Congress the home page shows when no `?congress=` is given. Its share
+ * card (lib/og/home-share-data.ts) reads the same constant, so the picture a
+ * home-page link unfurls into always describes the Congress the page shows.
+ * It is set by hand rather than taken from the newest synced Congress: when a
+ * new Congress convenes, its first days hold a few hundred bills, and moving
+ * the home page is a decision, not something the sync should do.
+ */
+export const HOME_CONGRESS = 119;
+
 /** First calendar year of a Congress (119 → 2025). */
 export function congressStartYear(congress: number): number {
   return FIRST_CONGRESS_YEAR + (congress - 1) * 2;

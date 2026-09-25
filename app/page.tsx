@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { fetchQuery } from 'convex/nextjs';
 import { api } from '@/convex/_generated/api';
 import { SHARE_CARD_SIZE, SITE_NAME, homeShareImagePath } from '@/lib/seo';
+import { HOME_CONGRESS } from '@/lib/congress';
 import DashboardClient, {
   type InitialDashboardData,
 } from '@/components/dashboard/DashboardClient';
@@ -56,7 +57,7 @@ export default async function Home({
   searchParams: Promise<{ congress?: string }>;
 }) {
   const params = await searchParams;
-  const congress = Number(params.congress) || 119;
+  const congress = Number(params.congress) || HOME_CONGRESS;
   const data = await loadDashboardData(congress);
   return <DashboardClient initialCongress={congress} initialData={data} />;
 }
