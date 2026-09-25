@@ -90,6 +90,9 @@ function billJsonLd(bill: Bill, id: string): object {
   };
 }
 
+/** "Became law" → "became law", keeping "the President" capitalised. */
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -114,7 +117,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     url: billShareImagePath(bill),
     ...SHARE_CARD_SIZE,
     type: 'image/png',
-    alt: truncateAtWord(`${billIdentifier(bill)}, ${billStatusPhrase(bill).toLowerCase()}: ${bill.title}`, 300),
+    alt: truncateAtWord(`${billIdentifier(bill)}, ${lowerFirst(billStatusPhrase(bill))}: ${bill.title}`, 300),
   };
 
   return {

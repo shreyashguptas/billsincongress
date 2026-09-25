@@ -4,7 +4,13 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Download, Share, SquarePlus } from 'lucide-react';
 
 import { analytics } from '@/lib/analytics';
-import { getInstallPrompt, isIos, isStandalone, subscribeInstallPrompt } from '@/lib/pwa';
+import {
+  getInstallPrompt,
+  isIos,
+  isStandalone,
+  setInstallPrompt,
+  subscribeInstallPrompt,
+} from '@/lib/pwa';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -42,9 +48,16 @@ export function InstallAppButton() {
 
   const handleClick = async () => {
     if (prompt) {
-      await prompt.prompt();
-      const { outcome } = await prompt.userChoice;
-      analytics.appInstallClicked({ method: 'browser_prompt', outcome });
+      // A prompt can be raised once. Drop it before raising it, so the button
+      // hides until the browser offers a fresh one, whatever the reader answers.
+      setInstallPrompt(null);
+      try {
+        await prompt.prompt();
+        const { outcome } = await prompt.userChoice;
+        analytics.appInstallClicked({ method: 'browser_prompt', outcome });
+      } catch (error) {
+        console.warn('Install prompt failed:', error);
+      }
       return;
     }
     analytics.appInstallClicked({ method: 'ios_instructions' });
