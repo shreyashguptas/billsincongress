@@ -1044,7 +1044,7 @@ Every day at 11:00 UTC `alerts.runDigests` pages through `billAlerts` and schedu
 
 **A heavy day stays one readable email.** Bills are listed status changes first, then by number
 of new actions. Up to 12 are shown in full (up to 8 actions each); every other changed bill gets
-one line with its link under "Also moved". If the HTML would pass 80 KB, fewer are shown in full.
+one line (title shortened to 110 characters) with its link under "Also moved". If the HTML would pass 80 KB, fewer are shown in full.
 Gmail clips a message over ~102 KB (hiding the unsubscribe link) and PostHog refuses a request over
 500 KB; 100 bills with 10 actions each measured 432 KB before this cap and 79 KB after.
 

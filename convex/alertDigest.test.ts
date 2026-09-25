@@ -197,6 +197,22 @@ it("a heavy day (100 bills, 10 actions each) stays under the size Gmail clips, a
   assert.match(email.subject, /and 99 more bills you follow/);
 });
 
+it("even with very long official titles, 100 moving bills stay under the budget", () => {
+  const huge = "To amend title XVIII of the Social Security Act to provide for coverage of certain services, ".repeat(6);
+  const many = Array.from({ length: 100 }, (_, i) =>
+    change({
+      billId: `${3000 + i}hr119`,
+      billNumber: String(3000 + i),
+      title: huge,
+      newActions: Array.from({ length: 10 }, (_, j) => ({ actionDate: "2026-09-25", text: `${huge.slice(0, 200)} ${j}` })),
+    }),
+  );
+  const email = renderDigestEmail(many, links, new Date("2026-09-25T11:00:00Z"));
+  assert.ok(new TextEncoder().encode(email.bodyHtml).length <= MAX_DIGEST_HTML_BYTES, "over budget");
+  for (const c of many) assert.ok(email.bodyHtml.includes(`/bills/${c.billId}`), c.billId);
+  assert.ok(email.bodyHtml.includes(links.unsubscribeUrl));
+});
+
 it("a normal day has no compact section", () => {
   const email = renderDigestEmail([change(), change({ billId: "5hr119", billNumber: "5" })], links, new Date("2026-09-25T11:00:00Z"));
   assert.ok(!email.bodyHtml.includes("Also moved"));

@@ -180,9 +180,21 @@ function byteLength(s: string): number {
   return new TextEncoder().encode(s).length;
 }
 
+/** Titles in the compact list are cut to this many characters. */
+const COMPACT_TITLE_CHARS = 110;
+
+/**
+ * Official titles run to hundreds of characters; the compact list shows a
+ * shortened one (the bill page has it in full), which is what keeps a
+ * 100-bill day under the size budget whatever the titles are.
+ */
+function shortTitle(title: string): string {
+  return title.length <= COMPACT_TITLE_CHARS ? title : `${title.slice(0, COMPACT_TITLE_CHARS - 1).trimEnd()}…`;
+}
+
 /** "H.R. 4318 — Rural Broadband… · now Passed One Chamber · 3 new actions" */
 function compactLine(change: BillChange): string {
-  const parts = [`${billLabel(change)} — ${change.title}`];
+  const parts = [`${billLabel(change)} — ${shortTitle(change.title)}`];
   if (change.stageChange) parts.push(`now ${stageName(change.stageChange.to)}`);
   const n = change.newActions.length;
   if (n > 0) parts.push(`${n} new action${n === 1 ? "" : "s"}`);
@@ -201,7 +213,7 @@ function renderCompactHtml(rest: readonly BillChange[], links: DigestLinks, afte
       ]
         .filter(Boolean)
         .join(" · ");
-      return `<tr><td style="padding:5px 0;font:14px/1.45 ${SANS};color:${C.ink};"><a href="${escapeHtml(url)}" style="color:${C.ink};font-weight:600;">${escapeHtml(billLabel(c))}</a> ${escapeHtml(c.title)}<span style="color:${C.muted};"> &middot; ${detail}</span></td></tr>`;
+      return `<tr><td style="padding:5px 0;font:14px/1.45 ${SANS};color:${C.ink};"><a href="${escapeHtml(url)}" style="color:${C.ink};font-weight:600;">${escapeHtml(billLabel(c))}</a> ${escapeHtml(shortTitle(c.title))}<span style="color:${C.muted};"> &middot; ${detail}</span></td></tr>`;
     })
     .join("\n");
   return `<tr><td style="padding:22px 28px 18px;border-top:1px solid ${C.rule};">

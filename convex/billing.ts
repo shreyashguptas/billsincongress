@@ -102,9 +102,9 @@ export const _setCustomerId = internalMutation({
     const user = await ctx.db.get(userId);
     if (!user) throw new ConvexError("USER_MISSING");
     // Never overwrite an existing link: two tabs racing to Checkout must end
-    // up on one customer. The idempotency key makes both calls return the same
-    // customer anyway; when they straddle its window, the first link wins and
-    // BOTH callers get it back, so neither checks out on an unlinked customer.
+    // up on one customer. Racing calls each create a customer (customerFor
+    // uses no idempotency key); the first link wins and BOTH callers get it
+    // back, so neither checks out on an unlinked customer.
     if (user.stripeCustomerId === undefined) {
       await ctx.db.patch(userId, { stripeCustomerId });
       return stripeCustomerId;
