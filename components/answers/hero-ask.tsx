@@ -13,10 +13,14 @@ import { buildFilterQuery } from '@/lib/bills/filter-url';
 import { DEFAULT_FILTER_VALUES } from '@/app/bills/filter-signature';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { compactStageLabel } from '@/lib/utils/bill-stages';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
-// Starter questions: rounded-full outline pills (brand.md, "Ask composer").
+// Starter questions: rounded-full outline pills (brand.md, "Ask composer"),
+// on the page rather than raised. Inline-block and wrapping, so a long starter
+// breaks like text instead of squeezing into Button's single line.
 const PILL =
-  'focus-ring inline-block rounded-full border border-line px-4 py-2 text-center text-sm leading-5 text-ink-2 transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50 touchable:py-3';
+  'inline-block h-auto whitespace-normal rounded-full border-line bg-transparent px-4 py-2 text-center font-normal leading-5 text-ink-2 hover:border-line-strong hover:bg-transparent hover:text-ink touchable:h-auto touchable:py-3';
 
 /**
  * The home hero's ask box (spec §6.1), centred under the chamber.
@@ -110,7 +114,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
           }}
           className="flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pr-2.5 transition-colors focus-within:border-ink focus-within:ring-1 focus-within:ring-ink"
         >
-          <input
+          <Input
             type="text"
             value={input}
             onChange={(e) => {
@@ -142,9 +146,10 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             autoComplete="off"
             maxLength={2000}
             disabled={busy}
-            className="h-full min-w-0 flex-1 border-0 bg-transparent px-5 text-[17px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-0"
+            // Bare: the form draws the edge and the focus treatment.
+            className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-5 text-[17px] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 touchable:h-full"
           />
-          <button
+          <Button
             // `type="button"`, not submit. Enter in the field submits the form by
             // synthesising a click on its submit button, so a submit button with
             // this handler would turn every Enter into an ask and nothing could
@@ -156,11 +161,12 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               if (input.trim()) askTyped();
             }}
             disabled={busy || !input.trim()}
+            size="icon"
             aria-label="Ask"
-            className="focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-on-ink transition-colors hover:bg-ink/85 disabled:opacity-40"
+            className="shrink-0 rounded-full disabled:opacity-40 touchable:h-10 touchable:w-10"
           >
             <ArrowUp className="h-5 w-5" strokeWidth={1.75} />
-          </button>
+          </Button>
         </form>
 
         {showList && (
@@ -252,25 +258,26 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {starterItems.map((s) =>
           s.href ? (
-            <Link
-              key={s.kind}
-              href={s.href}
-              onClick={() =>
-                analytics.answerStarterClicked({
-                  surface: 'home',
-                  starter_text: s.text,
-                  action: 'open_page',
-                  destination: s.href,
-                })
-              }
-              className={PILL}
-            >
-              {s.text}&nbsp;<span aria-hidden="true">→</span>
-            </Link>
+            <Button key={s.kind} asChild variant="outline" className={PILL}>
+              <Link
+                href={s.href}
+                onClick={() =>
+                  analytics.answerStarterClicked({
+                    surface: 'home',
+                    starter_text: s.text,
+                    action: 'open_page',
+                    destination: s.href,
+                  })
+                }
+              >
+                {s.text}&nbsp;<span aria-hidden="true">→</span>
+              </Link>
+            </Button>
           ) : (
-            <button
+            <Button
               key={s.text}
               type="button"
+              variant="outline"
               onClick={() => {
                 analytics.answerStarterClicked({
                   surface: 'home',
@@ -283,7 +290,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               className={PILL}
             >
               {s.text}
-            </button>
+            </Button>
           ),
         )}
       </div>

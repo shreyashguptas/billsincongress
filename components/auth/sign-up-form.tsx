@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,10 @@ import { markSignupCelebrationPending } from "./welcome-new-user";
 type Step = "credentials" | "verify";
 
 const PASSWORD_RULES = "At least 10 characters, with upper-, lower-case, and a number.";
+
+// The verify step's two quiet actions: link Buttons at text height, in ink-2
+// so the submit stays the one strong control.
+const SECONDARY_ACTION = "rounded-xs font-normal text-ink-2 hover:text-ink";
 
 type ErrorState =
   | null
@@ -152,30 +157,30 @@ export function SignUpForm() {
               className="text-center font-mono text-lg tracking-[0.3em] tabular"
             />
           </div>
-          {error?.kind === "message" && (
-            <p className="text-sm text-error" role="alert">{error.text}</p>
-          )}
+          {error?.kind === "message" && <FormError>{error.text}</FormError>}
           <Button type="submit" size="lg" className="w-full" disabled={busy || code.length !== 6}>
             {busy ? "Verifying…" : "Verify email"}
           </Button>
         </form>
         <div className="flex items-center justify-between text-sm">
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => setStep("credentials")}
-            className="focus-ring rounded-xs text-ink-2 underline decoration-line-strong underline-offset-[3px] hover:text-ink hover:decoration-ink disabled:opacity-50"
+            className={SECONDARY_ACTION}
             disabled={busy}
           >
             ← Use a different email
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="link"
             onClick={onResend}
-            className="focus-ring rounded-xs text-ink-2 underline decoration-line-strong underline-offset-[3px] hover:text-ink hover:decoration-ink disabled:opacity-50"
+            className={SECONDARY_ACTION}
             disabled={busy}
           >
             Resend code
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -223,9 +228,7 @@ export function SignUpForm() {
             {PASSWORD_RULES}
           </p>
         </div>
-        {error?.kind === "message" && (
-          <p className="text-sm text-error" role="alert">{error.text}</p>
-        )}
+        {error?.kind === "message" && <FormError>{error.text}</FormError>}
         <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? "Creating account…" : "Create account"}
         </Button>
@@ -238,5 +241,14 @@ export function SignUpForm() {
         </Link>
       </p>
     </div>
+  );
+}
+
+/** The one line of error text under the fields. Alert brings role="alert". */
+function FormError({ children }: { children: React.ReactNode }) {
+  return (
+    <Alert variant="destructive" className="border-0 p-0">
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   );
 }

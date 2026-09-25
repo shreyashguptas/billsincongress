@@ -88,13 +88,16 @@ function UserMenuInner() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
+        {/* The initials avatar: an outline icon Button in a 36px circle. */}
+        <Button
           type="button"
+          variant="outline"
+          size="icon"
           aria-label="Account menu"
-          className="focus-ring flex h-9 w-9 items-center justify-center rounded-full border border-line-strong bg-sunken font-mono text-xs font-medium uppercase text-ink transition-colors hover:border-ink"
+          className="h-9 w-9 rounded-full border-line-strong bg-sunken font-mono text-xs uppercase hover:border-ink hover:bg-sunken touchable:h-9 touchable:w-9"
         >
           {initials}
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="px-2 pb-1 pt-2">

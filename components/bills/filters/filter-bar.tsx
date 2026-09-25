@@ -3,6 +3,7 @@
 import { useId, type ReactNode } from 'react';
 import { analytics, type FilterSurface } from '@/lib/analytics';
 import { formatCount } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import type { BillsFilterValues } from '@/app/bills/filter-signature';
 import { FILTERS, activeFilterCount, isSet } from '@/lib/bills/filter-registry';
 import { AllFiltersPanel } from './all-filters-panel';
@@ -124,8 +125,9 @@ export function FilterBar({
               <span className="font-mono tabular text-ink">{formatCount(count)}</span>{' '}
               {count === 1 ? 'filter' : 'filters'} applied{' '}
               <span aria-hidden="true">·</span>{' '}
-              <button
+              <Button
                 type="button"
+                variant="link"
                 onClick={() => {
                   analytics.billsFiltersCleared({
                     active_filter_count: count,
@@ -133,10 +135,10 @@ export function FilterBar({
                   });
                   onClearAll();
                 }}
-                className="link rounded-xs font-medium focus-ring"
+                className="rounded-xs text-[13px] decoration-1"
               >
                 Clear all
-              </button>
+              </Button>
             </p>
           )}
         </div>

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,9 +105,11 @@ export function SignInForm() {
           />
         </div>
         {error && (
-          <p className="text-sm text-error" role="alert">
-            {error}
-          </p>
+          // Alert brings role="alert"; border and padding off so it reads as
+          // the one line of error text under the fields.
+          <Alert variant="destructive" className="border-0 p-0">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
         <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { PartyDot, PartyTag } from '@/components/brand/party';
 import { StageTrack, StatusPill } from '@/components/brand/status';
 import { Bill } from '@/lib/types/bill';
@@ -172,20 +173,20 @@ export function BillRowSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="grid animate-pulse gap-x-10 gap-y-3 border-b border-line py-6 md:grid-cols-[120px_minmax(0,1fr)_220px]"
+      className="grid gap-x-10 gap-y-3 border-b border-line py-6 md:grid-cols-[120px_minmax(0,1fr)_220px]"
     >
       <div className="flex gap-3 md:flex-col md:gap-2">
-        <span className="h-4 w-16 rounded-xs bg-sunken" />
-        <span className="h-3 w-20 rounded-xs bg-sunken" />
+        <Skeleton className="h-4 w-16 rounded-xs" />
+        <Skeleton className="h-3 w-20 rounded-xs" />
       </div>
       <div className="space-y-2.5">
-        <span className="block h-5 w-full max-w-[56ch] rounded-xs bg-sunken" />
-        <span className="block h-5 w-3/4 max-w-[40ch] rounded-xs bg-sunken" />
-        <span className="mt-4 block h-4 w-40 rounded-xs bg-sunken" />
+        <Skeleton className="h-5 w-full max-w-[56ch] rounded-xs" />
+        <Skeleton className="h-5 w-3/4 max-w-[40ch] rounded-xs" />
+        <Skeleton className="mt-4 h-4 w-40 rounded-xs" />
       </div>
       <div className="space-y-3">
-        <span className="block h-6 w-28 rounded-sm bg-sunken" />
-        <span className="block h-1.5 w-full rounded-xs bg-sunken" />
+        <Skeleton className="h-6 w-28 rounded-sm" />
+        <Skeleton className="h-1.5 w-full rounded-xs" />
       </div>
     </div>
   );

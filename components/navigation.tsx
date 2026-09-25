@@ -7,6 +7,7 @@ import { Menu, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { routes } from '@/lib/constants/routes';
 import { UserMenu } from '@/components/auth/user-menu';
@@ -117,13 +118,13 @@ function HeaderSearch() {
           Search bills
         </label>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
-        <input
+        <Input
           id="header-search"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search bills, or S. 2878"
-          className="focus-ring h-10 w-64 rounded-md border border-line-strong bg-raised pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 xl:w-72"
+          className="w-64 pl-9 text-sm xl:w-72"
         />
       </form>
       <Button asChild variant="ghost" size="icon" className="lg:hidden">

@@ -3,7 +3,9 @@
 import * as React from 'react';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { cn } from '@/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+
+type ThemeChoice = 'light' | 'dark' | 'system';
 
 export function ModeToggle() {
   const { setTheme, theme } = useTheme();
@@ -13,39 +15,34 @@ export function ModeToggle() {
     setMounted(true);
   }, []);
 
-  const options: Array<{ value: 'light' | 'dark' | 'system'; icon: React.ReactNode; label: string }> = [
+  const options: Array<{ value: ThemeChoice; icon: React.ReactNode; label: string }> = [
     { value: 'light', icon: <Sun className="h-3.5 w-3.5" />, label: 'Light' },
     { value: 'dark', icon: <Moon className="h-3.5 w-3.5" />, label: 'Dark' },
     { value: 'system', icon: <Monitor className="h-3.5 w-3.5" />, label: 'System' },
   ];
 
+  // A sunken track with the active choice raised. Nothing is marked until
+  // mount, since the server cannot know the stored theme.
   return (
-    <div
-      role="radiogroup"
+    <ToggleGroup
+      type="single"
       aria-label="Color theme"
-      className="inline-flex items-center gap-0.5 rounded-md bg-sunken p-[3px]"
+      value={mounted ? (theme ?? '') : ''}
+      // Radix reports '' when the active item is pressed again; a theme is
+      // always set, so ignore it.
+      onValueChange={(value) => value && setTheme(value as ThemeChoice)}
+      className="inline-flex gap-0.5 rounded-md bg-sunken p-[3px]"
     >
-      {options.map((opt) => {
-        const active = mounted && theme === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={opt.label}
-            onClick={() => setTheme(opt.value)}
-            className={cn(
-              'focus-ring inline-flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors',
-              active
-                ? 'bg-raised text-ink shadow-sm'
-                : 'text-ink-3 hover:text-ink'
-            )}
-          >
-            {opt.icon}
-          </button>
-        );
-      })}
-    </div>
+      {options.map((opt) => (
+        <ToggleGroupItem
+          key={opt.value}
+          value={opt.value}
+          aria-label={opt.label}
+          className="h-8 w-8 min-w-8 rounded-[6px] p-0 text-ink-3 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm [&_svg]:size-3.5"
+        >
+          {opt.icon}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }

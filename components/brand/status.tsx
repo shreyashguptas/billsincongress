@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import {
   BillStages,
   getStageStep,
@@ -30,18 +31,13 @@ export function stageFill(stage: number): string {
   return STAGE_FILL[stage as BillStage] ?? 'bg-status-introduced';
 }
 
-/** The stage as a dot and a word. */
+/** The stage as a dot and a word: an outline `Badge` with the stage's dot. */
 export function StatusPill({ stage, className }: { stage: number; className?: string }) {
   return (
-    <span
-      className={cn(
-        'inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-sm border border-line bg-raised px-2 text-[13px] font-medium leading-none text-ink',
-        className,
-      )}
-    >
+    <Badge variant="outline" className={cn('gap-1.5 whitespace-nowrap', className)}>
       <span className={cn('h-2 w-2 shrink-0 rounded-full', stageFill(stage))} aria-hidden="true" />
       {stageLabel(stage)}
-    </span>
+    </Badge>
   );
 }
 

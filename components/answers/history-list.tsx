@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { analytics } from '@/lib/analytics';
 import { Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 /**
  * Past conversations (spec §6.2). A slide-over inside the panel, not a page.
@@ -85,8 +86,10 @@ export function HistoryList({
                 {chat.messageCount} messages
               </p>
             </button>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               aria-label={`Delete conversation: ${chat.title}`}
               onClick={async () => {
                 await remove({ chatId: chat._id });
@@ -95,13 +98,12 @@ export function HistoryList({
               // Revealed on hover with a mouse; always shown on a touch screen,
               // where there is no hover to reveal it.
               className={
-                'focus-ring mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-ink-3 ' +
-                'opacity-0 transition-all hover:bg-sunken hover:text-error focus:opacity-100 ' +
-                'group-hover:opacity-100 touchable:opacity-100'
+                'mt-1 shrink-0 text-ink-3 opacity-0 transition-all hover:text-error focus:opacity-100 ' +
+                'group-hover:opacity-100 touchable:h-10 touchable:w-10 touchable:opacity-100'
               }
             >
               <Trash2 className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -112,24 +114,24 @@ export function HistoryList({
             <p className="flex-1 text-sm text-ink">
               Delete all <span className="font-mono tabular">{chats.length}</span> conversations?
             </p>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={async () => {
                 const res = await removeAll({});
                 analytics.answerThreadDeleted({ scope: 'all', thread_count: res.deleted });
                 setConfirmingAll(false);
               }}
-              className="focus-ring inline-flex h-8 items-center rounded-md border border-error px-3 text-[13px] font-medium text-error transition-colors hover:bg-sunken"
+              // An error-edged outline on the page, not the filled destructive
+              // variant: the confirm row is quiet, and the edge carries the warning.
+              className="border-error bg-transparent text-error"
             >
               Delete
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingAll(false)}
-              className="focus-ring inline-flex h-8 items-center rounded-md px-3 text-[13px] font-medium text-ink transition-colors hover:bg-sunken"
-            >
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingAll(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         ) : (
           <button

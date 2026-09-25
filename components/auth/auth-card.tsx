@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ChamberMark } from "@/components/brand/logo";
+import { Separator } from "@/components/ui/separator";
 
 /**
  * The frame every auth page shares: a narrow raised card centred on the page,
@@ -34,9 +35,9 @@ export function AuthCard({
 export function AuthDivider({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3 text-[13px] text-ink-3">
-      <span className="h-px flex-1 bg-line" aria-hidden="true" />
+      <Separator className="w-auto flex-1" />
       {children}
-      <span className="h-px flex-1 bg-line" aria-hidden="true" />
+      <Separator className="w-auto flex-1" />
     </div>
   );
 }

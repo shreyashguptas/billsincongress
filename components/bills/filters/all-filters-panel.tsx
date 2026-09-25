@@ -13,6 +13,7 @@ import {
   type FilterDefinition,
 } from '@/lib/bills/filter-registry';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { AdaptiveSurface } from './adaptive-surface';
 import { OptionList } from './option-list';
@@ -55,22 +56,24 @@ export function AllFiltersPanel({
     <AdaptiveSurface
       popoverClassName="w-[min(32rem,calc(100vw_-_2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
       trigger={
-        <button
+        <Button
           type="button"
-          aria-haspopup="dialog"
-          aria-label="All filters"
           // A ghost button: the chips beside it are the controls, this is the
           // way to the rest of them.
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-ink transition-colors hover:bg-sunken focus-ring touchable:h-11"
+          variant="ghost"
+          aria-haspopup="dialog"
+          aria-label="All filters"
+          className="h-9 shrink-0 px-3"
         >
           <SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">All filters</span>
+          {/* A span, not Badge: Badge renders a <div>, which a button cannot hold. */}
           {count > 0 && (
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-ink px-1 font-mono text-xs tabular text-on-ink">
               {count}
             </span>
           )}
-        </button>
+        </Button>
       }
       onOpenChange={(open, layout) => {
         const props = {
@@ -145,14 +148,15 @@ function PanelBody({
     return (
       <>
         <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setDrilldown(null)}
-            className="inline-flex h-9 items-center gap-1 rounded-md px-2 text-sm font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink focus-ring touchable:h-11"
+            className="h-9 gap-1 px-2 text-ink-2 hover:text-ink"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             All filters
-          </button>
+          </Button>
         </div>
         <OptionList
           kind={drilldown.kind}
@@ -205,8 +209,9 @@ function PanelBody({
           </SheetDescription>
         )}
         {activeFilterCount(values) > 0 && (
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => {
               analytics.billsFiltersCleared({
                 active_filter_count: activeFilterCount(values),
@@ -214,10 +219,10 @@ function PanelBody({
               });
               onClearAll();
             }}
-            className="link rounded-xs text-[13px] font-medium focus-ring"
+            className="rounded-xs text-[13px] decoration-1"
           >
             Clear all
-          </button>
+          </Button>
         )}
       </div>
 
@@ -233,42 +238,48 @@ function PanelBody({
             return (
               <div key={definition.field} className="border-b border-line last:border-b-0">
                 <p className="label-eyebrow !mb-0 px-4 pb-1.5 pt-3">{definition.label}</p>
-                <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-                  {options.map((option) => {
-                    const selected = (value as string) === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() =>
-                          onChange(
-                            { [definition.field]: option.value } as Partial<BillsFilterValues>,
-                            'panel'
-                          )
-                        }
-                        className={cn(
-                          'inline-flex h-9 items-center rounded-sm border px-3 text-sm font-medium transition-colors focus-ring touchable:h-11',
-                          selected
-                            ? 'border-ink bg-ink text-on-ink'
-                            : 'border-line-strong bg-raised text-ink hover:bg-sunken'
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <ToggleGroup
+                  type="single"
+                  // Every chip stays a tab stop, as before; Radix's roving focus
+                  // would collapse each row to one.
+                  rovingFocus={false}
+                  value={value as string}
+                  // Radix reports '' when the chosen chip is pressed again; that
+                  // re-applies it rather than leaving the filter with no value.
+                  onValueChange={(next) =>
+                    onChange(
+                      { [definition.field]: next || (value as string) } as Partial<BillsFilterValues>,
+                      'panel'
+                    )
+                  }
+                  aria-label={definition.label}
+                  className="flex-wrap justify-start gap-1.5 px-4 pb-3"
+                >
+                  {options.map((option) => (
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={option.value}
+                      className={
+                        'h-9 min-w-0 rounded-sm border border-line-strong bg-raised text-ink hover:bg-sunken hover:text-ink touchable:h-11 ' +
+                        'data-[state=on]:border-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink'
+                      }
+                    >
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
               </div>
             );
           }
 
           return (
-            <button
+            <Button
               key={definition.field}
               type="button"
+              variant="ghost"
               onClick={() => setDrilldown(definition)}
-              className="flex h-12 w-full items-center justify-between gap-3 border-b border-line px-4 text-left text-sm transition-colors last:border-b-0 hover:bg-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink touchable:h-14"
+              // A full-width row: square, with the focus ring drawn inside it.
+              className="flex h-12 w-full justify-between gap-3 rounded-none border-b border-line px-4 text-left font-normal last:border-b-0 focus-visible:ring-inset focus-visible:ring-offset-0 touchable:h-14"
             >
               <span className="shrink-0 font-medium text-ink">{definition.label}</span>
               <span className="flex min-w-0 items-center gap-1">
@@ -286,7 +297,7 @@ function PanelBody({
                   aria-hidden="true"
                 />
               </span>
-            </button>
+            </Button>
           );
         })}
       </div>

@@ -2,7 +2,7 @@
 
 import { forwardRef } from 'react';
 import { ArrowUp, MessageSquare } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import type { AskPhase } from '@/lib/ask-panel-state';
 
 /**
@@ -35,9 +35,12 @@ export const AskLauncher = forwardRef<
   const questions = Math.ceil(turnCount / 2);
 
   return (
-    <button
+    <Button
       ref={ref}
       type="button"
+      // Outline is already the pill's raised fill, line-strong edge and sunken
+      // hover; the size, radius and float shadow are the launcher's own.
+      variant="outline"
       onClick={onOpen}
       aria-expanded={false}
       aria-controls="ask-panel"
@@ -46,10 +49,7 @@ export const AskLauncher = forwardRef<
           ? `Continue your conversation about Congress, ${questions} question${questions === 1 ? '' : 's'} so far`
           : 'Ask a question about Congress'
       }
-      className={cn(
-        'ask-launcher focus-ring inline-flex h-12 items-center gap-2 rounded-full border border-line-strong',
-        'bg-raised px-5 text-[15px] font-medium text-ink shadow-float transition-colors hover:bg-sunken',
-      )}
+      className="ask-launcher h-12 justify-start rounded-full px-5 text-[15px] shadow-float touchable:h-12"
     >
       {/* The same glyph either way: a hue here would be colour without data
           (brand.md, "Color belongs to the data"); the words say "continue". */}
@@ -64,6 +64,6 @@ export const AskLauncher = forwardRef<
         strokeWidth={1.75}
         aria-hidden="true"
       />
-    </button>
+    </Button>
   );
 });

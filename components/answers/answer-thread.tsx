@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { splitAnswer } from '@/lib/answer-entities';
 import { useAnswers, type Turn } from './answer-provider';
 import { SourceList } from './source-list';
@@ -162,9 +165,9 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
         )}
 
         {error && (
-          <div className="rounded-md border border-error/40 px-4 py-3">
+          <Alert variant="destructive" className="rounded-md border-error/40 px-4 py-3 dark:border-error/40">
             <p className="text-sm leading-relaxed text-error">{error}</p>
-          </div>
+          </Alert>
         )}
       </div>
 
@@ -195,7 +198,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             'transition-shadow focus-within:ring-2 focus-within:ring-ink focus-within:ring-offset-2 focus-within:ring-offset-paper',
           )}
         >
-          <input
+          <Input
             id="ask-composer"
             type="text"
             value={input}
@@ -215,28 +218,27 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             // zooms back out.
             className={cn(
               // The form draws the edge and the focus ring; the field itself is
-              // bare (border-0, p-0 and ring-0 undo the forms plugin's input box).
-              'h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-ink placeholder:text-ink-3',
-              'focus:outline-none focus:ring-0 disabled:cursor-not-allowed lg:text-[15px]',
+              // bare (border-0, p-0 and ring-0 undo Input's own box and ring, and
+              // the forms plugin's).
+              'h-full min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-base touchable:h-full',
+              'focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 lg:text-[15px]',
             )}
             disabled={busy}
             maxLength={2000}
           />
-          <button
+          <Button
             type="submit"
+            size="icon"
             disabled={busy || !input.trim()}
             aria-label="Send"
-            className={cn(
-              'focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-on-ink',
-              'transition-colors hover:bg-ink/85 disabled:opacity-40',
-            )}
+            className="shrink-0 rounded-full disabled:opacity-40 touchable:h-10 touchable:w-10"
           >
             {busy ? (
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-on-ink border-t-transparent" />
             ) : (
               <ArrowUp className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             )}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

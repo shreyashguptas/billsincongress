@@ -7,6 +7,7 @@ import { searchOptions } from '@/lib/option-search';
 import { analytics } from '@/lib/analytics';
 import type { FilterOption } from '@/lib/bills/filter-registry';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import type { SurfaceMode } from '@/hooks/use-surface-mode';
 
@@ -218,16 +219,17 @@ export function OptionList({
           </Helper>
         </div>
         {hasValue && (
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => {
               onChange(multi ? [] : 'all');
               if (!multi) close();
             }}
-            className="link shrink-0 rounded-xs text-[13px] font-medium focus-ring"
+            className="shrink-0 rounded-xs text-[13px] decoration-1"
           >
             Clear
-          </button>
+          </Button>
         )}
       </div>
 
@@ -241,7 +243,7 @@ export function OptionList({
             strokeWidth={1.75}
             aria-hidden="true"
           />
-          <input
+          <Input
             ref={searchRef}
             id={searchId}
             type="text"
@@ -257,7 +259,9 @@ export function OptionList({
             }}
             onKeyDown={handleKeyDown}
             placeholder={`Search ${title.toLowerCase()}…`}
-            className="h-10 w-full rounded-md border border-line-strong bg-raised pl-9 pr-3 text-sm text-ink placeholder:text-ink-3 focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink touchable:h-11 touchable:text-base"
+            // The picker's own focus treatment: an ink edge and a 1px ring with
+            // no offset, tighter than the page-level ring Input carries.
+            className="pl-9 pr-3 text-sm focus:border-ink focus-visible:ring-1 focus-visible:ring-offset-0 touchable:text-base"
           />
         </div>
       )}
@@ -286,13 +290,14 @@ export function OptionList({
           <div className="px-4 py-3">
             <p className="text-sm text-error">{error}</p>
             {onRetry && (
-              <button
+              <Button
                 type="button"
+                variant="link"
                 onClick={onRetry}
-                className="link mt-1.5 rounded-xs text-sm font-medium focus-ring"
+                className="mt-1.5 rounded-xs decoration-1"
               >
                 Retry
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -365,14 +370,16 @@ export function OptionList({
             selected
           </span>
           <div className="flex items-center gap-3">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => onChange([])}
-              className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-ink-2 transition-colors hover:bg-sunken hover:text-ink focus-ring"
+              className="gap-1 px-2 text-ink-2 hover:text-ink"
             >
               <X className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
               Clear
-            </button>
+            </Button>
             <Button type="button" size="sm" onClick={close}>
               Done
             </Button>

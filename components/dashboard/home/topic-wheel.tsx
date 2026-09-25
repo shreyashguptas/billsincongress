@@ -21,6 +21,7 @@ import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { AskAbout } from '@/components/answers/ask-about';
 import { SectionHeader } from '@/components/brand/section';
+import { Button } from '@/components/ui/button';
 import { SectionAsk, fmt, type HomeProps } from './shared';
 
 const COLORED = 6;
@@ -222,9 +223,14 @@ export function TopicWheel({
             <div className="mt-5 min-h-[3rem] text-sm">
               {pinnedItem ? (
                 pinnedItem.isRest ? (
-                  <button type="button" onClick={() => onDrillDown('congress', congress)} className="link focus-ring rounded-sm">
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={() => onDrillDown('congress', congress)}
+                    className="rounded-sm font-normal decoration-1"
+                  >
                     Browse every bill →
-                  </button>
+                  </Button>
                 ) : (
                   <div className="flex flex-wrap gap-x-5 gap-y-2">
                     <Link

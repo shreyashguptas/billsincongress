@@ -161,10 +161,9 @@ export function AnswerPanel() {
     swipeBy.current = 0;
   };
 
-  // Ghost icon buttons (brand.md, "Button"): 40px, 44px on touch screens.
-  const iconButton =
-    'focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md text-ink-2 ' +
-    'transition-colors hover:bg-sunken hover:text-ink touchable:h-11 touchable:w-11';
+  // Ghost icon buttons (brand.md, "Button"): 40px, 44px on touch screens,
+  // resting at ink-2.
+  const iconButton = 'text-ink-2 hover:text-ink';
 
   return (
     <>
@@ -229,8 +228,10 @@ export function AnswerPanel() {
           </h2>
           <div className="flex shrink-0 items-center gap-0.5">
             {isAuthenticated && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowHistory((v) => !v)}
                 aria-label={showHistory ? 'Back to conversation' : 'Your conversations'}
                 className={iconButton}
@@ -240,10 +241,12 @@ export function AnswerPanel() {
                 ) : (
                   <History className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 )}
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => {
                 newChat();
                 setShowHistory(false);
@@ -252,15 +255,17 @@ export function AnswerPanel() {
               className={iconButton}
             >
               <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => setOpen(false, 'manual')}
               aria-label="Close the ask panel"
               className={iconButton}
             >
               <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            </button>
+            </Button>
           </div>
         </div>
 

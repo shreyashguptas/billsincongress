@@ -202,11 +202,11 @@ existing brand edits:
 
 | Component | Brand edit |
 |---|---|
-| `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch |
-| `Badge` | 24px tall, sentence case, `rounded-sm`; `secondary` text is `ink-2` for contrast |
-| `Dialog`, `Sheet` | The scrim is paper at 70% with a slight blur, not black (a dark scrim lightens nothing in Night); `shadow-float` |
+| `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch; `link` takes no box (no height or padding) |
+| `Badge` | A `<span>` (badges sit inside text and links); 24px tall, sentence case, `rounded-sm`; `secondary` text is `ink-2` for contrast |
+| `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 70% with a slight blur, not black (a dark scrim lightens nothing in Night); `shadow-float` |
 | `Sheet`, `Popover` | Their own enter/exit keyframes, tuned before `tailwindcss-animate` was installed |
-| `Input`, `Select` | On `card`, 15px text, 44px on touch |
+| `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
 
 ### Brand pieces built on top
 
@@ -233,9 +233,17 @@ Patterns that appear on more than one page:
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 
-What stays hand-built: the charts. A seat, a slice or a waffle square is data,
-not a control, so the hemicycle, topic wheel, state map and the rest draw their
-own marks.
+What stays hand-built, on purpose:
+
+- **The charts.** A seat, a slice or a waffle square is data, not a control, so
+  the hemicycle, topic wheel, state map and the rest draw their own marks.
+- **Rows and handles that are not buttons**: listbox options, suggestion rows,
+  pagination links, the ask panel's resize handle and grab bars, whole-row
+  history entries.
+- **Caption-size text actions** ("Ask about this →", the work-log toggles),
+  where `Button`'s height and padding would change the line they sit in.
+- **Learn's stepper and quiz answers**, whose states (reached, correct, wrong)
+  a toggle's "selected" would misreport to a screen reader.
 
 ## Charts
 

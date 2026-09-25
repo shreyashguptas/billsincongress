@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { SectionHeader } from '@/components/brand/section';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SectionAsk, fmt, type HomeProps } from './shared';
 
 // [column, row] on an 11 × 8 grid.
@@ -153,32 +154,33 @@ export function StateMap({
         <div className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12">
           <div className="max-w-[36rem] lg:col-span-8" onMouseLeave={() => setHover(null)}>
             {perMemberAvailable && (
-              <div className="mb-5 inline-flex rounded-md border border-line-strong p-0.5" role="tablist" aria-label="Measure">
+              <ToggleGroup
+                type="single"
+                aria-label="Measure"
+                value={metric}
+                onValueChange={(id) => {
+                  // '' is Radix pressing the active item again: nothing changes.
+                  if (!id || id === metric) return;
+                  setMetric(id as Metric);
+                  analytics.homeStateMapMeasureChanged(id === 'total' ? 'total' : 'per_member', congress);
+                }}
+                className="mb-5 inline-flex gap-0 rounded-md border border-line-strong p-0.5"
+              >
                 {(
                   [
                     ['total', 'Total bills'],
                     ['perMember', 'Per member'],
                   ] as const
                 ).map(([id, label]) => (
-                  <button
+                  <ToggleGroupItem
                     key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={metric === id}
-                    onClick={() => {
-                      if (id === metric) return;
-                      setMetric(id);
-                      analytics.homeStateMapMeasureChanged(id === 'total' ? 'total' : 'per_member', congress);
-                    }}
-                    className={cn(
-                      'focus-ring h-8 rounded-sm px-3 text-[13px] font-medium transition-colors touchable:h-10',
-                      metric === id ? 'bg-ink text-on-ink' : 'text-ink-2 hover:text-ink',
-                    )}
+                    value={id}
+                    className="h-8 rounded-sm px-3 text-[13px] font-medium text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink touchable:h-10"
                   >
                     {label}
-                  </button>
+                  </ToggleGroupItem>
                 ))}
-              </div>
+              </ToggleGroup>
             )}
 
             <div className="grid grid-cols-11 gap-1 sm:gap-1.5">

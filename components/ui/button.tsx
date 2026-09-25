@@ -32,6 +32,10 @@ const buttonVariants = cva(
         icon: 'h-10 w-10 touchable:h-11 touchable:w-11',
       },
     },
+    // A link is text, not a box: without this the default size's height and
+    // padding (applied after the variant) turned every `variant="link"` into a
+    // 40px-tall button with side padding.
+    compoundVariants: [{ variant: 'link', class: 'h-auto px-0 py-0 touchable:h-auto' }],
     defaultVariants: {
       variant: 'default',
       size: 'default',

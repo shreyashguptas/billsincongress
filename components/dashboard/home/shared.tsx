@@ -15,6 +15,7 @@ import type { StarterInput } from '@/lib/starter-questions';
 import { cn } from '@/lib/utils';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { AskAbout } from '@/components/answers/ask-about';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type Dashboard = NonNullable<FunctionReturnType<typeof api.bills.getCongressDashboard>>;
 type Breakdown = FunctionReturnType<typeof api.bills.getChamberDeepBreakdown>;
@@ -50,7 +51,10 @@ export function combinedParty(house: Breakdown | null | undefined, senate: Break
   return { bills, laws };
 }
 
-/** Compact dropdown replacing the row of Congress buttons. */
+/**
+ * Compact Congress picker on the hero's Night stage. The list portals to
+ * <body>, outside the stage, so it carries `dark` itself to stay in Night.
+ */
 export function CongressSelect({
   congressNumbers,
   selectedCongress,
@@ -60,26 +64,33 @@ export function CongressSelect({
   className?: string;
 }) {
   return (
-    <label className={cn('inline-flex items-center gap-2', className)}>
-      <span className="sr-only">Congress</span>
-      <select
-        value={selectedCongress}
-        onChange={(e) => {
-          const c = Number(e.target.value);
-          analytics.dashboardCongressSelected(c);
-          onSelectCongress(c);
-        }}
-        className="focus-ring h-9 rounded-md border border-line-strong bg-transparent py-0 pl-3 pr-8 font-mono text-[13px] text-ink transition-colors hover:border-ink focus:border-ink focus:ring-ink touchable:h-11"
+    <Select
+      value={String(selectedCongress)}
+      onValueChange={(value) => {
+        const c = Number(value);
+        analytics.dashboardCongressSelected(c);
+        onSelectCongress(c);
+      }}
+    >
+      <SelectTrigger
+        aria-label="Congress"
+        className={cn(
+          'h-9 w-auto gap-1 border-line-strong bg-transparent py-0 pl-3 pr-3 font-mono text-[13px] text-ink hover:border-ink data-[state=open]:border-ink touchable:h-11',
+          className,
+        )}
       >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="dark">
         {[...congressNumbers]
           .sort((a, b) => b - a)
           .map((c) => (
-            <option key={c} value={c}>
+            <SelectItem key={c} value={String(c)} className="font-mono text-[13px]">
               {formatCongressOrdinal(c)} · {formatCongressYears(c)}
-            </option>
+            </SelectItem>
           ))}
-      </select>
-    </label>
+      </SelectContent>
+    </Select>
   );
 }
 

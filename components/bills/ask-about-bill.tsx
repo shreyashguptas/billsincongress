@@ -65,17 +65,20 @@ export function AskAboutBill({
       <ul className="flex flex-col items-start gap-2.5" aria-label="Suggested questions">
         {starters.map((q) => (
           <li key={q} className="max-w-full">
-            <button
+            <Button
               type="button"
+              variant="outline"
               disabled={busy}
               onClick={() => {
                 analytics.answerStarterClicked({ surface: 'bill', starter_text: q });
                 void ask(q, { source: 'starter' });
               }}
-              className="focus-ring inline-flex min-h-11 max-w-full items-center rounded-full border border-line-strong bg-raised px-5 py-2.5 text-left text-[15px] leading-snug text-ink-2 transition-colors hover:bg-paper hover:text-ink disabled:opacity-50"
+              // A starter pill (brand.md, "Ask composer"): it wraps, so the
+              // button's fixed height and single line are lifted.
+              className="h-auto min-h-11 max-w-full justify-start whitespace-normal rounded-full px-5 py-2.5 text-left text-[15px] font-normal leading-snug text-ink-2 hover:bg-paper hover:text-ink touchable:h-auto"
             >
               {q}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>

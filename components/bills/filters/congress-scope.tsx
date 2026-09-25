@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import { analytics } from '@/lib/analytics';
 import { formatCongressYearsShort, formatCongressOrdinal } from '@/lib/congress';
-import { cn } from '@/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 export interface CongressScopeProps {
   /** Congresses with data. Comes from the server; this never fetches. */
@@ -89,37 +89,41 @@ export function CongressScope({
   };
 
   return (
-    <div
+    // Radix renders the radiogroup/radio roles. Its roving focus is off because
+    // it moves focus without selecting; the handler above keeps the
+    // radiogroup behaviour, where the arrows change the selection.
+    <ToggleGroup
       ref={ref}
-      role="radiogroup"
+      type="single"
+      rovingFocus={false}
+      value={String(selected)}
+      // Radix reports '' when the chosen segment is pressed again. Re-selecting
+      // it instead keeps a segment always chosen.
+      onValueChange={(next) => select(next ? Number(next) : selected)}
       aria-label="Congress"
       onKeyDown={onKeyDown}
-      className="inline-flex h-[52px] shrink-0 items-stretch gap-0.5 rounded-md bg-sunken p-1"
+      className="inline-flex h-[52px] shrink-0 items-stretch justify-start gap-0.5 rounded-md bg-sunken p-1"
     >
       {ordered.map((congress) => {
         const isSelected = congress === selected;
         return (
-          <button
+          <ToggleGroupItem
             key={congress}
-            type="button"
-            role="radio"
+            value={String(congress)}
             data-congress={congress}
-            aria-checked={isSelected}
             // Only the selected segment is a tab stop; arrows move within.
             tabIndex={isSelected ? 0 : -1}
-            onClick={() => select(congress)}
             title={`${formatCongressOrdinal(congress)} Congress`}
-            className={cn(
-              'flex-1 rounded-[6px] px-3 font-mono text-[13px] tabular transition-colors focus-ring',
-              isSelected
-                ? 'bg-raised font-medium text-ink shadow-sm'
-                : 'text-ink-2 hover:text-ink'
-            )}
+            className={
+              'h-auto min-w-min flex-1 rounded-[6px] px-3 font-mono text-[13px] font-normal tabular text-ink-2 ' +
+              'hover:bg-transparent hover:text-ink ' +
+              'data-[state=on]:bg-raised data-[state=on]:font-medium data-[state=on]:text-ink data-[state=on]:shadow-sm'
+            }
           >
             {formatCongressYearsShort(congress)}
-          </button>
+          </ToggleGroupItem>
         );
       })}
-    </div>
+    </ToggleGroup>
   );
 }

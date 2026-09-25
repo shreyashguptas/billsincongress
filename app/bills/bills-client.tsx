@@ -11,6 +11,7 @@ import {
 } from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
 import { X } from 'lucide-react';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { SourceLine } from '@/components/brand/section';
 import BillCard, { BillRowSkeleton } from '@/components/bills/bill-card';
@@ -468,9 +469,12 @@ export default function BillsClient({
             </div>
 
             {error && (
-              <div role="alert" className="mt-6 rounded-md border border-error/30 px-4 py-3 text-sm text-error">
+              <Alert
+                variant="destructive"
+                className="mt-6 rounded-md border-error/30 px-4 py-3 text-sm dark:border-error/30"
+              >
                 {error}
-              </div>
+              </Alert>
             )}
 
             <div key={resultsKey}>
@@ -502,9 +506,10 @@ export default function BillsClient({
                       </p>
                       <div className="mt-6 flex flex-wrap justify-center gap-2">
                         {chips.map((chip) => (
-                          <button
+                          <Button
                             key={chip.definition.field}
                             type="button"
+                            variant="outline"
                             onClick={() => {
                               analytics.billsNoResultsFilterRemoved(
                                 chip.definition.kind,
@@ -522,7 +527,7 @@ export default function BillsClient({
                                 'empty_state',
                               );
                             }}
-                            className="group inline-flex h-9 max-w-full items-center gap-1.5 rounded-sm border border-line-strong bg-raised pl-3 pr-2 text-sm text-ink transition-colors hover:bg-sunken focus-ring touchable:h-11"
+                            className="group h-9 max-w-full gap-1.5 rounded-sm pl-3 pr-2 font-normal"
                           >
                             <span className="truncate">
                               <span className="text-ink-2">{chip.definition.label}:</span>{' '}
@@ -534,7 +539,7 @@ export default function BillsClient({
                               aria-hidden="true"
                             />
                             <span className="sr-only">Remove this filter</span>
-                          </button>
+                          </Button>
                         ))}
                       </div>
                       <div className="mt-6">

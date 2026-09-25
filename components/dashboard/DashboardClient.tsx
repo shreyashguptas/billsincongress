@@ -9,6 +9,7 @@ import { useConvexEnabled } from '@/components/convex-client-provider';
 import { cn, formatCount } from '@/lib/utils';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { SectionHeader } from '@/components/brand/section';
+import { Skeleton } from '@/components/ui/skeleton';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
@@ -347,18 +348,18 @@ function DashboardSkeleton() {
   return (
     <div className="container-editorial space-y-10 py-16">
       <div className="space-y-4">
-        <div className="h-3 w-32 animate-pulse rounded-xs bg-sunken" />
-        <div className="h-14 w-3/4 animate-pulse rounded-sm bg-sunken" />
-        <div className="h-4 w-2/3 animate-pulse rounded-xs bg-sunken" />
+        <Skeleton className="h-3 w-32 rounded-xs" />
+        <Skeleton className="h-14 w-3/4 rounded-sm" />
+        <Skeleton className="h-4 w-2/3 rounded-xs" />
       </div>
       <div className="grid grid-cols-2 border-y border-line lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-28 animate-pulse border-l border-line bg-sunken/50 first:border-l-0" />
+          <Skeleton key={i} className="h-28 rounded-none border-l border-line bg-sunken/50 first:border-l-0" />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {[1, 2].map((i) => (
-          <div key={i} className="h-64 animate-pulse rounded-md bg-sunken" />
+          <Skeleton key={i} className="h-64" />
         ))}
       </div>
     </div>
@@ -465,7 +466,7 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
   if (!house || !senate) {
     return (
       <div className="border-y border-line py-8">
-        <div className="h-52 animate-pulse rounded-md bg-sunken" />
+        <Skeleton className="h-52" />
       </div>
     );
   }

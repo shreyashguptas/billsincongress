@@ -3,6 +3,7 @@
 import { forwardRef } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 export interface FilterPillProps
   // `value` is redeclared as a display label, which is not what a <button>'s
@@ -42,16 +43,17 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
   ({ name, value, describedAs, className, ...props }, ref) => {
     const active = Boolean(value);
     return (
-      <button
+      <Button
         ref={ref}
         type="button"
+        // Set: the ink primary. Unset: outline, which is already the chip's
+        // raised fill and line-strong edge.
+        variant={active ? 'default' : 'outline'}
         aria-haspopup="dialog"
         aria-label={describedAs ?? name}
         className={cn(
-          'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-sm border px-3 text-sm font-medium transition-colors focus-ring touchable:h-11',
-          active
-            ? 'border-ink bg-ink text-on-ink hover:bg-ink/85'
-            : 'border-line-strong bg-raised text-ink hover:bg-sunken',
+          'h-9 shrink-0 gap-1.5 rounded-sm px-3',
+          active && 'border border-ink',
           className
         )}
         {...props}
@@ -63,7 +65,7 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
           strokeWidth={1.75}
           aria-hidden="true"
         />
-      </button>
+      </Button>
     );
   }
 );

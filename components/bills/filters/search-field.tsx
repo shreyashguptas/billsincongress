@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 /** Long enough to absorb a word, short enough not to feel laggy. */
 const DEBOUNCE_MS = 250;
@@ -83,7 +85,7 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
         strokeWidth={1.75}
         aria-hidden="true"
       />
-      <input
+      <Input
         id={id}
         type="search"
         value={draft}
@@ -98,20 +100,22 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
         placeholder="Search bills, or type a bill number"
         // text-base on touch: anything smaller makes iOS Safari zoom in on
         // focus and never zoom back out.
-        className="h-[52px] w-full rounded-md border border-line-strong bg-raised pl-11 pr-12 font-sans text-[15px] text-ink placeholder:text-ink-3 focus-ring focus:border-ink touchable:text-base [&::-webkit-search-cancel-button]:hidden"
+        className="h-[52px] pl-11 pr-12 focus:border-ink touchable:h-[52px] touchable:text-base [&::-webkit-search-cancel-button]:hidden"
       />
       {draft !== '' && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={() => {
             setDraft('');
             commit('');
           }}
           aria-label="Clear search"
-          className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-sunken hover:text-ink focus-ring"
+          className="absolute right-1 top-1/2 h-11 w-11 -translate-y-1/2 text-ink-3 hover:text-ink"
         >
           <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        </Button>
       )}
     </div>
   );
