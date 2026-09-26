@@ -748,7 +748,14 @@ resolutions a Congress, which are not bills and can never become law. Bill rows 
 
 **Time.** The system prompt now carries today's date and, for a Congress that has adjourned, an
 instruction to use the past tense. Two of the three Congresses we hold are over — about 37,000 of
-~55,000 rows — and without this the model described them as still in progress. `stats` carries
+~55,000 rows — and without this the model described them as still in progress. The prompt alone
+was not enough: the model still said the 117th's reserved numbers "will almost certainly never
+become law". So `answer.ts` passes the same date to every fetch, and a `bills` row from an ended
+Congress that stopped before stage 90 carries `finalStatus` — died unfinished on the adjournment
+date, can never become law, though its text may have been enacted inside another bill. A vetoed
+bill says it was vetoed instead, since most died when the override failed. Simple and concurrent
+resolutions get none: an adopted one is finished, not dead, and the stage does not show adoption.
+Stages 90 and 95 get none, because the stored stage can lag an enactment. `stats` carries
 `dataLastSynced` so "how current is this?" has a real answer instead of an invented one.
 
 **Party.** The home page seats every measure by its sponsor's party, including a "party not

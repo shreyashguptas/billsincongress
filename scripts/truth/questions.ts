@@ -588,6 +588,20 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
   {
+    id: "reserved-numbers-still-possible",
+    question:
+      "Could any of the 117th Congress's bills with no sponsor party recorded still become law?" +
+      YES_OR_NO,
+    defect:
+      "Said they 'will almost certainly never become law' — hedged future tense for a Congress " +
+      "that ended on 2023-01-03. Nothing unfinished in it can ever become law.",
+    expect: () => ({
+      kind: "boolean",
+      value: today() <= CONGRESS_ADJOURNED[117],
+      note: `The 117th adjourned sine die on ${CONGRESS_ADJOURNED[117]}; its unfinished bills died then.`,
+    }),
+  },
+  {
     id: "control-largest-topic",
     question:
       `Which policy area has the most bills in the ${CURRENT_CONGRESS}th Congress?` + ONE_NAME,

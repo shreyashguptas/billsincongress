@@ -56,12 +56,18 @@ async function fetchViaHandlers(
   name: string,
   filters: Record<string, unknown>,
   limit?: number,
+  today?: string,
 ): Promise<any> {
   assert.ok(isDatasetName(name), `unknown dataset '${name}'`);
   const validated = validateFilters(name as any, filters);
   if (!validated.ok) return { ok: false, error: validated.error };
   const { runFetch } = await import("../../convex/catalog/fetch");
-  return await runFetch(ctx, { name, filters, ...(limit !== undefined ? { limit } : {}) });
+  return await runFetch(ctx, {
+    name,
+    filters,
+    ...(limit !== undefined ? { limit } : {}),
+    ...(today !== undefined ? { today } : {}),
+  });
 }
 
 async function main() {
@@ -414,6 +420,59 @@ async function main() {
       );
       assert.equal(r.report.subsets, undefined, `${name}: a split of part of the set`);
     }
+  });
+
+  // Live answer on 2026-09-25: the 117th's reserved numbers "will almost
+  // certainly never become law". The 117th ended on 2023-01-03; they cannot. The
+  // prompt already demanded the past tense for ended Congresses, and the model
+  // ignored it — so the fact now rides on the row.
+  await it("an unfinished bill from an ended Congress says it died, and when", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "none" }, 50, "2026-09-25");
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    for (const row of r.rows) {
+      assert.match(String(row.finalStatus), /Died unfinished .* ended on 2023-01-03/, `${row.label}`);
+    }
+  });
+
+  await it("a law, a bill still in play, or a fetch with no date carries no death notice", async () => {
+    const laws = await fetchViaHandlers(ctx, "bills", { congress: 117, progressStage: 100 }, 10, "2026-09-25");
+    assert.ok(laws.ok && laws.rows.length > 0);
+    for (const row of laws.rows) assert.equal(row.finalStatus, undefined, `${row.label} became law`);
+    const current = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 40 }, 10, "2026-09-25");
+    assert.ok(current.ok && current.rows.length > 0);
+    for (const row of current.rows) assert.equal(row.finalStatus, undefined, `the 119th is still sitting`);
+    // The same 119th bill on the day after it ends is dead.
+    const later = await fetchViaHandlers(ctx, "bills", { congress: 119, billType: "hr", progressStage: 40 }, 1, "2027-01-04");
+    assert.match(String(later.rows[0].finalStatus), /ended on 2027-01-03/);
+    const undated = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "none" }, 50);
+    for (const row of undated.rows) assert.equal(row.finalStatus, undefined, "no date, no claim");
+  });
+
+  await it("an adopted resolution is not told it died", async () => {
+    // H.Res. 1 of the 117th is the oath-of-office resolution: adopted on day one,
+    // stored at stage 20. A first draft told it, and 1,493 more, that they died.
+    for (const billId of ["1hres117", "429hres118", "315sres117", "1sconres117", "83hconres118"]) {
+      const r = await fetchViaHandlers(ctx, "bills", { billId }, 1, "2026-09-25");
+      assert.ok(r.ok && r.rows.length === 1, `${billId} not found`);
+      assert.equal(r.rows[0].finalStatus, undefined, `${billId} was told it died`);
+    }
+  });
+
+  await it("a vetoed bill is not told it died at adjournment", async () => {
+    // H.J.Res. 30 of the 118th died when the override failed on 2023-03-23.
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "30hjres118" }, 1, "2026-09-25");
+    assert.ok(r.ok && r.rows.length === 1);
+    assert.match(String(r.rows[0].finalStatus), /^Vetoed and never enacted/);
+    assert.doesNotMatch(String(r.rows[0].finalStatus), /Died unfinished/);
+  });
+
+  await it("a death notice never says only a later Congress could pass it", async () => {
+    // H.R. 3967 of the 117th (the PACT Act) stopped at stage 80, but its text
+    // became law in the same Congress inside S. 3373.
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "3967hr117" }, 1, "2026-09-25");
+    assert.ok(r.ok && r.rows.length === 1);
+    assert.doesNotMatch(String(r.rows[0].finalStatus), /later Congress/);
+    assert.match(String(r.rows[0].finalStatus), /inside a different bill/);
   });
 
   await it("an incomplete read carries no split", async () => {

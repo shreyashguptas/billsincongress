@@ -294,6 +294,9 @@ async function runLoop(
     onWork?: (entry: WorkLogEntry) => void;
   },
 ): Promise<AnswerResult> {
+  // One date for the whole turn: the prompt's calendar note and the rows'
+  // `finalStatus` must agree on which Congresses are over.
+  const today = new Date().toISOString().slice(0, 10);
   const allowed = new Set<string>();
   const display = new Map<string, Record<string, unknown>>();
   const workLog: WorkLogEntry[] = [];
@@ -315,7 +318,7 @@ async function runLoop(
         // Without this the model dated "recent", "this year" and "how long ago"
         // from its own training cutoff, and had no way to know that two of the
         // three Congresses we hold have already adjourned.
-        today: new Date().toISOString().slice(0, 10),
+        today,
       }),
     },
     ...capHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
@@ -340,6 +343,7 @@ async function runLoop(
     const seeded = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
       name: dataset,
       filters,
+      today,
     });
     if (!seeded.ok) return;
 
@@ -547,6 +551,7 @@ async function runLoop(
           name: String(args.name ?? ""),
           filters: args.filters ?? {},
           ...(typeof args.limit === "number" ? { limit: args.limit } : {}),
+          today,
         });
         if (fetched.ok) {
           for (const row of fetched.rows) {

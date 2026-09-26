@@ -40,6 +40,7 @@ import {
   type RowOrder,
 } from "./completeness";
 import { milestoneStages } from "./stageSemantics";
+import { congressWindow, isCongressClosed } from "./congressCalendar";
 import { canBecomeLaw, measureNoun } from "./measureType";
 import { candidateSurnames, matchesFullName } from "./sponsorName";
 
@@ -88,7 +89,7 @@ type FetchResult =
  */
 export async function runFetch(
   ctx: QueryCtx,
-  args: { name: string; filters: unknown; limit?: number },
+  args: { name: string; filters: unknown; limit?: number; today?: string },
 ): Promise<FetchResult> {
   {
     if (!isDatasetName(args.name)) {
@@ -111,7 +112,7 @@ export async function runFetch(
 
     switch (args.name as DatasetName) {
       case "bills":
-        return await fetchBills(ctx, f, limit, countOnly);
+        return await fetchBills(ctx, f, limit, countOnly, args.today);
       case "bill_actions":
         return await fetchActions(ctx, f, limit || MAX_LIMIT);
       case "bill_summaries":
@@ -133,6 +134,9 @@ export const fetchDataset = internalQuery({
     // the model a recoverable error rather than a Convex argument rejection.
     filters: v.any(),
     limit: v.optional(v.number()),
+    // ISO date the answer is being written on. Passed in rather than read from
+    // the clock so a query stays deterministic and a test can pin it.
+    today: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<FetchResult> => runFetch(ctx, args),
 });
@@ -225,6 +229,36 @@ function reservedSubsets(matched: Doc<"bills">[]): Subset[] {
         .sort((a, b) => Number(a.billNumber) - Number(b.billNumber))
         .map((b) => `${b.billTypeLabel} ${b.billNumber}`),
     }));
+}
+
+/**
+ * What happened to an unfinished bill once its Congress ended — on the row, where
+ * the model reads it, not only in the prompt. The prompt already said "past
+ * tense; never say a bill from an ended Congress might still move", and the
+ * model still told a reader the 117th's reserved numbers "will almost certainly
+ * never become law". They cannot: the 117th ended on 2023-01-03.
+ *
+ * Only for stages that certainly did not become law. 90 (sent to the President)
+ * and 95 (signed) are left alone: the stored stage can lag the enactment.
+ */
+function finalStatus(b: Doc<"bills">, today: string | undefined): string | undefined {
+  if (!today || !isCongressClosed(b.congress, today)) return undefined;
+  // A simple or concurrent resolution was never headed for law, and an adopted
+  // one is finished, not dead: the stored stage does not show adoption, so 1,494
+  // adopted resolutions in the 117th and 118th would have been told they died.
+  if (!canBecomeLaw(b.billType)) return undefined;
+  const stage = b.progressStage ?? 20;
+  if (stage >= 90) return undefined;
+  const { endDate } = congressWindow(b.congress);
+  const name = `${congressOrdinal(b.congress)} Congress`;
+  // A veto usually ended it earlier, when the override failed — not at adjournment.
+  if (stage === 85) {
+    return `Vetoed and never enacted. The ${name} ended on ${endDate}, so it can never become law.`;
+  }
+  return (
+    `Died unfinished when the ${name} ended on ${endDate}; this bill can no longer advance or ` +
+    `become law. Its text may still have been enacted inside a different bill — this row cannot show that.`
+  );
 }
 
 /** The bucket a row falls into for a grouped count. */
@@ -337,6 +371,7 @@ async function fetchBills(
   f: Row,
   limit: number,
   countOnly: boolean,
+  today?: string,
 ): Promise<FetchResult> {
   const congress = (f.congress as number) ?? 119;
   const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter) : "";
@@ -737,6 +772,7 @@ async function fetchBills(
         policyArea: b.policyAreaName ?? "",
         latestActionDate: b.latestActionDate ?? "",
         ...(reservedFor(b.title) ? { reservedFor: reservedFor(b.title) } : {}),
+        ...(finalStatus(b, today) ? { finalStatus: finalStatus(b, today) } : {}),
         // What this row actually IS. Around 2,500 measures a Congress are simple
         // or concurrent resolutions, which are not bills and can never become
         // law; calling one "a bill" in an answer is a factual error, and the

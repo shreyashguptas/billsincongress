@@ -33,7 +33,8 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "progressStage", type: "number", meaning: "Stage code. See gotchas — it is not a percentage." },
       { name: "policyAreaName", type: "string", meaning: "The single policy area assigned to the bill." },
       { name: "measureType", type: "string", meaning: "What this row IS in plain words: 'bill', 'joint resolution', 'concurrent resolution' or 'simple resolution'. Use it — a resolution is not a bill." },
-      { name: "canBecomeLaw", type: "boolean", meaning: "False for simple and concurrent resolutions, which never reach the President. Never say one 'failed to become law'." },
+      { name: "finalStatus", type: "string", meaning: "Present only on an unfinished measure from a Congress that has ENDED: it died then and can never become law. State it in the past tense, as fact — never 'unlikely to' or 'may still'." },
+      { name: "canBecomeLaw", type: "boolean", meaning: "Whether this KIND of measure can ever become law: false for simple and concurrent resolutions, which never reach the President. Never say one 'failed to become law'. It says nothing about whether THIS one still can — finalStatus does." },
       { name: "latestActionDate", type: "string", meaning: "ISO date of the most recent action." },
     ],
     filters: [
