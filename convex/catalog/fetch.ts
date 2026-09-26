@@ -255,6 +255,17 @@ function finalStatus(b: Doc<"bills">, today: string | undefined): string | undef
   if (stage === 85) {
     return `Vetoed and never enacted. The ${name} ended on ${endDate}, so it can never become law.`;
   }
+  // Passed both chambers: the one stage a bill can leave AFTER adjournment,
+  // signed days into January. Ended Congresses are never re-pulled, and the
+  // stored actions stop where the stored stage does, so nothing we hold can rule
+  // that out. Say what the record shows, not that it died.
+  if (stage === 80) {
+    return (
+      `Passed both chambers. Our record shows no signing before the ${name} ended on ${endDate}, ` +
+      `and it can go no further in Congress. Do not say it can never have become law: a bill can ` +
+      `be signed after adjournment, and its text may have been enacted inside a different bill.`
+    );
+  }
   return (
     `Died unfinished when the ${name} ended on ${endDate}; this bill can no longer advance or ` +
     `become law. Its text may still have been enacted inside a different bill — this row cannot show that.`

@@ -753,7 +753,10 @@ was not enough: the model still said the 117th's reserved numbers "will almost c
 become law". So `answer.ts` passes the same date to every fetch, and a `bills` row from an ended
 Congress that stopped before stage 90 carries `finalStatus` — died unfinished on the adjournment
 date, can never become law, though its text may have been enacted inside another bill. A vetoed
-bill says it was vetoed instead, since most died when the override failed. Simple and concurrent
+bill says it was vetoed instead, since most died when the override failed. A bill that passed both
+chambers is not told it died: it can be signed after adjournment, ended Congresses are never
+re-pulled, and its stored actions stop where its stage does, so nothing we hold rules that out. Its
+note says only that our record shows no signing. Simple and concurrent
 resolutions get none: an adopted one is finished, not dead, and the stage does not show adoption.
 Stages 90 and 95 get none, because the stored stage can lag an enactment. `stats` carries
 `dataLastSynced` so "how current is this?" has a real answer instead of an invented one.

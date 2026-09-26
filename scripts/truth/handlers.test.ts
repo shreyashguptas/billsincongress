@@ -448,15 +448,15 @@ async function main() {
     for (const row of undated.rows) assert.equal(row.finalStatus, undefined, "no date, no claim");
   });
 
-  await it("no bill told it died has a signing or enactment on record", async () => {
-    // Review on #129: the stored stage is the only thing behind "can no longer
-    // become law", and ended Congresses are never re-pulled. A bill signed just
-    // after sine die but last synced at stage 80 would be told it died. Worked
-    // out here from the raw tables, not from finalStatus.
-    const lawTypes = new Set(["hr", "s", "hjres", "sjres"]);
+  await it("the stage a death notice rests on agrees with the actions we hold", async () => {
+    // Not a freshness check: stage and actions are written by the same sync, so
+    // a bill signed after its last pull would pass this too. That gap is closed
+    // in finalStatus itself, which never says "died" of stage 80 — the one stage
+    // a bill can leave after adjournment. See the next case.
+    const { canBecomeLaw } = await import("../../convex/catalog/measureType");
     const told = new Set(
       bills
-        .filter((b: any) => (b.congress === 117 || b.congress === 118) && lawTypes.has(b.billType) && (b.progressStage ?? 20) < 90)
+        .filter((b: any) => (b.congress === 117 || b.congress === 118) && canBecomeLaw(b.billType) && (b.progressStage ?? 20) < 80)
         .map((b: any) => b.billId),
     );
     assert.ok(told.size > 1000, "sanity: tens of thousands of dead bills");
@@ -465,6 +465,16 @@ async function main() {
       .filter((a: any) => told.has(a.billId) && /Became Public Law|Became Private Law|Signed by President/i.test(a.text))
       .map((a: any) => a.billId);
     assert.deepEqual([...new Set(enacted)], [], "these were enacted but would be told they died");
+  });
+
+  await it("a bill that passed both chambers is never told it died", async () => {
+    // Review on #129: it can be signed after sine die, and we would not know.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, billType: "hr", progressStage: 80 }, 50, "2026-09-25");
+    assert.ok(r.ok && r.rows.length > 0, "sanity: the 117th has H.R. bills that passed both chambers");
+    for (const row of r.rows) {
+      assert.match(String(row.finalStatus), /^Passed both chambers/, `${row.label}`);
+      assert.doesNotMatch(String(row.finalStatus), /Died unfinished|can no longer .*become law/, `${row.label}`);
+    }
   });
 
   await it("an adopted resolution is not told it died", async () => {
