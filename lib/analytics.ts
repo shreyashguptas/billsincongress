@@ -196,6 +196,15 @@ export const analytics = {
   headerSearchSubmitted: (queryLength: number) =>
     capture('header_search_submitted', { query_length: queryLength }),
 
+  /**
+   * The browser could not reach Convex directly, so the bills reads for the rest
+   * of this page load go through this site's own `/api/bills/query`. Once per
+   * page load, at the first failed call; `query` names that call. Counts the
+   * readers whose network blocks Convex — before the relay, every filter change
+   * they made showed "No bills found".
+   */
+  billsQueryRelayed: (query: string) => capture('bills_query_relayed', { query }),
+
   billsLoadMoreClicked: (nextPage: number, loadedCount: number) =>
     capture('bills_load_more_clicked', { next_page: nextPage, loaded_count: loadedCount }),
 
