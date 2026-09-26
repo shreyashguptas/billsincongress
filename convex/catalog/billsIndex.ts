@@ -20,6 +20,7 @@ export type BillsBranch =
   | "sponsorStateAndStage"
   | "sponsorState"
   | "sponsorNames"
+  | "sponsorParty"
   | "reachedStage"
   | "progressStage"
   | "billType"
@@ -46,6 +47,7 @@ const ROW_FILTER_KEYS = [
   "progressStage",
   "sponsorState",
   "sponsorFilter",
+  "sponsorParty",
   "chamber",
   "billType",
   "billNumber",
@@ -75,6 +77,15 @@ function hasText(value: unknown): boolean {
 function hasNames(value: unknown): boolean {
   return Array.isArray(value) && value.length > 0;
 }
+
+/** The `sponsorParty` filter value for a measure with no party on record. */
+export const NO_PARTY = "none";
+
+const SPONSOR_PARTY_PLAN: BillsIndexPlan = {
+  branch: "sponsorParty",
+  indexName: "by_congress_and_sponsor_party",
+  indexed: ["congress", "sponsorParty"],
+};
 
 interface BranchRule {
   plan: BillsIndexPlan;
@@ -116,6 +127,13 @@ const RULES: BranchRule[] = [
       indexed: ["congress", "billNumber"],
     },
     when: (f) => isString(f.billNumber),
+  },
+  {
+    // "No party recorded" is a handful of rows a Congress (eleven in the 117th,
+    // none elsewhere), so it outranks every broad index. A named party is
+    // thousands of rows and waits at the bottom, below anything narrower.
+    plan: SPONSOR_PARTY_PLAN,
+    when: (f) => f.sponsorParty === NO_PARTY,
   },
   {
     // MUST come before policyArea. The pair on the policyArea index read the
@@ -196,6 +214,10 @@ const RULES: BranchRule[] = [
       indexed: ["congress", "billType"],
     },
     when: (f) => isString(f.billType),
+  },
+  {
+    plan: SPONSOR_PARTY_PLAN,
+    when: (f) => isString(f.sponsorParty),
   },
 ];
 

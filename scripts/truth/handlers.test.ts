@@ -327,6 +327,107 @@ async function main() {
     assert.equal(r.rows[0].totalMeasures, statsRow.totalCount);
   });
 
+  // --- The home page's "party not recorded" seats ---------------------------
+  // A reader asked "what are these 11 bills with party not recorded?" about the
+  // 117th and was told the figure could not be verified. There was no party
+  // filter, the grouped count stopped at 5,000 of 17,828 rows, and the
+  // whole-Congress stats row had no party split at all.
+
+  const noParty117 = bills.filter((b: any) => b.congress === 117 && !b.sponsorParty);
+
+  await it("the measures with no party recorded can be listed, completely", async () => {
+    assert.ok(noParty117.length > 0, "sanity: the 117th really has measures with no party");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "none" }, 50);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true, "an indexed party read must be complete");
+    assert.equal(r.report.total, noParty117.length);
+    assert.deepEqual(
+      r.rows.map((row: any) => row.billId).sort(),
+      noParty117.map((b: any) => b.billId).sort(),
+    );
+  });
+
+  await it("the bills gotcha's description of them matches every one", async () => {
+    // The gotcha says they are numbers held back for House leadership and tells
+    // the model to read whom from the title. A first draft named one title for
+    // all eleven; eight of them say "Minority Leader".
+    for (const b of noParty117) {
+      assert.match(b.title, /^Reserved for the /, `${b.billId} is not a reserved number: ${b.title}`);
+      assert.equal(b.billType, "hr", `${b.billId} is not a House number`);
+      assert.ok(!b.sponsorLastName, `${b.billId} has a sponsor after all`);
+    }
+  });
+
+  await it("every stored party is one the party filter can reach", async () => {
+    // The filter reads D, R, I/ID/IND, and missing or "" (catalog/fetch.ts,
+    // PARTY_SPELLINGS). The home page's split files anything else under U, where
+    // no filter could list it and the two would disagree. Congress.gov's value
+    // is stored raw, so a new spelling shows up here first.
+    const reachable = new Set(["D", "R", "I", "ID", "IND", ""]);
+    const stray = bills.filter(
+      (b: any) => b.sponsorParty !== undefined && !reachable.has(b.sponsorParty),
+    );
+    assert.equal(
+      stray.length,
+      0,
+      `unreachable sponsorParty values: ${[...new Set(stray.map((b: any) => b.sponsorParty))].join(", ")} ` +
+        `— add them to PARTY_SPELLINGS in convex/catalog/fetch.ts`,
+    );
+  });
+
+  await it("each party filter's total matches the home page's split, in every Congress", async () => {
+    const congresses = [...new Set(bills.map((b: any) => b.congress))];
+    for (const congress of congresses) {
+      const stats = await fetchViaHandlers(ctx, "stats", { congress });
+      assert.ok(stats.ok && stats.rows[0].partyCounts, `no party split for the ${congress}th`);
+      for (const [filter, key] of [["none", "U"], ["I", "I"]] as const) {
+        const r = await fetchViaHandlers(ctx, "bills", { congress, sponsorParty: filter }, 0);
+        assert.ok(r.ok, `fetch failed: ${r.error}`);
+        assert.equal(r.report.complete, true, `${congress}th ${filter}: read was not complete`);
+        assert.equal(
+          r.report.total,
+          stats.rows[0].partyCounts[key],
+          `${congress}th: filter '${filter}' and partyCounts.${key} disagree`,
+        );
+      }
+    }
+  });
+
+  await it("asking for them sorted still finds them all", async () => {
+    // They are the oldest rows in the Congress, so a newest-first ordering
+    // window read without the party index would hold none of them.
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 117, sponsorParty: "none", sort: "newest_action" },
+      50,
+    );
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.report.total, noParty117.length);
+    assert.equal(r.report.order, "newest_action_first");
+  });
+
+  await it("a party filter narrows to that party and nothing else", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "i" }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(
+      r.report.total,
+      bills.filter((b: any) => b.congress === 117 && b.sponsorParty === "I").length,
+    );
+  });
+
+  await it("the whole-Congress stats row carries the party split the home page shows", async () => {
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 117 });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const row = r.rows[0];
+    assert.ok(row.partyCounts, "no partyCounts on the whole-Congress row");
+    assert.equal(row.partyCounts.U, noParty117.length, "U is the 'party not recorded' seats");
+    const total = Object.values(row.partyCounts as Record<string, number>).reduce((a, b) => a + b, 0);
+    assert.equal(total, row.totalMeasures, "the party split must add up to every measure");
+  });
+
   // --- D13: terminal buckets read as milestones -----------------------------
 
   await it("'passed the Senate' counts everything that got at least that far", async () => {

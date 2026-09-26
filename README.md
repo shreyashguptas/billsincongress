@@ -24,7 +24,7 @@ It is free to read, has no ads, and you do not need an account to read anything 
 
 The home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them).
 
-It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover a party to see its own numbers.
+It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover a party to see its own numbers. A small "party not recorded" group counts bill numbers Congress.gov lists with no sponsor at all — in the 117th Congress, eleven House bill numbers held back for the Speaker and the Minority Leader — and the assistant can list them if you ask.
 
 Right under the chamber is a box for asking a question. As you type, bills whose title or number matches appear under it straight away. Pick one to go straight to its page, or press Enter to ask your question instead. The one exception: if you typed a bill number that matches exactly one bill, Enter opens that bill. Under the box are three quick links built from the live numbers, such as the bills that became law this Congress. Each one opens the full list rather than asking the AI, which cannot read hundreds of bills at once.
 

@@ -9,6 +9,7 @@
  *
  * Pure module (no Convex imports) so it carries unit tests.
  */
+import { NO_PARTY } from "./billsIndex";
 import { DATASETS } from "./datasets";
 import type { DatasetName } from "./types";
 
@@ -26,6 +27,8 @@ import type { DatasetName } from "./types";
  */
 export const VALID_STAGES = [20, 40, 60, 80, 85, 90, 95, 100];
 const VALID_CHAMBERS = ["house", "senate"];
+/** Stored sponsor parties. A measure with none is asked for as NO_PARTY. */
+const VALID_PARTIES = ["D", "R", "I"];
 /**
  * Sorts the `bills` dataset understands. Without these the engine had no
  * ordering at all: it read rows in insertion order and then asserted a date sort
@@ -169,7 +172,21 @@ export function validateFilters(name: DatasetName, raw: unknown): ValidationResu
     // matched nothing and reported it as a complete zero — "no bills from
     // California", said with authority, because of a capital letter. Both domains
     // are fixed and known, so accepting either casing is lossless.
-    if (key === "sponsorState" && typeof value === "string") {
+    if (key === "sponsorParty" && typeof value === "string") {
+      const party = value.trim().toUpperCase();
+      if (party === NO_PARTY.toUpperCase()) {
+        out[key] = NO_PARTY;
+      } else if (VALID_PARTIES.includes(party)) {
+        out[key] = party;
+      } else {
+        return {
+          ok: false,
+          error:
+            `sponsorParty must be 'D', 'R', 'I', or '${NO_PARTY}' for measures with no party ` +
+            `recorded. Got '${value}'.`,
+        };
+      }
+    } else if (key === "sponsorState" && typeof value === "string") {
       out[key] = value.trim().toUpperCase();
     } else if (key === "billType" && typeof value === "string") {
       out[key] = value.trim().toLowerCase();

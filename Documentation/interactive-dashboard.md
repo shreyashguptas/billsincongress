@@ -89,6 +89,12 @@ first sync writes them last) shows a "not built yet" note instead of seats. All-
 would otherwise seat the whole chamber as one party, and one chamber alone would show about
 half the bills under a headline about all of them.
 
+"Party not recorded" is a real bucket, not an error: it counts measures Congress.gov lists with no
+sponsor. In the data we hold, that is the 117th Congress's eleven H.R. numbers held back for House
+leadership: H.R. 2, 9 and 10 reserved for the Speaker, H.R. 11–17 and 20 for the Minority Leader. The assistant can list them with the `bills` filter
+`sponsorParty: "none"`, and the whole-Congress `stats` row carries the same party split the
+chamber draws.
+
 Numbers in the monthly chart and the state map count bills by the month they were
 **introduced** and the state of their **sponsor**; the "became law" figures anywhere on the
 page are progress stage 100 only, the same definition `statusBreakdown.becameLaw` uses.

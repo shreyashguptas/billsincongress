@@ -50,6 +50,7 @@ export interface BillRow {
   progressDescription?: string;
   policyAreaName?: string;
   sponsorState?: string;
+  sponsorParty?: string;
   sponsorFirstName?: string;
   sponsorLastName?: string;
   introducedDate?: string;
@@ -539,6 +540,29 @@ export const QUESTIONS: TruthQuestion[] = [
         kind: "number",
         value: row.count,
         note: `congressPolicyAreas row for 117 / Health; the ${CURRENT_CONGRESS}th's is ${current?.count}.`,
+      };
+    },
+  },
+  {
+    id: "no-party-recorded",
+    question:
+      "How many measures in the 117th Congress have no sponsor party recorded?" + ONE_NUMBER,
+    defect:
+      "The home page shows '11 bills, party not recorded' for the 117th. Asked what they were, " +
+      "the assistant said it could not get a complete count by party and could not verify the " +
+      "figure — it had no party filter, the grouped count gave up at 5,000 of 17,828 rows, and " +
+      "the whole-Congress stats row carried no party split at all.",
+    expect: (db) => {
+      const noParty = billsIn(db, 117).filter((b) => !b.sponsorParty);
+      if (noParty.length === 0) {
+        throw new Error("No 117th measure lacks a party; this question no longer tests anything.");
+      }
+      return {
+        kind: "number",
+        value: noParty.length,
+        note:
+          `117th rows with no sponsorParty: ${noParty.map((b) => b.billTypeLabel + b.billNumber).join(", ")}. ` +
+          `Congress.gov lists them with no sponsor; each is titled "Reserved for the Speaker." or "Reserved for the Minority Leader."`,
       };
     },
   },

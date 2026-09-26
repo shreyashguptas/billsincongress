@@ -94,7 +94,7 @@ const NAME_IT_CORRECTLY =
 
 /** What each route is, in the model's own terms. Constants, never client text. */
 const ROUTE_SENTENCE: Record<AskRoute, string> = {
-  home: "The reader is on the home dashboard: totals for one Congress, how far bills have got, the biggest policy areas and the busiest sponsors.",
+  home: "The reader is on the home dashboard: totals for one Congress, every measure seated by its sponsor's party (Democrats, Independents, Republicans, and 'party not recorded'), how far bills have got, the biggest policy areas and the busiest sponsors.",
   bill: "The reader is on a single bill's page.",
   list: "The reader is on the browsable list of bills.",
   hub: "The reader is on a browse page for one chamber, one status or one policy area.",
