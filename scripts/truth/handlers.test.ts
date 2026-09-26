@@ -448,6 +448,25 @@ async function main() {
     for (const row of undated.rows) assert.equal(row.finalStatus, undefined, "no date, no claim");
   });
 
+  await it("no bill told it died has a signing or enactment on record", async () => {
+    // Review on #129: the stored stage is the only thing behind "can no longer
+    // become law", and ended Congresses are never re-pulled. A bill signed just
+    // after sine die but last synced at stage 80 would be told it died. Worked
+    // out here from the raw tables, not from finalStatus.
+    const lawTypes = new Set(["hr", "s", "hjres", "sjres"]);
+    const told = new Set(
+      bills
+        .filter((b: any) => (b.congress === 117 || b.congress === 118) && lawTypes.has(b.billType) && (b.progressStage ?? 20) < 90)
+        .map((b: any) => b.billId),
+    );
+    assert.ok(told.size > 1000, "sanity: tens of thousands of dead bills");
+    const enacted = ctx.db
+      .rowsOf("billActions")
+      .filter((a: any) => told.has(a.billId) && /Became Public Law|Became Private Law|Signed by President/i.test(a.text))
+      .map((a: any) => a.billId);
+    assert.deepEqual([...new Set(enacted)], [], "these were enacted but would be told they died");
+  });
+
   await it("an adopted resolution is not told it died", async () => {
     // H.Res. 1 of the 117th is the oath-of-office resolution: adopted on day one,
     // stored at stage 20. A first draft told it, and 1,493 more, that they died.
