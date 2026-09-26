@@ -205,6 +205,22 @@ it("every payload states the set it drew from", () => {
   assert.equal(payload.set, "every Texas measure that became law");
 });
 
+it("an exact split reaches the model only from a complete read", () => {
+  const subsets = [{ label: "reserved for the Minority Leader", count: 8, members: ["H.R. 20"] }];
+  const base = { set: "s", filteredInMemory: false, matchedCount: 11, shown: 11, order: "arbitrary" as const, subsets };
+  const complete = reportFor({ ...base, windowFilled: false });
+  assert.deepEqual(complete.subsets, subsets);
+  const payload = parse([], complete);
+  assert.deepEqual(payload.exact_subsets, subsets);
+  assert.match(String(payload.exact_subsets_meaning), /never split or count the rows yourself/i);
+  // A split of a sample is a count, and an incomplete read may carry no count.
+  const partial = reportFor({ ...base, windowFilled: true });
+  assert.equal(partial.subsets, undefined);
+  assert.equal(parse([], partial).exact_subsets, undefined);
+  // An empty split says nothing and is left off.
+  assert.equal(reportFor({ ...base, windowFilled: false, subsets: [] }).subsets, undefined);
+});
+
 if (failures.length > 0) {
   console.error(`completeness.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));

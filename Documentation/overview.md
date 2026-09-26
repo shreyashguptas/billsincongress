@@ -704,6 +704,7 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `complete` | Whether every row matching the filters was examined |
 | `total` | The size of that set. **Present only when `complete` is true** |
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
+| `exact_subsets` | A partition of the whole set that the server counted, with each part's members. **Present only when `complete` is true.** Today it splits a set made up entirely of reserved bill numbers ("Reserved for the Speaker.") by whom they were held for; a set that mixes them with real bills, like a leader's own bills from the 118th on, gets no split |
 
 The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
 "fewest", "newest", "the only", "none", an average, any ranking — may be made ONLY from a result
@@ -747,7 +748,17 @@ resolutions a Congress, which are not bills and can never become law. Bill rows 
 
 **Time.** The system prompt now carries today's date and, for a Congress that has adjourned, an
 instruction to use the past tense. Two of the three Congresses we hold are over — about 37,000 of
-~55,000 rows — and without this the model described them as still in progress. `stats` carries
+~55,000 rows — and without this the model described them as still in progress. The prompt alone
+was not enough: the model still said the 117th's reserved numbers "will almost certainly never
+become law". So `answer.ts` passes the same date to every fetch, and a `bills` row from an ended
+Congress that stopped before stage 90 carries `finalStatus` — died unfinished on the adjournment
+date, can never become law, though its text may have been enacted inside another bill. A vetoed
+bill says it was vetoed instead, since most died when the override failed. A bill that passed both
+chambers is not told it died: it can be signed after adjournment, ended Congresses are never
+re-pulled, and its stored actions stop where its stage does, so nothing we hold rules that out. Its
+note says only that our record shows no signing. Simple and concurrent
+resolutions get none: an adopted one is finished, not dead, and the stage does not show adoption.
+Stages 90 and 95 get none, because the stored stage can lag an enactment. `stats` carries
 `dataLastSynced` so "how current is this?" has a real answer instead of an invented one.
 
 **Party.** The home page seats every measure by its sponsor's party, including a "party not
@@ -761,9 +772,12 @@ case fails if production ever holds a party value the filter cannot reach. Befor
 asking what the 117th's eleven unrecorded seats were was told the figure could not be verified:
 there was no party filter, and a grouped count stopped at 5,000 of 17,828 rows. The eleven are
 H.R. 2, 9 and 10 (reserved for the Speaker) and H.R. 11–17 and 20 (reserved for the Minority
-Leader). Congress.gov lists them with no sponsor. The `bills` gotcha tells the model what they are
-but not whom each was reserved for: it must read that off the row's title, and
-`scripts/truth/handlers.test.ts` checks the gotcha's claim against the data.
+Leader). Congress.gov lists them with no sponsor. Handed all eleven, the model still split them
+wrongly — "seven for the Minority Leader (H.R. 11–17), four for the Speaker" — by reading the
+numbers instead of the titles, and said they had no title. So each row now carries `reservedFor`,
+the result carries the split as `exact_subsets` (counted by the server, only from a complete read),
+and the gotcha says each has a title and an introduction. `scripts/truth/handlers.test.ts` checks
+all three against the data.
 
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has

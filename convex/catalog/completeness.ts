@@ -103,8 +103,25 @@ export interface CompletenessReport {
    * are false for a breakdown, and the second forbids exactly what was asked for.
    */
   rowsAreGroups?: boolean;
+  /**
+   * An exact partition of the WHOLE set, counted by us. Present ONLY when
+   * complete — a split of a sample is a count we cannot stand behind.
+   *
+   * The model is reliable at reading rows and unreliable at partitioning them.
+   * Handed all eleven of the 117th's reserved numbers, it split them by the look
+   * of the numbers ("H.R. 11–17") rather than by their titles, and told a reader
+   * seven and four when the truth is eight and three.
+   */
+  subsets?: Subset[];
   /** Present only when incomplete: what was and was not read. */
   note?: string;
+}
+
+/** One part of an exact partition: what it is, how many, and which. */
+export interface Subset {
+  label: string;
+  count: number;
+  members: string[];
 }
 
 /** Written FOR THE MODEL — pasted into the tool result verbatim. */
@@ -136,6 +153,8 @@ export function reportFor(input: {
   orderFromIndex?: boolean;
   /** Rows are one per group and sum to `total`, rather than a page of it. */
   rowsAreGroups?: boolean;
+  /** An exact partition of the matched set. Dropped unless the read is complete. */
+  subsets?: Subset[];
 }): CompletenessReport {
   const complete = !input.windowFilled;
   if (complete) {
@@ -147,6 +166,7 @@ export function reportFor(input: {
       order: input.order,
       ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
       ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
+      ...(input.subsets && input.subsets.length > 0 ? { subsets: input.subsets } : {}),
     };
   }
   return {
@@ -212,6 +232,13 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
         `You were shown ${report.shown} of ${report.total}. The TOTAL is exact and you may state ` +
         `it. The ROWS are a page: do not describe them as the whole set, and do not rank or ` +
         `compare across the set using only these rows.`;
+    }
+    if (report.subsets) {
+      payload.exact_subsets = report.subsets;
+      payload.exact_subsets_meaning =
+        `These parts were counted by the server over the whole set, not from the rows shown. ` +
+        `Quote their counts and members exactly. Never split or count the rows yourself, and ` +
+        `never infer which part a row belongs to from its number.`;
     }
   } else {
     payload.note = report.note;

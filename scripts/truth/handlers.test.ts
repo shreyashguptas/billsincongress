@@ -30,6 +30,7 @@ import {
 } from "./fakedb";
 import { validateFilters } from "../../convex/catalog/filters";
 import { isDatasetName } from "../../convex/catalog/datasets";
+import { payloadFor } from "../../convex/catalog/completeness";
 
 let passed = 0;
 const failures: string[] = [];
@@ -55,12 +56,18 @@ async function fetchViaHandlers(
   name: string,
   filters: Record<string, unknown>,
   limit?: number,
+  today?: string,
 ): Promise<any> {
   assert.ok(isDatasetName(name), `unknown dataset '${name}'`);
   const validated = validateFilters(name as any, filters);
   if (!validated.ok) return { ok: false, error: validated.error };
   const { runFetch } = await import("../../convex/catalog/fetch");
-  return await runFetch(ctx, { name, filters, ...(limit !== undefined ? { limit } : {}) });
+  return await runFetch(ctx, {
+    name,
+    filters,
+    ...(limit !== undefined ? { limit } : {}),
+    ...(today !== undefined ? { today } : {}),
+  });
 }
 
 async function main() {
@@ -356,6 +363,172 @@ async function main() {
       assert.equal(b.billType, "hr", `${b.billId} is not a House number`);
       assert.ok(!b.sponsorLastName, `${b.billId} has a sponsor after all`);
     }
+  });
+
+  // Live answer on 2026-09-25, after #126 shipped: "Seven were reserved for the
+  // Minority Leader (H.R. 11–17), and four for the Speaker (H.R. 2, 9, 10, and
+  // 20)" — H.R. 20 is the Minority Leader's, so the truth is eight and three. It
+  // also said each was filed "with no title". The model had all eleven rows and
+  // partitioned them by the look of the numbers instead of by their titles.
+  // Written out, not parsed: rebuilding production's regex here would agree with it.
+  const HOLDER: Record<string, string> = {
+    "Reserved for the Speaker.": "Speaker",
+    "Reserved for the Minority Leader.": "Minority Leader",
+  };
+  const reservedFor = (title: string) => HOLDER[title];
+
+  await it("the reserved-number split is counted by the server, not left to the model", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "none" }, 50);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const subsets = r.report.subsets as Array<{ label: string; count: number; members: string[] }>;
+    assert.ok(Array.isArray(subsets), "a complete read of reserved numbers must carry the exact split");
+    const expected = new Map<string, string[]>();
+    for (const b of noParty117) {
+      const who = reservedFor(b.title)!;
+      expected.set(who, [...(expected.get(who) ?? []), `${b.billTypeLabel} ${b.billNumber}`]);
+    }
+    assert.equal(subsets.length, expected.size);
+    for (const s of subsets) {
+      const want = expected.get(s.label.replace(/^reserved for the /, ""));
+      assert.ok(want, `unexpected subset '${s.label}'`);
+      assert.equal(s.count, want.length, `${s.label}: count`);
+      assert.deepEqual([...s.members].sort(), [...want].sort(), `${s.label}: members`);
+    }
+    assert.ok(
+      subsets.some((s) => /Minority Leader/.test(s.label) && s.members.includes("H.R. 20")),
+      "H.R. 20 is the Minority Leader's — the number the live answer got wrong",
+    );
+    for (const row of r.rows) {
+      assert.equal(row.reservedFor, reservedFor(row.title), `${row.label}: reservedFor must come from its title`);
+    }
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.ok(payload.exact_subsets, "the split must reach the model");
+  });
+
+  await it("a set that mixes reserved numbers with real bills carries no split", async () => {
+    // From the 118th on, the leaders sponsor their reserved numbers. A split
+    // presented as "the whole set" listed seven of Mike Johnson's nine bills.
+    for (const [congress, name] of [[119, "Mike Johnson"], [119, "Hakeem Jeffries"], [118, "Kevin McCarthy"]] as const) {
+      const r = await fetchViaHandlers(ctx, "bills", { congress, sponsorFilter: [name] }, 50);
+      assert.ok(r.ok, `fetch failed: ${r.error}`);
+      const theirs = bills.filter(
+        (b: any) => b.congress === congress && `${b.sponsorFirstName} ${b.sponsorLastName}`.includes(name.split(" ")[1]),
+      );
+      assert.ok(
+        theirs.some((b: any) => reservedFor(b.title)) && theirs.some((b: any) => !reservedFor(b.title)),
+        `sanity: ${name} has both reserved numbers and real bills in the ${congress}th`,
+      );
+      assert.equal(r.report.subsets, undefined, `${name}: a split of part of the set`);
+    }
+  });
+
+  // Live answer on 2026-09-25: the 117th's reserved numbers "will almost
+  // certainly never become law". The 117th ended on 2023-01-03; they cannot. The
+  // prompt already demanded the past tense for ended Congresses, and the model
+  // ignored it — so the fact now rides on the row.
+  await it("an unfinished bill from an ended Congress says it died, and when", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "none" }, 50, "2026-09-25");
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    for (const row of r.rows) {
+      assert.match(String(row.finalStatus), /Died unfinished .* ended on 2023-01-03/, `${row.label}`);
+    }
+  });
+
+  await it("a law, a bill still in play, or a fetch with no date carries no death notice", async () => {
+    const laws = await fetchViaHandlers(ctx, "bills", { congress: 117, progressStage: 100 }, 10, "2026-09-25");
+    assert.ok(laws.ok && laws.rows.length > 0);
+    for (const row of laws.rows) assert.equal(row.finalStatus, undefined, `${row.label} became law`);
+    const current = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 40 }, 10, "2026-09-25");
+    assert.ok(current.ok && current.rows.length > 0);
+    for (const row of current.rows) assert.equal(row.finalStatus, undefined, `the 119th is still sitting`);
+    // The same 119th bill on the day after it ends is dead.
+    const later = await fetchViaHandlers(ctx, "bills", { congress: 119, billType: "hr", progressStage: 40 }, 1, "2027-01-04");
+    assert.match(String(later.rows[0].finalStatus), /ended on 2027-01-03/);
+    const undated = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "none" }, 50);
+    for (const row of undated.rows) assert.equal(row.finalStatus, undefined, "no date, no claim");
+  });
+
+  await it("the stage a death notice rests on agrees with the actions we hold", async () => {
+    // Not a freshness check: stage and actions are written by the same sync, so
+    // a bill signed after its last pull would pass this too. That gap is closed
+    // in finalStatus itself, which never says "died" of stage 80 — the one stage
+    // a bill can leave after adjournment. See the next case.
+    const { canBecomeLaw } = await import("../../convex/catalog/measureType");
+    const told = new Set(
+      bills
+        .filter((b: any) => (b.congress === 117 || b.congress === 118) && canBecomeLaw(b.billType) && (b.progressStage ?? 20) < 80)
+        .map((b: any) => b.billId),
+    );
+    assert.ok(told.size > 1000, "sanity: tens of thousands of dead bills");
+    const enacted = ctx.db
+      .rowsOf("billActions")
+      .filter((a: any) => told.has(a.billId) && /Became Public Law|Became Private Law|Signed by President/i.test(a.text))
+      .map((a: any) => a.billId);
+    assert.deepEqual([...new Set(enacted)], [], "these were enacted but would be told they died");
+  });
+
+  await it("a bill that passed both chambers is never told it died", async () => {
+    // Review on #129: it can be signed after sine die, and we would not know.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, billType: "hr", progressStage: 80 }, 50, "2026-09-25");
+    assert.ok(r.ok && r.rows.length > 0, "sanity: the 117th has H.R. bills that passed both chambers");
+    for (const row of r.rows) {
+      assert.match(String(row.finalStatus), /^Passed both chambers/, `${row.label}`);
+      assert.doesNotMatch(String(row.finalStatus), /Died unfinished|can no longer .*become law/, `${row.label}`);
+    }
+  });
+
+  await it("an adopted resolution is not told it died", async () => {
+    // H.Res. 1 of the 117th is the oath-of-office resolution: adopted on day one,
+    // stored at stage 20. A first draft told it, and 1,493 more, that they died.
+    for (const billId of ["1hres117", "429hres118", "315sres117", "1sconres117", "83hconres118"]) {
+      const r = await fetchViaHandlers(ctx, "bills", { billId }, 1, "2026-09-25");
+      assert.ok(r.ok && r.rows.length === 1, `${billId} not found`);
+      assert.equal(r.rows[0].finalStatus, undefined, `${billId} was told it died`);
+    }
+  });
+
+  await it("a vetoed bill is not told it died at adjournment", async () => {
+    // H.J.Res. 30 of the 118th died when the override failed on 2023-03-23.
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "30hjres118" }, 1, "2026-09-25");
+    assert.ok(r.ok && r.rows.length === 1);
+    assert.match(String(r.rows[0].finalStatus), /^Vetoed and never enacted/);
+    assert.doesNotMatch(String(r.rows[0].finalStatus), /Died unfinished/);
+  });
+
+  await it("a death notice never says only a later Congress could pass it", async () => {
+    // H.R. 3967 of the 117th (the PACT Act) stopped at stage 80, but its text
+    // became law in the same Congress inside S. 3373.
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "3967hr117" }, 1, "2026-09-25");
+    assert.ok(r.ok && r.rows.length === 1);
+    assert.doesNotMatch(String(r.rows[0].finalStatus), /later Congress/);
+    assert.match(String(r.rows[0].finalStatus), /inside a different bill/);
+  });
+
+  await it("an incomplete read carries no split", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "D" }, 50);
+    assert.ok(r.ok);
+    assert.equal(r.report.complete, false, "sanity: 10,543 rows are past the cap");
+    assert.equal(r.report.subsets, undefined, "a split of a sample is a count we cannot stand behind");
+  });
+
+  await it("every reserved number has the title and the action the gotcha says it has", async () => {
+    // "Filed with no title" came from a gotcha that said they were "never
+    // written". Each has a title and one "Introduced in House" action.
+    const actions = ctx.db.rowsOf("billActions");
+    for (const b of noParty117) {
+      assert.ok(b.title && b.title.length > 0, `${b.billId} has no title`);
+      assert.ok(
+        actions.some((a: any) => a.billId === b.billId && /^Introduced in House/.test(a.text)),
+        `${b.billId} has no "Introduced in House" action`,
+      );
+    }
+    const { DATASETS } = await import("../../convex/catalog/datasets");
+    const gotcha = DATASETS.bills.gotchas.find((g: string) => g.includes("sponsorParty"))!;
+    assert.doesNotMatch(gotcha, /never written/i, "'never written' became 'filed with no title'");
+    assert.match(gotcha, /has a TITLE/, "the gotcha must say each one has a title");
+    assert.match(gotcha, /exact_subsets/, "the gotcha must send the split to the server's count");
+    assert.doesNotMatch(gotcha, /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|\d+)\b/i,
+      "a number in the gotcha can be quoted without a fetch, or carried to the wrong Congress");
   });
 
   await it("every stored party is one the party filter can reach", async () => {

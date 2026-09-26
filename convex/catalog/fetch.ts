@@ -36,9 +36,11 @@ import {
   completeReport,
   reportFor,
   type CompletenessReport,
+  type Subset,
   type RowOrder,
 } from "./completeness";
 import { milestoneStages } from "./stageSemantics";
+import { congressWindow, isCongressClosed } from "./congressCalendar";
 import { canBecomeLaw, measureNoun } from "./measureType";
 import { candidateSurnames, matchesFullName } from "./sponsorName";
 
@@ -87,7 +89,7 @@ type FetchResult =
  */
 export async function runFetch(
   ctx: QueryCtx,
-  args: { name: string; filters: unknown; limit?: number },
+  args: { name: string; filters: unknown; limit?: number; today?: string },
 ): Promise<FetchResult> {
   {
     if (!isDatasetName(args.name)) {
@@ -110,7 +112,7 @@ export async function runFetch(
 
     switch (args.name as DatasetName) {
       case "bills":
-        return await fetchBills(ctx, f, limit, countOnly);
+        return await fetchBills(ctx, f, limit, countOnly, args.today);
       case "bill_actions":
         return await fetchActions(ctx, f, limit || MAX_LIMIT);
       case "bill_summaries":
@@ -132,6 +134,9 @@ export const fetchDataset = internalQuery({
     // the model a recoverable error rather than a Convex argument rejection.
     filters: v.any(),
     limit: v.optional(v.number()),
+    // ISO date the answer is being written on. Passed in rather than read from
+    // the clock so a query stays deterministic and a test can pin it.
+    today: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<FetchResult> => runFetch(ctx, args),
 });
@@ -187,6 +192,86 @@ const PARTY_SPELLINGS: Record<string, Array<string | undefined>> = {
   I: ["I", "ID", "IND"],
   [NO_PARTY]: [undefined, ""],
 };
+
+/**
+ * Whom a reserved bill number was held for, read from its title. The House sets
+ * aside low numbers for its leadership each Congress and Congress.gov titles them
+ * "Reserved for the Speaker." and the like, with no sponsor.
+ */
+const RESERVED_TITLE = /^Reserved for the (.+?)\.?$/;
+function reservedFor(title: string): string | undefined {
+  return RESERVED_TITLE.exec(title.trim())?.[1];
+}
+
+/**
+ * The exact split of a set of reserved numbers by whom they were held for,
+ * counted over every matched row. The model partitioned these by eye and got it
+ * wrong (see `subsets` in completeness.ts); a split we compute cannot.
+ *
+ * Only when EVERY matched row is a reserved number, so the parts really are the
+ * whole set. From the 118th on, the leaders sponsor their reserved numbers, so a
+ * query like "Mike Johnson's bills" mixes seven reserved numbers with two real
+ * bills — and a "split of the whole set" listing seven would read as all of them.
+ */
+function reservedSubsets(matched: Doc<"bills">[]): Subset[] {
+  const byHolder = new Map<string, Doc<"bills">[]>();
+  for (const b of matched) {
+    const who = reservedFor(b.title);
+    if (!who) return [];
+    byHolder.set(who, [...(byHolder.get(who) ?? []), b]);
+  }
+  return [...byHolder.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([who, bills]) => ({
+      label: `reserved for the ${who}`,
+      count: bills.length,
+      members: [...bills]
+        .sort((a, b) => Number(a.billNumber) - Number(b.billNumber))
+        .map((b) => `${b.billTypeLabel} ${b.billNumber}`),
+    }));
+}
+
+/**
+ * What happened to an unfinished bill once its Congress ended — on the row, where
+ * the model reads it, not only in the prompt. The prompt already said "past
+ * tense; never say a bill from an ended Congress might still move", and the
+ * model still told a reader the 117th's reserved numbers "will almost certainly
+ * never become law". They cannot: the 117th ended on 2023-01-03.
+ *
+ * Certain only below stage 80. Stage 80 (passed both chambers) gets a hedged
+ * note, since it can be signed after adjournment; 90 (sent to the President) and
+ * 95 (signed) get none, because the stored stage can lag the enactment.
+ */
+function finalStatus(b: Doc<"bills">, today: string | undefined): string | undefined {
+  if (!today || !isCongressClosed(b.congress, today)) return undefined;
+  // A simple or concurrent resolution was never headed for law, and an adopted
+  // one is finished, not dead: the stored stage does not show adoption, so 1,494
+  // adopted resolutions in the 117th and 118th would have been told they died.
+  if (!canBecomeLaw(b.billType)) return undefined;
+  const stage = b.progressStage ?? 20;
+  if (stage >= 90) return undefined;
+  const { endDate } = congressWindow(b.congress);
+  const name = `${congressOrdinal(b.congress)} Congress`;
+  // A veto usually ended it earlier, when the override failed — not at adjournment.
+  if (stage === 85) {
+    return `Vetoed and never enacted. The ${name} ended on ${endDate}, so it can never become law.`;
+  }
+  // Passed both chambers: the one stage a bill can leave AFTER adjournment,
+  // signed days into January. Ended Congresses are never re-pulled, and the
+  // stored actions stop where the stored stage does, so nothing we hold can rule
+  // that out. Say what the record shows, not that it died.
+  if (stage === 80) {
+    return (
+      `Passed both chambers. Our record shows no signing before the ${name} ended on ${endDate}, ` +
+      `and it can go no further in Congress. Do not say it can never have become law: a bill can ` +
+      `be signed after adjournment, and its text may have been enacted inside a different bill.`
+    );
+  }
+  return (
+    `Died unfinished when the ${name} ended on ${endDate}; this bill can no longer advance or ` +
+    `become law. Its text may still have been enacted inside a different bill — this row cannot show that.`
+  );
+}
 
 /** The bucket a row falls into for a grouped count. */
 function groupValue(b: Doc<"bills">, field: string): string {
@@ -298,6 +383,7 @@ async function fetchBills(
   f: Row,
   limit: number,
   countOnly: boolean,
+  today?: string,
 ): Promise<FetchResult> {
   const congress = (f.congress as number) ?? 119;
   const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter) : "";
@@ -697,6 +783,8 @@ async function fetchBills(
         progressStage: b.progressStage ?? 20,
         policyArea: b.policyAreaName ?? "",
         latestActionDate: b.latestActionDate ?? "",
+        ...(reservedFor(b.title) ? { reservedFor: reservedFor(b.title) } : {}),
+        ...(finalStatus(b, today) ? { finalStatus: finalStatus(b, today) } : {}),
         // What this row actually IS. Around 2,500 measures a Congress are simple
         // or concurrent resolutions, which are not bills and can never become
         // law; calling one "a bill" in an answer is a factual error, and the
@@ -782,6 +870,8 @@ async function fetchBills(
       // Only meaningful if something survived the in-memory filter: an empty page
       // from an ordered window tells you nothing about what lies beyond it.
       orderFromIndex: orderFromIndex && rows.length > 0,
+      // reportFor drops this unless the read was complete.
+      subsets: reservedSubsets(matched),
     }),
   };
 }
