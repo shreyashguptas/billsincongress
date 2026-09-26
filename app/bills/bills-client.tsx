@@ -38,6 +38,10 @@ const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr
 
 const ITEMS_PER_PAGE = 10;
 
+/** Shown when a page of bills could not be fetched — never as "no results". */
+const LOAD_FAILED_MESSAGE =
+  "Bills didn't load. Check your connection, then change a filter or reload the page to try again.";
+
 /** Filter values the server derived from URL search params (absent = not in URL). */
 export interface UrlFilters {
   status?: string;
@@ -246,8 +250,8 @@ export default function BillsClient({
       setHasMore(response.hasMore);
       setTruncated(response.truncated ?? false);
       setCurrentPage(nextPage);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load more bills');
+    } catch {
+      setError(LOAD_FAILED_MESSAGE);
     } finally {
       setIsLoadingMore(false);
     }
@@ -294,9 +298,16 @@ export default function BillsClient({
           analytics.billsNoResults(activeFilterCount(filters), filters.title.length);
         }
       })
-      .catch((e) => {
+      .catch(() => {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : 'Failed to fetch bills');
+        // Clear the old rows: leaving them up would show the previous filter's
+        // bills under the new filter's chips. The empty state stays hidden
+        // while there is an error, so a failed request never reads as "no
+        // bill matches".
+        setBills([]);
+        setHasMore(false);
+        setTruncated(false);
+        setError(LOAD_FAILED_MESSAGE);
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -446,6 +457,8 @@ export default function BillsClient({
                   </>
                 ) : isLoading ? (
                   'Loading…'
+                ) : error ? (
+                  'Bills did not load'
                 ) : (
                   'No matching bills'
                 )}
@@ -492,7 +505,7 @@ export default function BillsClient({
                     </Suspense>
                   </div>
                 ))
-              ) : (
+              ) : error ? null : (
                 <div className="border-b border-line px-4 py-14 text-center sm:py-20">
                   <p className="font-serif text-display-sm text-ink">No bills found</p>
                   {filtersActive ? (
