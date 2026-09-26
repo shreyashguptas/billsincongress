@@ -30,6 +30,7 @@ import {
 } from "./fakedb";
 import { validateFilters } from "../../convex/catalog/filters";
 import { isDatasetName } from "../../convex/catalog/datasets";
+import { payloadFor } from "../../convex/catalog/completeness";
 
 let passed = 0;
 const failures: string[] = [];
@@ -356,6 +357,90 @@ async function main() {
       assert.equal(b.billType, "hr", `${b.billId} is not a House number`);
       assert.ok(!b.sponsorLastName, `${b.billId} has a sponsor after all`);
     }
+  });
+
+  // Live answer on 2026-09-25, after #126 shipped: "Seven were reserved for the
+  // Minority Leader (H.R. 11–17), and four for the Speaker (H.R. 2, 9, 10, and
+  // 20)" — H.R. 20 is the Minority Leader's, so the truth is eight and three. It
+  // also said each was filed "with no title". The model had all eleven rows and
+  // partitioned them by the look of the numbers instead of by their titles.
+  // Written out, not parsed: rebuilding production's regex here would agree with it.
+  const HOLDER: Record<string, string> = {
+    "Reserved for the Speaker.": "Speaker",
+    "Reserved for the Minority Leader.": "Minority Leader",
+  };
+  const reservedFor = (title: string) => HOLDER[title];
+
+  await it("the reserved-number split is counted by the server, not left to the model", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "none" }, 50);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const subsets = r.report.subsets as Array<{ label: string; count: number; members: string[] }>;
+    assert.ok(Array.isArray(subsets), "a complete read of reserved numbers must carry the exact split");
+    const expected = new Map<string, string[]>();
+    for (const b of noParty117) {
+      const who = reservedFor(b.title)!;
+      expected.set(who, [...(expected.get(who) ?? []), `${b.billTypeLabel} ${b.billNumber}`]);
+    }
+    assert.equal(subsets.length, expected.size);
+    for (const s of subsets) {
+      const want = expected.get(s.label.replace(/^reserved for the /, ""));
+      assert.ok(want, `unexpected subset '${s.label}'`);
+      assert.equal(s.count, want.length, `${s.label}: count`);
+      assert.deepEqual([...s.members].sort(), [...want].sort(), `${s.label}: members`);
+    }
+    assert.ok(
+      subsets.some((s) => /Minority Leader/.test(s.label) && s.members.includes("H.R. 20")),
+      "H.R. 20 is the Minority Leader's — the number the live answer got wrong",
+    );
+    for (const row of r.rows) {
+      assert.equal(row.reservedFor, reservedFor(row.title), `${row.label}: reservedFor must come from its title`);
+    }
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.ok(payload.exact_subsets, "the split must reach the model");
+  });
+
+  await it("a set that mixes reserved numbers with real bills carries no split", async () => {
+    // From the 118th on, the leaders sponsor their reserved numbers. A split
+    // presented as "the whole set" listed seven of Mike Johnson's nine bills.
+    for (const [congress, name] of [[119, "Mike Johnson"], [119, "Hakeem Jeffries"], [118, "Kevin McCarthy"]] as const) {
+      const r = await fetchViaHandlers(ctx, "bills", { congress, sponsorFilter: [name] }, 50);
+      assert.ok(r.ok, `fetch failed: ${r.error}`);
+      const theirs = bills.filter(
+        (b: any) => b.congress === congress && `${b.sponsorFirstName} ${b.sponsorLastName}`.includes(name.split(" ")[1]),
+      );
+      assert.ok(
+        theirs.some((b: any) => reservedFor(b.title)) && theirs.some((b: any) => !reservedFor(b.title)),
+        `sanity: ${name} has both reserved numbers and real bills in the ${congress}th`,
+      );
+      assert.equal(r.report.subsets, undefined, `${name}: a split of part of the set`);
+    }
+  });
+
+  await it("an incomplete read carries no split", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, sponsorParty: "D" }, 50);
+    assert.ok(r.ok);
+    assert.equal(r.report.complete, false, "sanity: 10,543 rows are past the cap");
+    assert.equal(r.report.subsets, undefined, "a split of a sample is a count we cannot stand behind");
+  });
+
+  await it("every reserved number has the title and the action the gotcha says it has", async () => {
+    // "Filed with no title" came from a gotcha that said they were "never
+    // written". Each has a title and one "Introduced in House" action.
+    const actions = ctx.db.rowsOf("billActions");
+    for (const b of noParty117) {
+      assert.ok(b.title && b.title.length > 0, `${b.billId} has no title`);
+      assert.ok(
+        actions.some((a: any) => a.billId === b.billId && /^Introduced in House/.test(a.text)),
+        `${b.billId} has no "Introduced in House" action`,
+      );
+    }
+    const { DATASETS } = await import("../../convex/catalog/datasets");
+    const gotcha = DATASETS.bills.gotchas.find((g: string) => g.includes("sponsorParty"))!;
+    assert.doesNotMatch(gotcha, /never written/i, "'never written' became 'filed with no title'");
+    assert.match(gotcha, /has a TITLE/, "the gotcha must say each one has a title");
+    assert.match(gotcha, /exact_subsets/, "the gotcha must send the split to the server's count");
+    assert.doesNotMatch(gotcha, /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|\d+)\b/i,
+      "a number in the gotcha can be quoted without a fetch, or carried to the wrong Congress");
   });
 
   await it("every stored party is one the party filter can reach", async () => {

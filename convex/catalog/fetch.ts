@@ -36,6 +36,7 @@ import {
   completeReport,
   reportFor,
   type CompletenessReport,
+  type Subset,
   type RowOrder,
 } from "./completeness";
 import { milestoneStages } from "./stageSemantics";
@@ -187,6 +188,44 @@ const PARTY_SPELLINGS: Record<string, Array<string | undefined>> = {
   I: ["I", "ID", "IND"],
   [NO_PARTY]: [undefined, ""],
 };
+
+/**
+ * Whom a reserved bill number was held for, read from its title. The House sets
+ * aside low numbers for its leadership each Congress and Congress.gov titles them
+ * "Reserved for the Speaker." and the like, with no sponsor.
+ */
+const RESERVED_TITLE = /^Reserved for the (.+?)\.?$/;
+function reservedFor(title: string): string | undefined {
+  return RESERVED_TITLE.exec(title.trim())?.[1];
+}
+
+/**
+ * The exact split of a set of reserved numbers by whom they were held for,
+ * counted over every matched row. The model partitioned these by eye and got it
+ * wrong (see `subsets` in completeness.ts); a split we compute cannot.
+ *
+ * Only when EVERY matched row is a reserved number, so the parts really are the
+ * whole set. From the 118th on, the leaders sponsor their reserved numbers, so a
+ * query like "Mike Johnson's bills" mixes seven reserved numbers with two real
+ * bills — and a "split of the whole set" listing seven would read as all of them.
+ */
+function reservedSubsets(matched: Doc<"bills">[]): Subset[] {
+  const byHolder = new Map<string, Doc<"bills">[]>();
+  for (const b of matched) {
+    const who = reservedFor(b.title);
+    if (!who) return [];
+    byHolder.set(who, [...(byHolder.get(who) ?? []), b]);
+  }
+  return [...byHolder.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([who, bills]) => ({
+      label: `reserved for the ${who}`,
+      count: bills.length,
+      members: [...bills]
+        .sort((a, b) => Number(a.billNumber) - Number(b.billNumber))
+        .map((b) => `${b.billTypeLabel} ${b.billNumber}`),
+    }));
+}
 
 /** The bucket a row falls into for a grouped count. */
 function groupValue(b: Doc<"bills">, field: string): string {
@@ -697,6 +736,7 @@ async function fetchBills(
         progressStage: b.progressStage ?? 20,
         policyArea: b.policyAreaName ?? "",
         latestActionDate: b.latestActionDate ?? "",
+        ...(reservedFor(b.title) ? { reservedFor: reservedFor(b.title) } : {}),
         // What this row actually IS. Around 2,500 measures a Congress are simple
         // or concurrent resolutions, which are not bills and can never become
         // law; calling one "a bill" in an answer is a factual error, and the
@@ -782,6 +822,8 @@ async function fetchBills(
       // Only meaningful if something survived the in-memory filter: an empty page
       // from an ordered window tells you nothing about what lies beyond it.
       orderFromIndex: orderFromIndex && rows.length > 0,
+      // reportFor drops this unless the read was complete.
+      subsets: reservedSubsets(matched),
     }),
   };
 }

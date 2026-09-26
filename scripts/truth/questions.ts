@@ -567,6 +567,27 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
   {
+    id: "reserved-for-minority-leader",
+    question:
+      "Of the 117th Congress's measures with no sponsor party recorded, how many were reserved " +
+      "for the Minority Leader?" + ONE_NUMBER,
+    defect:
+      "Answered 'seven (H.R. 11–17)' and gave H.R. 20 to the Speaker. The model had all eleven " +
+      "rows and split them by the look of the numbers instead of by their titles.",
+    expect: (db) => {
+      const reserved = billsIn(db, 117).filter((b) => !b.sponsorParty);
+      const leader = reserved.filter((b) => b.title === "Reserved for the Minority Leader.");
+      return {
+        kind: "number",
+        value: leader.length,
+        note:
+          `${leader.map((b) => b.billTypeLabel + b.billNumber).join(", ")} carry the title ` +
+          `"Reserved for the Minority Leader."; the other ${reserved.length - leader.length} are ` +
+          `the Speaker's. Must reject 7.`,
+      };
+    },
+  },
+  {
     id: "control-largest-topic",
     question:
       `Which policy area has the most bills in the ${CURRENT_CONGRESS}th Congress?` + ONE_NAME,
