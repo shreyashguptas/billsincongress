@@ -238,8 +238,9 @@ function reservedSubsets(matched: Doc<"bills">[]): Subset[] {
  * model still told a reader the 117th's reserved numbers "will almost certainly
  * never become law". They cannot: the 117th ended on 2023-01-03.
  *
- * Only for stages that certainly did not become law. 90 (sent to the President)
- * and 95 (signed) are left alone: the stored stage can lag the enactment.
+ * Certain only below stage 80. Stage 80 (passed both chambers) gets a hedged
+ * note, since it can be signed after adjournment; 90 (sent to the President) and
+ * 95 (signed) get none, because the stored stage can lag the enactment.
  */
 function finalStatus(b: Doc<"bills">, today: string | undefined): string | undefined {
   if (!today || !isCongressClosed(b.congress, today)) return undefined;
