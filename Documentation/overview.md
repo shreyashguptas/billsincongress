@@ -1038,14 +1038,15 @@ customer still exists and drop a dead link themselves. To delete a reader's acco
 the Stripe customer), then delete the account rows.
 
 **Stripe account: OffGrid LLC** (`acct_1UJKPkCylyXxQEhV`, in the BillsInCongress Stripe
-organization). Live objects created 24 Sep 2026:
+organization). Live objects created 24 Sep 2026; prices changed to $5 / $50 on 25 Sep 2026:
 
 | Object | Id |
 | --- | --- |
 | Product "Bills.Congress Pro" (statement descriptor `BILLS.CONGRESS PRO`) | `prod_VJzZRmXYFrvxUJ` |
-| $9 / month, lookup key `bic_pro_monthly` | `price_1UJLafCylyXxQEhVnVLQfDAr` |
-| $90 / year, lookup key `bic_pro_yearly` | `price_1UJLaiCylyXxQEhVKHM2qBOx` |
-| Customer portal (default configuration; cancel at period end, switch monthly/yearly, card and invoice history) | `bpc_1UJLayCylyXxQEhVgXocv8a9` |
+| $5 / month, lookup key `bic_pro_monthly` (the product's default price) | `price_1UJeoOCylyXxQEhVxLE9kENu` |
+| $50 / year, lookup key `bic_pro_yearly` | `price_1UJeoQCylyXxQEhVer6WDFbF` |
+| Retired: $9 / month, $90 / year (archived; no subscriber was left on them) | `price_1UJLafCylyXxQEhVnVLQfDAr`, `price_1UJLaiCylyXxQEhVKHM2qBOx` |
+| Customer portal (default configuration; cancel at period end, switch between the two prices above, card and invoice history) | `bpc_1UJLayCylyXxQEhVgXocv8a9` |
 
 OffGrid may sell other products from the same account, so everything this site creates is
 tagged `app: billsincongress` and the webhook ignores any subscription without that tag. Do not
@@ -1058,9 +1059,19 @@ test cards:
 | Object | Id |
 | --- | --- |
 | Product "Bills.Congress Pro" | `prod_VJzeUBTaHapQOm` |
-| $9 / month, `bic_pro_monthly` | `price_1UJLfPEGs4LR10CzBQpz8c0b` |
-| $90 / year, `bic_pro_yearly` | `price_1UJLfREGs4LR10CzYflxinhl` |
+| $5 / month, `bic_pro_monthly` | `price_1UJemuEGs4LR10CzLrEgipya` |
+| $50 / year, `bic_pro_yearly` | `price_1UJemwEGs4LR10Czu49TyvOS` |
+| Retired: $9 / month, $90 / year (archived) | `price_1UJLfPEGs4LR10CzBQpz8c0b`, `price_1UJLfREGs4LR10CzYflxinhl` |
 | Customer portal (default) | `bpc_1UJLfaEGs4LR10CzowgZUaBD` |
+
+**Changing the price.** A Stripe price cannot be edited, so a new price means, on both accounts:
+create the new price with the same lookup key (`transfer_lookup_key`), make it the product's
+default, put the new pair in the portal configuration's `subscription_update.products`, set the
+`STRIPE_PRICE_PRO_*` env vars, change `PRO_PRICE_USD` in `lib/pro.ts` (the /pro page reads it) and
+the price in `README.md` (typed by hand), and only then archive the old prices — Checkout refuses an archived price, so
+archiving first breaks Subscribe. Anyone still on an old price keeps paying it until they
+switch in the portal; `billing.status` reads any price that is not the yearly env var as
+monthly, so a reader left on an old *yearly* price would show as monthly.
 
 Checked against the sandbox on 24 Sep 2026, end to end through a local backend (the site, the
 webhook handler re-reading real sandbox subscriptions, and the emails): Checkout opens with the
@@ -1074,7 +1085,7 @@ What that run changed:
 
 - **Portal plan switches restart the billing date** (`subscription_update.billing_cycle_anchor:
   "now"`, both accounts). With `"unchanged"`, switching monthly → yearly under Stripe's
-  flexible billing mode quoted **$171 due today** instead of $81 ($90 less the unused month).
+  flexible billing mode quoted **$171 due today** instead of $81 ($90 less the unused month, at the prices of the time).
 - **A stored customer that no longer exists is replaced** (`customerExists` in `billing.ts`):
   a reader whose Stripe customer was deleted with the webhook missed, or created on the other
   Stripe account, got "No such customer" on Subscribe instead of a checkout page.
