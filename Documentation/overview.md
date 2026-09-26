@@ -1035,8 +1035,8 @@ test cards:
 **Changing the price.** A Stripe price cannot be edited, so a new price means, on both accounts:
 create the new price with the same lookup key (`transfer_lookup_key`), make it the product's
 default, put the new pair in the portal configuration's `subscription_update.products`, set the
-`STRIPE_PRICE_PRO_*` env vars, change `PRO_PRICE_USD` in `lib/pro.ts` (the page and the README
-read from it), and only then archive the old prices — Checkout refuses an archived price, so
+`STRIPE_PRICE_PRO_*` env vars, change `PRO_PRICE_USD` in `lib/pro.ts` (the /pro page reads it) and
+the price in `README.md` (typed by hand), and only then archive the old prices — Checkout refuses an archived price, so
 archiving first breaks Subscribe. Anyone still on an old price keeps paying it until they
 switch in the portal; `billing.status` reads any price that is not the yearly env var as
 monthly, so a reader left on an old *yearly* price would show as monthly.
