@@ -8,7 +8,7 @@
  * 185 bills, and "Load more" repeated the same capped scan.
  */
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
 
@@ -60,8 +60,11 @@ async function listAll(t: T, sponsorFilter: string[]) {
 }
 
 describe("bills.list with a sponsor filter", () => {
-  test("reaches every bill of a sponsor whose bills sit past the scan cap", async () => {
+  beforeEach(() => {
     nextNumber = 1;
+  });
+
+  test("reaches every bill of a sponsor whose bills sit past the scan cap", async () => {
     const t = convexTest(schema, modules);
     // Oldest first, so a newest-first congress scan meets them last.
     await insertBills(t, 180, { first: "Rick", last: "Scott" });
@@ -79,7 +82,6 @@ describe("bills.list with a sponsor filter", () => {
   });
 
   test("finds a member whose surname has more than one word", async () => {
-    nextNumber = 1;
     const t = convexTest(schema, modules);
     await insertBills(t, 30, { first: "Monica", last: "De La Cruz", state: "TX" });
     await insertBills(t, 1300, { first: "Other", last: "Member", state: "TX" });
@@ -88,7 +90,6 @@ describe("bills.list with a sponsor filter", () => {
   });
 
   test("combines two sponsors and applies the other filters", async () => {
-    nextNumber = 1;
     const t = convexTest(schema, modules);
     await insertBills(t, 20, { first: "Rick", last: "Scott", state: "FL" });
     await insertBills(t, 10, { first: "Tim", last: "Scott", state: "SC" });
@@ -107,7 +108,6 @@ describe("bills.list with a sponsor filter", () => {
   });
 
   test("says the list is partial when the surname reads run out of budget", async () => {
-    nextNumber = 1;
     const t = convexTest(schema, modules);
     await insertBills(t, 1300, { first: "Some", last: "Smith" });
 

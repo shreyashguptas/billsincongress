@@ -568,7 +568,7 @@ async function narrowestIndexFor(
  * Spellings of a surname to try against the case-sensitive
  * `by_congress_and_sponsor_last` index. Stored surnames are not consistently
  * cased (the 118th holds both "Lee" and "LEE"). Same rule as the answer
- * engine's copy in catalog/fetch.ts.
+ * engine's copy in catalog/fetch.ts; keep the two the same.
  */
 function surnameSpellings(surname: string): string[] {
   const trimmed = surname.trim();
@@ -601,9 +601,9 @@ async function billsBySponsorSurname(
     names.flatMap((name) => candidateSurnames(name).flatMap(surnameSpellings)),
   );
   const bills: Doc<"bills">[] = [];
+  let complete = true;
   for (const spelling of spellings) {
     const budget = MAX_LIST_SCAN - bills.length;
-    if (budget <= 0) return { bills: sortNewestFirst(bills), complete: false };
     const rows = await ctx.db
       .query("bills")
       .withIndex("by_congress_and_sponsor_last", (q) =>
@@ -611,14 +611,14 @@ async function billsBySponsorSurname(
       )
       .take(budget);
     bills.push(...rows);
-    if (rows.length === budget) return { bills: sortNewestFirst(bills), complete: false };
+    if (rows.length === budget) {
+      complete = false;
+      break;
+    }
   }
-  return { bills: sortNewestFirst(bills), complete: true };
-}
-
-// The same order a `by_congress` scan with `.order("desc")` gives.
-function sortNewestFirst(bills: Doc<"bills">[]): Doc<"bills">[] {
-  return bills.sort((a, b) => b._creationTime - a._creationTime);
+  // The same order a `by_congress` scan with `.order("desc")` gives.
+  bills.sort((a, b) => b._creationTime - a._creationTime);
+  return { bills, complete };
 }
 
 /**
@@ -782,9 +782,8 @@ export const list = query({
           sponsorState: args.sponsorState ?? null,
           billType: args.billType ?? null,
           chamber: args.chamber ?? null,
-          // Text queries and sponsor filters never reach this scan — they
-          // return through their own indexes above.
-          billNumber: args.billNumber ?? null,
+          // Text, bill-number and sponsor filters never reach this scan —
+          // they return through their own indexes above.
           policyArea: args.policyArea ?? null,
           introducedDateFilter: args.introducedDateFilter ?? null,
           lastActionDateFilter: args.lastActionDateFilter ?? null,
