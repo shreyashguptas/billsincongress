@@ -7,6 +7,7 @@ import { calculateBillStage, BillStages } from "./billStage";
 import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
 import { chamberBounds, chamberOf } from "./chamber";
+import { candidateSurnames } from "./catalog/sponsorName";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -564,6 +565,63 @@ async function narrowestIndexFor(
 }
 
 /**
+ * Spellings of a surname to try against the case-sensitive
+ * `by_congress_and_sponsor_last` index. Stored surnames are not consistently
+ * cased (the 118th holds both "Lee" and "LEE"). Same rule as the answer
+ * engine's copy in catalog/fetch.ts.
+ */
+function surnameSpellings(surname: string): string[] {
+  const trimmed = surname.trim();
+  if (trimmed === "") return [];
+  const title = trimmed
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+  return [...new Set([trimmed, title, trimmed.toUpperCase()])];
+}
+
+/**
+ * Every bill in one congress whose sponsor surname could belong to one of
+ * `names`, newest first. The caller's predicate then keeps only exact
+ * full-name matches.
+ *
+ * A sponsor filter has no index of its own, and a `by_congress` scan stops at
+ * MAX_LIST_SCAN: a drilldown to Rick Scott showed 6 of his 185 bills, and
+ * "Load more" repeated the same capped scan. The surname index reaches all of
+ * them. A surname can start at any word of the name ("Monica De La Cruz"), so
+ * every candidate split is read. All reads share one MAX_LIST_SCAN budget, and
+ * `complete` is false when that budget ran out.
+ */
+async function billsBySponsorSurname(
+  ctx: QueryCtx,
+  congress: number,
+  names: string[],
+): Promise<{ bills: Doc<"bills">[]; complete: boolean }> {
+  const spellings = new Set(
+    names.flatMap((name) => candidateSurnames(name).flatMap(surnameSpellings)),
+  );
+  const bills: Doc<"bills">[] = [];
+  for (const spelling of spellings) {
+    const budget = MAX_LIST_SCAN - bills.length;
+    if (budget <= 0) return { bills: sortNewestFirst(bills), complete: false };
+    const rows = await ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_sponsor_last", (q) =>
+        q.eq("congress", congress).eq("sponsorLastName", spelling),
+      )
+      .take(budget);
+    bills.push(...rows);
+    if (rows.length === budget) return { bills: sortNewestFirst(bills), complete: false };
+  }
+  return { bills: sortNewestFirst(bills), complete: true };
+}
+
+// The same order a `by_congress` scan with `.order("desc")` gives.
+function sortNewestFirst(bills: Doc<"bills">[]): Doc<"bills">[] {
+  return bills.sort((a, b) => b._creationTime - a._creationTime);
+}
+
+/**
  * List bills with filtering and offset-based pagination.
  *
  * Streams an index newest-first and stops as soon as `offset + limit + 1` bills
@@ -627,6 +685,29 @@ export const list = query({
         data: await enrichWithSubjects(ctx, filtered.slice(offset, offset + limit)),
         hasMore: filtered.length > offset + limit,
         truncated: false, // exact indexed lookup — nothing was skipped
+      };
+    }
+
+    if (args.sponsorFilter && args.sponsorFilter.length > 0) {
+      const { bills, complete } = await billsBySponsorSurname(
+        ctx,
+        congressFilter,
+        args.sponsorFilter,
+      );
+      const filtered = bills.filter(match);
+      if (!complete) {
+        console.warn("bills.list hit scan cap reading sponsor surnames", {
+          congress: congressFilter,
+          sponsorFilterCount: args.sponsorFilter.length,
+          scanned: bills.length,
+          matches: filtered.length,
+        });
+      }
+      return {
+        data: await enrichWithSubjects(ctx, filtered.slice(offset, offset + limit)),
+        hasMore: filtered.length > offset + limit,
+        // An unread surname can hold newer matches than the ones on this page.
+        truncated: !complete,
       };
     }
 
@@ -701,9 +782,8 @@ export const list = query({
           sponsorState: args.sponsorState ?? null,
           billType: args.billType ?? null,
           chamber: args.chamber ?? null,
-          // Text queries never reach this scan — they return via the search
-          // index above, which has no cap to trip.
-          sponsorFilterCount: args.sponsorFilter?.length ?? 0,
+          // Text queries and sponsor filters never reach this scan — they
+          // return through their own indexes above.
           billNumber: args.billNumber ?? null,
           policyArea: args.policyArea ?? null,
           introducedDateFilter: args.introducedDateFilter ?? null,

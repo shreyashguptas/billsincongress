@@ -388,11 +388,17 @@ iterated index can run out before the page is filled. Two things keep that hones
   progress-stage and sponsor-state indexes before iterating. State was the missing one:
   `/bills?state=WY&congress=119` used to walk the whole Congress newest-first and return 2
   rows for a filter the count query correctly reported as 161.
+- **Read a sponsor's bills by surname.** A sponsor filter reads
+  `by_congress_and_sponsor_last` for every candidate surname and spelling of each name (the
+  same rule as the answer engine, see `convex/catalog/sponsorName.ts`), then matches the full
+  name in memory. It used to walk the whole Congress, so a drilldown to Rick Scott showed 6 of
+  his 185 bills. These reads share the `MAX_LIST_SCAN` budget, so only surnames that together
+  hold more than 1,200 bills in one Congress can still truncate.
 - **Say so when the scan still gives up.** `list` returns `truncated: true` in that case and
   the page prints "partial list — narrow the filters or search by title to reach the rest".
   A short list is a fine answer; a short list presented as the whole set is not.
 
-Filters with no index of their own (bill type, date ranges, sponsor names) can still
+Filters with no index of their own (bill type, date ranges) can still
 truncate — they now say so rather than implying completeness.
 
 Search matches **titles only** (the only search index is `search_title`), plus a separate

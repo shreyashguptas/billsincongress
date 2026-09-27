@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import { analytics, type FilterSurface } from '@/lib/analytics';
@@ -204,20 +205,37 @@ export default function BillsClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSignature]);
 
-  // Back/forward: re-read the filters out of the URL we just walked to. The
-  // signature refs are updated first so the sync effect above treats this as
-  // already-current and doesn't push the entry straight back on.
+  // Re-read the filters out of the URL. The signature refs are updated first
+  // so the sync effect above treats this as already-current and doesn't push
+  // the entry straight back on.
+  const adoptUrlFilters = () => {
+    const f = filtersFromQuery(window.location.search);
+    syncedSignature.current = filterSignature(f);
+    syncedText.current = `${f.title}\u0000${f.billNumber}`;
+    setCurrentPage(1);
+    setFilters(f);
+  };
+
+  // Back/forward.
   useEffect(() => {
-    const onPopState = () => {
-      const f = filtersFromQuery(window.location.search);
-      syncedSignature.current = filterSignature(f);
-      syncedText.current = `${f.title}\u0000${f.billNumber}`;
-      setCurrentPage(1);
-      setFilters(f);
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
+    window.addEventListener('popstate', adoptUrlFilters);
+    return () => window.removeEventListener('popstate', adoptUrlFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A router navigation to /bills while already on /bills — the header search
+  // pushes /bills?title=… — keeps this component mounted, and useState ignores
+  // the new props, so the URL showed one search while the list showed the
+  // previous one. Our own history writes leave the URL matching the filters,
+  // so this only acts on a navigation from outside.
+  const urlSearch = useSearchParams().toString();
+  // `urlSearch` is only the trigger: it can lag our own history writes, so
+  // the comparison reads the address bar itself.
+  useEffect(() => {
+    if (filterSignature(filtersFromQuery(window.location.search)) === currentSignature) return;
+    adoptUrlFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSearch]);
 
   const serviceArgs = (f: BillsFilterValues) => ({
     status: f.status,
