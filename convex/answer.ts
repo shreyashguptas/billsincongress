@@ -49,6 +49,20 @@ const FINAL_ROUND_INSTRUCTION =
   "You have no lookups left. Answer now from what you already retrieved. If that covers only " +
   "part of what was asked, give that part and say plainly, in the same sentence, which part you " +
   "could not get. Do not ask the reader to rephrase.";
+/**
+ * Sent once, with the tools still offered, when a round comes back with no
+ * answer and no tool call. The model had usually written "Let me look up…" and
+ * stopped, and the reader got a canned apology about four seconds in.
+ */
+const NO_ANSWER_NUDGE =
+  "That was not an answer and not a lookup. If you need data, call a tool now. Otherwise answer " +
+  "the question from what you already retrieved.";
+/**
+ * The `answer_failed` reason when every attempt came back empty. Sent as an
+ * error, not as an answer, so completion metrics count it.
+ */
+export const EMPTY_MODEL_OUTPUT = "empty_model_output";
+const EMPTY_MODEL_OUTPUT_MESSAGE = "I could not finish looking that up. Please try again.";
 const WEB_MAX_RESULTS = 5;
 
 export interface WorkLogEntry {
@@ -454,12 +468,17 @@ async function runLoop(
     };
   };
 
+  // A round with no answer and no tool call gets one nudge, then the final
+  // round early. It used to end the turn with the canned apology.
+  let nudged = false;
+  let finalNow = false;
+
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     // On the final round the tools are WITHHELD, not discouraged. Asking the
     // model to "answer now" while still handing it the tool schema left it free
     // to call one more tool, after which the loop fell out of the bottom and
     // returned a canned apology — discarding everything it had gathered.
-    const isFinalRound = round === MAX_TOOL_ROUNDS;
+    const isFinalRound = finalNow || round === MAX_TOOL_ROUNDS;
     if (isFinalRound) partial = true;
 
     const finalMessages = isFinalRound
@@ -495,8 +514,17 @@ async function runLoop(
       // than streaming the reader a blank panel. Neither is the model thinking
       // out loud: a reader was shown "Let me fetch the remaining policy areas I
       // haven't gotten yet." as the answer to a question about laws by category.
-      if (text.trim().length === 0 || isAllDeliberation(text)) break;
-      return finish(text);
+      if (text.trim().length > 0 && !isAllDeliberation(text)) return finish(text);
+      if (isFinalRound) break;
+      console.error(`no answer and no tool call in round ${round}; ${nudged ? "final round now" : "nudging"}`);
+      if (nudged) {
+        finalNow = true;
+      } else {
+        nudged = true;
+        if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
+        messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+      }
+      continue;
     }
 
     messages.push({ role: "assistant", content: message.content ?? null, tool_calls: toolCalls });
@@ -618,11 +646,11 @@ async function runLoop(
     }
   }
 
-  // Unreachable in normal operation: the final round is called without tools, so
-  // it cannot end in a tool call, and any non-empty answer returns above. Kept as
-  // the honest thing to say when the model returns nothing at all.
+  // Reached only when the final round also came back empty. Returned as an
+  // error so `stream` reports a failure, not an answer.
   return {
-    text: "I could not finish looking that up. Please try asking more specifically.",
+    text: "",
+    error: EMPTY_MODEL_OUTPUT,
     sources: [],
     workLog,
     dropped: 0,
@@ -762,6 +790,12 @@ export const stream = httpAction(async (ctx, request) => {
           apiKey,
           onWork: (entry) => send("work", entry),
         });
+        // No answer: not streamed, not saved, and not counted as an answer.
+        if (result.error) {
+          send("error", { message: EMPTY_MODEL_OUTPUT_MESSAGE, reason: result.error });
+          controller.close();
+          return;
+        }
         // Citations resolve only once the whole answer exists, so text is
         // emitted after resolution, chunked — never token-by-token.
         for (const chunk of result.text.match(/[\s\S]{1,60}/g) ?? []) {

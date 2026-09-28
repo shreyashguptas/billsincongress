@@ -572,6 +572,10 @@ export const analytics = {
    *                         'stream_dropped' on purpose: nothing was cut, WE
    *                         stopped waiting, so folding the two together would
    *                         inflate the number that measures the keep-alive.
+   *   'empty_model_output' — the model gave no answer and no lookup, even after
+   *                         one nudge and a final round without tools. Before
+   *                         28 Sep 2026 the reader got a canned apology and
+   *                         this was recorded as an `answer_received`.
    *   any other string    — the server's own error message.
    * `stream_started` says whether any byte arrived before the failure and
    * `elapsed_ms` how long the reader waited — together they separate "never
