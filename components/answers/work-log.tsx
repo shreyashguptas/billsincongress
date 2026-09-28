@@ -56,6 +56,13 @@ export function workLine(e: WorkEntry): WorkLine {
   };
 }
 
+/** The collapsed trail's count. A retry is not a lookup, so it is not counted. */
+export function lookupSummary(entries: WorkEntry[]): string {
+  const n = entries.filter((e) => e.tool !== 'retry').length;
+  if (n === 0) return 'no lookups';
+  return `${n} lookup${n === 1 ? '' : 's'}`;
+}
+
 /**
  * The visible grounding trail (spec §7.1). Expanded while the answer is being
  * assembled, collapsed to one line afterwards — the point is to make the extra
@@ -72,7 +79,7 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
         onClick={() => setOpen(true)}
         className="focus-ring rounded-xs font-mono text-xs text-ink-3 transition-colors hover:text-ink"
       >
-        ✓ {entries.length} lookup{entries.length === 1 ? '' : 's'} · show
+        ✓ {lookupSummary(entries)} · show
       </button>
     );
   }

@@ -11,7 +11,7 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { workLine } from "./work-log";
+import { lookupSummary, workLine } from "./work-log";
 import {
   completeReport,
   reportFor,
@@ -69,6 +69,14 @@ it("never puts a number on a partial search", () => {
 it("does not call a retry a search", () => {
   const line = workLine({ tool: "retry", detail: "checking again" });
   assert.equal(line.text, "No answer yet · checking again");
+});
+
+it("does not count a retry as a lookup", () => {
+  const fetch = { tool: "fetch", detail: "the bill on screen · 1s119" };
+  const retry = { tool: "retry", detail: "checking again" };
+  assert.equal(lookupSummary([fetch, retry, retry]), "1 lookup");
+  assert.equal(lookupSummary([fetch, fetch, retry]), "2 lookups");
+  assert.equal(lookupSummary([retry]), "no lookups");
 });
 
 it("says a partial search was partial, in plain words", () => {
