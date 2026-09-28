@@ -74,6 +74,10 @@ test("narration with no tool call gets a nudge, not the canned apology", async (
   expect(requests[1].tools).toBeDefined();
   expect(requests[1].messages.at(-1)?.role).toBe("user");
   expect(requests[1].messages.at(-1)?.content).toMatch(/call a tool now/);
+  // A work entry per retry, so the client's stall watchdog restarts.
+  expect(result.workLog.filter((e) => e.tool === "retry")).toEqual([
+    { tool: "retry", detail: "checking again" },
+  ]);
 });
 
 test("a second empty round goes straight to the round without tools", async () => {
@@ -84,6 +88,10 @@ test("a second empty round goes straight to the round without tools", async () =
   expect(result.partial).toBe(true);
   expect(requests).toHaveLength(3);
   expect(requests[2].tools).toBeUndefined();
+  expect(result.workLog.filter((e) => e.tool === "retry").map((e) => e.detail)).toEqual([
+    "checking again",
+    "answering from what was found",
+  ]);
 });
 
 test("empty output on every attempt is reported as a failure, not an answer", async () => {

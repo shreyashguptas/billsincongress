@@ -66,6 +66,11 @@ it("never puts a number on a partial search", () => {
   assert.ok(!line.text.includes("29"));
 });
 
+it("does not call a retry a search", () => {
+  const line = workLine({ tool: "retry", detail: "checking again" });
+  assert.equal(line.text, "No answer yet · checking again");
+});
+
 it("says a partial search was partial, in plain words", () => {
   const line = workLine({ tool: "fetch", detail: fetchDetail("sponsors", workLogLabel(partial)) });
   assert.equal(line.text, "Searched sponsors · partial results");

@@ -45,6 +45,8 @@ export function workLine(e: WorkEntry): WorkLine {
   // The assistant stopping to ask the reader something is not a lookup, and
   // labelling it "Searched ..." would describe work that never happened.
   if (e.tool === 'ask') return { text: `Asked you a question · ${e.detail}` };
+  // The model gave no answer and no lookup, and the server asked it again.
+  if (e.tool === 'retry') return { text: `No answer yet · ${e.detail}` };
   if (!e.detail.includes(NO_COUNT)) return { text: `Searched ${e.detail}` };
   // "partial results" is the honest, unalarming half; the missing count is a
   // footnote, not a failure — partial reads are a normal way to answer.

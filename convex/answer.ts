@@ -517,6 +517,8 @@ async function runLoop(
       if (text.trim().length > 0 && !isAllDeliberation(text)) return finish(text);
       if (isFinalRound) break;
       console.error(`no answer and no tool call in round ${round}; ${nudged ? "final round now" : "nudging"}`);
+      // A visible step, so the client's stall watchdog restarts for the extra call.
+      note({ tool: "retry", detail: nudged ? "answering from what was found" : "checking again" });
       if (nudged) {
         finalNow = true;
       } else {
