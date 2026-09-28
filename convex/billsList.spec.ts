@@ -119,4 +119,34 @@ describe("bills.list with a sponsor filter", () => {
     expect(page.data).toHaveLength(0);
     expect(page.truncated).toBe(true);
   });
+
+  test("a partial list keeps the newest matches, not the oldest", async () => {
+    const t = convexTest(schema, modules);
+    await insertBills(t, 1300, { first: "John", last: "Smith" });
+
+    const page = await t.query(api.bills.list, {
+      congress: 119,
+      sponsorFilter: ["John Smith"],
+      limit: 10,
+    });
+    expect(page.truncated).toBe(true);
+    expect(page.data[0].billId).toBe("1300s119");
+  });
+
+  test("a hand-typed name in the wrong case still finds the member", async () => {
+    const t = convexTest(schema, modules);
+    await insertBills(t, 12, { first: "Michael", last: "McCaul", state: "TX" });
+    await insertBills(t, 1300, { first: "Other", last: "Member", state: "TX" });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("congressSponsors", {
+        congress: 119,
+        sponsorName: "Michael McCaul",
+        sponsorState: "TX",
+        billCount: 12,
+      });
+    });
+
+    // Title Case would guess "Mccaul"; only the stored spelling reaches him.
+    expect(await listAll(t, ["michael mccaul"])).toHaveLength(12);
+  });
 });

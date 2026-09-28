@@ -597,18 +597,33 @@ async function billsBySponsorSurname(
   congress: number,
   names: string[],
 ): Promise<{ bills: Doc<"bills">[]; complete: boolean }> {
-  const spellings = new Set(
-    names.flatMap((name) => candidateSurnames(name).flatMap(surnameSpellings)),
-  );
+  // The index is case-sensitive, so a hand-typed "michael mccaul" never reaches
+  // the stored "McCaul" by guessing spellings. Add the stored spelling of every
+  // member whose name matches case-insensitively; the guesses stay as a
+  // fallback for when the congressSponsors precompute has not run.
+  const wanted = new Set(names.map(normaliseName));
+  const sponsors = await ctx.db
+    .query("congressSponsors")
+    .withIndex("by_congress", (q) => q.eq("congress", congress))
+    .take(10000);
+  const storedNames = sponsors
+    .map((row) => row.sponsorName)
+    .filter((name) => wanted.has(normaliseName(name)));
+  const spellings = new Set([
+    ...storedNames.flatMap(candidateSurnames),
+    ...names.flatMap((name) => candidateSurnames(name).flatMap(surnameSpellings)),
+  ]);
   const bills: Doc<"bills">[] = [];
   let complete = true;
   for (const spelling of spellings) {
     const budget = MAX_LIST_SCAN - bills.length;
+    // Newest first, so a budget that runs out keeps the newest matches.
     const rows = await ctx.db
       .query("bills")
       .withIndex("by_congress_and_sponsor_last", (q) =>
         q.eq("congress", congress).eq("sponsorLastName", spelling),
       )
+      .order("desc")
       .take(budget);
     bills.push(...rows);
     if (rows.length === budget) {

@@ -392,8 +392,11 @@ iterated index can run out before the page is filled. Two things keep that hones
   `by_congress_and_sponsor_last` for every candidate surname and spelling of each name (the
   same rule as the answer engine, see `convex/catalog/sponsorName.ts`), then matches the full
   name in memory. It used to walk the whole Congress, so a drilldown to Rick Scott showed 6 of
-  his 185 bills. These reads share the `MAX_LIST_SCAN` budget, so only surnames that together
-  hold more than 1,200 bills in one Congress can still truncate.
+  his 185 bills. The index is case-sensitive, so the stored spelling of each name is looked up
+  in `congressSponsors` first ("michael mccaul" in a hand-typed URL still reaches "McCaul").
+  These reads share the `MAX_LIST_SCAN` budget and run newest first, so only surnames that
+  together hold more than 1,200 bills in one Congress can still truncate, and a truncated list
+  shows the newest of them.
 - **Say so when the scan still gives up.** `list` returns `truncated: true` in that case and
   the page prints "partial list — narrow the filters or search by title to reach the rest".
   A short list is a fine answer; a short list presented as the whole set is not.
