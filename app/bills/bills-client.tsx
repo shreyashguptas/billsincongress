@@ -420,9 +420,14 @@ export default function BillsClient({
             {/* The results bar. The ink rule under it is where the register
                 starts. */}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-ink pb-3">
+              {/* Every branch that can appear or disappear here is its own keyed
+                  element, never a bare text node. Browser translation swaps
+                  text nodes for its own wrappers, and React then crashes
+                  ("removeChild … not a child of this node") when it removes or
+                  inserts next to a node that is no longer there. */}
               <p className="text-sm text-ink-2">
                 {bills.length > 0 ? (
-                  <>
+                  <span key="results">
                     Showing{' '}
                     <span className="font-mono font-medium text-ink tabular">
                       {formatCount(bills.length)}
@@ -442,25 +447,26 @@ export default function BillsClient({
                       a number that is never coming.
                     */}
                     {totalBills?.count != null ? (
-                      <>
+                      <span key="total">
                         {' '}of{' '}
                         <span className="font-mono font-medium text-ink tabular">
                           {formatCount(totalBills.count)}
                           {totalBills.exact ? '' : '+'}
                         </span>
-                      </>
+                      </span>
                     ) : totalBills === null ? (
-                      <>
+                      <span key="pending">
                         {' '}of{' '}
                         <span className="font-mono font-medium text-ink-3 tabular">…</span>
-                      </>
+                      </span>
                     ) : null}
                     {/* "Showing 1 bills" — the plural only ever showed up once
                         the "of N" phrase could be absent. */}
-                    {' '}
-                    {totalBills?.count === 1 || (totalBills?.count == null && bills.length === 1)
-                      ? 'bill'
-                      : 'bills'}
+                    <span>
+                      {totalBills?.count === 1 || (totalBills?.count == null && bills.length === 1)
+                        ? ' bill'
+                        : ' bills'}
+                    </span>
                     {filtersActive && <span className="ml-1">· filtered</span>}
                     {/* The scan gave up before finding every match, so this list
                         is a sample of the count beside it, not the whole of it.
@@ -472,13 +478,13 @@ export default function BillsClient({
                         reach the rest
                       </span>
                     )}
-                  </>
+                  </span>
                 ) : isLoading ? (
-                  'Loading…'
+                  <span key="loading">Loading…</span>
                 ) : error ? (
-                  'Bills did not load'
+                  <span key="error">Bills did not load</span>
                 ) : (
-                  'No matching bills'
+                  <span key="empty">No matching bills</span>
                 )}
               </p>
               {/*
