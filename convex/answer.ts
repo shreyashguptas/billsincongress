@@ -469,7 +469,7 @@ async function runLoop(
   };
 
   // A round with no answer and no tool call gets one nudge, then the final
-  // round early. It used to end the turn with the canned apology.
+  // round early.
   let nudged = false;
   let finalNow = false;
 
