@@ -573,7 +573,7 @@ Three shapes, chosen by media query in `app/globals.css` and described by `lib/a
 | --- | --- | --- |
 | `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. |
 | `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. |
-| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. |
+| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
 
 **1344 is derived, not chosen.** `container-editorial` at a 1024px viewport gives its `lg:`
 layouts 960px of inner width, so the pushed shell must never fall below 1024px — and the
@@ -593,7 +593,7 @@ still drawing it over the page.
 `app/globals.css` cannot import those constants, so `lib/ask-css-contract.test.ts` reads the
 stylesheet as text and asserts the breakpoints, the two `--header-h` values (57/65px — one
 header row, `h-14` / `sm:h-16`, plus its border) and the panel's z-index match `lib/ask-panel.ts` and
-`components/navigation.tsx`. That drift is guaranteed otherwise, not merely possible.
+`components/navigation.tsx`, and that the panel's title bar is sized from `--header-h`. That drift is guaranteed otherwise, not merely possible.
 
 **The panel is never unmounted** — only translated off-screen and marked `inert`. The phase
 machine is `lib/ask-panel-state.ts`: `closed`, `open`, `minimized`. Keeping it mounted is what

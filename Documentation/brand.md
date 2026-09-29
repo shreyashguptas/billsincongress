@@ -239,6 +239,16 @@ Patterns that appear on more than one page:
   It never becomes icon-only. After a copy it reads "Link copied" with `Check`
   for 2.5 seconds; a 9rem minimum width holds both labels, so the swap does
   not resize the button.
+- **Header sections** (md and up): Home, Bills, Learn, About in `ink-2`, the
+  current one in `ink`. One 2px ink rule, the label's exact width, sits about
+  5px under the labels — never on the header's bottom border. It rests under
+  the current section, glides (420ms, `cubic-bezier(0.22, 1, 0.36, 1)`) to
+  whichever label is hovered or focused, and returns when the pointer leaves
+  the nav. It first appears by growing out from the label's centre, and
+  shrinks into its centre on a page with no section. Still under
+  `prefers-reduced-motion`.
+- **Ask panel title bar**: from `lg` up, exactly the header's height
+  (`--header-h`), so docked beside it the two bottom rules are one line.
 - **Account slot** (header, right edge): signed in, the 36px avatar (see
   "Pro"). Signed out, small (`sm`) buttons and never ink: "Sign up" is
   `outline`, "Sign in" is `ghost`. The header is on every page and must not
@@ -292,6 +302,10 @@ What stays hand-built, on purpose:
   dots.
 - **The wordmark** is "Bills in Congress" in Newsreader 600 at -0.012em, 10px
   from the mark. Always those three words.
+- **The lockup sits on the floor.** The wordmark's baseline is the bottom of
+  the mark's floor line, not the centre of a box around the mark. The lockup
+  draws the mark cropped to its ink (`ChamberMark trim`) and aligns the two on
+  their baselines; in the header the section labels share that baseline.
 - **Colour**: ink on paper, or paper on ink. The spectrum version colours the
   six outer seats with `topic-1` … `topic-6` and the inner row `ink-3`. Use it
   once per surface, at 48px or larger. Never recolour the mark with party
