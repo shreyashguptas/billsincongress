@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'September 25, 2026';
+const LAST_UPDATED = 'September 29, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -76,10 +76,18 @@ export default function PrivacyPage() {
           find confusing design and bugs.
         </p>
         <p>
-          One thing you type is included in that analytics data: when a
-          search of the bills list returns no results, we record the text
-          you searched for, so we can see what people expect to find and
-          cannot. Your other filter choices are not recorded.
+          Some of what you type is included in that analytics data. When
+          you ask the assistant a question, we record the full text of
+          your question (see section 3). If you ask about a list of bills
+          you have narrowed with a title search, the words you searched
+          for are also recorded, as part of the description of that list
+          sent along with your question. Other searches — the bills-list
+          search box, the site search, and the bill suggestions under the
+          home page&rsquo;s question box — are recorded only as how many
+          characters you typed, not what you typed. When you change a
+          filter on the bills list, we record which filter it was and,
+          for fixed choices such as status, state or topic, the choice
+          you picked; for a sponsor we record only how many you picked.
         </p>
         <p>
           Your IP address is processed by our hosting provider
@@ -113,7 +121,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you are not signed in, your conversation is never stored on
-          our servers — it lives in your browser and disappears when you
+          our servers (your question text still reaches our analytics, as
+          described below) — it lives in your browser and disappears when you
           close the tab. To be exact: each question is sent to our server
           along with the conversation so far, so the assistant can follow
           the thread, but none of it is written to our database. The table
@@ -131,8 +140,11 @@ export default function PrivacyPage() {
           the query rather than forwarding it.
         </p>
         <p>
-          Question text is also included in our product analytics so we
-          can understand what people want to know about legislation.
+          The full text of every question you ask is also sent to our
+          analytics provider, PostHog, so we can understand what people
+          want to know about legislation. Unlike the AI providers above,
+          PostHog keeps it under its standard retention (see section 8),
+          and if you are signed in it is linked to your account.
         </p>
         <p>
           To delete your whole account, email us at{' '}
@@ -327,6 +339,7 @@ const summary = [
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
+  'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
   'We email you only for account reasons and bill alerts you turn on — never marketing.',
   'Reading is free. If you pay for Pro, Stripe handles your card; we never see it.',
@@ -381,7 +394,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
