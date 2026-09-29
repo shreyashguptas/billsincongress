@@ -175,7 +175,12 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
             onMouseEnter={() => setHovered(route.href)}
             onFocus={() => setHovered(route.href)}
             onBlur={() => setHovered(null)}
-            onClick={() => setPending(route.href)}
+            onClick={(e) => {
+              // A modified click opens a new tab or window; this tab stays put,
+              // so holding the rule on the target would strand it there.
+              if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+              setPending(route.href);
+            }}
             className={cn(
               'focus-ring rounded-sm px-3 py-2.5 text-[15px] font-medium transition-colors duration-200',
               current || route.href === target ? 'text-ink' : 'text-ink-2',
