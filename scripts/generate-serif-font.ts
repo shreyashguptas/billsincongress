@@ -68,6 +68,11 @@ else:
     descent = ascent - total
     hhea.ascent, hhea.descent, hhea.lineGap = ascent, descent, 0
     os2.sTypoAscender, os2.sTypoDescender, os2.sTypoLineGap = ascent, descent, 0
+    # USE_TYPO_METRICS: Windows browsers lay text out from the typo values
+    # above only with this bit set (Google's files have it; keep it so).
+    # usWinAscent/usWinDescent stay as shipped: they are clipping bounds, and
+    # shrinking them would clip accented capitals.
+    os2.fsSelection |= 1 << 7
     font.flavor = 'woff2'
     font.save(sys.argv[3])
     print(f'cap {cap}/{font["head"].unitsPerEm}: ascent {ascent}, descent {descent}')
