@@ -228,6 +228,12 @@ Patterns that appear on more than one page:
 - **Ask composer**: 60px tall, `rounded-lg`, raised, `line-strong` edge; the
   send button is a 40px ink circle. Starter questions are `rounded-full`
   outline pills in `ink-2`, each written from a live figure.
+- **Answer reveal**: a new answer is written onto the page word by word, each
+  word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
+  words a second, faster for a long answer so none takes more than five
+  seconds. Bill cards rise in when the text reaches them; the sources wait
+  for the last word. It plays once, for the answer being written — a resumed
+  conversation, and anyone under `prefers-reduced-motion`, sees it whole.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
 - **Status panel** (bill page): `rounded-lg`, raised, the stage in

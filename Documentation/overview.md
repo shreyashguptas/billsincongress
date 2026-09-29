@@ -122,12 +122,13 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 30 modules + 27 test files, then the folders below
+lib/                       Pure client/shared modules — 33 modules + 30 test files, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
   seo.ts hubs.ts pagination.ts cacheable-routes.ts indexnow.ts sitemap-ids.ts
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
+  answer-reveal.ts         The ask panel's word-by-word reveal of a finished answer
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
@@ -564,6 +565,14 @@ The panel is mounted in the root layout as a **sibling** of the page content, ne
 it, so a conversation survives client-side navigation. Prose is emitted only *after* citations
 are resolved, in 60-character chunks — never token by token, because a fabricated citation
 must not be visible even briefly.
+
+So the answer reaches the browser all at once, and the panel paces it back out: the thread
+reveals it word by word (`lib/answer-reveal.ts`, `components/answers/use-answer-reveal.ts`),
+at 40 words a second or faster so no answer takes more than five seconds. This is presentation
+only — every word shown is a prefix of the final, already-checked text, and the reveal never
+stops inside an entity directive, a link or a list marker, where a half-written form would
+render as something else. The source list appears once the last word is on screen. A resumed
+conversation, or a reader with `prefers-reduced-motion`, gets the whole answer at once.
 
 ### The panel
 

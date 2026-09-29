@@ -8,7 +8,9 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { splitAnswer } from '@/lib/answer-entities';
+import { rehypeWordSpans } from '@/lib/answer-reveal';
 import { useAnswers, type Turn } from './answer-provider';
+import { useAnswerReveal } from './use-answer-reveal';
 import { SourceList } from './source-list';
 import { WorkLog } from './work-log';
 import { EntityBlock } from './entity-block';
@@ -34,6 +36,9 @@ const MARKDOWN_COMPONENTS = {
 /** Answer prose (brand.md, "Type"): Newsreader at the panel's reading size. */
 const PROSE = 'font-serif text-reading-sm text-ink';
 
+/** While an answer is being revealed, every word is its own span so it can fade in. */
+const WORD_SPANS = [rehypeWordSpans];
+
 /**
  * The assistant asking the reader something, rather than answering.
  *
@@ -48,15 +53,22 @@ const PROSE = 'font-serif text-reading-sm text-ink';
  * work log stays — whatever it looked up before deciding to ask is real.
  */
 function ReaderQuestionTurn({ turn, awaiting }: { turn: Turn; awaiting: boolean }) {
+  const { visible, live, complete } = useAnswerReveal(turn.id, turn.content, Boolean(turn.done));
+
   return (
     <div className="space-y-2">
       <WorkLog entries={turn.work ?? []} done={Boolean(turn.done)} />
       <div className="space-y-2 border-l-2 border-line-strong pl-4">
         <p className="label-eyebrow">One question first</p>
         <div className={PROSE}>
-          <ReactMarkdown components={MARKDOWN_COMPONENTS}>{turn.content}</ReactMarkdown>
+          <ReactMarkdown
+            components={MARKDOWN_COMPONENTS}
+            rehypePlugins={live ? WORD_SPANS : undefined}
+          >
+            {visible}
+          </ReactMarkdown>
         </div>
-        {awaiting && (
+        {awaiting && complete && (
           <p className="text-[13px] leading-5 text-ink-3">
             Answer below and the thread carries on from there.
           </p>
@@ -73,7 +85,11 @@ function ReaderQuestionTurn({ turn, awaiting }: { turn: Turn; awaiting: boolean 
  * given, so a bill it invented simply does not render (spec §6.6).
  */
 function AssistantTurn({ turn, surface }: { turn: Turn; surface: string }) {
-  const blocks = splitAnswer(turn.content, new Set(turn.allowed ?? []));
+  // The answer arrives whole, once its citations are checked; it is paced back
+  // out word by word here (lib/answer-reveal.ts). Entity cards are held until
+  // the reveal reaches them, so they arrive in reading order.
+  const { visible, live, complete } = useAnswerReveal(turn.id, turn.content, Boolean(turn.done));
+  const blocks = splitAnswer(visible, new Set(turn.allowed ?? []));
 
   return (
     <div className="space-y-3">
@@ -81,21 +97,29 @@ function AssistantTurn({ turn, surface }: { turn: Turn; surface: string }) {
       <div className={PROSE}>
         {blocks.map((block, i) =>
           block.type === 'prose' ? (
-            <ReactMarkdown key={i} components={MARKDOWN_COMPONENTS}>
+            <ReactMarkdown
+              key={i}
+              components={MARKDOWN_COMPONENTS}
+              rehypePlugins={live ? WORD_SPANS : undefined}
+            >
               {block.text}
             </ReactMarkdown>
           ) : (
-            <EntityBlock key={i} block={block} surface={surface} entities={turn.entities} />
+            <div key={i} className={live ? 'animate-rise-in' : undefined}>
+              <EntityBlock block={block} surface={surface} entities={turn.entities} />
+            </div>
           ),
         )}
       </div>
-      {turn.done && (
-        <SourceList
-          handles={turn.sources ?? []}
-          surface={surface}
-          webReason={turn.webReason}
-          webSources={turn.webSources}
-        />
+      {turn.done && complete && (
+        <div className={live ? 'animate-rise-in' : undefined}>
+          <SourceList
+            handles={turn.sources ?? []}
+            surface={surface}
+            webReason={turn.webReason}
+            webSources={turn.webSources}
+          />
+        </div>
       )}
     </div>
   );
@@ -113,16 +137,27 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
   const { turns, busy, error, ask } = useAnswers();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  // Whether the reader was at the bottom before the content last grew. Tracked
+  // on scroll rather than measured on growth: one entity card can add more
+  // than PINNED_PX in a frame, which would read as having scrolled away.
+  const pinnedRef = useRef(true);
 
   // Follow the answer as it streams in — but only for a reader who is still at
   // the bottom. Yanking someone back down while they are reading an earlier
-  // paragraph of a long answer is the worst moment to do it.
+  // paragraph of a long answer is the worst moment to do it. Watches the
+  // content's size rather than `turns`, because the word-by-word reveal grows
+  // the answer without changing any state here.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distance <= PINNED_PX) el.scrollTop = el.scrollHeight;
-  }, [turns]);
+    const content = contentRef.current;
+    if (!el || !content) return;
+    const observer = new ResizeObserver(() => {
+      if (pinnedRef.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   const streaming = turns.some((t) => t.role === 'assistant' && !t.done);
   const last = turns[turns.length - 1];
@@ -134,41 +169,47 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
     <div className="flex flex-col flex-1 min-h-0">
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 lg:px-5"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= PINNED_PX;
+        }}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 lg:px-5"
       >
-        {turns.length === 0 && (
-          <p className="text-[15px] leading-relaxed text-ink-2">
-            Ask anything about bills in Congress — what one does, where it stands, who wrote
-            it. Every answer cites the records it came from.
-          </p>
-        )}
+        <div ref={contentRef} className="space-y-6">
+          {turns.length === 0 && (
+            <p className="text-[15px] leading-relaxed text-ink-2">
+              Ask anything about bills in Congress — what one does, where it stands, who wrote
+              it. Every answer cites the records it came from.
+            </p>
+          )}
 
-        {turns.map((turn) =>
-          turn.role === 'user' ? (
-            // The reader's own words: right-aligned in a quiet sunken block,
-            // in the interface face, so the answer's serif stays the voice
-            // of the record.
-            <div key={turn.id} className="flex justify-end">
-              <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-lg bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">
-                {turn.content}
-              </p>
-            </div>
-          ) : turn.askedReader ? (
-            <ReaderQuestionTurn
-              key={turn.id}
-              turn={turn}
-              awaiting={awaitingReply && turn.id === last?.id}
-            />
-          ) : (
-            <AssistantTurn key={turn.id} turn={turn} surface={surface} />
-          ),
-        )}
+          {turns.map((turn) =>
+            turn.role === 'user' ? (
+              // The reader's own words: right-aligned in a quiet sunken block,
+              // in the interface face, so the answer's serif stays the voice
+              // of the record.
+              <div key={turn.id} className="flex justify-end">
+                <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-lg bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">
+                  {turn.content}
+                </p>
+              </div>
+            ) : turn.askedReader ? (
+              <ReaderQuestionTurn
+                key={turn.id}
+                turn={turn}
+                awaiting={awaitingReply && turn.id === last?.id}
+              />
+            ) : (
+              <AssistantTurn key={turn.id} turn={turn} surface={surface} />
+            ),
+          )}
 
-        {error && (
-          <Alert variant="destructive" className="rounded-md border-error/40 px-4 py-3 dark:border-error/40">
-            <p className="text-sm leading-relaxed text-error">{error}</p>
-          </Alert>
-        )}
+          {error && (
+            <Alert variant="destructive" className="rounded-md border-error/40 px-4 py-3 dark:border-error/40">
+              <p className="text-sm leading-relaxed text-error">{error}</p>
+            </Alert>
+          )}
+        </div>
       </div>
 
       {/* Answers stream in silently. This is the only thing that tells a screen
