@@ -100,6 +100,7 @@ export function revealedText(text: string, stops: number[], count: number): stri
 interface HastText {
   type: 'text';
   value: string;
+  position?: { start: { offset?: number } };
 }
 interface HastElement {
   type: 'element';
@@ -117,8 +118,14 @@ export const WORD_CLASS = 'animate-word-in';
  * fades in as the reveal reaches it. React keys a span by its position among
  * its siblings, and the reveal only ever appends, so a word already on screen
  * keeps its DOM node and does not fade a second time.
+ *
+ * `settledBefore` is a source offset in the markdown: words that start before
+ * it get a plain span with no fade. That is for a turn that remounts part-way
+ * through its reveal, whose words already on screen are new DOM nodes and
+ * would otherwise all fade in again at once.
  */
-export function rehypeWordSpans() {
+export function rehypeWordSpans(options: { settledBefore?: number } = {}) {
+  const settledBefore = options.settledBefore ?? 0;
   const split = (node: HastNode) => {
     if (!('children' in node) || !node.children) return;
     if (node.type === 'element' && ['code', 'pre'].includes((node as HastElement).tagName)) return;
@@ -129,7 +136,11 @@ export function rehypeWordSpans() {
         next.push(child);
         continue;
       }
+      const origin = (child as HastText).position?.start.offset;
+      let at = 0;
       for (const part of (child as HastText).value.split(/(\s+)/)) {
+        const offset = origin === undefined ? Infinity : origin + at;
+        at += part.length;
         if (part === '') continue;
         next.push(
           /^\s+$/.test(part)
@@ -137,7 +148,7 @@ export function rehypeWordSpans() {
             : {
                 type: 'element',
                 tagName: 'span',
-                properties: { className: [WORD_CLASS] },
+                properties: offset < settledBefore ? {} : { className: [WORD_CLASS] },
                 children: [{ type: 'text', value: part }],
               },
         );

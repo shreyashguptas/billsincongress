@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import ReactMarkdown, { type Options as MarkdownOptions } from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/alert';
@@ -36,8 +36,15 @@ const MARKDOWN_COMPONENTS = {
 /** Answer prose (brand.md, "Type"): Newsreader at the panel's reading size. */
 const PROSE = 'font-serif text-reading-sm text-ink';
 
-/** While an answer is being revealed, every word is its own span so it can fade in. */
-const WORD_SPANS = [rehypeWordSpans];
+/**
+ * While an answer is being revealed, every word is its own span so it can fade
+ * in. `settledBefore` is relative to the markdown the plugin is given.
+ */
+function wordSpans(live: boolean, settledBefore: number): MarkdownOptions['rehypePlugins'] {
+  return live ? [[rehypeWordSpans, { settledBefore }]] : undefined;
+}
+
+type OnRevealing = (id: string, active: boolean) => void;
 
 /**
  * The assistant asking the reader something, rather than answering.
@@ -52,8 +59,21 @@ const WORD_SPANS = [rehypeWordSpans];
  * over an empty list would only imply the question was itself a finding. The
  * work log stays — whatever it looked up before deciding to ask is real.
  */
-function ReaderQuestionTurn({ turn, awaiting }: { turn: Turn; awaiting: boolean }) {
-  const { visible, live, complete } = useAnswerReveal(turn.id, turn.content, Boolean(turn.done));
+function ReaderQuestionTurn({
+  turn,
+  awaiting,
+  onRevealing,
+}: {
+  turn: Turn;
+  awaiting: boolean;
+  onRevealing: OnRevealing;
+}) {
+  const { visible, live, settledBefore, complete } = useAnswerReveal(
+    turn.id,
+    turn.content,
+    Boolean(turn.done),
+    onRevealing,
+  );
 
   return (
     <div className="space-y-2">
@@ -63,7 +83,7 @@ function ReaderQuestionTurn({ turn, awaiting }: { turn: Turn; awaiting: boolean 
         <div className={PROSE}>
           <ReactMarkdown
             components={MARKDOWN_COMPONENTS}
-            rehypePlugins={live ? WORD_SPANS : undefined}
+            rehypePlugins={wordSpans(live, settledBefore)}
           >
             {visible}
           </ReactMarkdown>
@@ -84,12 +104,34 @@ function ReaderQuestionTurn({ turn, awaiting }: { turn: Turn; awaiting: boolean 
  * Entity directives are resolved against the handles the model was actually
  * given, so a bill it invented simply does not render (spec §6.6).
  */
-function AssistantTurn({ turn, surface }: { turn: Turn; surface: string }) {
+function AssistantTurn({
+  turn,
+  surface,
+  onRevealing,
+}: {
+  turn: Turn;
+  surface: string;
+  onRevealing: OnRevealing;
+}) {
   // The answer arrives whole, once its citations are checked; it is paced back
   // out word by word here (lib/answer-reveal.ts). Entity cards are held until
   // the reveal reaches them, so they arrive in reading order.
-  const { visible, live, complete } = useAnswerReveal(turn.id, turn.content, Boolean(turn.done));
+  const { visible, live, settledBefore, complete } = useAnswerReveal(
+    turn.id,
+    turn.content,
+    Boolean(turn.done),
+    onRevealing,
+  );
   const blocks = splitAnswer(visible, new Set(turn.allowed ?? []));
+  // Where each block starts in `visible`: prose blocks are exact, in-order
+  // slices of it, and an entity block starts where the prose before it ended.
+  let cursor = 0;
+  const starts = blocks.map((block) => {
+    if (block.type !== 'prose') return cursor;
+    const start = Math.max(cursor, visible.indexOf(block.text, cursor));
+    cursor = start + block.text.length;
+    return start;
+  });
 
   return (
     <div className="space-y-3">
@@ -100,26 +142,27 @@ function AssistantTurn({ turn, surface }: { turn: Turn; surface: string }) {
             <ReactMarkdown
               key={i}
               components={MARKDOWN_COMPONENTS}
-              rehypePlugins={live ? WORD_SPANS : undefined}
+              rehypePlugins={wordSpans(live, settledBefore - starts[i])}
             >
               {block.text}
             </ReactMarkdown>
           ) : (
-            <div key={i} className={live ? 'animate-rise-in' : undefined}>
+            <div key={i} className={live && starts[i] >= settledBefore ? 'animate-rise-in' : undefined}>
               <EntityBlock block={block} surface={surface} entities={turn.entities} />
             </div>
           ),
         )}
       </div>
       {turn.done && complete && (
-        <div className={live ? 'animate-rise-in' : undefined}>
-          <SourceList
-            handles={turn.sources ?? []}
-            surface={surface}
-            webReason={turn.webReason}
-            webSources={turn.webSources}
-          />
-        </div>
+        // No wrapper here: SourceList renders nothing for an uncited answer, and
+        // an empty wrapper would still take this column's gap.
+        <SourceList
+          handles={turn.sources ?? []}
+          surface={surface}
+          webReason={turn.webReason}
+          webSources={turn.webSources}
+          className={live ? 'animate-rise-in' : undefined}
+        />
       )}
     </div>
   );
@@ -142,8 +185,40 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
   // on scroll rather than measured on growth: one entity card can add more
   // than PINNED_PX in a frame, which would read as having scrolled away.
   const pinnedRef = useRef(true);
+  // Whether anything is being written right now: an answer still arriving, or
+  // one still being revealed. Growth outside that window is the reader's own
+  // doing — opening a work log — and must not scroll the view out from under
+  // what they just opened.
+  const writingRef = useRef(false);
+  const revealingRef = useRef(new Map<string, boolean>());
+  const onRevealing = useCallback<OnRevealing>((id, active) => {
+    const revealing = revealingRef.current;
+    revealing.set(id, active);
+    if (active) return;
+    // Held for two frames. The render that finishes a reveal adds the last
+    // words and the sources, and React can report the reveal finished before
+    // the observer below has seen that growth — leaving the view short of the
+    // bottom by exactly what finished it.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (revealing.get(id) === false) revealing.delete(id);
+      }),
+    );
+  }, []);
 
-  // Follow the answer as it streams in — but only for a reader who is still at
+  const streaming = turns.some((t) => t.role === 'assistant' && !t.done);
+  writingRef.current = streaming;
+
+  // A new turn — the reader's question, or an answer settling — scrolls into
+  // view if the reader was near the bottom.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distance <= PINNED_PX) el.scrollTop = el.scrollHeight;
+  }, [turns]);
+
+  // Follow the answer as it is written — but only for a reader who is still at
   // the bottom. Yanking someone back down while they are reading an earlier
   // paragraph of a long answer is the worst moment to do it. Watches the
   // content's size rather than `turns`, because the word-by-word reveal grows
@@ -153,13 +228,13 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
     const content = contentRef.current;
     if (!el || !content) return;
     const observer = new ResizeObserver(() => {
-      if (pinnedRef.current) el.scrollTop = el.scrollHeight;
+      const writing = writingRef.current || revealingRef.current.size > 0;
+      if (writing && pinnedRef.current) el.scrollTop = el.scrollHeight;
     });
     observer.observe(content);
     return () => observer.disconnect();
   }, []);
 
-  const streaming = turns.some((t) => t.role === 'assistant' && !t.done);
   const last = turns[turns.length - 1];
   // Only the LAST turn is still waiting on the reader. An earlier question they
   // have already answered keeps its rule and eyebrow, but stops asking again.
@@ -198,9 +273,15 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
                 key={turn.id}
                 turn={turn}
                 awaiting={awaitingReply && turn.id === last?.id}
+                onRevealing={onRevealing}
               />
             ) : (
-              <AssistantTurn key={turn.id} turn={turn} surface={surface} />
+              <AssistantTurn
+                key={turn.id}
+                turn={turn}
+                surface={surface}
+                onRevealing={onRevealing}
+              />
             ),
           )}
 

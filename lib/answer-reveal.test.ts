@@ -111,6 +111,19 @@ it('wraps each word in its own span, leaving code alone', () => {
   assert.equal((p.children[4] as { children: unknown[] }).children.length, 1);
 });
 
+it('does not fade again the words a remounted turn already showed', () => {
+  const para = {
+    type: 'element',
+    tagName: 'p',
+    properties: {},
+    children: [{ type: 'text', value: 'one two three', position: { start: { offset: 0 } } }],
+  };
+  rehypeWordSpans({ settledBefore: 4 })({ type: 'root', children: [para] });
+  const words = para.children as unknown as Array<{ tagName?: string; properties?: { className?: string[] } }>;
+  const classes = words.filter((c) => c.tagName).map((c) => (c.properties?.className ?? []).join());
+  assert.deepEqual(classes, ['', 'animate-word-in', 'animate-word-in']);
+});
+
 console.log(`\nanswer-reveal: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));

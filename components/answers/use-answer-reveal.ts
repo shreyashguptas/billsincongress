@@ -22,17 +22,34 @@ function prefersReducedMotion(): boolean {
  * resumed conversation, or any answer under `prefers-reduced-motion`, shows in
  * full at once.
  *
- * `live` is whether the prose should carry per-word fade spans; `complete` is
- * whether the whole text is on screen, which is what the source list waits for.
+ * Returns:
+ * - `live`: the prose should carry per-word fade spans;
+ * - `settledBefore`: the offset in `text` before which words were already on
+ *   screen when this component mounted, so they must not fade in again;
+ * - `complete`: the whole text is on screen, which is what the sources wait for.
+ *
+ * `onRevealing` hears whether the reveal is still writing, so the thread can
+ * follow growth only while something is actually being written.
  */
-export function useAnswerReveal(id: string, text: string, done: boolean) {
+export function useAnswerReveal(
+  id: string,
+  text: string,
+  done: boolean,
+  onRevealing?: (id: string, active: boolean) => void,
+) {
   const [live] = useState(() => {
     if (prefersReducedMotion()) return false;
     const entry = reveals.get(id);
     return entry ? !entry.finished : !done;
   });
   const stops = useMemo(() => revealStops(text), [text]);
-  const [count, setCount] = useState(0);
+  // A remount picks up at the elapsed position rather than painting one empty
+  // frame and then everything at once.
+  const [settled] = useState(() => {
+    const entry = reveals.get(id);
+    return live && entry ? revealCount(stops.length, performance.now() - entry.start) : 0;
+  });
+  const [count, setCount] = useState(settled);
 
   useEffect(() => {
     if (!live || stops.length === 0) return;
@@ -50,10 +67,19 @@ export function useAnswerReveal(id: string, text: string, done: boolean) {
     return () => cancelAnimationFrame(frame);
   }, [id, live, stops, done]);
 
-  if (!live) return { visible: text, live, complete: true };
+  const complete = !live || count >= stops.length;
+
+  useEffect(() => {
+    if (!onRevealing) return;
+    onRevealing(id, !complete);
+    return () => onRevealing(id, false);
+  }, [id, complete, onRevealing]);
+
+  if (!live) return { visible: text, live, settledBefore: 0, complete };
   return {
     visible: revealedText(text, stops, count),
     live,
-    complete: count >= stops.length,
+    settledBefore: settled > 0 ? (stops[settled - 1] ?? text.length) : 0,
+    complete,
   };
 }
