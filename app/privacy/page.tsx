@@ -81,13 +81,23 @@ export default function PrivacyPage() {
           your question (see section 3). If you ask about a list of bills
           you have narrowed with a title search, the words you searched
           for are also recorded, as part of the description of that list
-          sent along with your question. Other searches — the bills-list
-          search box, the site search, and the bill suggestions under the
-          home page&rsquo;s question box — are recorded only as how many
-          characters you typed, not what you typed. When you change a
-          filter on the bills list, we record which filter it was and,
-          for fixed choices such as status, state or topic, the choice
-          you picked; for a sponsor we record only how many you picked.
+          sent along with your question.
+        </p>
+        <p>
+          Searches and filters on the bills list are also recorded,
+          through the page address. When you search the bills list, use
+          the site search, or open &ldquo;See all matching bills&rdquo;
+          under the home page&rsquo;s question box, the words you
+          searched for become part of the address of the page you land
+          on (for example, <code>/bills?title=farm</code>), and the same
+          is true of every filter you pick, including sponsor names. Our
+          analytics records the full address of every page you view, so
+          your search words and filter choices reach PostHog that way,
+          and session replay shows them wherever the page repeats them.
+          The suggestions that appear as you type in the home page&rsquo;s
+          question box record only how many characters you typed, unless
+          you go on to ask it as a question or open &ldquo;See all
+          matching bills&rdquo;.
         </p>
         <p>
           Your IP address is processed by our hosting provider

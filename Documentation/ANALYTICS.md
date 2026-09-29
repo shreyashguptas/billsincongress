@@ -45,8 +45,15 @@ should not exist in the code — and if it's in this file, it must exist in the 
    what people ask is the point of collecting it: `answer_question_submitted.question` (the
    whole question), and — less obviously — `answer_question_submitted.scope_label` and
    `answer_starter_clicked.starter_text`, both of which interpolate the reader's typed title
-   search into a label. Every other search sends a `query_length`, not the text
-   (`bills_no_results` stopped sending `title_query` in the filter redesign). All of this is
+   search into a label. The custom search events send a `query_length`, not the text
+   (`bills_no_results` stopped sending `title_query` in the filter redesign), **but that does
+   not keep search text out of PostHog**: the header search, the bills-list search and "See
+   all matching bills" all land on `/bills?title=<text>`, and every filter (sponsor names
+   included) is a URL parameter too. `$current_url` carries it on the pageview and every event
+   from that page, it becomes `$referrer` on the next page and can land in the person's
+   `$initial_*` properties, and session replay records the URL. `lib/redact-secrets.ts` strips
+   only the unsubscribe token. A `query_length`-only property is therefore not a privacy
+   control on its own; the URL has to be handled as well. All of this is
    disclosed in the Privacy Policy (`app/privacy/page.tsx`): §2 lists what typed text reaches
    analytics, §3 says question text goes to PostHog, and §6 names it on the PostHog entry; the
    README's "What is collected about you" says the same. Adding another free-text property is
