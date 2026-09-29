@@ -504,6 +504,33 @@ describe("checkout", () => {
     expect(user?.stripeCustomerId).toBeUndefined();
   });
 
+  test("a checkout started from a bill page returns the reader to that bill, not the account page", async () => {
+    const t = setup();
+    const userId = await freeReaderWithCustomer(t);
+    const bodies: string[] = [];
+    fakeStripe({ subs: [], open: [] });
+    const stripeFake = fetch;
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.endsWith("/v1/checkout/sessions") && init?.method?.toUpperCase() === "POST") bodies.push(String(init.body));
+      return stripeFake(input, init);
+    });
+    await asUser(t, userId).action(api.billing.startCheckout, { interval: "year", billId: "10610hr119" });
+    const sent = new URLSearchParams(bodies[0]);
+    expect(sent.get("success_url")).toBe("https://billsincongress.test/bills/10610hr119?checkout=success");
+    expect(sent.get("cancel_url")).toBe("https://billsincongress.test/bills/10610hr119?checkout=canceled");
+  });
+
+  test("a bill id that is not letters and digits never reaches the return URL", async () => {
+    const { checkoutReturnUrls } = await import("./billing");
+    for (const bad of ["../account", "x?next=https://evil.test", "", "a".repeat(41), "10610hr119/../../"]) {
+      expect(checkoutReturnUrls("https://billsincongress.com", bad)).toEqual({
+        success_url: "https://billsincongress.com/account?checkout=success",
+        cancel_url: "https://billsincongress.com/pro?checkout=canceled",
+      });
+    }
+  });
+
   test("a script cannot hammer Stripe through one account", async () => {
     const t = setup();
     const userId = await freeReaderWithCustomer(t);

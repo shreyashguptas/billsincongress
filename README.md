@@ -89,7 +89,7 @@ What "new" means is exact rather than approximate: each followed bill remembers 
 
 Pro also raises the question limit from 100 a day to 500. Payment is handled by Stripe; card details never reach this site. Cancel from your account page at any time.
 
-The [Pro page](https://billsincongress.com/pro) shows all of this in pictures. Your account page shows your plan, how many questions you have left today, and each bill you follow or saved with the stage it has reached.
+Pressing **Email me updates** without Pro opens a window over the bill that compares Free and Pro side by side, with a button for each way to pay. After paying you come back to that bill, already following it. The [Pro page](https://billsincongress.com/pro) shows the same comparison first, then explains the rest in pictures. Your account page shows your plan, how many questions you have left today, and each bill you follow or saved with the stage it has reached.
 
 ### How Congress works
 

@@ -268,17 +268,26 @@ Added with the Pro plan. The upgrade funnel is
 that proves the Stripe webhook landed: it fires when the account page sees `users.plan`
 turn `pro`, never on the success URL alone (a reader can open that by hand).
 
+> Changed 29 Sep 2026: "Email me updates" used to send a reader not on Pro to `/pro`; it now
+> opens the Pro dialog over the bill, with the subscribe buttons in it. The events and their
+> names are unchanged, but the step between `bill_alert_upsell_shown` and
+> `pro_checkout_started` is now one click rather than a page load and a scroll, so conversion
+> before and after that date is not like for like. A dialog closed without subscribing sends
+> nothing; it is `bill_alert_upsell_shown` without a following `pro_checkout_started`.
+> Stripe now returns a reader who paid from the dialog to the bill, not `/account`, so
+> `pro_checkout_returned` and `pro_activated` fire from the bill page for them.
+
 No event carries card data, prices paid or Stripe ids. Revenue lives in Stripe.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `bill_alert_upsell_shown` | A reader not on Pro pressed "Email me updates" on a bill page and was sent to `/pro` | `bill_id`, `signed_in` | `components/bills/bill-alert-button.tsx` |
-| `bill_alert_toggled` | A reader followed or unfollowed a bill for email alerts | `bill_id`, `action: "followed" \| "unfollowed"`, `surface: "bill_page" \| "account"`; from the bill page also `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-alert-button.tsx`, `app/account/account-view.tsx` (Unfollow) |
-| `pro_checkout_started` | Reader pressed a subscribe button and is about to leave for Stripe Checkout | `interval: "month" \| "year"`, `surface: "pro_page" \| "alert_prompt"` (`account` and `rate_limit` are accepted but not sent today) | `components/pro/subscribe-panel.tsx` |
-| `pro_checkout_failed` | Checkout could not be opened | `interval`, `reason` (our error code, e.g. `BILLING_NOT_CONFIGURED`) | `components/pro/subscribe-panel.tsx` |
-| `pro_checkout_returned` | Reader came back from Stripe: the success URL (`/account?checkout=success`) or the cancel URL (`/pro?checkout=canceled`) | `outcome: "success" \| "canceled"` | `app/account/page.tsx`, `components/pro/subscribe-panel.tsx` |
-| `pro_activated` | After a successful checkout, the account page saw the plan become Pro (the webhook landed). Since 2026-09-24 the same moment opens the one-time "Welcome to Pro" celebration (confetti and a dialog), so this event also counts the celebrations shown | `interval: "month" \| "year" \| "unknown"` | `app/account/page.tsx` |
-| `pro_welcome_step_clicked` | A new subscriber pressed a next step in the "Welcome to Pro" dialog: "Follow a bill" (goes to `/bills`) or "Ask away" (opens the ask panel, which also sends `answer_panel_opened` with trigger `manual`). Closing the dialog sends nothing | `step: "follow_bill" \| "ask"` | `components/pro/welcome-to-pro.tsx` |
+| `bill_alert_upsell_shown` | A reader not on Pro pressed "Email me updates" on a bill page and was shown the Pro dialog over the bill (Free and Pro side by side, with the subscribe buttons). Before 2026-09-29 the same press sent them to `/pro` instead | `bill_id`, `signed_in` | `components/bills/bill-alert-button.tsx` |
+| `bill_alert_toggled` | A reader followed or unfollowed a bill for email alerts. Also sent (`followed`, `surface: "bill_page"`) when a reader comes back from a checkout started on a bill and the page follows that bill for them | `bill_id`, `action: "followed" \| "unfollowed"`, `surface: "bill_page" \| "account"`; from the bill page also `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-alert-button.tsx`, `app/account/account-view.tsx` (Unfollow) |
+| `pro_checkout_started` | Reader pressed a subscribe button and is about to leave for Stripe Checkout | `interval: "month" \| "year"`, `surface: "pro_page" \| "alert_prompt"` (`alert_prompt`: the bill page's Pro dialog, or a legacy `/pro?bill=…` link; `account` and `rate_limit` are accepted but not sent today) | `components/pro/plan-compare.tsx` (`useProCheckout`), used by `components/pro/pro-dialog.tsx` and `components/pro/subscribe-panel.tsx` |
+| `pro_checkout_failed` | Checkout could not be opened | `interval`, `reason` (our error code, e.g. `BILLING_NOT_CONFIGURED`) | `components/pro/plan-compare.tsx` (`useProCheckout`) |
+| `pro_checkout_returned` | Reader came back from Stripe: the success URL (`/account?checkout=success`, or `/bills/<id>?checkout=success` when the checkout started from that bill's Pro dialog) or the cancel URL (`/pro?checkout=canceled`, or the bill's) | `outcome: "success" \| "canceled"` | `app/account/page.tsx`, `components/bills/bill-alert-button.tsx`, `components/pro/subscribe-panel.tsx` |
+| `pro_activated` | After a successful checkout, the page Stripe returned to saw the plan become Pro (the webhook landed): the account page, or since 2026-09-29 the bill page the checkout started from. Since 2026-09-24 the same moment opens the one-time "Welcome to Pro" celebration (confetti and a dialog), so this event also counts the celebrations shown | `interval: "month" \| "year" \| "unknown"` | `app/account/page.tsx`, `components/bills/bill-alert-button.tsx` |
+| `pro_welcome_step_clicked` | A new subscriber pressed a next step in the "Welcome to Pro" dialog: "Follow a bill" (goes to `/bills`) or "Ask away" (opens the ask panel, which also sends `answer_panel_opened` with trigger `manual`). Closing the dialog sends nothing. On a bill page the first step reads "You're following this bill" and only closes the dialog, so it sends nothing either | `step: "follow_bill" \| "ask"` | `components/pro/welcome-to-pro.tsx` |
 | `billing_portal_opened` | Reader pressed "Manage billing" and is being sent to the Stripe customer portal | — | `app/account/account-view.tsx` |
 | `bill_alerts_unsubscribed` | Reader used the link in an alert email to stop all alert emails | `removed` (number of bills unfollowed) | `app/alerts/unsubscribe/unsubscribe-form.tsx` |
 

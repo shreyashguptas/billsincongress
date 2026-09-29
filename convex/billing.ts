@@ -229,10 +229,29 @@ async function expireOlderCheckouts(
   }
 }
 
+/**
+ * Where Stripe sends the reader back to. A checkout started from a bill page's
+ * Pro dialog returns to that bill, which finishes following it once the plan
+ * is Pro; any other returns to the account page (success) or /pro (cancel).
+ * A bill id is only ever letters and digits ("10610hr119"), so anything else
+ * is ignored rather than put into a URL.
+ */
+export function checkoutReturnUrls(site: string, billId: string | undefined) {
+  if (billId && /^[a-z0-9]{1,40}$/i.test(billId)) {
+    const bill = `${site}/bills/${billId}`;
+    return { success_url: `${bill}?checkout=success`, cancel_url: `${bill}?checkout=canceled` };
+  }
+  return { success_url: `${site}/account?checkout=success`, cancel_url: `${site}/pro?checkout=canceled` };
+}
+
 /** Returns the Stripe Checkout URL to send the reader to. */
 export const startCheckout = action({
-  args: { interval: v.union(v.literal("month"), v.literal("year")) },
-  handler: async (ctx, { interval }): Promise<{ url: string }> => {
+  args: {
+    interval: v.union(v.literal("month"), v.literal("year")),
+    /** The bill whose "Email me updates" led here; Stripe returns the reader to it. */
+    billId: v.optional(v.string()),
+  },
+  handler: async (ctx, { interval, billId }): Promise<{ url: string }> => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new ConvexError("UNAUTHENTICATED");
     await rateLimiter.limit(ctx, "billingActionPerUser", { key: userId, throws: true });
@@ -263,8 +282,7 @@ export const startCheckout = action({
             "Cancel any time from your account page. Reading the site stays free either way.",
         },
       },
-      success_url: `${siteUrl()}/account?checkout=success`,
-      cancel_url: `${siteUrl()}/pro?checkout=canceled`,
+      ...checkoutReturnUrls(siteUrl(), billId),
     });
     if (!session.url) throw new ConvexError("CHECKOUT_UNAVAILABLE");
     await expireOlderCheckouts(stripe, customerId, session);

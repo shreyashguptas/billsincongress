@@ -475,8 +475,8 @@ export const analytics = {
 
   /**
    * A reader who is not on Pro pressed "Email me updates" and was shown the
-   * upgrade prompt — the alert-as-upgrade-driver moment. `signed_in: false`
-   * readers are sent to sign in first.
+   * Pro dialog over the bill — the alert-as-upgrade-driver moment. A
+   * `signed_in: false` reader who presses Subscribe there signs in first.
    */
   billAlertUpsellShown: (props: { bill_id: string; signed_in: boolean }) =>
     capture('bill_alert_upsell_shown', props),
