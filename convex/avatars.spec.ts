@@ -101,6 +101,35 @@ describe("profile photos", () => {
     expect(await fileExists(t, huge)).toBe(false);
   });
 
+  test("refuses an oversized upload without reading it", async () => {
+    const t = setup();
+    const me = asUser(t, await seedUser(t));
+    const huge = await store(t, WEBP_HEAD, 600 * 1024);
+    // Count reads of stored files: convex-test routes `ctx.storage.get`
+    // through the `storage/getBlob` syscall on `global.Convex`.
+    let reads = 0;
+    const g = globalThis as unknown as { Convex: Record<string, unknown> };
+    const real = g.Convex;
+    g.Convex = {
+      get syscall() { return real.syscall; },
+      get asyncSyscall() { return real.asyncSyscall; },
+      get jsSyscall() {
+        const inner = real.jsSyscall as (op: string, args: unknown) => unknown;
+        return (op: string, args: unknown) => {
+          if (op === "storage/getBlob") reads++;
+          return inner(op, args);
+        };
+      },
+    };
+    try {
+      await expect(me.action(api.avatars.setAvatar, { storageId: huge })).rejects.toThrow(/AVATAR_INVALID/);
+    } finally {
+      g.Convex = real;
+    }
+    expect(reads).toBe(0);
+    expect(await fileExists(t, huge)).toBe(false);
+  });
+
   test("cannot take another reader's photo", async () => {
     const t = setup();
     const alice = asUser(t, await seedUser(t, { email: "alice@example.com" }));

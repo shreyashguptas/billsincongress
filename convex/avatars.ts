@@ -4,6 +4,7 @@ import {
   action,
   mutation,
   internalMutation,
+  internalQuery,
   type QueryCtx,
   type MutationCtx,
 } from "./_generated/server";
@@ -90,22 +91,34 @@ export function sniffImage(head: Uint8Array): "webp" | "jpeg" | "png" | null {
   return null;
 }
 
+/** A stored file's size from its metadata, without reading the file. */
+export const uploadSize = internalQuery({
+  args: { storageId: v.id("_storage") },
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx, { storageId }) => (await ctx.db.system.get("_storage", storageId))?.size ?? null,
+});
+
 /**
  * Check an uploaded file and attach it as the caller's photo. An action,
  * because only actions can read a stored file's bytes. A file that is too big
- * or is not an image is deleted and refused.
+ * or is not an image is deleted and refused. The size is checked from the
+ * metadata first: an upload URL takes a file of any size, and reading a huge
+ * one into the action just to refuse it is the cost this avoids.
  */
 export const setAvatar = action({
   args: { storageId: v.id("_storage") },
   returns: v.null(),
   handler: async (ctx, { storageId }) => {
     if (!(await getAuthUserId(ctx))) throw new ConvexError("UNAUTHENTICATED");
+    const size: number | null = await ctx.runQuery(internal.avatars.uploadSize, { storageId });
+    if (size === null) throw new ConvexError("AVATAR_MISSING");
+    if (size > AVATAR_MAX_BYTES) {
+      await ctx.runMutation(internal.avatars.discardUpload, { storageId });
+      throw new ConvexError("AVATAR_INVALID");
+    }
     const file = await ctx.storage.get(storageId);
     if (!file) throw new ConvexError("AVATAR_MISSING");
-    const valid =
-      file.size <= AVATAR_MAX_BYTES &&
-      sniffImage(new Uint8Array(await file.slice(0, 12).arrayBuffer())) !== null;
-    if (!valid) {
+    if (sniffImage(new Uint8Array(await file.slice(0, 12).arrayBuffer())) === null) {
       await ctx.runMutation(internal.avatars.discardUpload, { storageId });
       throw new ConvexError("AVATAR_INVALID");
     }
