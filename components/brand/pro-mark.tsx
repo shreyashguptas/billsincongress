@@ -36,6 +36,7 @@ const SIZES = {
 export function AvatarMark({
   initials,
   src,
+  onPhotoError,
   pro,
   size = 'lg',
   className,
@@ -43,6 +44,7 @@ export function AvatarMark({
   initials: string;
   /** The profile photo (convex/avatars.ts). Initials show while it is absent or broken. */
   src?: string | null;
+  onPhotoError?: (src: string) => void;
   pro: boolean;
   size?: keyof typeof SIZES;
   className?: string;
@@ -57,7 +59,7 @@ export function AvatarMark({
         s.text,
       )}
     >
-      <AvatarPhoto src={src} fallback={initials} />
+      <AvatarPhoto src={src} fallback={initials} onError={onPhotoError} />
     </span>
   );
   return (

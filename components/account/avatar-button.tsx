@@ -85,7 +85,10 @@ export function AvatarButton({
   const [pageError, setPageError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
-  const hasPhoto = src !== null;
+  // A photo that failed to load (an expired Google link) shows initials, so the
+  // control treats it as no photo: hover says "Upload", a click opens the picker.
+  const [brokenSrc, setBrokenSrc] = React.useState<string | null>(null);
+  const hasPhoto = src !== null && src !== brokenSrc;
   const offerGoogle = hasGooglePicture && source !== 'google';
 
   function pick() {
@@ -172,7 +175,7 @@ export function AvatarButton({
 
   const face = (
     <>
-      <AvatarMark initials={initials} src={src} pro={pro} size="lg" />
+      <AvatarMark initials={initials} src={src} onPhotoError={setBrokenSrc} pro={pro} size="lg" />
       {/* Hover and keyboard focus say what a click does. */}
       <span
         aria-hidden="true"
@@ -230,7 +233,7 @@ export function AvatarButton({
                 Use Google photo
               </DropdownMenuItem>
             )}
-            {source && (
+            {source && hasPhoto && (
               <DropdownMenuItem
                 onSelect={() => run(actions.remove, () => analytics.avatarRemoved(source))}
                 className="cursor-pointer"

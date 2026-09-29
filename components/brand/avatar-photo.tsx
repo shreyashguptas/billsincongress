@@ -7,7 +7,16 @@ import { useEffect, useState, type ReactNode } from 'react';
  * when there is no photo or it will not load — a Google picture URL can
  * expire, and a network can block the storage host.
  */
-export function AvatarPhoto({ src, fallback }: { src: string | null | undefined; fallback: ReactNode }) {
+export function AvatarPhoto({
+  src,
+  fallback,
+  onError,
+}: {
+  src: string | null | undefined;
+  fallback: ReactNode;
+  /** Told when the photo fails, so a control can stop treating it as present. */
+  onError?: (src: string) => void;
+}) {
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => setFailed(null), [src]);
   if (!src || failed === src) return <>{fallback}</>;
@@ -20,7 +29,10 @@ export function AvatarPhoto({ src, fallback }: { src: string | null | undefined;
       draggable={false}
       referrerPolicy="no-referrer"
       decoding="async"
-      onError={() => setFailed(src)}
+      onError={() => {
+        setFailed(src);
+        onError?.(src);
+      }}
       className="h-full w-full rounded-full object-cover"
     />
   );
