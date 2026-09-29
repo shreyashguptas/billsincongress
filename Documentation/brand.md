@@ -321,8 +321,12 @@ break that, and each is fixed at the root, not per component:
   sets the baseline — the lockup, which sits its wordmark on the mark's floor
   on purpose (see Logo).
 - **A label that wraps** centres the icon on the whole block. Keep icon labels
-  to one line; where one must wrap, make the row `items-start` and put the
-  icon in a box one line tall (`flex h-[1lh] items-center`).
+  to one line; where one must wrap, make the row `items-start`, give it the
+  label's text size so `1lh` is one line of the label, and put the icon in a
+  box that tall (`flex h-[1lh] items-center`). A badge taller than the line
+  overhangs that box, so pad the row by the overhang:
+  `py-[max(0px,calc((<badge>-1lh)/2))]` (the Learn steps and the bill stage
+  do this).
 
 In development, `components/brand/icon-alignment-check.tsx` measures every page
 after it settles and warns in the console (`[icon-alignment]`) about any of

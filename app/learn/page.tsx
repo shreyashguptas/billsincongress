@@ -58,10 +58,12 @@ function Step({
 }) {
   const Glyph = typeof node === 'number' ? null : node;
   const caption = (
-    <div className="flex items-start gap-4">
-      {/* A box one line of the title tall keeps the badge level with the
-          title's first line (brand.md, "Icons beside text"). */}
-      <span aria-hidden="true" className="flex h-[1lh] shrink-0 items-center text-display-sm">
+    // The row carries the title's size so 1lh is one line of the title: the
+    // badge sits in a box that tall, level with the first line, and the row is
+    // padded by the half of the 44px badge that overhangs the box (brand.md,
+    // "Icons beside text").
+    <div className="flex items-start gap-4 py-[max(0px,calc((2.75rem-1lh)/2))] text-display-sm">
+      <span aria-hidden="true" className="flex h-[1lh] shrink-0 items-center">
         <span className={cn('flex h-11 w-11 items-center justify-center rounded-full text-on-ink', tone)}>
           {Glyph ? (
             <Glyph className="h-5 w-5" strokeWidth={1.75} />
@@ -72,7 +74,7 @@ function Step({
       </span>
       <div>
         <h3 className="text-display-sm text-ink">{title}</h3>
-        {sub && <p className="mt-1.5 text-ink-2 sm:text-lg">{sub}</p>}
+        {sub && <p className="mt-1.5 text-base text-ink-2 sm:text-lg">{sub}</p>}
       </div>
     </div>
   );

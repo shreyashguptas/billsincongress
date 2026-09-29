@@ -275,10 +275,12 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                 Current status
               </p>
               {/* "Passed one chamber" wraps in the 280px column, so the badge
-                  sits in a box one line tall and stays beside the first line
+                  sits in a box one line tall and stays beside the first line.
+                  The row carries the label's size so 1lh is that line, and
+                  pads by whatever of the 36px badge overhangs it (on phones)
                   (brand.md, "Icons beside text"). */}
-              <div className="mt-3 flex items-start gap-3">
-                <span className="flex h-[1lh] shrink-0 items-center text-display-sm sm:text-display-md" aria-hidden="true">
+              <div className="mt-3 flex items-start gap-3 py-[max(0px,calc((2.25rem-1lh)/2))] text-display-sm sm:text-display-md">
+                <span className="flex h-[1lh] shrink-0 items-center" aria-hidden="true">
                   <span
                     className={cn(
                       'flex h-9 w-9 items-center justify-center rounded-full text-on-ink',
