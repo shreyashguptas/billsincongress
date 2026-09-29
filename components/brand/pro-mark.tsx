@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { AvatarPhoto } from './avatar-photo';
 
 /**
  * The Pro mark (Documentation/brand.md, "Pro"): a reader on Pro wears the
@@ -28,17 +29,20 @@ const SIZES = {
 } as const;
 
 /**
- * Initials in a circle. `pro` draws the spectrum ring, then a paper gap, then
- * the circle, so the ring never touches the letters. Decorative: the name and
- * the plan are always said in words beside it.
+ * The reader's photo, or their initials, in a circle. `pro` draws the spectrum
+ * ring, then a paper gap, then the circle, so the ring never touches the
+ * face. Decorative: the name and the plan are always said in words beside it.
  */
 export function AvatarMark({
   initials,
+  src,
   pro,
   size = 'lg',
   className,
 }: {
   initials: string;
+  /** The profile photo (convex/avatars.ts). Initials show while it is absent or broken. */
+  src?: string | null;
   pro: boolean;
   size?: keyof typeof SIZES;
   className?: string;
@@ -47,13 +51,13 @@ export function AvatarMark({
   const face = (
     <span
       className={cn(
-        'flex h-full w-full items-center justify-center rounded-full bg-sunken font-mono uppercase text-ink',
+        'flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-sunken font-mono uppercase text-ink',
         // `group-hover` answers the header button's hover.
         !pro && 'border border-line-strong group-hover:border-ink',
         s.text,
       )}
     >
-      {initials}
+      <AvatarPhoto src={src} fallback={initials} />
     </span>
   );
   return (
