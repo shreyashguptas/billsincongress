@@ -56,9 +56,12 @@ export function workLine(e: WorkEntry): WorkLine {
   };
 }
 
-/** The collapsed trail's count. A retry is not a lookup, so it is not counted. */
+/**
+ * The collapsed trail's count. A retry and a question to the reader are not
+ * lookups, so they are not counted.
+ */
 export function lookupSummary(entries: WorkEntry[]): string {
-  const n = entries.filter((e) => e.tool !== 'retry').length;
+  const n = entries.filter((e) => e.tool !== 'retry' && e.tool !== 'ask').length;
   if (n === 0) return 'no lookups';
   return `${n} lookup${n === 1 ? '' : 's'}`;
 }

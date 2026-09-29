@@ -726,7 +726,7 @@ export const ask = internalAction({
  * SSE entry point (spec §7.3). Same loop as `ask`, streamed as it happens.
  *
  * Events: work {tool,detail} · delta {text} · done {sources,dropped,partial}
- *         · rate_limited {kind,max,resetAt} · error {message}
+ *         · rate_limited {kind,max,resetAt} · error {message, reason?}
  */
 export const stream = httpAction(async (ctx, request) => {
   const body = await request.json().catch(() => ({}));
@@ -794,7 +794,9 @@ export const stream = httpAction(async (ctx, request) => {
         });
         // No answer: not streamed, not saved, and not counted as an answer.
         if (result.error) {
-          send("error", { message: EMPTY_MODEL_OUTPUT_MESSAGE, reason: result.error });
+          const message =
+            result.error === EMPTY_MODEL_OUTPUT ? EMPTY_MODEL_OUTPUT_MESSAGE : result.error;
+          send("error", { message, reason: result.error });
           controller.close();
           return;
         }

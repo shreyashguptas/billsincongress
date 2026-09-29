@@ -79,6 +79,12 @@ it("does not count a retry as a lookup", () => {
   assert.equal(lookupSummary([retry]), "no lookups");
 });
 
+it("does not count a question to the reader as a lookup", () => {
+  const fetch = { tool: "fetch", detail: "the bill on screen · 1s119" };
+  const ask = { tool: "ask", detail: "Which Congress do you mean?" };
+  assert.equal(lookupSummary([fetch, ask]), "1 lookup");
+});
+
 it("says a partial search was partial, in plain words", () => {
   const line = workLine({ tool: "fetch", detail: fetchDetail("sponsors", workLogLabel(partial)) });
   assert.equal(line.text, "Searched sponsors · partial results");

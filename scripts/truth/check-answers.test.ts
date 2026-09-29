@@ -154,6 +154,15 @@ it("counts an error, an empty answer and a question back as unscoreable", () => 
   assert.match(asked.said ?? "", /Which Congress/);
 });
 
+it("counts the empty-model-output failure as unscoreable, and names it", () => {
+  // Before issue #134 the loop gave up on a narration-only round and returned
+  // "I could not finish looking that up" as the answer. It now comes back as
+  // an error, and the scorecard must say which failure it was.
+  const r = scoreRun(total, { text: "", error: "empty_model_output" });
+  assert.equal(r.outcome, "UNCHECKABLE");
+  assert.equal(r.got, "empty_model_output");
+});
+
 // --- reading the CLI --------------------------------------------------------
 
 it("finds the result object under the CLI's own chatter", () => {
