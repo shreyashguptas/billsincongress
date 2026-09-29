@@ -191,9 +191,13 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
   // what they just opened.
   const writingRef = useRef(false);
   const revealingRef = useRef(new Map<string, boolean>());
+  // The same, as state, for the screen-reader status below: it must not say
+  // "Answer ready." while the answer is still being written onto the page.
+  const [revealingCount, setRevealingCount] = useState(0);
   const onRevealing = useCallback<OnRevealing>((id, active) => {
     const revealing = revealingRef.current;
     revealing.set(id, active);
+    setRevealingCount([...revealing.values()].filter(Boolean).length);
     if (active) return;
     // Held for two frames. The render that finishes a reveal adds the last
     // words and the sources, and React can report the reveal finished before
@@ -296,7 +300,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
       {/* Answers stream in silently. This is the only thing that tells a screen
           reader an answer is on its way, and that one has arrived. */}
       <p aria-live="polite" className="sr-only">
-        {streaming
+        {streaming || revealingCount > 0
           ? 'Writing an answer…'
           : awaitingReply
             ? 'A question for you, in the thread. Reply in the box below.'
