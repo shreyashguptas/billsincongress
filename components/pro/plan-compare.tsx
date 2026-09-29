@@ -28,6 +28,25 @@ const FAILURE_COPY: Record<string, string> = {
 };
 
 /**
+ * The bill a checkout in this tab started from. The bill page acts on
+ * `?checkout=…` only when this matches, so a shared or hand-typed link cannot
+ * follow a bill for a reader or replay the Pro welcome. Session storage
+ * survives the round trip to Stripe in the same tab.
+ */
+export const CHECKOUT_BILL_KEY = 'bic-checkout-bill';
+
+/** Reads and clears the marker; true only if it named `billId`. */
+export function takeCheckoutBill(billId: string): boolean {
+  try {
+    const started = window.sessionStorage.getItem(CHECKOUT_BILL_KEY);
+    window.sessionStorage.removeItem(CHECKOUT_BILL_KEY);
+    return started === billId;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Everything a subscribe button needs: who the reader is, their plan, and a
  * `choose` that opens Stripe Checkout (or sends a signed-out reader to sign in
  * and back to `returnTo`). Shared by the /pro page and the bill page's dialog.
@@ -44,6 +63,9 @@ export function useProCheckout(surface: 'pro_page' | 'alert_prompt', returnTo: s
   // outright, and production hides why ("Server Error", no error code). So a
   // failure that is not one of our coded refusals is retried once without the
   // bill: Checkout still opens, it just returns to the account page.
+  // TODO(2026-09-29): remove once the `billId` version of convex/billing.ts is
+  // deployed (after PR #137). Until then a Stripe or network failure is also
+  // retried, costing a second session and the return to the bill.
   const startWithFallback = async (interval: ProInterval) => {
     if (!billId) return startCheckout({ interval });
     try {
@@ -64,9 +86,21 @@ export function useProCheckout(surface: 'pro_page' | 'alert_prompt', returnTo: s
     setBusy(interval);
     analytics.proCheckoutStarted({ interval, surface });
     try {
+      if (billId) {
+        try {
+          window.sessionStorage.setItem(CHECKOUT_BILL_KEY, billId);
+        } catch {
+          // No storage: the reader still pays, and lands on the bill without the auto-follow.
+        }
+      }
       const { url } = await startWithFallback(interval);
       window.location.href = url;
     } catch (err) {
+      try {
+        window.sessionStorage.removeItem(CHECKOUT_BILL_KEY);
+      } catch {
+        // Nothing stored to clear.
+      }
       const code = err instanceof ConvexError ? billingErrorCode(err.data) : 'UNKNOWN';
       analytics.proCheckoutFailed({ interval, reason: code });
       setError(FAILURE_COPY[code] ?? 'Could not open checkout. Please try again.');

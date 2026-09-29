@@ -12,6 +12,7 @@ import { analytics } from '@/lib/analytics';
 import { useConvexEnabled } from '@/components/convex-client-provider';
 import { Button } from '@/components/ui/button';
 import { initialsFor } from '@/components/brand/pro-mark';
+import { takeCheckoutBill } from '@/components/pro/plan-compare';
 
 // Loaded on first press: most readers never open it.
 const ProDialog = dynamic(() => import('@/components/pro/pro-dialog'));
@@ -41,6 +42,8 @@ interface BillAlertButtonProps {
  * follows this bill (what the reader pressed the button for) and shows the
  * Welcome to Pro celebration; `?checkout=canceled` reopens the dialog; and
  * `?upgrade=1` (back from signing in) reopens it for a reader not yet on Pro.
+ * The checkout returns are honoured only when this tab started that checkout
+ * for this bill (`takeCheckoutBill`), so a link cannot follow a bill.
  * The address is read from `window.location`, not `useSearchParams`, so the
  * bill page stays statically rendered.
  */
@@ -82,6 +85,9 @@ function BillAlertButtonInner({ billId, analyticsProps, className }: BillAlertBu
     url.searchParams.delete('checkout');
     url.searchParams.delete('upgrade');
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    // Only a checkout this tab started for this bill counts; a link carrying
+    // `?checkout=` does nothing.
+    if (checkout !== null && !takeCheckoutBill(billId)) return;
     if (checkout === 'success') {
       analytics.proCheckoutReturned('success');
       setReturned('success');

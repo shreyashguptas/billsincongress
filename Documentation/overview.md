@@ -1039,7 +1039,10 @@ following) or **"Updates paused"** (following, but Pro has ended; a click unfoll
 not on Pro who presses it gets the Pro dialog (`components/pro/pro-dialog.tsx`) over the bill:
 Free and Pro side by side and the two subscribe buttons. The reader comes back to that bill
 from every branch, read from `window.location` so the page stays static, and dropped from the
-address once read:
+address once read. The two `checkout` returns count only when this tab started a checkout for
+this bill: the dialog writes the bill id to session storage (`bic-checkout-bill`) before going
+to Stripe, and the bill page reads and clears it. A link someone shares with `?checkout=success`
+on it does nothing, so it cannot follow a bill for a Pro reader or replay the welcome.
 
 - `?upgrade=1`: back from signing in (a signed-out reader who pressed Subscribe). The dialog
   opens again, unless the account turns out to be Pro already.
