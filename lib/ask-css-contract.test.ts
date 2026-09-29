@@ -49,6 +49,7 @@ function it(name: string, fn: () => void) {
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const css = readFileSync(join(root, 'app/globals.css'), 'utf8');
 const nav = readFileSync(join(root, 'components/navigation.tsx'), 'utf8');
+const panel = readFileSync(join(root, 'components/answers/answer-panel.tsx'), 'utf8');
 
 it('pushes the page at exactly the viewport the clamp protects', () => {
   assert.ok(
@@ -104,6 +105,17 @@ it('derives the header heights from the navigation the reader actually sees', ()
   assert.equal(byWidth.get(0), 56 + BORDER, 'h-14 (56px) + the header border');
   assert.equal(byWidth.get(640), 64 + BORDER, 'sm:h-16 (64px) + the header border');
   assert.equal(byWidth.size, 2, 'one header row: a height per breakpoint where h-14 / sm:h-16 changes');
+});
+
+it("makes the panel's title bar as tall as the site header from lg up", () => {
+  // Docked, the panel runs full height beside the header, so the two bottom
+  // rules must meet in one line. A bar sized by its own padding sat ~10px
+  // higher than the header's rule — the seam this assertion exists to stop.
+  assert.ok(
+    panel.includes('lg:h-[var(--header-h)]'),
+    'answer-panel.tsx no longer sizes its title bar to --header-h; docked, its bottom rule ' +
+      "will not line up with the site header's.",
+  );
 });
 
 it('keeps the panel under the portaled dialogs and over the page', () => {
