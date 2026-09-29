@@ -15,8 +15,9 @@ import { Confetti } from './confetti';
 /**
  * The moment a reader becomes Pro: confetti in the spectrum (skipped under
  * reduced motion), and a dialog with their avatar in the Pro ring and two
- * next steps. The account page lazy-loads this file and opens it once, when a
- * successful checkout turns the plan Pro (see `pro_activated`).
+ * next steps. The account page, and a bill page the checkout started from,
+ * lazy-load this file and open it once, when a successful checkout turns the
+ * plan Pro (see `pro_activated`).
  */
 export default function WelcomeToPro({
   open,
@@ -24,12 +25,15 @@ export default function WelcomeToPro({
   initials,
   questionsPerDay,
   alertBills,
+  followingBill = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initials: string;
   questionsPerDay: number;
   alertBills: number;
+  /** Opened on a bill page that has just been followed for the reader. */
+  followingBill?: boolean;
 }) {
   const { setOpen: setAskOpen } = useAnswers();
   const doneRef = useRef<HTMLButtonElement>(null);
@@ -58,16 +62,20 @@ export default function WelcomeToPro({
             </DialogDescription>
           </div>
           <ul className="grid gap-3 border-t border-line bg-sunken/60 p-4">
-            <Step
-              icon={Bell}
-              title="Follow a bill"
-              sub={`Up to ${alertBills}, by email`}
-              href="/bills"
-              onPick={() => {
-                analytics.proWelcomeStepClicked('follow_bill');
-                onOpenChange(false);
-              }}
-            />
+            {followingBill ? (
+              <Step icon={Bell} title="You're following this bill" sub="An email the morning it moves" onPick={() => onOpenChange(false)} />
+            ) : (
+              <Step
+                icon={Bell}
+                title="Follow a bill"
+                sub={`Up to ${alertBills}, by email`}
+                href="/bills"
+                onPick={() => {
+                  analytics.proWelcomeStepClicked('follow_bill');
+                  onOpenChange(false);
+                }}
+              />
+            )}
             <Step
               icon={MessageCircle}
               title="Ask away"

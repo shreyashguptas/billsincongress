@@ -16,8 +16,17 @@ const INNER = [
   [14.91, 25.75], [20.41, 21.13], [27.59, 21.13], [33.09, 25.75],
 ] as const;
 
+/**
+ * The ink's own bounds on the 48-unit grid: the outer seats' edges left and
+ * right, the top of the highest seats, the bottom of the floor. The lockup
+ * draws the mark cropped to these so its bottom edge IS the floor, and the
+ * wordmark's baseline can sit on it.
+ */
+const INK_BOX = '3.33 10.43 41.34 30.07';
+
 export function ChamberMark({
   spectrum = false,
+  trim = false,
   className,
 }: {
   /**
@@ -25,10 +34,15 @@ export function ChamberMark({
    * ink-3. Once per surface, at 48px or larger (brand.md).
    */
   spectrum?: boolean;
+  /**
+   * Crop to the ink (INK_BOX) instead of the square 48-unit tile. The size
+   * classes then describe the drawing itself, not a padded square around it.
+   */
+  trim?: boolean;
   className?: string;
 }) {
   return (
-    <svg viewBox="0 0 48 48" aria-hidden="true" className={cn('shrink-0', className)}>
+    <svg viewBox={trim ? INK_BOX : '0 0 48 48'} aria-hidden="true" className={cn('shrink-0', className)}>
       {OUTER.map(([cx, cy], i) => (
         <circle
           key={i}
@@ -55,17 +69,28 @@ export function ChamberMark({
 
 /**
  * The lockup: mark plus the wordmark "Bills in Congress", linking home.
- * Block-level (`flex w-fit`) so it never sits loose in a line of text, where
- * it would line up by the mark's bottom edge (brand.md, "Icons beside text").
+ *
+ * Aligned on the floor, not on box centres: the mark is cropped to its ink, so
+ * its bottom edge is the floor line, and `items-baseline` puts the wordmark's
+ * baseline exactly on it (a flex item with no text baseline — the svg — offers
+ * its bottom edge). Centring the two boxes instead left the text floating a few
+ * pixels above the floor, because the square tile has empty space above the
+ * seats and below the floor that the eye does not count.
+ *
+ * Mark sizes keep the drawing's 41.34:30.07 aspect and match the old square
+ * tile's ink: 28px tile → 18px tall, 32px → 20px, 36px → 22.5px.
  */
 export function Logo({ className, size = 'md' }: { className?: string; size?: 'md' | 'lg' }) {
   return (
     <Link
       href="/"
       aria-label="Bills in Congress, home"
-      className={cn('focus-ring flex w-fit items-center gap-2.5 rounded-sm text-ink', className)}
+      className={cn('focus-ring inline-flex items-baseline gap-2.5 rounded-sm text-ink', className)}
     >
-      <ChamberMark className={size === 'lg' ? 'h-9 w-9' : 'h-7 w-7 sm:h-8 sm:w-8'} />
+      <ChamberMark
+        trim
+        className={size === 'lg' ? 'h-[22.5px] w-[31px]' : 'h-[18px] w-[24.75px] sm:h-5 sm:w-[27.5px]'}
+      />
       <span
         className={cn(
           'whitespace-nowrap font-serif font-semibold leading-none tracking-[-0.012em]',
