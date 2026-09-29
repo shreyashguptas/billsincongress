@@ -66,24 +66,7 @@ export function Navigation() {
 
         {/* Centre: the logo on phones, the sections from md up. */}
         <Logo className="md:hidden" />
-        <nav aria-label="Main" className="hidden items-center gap-8 md:flex">
-          {routes.map((route) => (
-            <Link
-              key={route.href}
-              href={route.href}
-              aria-current={isActive(route.href) ? 'page' : undefined}
-              className={cn(
-                'focus-ring relative rounded-sm py-2 text-[15px] font-medium transition-colors',
-                isActive(route.href) ? 'text-ink' : 'text-ink-2 hover:text-ink',
-              )}
-            >
-              {route.label}
-              {isActive(route.href) && (
-                <span aria-hidden="true" className="absolute inset-x-0 -bottom-[13px] h-0.5 bg-ink sm:-bottom-[17px]" />
-              )}
-            </Link>
-          ))}
-        </nav>
+        <SectionTabs isActive={isActive} />
 
         <div className="flex items-center justify-end gap-1 sm:gap-2">
           <HeaderSearch />
@@ -91,6 +74,144 @@ export function Navigation() {
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * The four sections from md up, with one ink rule that belongs to the nav
+ * rather than to any link. It rests under the current section, glides to
+ * whichever one the pointer or keyboard is on, and returns when it leaves —
+ * so the reader always sees where they are and where a click would take them.
+ *
+ * The rule is measured, not guessed: its width is the label's own width and it
+ * sits just under the text, not on the header's bottom border. On first paint
+ * it grows out from the centre of the current label; it only ever slides once
+ * it is already showing, so it never sweeps in from the left edge. The whole
+ * nav is the hover region, so crossing the gap between two labels does not
+ * send it home and back.
+ */
+function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
+  const pathname = usePathname();
+  const navRef = React.useRef<HTMLElement>(null);
+  const labelRefs = React.useRef<Record<string, HTMLSpanElement | null>>({});
+  const [boxes, setBoxes] = React.useState<Record<string, { left: number; width: number }>>({});
+  const [hovered, setHovered] = React.useState<string | null>(null);
+  // A click holds the rule on its target until the new page's pathname lands,
+  // even if the pointer has already left the nav.
+  const [pending, setPending] = React.useState<string | null>(null);
+  // Whether the rule is at full width. It starts collapsed so the first
+  // appearance is a grow from the centre, and collapses again whenever there is
+  // no section to mark, so the next appearance grows in place rather than
+  // sliding over from wherever it was last.
+  const [grown, setGrown] = React.useState(false);
+
+  React.useEffect(() => setPending(null), [pathname]);
+
+  React.useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => {
+      const origin = nav.getBoundingClientRect().left;
+      const next: Record<string, { left: number; width: number }> = {};
+      for (const route of routes) {
+        const el = labelRefs.current[route.href];
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        next[route.href] = { left: r.left - origin, width: r.width };
+      }
+      setBoxes(next);
+    };
+    measure();
+    // Labels change width when the web font swaps in and when the nav appears
+    // at md; both show up as a resize of the nav.
+    const ro = new ResizeObserver(measure);
+    ro.observe(nav);
+    document.fonts?.ready.then(measure).catch(() => {});
+    return () => ro.disconnect();
+  }, []);
+
+  const active = routes.find((r) => isActive(r.href))?.href ?? null;
+  const target = hovered ?? pending ?? active;
+  const box = target ? boxes[target] : undefined;
+  const visible = Boolean(box);
+
+  React.useEffect(() => {
+    if (!visible) {
+      setGrown(false);
+      return;
+    }
+    // Two frames: one to paint the collapsed rule at its new place with no
+    // transition, one to let it grow.
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => setGrown(true));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [visible]);
+
+  // Where the rule last was, so leaving for a page with no section (/pro,
+  // /account) shrinks it into its own centre instead of jumping.
+  const [rest, setRest] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (box) setRest(target);
+  }, [box, target]);
+  const drawn = box ?? (rest ? boxes[rest] : undefined);
+  // Only a collapsed rule that is about to appear moves without a transition.
+  const animate = grown || !visible;
+
+  return (
+    <nav
+      ref={navRef}
+      aria-label="Main"
+      onMouseLeave={() => setHovered(null)}
+      className="relative hidden items-center gap-2 md:flex"
+    >
+      {routes.map((route) => {
+        const current = route.href === active;
+        return (
+          <Link
+            key={route.href}
+            href={route.href}
+            aria-current={current ? 'page' : undefined}
+            onMouseEnter={() => setHovered(route.href)}
+            onFocus={() => setHovered(route.href)}
+            onBlur={() => setHovered(null)}
+            onClick={(e) => {
+              // A modified click opens a new tab or window; this tab stays put,
+              // so holding the rule on the target would strand it there.
+              if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+              setPending(route.href);
+            }}
+            className={cn(
+              'focus-ring rounded-sm px-3 py-2.5 text-[15px] font-medium transition-colors duration-200',
+              current || route.href === target ? 'text-ink' : 'text-ink-2',
+            )}
+          >
+            <span
+              ref={(el) => {
+                labelRefs.current[route.href] = el;
+              }}
+            >
+              {route.label}
+            </span>
+          </Link>
+        );
+      })}
+      {drawn && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            // 50% + 10px is about 5px under the labels' baseline (none of the four has a descender).
+            'pointer-events-none absolute left-0 top-[calc(50%+10px)] h-0.5 rounded-full bg-ink',
+            animate &&
+              'transition-[transform,width] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+          )}
+          style={{
+            width: drawn.width,
+            transform: `translateX(${drawn.left}px) scaleX(${visible && grown ? 1 : 0})`,
+          }}
+        />
+      )}
+    </nav>
   );
 }
 

@@ -239,10 +239,21 @@ Patterns that appear on more than one page:
   It never becomes icon-only. After a copy it reads "Link copied" with `Check`
   for 2.5 seconds; a 9rem minimum width holds both labels, so the swap does
   not resize the button.
+- **Header sections** (md and up): Home, Bills, Learn, About in `ink-2`, the
+  current one in `ink`. One 2px ink rule, the label's exact width, sits about
+  5px under the labels — never on the header's bottom border. It rests under
+  the current section, glides (420ms, `cubic-bezier(0.22, 1, 0.36, 1)`) to
+  whichever label is hovered or focused, and returns when the pointer leaves
+  the nav. It first appears by growing out from the label's centre, and
+  shrinks into its centre on a page with no section. Still under
+  `prefers-reduced-motion`.
+- **Ask panel title bar**: from `lg` up, exactly the header's height
+  (`--header-h`), so docked beside it the two bottom rules are one line.
 - **Profile photo** (account page, `components/account/`): the avatar is the
   control. Hovering or focusing it lays an ink veil (`ink/70` over a photo,
-  solid over initials) with a Lucide `Camera` and "Upload" (or "Change"); a small `raised` circle with the
-  camera sits at its lower right at all times, for touch screens. With no photo
+  solid over initials) with a Lucide `Camera` and "Upload" (or "Change"); a
+  small `raised` circle with the camera sits at its lower right at all times,
+  for touch screens. With no photo
   a click opens the device's own picker; with one, a menu offers "Upload a
   photo", "Use Google photo" and "Remove photo". The crop dialog is a 280px
   square with the circle drawn in `line-strong` and everything outside it
@@ -301,6 +312,10 @@ What stays hand-built, on purpose:
   dots.
 - **The wordmark** is "Bills in Congress" in Newsreader 600 at -0.012em, 10px
   from the mark. Always those three words.
+- **The lockup sits on the floor.** The wordmark's baseline is the bottom of
+  the mark's floor line, not the centre of a box around the mark. The lockup
+  draws the mark cropped to its ink (`ChamberMark trim`) and aligns the two on
+  their baselines; in the header the section labels share that baseline.
 - **Colour**: ink on paper, or paper on ink. The spectrum version colours the
   six outer seats with `topic-1` … `topic-6` and the inner row `ink-3`. Use it
   once per surface, at 48px or larger. Never recolour the mark with party
@@ -426,7 +441,8 @@ connection returns.
 
 ## Pictures
 
-The Learn and Pro pages explain with pictures first and a few words after. The
+The Learn page, and the Pro page below its plan cards, explain with pictures
+first and a few words after. The
 pictures are flat SVG scenes drawn on the server (no client JavaScript), built
 from the primitives in `components/brand/pictures.tsx`: people, a page of
 writing, an arrow, the alert email as an envelope, a seven-step track.
@@ -455,6 +471,25 @@ A reader on Pro is shown so in one consistent way, the **Pro mark**:
   problem drops it.
 - **The pill**: `ProPill`, an outline badge with Pro's indigo dot and a word,
   in the account menu and beside the plan. The colour is never the only signal.
+
+**The plan cards** (`components/pro/plan-compare.tsx`) are how Pro is sold,
+on `/pro` and in the dialog "Email me updates" opens for a reader not on Pro.
+They are drawn the way readers already know from pricing pages, so nobody has
+to learn how to read them:
+
+- Free and Pro side by side, the same rows in the same order on each, so a
+  reader reads across. A row Free lacks is a `Minus` in `ink-3` with the words
+  in `ink-3`; never a red cross.
+- Pro's card has an ink edge (`border-ink` and a 1px ink ring) and the
+  monthly price large, with the yearly price and its free months under it.
+- The rows Pro adds take a check in Pro's indigo (`topic-3`); the words say it
+  too.
+- The two ways to pay are the two buttons on Pro's card: "Subscribe yearly" is
+  the ink button, "Subscribe monthly" the outline one, each with its price.
+- The whole choice fits on one screen at 1440 × 900 without scrolling. On a
+  phone the Pro card comes first, so both buttons are on screen, and Free
+  follows.
+- No spectrum strip or ring: those mean the reader already pays.
 
 The ring and the strip are the only decorative uses of the spectrum on the site
 besides the logo's spectrum mark and the email signature. They mean "this

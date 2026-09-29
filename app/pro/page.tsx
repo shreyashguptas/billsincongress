@@ -6,20 +6,17 @@ import {
   Bookmark,
   CalendarCheck,
   CreditCard,
-  FileText,
-  LayoutDashboard,
   Lock,
   MailX,
   MessageCircle,
   Server,
   User,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 
 import { sharedViewport } from '../shared-metadata';
-import { PlanCardsSkeleton, SubscribePanel } from '@/components/pro/subscribe-panel';
+import { SubscribePanel } from '@/components/pro/subscribe-panel';
+import { PlanCompareSkeleton } from '@/components/pro/plan-compare';
 import {
-  AlertHeroPicture,
   AlertsTilePicture,
   DiagramNode,
   IndependentTilePicture,
@@ -41,10 +38,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/pro' },
 };
 
-// The plan page in pictures, like /learn: a picture first, a big number, a few
-// words. Server-rendered; the only client JavaScript is the subscribe panel.
-// The one bold thing is the hero picture; the plan cards carry the one ink
-// button (Documentation/brand.md, "Principles").
+// The plan page: the plans first, as Free and Pro cards a reader can compare
+// at a glance, then what Pro adds and the questions in pictures, like /learn.
+// Server-rendered; the only client JavaScript is the subscribe panel. The one
+// bold thing is the Pro card (Documentation/brand.md, "Principles").
 
 function Section({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: ReactNode }) {
   return (
@@ -88,13 +85,6 @@ function AddTile({
     </li>
   );
 }
-
-const FREE: { icon: LucideIcon; label: string; sub: string }[] = [
-  { icon: FileText, label: 'Every bill page', sub: 'Status, summary, actions' },
-  { icon: LayoutDashboard, label: 'The dashboard', sub: 'And every browse page' },
-  { icon: MessageCircle, label: `${AUTHED_CHAT_DAILY_LIMIT} questions a day`, sub: 'With a free account' },
-  { icon: Bookmark, label: 'Save bills', sub: 'To your account' },
-];
 
 /** An arrow between diagram steps. */
 function Then() {
@@ -165,28 +155,23 @@ const FAQ: { q: string; a: string; picture: ReactNode }[] = [
 export default function ProPage() {
   return (
     <article className="animate-fade-in">
-      <header className="container-editorial grid items-center gap-10 pb-16 pt-12 sm:pb-20 sm:pt-16 lg:grid-cols-2 lg:gap-16">
-        <div>
-          <p className="label-eyebrow">Pro</p>
-          <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">Know the morning a bill moves.</h1>
-          <p className="mt-4 text-lg text-ink-2 sm:text-xl">Reading stays free. Pro watches the bills you follow.</p>
-          <a href="#plans" className="link focus-ring mt-6 inline-flex items-center gap-1.5 rounded-xs text-[15px] font-medium">
-            See the plans
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </a>
-        </div>
-        <div className="rounded-lg border border-line bg-raised p-5 sm:p-8">
-          <AlertHeroPicture />
-        </div>
+      {/* The plans come first and fit on one screen, like any pricing page: a
+          reader can decide without scrolling. The pictures below explain. */}
+      <header className="container-editorial pt-10 text-center sm:pt-14">
+        <p className="label-eyebrow">Pro</p>
+        <h1 className="mt-3 text-display-md text-ink sm:text-display-lg">Know the morning a bill moves.</h1>
+        <p className="mx-auto mt-3 max-w-xl text-[17px] text-ink-2 sm:text-lg">
+          Reading stays free. Pro emails you when the bills you follow move.
+        </p>
       </header>
 
-      <Section id="plans" eyebrow="Plans" title="One plan, two ways to pay">
+      <section id="plans" aria-label="Plans" className="container-editorial scroll-mt-24 pb-16 pt-8 sm:pb-24 sm:pt-10">
         <div className="mx-auto max-w-3xl">
-          <Suspense fallback={<PlanCardsSkeleton />}>
+          <Suspense fallback={<PlanCompareSkeleton />}>
             <SubscribePanel />
           </Suspense>
         </div>
-      </Section>
+      </section>
 
       <Section id="adds" eyebrow="What Pro adds" title="Three things, in pictures">
         <ul className="grid gap-6 md:grid-cols-3">
@@ -220,22 +205,6 @@ export default function ProPage() {
             unit="ads"
             line="No sponsors, no selling data. Subscriptions pay for the database, the AI and the email."
           />
-        </ul>
-      </Section>
-
-      <Section id="free" eyebrow="Free for everyone, always" title="Reading the site costs nothing">
-        <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          {FREE.map(({ icon: Icon, label, sub }) => (
-            <li key={label} className="flex flex-col items-start gap-3 rounded-md border border-line bg-raised p-4 sm:flex-row sm:items-center">
-              <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sunken text-ink">
-                <Icon className="h-5 w-5" strokeWidth={1.75} />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[15px] font-medium leading-snug text-ink tabular">{label}</span>
-                <span className="block text-[13px] leading-snug text-ink-3">{sub}</span>
-              </span>
-            </li>
-          ))}
         </ul>
       </Section>
 
