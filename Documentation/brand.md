@@ -417,7 +417,8 @@ connection returns.
 
 ## Pictures
 
-The Learn and Pro pages explain with pictures first and a few words after. The
+The Learn page, and the Pro page below its plan cards, explain with pictures
+first and a few words after. The
 pictures are flat SVG scenes drawn on the server (no client JavaScript), built
 from the primitives in `components/brand/pictures.tsx`: people, a page of
 writing, an arrow, the alert email as an envelope, a seven-step track.
@@ -446,6 +447,25 @@ A reader on Pro is shown so in one consistent way, the **Pro mark**:
   problem drops it.
 - **The pill**: `ProPill`, an outline badge with Pro's indigo dot and a word,
   in the account menu and beside the plan. The colour is never the only signal.
+
+**The plan cards** (`components/pro/plan-compare.tsx`) are how Pro is sold,
+on `/pro` and in the dialog "Email me updates" opens for a reader not on Pro.
+They are drawn the way readers already know from pricing pages, so nobody has
+to learn how to read them:
+
+- Free and Pro side by side, the same rows in the same order on each, so a
+  reader reads across. A row Free lacks is a `Minus` in `ink-3` with the words
+  in `ink-3`; never a red cross.
+- Pro's card has an ink edge (`border-ink` and a 1px ink ring) and the
+  monthly price large, with the yearly price and its free months under it.
+- The rows Pro adds take a check in Pro's indigo (`topic-3`); the words say it
+  too.
+- The two ways to pay are the two buttons on Pro's card: "Subscribe yearly" is
+  the ink button, "Subscribe monthly" the outline one, each with its price.
+- The whole choice fits on one screen at 1440 × 900 without scrolling. On a
+  phone the Pro card comes first, so both buttons are on screen, and Free
+  follows.
+- No spectrum strip or ring: those mean the reader already pays.
 
 The ring and the strip are the only decorative uses of the spectrum on the site
 besides the logo's spectrum mark and the email signature. They mean "this

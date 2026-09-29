@@ -94,7 +94,7 @@ app/                       Next.js App Router — 19 page.tsx files
   learn/                   How Congress works, in pictures (server-rendered)
     components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
   about/ privacy/ terms/   Content and legal
-  pro/                     The Pro plan page, in pictures (server-rendered; the subscribe panel is the only client code)
+  pro/                     The Pro plan page: plan cards first, then pictures (server-rendered; the subscribe panel is the only client code)
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
   sign-in/ sign-up/ forgot-password/
   api/                     answer/, bill-chat/send, bill-chat/usage
@@ -167,7 +167,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/enacted`, `/vetoed` | 5 stage hubs |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
-| `/pro` | The Pro plan in pictures: what it adds, the two prices, subscribe buttons (Stripe Checkout), the questions as picture cards |
+| `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
@@ -960,7 +960,8 @@ those sections say otherwise.
 
 ### How a reader becomes Pro
 
-1. `/pro` → `billing.startCheckout({interval})`. The action creates (once, idempotency key
+1. A subscribe button → `billing.startCheckout({interval})`. The buttons are on `/pro` and in the
+   Pro dialog a bill page opens (both from `components/pro/plan-compare.tsx`). The action creates (once, idempotency key
    `bic-customer-<userId>`) a Stripe customer tagged `metadata.app = "billsincongress"`,
    links it on `users.stripeCustomerId`, and returns a hosted Checkout URL. The subscription is
    tagged with the same `app` and the reader's `userId`.
@@ -983,8 +984,12 @@ those sections say otherwise.
 3. `billing.applySubscription` writes the plan: `active`, `trialing` and `past_due` are Pro
    (`past_due` keeps Pro while Stripe retries the card); everything else is free. An old
    subscription ending cannot downgrade a reader who is on a newer one.
-4. The success URL (`/account?checkout=success`) only waits for that write; the account page
-   updates live when it lands. Visiting it by hand grants nothing.
+4. The success URL only waits for that write; the page updates live when it lands. Visiting it
+   by hand grants nothing. It is `/account?checkout=success`, or `/bills/<id>?checkout=success`
+   when the checkout started from that bill's Pro dialog (`startCheckout` takes an optional
+   `billId`; `checkoutReturnUrls` in `convex/billing.ts` accepts only letters and digits and
+   otherwise falls back to the account page). The cancel URL is `/pro?checkout=canceled`, or
+   the bill with `?checkout=canceled`.
 
 "Manage billing" on `/account` opens the Stripe customer portal (`billing.openBillingPortal`)
 for card changes, switching monthly/yearly, cancelling, undoing a cancellation, and invoice
@@ -1030,7 +1035,23 @@ From then on the Pro mark (brand.md, "Pro") shows the plan: the spectrum ring ar
 the header and on `/account`, and a Pro pill in the account menu.
 
 On a bill page the follow button reads **"Email me updates"**, **"Emailing you updates"** (Pro,
-following) or **"Updates paused"** (following, but Pro has ended; a click unfollows).
+following) or **"Updates paused"** (following, but Pro has ended; a click unfollows). A reader
+not on Pro who presses it gets the Pro dialog (`components/pro/pro-dialog.tsx`) over the bill:
+Free and Pro side by side and the two subscribe buttons. The reader comes back to that bill
+from every branch, read from `window.location` so the page stays static, and dropped from the
+address once read:
+
+- `?upgrade=1`: back from signing in (a signed-out reader who pressed Subscribe). The dialog
+  opens again, unless the account turns out to be Pro already.
+- `?checkout=canceled`: the dialog opens again with "Checkout was canceled. You have not been
+  charged."
+- `?checkout=success`: a line under the button says the payment is being confirmed. When the
+  webhook makes the plan Pro, the page follows the bill (the thing the reader pressed the
+  button for) and shows the same Welcome to Pro celebration as `/account`, its first step
+  reading "You're following this bill". After a minute without the webhook the line says so
+  and gives the support address, as the account page does.
+
+`/pro?bill=<id>` (the older route) still works and sends Stripe back to that bill.
 
 **Stripe sends the money emails, we send the plan emails.** In the Stripe dashboard (live, and
 the sandbox for testing) turn on, under Settings → Business → Customer emails, **Successful
