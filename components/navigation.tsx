@@ -61,7 +61,7 @@ export function Navigation() {
               </nav>
             </SheetContent>
           </Sheet>
-          <Logo className="hidden md:inline-flex" />
+          <Logo className="hidden md:flex" />
         </div>
 
         {/* Centre: the logo on phones, the sections from md up. */}

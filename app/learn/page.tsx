@@ -59,17 +59,18 @@ function Step({
   const Glyph = typeof node === 'number' ? null : node;
   const caption = (
     <div className="flex items-start gap-4">
-      <span
-        aria-hidden="true"
-        className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-ink', tone)}
-      >
-        {Glyph ? (
-          <Glyph className="h-5 w-5" strokeWidth={1.75} />
-        ) : (
-          <span className="font-mono text-base tabular">{node as number}</span>
-        )}
+      {/* A box one line of the title tall keeps the badge level with the
+          title's first line (brand.md, "Icons beside text"). */}
+      <span aria-hidden="true" className="flex h-[1lh] shrink-0 items-center text-display-sm">
+        <span className={cn('flex h-11 w-11 items-center justify-center rounded-full text-on-ink', tone)}>
+          {Glyph ? (
+            <Glyph className="h-5 w-5" strokeWidth={1.75} />
+          ) : (
+            <span className="font-mono text-base tabular">{node as number}</span>
+          )}
+        </span>
       </span>
-      <div className="pt-1">
+      <div>
         <h3 className="text-display-sm text-ink">{title}</h3>
         {sub && <p className="mt-1.5 text-ink-2 sm:text-lg">{sub}</p>}
       </div>

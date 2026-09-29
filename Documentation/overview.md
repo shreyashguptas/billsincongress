@@ -100,6 +100,8 @@ app/                       Next.js App Router — 19 page.tsx files
   api/                     answer/, bill-chat/send, bill-chat/usage
   robots.ts sitemap.ts sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
+  fonts/                   The three faces (index.ts, shared with global-error.tsx); Newsreader re-centred
+                           on its capitals (scripts/generate-serif-font.ts), with its OFL licence
   error.tsx global-error.tsx   Client error boundaries (recover from a stale-asset chunk failure)
 
 components/                Shared React components
@@ -107,7 +109,8 @@ components/                Shared React components
                            hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
   brand/                   The design language in code (Documentation/brand.md): logo and
                            chamber mark, stage pill and track, party tag, section header,
-                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx)
+                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx);
+                           icon-alignment-check.tsx warns in dev about icons off their label
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
   bills/                   Card, details, save, alert and share buttons
@@ -122,7 +125,7 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 30 modules + 27 test files, then the folders below
+lib/                       Pure client/shared modules — 33 modules + 29 test files, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
@@ -132,6 +135,7 @@ lib/                       Pure client/shared modules — 30 modules + 27 test f
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
+  icon-alignment.ts        Measures the page for icons that do not line up with their label (dev only)
   og/                      The share cards: card-parts.tsx (frame, headline, track), bill-share-card.tsx,
                            hub-share-card.tsx + hub-share-data.ts (page cards and their figures),
                            home-share-card.tsx + home-share-data.ts, generic-share-card.tsx, all

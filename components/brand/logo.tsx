@@ -53,13 +53,17 @@ export function ChamberMark({
   );
 }
 
-/** The lockup: mark plus the wordmark "Bills in Congress", linking home. */
+/**
+ * The lockup: mark plus the wordmark "Bills in Congress", linking home.
+ * Block-level (`flex w-fit`) so it never sits loose in a line of text, where
+ * it would line up by the mark's bottom edge (brand.md, "Icons beside text").
+ */
 export function Logo({ className, size = 'md' }: { className?: string; size?: 'md' | 'lg' }) {
   return (
     <Link
       href="/"
       aria-label="Bills in Congress, home"
-      className={cn('focus-ring inline-flex items-center gap-2.5 rounded-sm text-ink', className)}
+      className={cn('focus-ring flex w-fit items-center gap-2.5 rounded-sm text-ink', className)}
     >
       <ChamberMark className={size === 'lg' ? 'h-9 w-9' : 'h-7 w-7 sm:h-8 sm:w-8'} />
       <span
