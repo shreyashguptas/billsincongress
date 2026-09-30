@@ -226,14 +226,18 @@ export function calculateBillStage(
 
 /**
  * The date stored as `bills.stageDate`: the day the bill reached its current
- * stage, falling back to its introduction date when no dated action says (a
- * bill still at "Introduced", or one whose actions carry no dates). Empty
- * strings are stored as absent, so an undated bill sorts after every dated one
- * in both directions rather than first in one of them.
+ * stage. A bill still at "Introduced" is dated by its introduction, which is
+ * exactly when it got there. Any other stage takes only a dated action: a law
+ * whose "Became Public Law" action carries no date is left undated rather than
+ * labelled "Became law" with its introduction date. Empty strings are stored as
+ * absent, so an undated bill sorts after every dated one in both directions
+ * rather than first in one of them.
  */
 export function stageDateFor(
-  computed: { stageDate: string | null },
+  computed: { stage: number; stageDate: string | null },
   introducedDate: string | undefined,
 ): string | undefined {
-  return computed.stageDate || introducedDate || undefined;
+  if (computed.stageDate) return computed.stageDate;
+  if (computed.stage === BillStages.INTRODUCED) return introducedDate || undefined;
+  return undefined;
 }

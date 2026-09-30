@@ -125,9 +125,10 @@ export default defineSchema({
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
     // The day the bill reached its current stage: when it became law, was
-    // vetoed, passed its first chamber, went to committee — or its introduction
-    // date. Derived with the stage (`calculateBillStage` + `stageDateFor`) and
-    // written alongside it, so the two never disagree. This, not
+    // vetoed, passed its first chamber, went to committee — or, still at
+    // "Introduced", its introduction date. Derived with the stage
+    // (`calculateBillStage` + `stageDateFor`) and written alongside it, so the
+    // two never disagree. This, not
     // latestActionDate, is what "newest law first" means: a committee can act on
     // a bill after it is signed, and 5 of 758 laws had a later latest action.
     // Absent (never "") when nothing dates it, so undated bills sort last.

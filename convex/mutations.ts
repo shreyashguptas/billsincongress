@@ -563,7 +563,10 @@ export const rederiveBillFieldsFromActions = internalMutation({
         skippedNoActions++;
         // Nothing to re-derive the stage from, but a bill still at
         // "Introduced" is dated by its introduction, which it always has.
-        const fallback = stageDateFor({ stageDate: null }, bill.introducedDate);
+        const fallback = stageDateFor(
+          { stage: BillStages.INTRODUCED, stageDate: null },
+          bill.introducedDate,
+        );
         if (
           (bill.progressStage === undefined ||
             bill.progressStage === BillStages.INTRODUCED) &&

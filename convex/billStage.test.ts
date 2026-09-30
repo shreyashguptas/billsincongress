@@ -235,6 +235,26 @@ it("leaves an introduced bill undated, and stageDateFor falls back to introducti
   assert.equal(stageDateFor(calculateBillStage([]), ""), undefined);
 });
 
+it("never dates a later stage by the introduction date", () => {
+  // The sync stores a missing actionDate as "". A law whose only "Became Public
+  // Law" action is undated must not read "Became law · <introduction date>".
+  const law = calculateBillStage([
+    on("2025-01-09", "Referred to the Committee on the Judiciary."),
+    on("", "Became Public Law No: 119-5."),
+  ]);
+  assert.equal(law.stage, BillStages.BECAME_LAW);
+  assert.equal(law.stageDate, null);
+  assert.equal(stageDateFor(law, "2025-01-03"), undefined);
+
+  // Passed both chambers, one passage undated: no date, not a guess.
+  const both = calculateBillStage([
+    on("2025-04-10", "Passed House", { type: "PassedHouse" }),
+    on("", "Passed Senate", { type: "PassedSenate" }),
+  ]);
+  assert.equal(both.stage, BillStages.PASSED_BOTH_CHAMBERS);
+  assert.equal(stageDateFor(both, "2025-01-03"), undefined);
+});
+
 if (failures.length > 0) {
   console.error(`\nbillStage: ${passed} passed, ${failures.length} FAILED\n`);
   console.error(failures.join("\n\n"));

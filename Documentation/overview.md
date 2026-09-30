@@ -477,7 +477,9 @@ Two design decisions worth knowing:
   for a Congress, because it matched the oldest 2,000 subject rows against the newest 1,200
   bills. `upsertBillSubject` writes both, or they drift.
 - **`bills.stageDate` is the day a bill reached its current stage** — became law, was
-  vetoed, passed its first chamber, was sent to committee — or its introduction date. It is
+  vetoed, passed its first chamber, was sent to committee — or, for a bill still at
+  "Introduced", its introduction date. A later stage with no dated action stays undated
+  rather than borrowing the introduction date. It is
   derived by the same `calculateBillStage` call as `progressStage` and written with it (by the
   sync's `upsertBill` and by `rederiveBillFieldsFromActions`), so the two never disagree. It is
   not `latestActionDate`: committees act on bills after they are signed, and 5 of 758 laws in
@@ -1774,8 +1776,9 @@ npx convex run congressApi:backfillBillFieldsFromActions '{}'
 ```
 
 The first fills the current Congress (the one the hub pages show) in minutes; the second the
-rest. Until it finishes, stage hubs still list every bill, in their old order, with no date on
-the undated rows. Deploy Convex before the site: a site that asks for `bills.listSorted` before
+rest. Until it finishes, stage hubs still list every bill, but only the bills the sync has
+re-dated since the deploy are in date order, at the top of "Newest first"; the rest follow in
+the order their rows were stored, with no date shown. Deploy Convex before the site: a site that asks for `bills.listSorted` before
 it exists falls back to the unsorted list.
 
 ---
