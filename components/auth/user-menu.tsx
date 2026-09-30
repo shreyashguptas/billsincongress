@@ -103,7 +103,7 @@ function UserMenuInner() {
           aria-label={isPro ? "Account menu, Pro plan" : "Account menu"}
           className="group h-9 w-9 rounded-full p-0 hover:bg-transparent touchable:h-9 touchable:w-9"
         >
-          <AvatarMark initials={initials} pro={isPro} size="sm" />
+          <AvatarMark initials={initials} src={user?.avatarUrl} pro={isPro} size="sm" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">

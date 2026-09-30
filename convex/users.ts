@@ -8,17 +8,25 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { avatarFor, googlePicture } from "./avatars";
 
 /**
- * Returns the current user's row, scoped to the caller. Never accepts a
- * userId arg — identity always comes from `getAuthUserId(ctx)`.
+ * Returns the current user's row, scoped to the caller, plus the photo their
+ * avatar shows (convex/avatars.ts). Never accepts a userId arg — identity
+ * always comes from `getAuthUserId(ctx)`.
  */
 export const currentUser = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
-    return await ctx.db.get(userId);
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+    return {
+      ...user,
+      ...(await avatarFor(ctx, user)),
+      hasGooglePicture: googlePicture(user) !== null,
+    };
   },
 });
 

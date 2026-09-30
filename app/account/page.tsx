@@ -8,9 +8,11 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { analytics } from "@/lib/analytics";
 import { useConvexEnabled } from "@/components/convex-client-provider";
 import { initialsFor } from "@/components/brand/pro-mark";
+import { AvatarStepError, convexReason, type AvatarActions } from "@/components/account/avatar-button";
 import { billsService, type ChatUsageResult } from "@/lib/services/bills-service";
 import { AccountSkeleton, AccountView } from "./account-view";
 
@@ -36,6 +38,10 @@ function AccountInner() {
   const alerts = useQuery(api.alerts.listMine, {});
   const openPortal = useAction(api.billing.openBillingPortal);
   const toggleAlert = useMutation(api.alerts.toggle);
+  const generateAvatarUploadUrl = useMutation(api.avatars.generateUploadUrl);
+  const setAvatar = useAction(api.avatars.setAvatar);
+  const removeAvatar = useMutation(api.avatars.removeAvatar);
+  const restoreGooglePicture = useMutation(api.avatars.restoreGooglePicture);
   const params = useSearchParams();
   // Back from Stripe Checkout. Read once, then dropped from the address so a
   // reload or a bookmarked link cannot claim a payment that is not happening
@@ -86,6 +92,38 @@ function AccountInner() {
     setCelebrating(true);
   }, [checkoutSucceeded, billing?.plan, billing?.interval]);
 
+  // The photo goes straight from the browser to Convex storage through a
+  // one-time URL, then setAvatar checks it and attaches it (convex/avatars.ts).
+  const avatarActions: AvatarActions = {
+    upload: async (photo) => {
+      let url: string;
+      try {
+        url = await generateAvatarUploadUrl({});
+      } catch (err) {
+        throw new AvatarStepError("upload", convexReason(err));
+      }
+      let storageId: string;
+      try {
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": photo.type }, body: photo });
+        if (!res.ok) throw new AvatarStepError("upload", `HTTP_${res.status}`);
+        ({ storageId } = await res.json());
+      } catch (err) {
+        throw err instanceof AvatarStepError ? err : new AvatarStepError("upload", "NETWORK");
+      }
+      try {
+        await setAvatar({ storageId: storageId as Id<"_storage"> });
+      } catch (err) {
+        throw new AvatarStepError("save", convexReason(err));
+      }
+    },
+    remove: async () => {
+      await removeAvatar({});
+    },
+    restoreGooglePicture: async () => {
+      await restoreGooglePicture({});
+    },
+  };
+
   if (user === undefined) return <AccountSkeleton />;
 
   if (user === null) {
@@ -113,6 +151,7 @@ function AccountInner() {
         checkoutSucceeded={checkoutSucceeded}
         openPortal={() => openPortal({})}
         toggleAlert={toggleAlert}
+        avatarActions={avatarActions}
         onSignOut={async () => {
           // Capture + reset PostHog identity before the auth state changes.
           analytics.signedOut();
@@ -129,6 +168,7 @@ function AccountInner() {
           open={celebrating}
           onOpenChange={setCelebrating}
           initials={initialsFor(user.name ?? user.email)}
+          avatarUrl={user.avatarUrl}
           questionsPerDay={billing.limits.questionsPerDay}
           alertBills={billing.limits.alertBills}
         />

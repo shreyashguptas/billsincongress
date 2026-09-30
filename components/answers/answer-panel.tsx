@@ -222,7 +222,12 @@ export function AnswerPanel() {
           <span className="h-1 w-9 rounded-full bg-line-strong" />
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pl-4 pr-2 lg:py-2 lg:pl-5 lg:pr-3">
+        {/*
+          From lg up this bar is exactly the site header's height, border
+          included (--header-h), so docked beside it the two bottom rules are
+          one continuous line across the window.
+        */}
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pl-4 pr-2 lg:h-[var(--header-h)] lg:py-0 lg:pl-5 lg:pr-3">
           <h2 id="ask-title" className="label-eyebrow min-w-0 truncate">
             {showHistory ? 'Your conversations' : 'Ask'}
           </h2>

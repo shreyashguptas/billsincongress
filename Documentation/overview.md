@@ -41,7 +41,7 @@ Figures were verified against production on **29 August 2026**.
 ```
 Congress.gov API v3  (Library of Congress)
       │
-      │  nine sync jobs + one alert-email job + one feedback-picture purge — convex/crons.ts
+      │  nine sync jobs + one alert-email job + a profile-photo cleanup + a feedback-picture purge — convex/crons.ts
       ▼
 convex/congressApi.ts   sync, reconcile, repair, backfill
       │
@@ -100,12 +100,14 @@ app/                       Next.js App Router — 19 page.tsx files
   learn/                   How Congress works, in pictures (server-rendered)
     components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
   about/ privacy/ terms/   Content and legal
-  pro/                     The Pro plan page, in pictures (server-rendered; the subscribe panel is the only client code)
+  pro/                     The Pro plan page: plan cards first, then pictures (server-rendered; the subscribe panel is the only client code)
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
   sign-in/ sign-up/ forgot-password/
   api/                     answer/, bill-chat/send, bill-chat/usage
   robots.ts sitemap.ts sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
+  fonts/                   The three faces (index.ts, shared with global-error.tsx); Newsreader re-centred
+                           on its capitals (scripts/generate-serif-font.ts), with its OFL licence
   error.tsx global-error.tsx   Client error boundaries (recover from a stale-asset chunk failure)
 
 components/                Shared React components
@@ -113,9 +115,12 @@ components/                Shared React components
                            hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
   brand/                   The design language in code (Documentation/brand.md): logo and
                            chamber mark, stage pill and track, party tag, section header,
-                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx)
+                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx);
+                           icon-alignment-check.tsx warns in dev about icons off their label
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
+  account/                 The profile photo: avatar-button.tsx (the account page's avatar, its
+                           menu and the file picker) and avatar-editor.tsx (the crop dialog)
   bills/                   Card, details, save, alert and share buttons
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
@@ -128,29 +133,33 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 30 modules + 27 test files, then the folders below
+lib/                       Pure client/shared modules — 35 modules + 31 test files, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
   seo.ts hubs.ts pagination.ts cacheable-routes.ts indexnow.ts sitemap-ids.ts
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
+  answer-reveal.ts         The ask panel's word-by-word reveal of a finished answer
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
+  icon-alignment.ts        Measures the page for icons that do not line up with their label (dev only)
+  avatar-image.ts          Profile photos in the browser: decode, crop geometry, WebP encode
   og/                      The share cards: card-parts.tsx (frame, headline, track), bill-share-card.tsx,
                            hub-share-card.tsx + hub-share-data.ts (page cards and their figures),
                            home-share-card.tsx + home-share-data.ts, generic-share-card.tsx, all
                            tested; fonts.ts (embedded fonts, generated)
   services/bills-service.ts  constants/  types/  utils/
 
-convex/                    Backend — 40 top-level modules + catalog/ + 14 test and spec files
+convex/                    Backend — 41 top-level modules + catalog/ + 15 test and spec files
   schema.ts                26 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
   answer.ts catalog/       The grounded answer engine
   chats.ts savedBills.ts users.ts auth.ts   Accounts
+  avatars.ts               Profile photos in Convex file storage
   billing.ts alerts.ts email.ts             Pro: Stripe webhook + checkout, bill alerts, alert delivery
   feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts
@@ -174,7 +183,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/enacted`, `/vetoed` | 5 stage hubs |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
-| `/pro` | The Pro plan in pictures: what it adds, the two prices, subscribe buttons (Stripe Checkout), the questions as picture cards |
+| `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
@@ -285,8 +294,8 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 
 ### The cron jobs
 
-Nine keep the data in step with Congress; a tenth sends bill alerts, and an eleventh deletes
-old feedback pictures (the last two rows).
+Nine keep the data in step with Congress; a tenth sends bill alerts, an eleventh cleans up
+profile-photo uploads, and a twelfth deletes old feedback pictures (the last three rows).
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -300,6 +309,7 @@ old feedback pictures (the last two rows).
 | `weekly-reconcile-recent-congresses` | Mon 06:00 | Current + 2 | Diff the full live list against ours — **the only path that finds never-synced bills in a previous Congress** (the monthly re-pull covers the current one) |
 | `indexnow-submit-evening` | 13:30 daily | — | Second queue drain |
 | `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
+| `daily-avatar-orphan-sweep` | 08:00 daily | File storage | Delete profile-photo uploads no account points at and over an hour old (`avatars.sweepOrphans`) |
 | `daily-feedback-picture-purge` | 09:15 daily | `feedbackPictures` | Delete each feedback picture, file and row, 180 days after it arrived (`feedback.purgeOldPictures`), 100 per run, rescheduling itself while more remain. The privacy policy promises the 180 days |
 
 ### Throttling
@@ -460,7 +470,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 
 | Table | Purpose |
 | --- | --- |
-| `users` | Name, email, image, verification time, plan, and the Stripe mirror: `stripeCustomerId`, `stripeSubscriptionId`, `stripeSubscriptionStatus`, `stripePriceId`, `stripeCurrentPeriodEnd`, `cancelAtPeriodEnd`. `plan` is written **only** by the Stripe webhook (`billing.applySubscription`) and gates the Pro question allowance and bill alerts |
+| `users` | Name, email, image (the Google picture, rewritten by the auth library at every Google sign-in), verification time, the profile photo (`avatarStorageId`, a Convex storage id, and `avatarHidden`, "show initials even if Google gives a picture"; see "Profile photos"), plan, and the Stripe mirror: `stripeCustomerId`, `stripeSubscriptionId`, `stripeSubscriptionStatus`, `stripePriceId`, `stripeCurrentPeriodEnd`, `cancelAtPeriodEnd`. `plan` is written **only** by the Stripe webhook (`billing.applySubscription`) and gates the Pro question allowance and bill alerts |
 | `savedBills` | One row per (user, bill) bookmark. Free, silent |
 | `billAlerts` | One row per (user, bill) a Pro reader follows by email, with the watermark the digest advances: `lastSeenActionDate`, `lastSeenActionFingerprints` (actions on that date), `lastSeenStage`, `lastEmailedAt` |
 | `stripeEvents` | Webhook idempotency: one row per Stripe event id, `received` → `processed` / `failed` |
@@ -468,7 +478,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 | `billChats` / `billChatMessages` | The old per-bill chat. Still written by the dead route |
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
-| `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days |
+| `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days, and (index `by_storageId`) so `avatars.sweepOrphans` does not take them for orphaned photos |
 | `usageEvents` | **Dead** — zero references outside `schema.ts` |
 
 > **`chats.userId` is required, not optional, and that is the point.** An anonymous
@@ -495,10 +505,10 @@ wrong import is how an aggregate silently drifts from the table.
 
 ## Convex functions
 
-137 hand-written functions — 26 public queries, 6 public mutations, 3 public actions, 4 HTTP
-actions, 98 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
+145 hand-written functions — 26 public queries, 9 public mutations, 4 public actions, 4 HTTP
+actions, 102 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
 `signOut` (public actions), `isAuthenticated` (public query) and `store` (internal mutation).
-141 registered in total.
+149 registered in total.
 
 | File | Role |
 | --- | --- |
@@ -507,6 +517,7 @@ actions, 98 internal — plus four more generated by `convexAuth()` in `auth.ts`
 | `congressApi.ts` | Sync, reconcile, repair, backfill (19) — **every one an `internalAction`** |
 | `answer.ts`, `catalog/` | The grounded answer engine |
 | `chats.ts`, `savedBills.ts`, `users.ts`, `auth.ts` | Accounts |
+| `avatars.ts` | Profile photos: `generateUploadUrl`, `removeAvatar`, `restoreGooglePicture` (public mutations), `setAvatar` (public action: checks the file's bytes), and the internal `uploadSize`, `attach`, `discardUpload` and daily `sweepOrphans` |
 | `billing.ts` | Pro: `startCheckout` and `openBillingPortal` (public actions), `status` (public query), the Stripe webhook HTTP action and the internal mutations it calls |
 | `alerts.ts`, `email.ts` | Bill alerts: follow/unfollow, the account list, token unsubscribe, the daily digest run; `email.deliver` hands each digest and plan-change email to PostHog |
 | `llm.ts` | The old per-bill chat back end. Holds `sendChatMessage`, a public action reached solely by the dead `/api/bill-chat/send` route |
@@ -576,6 +587,14 @@ it, so a conversation survives client-side navigation. Prose is emitted only *af
 are resolved, in 60-character chunks — never token by token, because a fabricated citation
 must not be visible even briefly.
 
+So the answer reaches the browser all at once, and the panel paces it back out: the thread
+reveals it word by word (`lib/answer-reveal.ts`, `components/answers/use-answer-reveal.ts`),
+at 40 words a second or faster so no answer takes more than five seconds. This is presentation
+only — every word shown is a prefix of the final, already-checked text, and the reveal never
+stops inside an entity directive, a link or a list marker, where a half-written form would
+render as something else. The source list appears once the last word is on screen. A resumed
+conversation, or a reader with `prefers-reduced-motion`, gets the whole answer at once.
+
 ### The panel
 
 Three shapes, chosen by media query in `app/globals.css` and described by `lib/ask-panel.ts`:
@@ -584,7 +603,7 @@ Three shapes, chosen by media query in `app/globals.css` and described by `lib/a
 | --- | --- | --- |
 | `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. |
 | `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. |
-| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. |
+| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
 
 **1344 is derived, not chosen.** `container-editorial` at a 1024px viewport gives its `lg:`
 layouts 960px of inner width, so the pushed shell must never fall below 1024px — and the
@@ -604,7 +623,7 @@ still drawing it over the page.
 `app/globals.css` cannot import those constants, so `lib/ask-css-contract.test.ts` reads the
 stylesheet as text and asserts the breakpoints, the two `--header-h` values (57/65px — one
 header row, `h-14` / `sm:h-16`, plus its border) and the panel's z-index match `lib/ask-panel.ts` and
-`components/navigation.tsx`. That drift is guaranteed otherwise, not merely possible.
+`components/navigation.tsx`, and that the panel's title bar is sized from `--header-h`. That drift is guaranteed otherwise, not merely possible.
 
 **The panel is never unmounted** — only translated off-screen and marked `inert`. The phase
 machine is `lib/ask-panel-state.ts`: `closed`, `open`, `minimized`. Keeping it mounted is what
@@ -874,6 +893,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | --- | --- | --- |
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
+| `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for the primary **and every fallback** |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web plugin still returns the `url_citation` annotations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
@@ -906,6 +926,41 @@ A free account gets you three things: bookmarking bills (the account page lists 
 recent 200), saved conversation history, and the higher daily question allowance. Pro, the
 one paid plan, adds bill alerts and a higher allowance still — see the next section.
 
+### Profile photos
+
+A reader's avatar (header, account page, Welcome to Pro) shows, in order: the photo they
+uploaded, else their Google picture, else their initials. `users.currentUser` resolves it into
+`avatarUrl` and `avatarSource` (`convex/avatars.ts`, `avatarFor`).
+
+- **Where they live:** Convex file storage, on the same deployment as everything else. No
+  separate bucket. A photo is about 20–60 KB, so storage cost is negligible.
+- **Made small in the browser** (`lib/avatar-image.ts`): the picked file is decoded once (EXIF
+  orientation honoured), shrunk to a working copy no longer than 2,048px, framed in the crop
+  dialog (`components/account/avatar-editor.tsx`: drag, pinch, wheel, slider, arrow keys), then
+  cut to a 512px square and encoded as WebP at quality 0.82 (JPEG on browsers that cannot
+  encode WebP). The original never leaves the device. Files over 50 MB are refused unread.
+- **Upload:** `generateUploadUrl` (signed in, 20 an hour per reader, `avatarUploadPerUser`)
+  returns a one-time URL; the browser POSTs the file there, then calls `setAvatar`, an action
+  that refuses anything over 512 KB from the storage metadata (`uploadSize`, before reading a
+  byte: an upload URL takes a file of any size), then reads the first bytes and refuses anything
+  that is not really a WebP, JPEG or PNG — the upload's Content-Type is whatever the client claimed, so it is not trusted.
+  A refused file is deleted. `attach` then swaps it in and deletes the previous upload, and
+  refuses a storage id another account already uses.
+- **Who can see a photo:** the URL is only ever returned to its owner. It is an unguessable
+  capability link — anyone holding the exact URL can load the image, as with a Google or Slack
+  avatar URL, but nothing lists or indexes them.
+- **Remove / Use Google photo:** Remove deletes the upload and sets `avatarHidden`, which is
+  what keeps a removed Google picture from coming back: the auth library rewrites `image` at
+  every Google sign-in, so the choice has to live in a field it does not touch.
+- **Orphans:** an upload that is never attached (tab closed mid-save) is deleted by the daily
+  `daily-avatar-orphan-sweep` once it is an hour old. The sweep deletes **any** stored file
+  that neither a `users.avatarStorageId` nor a `feedbackPictures` row points at — photos and
+  feedback pictures (see [Reader feedback](#reader-feedback)) are the only things in storage
+  today. A feature that stores other files must teach `sweepOrphans` about them first.
+- Tested in `convex/avatars.spec.ts` (ownership, replacement, removal surviving a Google
+  sign-in, byte check, an oversized upload refused unread, rate limit, sweep, a feedback
+  picture surviving the sweep) and `lib/avatar-image.test.ts` (crop geometry).
+
 Deliberate hardening worth preserving:
 
 - Sign-in failures are vague — wrong email and wrong password produce the identical message,
@@ -920,7 +975,9 @@ Deliberate hardening worth preserving:
 `reset: PasswordResetCode` (`convex/emailCodes.ts`), which emails a 6-digit reset code on the same rate-limit
 bucket — but no page ever starts the flow, so `/forgot-password` is a static "coming soon"
 page asking people to email. Self-serve account deletion does not exist at all; deletion is
-handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly.
+handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly. Deleting
+an account by hand must also delete its profile photo (`ctx.storage.delete` on
+`avatarStorageId`), or the daily sweep will once the user row is gone.
 
 ---
 
@@ -971,7 +1028,8 @@ those sections say otherwise.
 
 ### How a reader becomes Pro
 
-1. `/pro` → `billing.startCheckout({interval})`. The action creates (once, idempotency key
+1. A subscribe button → `billing.startCheckout({interval})`. The buttons are on `/pro` and in the
+   Pro dialog a bill page opens (both from `components/pro/plan-compare.tsx`). The action creates (once, idempotency key
    `bic-customer-<userId>`) a Stripe customer tagged `metadata.app = "billsincongress"`,
    links it on `users.stripeCustomerId`, and returns a hosted Checkout URL. The subscription is
    tagged with the same `app` and the reader's `userId`.
@@ -994,8 +1052,12 @@ those sections say otherwise.
 3. `billing.applySubscription` writes the plan: `active`, `trialing` and `past_due` are Pro
    (`past_due` keeps Pro while Stripe retries the card); everything else is free. An old
    subscription ending cannot downgrade a reader who is on a newer one.
-4. The success URL (`/account?checkout=success`) only waits for that write; the account page
-   updates live when it lands. Visiting it by hand grants nothing.
+4. The success URL only waits for that write; the page updates live when it lands. Visiting it
+   by hand grants nothing. It is `/account?checkout=success`, or `/bills/<id>?checkout=success`
+   when the checkout started from that bill's Pro dialog (`startCheckout` takes an optional
+   `billId`; `checkoutReturnUrls` in `convex/billing.ts` accepts only letters and digits and
+   otherwise falls back to the account page). The cancel URL is `/pro?checkout=canceled`, or
+   the bill with `?checkout=canceled`.
 
 "Manage billing" on `/account` opens the Stripe customer portal (`billing.openBillingPortal`)
 for card changes, switching monthly/yearly, cancelling, undoing a cancellation, and invoice
@@ -1041,7 +1103,26 @@ From then on the Pro mark (brand.md, "Pro") shows the plan: the spectrum ring ar
 the header and on `/account`, and a Pro pill in the account menu.
 
 On a bill page the follow button reads **"Email me updates"**, **"Emailing you updates"** (Pro,
-following) or **"Updates paused"** (following, but Pro has ended; a click unfollows).
+following) or **"Updates paused"** (following, but Pro has ended; a click unfollows). A reader
+not on Pro who presses it gets the Pro dialog (`components/pro/pro-dialog.tsx`) over the bill:
+Free and Pro side by side and the two subscribe buttons. The reader comes back to that bill
+from every branch, read from `window.location` so the page stays static, and dropped from the
+address once read. The two `checkout` returns count only when this tab started a checkout for
+this bill: the dialog writes the bill id to session storage (`bic-checkout-bill`) before going
+to Stripe, and the bill page reads and clears it. A link someone shares with `?checkout=success`
+on it does nothing, so it cannot follow a bill for a Pro reader or replay the welcome.
+
+- `?upgrade=1`: back from signing in (a signed-out reader who pressed Subscribe). The dialog
+  opens again, unless the account turns out to be Pro already.
+- `?checkout=canceled`: the dialog opens again with "Checkout was canceled. You have not been
+  charged."
+- `?checkout=success`: a line under the button says the payment is being confirmed. When the
+  webhook makes the plan Pro, the page follows the bill (the thing the reader pressed the
+  button for) and shows the same Welcome to Pro celebration as `/account`, its first step
+  reading "You're following this bill". After a minute without the webhook the line says so
+  and gives the support address, as the account page does.
+
+`/pro?bill=<id>` (the older route) still works and sends Stripe back to that bill.
 
 **Stripe sends the money emails, we send the plan emails.** In the Stripe dashboard (live, and
 the sandbox for testing) turn on, under Settings → Business → Customer emails, **Successful
@@ -1255,7 +1336,10 @@ deployment's `.convex.site` (`convex/feedback.ts`), which:
 - stores the file, writes a `feedbackPictures` row, and returns `ctx.storage.getUrl()`.
 
 That URL is unguessable but public, which is what lets PostHog show it. The daily
-`daily-feedback-picture-purge` cron deletes each picture 180 days after it arrived. Until
+`daily-feedback-picture-purge` cron deletes each picture 180 days after it arrived. The row
+matters beyond the purge: `avatars.sweepOrphans` deletes every stored file no user and no
+`feedbackPictures` row points at, so a picture stored without its row would vanish within a
+day. Until
 `convex/` is deployed, pictures fail with "The picture didn't upload" and the message can
 still be sent without one.
 
@@ -1416,7 +1500,8 @@ The site installs to a phone's Home Screen or a computer's dock and opens full s
   (Chromium only; Safari sends no install signal).
 
 Not done: push notifications (bill alerts stay email), offline reading of bills, and store
-screenshots in the manifest.
+screenshots in the manifest. When they are added, they go in `public/manifest-screenshots/` (the one place the
+screenshot guard allows them, and only while `app/manifest.ts` references each file).
 
 ## Environment variables
 
@@ -1505,18 +1590,19 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 25` is a floor, not a count (65 files match today): if discovery ever finds
+`MIN_TEST_FILES = 25` is a floor, not a count (67 files match today): if discovery ever finds
 fewer, the run fails, and deleting tests below it means lowering the constant in the same
 commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified
 nothing, and "a green result that proved nothing is worse than a red one, because it is
 trusted." The run ends by printing how many files and guards actually ran.
 
-Then the two guards run (not counted toward the floor, but counted toward failure).
+Then the three guards run (not counted toward the floor, but counted toward failure).
 `check-metered-model-calls.ts` exists because of a real incident: `answer.ts`'s `ask` once
 shipped as a public action with no auth and no limiter, beside a properly metered `stream`.
 `check-no-userid-args.ts` enforces the identity rule statically — no public Convex function
-may accept a `userId` argument.
+may accept a `userId` argument. `check-no-committed-screenshots.ts` keeps review
+screenshots out of the tree: #138 committed eight of them and #145 took them back out.
 
 Last, `vitest run` executes the **Convex function specs**, `convex/**/*.spec.ts` (config in
 `vitest.config.mts`). These run real queries, mutations and HTTP actions against an in-memory

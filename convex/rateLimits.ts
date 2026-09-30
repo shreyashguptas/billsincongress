@@ -63,6 +63,14 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: HOUR,
   },
+  // Profile-photo upload URLs, per signed-in reader (convex/avatars.ts). An
+  // upload URL accepts a file of any size before setAvatar can check it, so
+  // this caps how much one account can park in storage between sweeps.
+  avatarUploadPerUser: {
+    kind: "fixed window",
+    rate: 20,
+    period: HOUR,
+  },
   // Feedback pictures, for the whole site at once (key "all"): the upload
   // endpoint is public and anonymous, so there is no reader to key it by. Real
   // feedback arrives a few times a month; 50 a day, at most 2 MB each, bounds

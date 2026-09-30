@@ -274,15 +274,21 @@ export default function BillDetails({ bill }: BillDetailsProps) {
               <p id="bill-status-label" className="label-eyebrow">
                 Current status
               </p>
-              <div className="mt-3 flex items-center gap-3">
-                <span
-                  className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-ink',
-                    stageFill(stage),
-                  )}
-                  aria-hidden="true"
-                >
-                  <StageGlyph className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              {/* "Passed one chamber" wraps in the 280px column, so the badge
+                  sits in a box one line tall and stays beside the first line.
+                  The row carries the label's size so 1lh is that line, and
+                  pads by whatever of the 36px badge overhangs it (on phones)
+                  (brand.md, "Icons beside text"). */}
+              <div className="mt-3 flex items-start gap-3 py-[max(0px,calc((2.25rem-1lh)/2))] text-display-sm sm:text-display-md">
+                <span className="flex h-[1lh] shrink-0 items-center" aria-hidden="true">
+                  <span
+                    className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-full text-on-ink',
+                      stageFill(stage),
+                    )}
+                  >
+                    <StageGlyph className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                  </span>
                 </span>
                 <p className="font-serif text-display-sm font-medium text-ink sm:text-display-md">
                   {stageLabel(stage)}

@@ -85,6 +85,15 @@ crons.cron(
   {},
 );
 
+// Delete profile-photo uploads that were never attached to an account
+// (convex/avatars.ts). Anything under an hour old is left alone.
+crons.cron(
+  "daily-avatar-orphan-sweep",
+  "0 8 * * *",
+  internal.avatars.sweepOrphans,
+  {},
+);
+
 // Feedback pictures are kept 180 days (the privacy policy says so), then this
 // deletes the file and its row. 09:15 UTC sits clear of every job above.
 crons.cron(
