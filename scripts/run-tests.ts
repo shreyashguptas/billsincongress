@@ -25,6 +25,7 @@ const MIN_TEST_FILES = 25;
 const GUARDS = [
   "scripts/check-no-userid-args.ts",
   "scripts/check-metered-model-calls.ts",
+  "scripts/check-no-committed-screenshots.ts",
 ];
 
 function discoverTestFiles(): string[] {
