@@ -1,6 +1,7 @@
 import posthog from 'posthog-js';
 
 import { safeSessionStorage } from '@/lib/safe-storage';
+import type { SponsorMatchKind } from '@/lib/sponsor-match';
 
 // Typed PostHog event helpers — the code counterpart of Documentation/ANALYTICS.md.
 //
@@ -213,6 +214,25 @@ export const analytics = {
       active_filter_count: activeFilterCount,
       // Length, not the text. What people search for is their business; how
       // long a query has to get before it dead-ends is ours.
+      query_length: queryLength,
+    }),
+
+  /**
+   * An empty title search named exactly one member of Congress ("jamie
+   * raskin", "warner"), so the empty state offered their sponsor filter. Once
+   * per empty result. `match_kind` says how the name matched; the text itself
+   * is not sent, like every other free-text field here.
+   */
+  billsNoResultsSponsorSuggested: (matchKind: SponsorMatchKind, queryLength: number) =>
+    capture('bills_no_results_sponsor_suggested', {
+      match_kind: matchKind,
+      query_length: queryLength,
+    }),
+
+  /** The reader took that offer: the text left the title search for the sponsor filter. */
+  billsNoResultsSponsorAccepted: (matchKind: SponsorMatchKind, queryLength: number) =>
+    capture('bills_no_results_sponsor_accepted', {
+      match_kind: matchKind,
       query_length: queryLength,
     }),
 
