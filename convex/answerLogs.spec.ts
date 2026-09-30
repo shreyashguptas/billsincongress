@@ -129,7 +129,7 @@ describe("the answer's PostHog log line", () => {
     expect(attrs.bill_id).toBe("1234hr119");
     expect(attrs.page).toBe("bill");
     expect(attrs.signed_in).toBe(false);
-    expect(String(attrs.error)).toContain("OpenRouter 503");
+    expect(attrs.error_kind).toBe("openrouter_503");
   });
 
   test("an answer that comes back empty every time is an ERROR line too, with the reason", async () => {
@@ -165,6 +165,35 @@ describe("the answer's PostHog log line", () => {
     const toPosthog = stubNetwork(answerDown);
     await ask(setup());
     expect(toPosthog[0].body).not.toContain("private question");
+  });
+
+  test("an upstream error that quotes the question does not carry it onto the line", async () => {
+    // OpenRouter's moderation error echoes the flagged part of the prompt.
+    const flagged = () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: 403,
+            message: "Input was flagged",
+            metadata: { reasons: ["x"], flagged_input: QUESTION, provider_name: "p", model_slug: "m" },
+          },
+        }),
+        { status: 403, statusText: "Forbidden" },
+      );
+    const toPosthog = stubNetwork(flagged);
+    await ask(setup());
+    expect(toPosthog).toHaveLength(1);
+    expect(toPosthog[0].body).not.toContain("private question");
+    expect(attributesOf(toPosthog[0]).attrs.error_kind).toBe("openrouter_403");
+  });
+
+  test("a 200 that carries an error payload is labelled, not quoted", async () => {
+    const payload = () =>
+      new Response(JSON.stringify({ error: { message: `No provider for: ${QUESTION}` } }));
+    const toPosthog = stubNetwork(payload);
+    await ask(setup());
+    expect(toPosthog[0].body).not.toContain("private question");
+    expect(attributesOf(toPosthog[0]).attrs.error_kind).toBe("openrouter_error_payload");
   });
 
   test("with analytics blocked there are no ids, and the line still arrives", async () => {

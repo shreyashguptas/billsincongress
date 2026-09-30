@@ -291,6 +291,21 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
  * every field goes through `parsePageContext` regardless of which route it
  * arrived on.
  */
+/**
+ * What kind of failure, as a fixed label — never the message. OpenRouter's
+ * error bodies can quote the prompt (its moderation 403 returns
+ * `flagged_input`), and the prompt is the reader's question, which must never
+ * reach a log line. The full message still goes to console.error.
+ */
+export function errorKind(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  const status = /^OpenRouter (\d{3})\b/.exec(message);
+  if (status) return `openrouter_${status[1]}`;
+  if (message.startsWith("OpenRouter error:")) return "openrouter_error_payload";
+  if (error instanceof Error && /^\w{1,40}$/.test(error.name)) return error.name;
+  return "unknown";
+}
+
 function readContext(raw: unknown, legacyBillId: unknown): PageContext | null {
   const parsed = parsePageContext(raw);
   if (parsed) return parsed;
@@ -894,7 +909,7 @@ export const stream = httpAction(async (ctx, request) => {
         send("error", { message: "Failed to get a response." });
         await logAnswer("error", "answer failed", {
           duration_ms: Date.now() - startedAt,
-          error: error instanceof Error ? error.message : String(error),
+          error_kind: errorKind(error),
         });
       }
       controller.close();
