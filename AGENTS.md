@@ -105,6 +105,8 @@ the site itself serves belong in the tree, under `public/`.
 `scripts/check-no-committed-screenshots.ts` runs in `pnpm test` and fails on any image or video
 outside `public/` (and on screenshot-named files anywhere). Do not widen it to make a
 screenshot fit. This happened once: #138 committed its review screenshots and #145 removed them.
+The one exception is screenshots the site serves in its web app manifest: they go in
+`public/manifest-screenshots/` and pass only while `app/manifest.ts` references each by path.
 
 # Answer accuracy — mandatory for anything touching `convex/catalog/` or `convex/answer.ts`
 

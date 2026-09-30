@@ -12,13 +12,22 @@
  *   (plus Next's file-convention icons and share images under `app/`).
  * - Nothing anywhere may be named like a screenshot.
  *
+ * One deliberate exception: screenshots the site itself serves in its web app
+ * manifest (the `screenshots` member of `app/manifest.ts`, used by richer
+ * install prompts and store listings). They live in `public/manifest-screenshots/`,
+ * and each one passes only while `app/manifest.ts` references it by path, so the
+ * folder cannot become a place to park review images.
+ *
  * Run with: `pnpm test`.
  */
 import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 
 const MEDIA = /\.(png|jpe?g|gif|webp|avif|bmp|tiff?|heic|heif|mov|mp4|webm|m4v)$/i;
 // Next.js file conventions: app/**/icon.png, apple-icon, opengraph-image, twitter-image.
 const NEXT_CONVENTION = /^app\/(.+\/)?(icon|apple-icon|opengraph-image|twitter-image)\d*\.[a-z]+$/i;
+const MANIFEST_SCREENSHOTS = "public/manifest-screenshots/";
+const manifest = existsSync("app/manifest.ts") ? readFileSync("app/manifest.ts", "utf8") : "";
 const SCREENSHOT_NAME = /(screen[\s_-]?shot|screen[\s_-]?recording|pr[\s_-]?screenshots?|^before-|^after-)/i;
 
 const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
@@ -36,6 +45,13 @@ if (files.length === 0) {
 const offenders: string[] = [];
 for (const path of files) {
   const name = path.split("/").pop() ?? path;
+  if (path.startsWith(MANIFEST_SCREENSHOTS)) {
+    // Served as `/manifest-screenshots/…`: fine only while the manifest uses it.
+    if (!MEDIA.test(path) || !manifest.includes(path.slice("public".length))) {
+      offenders.push(`${path}: in public/manifest-screenshots/ but not referenced by app/manifest.ts`);
+    }
+    continue;
+  }
   if (MEDIA.test(path) && !path.startsWith("public/") && !NEXT_CONVENTION.test(path)) {
     offenders.push(`${path}: an image or video outside public/`);
   } else if (MEDIA.test(path) && SCREENSHOT_NAME.test(name)) {

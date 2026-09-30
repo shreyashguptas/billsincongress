@@ -869,7 +869,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | --- | --- | --- |
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
-| `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md) |
+| `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for the primary **and every fallback** |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web plugin still returns the `url_citation` annotations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
@@ -1415,7 +1415,8 @@ The site installs to a phone's Home Screen or a computer's dock and opens full s
   (Chromium only; Safari sends no install signal).
 
 Not done: push notifications (bill alerts stay email), offline reading of bills, and store
-screenshots in the manifest.
+screenshots in the manifest. When they are added, they go in `public/manifest-screenshots/` (the one place the
+screenshot guard allows them, and only while `app/manifest.ts` references each file).
 
 ## Environment variables
 
