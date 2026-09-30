@@ -280,18 +280,6 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
 }
 
 /**
- * Read what the reader has open, from whichever field carries it.
- *
- * `focusBillId` is the older channel and is still honoured. Convex deploys are
- * manual and separate from the site's, so for one release either half may be
- * the older one — and neither ordering may cost a reader their context. Delete
- * the fallback once both halves have shipped.
- *
- * Nothing here trusts the caller: `/answer/stream` is publicly addressable, so
- * every field goes through `parsePageContext` regardless of which route it
- * arrived on.
- */
-/**
  * What kind of failure, as a fixed label — never the message. OpenRouter's
  * error bodies can quote the prompt (its moderation 403 returns
  * `flagged_input`), and the prompt is the reader's question, which must never
@@ -306,6 +294,18 @@ export function errorKind(error: unknown): string {
   return "unknown";
 }
 
+/**
+ * Read what the reader has open, from whichever field carries it.
+ *
+ * `focusBillId` is the older channel and is still honoured. Convex deploys are
+ * manual and separate from the site's, so for one release either half may be
+ * the older one — and neither ordering may cost a reader their context. Delete
+ * the fallback once both halves have shipped.
+ *
+ * Nothing here trusts the caller: `/answer/stream` is publicly addressable, so
+ * every field goes through `parsePageContext` regardless of which route it
+ * arrived on.
+ */
 function readContext(raw: unknown, legacyBillId: unknown): PageContext | null {
   const parsed = parsePageContext(raw);
   if (parsed) return parsed;
