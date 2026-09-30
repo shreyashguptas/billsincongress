@@ -204,8 +204,13 @@ describe("recording an answer as a PostHog trace", () => {
     const t = setup();
     await ask(t);
     const trace = batches()[0].at(-1)!;
-    expect(trace.properties.$ai_input_state).toBe("Which bills about llamas became law?");
-    expect(String(trace.properties.$ai_output_state)).toContain("No bill in our records");
+    // Chat messages, not bare strings: PostHog's trace view shows nothing for a string.
+    expect(trace.properties.$ai_input_state).toEqual([
+      { role: "user", content: "Which bills about llamas became law?" },
+    ]);
+    const output = trace.properties.$ai_output_state as Array<{ role: string; content: string }>;
+    expect(output[0].role).toBe("assistant");
+    expect(output[0].content).toContain("No bill in our records");
     expect(trace.properties.outcome).toBe("answered");
     expect(trace.properties.$ai_is_error).toBe(false);
     expect(trace.properties.signed_in).toBe(false);

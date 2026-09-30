@@ -195,6 +195,11 @@ export class AnswerTrace {
   /**
    * The trace itself: the reader's question in, the answer out. `outcome` is
    * one of our own words for how the turn ended, for graders to filter on.
+   *
+   * Both states are sent as chat messages, not bare strings: PostHog's trace
+   * view renders a message list as the conversation at the top of the trace,
+   * and showed nothing there for a plain string (checked against a real trace,
+   * 30 Sep 2026).
    */
   finish(t: {
     question: string;
@@ -205,8 +210,10 @@ export class AnswerTrace {
   }) {
     this.push("$ai_trace", {
       $ai_span_name: "answer",
-      $ai_input_state: t.question,
-      ...(t.answer !== undefined ? { $ai_output_state: clip(t.answer, MAX_STATE_CHARS) } : {}),
+      $ai_input_state: [{ role: "user", content: t.question }],
+      ...(t.answer !== undefined
+        ? { $ai_output_state: [{ role: "assistant", content: clip(t.answer, MAX_STATE_CHARS) }] }
+        : {}),
       $ai_latency: (this.clock() - this.started) / 1000,
       $ai_is_error: t.outcome === "failed",
       ...(t.error ? { $ai_error: clip(t.error, 1000) } : {}),
