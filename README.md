@@ -52,6 +52,8 @@ Between the front page and roughly 55,600 individual bill pages sit 40 browse pa
 
 Each one is written as a document, not just a filtered list with a new heading. Every one carries a plain-language explanation of what that grouping actually means — what "in committee" really implies, why most bills stop there, what a concurrent resolution is for.
 
+Each list is in date order, newest first, and one click turns it around to oldest first. The date is the one that page is about: on "Bills that became law" it is the day each bill became law, on "Vetoed bills" the day of the veto, on "Passed one chamber" the day it passed. The House, Senate and topic pages go by each bill's most recent action. Every row shows its date with a label saying which date it is, so the order you see is the order the page claims.
+
 ### A page for every bill
 
 Each bill page shows the bill number and Congress, its policy area, the official title, when it was introduced, who sponsored it (with party and state), and a link to the official PDF where one exists.

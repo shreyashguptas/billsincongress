@@ -1,4 +1,5 @@
 import { Bill } from '@/lib/types/bill';
+import type { HubOrder, HubSortScope, HubSortedBy } from '@/lib/hubs';
 import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
 import { getConvexHttpClient } from '@/lib/convex-client';
 import {
@@ -189,6 +190,8 @@ function transformConvexBill(doc: any): Bill {
     sponsor_state: doc.sponsorState || '',
     progress_stage: doc.progressStage || 20,
     progress_description: doc.progressDescription || 'Introduced',
+    stage_date: doc.stageDate || undefined,
+    latest_action_date: doc.latestActionDate || undefined,
     bill_subjects: doc.bill_subjects || { policy_area_name: '' },
     latest_summary: doc.latest_summary || '',
     pdf_url: doc.pdf_url || '',
@@ -272,6 +275,33 @@ export const billsService = {
       console.error('Error fetching bills from Convex:', error);
       throw error;
     }
+  },
+
+  /**
+   * One page of a hub in a real date order (`bills.listSorted`). Server-only:
+   * the hub pages are server components, so this never needs the browser relay.
+   * Throws on failure — the caller decides what an unreachable backend shows.
+   */
+  async fetchHubBills(params: {
+    scope: HubSortScope;
+    order: HubOrder;
+    page: number;
+    itemsPerPage: number;
+  }): Promise<{ data: Bill[]; hasMore: boolean; sortedBy: HubSortedBy }> {
+    const client = getConvexHttpClient();
+    if (!client) throw new Error('Convex is not configured');
+    const { api } = await import('../../convex/_generated/api');
+    const result = await client.query(api.bills.listSorted, {
+      scope: params.scope,
+      order: params.order,
+      offset: (params.page - 1) * params.itemsPerPage,
+      limit: params.itemsPerPage,
+    });
+    return {
+      data: result.data.map(transformConvexBill),
+      hasMore: result.hasMore,
+      sortedBy: result.sortedBy,
+    };
   },
 
   /**

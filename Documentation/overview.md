@@ -233,6 +233,28 @@ Every hub carries a hand-written plain-language explainer; the rule recorded in
 `lib/hubs.ts` is that a hub must be a document, not a filtered list with a new heading. A hub
 with zero bills still renders but is marked `noindex`.
 
+**Hub order.** Every hub is sorted by a date, newest first by default, with "Oldest first" one
+link away (`?sort=oldest`, which is `noindex, follow` so the same set is not indexed twice; page
+links keep the order). Until 30 Sep 2026 hubs read `bills.list`, which walks insertion order:
+/bills/enacted showed the 119th's laws Senate batch then House batch, with the five laws signed
+on 25 Sep 2026 at rows 13, 64, 68, 98 and 107, under unlabelled introduction dates that made the
+list look sorted. Hubs now read `bills.listSorted`, which takes only the three shapes an index
+can serve whole and says which date it sorted by (`sortedBy`):
+
+| Hub | Ordered by | Index |
+| --- | --- | --- |
+| Stage | `stageDate` — the day the bill reached that stage | `by_congress_stage_and_stage_date` |
+| Topic | `latestActionDate` | `by_congress_policy_area_and_latest_action` |
+| Chamber | `latestActionDate`, the chamber's four bill types merged in order (`convex/hubOrder.ts`) | `by_congress_type_and_latest_action` |
+
+Each index enforces the hub's whole filter, so there is no scan cap and page 10 is as correct as
+page 1. Bills with no date sort last in both directions. Each row shows the date the list is
+ordered by, labelled ("Became law", "Vetoed", "Passed a chamber", "Sent to committee",
+"Introduced", "Latest action"). If `listSorted` fails — for instance while the site is deployed
+ahead of Convex — the hub falls back to `list` and shows no order switch and no labelled dates,
+rather than an empty page. `scripts/truth/hub-order.test.ts` runs the real ordering against the
+production copy.
+
 **Middleware** (`middleware.ts`, not `proxy.ts` — see [Hosting](#hosting-and-cloudflare-constraints)):
 301-redirects `www` to the apex, sends signed-out visitors from `/account` to `/sign-in`,
 sends signed-in visitors away from `/sign-in` and `/sign-up`, and sets `Cache-Control` from
@@ -396,7 +418,7 @@ entirely unless backed by at least 100 past bills.
 | Constant | Value | Effect |
 | --- | ---: | --- |
 | `MAX_LIST_LIMIT` | 50 | Page size ceiling |
-| `MAX_LIST_OFFSET` | 500 | `/bills` stops at page 51; hubs at page 10 |
+| `MAX_LIST_OFFSET` | 500 | `/bills` stops at page 51; hubs at page 10 (hubs read index ranges through `listSorted`, never the capped scan below) |
 | `MAX_LIST_SCAN` | 1,200 | The browse loop gives up after scanning 1,200 index rows |
 | `SEARCH_LIMIT` | 1,024 | Full-text search caps at 1,024 matching documents |
 
@@ -454,6 +476,15 @@ Two design decisions worth knowing:
   cross-table intersection it replaced *silently returned 0 of 2,070 real "Health" matches*
   for a Congress, because it matched the oldest 2,000 subject rows against the newest 1,200
   bills. `upsertBillSubject` writes both, or they drift.
+- **`bills.stageDate` is the day a bill reached its current stage** — became law, was
+  vetoed, passed its first chamber, was sent to committee — or, for a bill still at
+  "Introduced", its introduction date. A later stage with no dated action stays undated
+  rather than borrowing the introduction date. It is
+  derived by the same `calculateBillStage` call as `progressStage` and written with it (by the
+  sync's `upsertBill` and by `rederiveBillFieldsFromActions`), so the two never disagree. It is
+  not `latestActionDate`: committees act on bills after they are signed, and 5 of 758 laws in
+  the production copy had a later latest action (H.R. 1043, 119th: signed 29 Dec 2025, report
+  filed 11 Feb 2026). It orders the stage hubs.
 - **Only the primary sponsor is stored.** There are no co-sponsors anywhere in the database,
   and the answer engine is explicitly instructed never to imply otherwise.
 
@@ -1797,6 +1828,20 @@ per-type `typeCounts` on `congressStats`; until it runs, a chamber-scoped stats 
 it holds no stage ladder instead of quoting the whole-Congress one, and the whole-Congress row
 says it cannot split measures into bills and resolutions rather than letting the measure total be
 read as a bill count.
+
+**Changes that need a backfill.** A new field on `bills` is empty on existing rows until the
+backfill writes it. `bills.stageDate` (30 Sep 2026) is one: after deploying, run
+
+```bash
+npx convex run congressApi:backfillBillFieldsFromActions '{"congress":119}'
+npx convex run congressApi:backfillBillFieldsFromActions '{}'
+```
+
+The first fills the current Congress (the one the hub pages show) in minutes; the second the
+rest. Until it finishes, stage hubs still list every bill, but only the bills the sync has
+re-dated since the deploy are in date order, at the top of "Newest first"; the rest follow in
+the order their rows were stored, with no date shown. Deploy Convex before the site: a site that asks for `bills.listSorted` before
+it exists falls back to the unsorted list.
 
 ---
 
