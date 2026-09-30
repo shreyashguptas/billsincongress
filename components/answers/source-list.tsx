@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { printedSources } from '@/lib/answer-format';
 import type { WebSource } from '@/lib/answer-format';
 import { analytics } from '@/lib/analytics';
+import { cn } from '@/lib/utils';
 
 /** Re-exported so this component's existing importers keep their import path. */
 export type { WebSource };
@@ -40,17 +41,19 @@ export function SourceList({
   surface,
   webReason,
   webSources,
+  className,
 }: {
   handles: string[];
   surface: string;
   webReason?: string;
   webSources?: WebSource[];
+  className?: string;
 }) {
   const { db, web } = printedSources(handles, webSources ?? []);
   if (db.length === 0 && web.length === 0) return null;
 
   return (
-    <div className="mt-5 space-y-4 border-t border-line pt-4">
+    <div className={cn('mt-5 space-y-4 border-t border-line pt-4', className)}>
       {db.length > 0 && (
         <div>
           <p className="label-eyebrow !mb-2">
