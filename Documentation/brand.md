@@ -212,6 +212,7 @@ existing brand edits:
 | `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 70% with a slight blur, not black (a dark scrim lightens nothing in Night); `shadow-float` |
 | `Sheet`, `Popover` | Their own enter/exit keyframes, tuned before `tailwindcss-animate` was installed |
 | `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
+| `Textarea` | On `card` like `Input`; 15px from `sm` up, 16px on phones, where anything smaller makes iOS zoom the page on focus |
 
 ### Brand pieces built on top
 
@@ -276,12 +277,25 @@ Patterns that appear on more than one page:
   compete with the page's one primary action. When both show, "Sign up" sits
   at the edge and is the only one kept below `sm`. A device that has had an
   account signed in sees "Sign in" alone.
+- **Feedback** (header, before the search): a `ghost` `sm` button reading "Feedback", from
+  `lg` up only, because below that the header has no room. Phones reach it as "Send
+  feedback" at the foot of the menu sheet, under a hairline; every width below `lg` also
+  finds it in the footer's link row. The box itself is a popover under the button (360px)
+  or, below `lg`, a dialog set high on the screen, away from the keyboard: two tiles, Issue
+  (`TriangleAlert`) and Idea (`Lightbulb`), in ink on `raised` with a `line-strong` edge;
+  then the message, a "Picture" outline button with `ImagePlus`, and the ink Send. No hue
+  anywhere: an issue is not an error state until something failed.
+- **Quick question** ("Did you find what you were looking for?"): a `raised` card with a
+  `line-strong` edge, `rounded-md` and `shadow-float`, since it floats over the page. Bottom
+  right, stacked above the Ask launcher (full width minus the gutters below `sm`). Yes and No
+  are outline buttons with `ThumbsUp` / `ThumbsDown` beside the word; the close is the
+  icon-only X. Once per browser, never on the first two pages of a visit.
 - **Footer**: only what has no other home. The lockup, a one-line serif
   statement of what the site is, and "Not affiliated with the U.S.
   government"; the install and theme controls opposite. Under that sit three
   hub links (House bills, Senate bills, Bills that became law), then a
-  hairline and one row: Pro, Privacy, Terms, Source (GitHub glyph) on the
-  left, the mono copyright and Congress.gov credit on the right. Links are
+  hairline and one row: Pro, Privacy, Terms, Feedback (below `lg` only, where the
+  header has no Feedback button), Source (GitHub glyph) on the left, the mono copyright and Congress.gov credit on the right. Links are
   `ink-2` text, underlined on hover, never pills. Anything in the header is
   not repeated here.
 

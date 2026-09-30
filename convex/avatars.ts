@@ -25,9 +25,10 @@ import { rateLimiter } from "./rateLimits";
  * is an unguessable capability link, like a Google or Slack avatar URL: no
  * listing, no index, no way to find another reader's photo.
  *
- * Convex storage holds nothing but these photos, which is what lets
- * `sweepOrphans` delete any file no user points at. A feature that stores
- * other files must teach the sweep about them first.
+ * Convex storage holds these photos and the pictures attached to feedback
+ * (convex/feedback.ts, one `feedbackPictures` row each). `sweepOrphans`
+ * deletes any file that neither a user nor a feedback row points at, so a
+ * feature that stores other files must teach the sweep about them first.
  */
 
 // Well above what the editor produces (a JPEG fallback on browsers that
@@ -211,7 +212,17 @@ export const sweepOrphans = internalMutation({
           q.eq("avatarStorageId", file._id as Id<"_storage">),
         )
         .first();
-      if (!owner) {
+      // A feedback picture is owned by its row, and kept 180 days by
+      // feedback.purgeOldPictures; it is not an unattached photo.
+      const feedback = owner
+        ? null
+        : await ctx.db
+            .query("feedbackPictures")
+            .withIndex("by_storageId", (q) =>
+              q.eq("storageId", file._id as Id<"_storage">),
+            )
+            .first();
+      if (!owner && !feedback) {
         await ctx.storage.delete(file._id);
         deleted++;
       }

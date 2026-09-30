@@ -746,4 +746,85 @@ export const analytics = {
   /** User picked their state in the "two rooms" seat pictures. */
   learnStateSelected: (state: string, representatives: number) =>
     capture('learn_state_selected', { state, representatives }),
+
+  // Feedback and surveys (components/feedback/). PostHog's own survey events,
+  // not custom ones: their names and `$survey_*` properties are what fill the
+  // Surveys tab, so they must stay exactly as PostHog's SDK would send them.
+
+  /** Whether anything a reader types into a survey can reach PostHog at all. */
+  canSendSurveys(): boolean {
+    return ready();
+  },
+
+  /**
+   * Calls back once with whether the survey is still open in PostHog: launched,
+   * not stopped, and under its response limit (PostHog ends a survey when it
+   * reaches the limit, which is how the 1,000-answer cap reaches the site).
+   *
+   * Deliberately not `getActiveMatchingSurveys`: that also needs each survey's
+   * internal targeting flag, which this project's flags response does not
+   * carry (surveys are off in its remote config, since the site draws its own),
+   * so it reports nothing as active. Who has already seen it is the caller's
+   * job (lib/feedback/visit.ts).
+   */
+  whenSurveyActive(surveyId: string, callback: (active: boolean) => void) {
+    if (!ready()) return;
+    let called = false;
+    posthog.getSurveys((surveys, context) => {
+      if (called || context?.isLoaded === false) return;
+      called = true;
+      const s = surveys.find((x) => x.id === surveyId);
+      const now = Date.now();
+      callback(
+        !!s &&
+          !!s.start_date &&
+          new Date(s.start_date).getTime() <= now &&
+          (!s.end_date || new Date(s.end_date).getTime() > now),
+      );
+    });
+  },
+
+  surveyShown(survey: SurveyRef, props?: { surface?: 'header' | 'menu' | 'footer' | 'prompt' }) {
+    if (!ready()) return;
+    capture('survey shown', { $survey_id: survey.id, $survey_name: survey.name, ...props });
+    // Once per person: PostHog's display logic stops listing it on this browser.
+    if (survey.once) posthog.surveys?.markSurveyAsSeen(survey.id);
+  },
+
+  surveyDismissed(survey: SurveyRef) {
+    capture('survey dismissed', {
+      $survey_id: survey.id,
+      $survey_name: survey.name,
+      // …and on every other browser this person signs in on.
+      ...(survey.once ? { $set: { [`$survey_dismissed/${survey.id}`]: true } } : {}),
+    });
+  },
+
+  /** `answers` in PostHog's question order; an unanswered question is `undefined`. */
+  surveySent(survey: SurveyRef, answers: { id: string; question: string; response?: string }[]) {
+    const byId: Record<string, string> = {};
+    const byIndex: Record<string, string> = {};
+    answers.forEach((a, i) => {
+      if (a.response === undefined) return;
+      byId[`$survey_response_${a.id}`] = a.response;
+      byIndex[i === 0 ? '$survey_response' : `$survey_response_${i}`] = a.response;
+    });
+    capture('survey sent', {
+      $survey_id: survey.id,
+      $survey_name: survey.name,
+      $survey_questions: answers.map((a) => ({ id: a.id, question: a.question, response: a.response ?? null })),
+      $survey_completed: true,
+      $survey_submission_id: crypto.randomUUID(),
+      ...byIndex,
+      ...byId,
+      ...(survey.once ? { $set: { [`$survey_responded/${survey.id}`]: true } } : {}),
+    });
+  },
 };
+
+/** A survey as the helpers above need it. `once` for surveys a person sees a single time. */
+export interface SurveyRef {
+  id: string;
+  name: string;
+  once?: boolean;
+}
