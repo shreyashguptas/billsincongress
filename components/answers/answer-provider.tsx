@@ -21,6 +21,7 @@ import {
   type Turn as StoredTurn,
 } from '@/lib/transcript-cap';
 import type { AnswerScope } from '@/lib/answer-scope';
+import { answerRatedProps, type AnswerVerdict } from '@/lib/answer-rating';
 import {
   billIdFor,
   pageContextFor,
@@ -85,6 +86,10 @@ export interface Turn {
    * the following turn no longer needs the invitation to reply.
    */
   askedReader?: boolean;
+  /** Where the question was asked, so a later rating reports the same surface. */
+  surface?: string;
+  /** The reader's answer to "Was this answer right?". One per answer. */
+  rating?: AnswerVerdict;
 }
 
 export interface RateLimitInfo {
@@ -116,6 +121,8 @@ interface AnswerContextValue {
   /** What the current route has open, beyond what the path already says. */
   setPublished: (published: PublishedContext | null) => void;
   ask: (question: string, opts?: AskOptions) => Promise<void>;
+  /** Record the reader's verdict on one answer. A second tap does nothing. */
+  rate: (turnId: string, verdict: AnswerVerdict) => void;
   resume: (chatId: Id<'chats'>) => void;
   newChat: () => void;
   dismissRateLimit: () => void;
@@ -428,6 +435,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         content: '',
         work: [],
         done: false,
+        surface,
       };
       const history = turns.map((t) => ({ role: t.role, content: t.content }));
 
@@ -675,6 +683,26 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     [busy, chatId, openPanel, pathname, published, turns],
   );
 
+  const rate = useCallback(
+    (turnId: string, verdict: AnswerVerdict) => {
+      const current = turnsRef.current;
+      const turn = current.find((t) => t.id === turnId);
+      if (!turn || turn.rating) return;
+      const props = answerRatedProps(current, turnId, verdict, {
+        // A resumed or refreshed thread has no record of where it was asked.
+        surface: turn.surface ?? surfaceNow(),
+        chatId,
+      });
+      if (!props) return;
+      // Written to the ref as well as state, so a double tap inside one render
+      // cannot send two verdicts for one answer.
+      turnsRef.current = current.map((t) => (t.id === turnId ? { ...t, rating: verdict } : t));
+      setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, rating: verdict } : t)));
+      analytics.answerRated(props);
+    },
+    [chatId, surfaceNow],
+  );
+
   // Session storage only. Anonymous conversations never reach the database —
   // see spec §4.7. Signed-in threads are persisted server-side instead, by the
   // answer action, so this is a no-op for them beyond refresh resilience.
@@ -730,6 +758,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       minimize,
       setPublished,
       ask,
+      rate,
       resume,
       newChat,
       dismissRateLimit: () => setRateLimit(null),
@@ -749,6 +778,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       minimize,
       setPublished,
       ask,
+      rate,
       resume,
       newChat,
       acceptHandoff,

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'September 29, 2026';
+const LAST_UPDATED = 'September 30, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -155,6 +155,14 @@ export default function PrivacyPage() {
           want to know about legislation. Unlike the AI providers above,
           PostHog keeps it under its standard retention (see section 8),
           and if you are signed in it is linked to your account.
+        </p>
+        <p>
+          Under each answer we ask whether it was right. If you tap
+          &ldquo;No&rdquo;, we send PostHog your question (and the one
+          before it, if it was a follow-up) together with the answer you
+          were shown and the sources it cited, so we can check it against
+          the records and fix what went wrong. If you tap &ldquo;Yes&rdquo;,
+          we record only that you did. You never have to answer.
         </p>
         <p>
           To delete your whole account, email us at{' '}
@@ -359,7 +367,7 @@ const summary = [
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
-  'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know.',
+  'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. If you tell us an answer was wrong, the answer goes with it.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
   'We email you only for account reasons and bill alerts you turn on — never marketing.',
   'Reading is free. If you pay for Pro, Stripe handles your card; we never see it.',
@@ -414,7 +422,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, and the answer too when you tell us an answer was wrong. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

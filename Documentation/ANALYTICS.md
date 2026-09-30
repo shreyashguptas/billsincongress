@@ -43,7 +43,10 @@ should not exist in the code — and if it's in this file, it must exist in the 
    **person profile** via `identify()`, never on individual events.
    Reader-typed free text does reach event properties today, deliberately, because knowing
    what people ask is the point of collecting it: `answer_question_submitted.question` (the
-   whole question), and — less obviously — `answer_question_submitted.scope_label` and
+   whole question), `answer_rated.question` and `.previous_question` when a reader says an
+   answer was wrong (the same text again, sent with the answer so the report can be
+   reproduced; `answer_rated.answer` is the assistant's text, which can quote the reader),
+   and — less obviously — `answer_question_submitted.scope_label` and
    `answer_starter_clicked.starter_text`, both of which interpolate the reader's typed title
    search into a label. The custom search events send a `query_length`, not the text
    (`bills_no_results` stopped sending `title_query` in the filter redesign), **but that does
@@ -346,6 +349,7 @@ emits `list`.
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
 | `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` (also every home chart's "Ask about this"), `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
 | `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
+| `answer_rated` | Reader answered "Was this answer right?" under a finished answer. Once per answer; a clarifying question gets no check. Added 30 Sep 2026 | `surface` (where the question was asked), `verdict: "right" \| "wrong"`, `answer_id`, `question_number`, `answer_length`, `db_source_count`, `web_source_count`, `chat_id` (signed-in threads only). **`wrong` only:** `question`, `previous_question` (follow-ups only), `answer` — the text the reader saw, up to 8,000 characters, `answer_clipped`, `sources` — the cited handles. Built and tested in `lib/answer-rating.ts` | `components/answers/answer-check.tsx` via `components/answers/answer-provider.tsx` |
 
 > **`dropped` is the grounding-health number.** It counts citations the model
 > produced for rows it was never handed, which the server deletes before display.
@@ -517,6 +521,10 @@ These are the saved insights the project should maintain in the PostHog UI:
     number was impossible to record before it, because the old pill only appeared once a
     conversation already existed.
 12. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+13. **Reader-reported wrong answers** — `answer_rated` where `verdict = wrong`, as a table of
+    `question`, `answer` and `sources`, newest first. Each row is a candidate case for
+    `scripts/truth/questions.ts`. Alongside it, the share of ratings that are `wrong`, and
+    ratings as a share of `answer_received`: a check nobody taps says nothing either way.
 
 ---
 

@@ -720,6 +720,16 @@ review workflow forfeits that review. Until then the gate is local and the skip 
 fix it.** That file is the institutional memory of every way this system has stated something
 untrue.
 
+**Readers report them too.** Under every finished answer the panel asks "Was this answer
+right?" (`components/answers/answer-check.tsx`). A tap sends `answer_rated` to PostHog; a "No"
+carries the question, the question before it when the answer was a follow-up, the answer text
+as the reader saw it (up to 8,000 characters) and its cited handles, which is enough to write
+the `questions.ts` case without having to reproduce the conversation. A "Yes" carries none of
+that. What each tap sends is built and tested in `lib/answer-rating.ts`. Nothing is written to
+Convex, so it works for signed-out readers too and needs no deploy. To review them, filter
+`answer_rated` on `verdict = wrong` in PostHog; a signed-in reader's report also carries
+`chat_id`, the saved thread.
+
 ### The completeness contract
 
 This is the load-bearing idea of the whole answer engine, and it exists because of what happened

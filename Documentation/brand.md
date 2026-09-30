@@ -239,6 +239,13 @@ Patterns that appear on more than one page:
   seconds. Bill cards rise in when the text reaches them; the sources wait
   for the last word. It plays once, for the answer being written — a resumed
   conversation, and anyone under `prefers-reduced-motion`, sees it whole.
+- **Answer check**: under every finished answer, after its sources, one line
+  of 13px `ink-3` asks "Was this answer right?" beside two small outline
+  buttons, "Yes" and "No" (44px on touch). No icons and no colour: a hue would
+  be chrome pretending to be data, and a thumbs-up is an emoji in all but name.
+  It waits for the last word, like the sources. After a tap the buttons go and
+  the line thanks the reader in place; an answer is rated once. A clarifying
+  question from the assistant is not an answer and gets no check.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
 - **Status panel** (bill page): `rounded-lg`, raised, the stage in

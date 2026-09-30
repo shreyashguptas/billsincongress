@@ -1,5 +1,6 @@
 import posthog from 'posthog-js';
 
+import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 
 // Typed PostHog event helpers — the code counterpart of Documentation/ANALYTICS.md.
@@ -723,6 +724,14 @@ export const analytics = {
     result_count: number;
     engine: string;
   }) => capture('answer_web_search_used', props),
+
+  /**
+   * The reader's own verdict on one answer, from "Was this answer right?". A
+   * "no" carries the question and the answer so it can be reproduced as a truth
+   * case; a "yes" carries neither. The props are built, and tested, in
+   * lib/answer-rating.ts.
+   */
+  answerRated: (props: AnswerRatedProps) => capture('answer_rated', props),
 
   rateLimitSignupClicked: (kind: LimitKind) =>
     capture('rate_limit_signup_clicked', { limit_kind: kind }),
