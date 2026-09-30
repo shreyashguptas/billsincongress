@@ -9,53 +9,6 @@ import { Envelope, Paper, Person, Scene, TrackPicture } from '@/components/brand
 // signed by the spectrum, and Pro's allowance is Pro's indigo (`topic-3`).
 // Server-safe: no hooks, no state.
 
-/**
- * The page's one bold picture: a bill moves a stage, and the next morning an
- * email signed with the spectrum says so.
- */
-export function AlertHeroPicture() {
-  return (
-    <Scene
-      viewBox="0 0 360 214"
-      label="A bill moves from committee to passing the House. An arrow leads to an email, signed with the site's six colours, that says so the next morning."
-    >
-      {/* The bill, and its track: three of seven steps, the third just reached. */}
-      <Paper x={14} y={18} w={108} h={124} accent="fill-status-passed-one" lines={6} />
-      <TrackPicture x={14} y={156} w={108} reached={3} fill="fill-status-passed-one" h={8} />
-      <path d="M79 176l6-7l6 7" className="fill-none stroke-status-passed-one" strokeWidth={2.5} />
-
-      <path d="M140 84H186M177 76L186 84L177 92" className="fill-none stroke-ink-3" strokeWidth={3} />
-
-      {/* Sunrise behind the email. */}
-      <rect x={200} y={176} width={148} height={3} rx={1.5} className="fill-ink/20" />
-      <path d="M232 176a26 26 0 0 1 52 0" className="fill-ink/10 stroke-ink" strokeWidth={2} />
-      <path
-        d="M258 140v-8M234 150l-6-6M282 150l6-6M222 170h-8M294 170h8"
-        className="stroke-ink-3"
-        strokeWidth={2.5}
-      />
-
-      <text x={68} y={206} textAnchor="middle" className="fill-ink-3 font-mono text-[11px]">
-        a bill moves
-      </text>
-      <text x={274} y={206} textAnchor="middle" className="fill-ink-3 font-mono text-[11px]">
-        you hear next morning
-      </text>
-
-      <Envelope x={204} y={26} w={140} h={98}>
-        {/* A stage pill, the track, and two lines quoted from the record. */}
-        <rect x={218} y={46} width={66} height={16} rx={4} className="fill-raised stroke-ink/40" strokeWidth={1.5} />
-        <circle cx={228} cy={54} r={4} className="fill-status-passed-one" />
-        <rect x={236} y={52} width={40} height={4} rx={2} className="fill-ink/60" />
-        <TrackPicture x={218} y={70} w={112} reached={3} fill="fill-status-passed-one" h={6} />
-        <rect x={218} y={86} width={112} height={4} rx={2} className="fill-ink/25" />
-        <rect x={218} y={96} width={80} height={4} rx={2} className="fill-ink/25" />
-        <rect x={218} y={108} width={46} height={9} rx={3} className="fill-ink" />
-      </Envelope>
-    </Scene>
-  );
-}
-
 /** Tile 1: the alert email, a bell, and the step it reports. */
 export function AlertsTilePicture() {
   return (
@@ -133,36 +86,6 @@ export function IndependentTilePicture() {
       ))}
       <rect x={144} y={98} width={94} height={3} rx={1.5} className="fill-ink/20" />
     </Scene>
-  );
-}
-
-/**
- * Twelve months as twelve dots: every one paid on monthly; on yearly the last
- * `free` are Pro's indigo, and free.
- */
-export function MonthDots({ free, className }: { free: number; className?: string }) {
-  const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
-  return (
-    <div
-      role="img"
-      aria-label={free > 0 ? `Twelve months: you pay for ${12 - free}, and ${free} are free.` : 'Twelve months, each paid monthly.'}
-      className={cn('grid grid-cols-12 gap-1', className)}
-    >
-      {months.map((m, i) => {
-        const isFree = i >= 12 - free;
-        return (
-          <span key={i} aria-hidden="true" className="flex flex-col items-center gap-1">
-            <span
-              className={cn(
-                'aspect-square w-full max-w-[18px] rounded-full',
-                isFree ? 'bg-topic-3' : 'bg-ink/80',
-              )}
-            />
-            <span className={cn('font-mono text-[10px] leading-none', isFree ? 'text-ink' : 'text-ink-3')}>{m}</span>
-          </span>
-        );
-      })}
-    </div>
   );
 }
 

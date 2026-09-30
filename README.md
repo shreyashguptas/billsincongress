@@ -89,7 +89,7 @@ What "new" means is exact rather than approximate: each followed bill remembers 
 
 Pro also raises the question limit from 100 a day to 500. Payment is handled by Stripe; card details never reach this site. Cancel from your account page at any time.
 
-The [Pro page](https://billsincongress.com/pro) shows all of this in pictures. Your account page shows your plan, how many questions you have left today, and each bill you follow or saved with the stage it has reached.
+Pressing **Email me updates** without Pro opens a window over the bill that compares Free and Pro side by side, with a button for each way to pay. After paying you come back to that bill, already following it. The [Pro page](https://billsincongress.com/pro) shows the same comparison first, then explains the rest in pictures. Your account page shows your plan, how many questions you have left today, and each bill you follow or saved with the stage it has reached.
 
 ### How Congress works
 
@@ -140,7 +140,7 @@ A snapshot of what that holds, taken 29 August 2026:
 
 ### How it stays current
 
-Nine scheduled jobs keep the database in step with Congress, and a tenth sends bill-alert emails:
+Nine scheduled jobs keep the database in step with Congress, a tenth sends bill-alert emails, and an eleventh deletes profile-photo uploads that were never attached to an account:
 
 | When | What it does |
 | --- | --- |
@@ -153,6 +153,7 @@ Nine scheduled jobs keep the database in step with Congress, and a tenth sends b
 | 1st of the month, 05:00 UTC | Re-fetch the current Congress from scratch |
 | Twice daily, 01:30 and 13:30 UTC | Tell search engines which bill pages changed |
 | Daily, 11:00 UTC | Email Pro readers whose followed bills moved since their last alert |
+| Daily, 08:00 UTC | Delete profile-photo uploads that no account uses |
 
 The sync throttles itself deliberately — three quarters of a second between calls, backing off on rate limits and pausing when Congress.gov's remaining quota runs low. It also skips the bill-record update when nothing a reader would see has changed, so a routine re-pull does not stamp a fake "updated" date on 18,000 bills or announce fake updates to search engines.
 
@@ -223,13 +224,15 @@ The question panel is the only place in the interface where a machine writes pro
 The full detail is in the [Privacy Policy](https://billsincongress.com/privacy). The short version:
 
 - **Product analytics run on every page** (PostHog, US cloud) — pages visited, clicks, performance, errors, and session replay. There is currently no cookie banner and no opt-out control on the site.
-- **The text of questions you ask the assistant is included in that analytics data.**
+- **The full text of every question you ask the assistant is sent to PostHog** as part of that analytics data (the `answer_question_submitted` event), whether or not you are signed in. If you ask about a bills list narrowed by a title search, the words you searched for go with it.
+- **Searches and filters on the bills list reach PostHog through the page address.** The search words and every filter, sponsor names included, are written into the URL (`/bills?title=farm`), and analytics records the full URL of every page viewed. The suggestions under the home page's question box, and the search boxes inside the filter pickers (typing to find a sponsor, say), are recorded as a length rather than the text: the suggestions until you ask the question or open "See all matching bills", the pickers until you choose an option, which then goes into the URL.
 - **Pressing Share is recorded** — which bill, and whether the link was shared, copied or cancelled. Not where it went or to whom: your phone's share sheet does not tell the site which app you picked, and the shared link carries no tracking code. Analytics also note whether you are using the site in a browser or as the installed app, and when the browser reports an install.
-- **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database. The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
+- **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database (the question text still reaches PostHog, as above). The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
 - **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **If you subscribe to Pro, Stripe handles the payment.** Your card details go to Stripe and never reach this site. What this site stores is your Stripe customer and subscription IDs, the plan's status and price, and when it renews or ends.
 - **If you follow bills on Pro, the list of bills you follow is stored with your account**, along with when each was last emailed. Alert emails are sent through PostHog like the account emails, and PostHog keeps a record of each send. Alert emails carry no tracking pixels and no rewritten links.
+- **If you add a profile photo, a small copy of it is stored with your account.** It is cropped and shrunk in your browser to a 512-pixel square (tens of kilobytes) before it is sent; the original file never leaves your device. It is kept in the site's database file storage (Convex), and its address is only ever given to you — though, like a Google or Slack profile picture, anyone who had that exact address could open it. Replacing or removing it deletes the stored copy. If you signed in with Google, your Google profile picture is shown until you upload your own or remove it; it is loaded from Google, not copied here.
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
@@ -286,7 +289,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 
 ```
 Congress.gov API
-      ↓   ten scheduled jobs (convex/crons.ts): nine sync, one alert email
+      ↓   eleven scheduled jobs (convex/crons.ts): nine sync, one alert email, one photo cleanup
 Sync and repair (convex/congressApi.ts, convex/sync.ts)
       ↓
 Convex database (convex/schema.ts) + precomputed statistics

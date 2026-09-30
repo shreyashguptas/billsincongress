@@ -130,6 +130,27 @@ export const analytics = {
 
   welcomeModalShown: () => capture('welcome_modal_shown'),
 
+  // Profile photo (account page; components/account/avatar-button.tsx)
+
+  /** A picked photo decoded and the crop dialog opened. */
+  avatarEditorOpened: (props: { file_type: string; file_kb: number; had_photo: boolean }) =>
+    capture('avatar_editor_opened', props),
+  /** Closed the crop dialog without saving. */
+  avatarEditorCancelled: () => capture('avatar_editor_cancelled'),
+  /** The cropped photo was stored and is now the reader's avatar. */
+  avatarSaved: (props: {
+    format: 'webp' | 'jpeg';
+    output_kb: number;
+    zoom: number;
+    replaced: 'upload' | 'google' | 'none';
+    duration_ms: number;
+  }) => capture('avatar_saved', props),
+  /** A photo could not be read, uploaded or saved. `reason` is our code, never the file. */
+  avatarFailed: (props: { stage: 'read' | 'upload' | 'save'; reason: string }) =>
+    capture('avatar_failed', props),
+  avatarRemoved: (previous: 'upload' | 'google') => capture('avatar_removed', { previous }),
+  avatarGooglePictureRestored: () => capture('avatar_google_restored'),
+
   /**
    * Google OAuth does a full-page redirect, so completion can't be captured in
    * the click handler. Mark the intent before redirecting…
@@ -475,8 +496,8 @@ export const analytics = {
 
   /**
    * A reader who is not on Pro pressed "Email me updates" and was shown the
-   * upgrade prompt — the alert-as-upgrade-driver moment. `signed_in: false`
-   * readers are sent to sign in first.
+   * Pro dialog over the bill — the alert-as-upgrade-driver moment. A
+   * `signed_in: false` reader who presses Subscribe there signs in first.
    */
   billAlertUpsellShown: (props: { bill_id: string; signed_in: boolean }) =>
     capture('bill_alert_upsell_shown', props),
