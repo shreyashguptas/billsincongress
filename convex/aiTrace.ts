@@ -121,6 +121,7 @@ export class AnswerTrace {
   private readonly started: number;
   private readonly events: CapturedEvent[] = [];
   private readonly clock: () => number;
+  private finished = false;
 
   constructor(opts: {
     traceId?: string;
@@ -208,6 +209,10 @@ export class AnswerTrace {
     outcome: "answered" | "asked_reader" | "failed";
     extra?: Record<string, unknown>;
   }) {
+    // Once per trace. A later failure (the stream to the reader breaking after
+    // the answer was recorded) must not add a second, contradicting outcome.
+    if (this.finished) return;
+    this.finished = true;
     this.push("$ai_trace", {
       $ai_span_name: "answer",
       $ai_input_state: [{ role: "user", content: t.question }],

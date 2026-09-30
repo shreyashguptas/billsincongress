@@ -453,8 +453,8 @@ until `POSTHOG_KEY` is set in the Convex deployment's environment and the Convex
 deployed** — see "Deploying Convex" in `overview.md`.
 
 These are PostHog's own event names and properties, so they do not follow rule 5. Every
-event carries `$ai_trace_id` (one per question), `$ai_session_id` (the conversation: the
-saved chat id when signed in, otherwise a random id per thread in the panel),
+event carries `$ai_trace_id` (one per question), `$ai_session_id` (the conversation: a random id pinned on a
+thread's first question and kept for its follow-ups; a resumed saved thread uses its chat id),
 `distinct_id` (the browser's, so the trace joins the person) and `$session_id` (so it
 links to the replay). With no valid id from the browser the trace is recorded under its
 own id with `$process_person_profile: false`.

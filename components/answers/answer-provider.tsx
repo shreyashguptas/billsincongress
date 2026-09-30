@@ -174,7 +174,10 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   const navCountRef = useRef(0);
   /**
    * One id per conversation, so PostHog groups a thread's traces into one AI
-   * session. A fresh one on "New chat"; a resumed thread reuses its saved id.
+   * session. Pinned on a thread's first question and kept for its follow-ups —
+   * including after a signed-in thread is saved and gets a `chatId`, which
+   * would otherwise split turn 1 from the rest. Cleared on "New chat" and on
+   * resuming, where the saved thread's `chatId` is used instead.
    */
   const conversationIdRef = useRef<string>('');
   const conversationId = () => {
@@ -404,6 +407,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!resumeId || resumed === undefined) return;
     if (resumed === null) {
+      conversationIdRef.current = '';
       setResumeId(null);
       setChatId(null);
       setTurns([]);
@@ -538,7 +542,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
             scope,
             history,
             chatId: chatId ?? undefined,
-            conversationId: chatId ?? conversationId(),
+            conversationId: conversationIdRef.current || chatId || conversationId(),
           }),
         });
         if (!res.body) throw new Error('no stream');
@@ -732,6 +736,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   }, [turns]);
 
   const resume = useCallback((id: Id<'chats'>) => {
+    conversationIdRef.current = '';
     setError('');
     setResumeId(id);
   }, []);

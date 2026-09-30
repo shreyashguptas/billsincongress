@@ -140,6 +140,15 @@ it("the trace's latency runs from creation to finish", () => {
   assert.equal(trace.properties.$ai_trace_id, "t1");
 });
 
+it("records the trace once: a later failure does not add a second outcome", () => {
+  const t = new AnswerTrace({ traceId: "t2" });
+  t.finish({ question: "q", answer: "a", outcome: "answered" });
+  t.finish({ question: "q", error: "enqueue after close", outcome: "failed" });
+  const traces = t.recorded().filter((e) => e.event === "$ai_trace");
+  assert.equal(traces.length, 1);
+  assert.equal(traces[0].properties.outcome, "answered");
+});
+
 Promise.all(pending).then(() => {
   console.log(`\naiTrace: ${passed} passed, ${failures.length} failed`);
   if (failures.length) {

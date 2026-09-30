@@ -945,13 +945,24 @@ export const stream = httpAction(async (ctx, request) => {
         });
       } catch (error) {
         console.error("answer stream failed:", error);
+        // A no-op when the turn was already recorded: a write that fails after
+        // the answer exists (the reader closed the panel mid-stream) is not a
+        // second outcome for it.
         trace.finish({ question, error: String(error), outcome: "failed" });
-        send("error", { message: "Failed to get a response.", traceId: trace.traceId });
+        try {
+          send("error", { message: "Failed to get a response.", traceId: trace.traceId });
+        } catch {
+          // The reader is gone; the flush below must still run.
+        }
       }
       // After the reader has everything, before the stream closes: the action
       // ends with the stream, and anything still in memory then is lost.
       await trace.flush();
-      controller.close();
+      try {
+        controller.close();
+      } catch {
+        // Already closed by a reader who left.
+      }
     },
   });
 
