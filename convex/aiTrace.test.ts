@@ -25,8 +25,21 @@ function it(name: string, fn: () => void | Promise<void>) {
     );
   try {
     const out = fn();
-    if (out instanceof Promise) pending.push(out.then(() => void passed++, record));
-    else passed++;
+    if (out instanceof Promise) {
+      pending.push(
+        out.then(
+          () => {
+            passed++;
+          },
+          (err: unknown) => {
+            record(err);
+          },
+        ),
+      );
+    }
+    else {
+      passed++;
+    }
   } catch (err) {
     record(err);
   }
