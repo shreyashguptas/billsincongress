@@ -1009,7 +1009,8 @@ The reader enters an email; the page runs the Password provider's `reset` flow, 
 6-digit code (`PasswordResetCode` in `convex/emailCodes.ts`, on the same `otpRequestPerEmail`
 bucket as sign-up codes: five an hour per address). The reader then enters the code and a new
 password (`reset-verification`); the library checks the code, stores the new hash, signs the
-reader in and signs out every other session on the account. Like sign-up, the request step
+reader in and signs out every other session on the account, then sends them to `?redirect=`
+(carried over from `/sign-in`) or `/account`. Like sign-up, the request step
 advances even when the server refuses — an address with no password account (a Google-only
 account included) throws and one with an account does not — and every failed code gets the
 same message. The "Forgot password?" link no longer carries the typed email in its URL, so

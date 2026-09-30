@@ -53,3 +53,11 @@ export function safeRedirect(
 
   return value;
 }
+
+/**
+ * `path` with `?redirect=` carried along, so a reader moving between the auth
+ * pages still lands where they started. The default (/account) is left off.
+ */
+export function withRedirect(path: string, redirect: string): string {
+  return redirect === "/account" ? path : `${path}?redirect=${encodeURIComponent(redirect)}`;
+}

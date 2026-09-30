@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { analytics } from "@/lib/analytics";
 import { FormError } from "./auth-card";
 import { PASSWORD_RULES, validatePassword } from "./password-rules";
-import { safeRedirect } from "./safe-redirect";
+import { safeRedirect, withRedirect } from "./safe-redirect";
 
 type Step = "request" | "reset";
 
@@ -217,7 +217,7 @@ export function ResetPasswordForm() {
       </p>
 
       <p className="text-center text-sm">
-        <Link href="/sign-in" className="link focus-ring rounded-xs">
+        <Link href={withRedirect("/sign-in", redirect)} className="link focus-ring rounded-xs">
           ← Back to sign in
         </Link>
       </p>
