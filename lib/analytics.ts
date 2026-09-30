@@ -595,7 +595,8 @@ export const analytics = {
    *                         inflate the number that measures the keep-alive.
    *   'empty_model_output' — the model gave no answer and no lookup, even after
    *                         one nudge and a final round without tools. Until
-   *                         #135's Convex deploy the reader got a canned
+   *                         #135's Convex deploy on 30 Sep 2026 at about
+   *                         17:42 UTC (13:42 ET) the reader got a canned
    *                         apology and this was recorded as an
    *                         `answer_received`.
    *   any other string    — the server's own error message.
