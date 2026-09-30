@@ -120,7 +120,12 @@ themes. It is the one dark band on a light page. Use it once per site.
 | **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans |
 | **Geist Mono** | `--font-mono` | `font-mono` | Bill numbers, counts, dates: anything that lines up |
 
-All three load through `next/font/google` in `app/layout.tsx`.
+All three are declared once, in `app/fonts/index.ts`, for the root layout and
+`app/global-error.tsx`. Geist and Geist Mono come through `next/font/google`.
+Newsreader comes through `next/font/local` from `app/fonts/`: Google's files
+with the line box moved to centre on the capitals (see "Icons beside text").
+Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
+`next/font/google`.
 
 | Class | Size / line | Use |
 |---|---|---|
@@ -304,6 +309,39 @@ What stays hand-built, on purpose:
   `Ban`.
 - No emoji. No eagles, flags or Capitol photographs. Civic clichés read as
   campaign material.
+
+### Icons beside text
+
+An icon's middle is level with the middle of its label's capitals. Three things
+break that, and each is fixed at the root, not per component:
+
+- **The font.** A centred row centres the text's line box, so the letters land
+  in the middle only if the font's box is centred on its capitals. Geist's is.
+  Newsreader's, as Google ships it, is not — its letters rode 0.12em high, 3px
+  beside a 26px panel title — so the site serves a copy with the box moved
+  (`scripts/generate-serif-font.ts` explains it). Any new face gets the same
+  check before it ships. So: centre the row (`flex items-center`) and never
+  nudge an icon with a margin or `translate` to make it look right.
+- **A row loose in a line of text.** An SVG has no baseline, so an
+  `inline-flex` row that starts with an icon lines up with the text around it
+  by the icon's bottom edge, and its label rides above its neighbours (the
+  footer's "Source" did). Put an icon row inside a flex or grid parent, or make
+  it `flex w-fit`; don't leave it `inline-flex` in a paragraph, a list item or
+  a plain `div`. The one safe loose row is `items-baseline`, where the label
+  sets the baseline — the lockup, which sits its wordmark on the mark's floor
+  on purpose (see Logo).
+- **A label that wraps** centres the icon on the whole block. Keep icon labels
+  to one line; where one must wrap, make the row `items-start`, give it the
+  label's text size so `1lh` is one line of the label, and put the icon in a
+  box that tall (`flex h-[1lh] items-center`). A badge taller than the line
+  overhangs that box, so pad the row by the overhang:
+  `py-[max(0px,calc((<badge>-1lh)/2))]` (the Learn steps and the bill stage
+  do this).
+
+In development, `components/brand/icon-alignment-check.tsx` measures every page
+after it settles and warns in the console (`[icon-alignment]`) about any of
+these. Menus and dialogs open later: run `window.findIconMisalignments()` in
+the console with one open.
 
 ## Logo
 
