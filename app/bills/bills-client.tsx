@@ -126,6 +126,14 @@ export default function BillsClient({
   const [isLoading, setIsLoading] = useState(initialBills === null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The filter signature whose fetch came back with zero bills — set only once
+   * a result is known, never inferred from render-time `bills`/`isLoading`,
+   * which still describe the previous filters on the render where they change.
+   */
+  const [confirmedEmpty, setConfirmedEmpty] = useState<string | null>(
+    initialBills !== null && initialBills.length === 0 ? serverFilterSignature : null,
+  );
 
   const currentSignature = filterSignature(filters);
   const chips = activeFilters(filters);
@@ -313,6 +321,7 @@ export default function BillsClient({
         setHasMore(response.hasMore);
         setTruncated(response.truncated ?? false);
         setCurrentPage(1);
+        setConfirmedEmpty(response.data.length === 0 ? currentSignature : null);
         // UX friction signal: an active filter combination matched nothing.
         if (response.data.length === 0 && activeFilterCount(filters) > 0) {
           analytics.billsNoResults(activeFilterCount(filters), filters.title.length);
@@ -327,6 +336,7 @@ export default function BillsClient({
         setBills([]);
         setHasMore(false);
         setTruncated(false);
+        setConfirmedEmpty(null);
         setError(LOAD_FAILED_MESSAGE);
       })
       .finally(() => {
@@ -389,8 +399,9 @@ export default function BillsClient({
     name: string;
     kind: SponsorMatchKind;
   } | null>(null);
+  const suggestionReported = useRef('');
   const emptyTitleSearch =
-    !isLoading && !error && bills.length === 0 && filters.title !== '';
+    confirmedEmpty === currentSignature && !error && filters.title !== '';
 
   useEffect(() => {
     if (!emptyTitleSearch) return;
@@ -403,6 +414,8 @@ export default function BillsClient({
         const match = matchSponsorName(title, sponsors);
         if (!match) return;
         setSponsorSuggestion({ forSignature: signature, name: match.sponsor.name, kind: match.kind });
+        if (suggestionReported.current === signature) return;
+        suggestionReported.current = signature;
         analytics.billsNoResultsSponsorSuggested(match.kind, title.length);
       })
       // Optional help on an empty page: without the list there is simply no
