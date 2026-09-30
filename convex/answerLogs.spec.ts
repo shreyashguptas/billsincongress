@@ -62,6 +62,13 @@ const answerOk = () =>
     }),
   );
 const answerDown = () => new Response("upstream overloaded", { status: 503 });
+const answerEmpty = () =>
+  new Response(
+    JSON.stringify({
+      model: "deepseek/deepseek-v4-flash-0731",
+      choices: [{ message: { role: "assistant", content: "" }, finish_reason: "stop" }],
+    }),
+  );
 
 async function ask(t: T, ids: { session?: unknown; distinct?: unknown } = { session: SESSION, distinct: DISTINCT }) {
   const response = await t.fetch("/answer/stream", {
@@ -123,6 +130,19 @@ describe("the answer's PostHog log line", () => {
     expect(attrs.page).toBe("bill");
     expect(attrs.signed_in).toBe(false);
     expect(String(attrs.error)).toContain("OpenRouter 503");
+  });
+
+  test("an answer that comes back empty every time is an ERROR line too, with the reason", async () => {
+    const toPosthog = stubNetwork(answerEmpty);
+    const stream = await ask(setup());
+
+    expect(stream).toContain("empty_model_output");
+    expect(toPosthog).toHaveLength(1);
+    const { record, attrs } = attributesOf(toPosthog[0]);
+    expect(record.severityText).toBe("ERROR");
+    expect(record.body.stringValue).toBe("answer failed");
+    expect(attrs.reason).toBe("empty_model_output");
+    expect(attrs.sessionId).toBe(SESSION);
   });
 
   test("a good answer sends one INFO line with how it went", async () => {

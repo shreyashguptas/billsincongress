@@ -454,7 +454,7 @@ environment nothing is sent. Service name: `billsincongress-convex`.
 | Line (body) | Level | Written when | Attributes | Where (file) |
 |---|---|---|---|---|
 | `answer served` | INFO, or WARN when the answer was `partial`, `truncated` or had citations dropped | An answer reached the reader (`done` sent) | `sessionId`, `posthogDistinctId` (when the browser sent them), `signed_in`, `page`, `bill_id` (bill pages), `duration_ms`, `lookups`, `partial`, `truncated`, `dropped_citations`, `used_web`, `asked_reader` | `convex/answer.ts` (`stream`) |
-| `answer failed` | ERROR | The answer loop threw and the reader got "Failed to get a response." | the identity/page attributes above, `duration_ms`, `error` (first 500 characters) | `convex/answer.ts` (`stream`) |
+| `answer failed` | ERROR | The answer loop threw ("Failed to get a response."), or it ended with no answer (`reason`, e.g. `empty_model_output`: every round came back empty) | the identity/page attributes above, `duration_ms`, and either `error` (first 500 characters, when it threw) or `reason` + `lookups` (when it ended empty) | `convex/answer.ts` (`stream`) |
 
 - `sessionId` and `posthogDistinctId` are the attribute names PostHog uses to link a line to
   the session replay and the person. They come from the browser and are dropped unless

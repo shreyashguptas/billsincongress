@@ -820,6 +820,11 @@ export const stream = httpAction(async (ctx, request) => {
           const message =
             result.error === EMPTY_MODEL_OUTPUT ? EMPTY_MODEL_OUTPUT_MESSAGE : result.error;
           send("error", { message, reason: result.error });
+          await logAnswer("error", "answer failed", {
+            duration_ms: Date.now() - startedAt,
+            lookups: result.workLog.length,
+            reason: result.error,
+          });
           controller.close();
           return;
         }
