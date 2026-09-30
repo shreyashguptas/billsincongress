@@ -14,6 +14,7 @@ import { formatCongressProse } from "@/lib/congress";
 import { cn } from "@/lib/utils";
 import { StageTrack, StatusPill } from "@/components/brand/status";
 import { AvatarMark, initialsFor, ProPill, SpectrumStrip } from "@/components/brand/pro-mark";
+import { AvatarButton, type AvatarActions, type AvatarSource } from "@/components/account/avatar-button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,9 @@ export interface AccountUser {
   name?: string | null;
   email?: string | null;
   emailVerificationTime?: number | null;
+  avatarUrl?: string | null;
+  avatarSource?: AvatarSource;
+  hasGooglePicture?: boolean;
 }
 
 /**
@@ -126,6 +130,7 @@ export function AccountView({
   openPortal,
   toggleAlert,
   onSignOut,
+  avatarActions,
 }: {
   user: AccountUser;
   billing: BillingStatus | null | undefined;
@@ -136,6 +141,8 @@ export function AccountView({
   openPortal: () => Promise<{ url: string }>;
   toggleAlert: (args: { billId: string }) => Promise<{ following: boolean }>;
   onSignOut: () => void | Promise<void>;
+  /** Absent in drawings of the page (no Convex): the avatar is then just a picture. */
+  avatarActions?: AvatarActions;
 }) {
   const verified = Boolean(user.emailVerificationTime);
   const isPro = billing?.plan === "pro";
@@ -146,7 +153,18 @@ export function AccountView({
       {/* You: the avatar, in the spectrum ring on Pro — the persistent Pro mark. */}
       <header className="rounded-lg border border-line bg-raised">
         <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-7 sm:p-8">
-          <AvatarMark initials={initialsFor(user.name ?? user.email)} pro={isPro} size="lg" />
+          {avatarActions ? (
+            <AvatarButton
+              initials={initialsFor(user.name ?? user.email)}
+              src={user.avatarUrl ?? null}
+              source={user.avatarSource ?? null}
+              hasGooglePicture={user.hasGooglePicture ?? false}
+              pro={isPro}
+              actions={avatarActions}
+            />
+          ) : (
+            <AvatarMark initials={initialsFor(user.name ?? user.email)} src={user.avatarUrl} pro={isPro} size="lg" />
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="label-eyebrow">Account</p>

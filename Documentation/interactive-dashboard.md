@@ -18,7 +18,7 @@ illustrative of magnitude, not as live values.
 | Dashboard queries | `convex/bills.ts` — `getAllCongressOverview`, `getCongressDashboard`, `getChamberDeepBreakdown` |
 | Recompute jobs | `convex/mutations.ts`, orchestrated from `convex/congressApi.ts` |
 | Precomputed tables | `convex/schema.ts` |
-| Design language | [`brand.md`](brand.md); tokens in `app/globals.css`, `tailwind.config.ts`; fonts in `app/layout.tsx` |
+| Design language | [`brand.md`](brand.md); tokens in `app/globals.css`, `tailwind.config.ts`; fonts in `app/fonts/index.ts` |
 
 **There is no charting library** — every chart is hand-built from `div`s or inline SVG with
 computed sizes. Every section in `home/` takes the same `HomeProps` object, built once in

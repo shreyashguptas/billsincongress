@@ -36,8 +36,16 @@ export default defineSchema({
     stripePriceId: v.optional(v.string()),
     stripeCurrentPeriodEnd: v.optional(v.number()), // unix seconds
     cancelAtPeriodEnd: v.optional(v.boolean()),
+
+    // App-managed profile photo (convex/avatars.ts). Kept apart from `image`,
+    // which @convex-dev/auth overwrites with the Google picture on every
+    // Google sign-in. `avatarHidden` is "show my initials": set by Remove,
+    // so a removed Google picture does not come back at the next sign-in.
+    avatarStorageId: v.optional(v.id("_storage")),
+    avatarHidden: v.optional(v.boolean()),
   })
     .index("email", ["email"])
+    .index("by_avatarStorageId", ["avatarStorageId"])
     .index("by_stripeCustomerId", ["stripeCustomerId"])
     .index("by_stripeSubscriptionId", ["stripeSubscriptionId"]),
 

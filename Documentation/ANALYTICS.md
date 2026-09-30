@@ -42,13 +42,23 @@ should not exist in the code — and if it's in this file, it must exist in the 
 6. **No identity data in event properties.** Email, name and account id go on the
    **person profile** via `identify()`, never on individual events.
    Reader-typed free text does reach event properties today, deliberately, because knowing
-   what people ask and what they searched for and did not find is the point of collecting it:
-   `answer_question_submitted.question` (the whole question), `bills_no_results.title_query`
-   (the raw search box), and — less obviously — `answer_question_submitted.scope_label` and
+   what people ask is the point of collecting it: `answer_question_submitted.question` (the
+   whole question), and — less obviously — `answer_question_submitted.scope_label` and
    `answer_starter_clicked.starter_text`, both of which interpolate the reader's typed title
-   search into a label. Both are disclosed in the Privacy Policy — the AI question in §3,
-   the no-results search text in §2. Adding another free-text property is a privacy decision,
-   not a routine one: raise it explicitly and update the Privacy Policy in the same change.
+   search into a label. The custom search events send a `query_length`, not the text
+   (`bills_no_results` stopped sending `title_query` in the filter redesign), **but that does
+   not keep search text out of PostHog**: the header search, the bills-list search and "See
+   all matching bills" all land on `/bills?title=<text>`, and every filter (sponsor names
+   included) is a URL parameter too. `$current_url` carries it on the pageview and every event
+   from that page, it becomes `$referrer` on the next page and can land in the person's
+   `$initial_*` properties, and session replay records the URL. `lib/redact-secrets.ts` strips
+   only the unsubscribe token. A `query_length`-only property is therefore not a privacy
+   control on its own; the URL has to be handled as well. All of this is
+   disclosed in the Privacy Policy (`app/privacy/page.tsx`): §2 lists what typed text reaches
+   analytics, §3 says question text goes to PostHog, and §6 names it on the PostHog entry; the
+   README's "What is collected about you" says the same. Adding another free-text property is
+   a privacy decision, not a routine one: raise it explicitly and update the Privacy Policy
+   and the README in the same change.
 
 ---
 
@@ -147,6 +157,12 @@ picker) and fires one custom event — see "Learn page" below.
 | `auth_google_clicked` | User clicks a "Continue with Google" button (before OAuth redirect) | `intent: "sign_in" \| "sign_up"` | `components/auth/google-button.tsx` |
 | `signed_out` | User signs out | — | `components/auth/user-menu.tsx`, `app/account/page.tsx` |
 | `welcome_modal_shown` | New-user welcome/celebration modal appeared | — | `components/auth/welcome-new-user.tsx` |
+| `avatar_editor_opened` | Reader picked a photo from the account page's avatar and it decoded; the crop dialog opened (added 2026-09-29) | `file_type` (the picked file's MIME type), `file_kb` (its size), `had_photo` | `components/account/avatar-button.tsx` |
+| `avatar_editor_cancelled` | Reader closed the crop dialog without saving | — | `components/account/avatar-button.tsx` |
+| `avatar_saved` | The cropped photo was uploaded and attached; it is now the reader's avatar | `format: "webp" \| "jpeg"` (JPEG only where the browser cannot encode WebP), `output_kb`, `zoom` (1–4, two decimals), `replaced: "upload" \| "google" \| "none"`, `duration_ms` (Upload press to attached) | `components/account/avatar-button.tsx` |
+| `avatar_failed` | A photo could not be read (`stage: "read"`: not an image the browser can open, or over 50 MB), uploaded (`"upload"`) or attached (`"save"`: rejected by the server, or rate limited) | `stage`, `reason` (our code, e.g. `UNREADABLE_IMAGE`, `TOO_LARGE`, `RATE_LIMITED`, `AVATAR_INVALID`) | `components/account/avatar-button.tsx` |
+| `avatar_removed` | Reader chose "Remove photo"; the avatar is back to initials | `previous: "upload" \| "google"` | `components/account/avatar-button.tsx` |
+| `avatar_google_restored` | Reader chose "Use Google photo" to show their Google picture again | — | `components/account/avatar-button.tsx` |
 
 ### Bill discovery (dashboard + browse)
 
@@ -258,17 +274,26 @@ Added with the Pro plan. The upgrade funnel is
 that proves the Stripe webhook landed: it fires when the account page sees `users.plan`
 turn `pro`, never on the success URL alone (a reader can open that by hand).
 
+> Changed 29 Sep 2026: "Email me updates" used to send a reader not on Pro to `/pro`; it now
+> opens the Pro dialog over the bill, with the subscribe buttons in it. The events and their
+> names are unchanged, but the step between `bill_alert_upsell_shown` and
+> `pro_checkout_started` is now one click rather than a page load and a scroll, so conversion
+> before and after that date is not like for like. A dialog closed without subscribing sends
+> nothing; it is `bill_alert_upsell_shown` without a following `pro_checkout_started`.
+> Stripe now returns a reader who paid from the dialog to the bill, not `/account`, so
+> `pro_checkout_returned` and `pro_activated` fire from the bill page for them.
+
 No event carries card data, prices paid or Stripe ids. Revenue lives in Stripe.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `bill_alert_upsell_shown` | A reader not on Pro pressed "Email me updates" on a bill page and was sent to `/pro` | `bill_id`, `signed_in` | `components/bills/bill-alert-button.tsx` |
-| `bill_alert_toggled` | A reader followed or unfollowed a bill for email alerts | `bill_id`, `action: "followed" \| "unfollowed"`, `surface: "bill_page" \| "account"`; from the bill page also `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-alert-button.tsx`, `app/account/account-view.tsx` (Unfollow) |
-| `pro_checkout_started` | Reader pressed a subscribe button and is about to leave for Stripe Checkout | `interval: "month" \| "year"`, `surface: "pro_page" \| "alert_prompt"` (`account` and `rate_limit` are accepted but not sent today) | `components/pro/subscribe-panel.tsx` |
-| `pro_checkout_failed` | Checkout could not be opened | `interval`, `reason` (our error code, e.g. `BILLING_NOT_CONFIGURED`) | `components/pro/subscribe-panel.tsx` |
-| `pro_checkout_returned` | Reader came back from Stripe: the success URL (`/account?checkout=success`) or the cancel URL (`/pro?checkout=canceled`) | `outcome: "success" \| "canceled"` | `app/account/page.tsx`, `components/pro/subscribe-panel.tsx` |
-| `pro_activated` | After a successful checkout, the account page saw the plan become Pro (the webhook landed). Since 2026-09-24 the same moment opens the one-time "Welcome to Pro" celebration (confetti and a dialog), so this event also counts the celebrations shown | `interval: "month" \| "year" \| "unknown"` | `app/account/page.tsx` |
-| `pro_welcome_step_clicked` | A new subscriber pressed a next step in the "Welcome to Pro" dialog: "Follow a bill" (goes to `/bills`) or "Ask away" (opens the ask panel, which also sends `answer_panel_opened` with trigger `manual`). Closing the dialog sends nothing | `step: "follow_bill" \| "ask"` | `components/pro/welcome-to-pro.tsx` |
+| `bill_alert_upsell_shown` | A reader not on Pro pressed "Email me updates" on a bill page and was shown the Pro dialog over the bill (Free and Pro side by side, with the subscribe buttons). Before 2026-09-29 the same press sent them to `/pro` instead | `bill_id`, `signed_in` | `components/bills/bill-alert-button.tsx` |
+| `bill_alert_toggled` | A reader followed or unfollowed a bill for email alerts. Also sent (`followed`, `surface: "bill_page"`) when a reader comes back from a checkout started on a bill and the page follows that bill for them | `bill_id`, `action: "followed" \| "unfollowed"`, `surface: "bill_page" \| "account"`; from the bill page also `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-alert-button.tsx`, `app/account/account-view.tsx` (Unfollow) |
+| `pro_checkout_started` | Reader pressed a subscribe button and is about to leave for Stripe Checkout | `interval: "month" \| "year"`, `surface: "pro_page" \| "alert_prompt"` (`alert_prompt`: the bill page's Pro dialog, or a legacy `/pro?bill=…` link; `account` and `rate_limit` are accepted but not sent today) | `components/pro/plan-compare.tsx` (`useProCheckout`), used by `components/pro/pro-dialog.tsx` and `components/pro/subscribe-panel.tsx` |
+| `pro_checkout_failed` | Checkout could not be opened | `interval`, `reason` (our error code, e.g. `BILLING_NOT_CONFIGURED`) | `components/pro/plan-compare.tsx` (`useProCheckout`) |
+| `pro_checkout_returned` | Reader came back from Stripe: the success URL (`/account?checkout=success`, or `/bills/<id>?checkout=success` when the checkout started from that bill's Pro dialog) or the cancel URL (`/pro?checkout=canceled`, or the bill's) | `outcome: "success" \| "canceled"` | `app/account/page.tsx`, `components/bills/bill-alert-button.tsx`, `components/pro/subscribe-panel.tsx` |
+| `pro_activated` | After a successful checkout, the page Stripe returned to saw the plan become Pro (the webhook landed): the account page, or since 2026-09-29 the bill page the checkout started from. Since 2026-09-24 the same moment opens the one-time "Welcome to Pro" celebration (confetti and a dialog), so this event also counts the celebrations shown | `interval: "month" \| "year" \| "unknown"` | `app/account/page.tsx`, `components/bills/bill-alert-button.tsx` |
+| `pro_welcome_step_clicked` | A new subscriber pressed a next step in the "Welcome to Pro" dialog: "Follow a bill" (goes to `/bills`) or "Ask away" (opens the ask panel, which also sends `answer_panel_opened` with trigger `manual`). Closing the dialog sends nothing. On a bill page the first step reads "You're following this bill" and only closes the dialog, so it sends nothing either | `step: "follow_bill" \| "ask"` | `components/pro/welcome-to-pro.tsx` |
 | `billing_portal_opened` | Reader pressed "Manage billing" and is being sent to the Stripe customer portal | — | `app/account/account-view.tsx` |
 | `bill_alerts_unsubscribed` | Reader used the link in an alert email to stop all alert emails | `removed` (number of bills unfollowed) | `app/alerts/unsubscribe/unsubscribe-form.tsx` |
 
@@ -304,7 +329,7 @@ emits `list`.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-provider.tsx` |
-| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence | `components/answers/answer-provider.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence. Fires when the finished answer arrives, before the panel's word-by-word reveal (up to 5s) has finished drawing it, so `response_ms` is the server's time, not the time until the reader sees the last word | `components/answers/answer-provider.tsx` |
 | `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), `"empty_model_output"` (the model gave no answer and no lookup, even after one nudge and a final round without tools; **before 28 Sep 2026 the reader got a canned apology instead, recorded as an `answer_received`**), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
 | `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |

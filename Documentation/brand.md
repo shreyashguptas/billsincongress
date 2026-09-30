@@ -120,7 +120,12 @@ themes. It is the one dark band on a light page. Use it once per site.
 | **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans |
 | **Geist Mono** | `--font-mono` | `font-mono` | Bill numbers, counts, dates: anything that lines up |
 
-All three load through `next/font/google` in `app/layout.tsx`.
+All three are declared once, in `app/fonts/index.ts`, for the root layout and
+`app/global-error.tsx`. Geist and Geist Mono come through `next/font/google`.
+Newsreader comes through `next/font/local` from `app/fonts/`: Google's files
+with the line box moved to centre on the capitals (see "Icons beside text").
+Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
+`next/font/google`.
 
 | Class | Size / line | Use |
 |---|---|---|
@@ -220,7 +225,7 @@ These live in `components/brand/` and compose the primitives above.
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
-| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's initials in a circle, and the Pro mark. See Pro, below |
+| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
 
 Patterns that appear on more than one page:
@@ -228,6 +233,12 @@ Patterns that appear on more than one page:
 - **Ask composer**: 60px tall, `rounded-lg`, raised, `line-strong` edge; the
   send button is a 40px ink circle. Starter questions are `rounded-full`
   outline pills in `ink-2`, each written from a live figure.
+- **Answer reveal**: a new answer is written onto the page word by word, each
+  word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
+  words a second, faster for a long answer so none takes more than five
+  seconds. Bill cards rise in when the text reaches them; the sources wait
+  for the last word. It plays once, for the answer being written — a resumed
+  conversation, and anyone under `prefers-reduced-motion`, sees it whole.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
 - **Status panel** (bill page): `rounded-lg`, raised, the stage in
@@ -239,6 +250,26 @@ Patterns that appear on more than one page:
   It never becomes icon-only. After a copy it reads "Link copied" with `Check`
   for 2.5 seconds; a 9rem minimum width holds both labels, so the swap does
   not resize the button.
+- **Header sections** (md and up): Home, Bills, Learn, About in `ink-2`, the
+  current one in `ink`. One 2px ink rule, the label's exact width, sits about
+  5px under the labels — never on the header's bottom border. It rests under
+  the current section, glides (420ms, `cubic-bezier(0.22, 1, 0.36, 1)`) to
+  whichever label is hovered or focused, and returns when the pointer leaves
+  the nav. It first appears by growing out from the label's centre, and
+  shrinks into its centre on a page with no section. Still under
+  `prefers-reduced-motion`.
+- **Ask panel title bar**: from `lg` up, exactly the header's height
+  (`--header-h`), so docked beside it the two bottom rules are one line.
+- **Profile photo** (account page, `components/account/`): the avatar is the
+  control. Hovering or focusing it lays an ink veil (`ink/70` over a photo,
+  solid over initials) with a Lucide `Camera` and "Upload" (or "Change"); a
+  small `raised` circle with the camera sits at its lower right at all times,
+  for touch screens. With no photo
+  a click opens the device's own picker; with one, a menu offers "Upload a
+  photo", "Use Google photo" and "Remove photo". The crop dialog is a 280px
+  square with the circle drawn in `line-strong` and everything outside it
+  dimmed with `paper`, a zoom `Slider` between two ghost icon buttons, and
+  "Upload" as the one ink button.
 - **Account slot** (header, right edge): signed in, the 36px avatar (see
   "Pro"). Signed out, small (`sm`) buttons and never ink: "Sign up" is
   `outline`, "Sign in" is `ghost`. The header is on every page and must not
@@ -285,6 +316,39 @@ What stays hand-built, on purpose:
 - No emoji. No eagles, flags or Capitol photographs. Civic clichés read as
   campaign material.
 
+### Icons beside text
+
+An icon's middle is level with the middle of its label's capitals. Three things
+break that, and each is fixed at the root, not per component:
+
+- **The font.** A centred row centres the text's line box, so the letters land
+  in the middle only if the font's box is centred on its capitals. Geist's is.
+  Newsreader's, as Google ships it, is not — its letters rode 0.12em high, 3px
+  beside a 26px panel title — so the site serves a copy with the box moved
+  (`scripts/generate-serif-font.ts` explains it). Any new face gets the same
+  check before it ships. So: centre the row (`flex items-center`) and never
+  nudge an icon with a margin or `translate` to make it look right.
+- **A row loose in a line of text.** An SVG has no baseline, so an
+  `inline-flex` row that starts with an icon lines up with the text around it
+  by the icon's bottom edge, and its label rides above its neighbours (the
+  footer's "Source" did). Put an icon row inside a flex or grid parent, or make
+  it `flex w-fit`; don't leave it `inline-flex` in a paragraph, a list item or
+  a plain `div`. The one safe loose row is `items-baseline`, where the label
+  sets the baseline — the lockup, which sits its wordmark on the mark's floor
+  on purpose (see Logo).
+- **A label that wraps** centres the icon on the whole block. Keep icon labels
+  to one line; where one must wrap, make the row `items-start`, give it the
+  label's text size so `1lh` is one line of the label, and put the icon in a
+  box that tall (`flex h-[1lh] items-center`). A badge taller than the line
+  overhangs that box, so pad the row by the overhang:
+  `py-[max(0px,calc((<badge>-1lh)/2))]` (the Learn steps and the bill stage
+  do this).
+
+In development, `components/brand/icon-alignment-check.tsx` measures every page
+after it settles and warns in the console (`[icon-alignment]`) about any of
+these. Menus and dialogs open later: run `window.findIconMisalignments()` in
+the console with one open.
+
 ## Logo
 
 - **The mark** is the chamber: six seats on the outer row, four on the inner,
@@ -292,6 +356,10 @@ What stays hand-built, on purpose:
   dots.
 - **The wordmark** is "Bills in Congress" in Newsreader 600 at -0.012em, 10px
   from the mark. Always those three words.
+- **The lockup sits on the floor.** The wordmark's baseline is the bottom of
+  the mark's floor line, not the centre of a box around the mark. The lockup
+  draws the mark cropped to its ink (`ChamberMark trim`) and aligns the two on
+  their baselines; in the header the section labels share that baseline.
 - **Colour**: ink on paper, or paper on ink. The spectrum version colours the
   six outer seats with `topic-1` … `topic-6` and the inner row `ink-3`. Use it
   once per surface, at 48px or larger. Never recolour the mark with party
@@ -417,7 +485,8 @@ connection returns.
 
 ## Pictures
 
-The Learn and Pro pages explain with pictures first and a few words after. The
+The Learn page, and the Pro page below its plan cards, explain with pictures
+first and a few words after. The
 pictures are flat SVG scenes drawn on the server (no client JavaScript), built
 from the primitives in `components/brand/pictures.tsx`: people, a page of
 writing, an arrow, the alert email as an envelope, a seven-step track.
@@ -437,7 +506,7 @@ writing, an arrow, the alert email as an envelope, a seven-step track.
 A reader on Pro is shown so in one consistent way, the **Pro mark**:
 
 - **The spectrum ring**: the six topic colours as a ring around the reader's
-  initials, then a paper gap, then the circle (`AvatarMark pro`). It appears on
+  photo or initials, then a paper gap, then the circle (`AvatarMark pro`). It appears on
   the header's account button (36px overall, focus ring outside it), on the
   account page's "you" card, and in the Welcome to Pro dialog. Free readers get
   the plain circle with a `line-strong` edge.
@@ -446,6 +515,25 @@ A reader on Pro is shown so in one consistent way, the **Pro mark**:
   problem drops it.
 - **The pill**: `ProPill`, an outline badge with Pro's indigo dot and a word,
   in the account menu and beside the plan. The colour is never the only signal.
+
+**The plan cards** (`components/pro/plan-compare.tsx`) are how Pro is sold,
+on `/pro` and in the dialog "Email me updates" opens for a reader not on Pro.
+They are drawn the way readers already know from pricing pages, so nobody has
+to learn how to read them:
+
+- Free and Pro side by side, the same rows in the same order on each, so a
+  reader reads across. A row Free lacks is a `Minus` in `ink-3` with the words
+  in `ink-3`; never a red cross.
+- Pro's card has an ink edge (`border-ink` and a 1px ink ring) and the
+  monthly price large, with the yearly price and its free months under it.
+- The rows Pro adds take a check in Pro's indigo (`topic-3`); the words say it
+  too.
+- The two ways to pay are the two buttons on Pro's card: "Subscribe yearly" is
+  the ink button, "Subscribe monthly" the outline one, each with its price.
+- The whole choice fits on one screen at 1440 × 900 without scrolling. On a
+  phone the Pro card comes first, so both buttons are on screen, and Free
+  follows.
+- No spectrum strip or ring: those mean the reader already pays.
 
 The ring and the strip are the only decorative uses of the spectrum on the site
 besides the logo's spectrum mark and the email signature. They mean "this
