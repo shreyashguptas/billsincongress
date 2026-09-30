@@ -1,10 +1,11 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { httpAction, internalMutation } from "./_generated/server";
+import { httpAction, internalMutation, internalQuery } from "./_generated/server";
 import { rateLimiter } from "./rateLimits";
 import {
   isAllowedOrigin,
   MAX_PICTURE_BYTES,
+  MAX_STORED_PICTURES,
   PICTURE_RETENTION_MS,
   sniffPictureType,
 } from "./feedbackPicture";
@@ -59,6 +60,9 @@ export const uploadPicture = httpAction(async (ctx, request) => {
   const contentType = sniffPictureType(bytes);
   if (!contentType) return reply(origin, 415, { error: "not_a_picture" });
 
+  const full: boolean = await ctx.runQuery(internal.feedback.pictureStoreFull, {});
+  if (full) return reply(origin, 503, { error: "full" });
+
   const status = await rateLimiter.limit(ctx, "feedbackPicturesPerDay", { key: "all" });
   if (!status.ok) return reply(origin, 429, { error: "busy" });
 
@@ -71,6 +75,16 @@ export const uploadPicture = httpAction(async (ctx, request) => {
   const url = await ctx.storage.getUrl(storageId);
   if (!url) return reply(origin, 500, { error: "stored_without_url" });
   return reply(origin, 200, { url });
+});
+
+/** Whether MAX_STORED_PICTURES are already kept. Reads at most that many rows. */
+export const pictureStoreFull = internalQuery({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("feedbackPictures").take(MAX_STORED_PICTURES);
+    return rows.length >= MAX_STORED_PICTURES;
+  },
 });
 
 export const recordPicture = internalMutation({

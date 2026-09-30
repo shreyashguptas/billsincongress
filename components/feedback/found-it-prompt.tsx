@@ -94,11 +94,14 @@ export function FoundItPrompt() {
     setVisible(false);
   }
 
-  // Escape closes it, like every other floating surface on the site.
+  // Escape closes it, like every other floating surface on the site — unless
+  // another layer (the Feedback box, the menu, a picker) already took that
+  // Escape: Radix marks the one it uses, and closing the prompt too would
+  // dismiss it, or at "What was missing?" send a No the reader never meant.
   React.useEffect(() => {
     if (!visible || step === 'thanks') return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape' && !e.defaultPrevented) close();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

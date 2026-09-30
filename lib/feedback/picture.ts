@@ -1,12 +1,18 @@
 // Getting a reader's picture from their device to convex/feedback.ts.
 //
 // Every picture is redrawn on a canvas before it leaves the browser. That does
-// two jobs: a phone photo or a 5K screenshot shrinks to well under the
-// endpoint's 2 MB limit, and whatever the file carried besides pixels (a
-// photo's GPS location, the camera, the time it was taken) is left behind.
+// two jobs: a phone photo or a 5K screenshot shrinks to under the endpoint's
+// 1 MB limit, and whatever the file carried besides pixels (a photo's GPS
+// location, the camera, the time it was taken) is left behind.
 
 /** Longest side after shrinking. Enough to read a screenshot's text. */
 const MAX_SIDE = 1600;
+/**
+ * What the browser will send. Under convex/feedbackPicture.ts's 1 MB limit
+ * with room to spare; a busy photo that comes out larger is re-encoded
+ * smaller until it fits.
+ */
+const MAX_OUTPUT_BYTES = 900 * 1024;
 /** Refused before decoding: larger than any screenshot, and slow to decode on a phone. */
 export const MAX_INPUT_BYTES = 25 * 1024 * 1024;
 
@@ -39,25 +45,43 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
 export async function preparePicture(file: Blob): Promise<Blob> {
   const image = await decode(file);
   try {
-    const scale = Math.min(1, MAX_SIDE / Math.max(image.width, image.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('no 2d context');
-    // A transparent screenshot would otherwise turn black in a JPEG.
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image.source, 0, 0, canvas.width, canvas.height);
-    // A browser that cannot encode WebP silently hands back a PNG instead.
-    const webp = await toBlob(canvas, 'image/webp', 0.85);
-    if (webp && webp.type === 'image/webp') return webp;
-    const jpeg = await toBlob(canvas, 'image/jpeg', 0.85);
-    if (!jpeg) throw new Error('could not encode picture');
-    return jpeg;
+    // Each try is smaller than the last: first the quality, then the size.
+    for (const [side, quality] of [
+      [MAX_SIDE, 0.85],
+      [MAX_SIDE, 0.7],
+      [1200, 0.7],
+      [900, 0.6],
+    ] as const) {
+      const blob = await encode(image, side, quality);
+      if (blob.size <= MAX_OUTPUT_BYTES) return blob;
+    }
+    throw new Error('picture too large even when shrunk');
   } finally {
     image.done();
   }
+}
+
+async function encode(
+  image: { source: CanvasImageSource; width: number; height: number },
+  side: number,
+  quality: number,
+): Promise<Blob> {
+  const scale = Math.min(1, side / Math.max(image.width, image.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no 2d context');
+  // A transparent screenshot would otherwise turn black in a JPEG.
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image.source, 0, 0, canvas.width, canvas.height);
+  // A browser that cannot encode WebP silently hands back a PNG instead.
+  const webp = await toBlob(canvas, 'image/webp', quality);
+  if (webp && webp.type === 'image/webp') return webp;
+  const jpeg = await toBlob(canvas, 'image/jpeg', quality);
+  if (!jpeg) throw new Error('could not encode picture');
+  return jpeg;
 }
 
 /** Where the picture goes: the Convex deployment's HTTP actions (`.convex.site`). */

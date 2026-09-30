@@ -73,11 +73,13 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
   // Feedback pictures, for the whole site at once (key "all"): the upload
   // endpoint is public and anonymous, so there is no reader to key it by. Real
-  // feedback arrives a few times a month; 50 a day, at most 2 MB each, bounds
-  // what a script can put in storage before the 180-day purge removes it.
+  // feedback arrives a few times a month. This slows a script down; the hard
+  // bound on storage is MAX_STORED_PICTURES in convex/feedbackPicture.ts. A
+  // script can spend the day's 20 and block real pictures until tomorrow, but
+  // the message itself still sends.
   feedbackPicturesPerDay: {
     kind: "fixed window",
-    rate: 50,
+    rate: 20,
     period: DAY,
   },
 });

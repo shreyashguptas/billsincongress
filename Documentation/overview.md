@@ -1322,17 +1322,21 @@ blocked) the box says so and offers the email address instead of pretending to s
 
 **Pictures** are the one part that needs Convex. `lib/feedback/picture.ts` redraws the picture
 on a canvas in the browser, at most 1,600px on the long side, as WebP (JPEG where WebP cannot
-be encoded). That shrinks it and drops everything that is not pixels, a photo's location
-included. It is then POSTed straight from the browser to `POST /feedback/picture` on the
+be encoded), stepping down the quality and then the size until it is under 900 KB. That
+shrinks it and drops everything that is not pixels, a photo's location included. It is then POSTed straight from the browser to `POST /feedback/picture` on the
 deployment's `.convex.site` (`convex/feedback.ts`), which:
 
 - accepts only this site's origins, plus `localhost` / `127.0.0.1` on any port (CORS, with an
   `OPTIONS` preflight route);
-- refuses anything over 2 MB, and anything whose first bytes are not JPEG, PNG, GIF or WebP,
+- refuses anything over 1 MB, and anything whose first bytes are not JPEG, PNG, GIF or WebP,
   storing the type it read rather than the type claimed, so the link can never serve a page
   or a script;
-- shares one site-wide cap of 50 pictures a day (`feedbackPicturesPerDay` in
-  `rateLimits.ts`): the endpoint is anonymous, so there is no reader to key it by;
+- refuses new pictures (503) while 500 are already kept (`MAX_STORED_PICTURES` in
+  `convex/feedbackPicture.ts`). This is the real bound on storage, at most 500 MB: the
+  origin check stops other websites' pages, not a script;
+- shares one site-wide cap of 20 pictures a day (`feedbackPicturesPerDay` in
+  `rateLimits.ts`): the endpoint is anonymous, so there is no reader to key it by. A script
+  can spend it and block real pictures until the next day; the message still sends;
 - stores the file, writes a `feedbackPictures` row, and returns `ctx.storage.getUrl()`.
 
 That URL is unguessable but public, which is what lets PostHog show it. The daily
@@ -1616,7 +1620,7 @@ send, PostHog retries), the unsubscribe token, and the Stripe webhook with a sig
 Nothing in it reaches Stripe, PostHog or any deployment. `convex/feedback.spec.ts` covers the
 feedback-picture endpoint: a real picture stored, the sniffed type kept rather than the claimed
 one, an HTML page or an oversized file refused, another site's page refused (and its preflight),
-the site-wide 50-a-day cap, and the 180-day purge. `convex deploy` skips these files, like every
+the site-wide 20-a-day cap, the 500-picture storage bound, and the 180-day purge. `convex deploy` skips these files, like every
 file name with more than one dot.
 
 ### CI

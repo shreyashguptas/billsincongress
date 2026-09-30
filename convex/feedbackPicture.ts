@@ -1,8 +1,20 @@
 // Pure checks for the feedback-picture upload (convex/feedback.ts), kept free of
 // Convex imports so convex/feedbackPicture.test.ts can run them under plain tsx.
 
-/** Largest picture the endpoint stores. The browser shrinks screenshots well under it. */
-export const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
+/**
+ * Largest picture the endpoint stores. lib/feedback/picture.ts keeps what the
+ * browser sends under 900 KB; a screenshot shrunk to 1,600px is usually a
+ * fraction of that.
+ */
+export const MAX_PICTURE_BYTES = 1024 * 1024;
+
+/**
+ * Most pictures kept at once. The endpoint is public and its origin check is
+ * no barrier to a script, so this, not the daily cap, is what bounds storage:
+ * at most 500 × 1 MB. Real feedback is a few pictures a month, so a full store
+ * means abuse, and new pictures are refused until the purge makes room.
+ */
+export const MAX_STORED_PICTURES = 500;
 
 /** How long a picture is kept before the daily purge deletes it. */
 export const PICTURE_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;

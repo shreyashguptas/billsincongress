@@ -10,7 +10,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import { internal } from "./_generated/api";
 import schema from "./schema";
-import { MAX_PICTURE_BYTES, PICTURE_RETENTION_MS } from "./feedbackPicture";
+import { MAX_PICTURE_BYTES, MAX_STORED_PICTURES, PICTURE_RETENTION_MS } from "./feedbackPicture";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -67,7 +67,7 @@ describe("POST /feedback/picture", () => {
     expect(await t.run((ctx) => ctx.db.query("feedbackPictures").collect())).toHaveLength(0);
   });
 
-  test("refuses a file over 2 MB", async () => {
+  test("refuses a file over 1 MB", async () => {
     const t = setup();
     const big = new Uint8Array(MAX_PICTURE_BYTES + 1);
     big.set(PNG);
@@ -94,10 +94,24 @@ describe("POST /feedback/picture", () => {
     expect(no.status).toBe(403);
   });
 
-  test("stops after 50 pictures in a day, site-wide", async () => {
+  test("stops after 20 pictures in a day, site-wide", async () => {
     const t = setup();
-    for (let i = 0; i < 50; i++) expect((await upload(t, PNG)).status).toBe(200);
+    for (let i = 0; i < 20; i++) expect((await upload(t, PNG)).status).toBe(200);
     expect((await upload(t, PNG)).status).toBe(429);
+  });
+
+  // The daily cap only slows a script; this is the bound on storage.
+  test("refuses new pictures while 500 are already kept", async () => {
+    const t = setup();
+    await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob([PNG], { type: "image/png" }));
+      for (let i = 0; i < MAX_STORED_PICTURES; i++) {
+        await ctx.db.insert("feedbackPictures", { storageId, contentType: "image/png", size: PNG.byteLength });
+      }
+    });
+    const res = await upload(t, PNG);
+    expect(res.status).toBe(503);
+    expect(await t.run((ctx) => ctx.db.query("feedbackPictures").collect())).toHaveLength(MAX_STORED_PICTURES);
   });
 });
 
