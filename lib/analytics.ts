@@ -111,6 +111,18 @@ export const analytics = {
   signinCompleted: (method: 'password' | 'google') => capture('signin_completed', { method }),
   signinFailed: (reason: 'invalid_credentials' | 'other') => capture('signin_failed', { reason }),
 
+  /**
+   * Password reset on /forgot-password. The request step advances whatever the
+   * server says (so the form never reveals which emails have accounts), which
+   * means `requested` counts attempts, not emails sent.
+   */
+  passwordResetRequested: () => capture('password_reset_requested'),
+  passwordResetCodeResent: () => capture('password_reset_code_resent'),
+  passwordResetSubmitted: () => capture('password_reset_submitted'),
+  passwordResetCompleted: () => capture('password_reset_completed'),
+  passwordResetFailed: (reason: 'password_requirements' | 'invalid_code') =>
+    capture('password_reset_failed', { reason }),
+
   authGoogleClicked: (intent: AuthIntent) => capture('auth_google_clicked', { intent }),
 
   /**

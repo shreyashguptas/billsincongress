@@ -1004,10 +1004,18 @@ Deliberate hardening worth preserving:
   same-origin paths, plus `localhost:3000` / `127.0.0.1:3000` for local development).
 - No public function takes a `userId` — enforced by a guard on every test run.
 
-**Not built (UI only):** the password-reset *back end* is wired — `convex/auth.ts` passes
-`reset: PasswordResetCode` (`convex/emailCodes.ts`), which emails a 6-digit reset code on the same rate-limit
-bucket — but no page ever starts the flow, so `/forgot-password` is a static "coming soon"
-page asking people to email. Self-serve account deletion does not exist at all; deletion is
+**Password reset** is self-serve on `/forgot-password` (`components/auth/reset-password-form.tsx`).
+The reader enters an email; the page runs the Password provider's `reset` flow, which emails a
+6-digit code (`PasswordResetCode` in `convex/emailCodes.ts`, on the same `otpRequestPerEmail`
+bucket as sign-up codes: five an hour per address). The reader then enters the code and a new
+password (`reset-verification`); the library checks the code, stores the new hash, signs the
+reader in and signs out every other session on the account. Like sign-up, the request step
+advances even when the server refuses — an address with no password account (a Google-only
+account included) throws and one with an account does not — and every failed code gets the
+same message. The "Forgot password?" link no longer carries the typed email in its URL, so
+the address does not reach analytics through `$current_url`.
+
+**Not built:** self-serve account deletion does not exist; deletion is
 handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly. Deleting
 an account by hand must also delete its profile photo (`ctx.storage.delete` on
 `avatarStorageId`), or the daily sweep will once the user row is gone.
@@ -1018,8 +1026,7 @@ an account by hand must also delete its profile photo (`ctx.storage.delete` on
 
 Every email goes out through **PostHog Workflows** from `no-reply@mail.billsincongress.com`.
 Three workflows, one per kind of email, all sharing that sender and one webhook secret: **sign-in
-codes** (sign-up codes today; the password-reset code is wired and rendered the same way, but
-nothing sends it until a page starts the reset flow — see "Not built" above), **bill alerts** (Pro digests; see "How alerts
+codes** (sign-up and password-reset codes), **bill alerts** (Pro digests; see "How alerts
 work") and **billing** (Pro plan changes; see "What the reader sees, state by state"). The
 bullets below describe the sign-in codes; alerts and billing work the same way except where
 those sections say otherwise.

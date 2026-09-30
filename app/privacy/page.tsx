@@ -206,8 +206,8 @@ export default function PrivacyPage() {
           you are signed in, our analytics link your activity to your
           account (including your email address) so we can understand the
           journey from first visit to sign-up. We send email for three
-          reasons only: account emails (today, sign-up verification
-          codes; password-reset codes once self-serve reset is built),
+          reasons only: account emails (sign-up verification and
+          password-reset codes),
           notices when your Pro plan starts, changes or ends,
           and bill alerts you have turned on yourself. All of them go
           through PostHog, the same provider that runs our analytics.
@@ -327,9 +327,9 @@ export default function PrivacyPage() {
         <p>
           You can read everything on this site without an account. You
           can block or clear cookies at any time — the site keeps working
-          (you would be signed out, and analytics simply stops). Self-serve
-          password reset is not built yet — no reset email is sent today —
-          so email us and we will reset it for you.
+          (you would be signed out, and analytics simply stops). If you
+          forget your password, the &ldquo;Forgot password?&rdquo; link on
+          the sign-in page emails you a code to set a new one.
         </p>
         <p>
           To delete your account — along with your profile photo, saved
@@ -442,7 +442,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, and the feedback and survey answers you send. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

@@ -87,7 +87,7 @@ export function SignInForm() {
           <div className="flex items-baseline justify-between">
             <Label htmlFor="password" className="text-ink">Password</Label>
             <Link
-              href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+              href="/forgot-password"
               className="link focus-ring rounded-xs text-[13px]"
             >
               Forgot password?
