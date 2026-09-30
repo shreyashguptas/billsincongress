@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/s
 import { routes } from '@/lib/constants/routes';
 import { UserMenu } from '@/components/auth/user-menu';
 import { Logo } from '@/components/brand/logo';
+import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/feedback/feedback-box';
 
 /**
  * The site header: logo, the four sections, a bill search and the account
@@ -21,6 +22,7 @@ import { Logo } from '@/components/brand/logo';
  */
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
+  const feedback = useFeedbackBox('menu');
   const pathname = usePathname();
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
@@ -59,8 +61,22 @@ export function Navigation() {
                   </Link>
                 ))}
               </nav>
+              {/* Phones have no room for the header's Feedback button, so it lives here. */}
+              <div className="mx-2 border-t border-line px-0 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    feedback.setOpen(true);
+                  }}
+                  className="focus-ring flex min-h-11 w-full items-center rounded-md px-3 text-left text-base text-ink-2 hover:bg-sunken hover:text-ink"
+                >
+                  Send feedback
+                </button>
+              </div>
             </SheetContent>
           </Sheet>
+          <FeedbackDialog box={feedback} />
           <Logo className="hidden md:inline-flex" />
         </div>
 
@@ -86,6 +102,7 @@ export function Navigation() {
         </nav>
 
         <div className="flex items-center justify-end gap-1 sm:gap-2">
+          <HeaderFeedback className="hidden lg:inline-flex" />
           <HeaderSearch />
           <UserMenu />
         </div>
@@ -124,7 +141,7 @@ function HeaderSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search bills, or S. 2878"
-          className="w-64 pl-9 text-sm xl:w-72"
+          className="w-52 pl-9 text-sm xl:w-72"
         />
       </form>
       <Button asChild variant="ghost" size="icon" className="lg:hidden">

@@ -547,4 +547,14 @@ export default defineSchema({
   })
     .index("by_congress", ["congress"])
     .index("by_status", ["status"]),
+
+  // Pictures readers attach to the header's Feedback box (convex/feedback.ts).
+  // The message itself goes to PostHog with a link to the file; this row only
+  // exists so a daily cron can delete each picture 180 days after it arrived.
+  // Nothing here identifies who sent it.
+  feedbackPictures: defineTable({
+    storageId: v.id("_storage"),
+    contentType: v.string(),
+    size: v.number(),
+  }),
 });

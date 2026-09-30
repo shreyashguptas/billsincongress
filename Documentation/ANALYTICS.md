@@ -369,6 +369,36 @@ iOS included. Break any insight down by it to compare installed-app readers with
 readers. Events captured before the component mounts (the first `$pageview`) do not carry
 it.
 
+### Feedback and surveys
+
+Added 2026-09-29. Two forms the site draws itself, each backed by a PostHog survey of type
+`api` so the answers land in PostHog's **Surveys** tab with its own charts and filters
+(Documentation/overview.md, "Reader feedback"). Because the Surveys tab reads PostHog's own
+event names and `$survey_*` properties, these three events are **PostHog's**, not
+`object_action` names of ours: renaming them would take the answers out of the Surveys tab.
+They are still sent only through the helpers in `lib/analytics.ts` (`surveyShown`,
+`surveyDismissed`, `surveySent`).
+
+| Survey | PostHog id | Questions (id order) |
+|---|---|---|
+| "Feedback" (the header / menu / footer box) | `01a0ee82-e9d6-0000-2be7-a3a3010e9529` | "What would you like to share?" (`Issue` \| `Idea`), "What's on your mind?" (the message), "Picture" (a link to the attached picture in Convex storage, or unanswered) |
+| "Did you find what you were looking for?" (the page-3 prompt) | `01a0ee82-f301-0000-9572-4b5e0e2d5cd3` | "Did you find what you were looking for?" (`Yes` \| `No`), "What was missing?" (optional, asked only after No). Response limit 1,000 |
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `survey shown` | The Feedback box opens, or the page-3 prompt appears | `$survey_id`, `$survey_name`, `surface: "header" \| "menu" \| "footer" \| "prompt"` | `components/feedback/feedback-box.tsx`, `components/feedback/found-it-prompt.tsx` |
+| `survey dismissed` | The Feedback box closes without sending, or the prompt is closed before answering | `$survey_id`, `$survey_name`; for the prompt also `$set: {"$survey_dismissed/<id>": true}` | same |
+| `survey sent` | Feedback is sent, or the prompt is answered (Yes; or No, with or without the follow-up; closing after No sends the No) | `$survey_id`, `$survey_name`, `$survey_questions` (`[{id, question, response}]`), `$survey_response_<question id>` per answered question plus the legacy index keys (`$survey_response`, `$survey_response_1`, …), `$survey_completed: true`, `$survey_submission_id`; for the prompt also `$set: {"$survey_responded/<id>": true}` | same, plus `components/feedback/feedback-panel.tsx` |
+
+**Reader-typed free text, deliberately** (contract rule 6). The feedback message and the
+prompt's "What was missing?" are the whole point of these forms, so they ride on `survey sent`
+verbatim, as does the picture's public link. Disclosed in the Privacy Policy (§2, "Feedback you
+send") in the same commit.
+
+**Free-plan budget.** Every `survey sent` counts toward PostHog's 1,500 free survey responses a
+month, across both surveys. The prompt's 1,000-response limit is what keeps it inside that: the
+site shows the prompt only while PostHog has the survey open (`analytics.whenSurveyActive`).
+
 ### Server-side events
 
 Captured with `posthog-node` (`lib/posthog-server.ts`) from API routes, tied to the same

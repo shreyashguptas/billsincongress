@@ -85,4 +85,13 @@ crons.cron(
   {},
 );
 
+// Feedback pictures are kept 180 days (the privacy policy says so), then this
+// deletes the file and its row. 09:15 UTC sits clear of every job above.
+crons.cron(
+  "daily-feedback-picture-purge",
+  "15 9 * * *",
+  internal.feedback.purgeOldPictures,
+  {},
+);
+
 export default crons;

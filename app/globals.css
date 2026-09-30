@@ -489,6 +489,21 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   to   { transform: none; opacity: 1; }
 }
 
+/* "Did you find what you were looking for?" (components/feedback/found-it-prompt.tsx).
+   Stacked above the launcher pill (3rem tall) rather than beside it, so the two
+   never overlap at any width. It only shows while the panel is closed, so the
+   launcher is always the pill here, never the phone's bottom bar. */
+.found-it-prompt {
+  position: fixed;
+  z-index: 40;
+  right: 1rem;
+  bottom: calc(1rem + 3rem + 0.75rem + env(safe-area-inset-bottom, 0px));
+  width: 22rem;
+}
+@media (max-width: 639.98px) {
+  .found-it-prompt { left: 1rem; width: auto; }
+}
+
 /* Only drawn in the bottom-bar shape of the launcher. */
 .ask-launcher-arrow { display: none; }
 @media (max-width: 1023.98px) {

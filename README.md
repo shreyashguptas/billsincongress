@@ -140,7 +140,7 @@ A snapshot of what that holds, taken 29 August 2026:
 
 ### How it stays current
 
-Nine scheduled jobs keep the database in step with Congress, and a tenth sends bill-alert emails:
+Nine scheduled jobs keep the database in step with Congress, a tenth sends bill-alert emails, and an eleventh deletes old feedback pictures:
 
 | When | What it does |
 | --- | --- |
@@ -153,6 +153,7 @@ Nine scheduled jobs keep the database in step with Congress, and a tenth sends b
 | 1st of the month, 05:00 UTC | Re-fetch the current Congress from scratch |
 | Twice daily, 01:30 and 13:30 UTC | Tell search engines which bill pages changed |
 | Daily, 11:00 UTC | Email Pro readers whose followed bills moved since their last alert |
+| Daily, 09:15 UTC | Delete pictures sent with feedback once they are 180 days old |
 
 The sync throttles itself deliberately — three quarters of a second between calls, backing off on rate limits and pausing when Congress.gov's remaining quota runs low. It also skips the bill-record update when nothing a reader would see has changed, so a routine re-pull does not stamp a fake "updated" date on 18,000 bills or announce fake updates to search engines.
 
@@ -230,6 +231,8 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **If you subscribe to Pro, Stripe handles the payment.** Your card details go to Stripe and never reach this site. What this site stores is your Stripe customer and subscription IDs, the plan's status and price, and when it renews or ends.
 - **If you follow bills on Pro, the list of bills you follow is stored with your account**, along with when each was last emailed. Alert emails are sent through PostHog like the account emails, and PostHog keeps a record of each send. Alert emails carry no tracking pixels and no rewritten links.
+- **Feedback you send is kept in the analytics too.** The Feedback button (top bar on wider screens; the menu or the footer on phones and tablets) sends your message, whether it is an issue or an idea, and the page you were on to PostHog, linked to that visit's session replay. A picture you attach is first shrunk and stripped of its hidden details (a photo's location, the camera) in your browser, then stored in this site's database under a long random link and deleted after 180 days. The link is unlisted but not private: anyone who has it can open the picture. Nothing asks for your name or email.
+- **One quick question, once.** On your third page of a visit, a small card in the corner asks "Did you find what you were looking for?", with an optional "What was missing?" if you say no. It never comes back on that browser, never appears on sign-in, account or billing pages, and stops for everyone after 1,000 answers. Your answer goes to PostHog. The site remembers that it asked with one local-storage flag (`bic_found_it_seen`) and counts pages with two session-storage entries; none of them leaves the browser.
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
@@ -286,7 +289,7 @@ Not because you need to run it — nobody is expected to host their own copy —
 
 ```
 Congress.gov API
-      ↓   ten scheduled jobs (convex/crons.ts): nine sync, one alert email
+      ↓   eleven scheduled jobs (convex/crons.ts): nine sync, one alert email, one feedback-picture purge
 Sync and repair (convex/congressApi.ts, convex/sync.ts)
       ↓
 Convex database (convex/schema.ts) + precomputed statistics

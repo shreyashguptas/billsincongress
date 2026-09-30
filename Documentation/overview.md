@@ -25,6 +25,7 @@ Figures were verified against production on **29 August 2026**.
 - [Accounts and auth](#accounts-and-auth)
 - [Email](#email)
 - [Pro: billing and bill alerts](#pro-billing-and-bill-alerts)
+- [Reader feedback](#reader-feedback)
 - [Sharing and the installed app](#sharing-and-the-installed-app)
 - [Environment variables](#environment-variables)
 - [Build, test and deploy](#build-test-and-deploy)
@@ -40,7 +41,7 @@ Figures were verified against production on **29 August 2026**.
 ```
 Congress.gov API v3  (Library of Congress)
       │
-      │  nine sync jobs + two alert-email jobs — convex/crons.ts
+      │  nine sync jobs + one alert-email job + one feedback-picture purge — convex/crons.ts
       ▼
 convex/congressApi.ts   sync, reconcile, repair, backfill
       │
@@ -66,6 +67,11 @@ Pro billing and bill alerts sit beside this: Stripe calls the Convex HTTP action
 `POST /stripe/webhook` (convex/billing.ts), which is the only writer of `users.plan`, and a
 daily cron (convex/alerts.ts) emails followed-bill digests through PostHog Workflows. See
 [Pro: billing and bill alerts](#pro-billing-and-bill-alerts).
+
+Reader feedback sits beside it too, and mostly outside Convex: the Feedback box and the
+"Did you find what you were looking for?" prompt send their answers to PostHog as survey
+responses. Only a picture attached to feedback touches Convex, through the public HTTP action
+`POST /feedback/picture` (convex/feedback.ts). See [Reader feedback](#reader-feedback).
 
 Two independently deployed halves:
 
@@ -138,14 +144,15 @@ lib/                       Pure client/shared modules — 30 modules + 27 test f
                            tested; fonts.ts (embedded fonts, generated)
   services/bills-service.ts  constants/  types/  utils/
 
-convex/                    Backend — 30 top-level modules + catalog/ + 9 test files
-  schema.ts                24 application tables (+ 6 from the auth library)
+convex/                    Backend — 40 top-level modules + catalog/ + 14 test and spec files
+  schema.ts                26 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
   answer.ts catalog/       The grounded answer engine
   chats.ts savedBills.ts users.ts auth.ts   Accounts
   billing.ts alerts.ts email.ts             Pro: Stripe webhook + checkout, bill alerts, alert delivery
+  feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts
   billStage.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts                    Pure, unit-tested
@@ -278,7 +285,8 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 
 ### The cron jobs
 
-Nine keep the data in step with Congress; a tenth (the last row) sends bill alerts.
+Nine keep the data in step with Congress; a tenth sends bill alerts, and an eleventh deletes
+old feedback pictures (the last two rows).
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -292,6 +300,7 @@ Nine keep the data in step with Congress; a tenth (the last row) sends bill aler
 | `weekly-reconcile-recent-congresses` | Mon 06:00 | Current + 2 | Diff the full live list against ours — **the only path that finds never-synced bills in a previous Congress** (the monthly re-pull covers the current one) |
 | `indexnow-submit-evening` | 13:30 daily | — | Second queue drain |
 | `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
+| `daily-feedback-picture-purge` | 09:15 daily | `feedbackPictures` | Delete each feedback picture, file and row, 180 days after it arrived (`feedback.purgeOldPictures`), 100 per run, rescheduling itself while more remain. The privacy policy promises the 180 days |
 
 ### Throttling
 
@@ -459,6 +468,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 | `billChats` / `billChatMessages` | The old per-bill chat. Still written by the dead route |
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
+| `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days |
 | `usageEvents` | **Dead** — zero references outside `schema.ts` |
 
 > **`chats.userId` is required, not optional, and that is the point.** An anonymous
@@ -485,10 +495,10 @@ wrong import is how an aggregate silently drifts from the table.
 
 ## Convex functions
 
-133 hand-written functions — 26 public queries, 6 public mutations, 3 public actions, 2 HTTP
-actions, 96 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
+137 hand-written functions — 26 public queries, 6 public mutations, 3 public actions, 4 HTTP
+actions, 98 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
 `signOut` (public actions), `isAuthenticated` (public query) and `store` (internal mutation).
-137 registered in total.
+141 registered in total.
 
 | File | Role |
 | --- | --- |
@@ -501,10 +511,11 @@ actions, 96 internal — plus four more generated by `convexAuth()` in `auth.ts`
 | `alerts.ts`, `email.ts` | Bill alerts: follow/unfollow, the account list, token unsubscribe, the daily digest run; `email.deliver` hands each digest and plan-change email to PostHog |
 | `llm.ts` | The old per-bill chat back end. Holds `sendChatMessage`, a public action reached solely by the dead `/api/bill-chat/send` route |
 | `indexNow.ts` | Search-engine notification (10, all internal) |
+| `feedback.ts` | Feedback pictures: `uploadPicture` and `pictureOptions` (the two HTTP actions behind `/feedback/picture`), `recordPicture` and `purgeOldPictures` (internal mutations) |
 | `rateLimits.ts` | The limiter config, `getChatUsage` (the public query behind the account page's quota meter) and `limitChatQuestion`, the one helper that picks the anonymous, free or Pro bucket |
 | `sync.ts`, `aggregateBackfill.ts`, `policyAreaBackfill.ts`, `chatAnalytics.ts` | Operational backfills and diagnostics, almost all internal |
 | `crons.ts`, `http.ts`, `convex.config.ts`, `functions.ts` | Schedule, HTTP router, installed components, trigger-wrapped constructors |
-| `billStage.ts`, `chamber.ts`, `baseRates.ts`, `searchQuery.ts`, `syncStatus.ts`, `plan.ts`, `alertDigest.ts` | Pure modules, no Convex imports, unit-tested |
+| `billStage.ts`, `chamber.ts`, `baseRates.ts`, `searchQuery.ts`, `syncStatus.ts`, `plan.ts`, `alertDigest.ts`, `feedbackPicture.ts` | Pure modules, no Convex imports, unit-tested |
 
 ### The visibility rule
 
@@ -1210,6 +1221,62 @@ Stripe automatically.
 
 ---
 
+## Reader feedback
+
+Two ways for a reader to tell us something, both drawn by the site and both answered into
+PostHog's **Surveys** tab. Each is a PostHog survey of type `api`: PostHog stores the questions
+and the answers, the site draws the form. The ids live in `lib/feedback/surveys.ts`; the events
+are PostHog's own `survey shown` / `survey dismissed` / `survey sent`, sent through
+`lib/analytics.ts` (see ANALYTICS.md, "Feedback and surveys").
+
+**The Feedback box** (`components/feedback/`). "Feedback" in the header from `lg` up opens a
+popover under the button; below `lg` the header has no room, so phones open it from the menu
+sheet ("Send feedback") and every width below `lg` from the footer's link row, both as a dialog.
+Inside: Issue or Idea, then the message, an optional picture (button, or paste a screenshot
+into the box), Send, and "Thanks — we read every one.", which closes itself after 2.5 seconds.
+The answer is one `survey sent` for the "Feedback" survey: the kind, the message, and the
+picture's link. PostHog adds the page URL and ties it to the session replay, which usually
+shows the problem better than the words do. If PostHog is not loaded (no key, or the SDK
+blocked) the box says so and offers the email address instead of pretending to send.
+
+**Pictures** are the one part that needs Convex. `lib/feedback/picture.ts` redraws the picture
+on a canvas in the browser, at most 1,600px on the long side, as WebP (JPEG where WebP cannot
+be encoded). That shrinks it and drops everything that is not pixels, a photo's location
+included. It is then POSTed straight from the browser to `POST /feedback/picture` on the
+deployment's `.convex.site` (`convex/feedback.ts`), which:
+
+- accepts only this site's origins, plus `localhost` / `127.0.0.1` on any port (CORS, with an
+  `OPTIONS` preflight route);
+- refuses anything over 2 MB, and anything whose first bytes are not JPEG, PNG, GIF or WebP,
+  storing the type it read rather than the type claimed, so the link can never serve a page
+  or a script;
+- shares one site-wide cap of 50 pictures a day (`feedbackPicturesPerDay` in
+  `rateLimits.ts`): the endpoint is anonymous, so there is no reader to key it by;
+- stores the file, writes a `feedbackPictures` row, and returns `ctx.storage.getUrl()`.
+
+That URL is unguessable but public, which is what lets PostHog show it. The daily
+`daily-feedback-picture-purge` cron deletes each picture 180 days after it arrived. Until
+`convex/` is deployed, pictures fail with "The picture didn't upload" and the message can
+still be sent without one.
+
+**"Did you find what you were looking for?"** (`components/feedback/found-it-prompt.tsx`,
+mounted once in `app/layout.tsx`). A card in the bottom-right corner, stacked above the Ask
+launcher (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
+Yes sends and thanks; No asks "What was missing?" (optional) and sends. It stays away on
+sign-in, sign-up, account, Pro and alert pages, while the ask panel is open, and for anyone who
+opened the Feedback box this visit (`lib/feedback/visit.ts`). It shows once per browser
+(`localStorage.bic_found_it_seen`, set when it appears) and only while PostHog has the survey
+open; the survey's response limit of **1,000** ends it, which is the cap on free-plan usage.
+
+> The prompt reads the survey with `posthog.getSurveys`, not `getActiveMatchingSurveys`. The
+> latter also requires each survey's internal targeting flag, and this project's flags response
+> does not carry survey flags (surveys are off in its remote config, since no PostHog-drawn
+> survey exists), so it reports nothing as active. Checked on 29 Sep 2026.
+
+Free-plan budget: PostHog's free tier is 1,500 survey responses a month across all surveys.
+The site had about 5,000 visitors a month in September 2026, so the prompt should draw a few
+hundred answers and the Feedback box a few dozen.
+
 ## Sharing and the installed app
 
 ### The Share button
@@ -1438,7 +1505,7 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 25` is a floor, not a count (55 files match today): if discovery ever finds
+`MIN_TEST_FILES = 25` is a floor, not a count (65 files match today): if discovery ever finds
 fewer, the run fails, and deleting tests below it means lowering the constant in the same
 commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified
@@ -1460,8 +1527,11 @@ not yet confirmed, unpaid, two open tabs), the digest (new, late same-day, statu
 stage-only move on a long bill, lapsed reader and their catch-up email on return, no double
 send, PostHog retries), the unsubscribe token, and the Stripe webhook with a signed payload
 (`fetch` is stubbed with a real sandbox subscription reply; a forged signature is rejected).
-Nothing in it reaches Stripe, PostHog or any deployment. `convex deploy` skips these files,
-like every file name with more than one dot.
+Nothing in it reaches Stripe, PostHog or any deployment. `convex/feedback.spec.ts` covers the
+feedback-picture endpoint: a real picture stored, the sniffed type kept rather than the claimed
+one, an HTML page or an oversized file refused, another site's page refused (and its preflight),
+the site-wide 50-a-day cap, and the 180-day purge. `convex deploy` skips these files, like every
+file name with more than one dot.
 
 ### CI
 

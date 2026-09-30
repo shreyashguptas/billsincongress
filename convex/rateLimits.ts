@@ -63,6 +63,15 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: HOUR,
   },
+  // Feedback pictures, for the whole site at once (key "all"): the upload
+  // endpoint is public and anonymous, so there is no reader to key it by. Real
+  // feedback arrives a few times a month; 50 a day, at most 2 MB each, bounds
+  // what a script can put in storage before the 180-day purge removes it.
+  feedbackPicturesPerDay: {
+    kind: "fixed window",
+    rate: 50,
+    period: DAY,
+  },
 });
 
 // Read-only chat quota status — never consumes a token. The UI calls it after

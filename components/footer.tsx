@@ -5,6 +5,7 @@ import { Logo } from '@/components/brand/logo';
 import { InstallAppButton } from '@/components/pwa/install-app-button';
 import { HubLinkTracker } from '@/app/bills/_hub/hub-view-tracker';
 import { hubByPath, type HubDefinition } from '@/lib/hubs';
+import { FooterFeedback } from '@/components/feedback/feedback-box';
 
 const linkClass =
   'focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline';
@@ -13,7 +14,8 @@ const linkClass =
  * The footer carries only what has no other home: who publishes the site and
  * that it is independent, the paid plan (a signed-out reader has no other
  * route to /pro), the legal pages, the source, and the two controls — install
- * and theme. Bills, Learn and About are in the header on every page.
+ * and theme. Bills, Learn and About are in the header on every page. Feedback
+ * is here only below lg, where the header has no room for its button.
  *
  * Three hubs stay: the two chambers and "became law", the ones readers
  * actually clicked here (House, law and Senate took ~70% of footer hub clicks
@@ -78,6 +80,10 @@ export function Footer() {
                 <Link href="/terms" className={linkClass}>
                   Terms
                 </Link>
+              </li>
+              {/* The header's Feedback button only fits from lg up. */}
+              <li className="lg:hidden">
+                <FooterFeedback className={linkClass} />
               </li>
               <li>
                 <a

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'September 25, 2026';
+const LAST_UPDATED = 'September 29, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -80,6 +80,20 @@ export default function PrivacyPage() {
           search of the bills list returns no results, we record the text
           you searched for, so we can see what people expect to find and
           cannot. Your other filter choices are not recorded.
+        </p>
+        <p>
+          Feedback you send is recorded there too. The Feedback button
+          sends what you write, whether it is an issue or an idea, and the
+          page you were on, linked to that visit&rsquo;s session replay. If
+          you attach a picture, your browser first shrinks it and strips
+          its hidden details (such as a photo&rsquo;s location), then we
+          store it in our database under a long random link and delete it
+          after 180 days. The link is unlisted, not private: anyone who has
+          it can open the picture, so leave out anything personal. On your
+          third page of a visit we may also ask, once, whether you found
+          what you were looking for; your answer, and anything you type
+          about what was missing, is recorded the same way. None of this
+          asks for your name or email.
         </p>
         <p>
           Your IP address is processed by our hosting provider
@@ -269,8 +283,10 @@ export default function PrivacyPage() {
           for as long as your account exists. Sign-in sessions expire
           after at most 60 days of inactivity. Signed-out chat
           conversations are keyed to a cookie that expires after 60 days.
-          Analytics data is retained by PostHog under its standard
-          retention policies.
+          Analytics data, including feedback and survey answers, is
+          retained by PostHog under its standard retention policies.
+          Pictures attached to feedback are deleted from our database
+          after 180 days.
         </p>
       </Section>
 
@@ -363,6 +379,18 @@ const cookies = [
     lifespan: 'until cleared',
   },
   {
+    name: 'bic_found_it_seen (local storage)',
+    purpose:
+      'Remembers that we already asked “Did you find what you were looking for?” on this browser, so we never ask again. Holds the value 1 and never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
+    name: 'bic_visit_* (session storage)',
+    purpose:
+      'Counts the pages of this visit, so that question waits for your third page, and notes whether you opened the Feedback box. Never leaves your browser.',
+    lifespan: 'until you close the tab',
+  },
+  {
     name: 'Offline page (service worker cache)',
     purpose:
       'A copy of the site’s one “You’re offline” page, shown if you open the site with no connection. Holds nothing about you and none of the pages you read.',
@@ -373,7 +401,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts, saved bills, followed bills, chat history, your plan status, and the public bill data.',
+    role: 'Our database and authentication backend. Stores accounts, saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), and the public bill data.',
   },
   {
     name: 'Cloudflare',
@@ -381,7 +409,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports, plus the feedback and survey answers you send. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
