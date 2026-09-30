@@ -38,7 +38,11 @@ export const upsertBill = internalMutation({
     progressStage: v.optional(v.number()),
     progressDescription: v.optional(v.string()),
     // Written with progressStage, from the same `calculateBillStage` call.
-    stageDate: v.optional(v.string()),
+    // `null` means "this stage has no date": it CLEARS a stored date, which an
+    // absent argument cannot do (undefined is dropped on the way in). Leaving
+    // the key out entirely — the repair path, which sends no stage fields —
+    // leaves the stored date alone.
+    stageDate: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -46,8 +50,14 @@ export const upsertBill = internalMutation({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
 
+    const { stageDate, ...rest } = args;
+    const fields = {
+      ...rest,
+      // null → undefined: a patch removes the field, an insert omits it.
+      ...("stageDate" in args ? { stageDate: stageDate ?? undefined } : {}),
+    };
     const data = {
-      ...args,
+      ...fields,
       updatedAt: new Date().toISOString(),
     };
 
@@ -56,8 +66,8 @@ export const upsertBill = internalMutation({
       // (convex/functions.ts) and restamps `updatedAt`, which is the <lastmod>
       // the sitemap gives search engines (app/sitemap.ts). The monthly re-pull
       // resends every bill unchanged, so blind patching announces fake updates.
-      const changed = (Object.keys(args) as Array<keyof typeof args>).some(
-        (key) => (existing as Record<string, unknown>)[key] !== args[key],
+      const changed = (Object.keys(fields) as Array<keyof typeof fields>).some(
+        (key) => (existing as Record<string, unknown>)[key] !== fields[key],
       );
       if (!changed) return existing._id;
 
@@ -609,7 +619,9 @@ export const rederiveBillFieldsFromActions = internalMutation({
         patch.progressStage = stage;
         patch.progressDescription = description;
       }
-      if (stageDate && bill.stageDate !== stageDate) {
+      // Also clears a date that is no longer true: an Introduced bill dated by
+      // its introduction that then moves on through an undated action.
+      if (bill.stageDate !== stageDate) {
         patch.stageDate = stageDate;
       }
       if (latestActionDate && bill.latestActionDate !== latestActionDate) {

@@ -334,7 +334,8 @@ async function syncSingleBill(
     sponsorState: billDetail.sponsors?.[0]?.state,
     progressStage: stage,
     progressDescription: description,
-    stageDate: stageDateFor(computed, billDetail.introducedDate),
+    // null, not undefined, so a stage with no date clears a stored one.
+    stageDate: stageDateFor(computed, billDetail.introducedDate) ?? null,
   });
 
   if (actions.length > 0) {
