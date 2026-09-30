@@ -506,7 +506,9 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch('/api/answer', {
           signal: stalled.signal,
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // PostHog ids ride along so the server's log line for this answer
+          // links to this session's replay. Empty when analytics is off.
+          headers: { 'Content-Type': 'application/json', ...analytics.requestHeaders() },
           body: JSON.stringify({
             question: q,
             // `focusBillId` is redundant with `context.billId` and is sent

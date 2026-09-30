@@ -37,8 +37,12 @@ These rules apply to EVERY change that adds, removes, or modifies a user-facing 
    Note there is currently **no live server-side event**: the one example in the registry,
    `bill_chat_message_processed`, fires from `app/api/bill-chat/send/route.ts`, which no
    part of the UI calls any more. Read it as a reference implementation, not as something
-   that runs. The live answer path (`app/api/answer/route.ts`) sends no server event and
-   does not forward the headers.
+   that runs. The live answer path (`app/api/answer/route.ts`) sends no server event; it
+   forwards the headers to Convex, which writes a PostHog **log line** per answer.
+6. **PostHog Logs** (server log lines, not events) are registered in the "PostHog Logs"
+   section of `Documentation/ANALYTICS.md` and sent only through `scheduleLog` in
+   `convex/posthogLogs.ts`. Never put question text, email addresses or other reader
+   content on a line.
 
 A feature change without its analytics change is an incomplete change — do not consider
 the work done, and do not say it's done, until both halves are in place.

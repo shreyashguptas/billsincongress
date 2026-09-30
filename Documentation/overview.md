@@ -551,9 +551,11 @@ Replaces the per-bill chat panel, which was removed on 26 August 2026.
 
 ```
 components/answers/answer-provider.tsx      one provider, mounted in app/layout.tsx
-  └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId
+  └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId;
+       │                                 headers carry the PostHog session + distinct id
        └─ app/api/answer/route.ts           attaches the httpOnly auth cookie and the
-            │                                anonymous session cookie, and injects an SSE
+            │                                anonymous session cookie, forwards the two PostHog
+            │                                ids in the body, and injects an SSE
             │                                keep-alive comment while the loop runs silent
             │                                so an idle timeout cannot reap a long answer
             └─ POST {CONVEX_SITE_URL}/answer/stream     (convex/http.ts → answer.stream)
@@ -567,9 +569,17 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │    └─ ask_reader      → ends the turn with a question, not an answer
                  ├─ deliberation stripped → convex/catalog/answerSanitize.ts
                  ├─ citation resolution → convex/catalog/cite.ts
-                 └─ SSE frames back: work · delta · done · rate_limited · error
-                      (the proxy adds `: keep-alive` comments between them)
+                 ├─ SSE frames back: work · delta · done · rate_limited · error
+                 │    (the proxy adds `: keep-alive` comments between them)
+                 └─ one log line to PostHog Logs, scheduled, never awaited
+                      (convex/posthogLogs.ts — "answer served" or "answer failed")
 ```
+
+The log line is how a failed or degraded answer is found and watched: it carries the
+reader's PostHog session id, so PostHog opens their session replay at that second. It never
+carries the question. Every attribute on it is listed under "PostHog Logs" in
+`Documentation/ANALYTICS.md`. We send it from our own code because Convex's built-in log
+streaming needs its Professional plan, and we are on pay-as-you-go.
 
 The panel is mounted in the root layout as a **sibling** of the page content, never inside
 it, so a conversation survives client-side navigation. Prose is emitted only *after* citations
@@ -1453,7 +1463,7 @@ only in an untracked local `.env` and is deliberately **not** a GitHub secret.
 ### Convex deployment side
 
 Set with `npx convex env set --prod`. Ten are configured in production; the Pro rows below
-are new and not yet set anywhere.
+and `POSTHOG_PROJECT_TOKEN` are new and not yet set anywhere.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -1464,6 +1474,8 @@ are new and not yet set anywhere.
 | `OPENROUTER_FALLBACK_MODELS` | Failover chain | Default chain — **blank disables failover** |
 | `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
+| `POSTHOG_PROJECT_TOKEN` | The project's public `phc_…` key — the same value as `NEXT_PUBLIC_POSTHOG_KEY` — for PostHog Logs | No log lines are sent; answers are unaffected |
+| `POSTHOG_HOST` | PostHog ingest host for log lines | `https://us.i.posthog.com` |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing | none |
 | `SITE_URL` | Auth redirect base; also the base of Stripe return URLs and alert-email links | library default; billing and alerts fall back to `https://billsincongress.com` |

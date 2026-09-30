@@ -52,6 +52,7 @@ import type * as mutations from "../mutations.js";
 import type * as plan from "../plan.js";
 import type * as policyAreaBackfill from "../policyAreaBackfill.js";
 import type * as posthogEmail from "../posthogEmail.js";
+import type * as posthogLogs from "../posthogLogs.js";
 import type * as rateLimits from "../rateLimits.js";
 import type * as savedBills from "../savedBills.js";
 import type * as searchQuery from "../searchQuery.js";
@@ -110,6 +111,7 @@ declare const fullApi: ApiFromModules<{
   plan: typeof plan;
   policyAreaBackfill: typeof policyAreaBackfill;
   posthogEmail: typeof posthogEmail;
+  posthogLogs: typeof posthogLogs;
   rateLimits: typeof rateLimits;
   savedBills: typeof savedBills;
   searchQuery: typeof searchQuery;

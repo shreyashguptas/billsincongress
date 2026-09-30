@@ -22,6 +22,7 @@ import { payloadFor, workLogLabel } from "./catalog/completeness";
 import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
+import { readPosthogId, scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -707,6 +708,27 @@ export const stream = httpAction(async (ctx, request) => {
   const userId = await getAuthUserId(ctx);
   const anonymousSessionId =
     typeof body.anonymousSessionId === "string" ? body.anonymousSessionId : null;
+  const pageContext = readContext(body.context, body.focusBillId);
+
+  // One line per answer to PostHog Logs (convex/posthogLogs.ts). The two ids
+  // tie the line to the reader's session replay; the question text is never
+  // on it.
+  const posthogSessionId = readPosthogId(body.posthogSessionId);
+  const posthogDistinctId = readPosthogId(body.posthogDistinctId);
+  const logAnswer = (level: LogLevel, message: string, attributes: LogAttributes) =>
+    scheduleLog(ctx, {
+      level,
+      message,
+      timestampMs: Date.now(),
+      attributes: {
+        ...(posthogSessionId ? { sessionId: posthogSessionId } : {}),
+        ...(posthogDistinctId ? { posthogDistinctId } : {}),
+        signed_in: userId !== null,
+        page: pageContext?.route ?? "unknown",
+        ...(pageContext?.billId ? { bill_id: pageContext.billId } : {}),
+        ...attributes,
+      },
+    });
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -750,10 +772,11 @@ export const stream = httpAction(async (ctx, request) => {
         return;
       }
 
+      const startedAt = Date.now();
       try {
         const result = await runLoop(ctx, {
           question,
-          pageContext: readContext(body.context, body.focusBillId),
+          pageContext,
           scope:
             body.scope && typeof body.scope.dataset === "string"
               ? (body.scope as AnswerScope)
@@ -808,9 +831,28 @@ export const stream = httpAction(async (ctx, request) => {
           truncatedByLength: result.truncatedByLength ?? false,
           chatId: savedChatId ?? null,
         });
+
+        // WARN is every way an answer reached the reader worse than it should
+        // have: cut short, cut off, or with citations deleted because the model
+        // cited rows it was never given.
+        const degraded =
+          result.partial || (result.truncatedByLength ?? false) || result.dropped > 0;
+        await logAnswer(degraded ? "warn" : "info", "answer served", {
+          duration_ms: Date.now() - startedAt,
+          lookups: result.workLog.length,
+          partial: result.partial,
+          truncated: result.truncatedByLength ?? false,
+          dropped_citations: result.dropped,
+          used_web: result.webSources.length > 0,
+          asked_reader: result.askedReader ?? false,
+        });
       } catch (error) {
         console.error("answer stream failed:", error);
         send("error", { message: "Failed to get a response." });
+        await logAnswer("error", "answer failed", {
+          duration_ms: Date.now() - startedAt,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
       controller.close();
     },

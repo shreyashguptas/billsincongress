@@ -404,14 +404,36 @@ person via the `X-PostHog-Distinct-Id` / `X-PostHog-Session-Id` headers sent by 
 | `bill_chat_message_processed` | Server finished handling a per-bill chat message | `bill_id`, `success`, `rate_limited`, `user_type`, `question_length` | `app/api/bill-chat/send/route.ts` | **Dead.** The route is still deployed and publicly callable, but its only client (`billsService.sendChatMessage`) has no call site anywhere in the app. Last event 27 Aug 2026. |
 | `$exception` (server) | An API route threw | error details | `app/api/bill-chat/send/route.ts` (dead), `app/api/bill-chat/usage/route.ts` (live, called by `app/account/page.tsx`) | Partly live |
 
-> **The live answer path has no server-side instrumentation at all.**
-> `app/api/answer/route.ts` imports nothing from `lib/posthog-server.ts`, and the
-> browser's `fetch('/api/answer')` does not send the PostHog identity headers, so a
-> server event added there today would not attach to the browser's person or session.
-> Everything we know about answers comes from the client events above — which means a
-> question that fails before the browser sees a response is invisible. If server-side
-> truth for the costly action matters again, this is the gap to close, and it needs
-> `analytics.requestHeaders()` wired into that fetch first.
+> **The live answer path sends no server-side events — but it does send a log line.**
+> The browser's `fetch('/api/answer')` now carries `analytics.requestHeaders()`, and
+> `app/api/answer/route.ts` forwards both ids to Convex, which writes one PostHog **log
+> line** per answer (next section). A server *event* on that path would now attach to the
+> right person and session too; none has been added, because the log line covers failures.
+
+### PostHog Logs
+
+Log lines are not events: they go to PostHog Logs (OpenTelemetry, `/i/v1/logs`), not to
+the event stream, and are not in funnels or insights. Free to 10 GB a month, kept 14 days;
+the Logs billing limit is set to $0, so past the free tier they stop rather than bill.
+
+They are sent from our own code, `convex/posthogLogs.ts`, because Convex's built-in log
+streaming needs its Professional plan. With no `POSTHOG_PROJECT_TOKEN` in the Convex
+environment nothing is sent. Service name: `billsincongress-convex`.
+
+| Line (body) | Level | Written when | Attributes | Where (file) |
+|---|---|---|---|---|
+| `answer served` | INFO, or WARN when the answer was `partial`, `truncated` or had citations dropped | An answer reached the reader (`done` sent) | `sessionId`, `posthogDistinctId` (when the browser sent them), `signed_in`, `page`, `bill_id` (bill pages), `duration_ms`, `lookups`, `partial`, `truncated`, `dropped_citations`, `used_web`, `asked_reader` | `convex/answer.ts` (`stream`) |
+| `answer failed` | ERROR | The answer loop threw and the reader got "Failed to get a response." | the identity/page attributes above, `duration_ms`, `error` (first 500 characters) | `convex/answer.ts` (`stream`) |
+
+- `sessionId` and `posthogDistinctId` are the attribute names PostHog uses to link a line to
+  the session replay and the person. They come from the browser and are dropped unless
+  they look like PostHog ids (`readPosthogId`).
+- **The question text is never on a line**, and a test (`convex/answerLogs.spec.ts`)
+  fails if it ever is.
+- Before setting the token in Convex, `scripts/posthog-logs-smoke.ts` sends one test line
+  built by the same code, to prove PostHog accepts the format and the key.
+- Adding a line follows the same contract as an event: register it in this table, send it
+  through `scheduleLog` in `convex/posthogLogs.ts`, never await the send on a reader's path.
 
 ---
 
@@ -575,6 +597,7 @@ Same as "The contract" above, plus:
 | Env var | Value | Where it lives |
 |---|---|---|
 | `NEXT_PUBLIC_POSTHOG_KEY` | The project's public API key (`phc_…`) | `.env.local` for local dev **and** a GitHub Actions repo secret for deploys |
+| `POSTHOG_PROJECT_TOKEN` | The same `phc_…` key, for PostHog Logs sent from Convex | Convex environment (`npx convex env set --prod`); see "PostHog Logs" above |
 | `NEXT_PUBLIC_POSTHOG_HOST` | `https://t.billsincongress.com` (reverse proxy — see below). Note `.env.example` ships the direct `https://us.i.posthog.com` value, and that is also the code fallback when the variable is unset — the proxy is in effect only because the GitHub Actions secret is set to it | `.env.local` for local dev **and** a GitHub Actions repo secret for deploys |
 
 - The key is a **public** client key (it ships in the JS bundle by design); it is not a secret.

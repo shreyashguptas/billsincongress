@@ -15,6 +15,7 @@ import {
   MAX_QUESTION_LENGTH,
 } from '../bill-chat/_shared';
 import { withKeepAlive } from '@/lib/sse-keepalive';
+import { POSTHOG_DISTINCT_ID_HEADER, POSTHOG_SESSION_ID_HEADER } from '@/lib/posthog-server';
 
 export async function POST(request: Request) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -53,6 +54,11 @@ export async function POST(request: Request) {
       history: body.history,
       chatId: body.chatId,
       anonymousSessionId,
+      // The browser's PostHog ids, so Convex's log line for this answer opens
+      // the reader's session replay (convex/posthogLogs.ts). Absent when the
+      // reader has analytics blocked; Convex re-checks both.
+      posthogSessionId: request.headers.get(POSTHOG_SESSION_ID_HEADER) ?? undefined,
+      posthogDistinctId: request.headers.get(POSTHOG_DISTINCT_ID_HEADER) ?? undefined,
     }),
   });
 
