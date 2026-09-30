@@ -575,7 +575,9 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │    ├─ describe_dataset
                  │    ├─ fetch_dataset   → convex/catalog/fetch.ts
                  │    ├─ search_web      → OpenRouter web plugin, engine "exa"
-                 │    └─ ask_reader      → ends the turn with a question, not an answer
+                 │    ├─ ask_reader      → ends the turn with a question, not an answer
+                 │    └─ no answer, no call → one nudge, then the no-tools round early;
+                 │                           still empty → `error` frame (empty_model_output)
                  ├─ deliberation stripped → convex/catalog/answerSanitize.ts
                  ├─ citation resolution → convex/catalog/cite.ts
                  └─ SSE frames back: work · delta · done · rate_limited · error
