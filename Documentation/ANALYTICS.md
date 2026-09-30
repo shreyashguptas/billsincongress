@@ -190,7 +190,8 @@ picker) and fires one custom event — see "Learn page" below.
 | `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set while the list is open (passive, 150ms debounce, once per settled query and Congress, including zero results) | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
 | `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
 | `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
-| `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
+| `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+order+page) | `hub_kind`, `hub_path`, `bill_count`, `page`, `order` (`newest` \| `oldest`; added 2026-09-30, absent on earlier events) | `app/bills/_hub/hub-view-tracker.tsx` |
+| `hub_order_changed` | Reader switches a hub between "Newest first" and "Oldest first" (added 2026-09-30, when hubs gained a real date order). The page that follows reports its own `hub_viewed` with the new `order` | `hub_kind`, `hub_path`, `from_order`, `to_order`, `page` (the page they were on; a change of order returns to page 1) | `app/bills/_hub/hub-view-tracker.tsx` (`HubOrderSwitch`) |
 | `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, a sibling row on another hub, or the site footer (`placement: "footer"`, since 2026-09-25: House bills, Senate bills and Bills that became law; before that the footer's seven chamber and stage links reported only `$autocapture`). **Not** the homepage topic wheel's links, which go to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
 
 **`filter_kind` vocabulary** (shared by `bills_filter_applied`,
@@ -330,7 +331,7 @@ emits `list`.
 |---|---|---|---|
 | `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-provider.tsx` |
 | `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence. Fires when the finished answer arrives, before the panel's word-by-word reveal (up to 5s) has finished drawing it, so `response_ms` is the server's time, not the time until the reader sees the last word | `components/answers/answer-provider.tsx` |
-| `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
+| `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), `"empty_model_output"` (the model gave no answer and no lookup, even after one nudge and a final round without tools; **until #135's Convex deploy on 30 Sep 2026 at about 17:42 UTC (13:42 ET) the reader got a canned apology instead, recorded as an `answer_received`**, so no `empty_model_output` event predates that deploy), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
 | `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |
 | `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-provider.tsx` |
@@ -393,6 +394,36 @@ every event after it. `standalone` means the site was opened from the Home Scree
 iOS included. Break any insight down by it to compare installed-app readers with browser
 readers. Events captured before the component mounts (the first `$pageview`) do not carry
 it.
+
+### Feedback and surveys
+
+Added 2026-09-29. Two forms the site draws itself, each backed by a PostHog survey of type
+`api` so the answers land in PostHog's **Surveys** tab with its own charts and filters
+(Documentation/overview.md, "Reader feedback"). Because the Surveys tab reads PostHog's own
+event names and `$survey_*` properties, these three events are **PostHog's**, not
+`object_action` names of ours: renaming them would take the answers out of the Surveys tab.
+They are still sent only through the helpers in `lib/analytics.ts` (`surveyShown`,
+`surveyDismissed`, `surveySent`).
+
+| Survey | PostHog id | Questions (id order) |
+|---|---|---|
+| "Feedback" (the header / menu / footer box) | `01a0ee82-e9d6-0000-2be7-a3a3010e9529` | "What would you like to share?" (`Issue` \| `Idea`), "What's on your mind?" (the message), "Picture" (a link to the attached picture in Convex storage, or unanswered) |
+| "Did you find what you were looking for?" (the page-3 prompt) | `01a0ee82-f301-0000-9572-4b5e0e2d5cd3` | "Did you find what you were looking for?" (`Yes` \| `No`), "What was missing?" (optional, asked only after No). Response limit 1,000 |
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `survey shown` | The Feedback box opens, or the page-3 prompt appears | `$survey_id`, `$survey_name`, `surface: "header" \| "menu" \| "footer" \| "prompt"` | `components/feedback/feedback-box.tsx`, `components/feedback/found-it-prompt.tsx` |
+| `survey dismissed` | The Feedback box closes without sending, or the prompt is closed before answering | `$survey_id`, `$survey_name`; for the prompt also `$set: {"$survey_dismissed/<id>": true}` | same |
+| `survey sent` | Feedback is sent, or the prompt is answered (Yes; or No, with or without the follow-up; closing after No sends the No) | `$survey_id`, `$survey_name`, `$survey_questions` (`[{id, question, response}]`), `$survey_response_<question id>` per answered question plus the legacy index keys (`$survey_response`, `$survey_response_1`, …), `$survey_completed: true`, `$survey_submission_id`; for the prompt also `$set: {"$survey_responded/<id>": true}` | same, plus `components/feedback/feedback-panel.tsx` |
+
+**Reader-typed free text, deliberately** (contract rule 6). The feedback message and the
+prompt's "What was missing?" are the whole point of these forms, so they ride on `survey sent`
+verbatim, as does the picture's public link. Disclosed in the Privacy Policy (§2, "Feedback you
+send") in the same commit.
+
+**Free-plan budget.** Every `survey sent` counts toward PostHog's 1,500 free survey responses a
+month, across both surveys. The prompt's 1,000-response limit is what keeps it inside that: the
+site shows the prompt only while PostHog has the survey open (`analytics.whenSurveyActive`).
 
 ### Server-side events
 

@@ -17,6 +17,13 @@ interface BillCardProps {
   variant?: 'full' | 'compact';
   /** Leave out the topic tag — on a topic hub every row would repeat it. */
   hideTopic?: boolean;
+  /**
+   * The date to show under the number, with what it is ("Became law"), in
+   * place of the unlabelled introduction date. A hub passes the date it is
+   * ordered by, so the date a reader sees is the one the list is sorted on.
+   * An undated bill shows no date rather than a different one.
+   */
+  date?: { label: string; value?: string };
 }
 
 /**
@@ -79,7 +86,7 @@ export function CompactBillCard({
  * rows"): number and date, then the title and sponsor, then the stage. The
  * whole row is the link. On phones the three columns stack in that order.
  */
-export default function BillCard({ bill, variant = 'full', hideTopic = false }: BillCardProps) {
+export default function BillCard({ bill, variant = 'full', hideTopic = false, date }: BillCardProps) {
   const stage =
     typeof bill.progress_stage === 'string'
       ? parseInt(bill.progress_stage, 10)
@@ -128,11 +135,22 @@ export default function BillCard({ bill, variant = 'full', hideTopic = false }: 
         >
           {formatBillNumber(bill)}
         </span>
-        {bill.introduced_date && (
-          <span className="font-mono text-xs text-ink-3 tabular">
-            <span className="sr-only">Introduced </span>
-            <time dateTime={bill.introduced_date}>{formatDate(bill.introduced_date)}</time>
-          </span>
+        {date ? (
+          date.value && (
+            <span className="flex items-baseline gap-1.5 text-xs md:flex-col md:gap-0.5">
+              <span className="text-ink-3">{date.label}</span>
+              <time dateTime={date.value} className="font-mono text-ink-2 tabular">
+                {formatDate(date.value)}
+              </time>
+            </span>
+          )
+        ) : (
+          bill.introduced_date && (
+            <span className="font-mono text-xs text-ink-3 tabular">
+              <span className="sr-only">Introduced </span>
+              <time dateTime={bill.introduced_date}>{formatDate(bill.introduced_date)}</time>
+            </span>
+          )
         )}
       </div>
 

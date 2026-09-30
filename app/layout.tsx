@@ -10,6 +10,7 @@ import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { PwaSetup } from '@/components/pwa/pwa-setup';
 import { IconAlignmentCheck } from '@/components/brand/icon-alignment-check';
+import { FoundItPrompt } from '@/components/feedback/found-it-prompt';
 import { ConvexClientProvider } from '@/components/convex-client-provider';
 import { sharedViewport, sharedThemeColor } from './shared-metadata';
 import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
@@ -198,6 +199,7 @@ export default function RootLayout({
                   <Footer />
                 </div>
                 <AnswerPanel />
+                <FoundItPrompt />
                 <WelcomeNewUser />
                 <PostHogAuthSync />
                 <PwaSetup />

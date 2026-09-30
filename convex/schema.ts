@@ -124,6 +124,15 @@ export default defineSchema({
     progressStage: v.optional(v.number()), // 20, 40, 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
+    // The day the bill reached its current stage: when it became law, was
+    // vetoed, passed its first chamber, went to committee — or, still at
+    // "Introduced", its introduction date. Derived with the stage
+    // (`calculateBillStage` + `stageDateFor`) and written alongside it, so the
+    // two never disagree. This, not
+    // latestActionDate, is what "newest law first" means: a committee can act on
+    // a bill after it is signed, and 5 of 758 laws had a later latest action.
+    // Absent (never "") when nothing dates it, so undated bills sort last.
+    stageDate: v.optional(v.string()),
     // Denormalised copy of billSubjects.policyAreaName: a topic filter must be
     // an indexed lookup. The cross-table intersection it replaced matched the
     // oldest 2,000 subject rows against the newest 1,200 bills of one congress
@@ -175,6 +184,27 @@ export default defineSchema({
     .index("by_congress_stage_and_action", [
       "congress",
       "progressStage",
+      "latestActionDate",
+    ])
+    // The hub pages' two orders ("Newest first" / "Oldest first",
+    // app/bills/_hub). Each index enforces the hub's whole filter, so a sorted
+    // page is a real index range over the complete set — never a capped scan
+    // sorted in memory. Stage hubs sort by the date the bill reached that stage;
+    // topic and chamber hubs by latest action. A chamber is four bill types,
+    // merged in order by `listSorted`.
+    .index("by_congress_stage_and_stage_date", [
+      "congress",
+      "progressStage",
+      "stageDate",
+    ])
+    .index("by_congress_policy_area_and_latest_action", [
+      "congress",
+      "policyAreaName",
+      "latestActionDate",
+    ])
+    .index("by_congress_type_and_latest_action", [
+      "congress",
+      "billType",
       "latestActionDate",
     ])
     .index("by_progress_stage", ["progressStage"])
@@ -555,4 +585,15 @@ export default defineSchema({
   })
     .index("by_congress", ["congress"])
     .index("by_status", ["status"]),
+
+  // Pictures readers attach to the header's Feedback box (convex/feedback.ts).
+  // The message itself goes to PostHog with a link to the file; this row only
+  // exists so a daily cron can delete each picture 180 days after it arrived,
+  // and so avatars.sweepOrphans knows the file is not an orphaned photo.
+  // Nothing here identifies who sent it.
+  feedbackPictures: defineTable({
+    storageId: v.id("_storage"),
+    contentType: v.string(),
+    size: v.number(),
+  }).index("by_storageId", ["storageId"]),
 });
