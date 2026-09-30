@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { routes } from '@/lib/constants/routes';
+import { MAX_SEARCH_TEXT_LENGTH } from '@/lib/bill-query';
 import { UserMenu } from '@/components/auth/user-menu';
 import { Logo } from '@/components/brand/logo';
 
@@ -244,6 +245,8 @@ function HeaderSearch() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          // The server rejects a longer title search outright.
+          maxLength={MAX_SEARCH_TEXT_LENGTH}
           placeholder="Search bills, or S. 2878"
           className="w-64 pl-9 text-sm xl:w-72"
         />
