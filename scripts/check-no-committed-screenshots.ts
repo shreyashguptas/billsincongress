@@ -56,7 +56,9 @@ for (const path of files) {
     offenders.push(`${path}: an image or video outside public/`);
   } else if (MEDIA.test(path) && SCREENSHOT_NAME.test(name)) {
     offenders.push(`${path}: named like a screenshot`);
-  } else if (/(^|\/)(pr-)?screenshots?\//i.test(path)) {
+  } else if (/screen[\s_-]?(shot|recording)s?[^/]*\//i.test(path)) {
+    // Any folder named like a screenshot folder: pr-screenshots/, review-screenshots/,
+    // "Screen Shots/". public/manifest-screenshots/ was handled above.
     offenders.push(`${path}: inside a screenshots folder`);
   }
 }
