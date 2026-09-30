@@ -43,6 +43,8 @@ import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as emailCodes from "../emailCodes.js";
 import type * as emailStyle from "../emailStyle.js";
+import type * as feedback from "../feedback.js";
+import type * as feedbackPicture from "../feedbackPicture.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as indexNow from "../indexNow.js";
@@ -101,6 +103,8 @@ declare const fullApi: ApiFromModules<{
   email: typeof email;
   emailCodes: typeof emailCodes;
   emailStyle: typeof emailStyle;
+  feedback: typeof feedback;
+  feedbackPicture: typeof feedbackPicture;
   functions: typeof functions;
   http: typeof http;
   indexNow: typeof indexNow;

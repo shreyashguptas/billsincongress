@@ -175,4 +175,26 @@ describe("profile photos", () => {
     expect(await fileExists(t, orphan)).toBe(false);
     expect(await fileExists(t, kept)).toBe(true);
   });
+
+  // A feedback picture belongs to no user, but it is not an orphan: it is kept
+  // 180 days (convex/feedback.ts). Without its row the sweep deleted it an hour
+  // after the reader sent it, leaving a dead link in PostHog.
+  test("the sweep keeps pictures attached to feedback", async () => {
+    const t = setup();
+    const picture = await store(t);
+    await t.mutation(internal.feedback.recordPicture, {
+      storageId: picture,
+      contentType: "image/webp",
+      size: 1,
+    });
+
+    const realNow = Date.now;
+    Date.now = () => realNow() + 2 * 60 * 60 * 1000;
+    try {
+      await t.mutation(internal.avatars.sweepOrphans, {});
+    } finally {
+      Date.now = realNow;
+    }
+    expect(await fileExists(t, picture)).toBe(true);
+  });
 });

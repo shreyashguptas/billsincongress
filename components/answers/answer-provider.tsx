@@ -643,7 +643,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
               drop();
               analytics.answerFailed({
                 surface,
-                error: data.message,
+                // A durable code when the server sends one, e.g. 'empty_model_output'.
+                error: data.reason ?? data.message,
                 elapsed_ms: Date.now() - askedAt,
                 stream_started: streamStarted,
                 ...(typeof data.traceId === 'string' ? { $ai_trace_id: data.traceId } : {}),

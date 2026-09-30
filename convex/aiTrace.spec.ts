@@ -30,6 +30,7 @@ type BatchEvent = { event: string; properties: Record<string, unknown>; timestam
 let sent: Sent[] = [];
 let modelCalls = 0;
 let modelFails = false;
+let modelEmpty = false;
 
 function setup() {
   const t = convexTest(schema, modules);
@@ -40,6 +41,13 @@ function setup() {
 /** Round 1: the model asks to describe the bills dataset. Round 2: it answers. */
 function modelReply() {
   modelCalls += 1;
+  if (modelEmpty) {
+    return {
+      model: "deepseek/deepseek-v4-flash-0731",
+      choices: [{ finish_reason: "stop", message: { role: "assistant", content: "" } }],
+      usage: { prompt_tokens: 900, completion_tokens: 0 },
+    };
+  }
   if (modelCalls === 1) {
     return {
       model: "deepseek/deepseek-v4-flash-0731",
@@ -73,6 +81,7 @@ beforeEach(() => {
   sent = [];
   modelCalls = 0;
   modelFails = false;
+  modelEmpty = false;
   process.env.OPENROUTER_API_KEY = "sk-or-test-not-a-real-key";
   process.env.POSTHOG_KEY = "phc_test_not_a_real_key";
   delete process.env.POSTHOG_HOST;
@@ -215,6 +224,24 @@ describe("recording an answer as a PostHog trace", () => {
     const trace = events.find((e) => e.event === "$ai_trace")!;
     expect(trace.properties.outcome).toBe("failed");
     expect(trace.properties.$ai_trace_id).toBe(error!.data.traceId);
+  });
+
+  test("a model that never answers is recorded as a failure, and still sent", async () => {
+    modelEmpty = true;
+    const t = setup();
+    const frames = await ask(t);
+    const error = frames.find((f) => f.event === "error");
+    expect(error?.data.reason).toBe("empty_model_output");
+    expect(error?.data.traceId).toBeTruthy();
+    expect(batches()).toHaveLength(1);
+    const trace = batches()[0].find((e) => e.event === "$ai_trace")!;
+    expect(trace.properties.outcome).toBe("failed");
+    expect(trace.properties.$ai_error).toBe("empty_model_output");
+    expect(trace.properties.$ai_trace_id).toBe(error!.data.traceId);
+    // Every empty reply the loop retried is there to see.
+    const generations = batches()[0].filter((e) => e.event === "$ai_generation");
+    expect(generations.length).toBe(modelCalls);
+    expect(generations.length).toBeGreaterThan(1);
   });
 
   test("an id from the browser that is not a PostHog id is not trusted", async () => {
