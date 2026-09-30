@@ -157,6 +157,12 @@ picker) and fires one custom event — see "Learn page" below.
 | `auth_google_clicked` | User clicks a "Continue with Google" button (before OAuth redirect) | `intent: "sign_in" \| "sign_up"` | `components/auth/google-button.tsx` |
 | `signed_out` | User signs out | — | `components/auth/user-menu.tsx`, `app/account/page.tsx` |
 | `welcome_modal_shown` | New-user welcome/celebration modal appeared | — | `components/auth/welcome-new-user.tsx` |
+| `avatar_editor_opened` | Reader picked a photo from the account page's avatar and it decoded; the crop dialog opened (added 2026-09-29) | `file_type` (the picked file's MIME type), `file_kb` (its size), `had_photo` | `components/account/avatar-button.tsx` |
+| `avatar_editor_cancelled` | Reader closed the crop dialog without saving | — | `components/account/avatar-button.tsx` |
+| `avatar_saved` | The cropped photo was uploaded and attached; it is now the reader's avatar | `format: "webp" \| "jpeg"` (JPEG only where the browser cannot encode WebP), `output_kb`, `zoom` (1–4, two decimals), `replaced: "upload" \| "google" \| "none"`, `duration_ms` (Upload press to attached) | `components/account/avatar-button.tsx` |
+| `avatar_failed` | A photo could not be read (`stage: "read"`: not an image the browser can open, or over 50 MB), uploaded (`"upload"`) or attached (`"save"`: rejected by the server, or rate limited) | `stage`, `reason` (our code, e.g. `UNREADABLE_IMAGE`, `TOO_LARGE`, `RATE_LIMITED`, `AVATAR_INVALID`) | `components/account/avatar-button.tsx` |
+| `avatar_removed` | Reader chose "Remove photo"; the avatar is back to initials | `previous: "upload" \| "google"` | `components/account/avatar-button.tsx` |
+| `avatar_google_restored` | Reader chose "Use Google photo" to show their Google picture again | — | `components/account/avatar-button.tsx` |
 
 ### Bill discovery (dashboard + browse)
 

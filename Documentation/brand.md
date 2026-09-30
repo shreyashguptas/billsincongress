@@ -220,7 +220,7 @@ These live in `components/brand/` and compose the primitives above.
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
-| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's initials in a circle, and the Pro mark. See Pro, below |
+| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
 
 Patterns that appear on more than one page:
@@ -249,6 +249,16 @@ Patterns that appear on more than one page:
   `prefers-reduced-motion`.
 - **Ask panel title bar**: from `lg` up, exactly the header's height
   (`--header-h`), so docked beside it the two bottom rules are one line.
+- **Profile photo** (account page, `components/account/`): the avatar is the
+  control. Hovering or focusing it lays an ink veil (`ink/70` over a photo,
+  solid over initials) with a Lucide `Camera` and "Upload" (or "Change"); a
+  small `raised` circle with the camera sits at its lower right at all times,
+  for touch screens. With no photo
+  a click opens the device's own picker; with one, a menu offers "Upload a
+  photo", "Use Google photo" and "Remove photo". The crop dialog is a 280px
+  square with the circle drawn in `line-strong` and everything outside it
+  dimmed with `paper`, a zoom `Slider` between two ghost icon buttons, and
+  "Upload" as the one ink button.
 - **Account slot** (header, right edge): signed in, the 36px avatar (see
   "Pro"). Signed out, small (`sm`) buttons and never ink: "Sign up" is
   `outline`, "Sign in" is `ghost`. The header is on every page and must not
@@ -452,7 +462,7 @@ writing, an arrow, the alert email as an envelope, a seven-step track.
 A reader on Pro is shown so in one consistent way, the **Pro mark**:
 
 - **The spectrum ring**: the six topic colours as a ring around the reader's
-  initials, then a paper gap, then the circle (`AvatarMark pro`). It appears on
+  photo or initials, then a paper gap, then the circle (`AvatarMark pro`). It appears on
   the header's account button (36px overall, focus ring outside it), on the
   account page's "you" card, and in the Welcome to Pro dialog. Free readers get
   the plain circle with a `line-strong` edge.
