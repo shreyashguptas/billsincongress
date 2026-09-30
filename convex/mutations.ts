@@ -10,7 +10,12 @@ import {
   HOUSE_BILL_TYPES,
   SENATE_BILL_TYPES,
 } from "./aggregates";
-import { calculateBillStage, passedChamber, BillStages } from "./billStage";
+import {
+  calculateBillStage,
+  passedChamber,
+  stageDateFor,
+  BillStages,
+} from "./billStage";
 import { chamberOf } from "./chamber";
 import { queueForIndexNow } from "./indexNow";
 import { computeBaseRateBuckets, MS_PER_DAY } from "./baseRates";
@@ -32,6 +37,8 @@ export const upsertBill = internalMutation({
     sponsorState: v.optional(v.string()),
     progressStage: v.optional(v.number()),
     progressDescription: v.optional(v.string()),
+    // Written with progressStage, from the same `calculateBillStage` call.
+    stageDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -471,6 +478,8 @@ export const getBillBackfillPage = internalQuery({
         progressStage: b.progressStage,
         progressDescription: b.progressDescription,
         latestActionDate: b.latestActionDate,
+        introducedDate: b.introducedDate,
+        stageDate: b.stageDate,
         extraSyncedBits: b.extraSyncedBits ?? 0,
       })),
       isDone: page.isDone,
@@ -505,6 +514,8 @@ export const getBillBackfillPageByCongress = internalQuery({
         progressStage: b.progressStage,
         progressDescription: b.progressDescription,
         latestActionDate: b.latestActionDate,
+        introducedDate: b.introducedDate,
+        stageDate: b.stageDate,
         extraSyncedBits: b.extraSyncedBits ?? 0,
       })),
       isDone: page.isDone,
@@ -514,8 +525,8 @@ export const getBillBackfillPageByCongress = internalQuery({
 });
 
 /**
- * Re-derives progressStage / progressDescription / latestActionDate from the
- * stored actions and patches only what changed.
+ * Re-derives progressStage / progressDescription / stageDate /
+ * latestActionDate from the stored actions and patches only what changed.
  *
  * Uses the trigger-wrapped internalMutation so the billsByStage / billsByChamber
  * aggregates stay in sync. Bills with no stored actions are skipped, correctly
@@ -533,6 +544,10 @@ export const rederiveBillFieldsFromActions = internalMutation({
         progressStage: v.optional(v.number()),
         progressDescription: v.optional(v.string()),
         latestActionDate: v.optional(v.string()),
+        // Optional so a backfill run started before this field existed still
+        // validates; an absent introducedDate just means no fallback date.
+        introducedDate: v.optional(v.string()),
+        stageDate: v.optional(v.string()),
       }),
     ),
   },
@@ -546,15 +561,30 @@ export const rederiveBillFieldsFromActions = internalMutation({
         .take(250);
       if (actions.length === 0) {
         skippedNoActions++;
+        // Nothing to re-derive the stage from, but a bill still at
+        // "Introduced" is dated by its introduction, which it always has.
+        const fallback = stageDateFor({ stageDate: null }, bill.introducedDate);
+        if (
+          (bill.progressStage === undefined ||
+            bill.progressStage === BillStages.INTRODUCED) &&
+          fallback !== undefined &&
+          bill.stageDate !== fallback
+        ) {
+          await ctx.db.patch(bill._id, { stageDate: fallback });
+          changed++;
+        }
         continue;
       }
-      const { stage, description } = calculateBillStage(
+      const computed = calculateBillStage(
         actions.map((a) => ({
           text: a.text,
           type: a.type,
           actionCode: a.actionCode,
+          actionDate: a.actionDate,
         })),
       );
+      const { stage, description } = computed;
+      const stageDate = stageDateFor(computed, bill.introducedDate);
       // Mirror upsertBillActions' max-actionDate reducer exactly.
       const latestActionDate =
         actions.reduce<string | null>(
@@ -567,6 +597,7 @@ export const rederiveBillFieldsFromActions = internalMutation({
         progressStage?: number;
         progressDescription?: string;
         latestActionDate?: string;
+        stageDate?: string;
       } = {};
       if (
         bill.progressStage !== stage ||
@@ -574,6 +605,9 @@ export const rederiveBillFieldsFromActions = internalMutation({
       ) {
         patch.progressStage = stage;
         patch.progressDescription = description;
+      }
+      if (stageDate && bill.stageDate !== stageDate) {
+        patch.stageDate = stageDate;
       }
       if (latestActionDate && bill.latestActionDate !== latestActionDate) {
         patch.latestActionDate = latestActionDate;

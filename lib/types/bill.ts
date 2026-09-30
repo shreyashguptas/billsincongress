@@ -12,6 +12,10 @@ export interface Bill {
   sponsor_state: string;
   progress_stage: number;
   progress_description: string;
+  /** The day it reached its current stage (became law, was vetoed…). Sorts the stage hubs. */
+  stage_date?: string;
+  /** Date of its most recent action. Sorts the topic and chamber hubs. */
+  latest_action_date?: string;
   bill_subjects?: {
     policy_area_name: string;
   };
