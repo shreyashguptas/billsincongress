@@ -10,9 +10,19 @@ import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { formatCount } from '@/lib/utils';
 import { pagesForCount } from '@/lib/pagination';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
-import { hubsOfKind, type HubDefinition } from '@/lib/hubs';
+import {
+  HUB_ORDERS,
+  hubDateLabel,
+  hubHref,
+  hubSortScope,
+  hubsOfKind,
+  type HubDefinition,
+  type HubOrder,
+  type HubSortedBy,
+} from '@/lib/hubs';
+import type { Bill } from '@/lib/types/bill';
 import { SHARE_CARD_SIZE, SITE_URL, hubShareImagePath } from '@/lib/seo';
-import { HubViewTracker, HubLink } from './hub-view-tracker';
+import { HubViewTracker, HubLink, HubOrderSwitch } from './hub-view-tracker';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { scopeFromHub } from '@/lib/answer-scope';
 
@@ -45,14 +55,22 @@ const hubCount = cache(async (hub: HubDefinition) =>
   billsService.fetchBillsCount(filterFor(hub)).catch(() => ({ count: null, exact: false })),
 );
 
-export async function hubMetadata(hub: HubDefinition, page: number): Promise<Metadata> {
-  const canonical = page > 1 ? `${hub.path}?page=${page}` : hub.path;
+export async function hubMetadata(
+  hub: HubDefinition,
+  page: number,
+  order: HubOrder = 'newest',
+): Promise<Metadata> {
+  const canonical = hubHref(hub, { page, order });
   const { count, exact } = await hubCount(hub);
   // A hub with no bills is the doorway page this design exists to avoid. It
   // still renders — someone following a link deserves an explanation rather
   // than a 404 — but it must not be offered to search engines as a document.
   // Only a complete count can prove a hub empty.
   const empty = exact && count === 0;
+  // Oldest-first is the same set in reverse. Crawlers follow it (its links are
+  // real bill pages) but index only the newest-first pages, so the hub is not
+  // offered twice.
+  const reordered = order !== 'newest';
   // The page's own card (app/share-image/[...path]). Named for both Open Graph
   // and X: a page-level openGraph replaces the root one wholesale, which until
   // this card existed left hub links with no picture at all.
@@ -70,7 +88,7 @@ export async function hubMetadata(hub: HubDefinition, page: number): Promise<Met
     title: hub.metaTitle,
     description: hub.metaDescription,
     alternates: { canonical },
-    ...(empty ? { robots: { index: false, follow: true } } : {}),
+    ...(empty || reordered ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       title: hub.metaTitle,
       description: hub.metaDescription,
@@ -122,6 +140,36 @@ function hubJsonLd(hub: HubDefinition, exactCount: number | null): object {
   };
 }
 
+/**
+ * One page of a hub, in date order.
+ *
+ * `sortedBy` is null when the sorted read failed and this fell back to the
+ * unsorted list — which happens for as long as the site is deployed ahead of
+ * the Convex functions (`bills.listSorted` arrives with the same change). The
+ * page then shows the bills without claiming an order: no switch, and each
+ * row's plain introduction date instead of a labelled one.
+ */
+async function hubBills(
+  hub: HubDefinition,
+  page: number,
+  order: HubOrder,
+): Promise<{ data: Bill[]; hasMore: boolean; sortedBy: HubSortedBy | null }> {
+  try {
+    return await billsService.fetchHubBills({
+      scope: hubSortScope(hub),
+      order,
+      page,
+      itemsPerPage: PER_PAGE,
+    });
+  } catch (error) {
+    console.error(`Sorted hub read failed for ${hub.path}; showing it unsorted`, error);
+    const unsorted = await billsService
+      .fetchBills({ ...filterFor(hub), page, itemsPerPage: PER_PAGE })
+      .catch(() => ({ data: [] as Bill[], hasMore: false }));
+    return { data: unsorted.data, hasMore: unsorted.hasMore, sortedBy: null };
+  }
+}
+
 /** `?page=N`, clamped to what the backend can actually serve. */
 export function parseHubPage(value: string | string[] | undefined): number {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -146,16 +194,14 @@ export function parseHubPage(value: string | string[] | undefined): number {
 export async function HubView({
   hub,
   page,
+  order,
 }: {
   hub: HubDefinition;
   page: number;
+  order: HubOrder;
 }): Promise<ReactElement> {
-  const filter = filterFor(hub);
-
   const [bills, count, congressNumbers] = await Promise.all([
-    billsService
-      .fetchBills({ ...filter, page, itemsPerPage: PER_PAGE })
-      .catch(() => ({ data: [], hasMore: false })),
+    hubBills(hub, page, order),
     hubCount(hub),
     billsService.getAvailableCongressNumbers().catch(() => [] as number[]),
   ]);
@@ -168,12 +214,19 @@ export async function HubView({
   const floor = count.exact ? null : count.count;
   const { lastPage, openEnded } = pagesForCount(count, page, bills.hasMore, PER_PAGE, MAX_PAGE);
   const siblings = hubsOfKind(hub.kind).filter((h) => h.path !== hub.path);
+  // The date each row shows is the date the list is ordered by, labelled.
+  const dateLabel = bills.sortedBy ? hubDateLabel(hub, bills.sortedBy) : null;
+  const dateOf = (bill: Bill) =>
+    bills.sortedBy === 'stageDate' ? bill.stage_date : bill.latest_action_date;
+  // A switch needs something to reorder: more than one bill in the hub.
+  const showOrder =
+    dateLabel !== null && (bills.data.length > 1 || page > 1 || (total ?? floor ?? 0) > 1);
 
   return (
     <div>
       <JsonLd data={hubJsonLd(hub, total)} />
       <Suspense fallback={null}>
-        <HubViewTracker hubKind={hub.kind} hubPath={hub.path} billCount={total} />
+        <HubViewTracker hubKind={hub.kind} hubPath={hub.path} billCount={total} order={order} />
       </Suspense>
 
       {/* Hub pages carry no ask box of their own — the persistent launcher is
@@ -208,22 +261,34 @@ export async function HubView({
 
       <div className="container-editorial pb-16">
         {/* The results bar. The ink rule under it is where the register starts. */}
-        <p className="border-b border-ink pb-3 text-sm text-ink-2">
-          {total === null && floor === null ? (
-            <>Showing bills from the current Congress.</>
-          ) : (
-            <>
-              <span className="font-mono font-medium text-ink tabular">
-                {total !== null ? formatCount(total) : `${formatCount(floor ?? 0)}+`}
-              </span>{' '}
-              {total === 1 ? 'bill' : 'bills'}
-              {congress !== null && (
-                <> in the {formatCongressOrdinal(congress)} Congress ({formatCongressYears(congress)})</>
-              )}
-              .
-            </>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-ink pb-3">
+          <p className="text-sm text-ink-2">
+            {total === null && floor === null ? (
+              <>Showing bills from the current Congress.</>
+            ) : (
+              <>
+                <span className="font-mono font-medium text-ink tabular">
+                  {total !== null ? formatCount(total) : `${formatCount(floor ?? 0)}+`}
+                </span>{' '}
+                {total === 1 ? 'bill' : 'bills'}
+                {congress !== null && (
+                  <> in the {formatCongressOrdinal(congress)} Congress ({formatCongressYears(congress)})</>
+                )}
+                .
+              </>
+            )}
+          </p>
+          {showOrder && (
+            <HubOrderSwitch
+              hubKind={hub.kind}
+              hubPath={hub.path}
+              current={order}
+              page={page}
+              label={`Order of bills by date: ${dateLabel}`}
+              options={HUB_ORDERS.map((o) => ({ ...o, href: hubHref(hub, { order: o.value }) }))}
+            />
           )}
-        </p>
+        </div>
 
         {bills.data.length === 0 ? (
           <p className="border-b border-line py-14 text-center text-[15px] text-ink-2">
@@ -234,7 +299,12 @@ export async function HubView({
         ) : (
           <div>
             {bills.data.map((bill) => (
-              <BillCard key={bill.id} bill={bill} hideTopic={hub.kind === 'topic'} />
+              <BillCard
+                key={bill.id}
+                bill={bill}
+                hideTopic={hub.kind === 'topic'}
+                date={dateLabel ? { label: dateLabel, value: dateOf(bill) } : undefined}
+              />
             ))}
           </div>
         )}
@@ -243,7 +313,7 @@ export async function HubView({
           page={page}
           lastPage={lastPage}
           openEnded={openEnded}
-          hrefForPage={(n) => (n === 1 ? hub.path : `${hub.path}?page=${n}`)}
+          hrefForPage={(n) => hubHref(hub, { page: n, order })}
           className="mt-10 justify-center"
         />
 

@@ -343,7 +343,23 @@ export const analytics = {
     hub_path: string;
     bill_count: number | null;
     page: number;
+    /** Since 2026-09-30, when hubs gained a real order. Absent on earlier events. */
+    order: 'newest' | 'oldest';
   }) => capture('hub_viewed', props),
+
+  /**
+   * The reader switched a hub between "Newest first" and "Oldest first". Fires
+   * on the click; the page that follows reports its own `hub_viewed` with the
+   * new `order`. `page` is the page they were on, which a change of order
+   * resets to 1.
+   */
+  hubOrderChanged: (props: {
+    hub_kind: 'chamber' | 'status' | 'topic';
+    hub_path: string;
+    from_order: 'newest' | 'oldest';
+    to_order: 'newest' | 'oldest';
+    page: number;
+  }) => capture('hub_order_changed', props),
 
   /**
    * A link from one hub to a sibling hub, from /bills into a hub, or from the

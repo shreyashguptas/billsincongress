@@ -4,30 +4,34 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { analytics } from '@/lib/analytics';
-import { hubByPath, type HubKind } from '@/lib/hubs';
+import { hubByPath, type HubKind, type HubOrder } from '@/lib/hubs';
+import { cn } from '@/lib/utils';
 
 /**
  * Fires `hub_viewed` once per hub page render.
  *
  * The hub pages themselves are server components, so the event needs a client
- * island the way `bill_viewed` does. Keyed on path + page so paginating within
- * a hub counts as a new view, while a re-render does not.
+ * island the way `bill_viewed` does. Keyed on path + order + page so
+ * paginating or re-ordering a hub counts as a new view, while a re-render does
+ * not.
  */
 export function HubViewTracker({
   hubKind,
   hubPath,
   billCount,
+  order,
 }: {
   hubKind: HubKind;
   hubPath: string;
   billCount: number | null;
+  order: HubOrder;
 }): null {
   const searchParams = useSearchParams();
   const page = Number.parseInt(searchParams.get('page') ?? '1', 10) || 1;
   const sent = useRef<string | null>(null);
 
   useEffect(() => {
-    const key = `${hubPath}#${page}`;
+    const key = `${hubPath}#${order}#${page}`;
     if (sent.current === key) return;
     sent.current = key;
     analytics.hubViewed({
@@ -35,8 +39,9 @@ export function HubViewTracker({
       hub_path: hubPath,
       bill_count: billCount,
       page,
+      order,
     });
-  }, [hubKind, hubPath, billCount, page]);
+  }, [hubKind, hubPath, billCount, page, order]);
 
   return null;
 }
@@ -124,5 +129,66 @@ export function HubLinkTracker({
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * "Newest first" / "Oldest first" on a hub.
+ *
+ * Two links styled as a segmented switch, not a `ToggleGroup`: each order is
+ * its own URL (`?sort=oldest`), so it must be an anchor a crawler can follow
+ * and a reader can open in a new tab — the same reason the pagination is
+ * links. `aria-current` marks the order being shown. Changing order starts
+ * again from page 1, and `scroll={false}` keeps the switch under the reader's
+ * pointer instead of jumping to the top.
+ */
+export function HubOrderSwitch({
+  hubKind,
+  hubPath,
+  current,
+  page,
+  options,
+  label,
+}: {
+  hubKind: HubKind;
+  hubPath: string;
+  current: HubOrder;
+  page: number;
+  options: ReadonlyArray<{ value: HubOrder; label: string; href: string }>;
+  /** Accessible name: what the order is by, e.g. "Order by the date each bill became law". */
+  label: string;
+}) {
+  return (
+    <nav aria-label={label} className="inline-flex shrink-0 items-stretch gap-0.5 rounded-md bg-sunken p-1">
+      {options.map((option) => {
+        const selected = option.value === current;
+        return (
+          <Link
+            key={option.value}
+            href={option.href}
+            scroll={false}
+            aria-current={selected ? 'true' : undefined}
+            onClick={() => {
+              if (selected) return;
+              analytics.hubOrderChanged({
+                hub_kind: hubKind,
+                hub_path: hubPath,
+                from_order: current,
+                to_order: option.value,
+                page,
+              });
+            }}
+            className={cn(
+              'inline-flex h-8 items-center rounded-[6px] px-3 text-[13px] transition-colors focus-ring touchable:h-11',
+              selected
+                ? 'bg-raised font-medium text-ink shadow-sm'
+                : 'text-ink-2 hover:text-ink',
+            )}
+          >
+            {option.label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

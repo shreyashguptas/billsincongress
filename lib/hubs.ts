@@ -197,3 +197,75 @@ export const RESERVED_BILL_SLUGS: string[] = [
   ...CHAMBER_HUBS,
   ...STATUS_HUBS,
 ].map((h) => h.path.replace('/bills/', ''));
+
+// --- Order ------------------------------------------------------------------
+
+/**
+ * A hub's two orders. Every hub is sorted by a date — never the order the sync
+ * happened to store its rows, which is what /bills/enacted showed until
+ * 30 Sep 2026, with the newest laws on pages 2 and 3.
+ *
+ * Deliberately two and not a menu: newest first (the default, no URL
+ * parameter) and oldest first (`?sort=oldest`). Each is a plain link, so both
+ * orders are crawlable pages rather than client state.
+ */
+export type HubOrder = 'newest' | 'oldest';
+
+export const HUB_ORDERS: ReadonlyArray<{ value: HubOrder; label: string }> = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+];
+
+/** `?sort=`, defaulting to newest first for anything but "oldest". */
+export function parseHubOrder(value: string | string[] | undefined): HubOrder {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw === 'oldest' ? 'oldest' : 'newest';
+}
+
+/** A hub URL. Page 1 and newest-first are the defaults and add no parameter. */
+export function hubHref(hub: HubDefinition, { page = 1, order = 'newest' }: { page?: number; order?: HubOrder }): string {
+  const params = new URLSearchParams();
+  if (order !== 'newest') params.set('sort', order);
+  if (page > 1) params.set('page', String(page));
+  const query = params.toString();
+  return query ? `${hub.path}?${query}` : hub.path;
+}
+
+/** Which of a hub's filters `bills.listSorted` reads, as that query's `scope`. */
+export type HubSortScope =
+  | { kind: 'stage'; progressStage: number }
+  | { kind: 'topic'; policyArea: string }
+  | { kind: 'chamber'; chamber: 'house' | 'senate' };
+
+export function hubSortScope(hub: HubDefinition): HubSortScope {
+  if (hub.filter.progressStage !== undefined) {
+    return { kind: 'stage', progressStage: Number.parseInt(hub.filter.progressStage, 10) };
+  }
+  if (hub.filter.policyArea !== undefined) return { kind: 'topic', policyArea: hub.filter.policyArea };
+  if (hub.filter.chamber !== undefined) return { kind: 'chamber', chamber: hub.filter.chamber };
+  throw new Error(`${hub.path} has no filter to sort by`);
+}
+
+/** The date a sorted hub's rows are ordered by, as `bills.listSorted` reports it. */
+export type HubSortedBy = 'stageDate' | 'latestActionDate';
+
+const STAGE_DATE_LABELS: Record<string, string> = {
+  '100': 'Became law',
+  '85': 'Vetoed',
+  '60': 'Passed a chamber',
+  '40': 'Sent to committee',
+  '20': 'Introduced',
+};
+
+/**
+ * What the date on each row is, shown beside it. The row's date is always the
+ * one the list is ordered by, so it has to say which date that is: on
+ * /bills/enacted it is the day the bill became law, where it used to be an
+ * unlabelled introduction date.
+ */
+export function hubDateLabel(hub: HubDefinition, sortedBy: HubSortedBy): string {
+  if (sortedBy === 'stageDate') {
+    return STAGE_DATE_LABELS[hub.filter.progressStage ?? ''] ?? 'Reached this stage';
+  }
+  return 'Latest action';
+}

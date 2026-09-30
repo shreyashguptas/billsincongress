@@ -242,6 +242,15 @@ Patterns that appear on more than one page:
   conversation, and anyone under `prefers-reduced-motion`, sees it whole.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
+- **Hub order** (`HubOrderSwitch`, the hub pages): "Newest first" and "Oldest
+  first" at the right of the results bar, above its ink rule, dropping under
+  the count on a phone. It looks like the Congress switch on /bills — a
+  `sunken` track, the chosen order a `raised` segment with `shadow-sm` — but
+  is two links, not a `ToggleGroup`, because each order is its own URL. Every
+  row on a hub then shows the date the list is ordered by, labelled in `ink-3`
+  above it in `ink-2` mono ("Became law" / "Sep 25, 2026"), where other lists
+  show the plain introduction date. A row never shows a date other than the one
+  its label names; an undated bill shows none.
 - **Status panel** (bill page): `rounded-lg`, raised, the stage in
   `display-md` beside a `StageTrack` with labels.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
@@ -304,7 +313,7 @@ What stays hand-built, on purpose:
 - **The charts.** A seat, a slice or a waffle square is data, not a control, so
   the hemicycle, topic wheel, state map and the rest draw their own marks.
 - **Rows and handles that are not buttons**: listbox options, suggestion rows,
-  pagination links, the ask panel's resize handle and grab bars, whole-row
+  pagination links, the hub order links, the ask panel's resize handle and grab bars, whole-row
   history entries.
 - **Caption-size text actions** ("Ask about this →", the work-log toggles),
   where `Button`'s height and padding would change the line they sit in.
