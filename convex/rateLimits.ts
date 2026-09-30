@@ -63,6 +63,14 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: HOUR,
   },
+  // Profile-photo upload URLs, per signed-in reader (convex/avatars.ts). An
+  // upload URL accepts a file of any size before setAvatar can check it, so
+  // this caps how much one account can park in storage between sweeps.
+  avatarUploadPerUser: {
+    kind: "fixed window",
+    rate: 20,
+    period: HOUR,
+  },
 });
 
 // Read-only chat quota status — never consumes a token. The UI calls it after

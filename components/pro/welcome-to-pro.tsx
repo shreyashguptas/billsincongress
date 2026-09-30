@@ -23,6 +23,7 @@ export default function WelcomeToPro({
   open,
   onOpenChange,
   initials,
+  avatarUrl,
   questionsPerDay,
   alertBills,
   followingBill = false,
@@ -30,6 +31,7 @@ export default function WelcomeToPro({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initials: string;
+  avatarUrl?: string | null;
   questionsPerDay: number;
   alertBills: number;
   /** Opened on a bill page that has just been followed for the reader. */
@@ -54,7 +56,7 @@ export default function WelcomeToPro({
           {/* The spectrum strip opens the card, as it opens the Pro emails. */}
           <div aria-hidden="true" className="spectrum-strip h-1.5 w-full" />
           <div className="flex flex-col items-center px-6 pb-6 pt-8 text-center">
-            <Burst initials={initials} />
+            <Burst initials={initials} avatarUrl={avatarUrl} />
             <ProPill className="mt-5">Pro is on</ProPill>
             <DialogTitle className="mt-3">Welcome to Pro.</DialogTitle>
             <DialogDescription className="mt-2 text-[15px] text-ink-2">
@@ -146,7 +148,7 @@ function Step({
  * rays. It is the whole celebration when motion is reduced, so it does not
  * move.
  */
-function Burst({ initials }: { initials: string }) {
+function Burst({ initials, avatarUrl }: { initials: string; avatarUrl?: string | null }) {
   const rays = Array.from({ length: 18 }, (_, i) => {
     const a = (i / 18) * Math.PI * 2 - Math.PI / 2;
     const r1 = i % 2 ? 66 : 62;
@@ -170,7 +172,7 @@ function Burst({ initials }: { initials: string }) {
         ))}
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <AvatarMark initials={initials} pro size="xl" className="sm:h-28 sm:w-28" />
+        <AvatarMark initials={initials} src={avatarUrl} pro size="xl" className="sm:h-28 sm:w-28" />
       </div>
     </div>
   );

@@ -177,6 +177,16 @@ export default function PrivacyPage() {
           password.
         </p>
         <p>
+          You can add a profile photo. It is cropped and shrunk in your
+          browser to a small square before it is sent, so the original
+          file never leaves your device, and only that small copy is
+          stored with your account. Its address is given only to you,
+          though anyone who had that exact address could open it, as with
+          most profile pictures. Replacing or removing it deletes the
+          stored copy. If you signed in with Google, your Google profile
+          picture is shown until you upload your own or remove it.
+        </p>
+        <p>
           While you use your account, we also store the things you do
           with it: the bills you save and your bill-chat history. Once
           you are signed in, our analytics link your activity to your
@@ -287,7 +297,7 @@ export default function PrivacyPage() {
 
       <Section number={8} title="How long we keep things">
         <p>
-          Account data, saved bills, and signed-in chat history are kept
+          Account data, your profile photo, saved bills, and signed-in chat history are kept
           for as long as your account exists. Sign-in sessions expire
           after at most 60 days of inactivity. Signed-out chat
           conversations are keyed to a cookie that expires after 60 days.
@@ -306,8 +316,8 @@ export default function PrivacyPage() {
           so email us and we will reset it for you.
         </p>
         <p>
-          To delete your account — along with your saved bills and chat
-          history — or to request a copy of the data we hold about you,
+          To delete your account — along with your profile photo, saved
+          bills and chat history — or to request a copy of the data we hold about you,
           email{' '}
           <a
             href="mailto:hi@billsincongress.com"
