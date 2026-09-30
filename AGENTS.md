@@ -95,6 +95,17 @@ Rules:
 4. Check every visual change in both themes (Day and Night) and at phone (390px) and desktop
    (1440px) widths before calling it done.
 
+# Screenshots — never in the repository
+
+Screenshots and recordings that show a change go **in the pull request**: drag them into the
+PR description or a comment on github.com, where GitHub hosts them. They are **never
+committed** — not in `.github/`, not in `Documentation/`, not on another branch. Only images
+the site itself serves belong in the tree, under `public/`.
+
+`scripts/check-no-committed-screenshots.ts` runs in `pnpm test` and fails on any image or video
+outside `public/` (and on screenshot-named files anywhere). Do not widen it to make a
+screenshot fit. This happened once: #138 committed its review screenshots and #145 removed them.
+
 # Answer accuracy — mandatory for anything touching `convex/catalog/` or `convex/answer.ts`
 
 This site's whole value is that its facts are right. An audit on 2026-08-30 found 41 confirmed

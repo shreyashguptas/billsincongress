@@ -869,6 +869,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | --- | --- | --- |
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
+| `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md) |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for the primary **and every fallback** |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web plugin still returns the `url_citation` annotations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
@@ -1510,11 +1511,12 @@ iterating an empty list *succeeds*, so a broken discovery would report green hav
 nothing, and "a green result that proved nothing is worse than a red one, because it is
 trusted." The run ends by printing how many files and guards actually ran.
 
-Then the two guards run (not counted toward the floor, but counted toward failure).
+Then the three guards run (not counted toward the floor, but counted toward failure).
 `check-metered-model-calls.ts` exists because of a real incident: `answer.ts`'s `ask` once
 shipped as a public action with no auth and no limiter, beside a properly metered `stream`.
 `check-no-userid-args.ts` enforces the identity rule statically — no public Convex function
-may accept a `userId` argument.
+may accept a `userId` argument. `check-no-committed-screenshots.ts` keeps review
+screenshots out of the tree: #138 committed eight of them and #145 took them back out.
 
 Last, `vitest run` executes the **Convex function specs**, `convex/**/*.spec.ts` (config in
 `vitest.config.mts`). These run real queries, mutations and HTTP actions against an in-memory
