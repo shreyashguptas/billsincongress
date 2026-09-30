@@ -15,6 +15,7 @@ import {
   MAX_QUESTION_LENGTH,
 } from '../bill-chat/_shared';
 import { withKeepAlive } from '@/lib/sse-keepalive';
+import { POSTHOG_DISTINCT_ID_HEADER, POSTHOG_SESSION_ID_HEADER } from '@/lib/posthog-server';
 
 export async function POST(request: Request) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -53,6 +54,14 @@ export async function POST(request: Request) {
       history: body.history,
       chatId: body.chatId,
       anonymousSessionId,
+      // Who the browser's PostHog thinks this is, so the answer's trace joins
+      // the reader's person and session replay (convex/aiTrace.ts). Headers
+      // in, body out: the Convex side reads one JSON body. Re-validated there.
+      posthog: {
+        distinctId: request.headers.get(POSTHOG_DISTINCT_ID_HEADER) ?? undefined,
+        sessionId: request.headers.get(POSTHOG_SESSION_ID_HEADER) ?? undefined,
+        conversationId: body.conversationId,
+      },
     }),
   });
 

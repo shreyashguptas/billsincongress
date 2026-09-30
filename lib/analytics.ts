@@ -577,6 +577,12 @@ export const analytics = {
      * and it systematically ate the closing caveat.
      */
     truncated_by_length: boolean;
+    /**
+     * The PostHog AI trace that recorded this answer (convex/aiTrace.ts). A
+     * PostHog-reserved name, hence the `$`: it is what joins this event to the
+     * trace. Absent until the Convex side that sends it is deployed.
+     */
+    $ai_trace_id?: string;
   }) => capture('answer_received', props),
 
   /**
@@ -604,6 +610,8 @@ export const analytics = {
     error: string;
     elapsed_ms?: number;
     stream_started?: boolean;
+    /** Present when the server got far enough to record a trace. */
+    $ai_trace_id?: string;
   }) => capture('answer_failed', props),
 
   answerSourceClicked: (props: {

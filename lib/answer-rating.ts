@@ -24,6 +24,7 @@ export interface RatableTurn {
   webSources?: unknown[];
   done?: boolean;
   askedReader?: boolean;
+  traceId?: string;
 }
 
 /**
@@ -45,6 +46,12 @@ export type AnswerRatedProps = {
   web_source_count: number;
   /** Signed-in threads only: the saved conversation, to read the whole thread. */
   chat_id?: string;
+  /**
+   * The PostHog AI trace of the rated answer, which holds everything the model
+   * was given and said. Absent for an answer restored after a refresh, and
+   * until the Convex side that records traces is deployed.
+   */
+  $ai_trace_id?: string;
   // Sent only with a "no":
   question?: string;
   /** The reader's question before this one, when this was a follow-up. */
@@ -98,6 +105,7 @@ export function answerRatedProps(
     db_source_count: sources.filter((h) => !h.startsWith('web:')).length,
     web_source_count: (answer.webSources ?? []).length,
     ...(ctx.chatId ? { chat_id: ctx.chatId } : {}),
+    ...(answer.traceId ? { $ai_trace_id: answer.traceId } : {}),
   };
   if (verdict === 'right') return props;
 

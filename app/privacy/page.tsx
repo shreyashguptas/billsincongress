@@ -131,8 +131,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you are not signed in, your conversation is never stored on
-          our servers (your question text still reaches our analytics, as
-          described below) — it lives in your browser and disappears when you
+          our servers (it still reaches our analytics, as described below) — it lives in your browser and disappears when you
           close the tab. To be exact: each question is sent to our server
           along with the conversation so far, so the assistant can follow
           the thread, but none of it is written to our database. The table
@@ -155,6 +154,17 @@ export default function PrivacyPage() {
           want to know about legislation. Unlike the AI providers above,
           PostHog keeps it under its standard retention (see section 8),
           and if you are signed in it is linked to your account.
+        </p>
+        <p>
+          We also record each answer in PostHog so we can find and fix
+          wrong ones: your question, the conversation so far, the public
+          records the assistant looked up, and the answer it gave, along
+          with how long it took and what it cost. This happens whether or
+          not you are signed in. PostHog deletes the text of these records
+          after 30 days and keeps only the counts and timings. If an answer
+          turns out to be wrong, we may keep a copy of that one
+          conversation for longer, to test the fix against. Signed out, the
+          conversation is still never written to our own database.
         </p>
         <p>
           Under each answer we ask whether it was right. If you tap
@@ -310,7 +320,9 @@ export default function PrivacyPage() {
           after at most 60 days of inactivity. Signed-out chat
           conversations are keyed to a cookie that expires after 60 days.
           Analytics data is retained by PostHog under its standard
-          retention policies.
+          retention policies, except the text of recorded answers (your
+          question, the conversation and the answer), which PostHog deletes
+          after 30 days.
         </p>
       </Section>
 
@@ -367,7 +379,7 @@ const summary = [
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
-  'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. If you tell us an answer was wrong, the answer goes with it.',
+  'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. Each answer is recorded there too, with the conversation it came from, so we can find and fix wrong ones; that text is deleted after 30 days.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
   'We email you only for account reasons and bill alerts you turn on — never marketing.',
   'Reading is free. If you pay for Pro, Stripe handles your card; we never see it.',
@@ -422,7 +434,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, and the answer too when you tell us an answer was wrong. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, and a record of each answer: the conversation so far, the public records looked up, and the answer (that text is deleted after 30 days). Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

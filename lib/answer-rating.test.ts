@@ -101,6 +101,14 @@ it('passes the saved-thread id only when there is one', () => {
   assert.ok(!('chat_id' in (answerRatedProps(thread, 'a1', 'right', { ...ctx, chatId: null }) ?? {})));
 });
 
+it("carries the answer's trace id, so the verdict joins the recorded trace", () => {
+  const traced = [q('u', 'q'), a('a', 'answer', { traceId: 'trace-123' })];
+  assert.equal(answerRatedProps(traced, 'a', 'right', ctx)?.$ai_trace_id, 'trace-123');
+  assert.equal(answerRatedProps(traced, 'a', 'wrong', ctx)?.$ai_trace_id, 'trace-123');
+  // An answer restored after a refresh has no trace id; the property is absent, not empty.
+  assert.ok(!('$ai_trace_id' in (answerRatedProps(thread, 'a1', 'right', ctx) ?? {})));
+});
+
 it('will not rate a clarifying question, an unfinished answer, or the reader', () => {
   assert.equal(canRate(a('x', 'Did you mean passed, or became law?', { askedReader: true })), false);
   assert.equal(canRate(a('x', 'half an answ', { done: false })), false);

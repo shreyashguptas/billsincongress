@@ -90,6 +90,8 @@ export interface Turn {
   surface?: string;
   /** The reader's answer to "Was this answer right?". One per answer. */
   rating?: AnswerVerdict;
+  /** The PostHog trace that recorded this answer (convex/aiTrace.ts). */
+  traceId?: string;
 }
 
 export interface RateLimitInfo {
@@ -170,6 +172,15 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   const resumed = useQuery(api.chats.messages, resumeId ? { chatId: resumeId } : 'skip');
 
   const navCountRef = useRef(0);
+  /**
+   * One id per conversation, so PostHog groups a thread's traces into one AI
+   * session. A fresh one on "New chat"; a resumed thread reuses its saved id.
+   */
+  const conversationIdRef = useRef<string>('');
+  const conversationId = () => {
+    if (!conversationIdRef.current) conversationIdRef.current = crypto.randomUUID();
+    return conversationIdRef.current;
+  };
   const lastSurfaceRef = useRef('home');
   const wasAuthedRef = useRef<boolean | null>(null);
 
@@ -514,7 +525,9 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch('/api/answer', {
           signal: stalled.signal,
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          // PostHog's distinct and session ids, so the server-side trace of
+          // this answer lands on the same person and session replay.
+          headers: { 'Content-Type': 'application/json', ...analytics.requestHeaders() },
           body: JSON.stringify({
             question: q,
             // `focusBillId` is redundant with `context.billId` and is sent
@@ -525,6 +538,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
             scope,
             history,
             chatId: chatId ?? undefined,
+            conversationId: chatId ?? conversationId(),
           }),
         });
         if (!res.body) throw new Error('no stream');
@@ -570,6 +584,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 webReason: data.webReason ?? '',
                 webSources: data.webSources ?? [],
                 askedReader: Boolean(data.askedReader),
+                ...(typeof data.traceId === 'string' ? { traceId: data.traceId } : {}),
                 done: true,
               }));
               if (data.chatId) setChatId(data.chatId as Id<'chats'>);
@@ -587,6 +602,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 partial: Boolean(data.partial),
                 asked_reader: Boolean(data.askedReader),
                 truncated_by_length: Boolean(data.truncatedByLength),
+                ...(typeof data.traceId === 'string' ? { $ai_trace_id: data.traceId } : {}),
               });
               if ((data.dropped ?? 0) > 0) {
                 analytics.answerCitationUnresolved({
@@ -630,6 +646,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 error: data.message,
                 elapsed_ms: Date.now() - askedAt,
                 stream_started: streamStarted,
+                ...(typeof data.traceId === 'string' ? { $ai_trace_id: data.traceId } : {}),
               });
             }
           }
@@ -719,6 +736,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const newChat = useCallback(() => {
+    conversationIdRef.current = '';
     setTurns([]);
     setChatId(null);
     setError('');
