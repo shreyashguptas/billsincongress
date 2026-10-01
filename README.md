@@ -31,7 +31,7 @@ Right under the chamber is a box for asking a question. As you type, bills whose
 Below that, it shows:
 
 - **Four headline counts** — bills introduced, House bills, Senate bills, and how many became law.
-- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 98% of everything introduced has not made it out of committee.
+- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 90% of everything introduced has not made it out of committee.
 - **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
 - **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
 - **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
@@ -192,7 +192,7 @@ A bill's position in Congress is **not** a field the government hands out. It is
 | 95 | Signed by President |
 | 100 | Became Law |
 
-That derivation is a judgement, and it is the one place where this site could be wrong in a way Congress.gov is not. It is written down in the open, in [`convex/billStage.ts`](convex/billStage.ts), and it has tests. One example of what it has to handle: the Library of Congress attaches the same action code to both "Signed by President" and "Vetoed by President", which at one point caused real vetoes here to be displayed as bills signed into law.
+That derivation is a judgement, and it is the one place where this site could be wrong in a way Congress.gov is not. It is written down in the open, in [`convex/billStage.ts`](convex/billStage.ts), and it has tests. One example of what it has to handle: the Library of Congress attaches the same action code to both "Signed by President" and "Vetoed by President", which at one point caused real vetoes here to be displayed as bills signed into law. Another: the House's own floor log never says a bill "passed the House" — it says "On passage Passed by the Yeas and Nays" — and until 30 September 2026 this site missed that wording, so 3,766 bills and resolutions that had passed a chamber were shown as still in committee or just introduced, and 11 bills whose *rule* for debate had passed the House were shown as passed themselves.
 
 ### The summaries are Congress's own
 

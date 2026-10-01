@@ -42,6 +42,16 @@ export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> 
 
 // Returns "house" / "senate" / null. Shared by calculateBillStage and the
 // committee base-rate job so both agree on what "passed a chamber" means.
+//
+// The Library of Congress records every passage as code 8000 ("Passed/agreed
+// to in House: ...") or 17000 ("Passed/agreed to in Senate: ..."), and those are
+// checked first. The House's own floor log never says "passed House" about a
+// bill — it says "On passage Passed by the Yeas and Nays" — so matching only
+// that phrase left 3,766 bills that had passed a chamber reading "In Committee"
+// or "Introduced" (H.R. 10326 in the 119th, passed 217 votes to 212 on
+// 16 Sep 2026). The phrase does appear on rules: "Rule H. Res. 864 passed
+// House." is the House adopting the terms of debate for H.R. 5894, which never
+// passed, so a rule never counts.
 export function passedChamber(action: {
   text?: string;
   type?: string;
@@ -50,8 +60,15 @@ export function passedChamber(action: {
   const text = (action.text || "").toLowerCase();
   const type = (action.type || "").toLowerCase();
   const code = action.actionCode || "";
+  if (code === "8000" || text.startsWith("passed/agreed to in house")) {
+    return "house";
+  }
+  if (code === "17000" || text.startsWith("passed/agreed to in senate")) {
+    return "senate";
+  }
+  const isRule = text.startsWith("rule ");
   if (
-    text.includes("passed house") ||
+    (text.includes("passed house") && !isRule) ||
     type === "passedhouse" ||
     code === "H32500"
   ) {

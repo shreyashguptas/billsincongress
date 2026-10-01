@@ -1854,6 +1854,18 @@ re-dated since the deploy are in date order, at the top of "Newest first"; the r
 the order their rows were stored, with no date shown. Deploy Convex before the site: a site that asks for `bills.listSorted` before
 it exists falls back to the unsorted list.
 
+**Changes to `convex/billStage.ts` need the same backfill.** The sync re-derives a bill's stage
+only when it re-fetches that bill, so a calculator fix reaches old bills only through
+`backfillBillFieldsFromActions` (both commands above; it re-dates as well as re-stages, then
+refreshes the stats rows). The 30 Sep 2026 fix — the calculator now reads the Library of
+Congress's "Passed/agreed to in House/Senate" record (codes 8000 / 17000) and no longer counts a
+rule passing the House as the bill passing — moved 3,776 stored stages in the production copy.
+Afterwards run `npx convex run mutations:recomputeCommitteeBaseRates '{}'` rather than wait for
+Friday's cron: the bill-page base rates count which past bills advanced. A reader following a
+re-staged bill gets the corrected stage in their next alert digest as a status change.
+`scripts/truth/handlers.test.ts` ("no stored stage sits below a chamber passage on record")
+stays red until a re-dump shows the backfill finished.
+
 ---
 
 ## Hosting and Cloudflare constraints

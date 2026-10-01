@@ -255,6 +255,60 @@ it("never dates a later stage by the introduction date", () => {
   assert.equal(stageDateFor(both, "2025-01-03"), undefined);
 });
 
+// ─── Chamber passage as the Library of Congress actually records it ─────────
+// Real rows from production. Until 2026-09-30 none of them counted as passage,
+// and 3,766 bills that had passed a chamber read "In Committee" or "Introduced".
+
+it("H.R. 10326 (119th) passed the House on 16 Sep 2026; it is not in committee", () => {
+  const result = calculateBillStage([
+    on("2026-09-10", "Introduced in House", { actionCode: "1000", type: "IntroReferral" }),
+    on("2026-09-10", "Referred to the House Committee on the Judiciary.", { actionCode: "H11100", type: "IntroReferral" }),
+    on("2026-09-16", "On passage Passed by the Yeas and Nays: 217 - 207 (Roll no. 310). (text: CR H5947)", { actionCode: "H37100", type: "Floor" }),
+    on("2026-09-16", "Passed/agreed to in House: On passage Passed by the Yeas and Nays: 217 - 207 (Roll no. 310).", { actionCode: "8000", type: "Floor" }),
+    on("2026-09-17", "Received in the Senate and Read twice and referred to the Committee on the Judiciary.", { type: "IntroReferral" }),
+  ]);
+  assert.equal(result.stage, BillStages.PASSED_ONE_CHAMBER);
+  assert.equal(result.stageDate, "2026-09-16");
+});
+
+it("recognises House passage by its text when the code is missing", () => {
+  assert.equal(
+    stageOf([a("Passed/agreed to in House: On motion to suspend the rules and pass the bill Agreed to by voice vote.")]),
+    BillStages.PASSED_ONE_CHAMBER,
+  );
+});
+
+it("H.R. 952 (119th) passed both chambers, dated by the Senate on 22 Sep 2026", () => {
+  const result = calculateBillStage([
+    on("2025-02-04", "Referred to the House Committee on Natural Resources.", { actionCode: "H11100" }),
+    on("2025-05-13", "Passed/agreed to in House: On motion to suspend the rules and pass the bill Agreed to by voice vote. (text: CR H1982)", { actionCode: "8000" }),
+    on("2026-07-23", "Committee on Energy and Natural Resources. Reported by Senator Lee without amendment. Without written report.", { actionCode: "14000" }),
+    on("2026-09-22", "Passed/agreed to in Senate: Passed Senate without amendment by Unanimous Consent. (consideration: CR S4882-4883)", { actionCode: "17000" }),
+  ]);
+  assert.equal(result.stage, BillStages.PASSED_BOTH_CHAMBERS);
+  assert.equal(result.stageDate, "2026-09-22");
+});
+
+it("a Senate resolution agreed to in the Senate has passed its chamber", () => {
+  assert.equal(
+    stageOf([
+      a("Passed/agreed to in Senate: Submitted in the Senate, considered, and agreed to without amendment and with a preamble by Unanimous Consent.", { actionCode: "17000" }),
+    ]),
+    BillStages.PASSED_ONE_CHAMBER,
+  );
+});
+
+it("H.R. 5894 (118th): the rule passing the House is not the bill passing it", () => {
+  // The House adopted H. Res. 864, the terms of debate, then never passed the bill.
+  const result = calculateBillStage([
+    on("2023-10-25", "Referred to the House Committee on Appropriations.", { actionCode: "H11100" }),
+    on("2023-11-14", "Rule H. Res. 864 passed House.", { actionCode: "H1L220", type: "Floor" }),
+    on("2023-11-15", "Considered as unfinished business. (consideration: CR H5869-5880)", { actionCode: "H30000", type: "Floor" }),
+  ]);
+  assert.equal(result.stage, BillStages.IN_COMMITTEE);
+  assert.equal(result.stageDate, "2023-10-25");
+});
+
 if (failures.length > 0) {
   console.error(`\nbillStage: ${passed} passed, ${failures.length} FAILED\n`);
   console.error(failures.join("\n\n"));
