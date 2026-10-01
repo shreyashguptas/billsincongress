@@ -362,6 +362,18 @@ becameLaw → vetoed → signed → toPresident → passedBoth → passedOne →
 | 95 | Signed by President |
 | 100 | Became Law |
 
+**Resolutions are stored on the same scale but drawn on their own road.** A simple resolution
+(H.Res., S.Res.) agreed to by its chamber is stored at 60, a concurrent resolution (H.Con.Res.,
+S.Con.Res.) agreed to by both at 80, because the calculator reads the same "Passed/agreed to"
+record for every measure. Neither ever goes to the President, so the bill page, its title and
+its share card do not draw them on the seven-step road to law: `stagePath()` in
+`lib/utils/bill-stages.ts` (from `convex/catalog/measureType.ts`) gives a simple resolution
+three steps and a concurrent one four, both ending at "Agreed to", and `measureStageLabel()`
+names the stage "Agreed to by the House", "…by one chamber" or "…by both chambers". The stored
+value and every chart that counts it are unchanged. See `Documentation/brand.md`, "The road a
+measure travels". Lists, the account page and alert emails still draw every measure on the
+seven-step road.
+
 > **The E30000 trap.** The Library of Congress attaches action code `E30000` to **both**
 > "Signed by President" and "Vetoed by President". An earlier implementation returned early
 > on that code and reported real vetoes as bills signed into law. There is now **no code
@@ -896,7 +908,8 @@ bill says it was vetoed instead, since most died when the override failed. A bil
 chambers is not told it died: it can be signed after adjournment, ended Congresses are never
 re-pulled, and its stored actions stop where its stage does, so nothing we hold rules that out. Its
 note says only that our record shows no signing. Simple and concurrent
-resolutions get none: an adopted one is finished, not dead, and the stage does not show adoption.
+resolutions get none: an adopted one is finished, not dead (since the 30 Sep 2026 calculator fix
+its stage shows adoption as 60 or 80, which the bill page draws as "Agreed to").
 Stages 90 and 95 get none, because the stored stage can lag an enactment. `stats` carries
 `dataLastSynced` so "how current is this?" has a real answer instead of an invented one.
 
@@ -1506,7 +1519,7 @@ including why a card never repeats the title or number the app already prints un
 
 | Page | Card | Route | Drawn from |
 |---|---|---|---|
-| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
+| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track) | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
 | A status hub | "113 became law", out of all introduced, the track filled to that stage | `app/share-image/[...path]/route.tsx` | `lib/og/hub-share-card.tsx` |
 | A chamber hub | The chamber's count, how many became law, its share against the other chamber | same | same |
 | A topic hub | The topic's count and rank, beside the six largest topics as bars | same | same |

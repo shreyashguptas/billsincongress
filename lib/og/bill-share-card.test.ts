@@ -14,10 +14,10 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { ImageResponse } from 'next/og';
 import type { Bill } from '@/lib/types/bill';
-import { billShareImagePath, billShareUrl, SHARE_CARD_SIZE, SITE_URL } from '@/lib/seo';
+import { billShareImagePath, billShareUrl, billStatusPhrase, SHARE_CARD_SIZE, SITE_URL } from '@/lib/seo';
 import { BillShareCard, shareCardFonts, shareCardStageNote } from './bill-share-card';
 import { stageHeadlineSize } from './card-parts';
-import { stageLabel } from '@/lib/utils/bill-stages';
+import { measureStageLabel, stageLabel } from '@/lib/utils/bill-stages';
 
 let passed = 0;
 const failures: string[] = [];
@@ -87,6 +87,25 @@ async function main() {
     }
   });
 
+  await it('draws an adopted resolution as finished on its own road', () => {
+    assert.equal(shareCardStageNote(60, 'sres'), 'Stage 3 of 3');
+    assert.equal(shareCardStageNote(80, 'hconres'), 'Stage 4 of 4');
+    assert.equal(shareCardStageNote(60, 'hr'), 'Stage 3 of 7');
+  });
+
+  await it('sets every resolution stage name small enough for one line', () => {
+    // At 64px Newsreader runs about 0.5em a character: 26 × 32 ≈ 830px < 880px.
+    for (const [stage, type] of [[60, 'hres'], [60, 'sres'], [60, 'hconres'], [80, 'sconres']] as const) {
+      const label = measureStageLabel(stage, type);
+      assert.ok(label.length * stageHeadlineSize(label) * 0.5 < 880, label);
+    }
+  });
+
+  await it('names the stage in the image alt and title as the panel does', () => {
+    assert.equal(billStatusPhrase(bill({ bill_type: 'sres', bill_type_label: 'S.Res.', progress_stage: 60 })), 'Agreed to by the Senate');
+    assert.equal(billStatusPhrase(bill({ bill_type: 'hr', progress_stage: 60 })), 'Passed one chamber');
+  });
+
   // It draws
 
   const cases: Array<[string, Partial<Bill>]> = [
@@ -94,6 +113,9 @@ async function main() {
     ['vetoed', { progress_stage: 85 }],
     ['on the President’s desk', { progress_stage: 90 }],
     ['an unknown stage', { progress_stage: 55 }],
+    ['an agreed simple resolution', { bill_type: 'sres', bill_type_label: 'S.Res.', progress_stage: 60 }],
+    ['an agreed concurrent resolution', { bill_type: 'hconres', bill_type_label: 'H.Con.Res.', progress_stage: 80 }],
+    ['a resolution at a stage off its road', { bill_type: 'hres', bill_type_label: 'H.Res.', progress_stage: 90 }],
     ['no sponsor, no date, no policy area', {
       sponsor_first_name: '',
       sponsor_last_name: '',
