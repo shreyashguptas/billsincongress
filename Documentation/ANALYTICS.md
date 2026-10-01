@@ -479,6 +479,38 @@ The client events join these by the same id: `answer_received`, `answer_failed` 
 `answer_rated` carry `$ai_trace_id` when the server sent one. Not on the CLI path
 (`answer:ask`), which records nothing.
 
+### PostHog Logs
+
+Log lines are not events: they go to PostHog Logs (OpenTelemetry, `/i/v1/logs`), not to
+the event stream, and are not in funnels or insights. Free to 10 GB a month, kept 14 days;
+the Logs billing limit is set to $0, so past the free tier they stop rather than bill.
+
+They are sent from our own code, `convex/posthogLogs.ts`, because Convex's built-in log
+streaming needs its Professional plan. They use the same `POSTHOG_KEY` (and
+`POSTHOG_HOST`) as the AI traces above; with no key in the Convex environment nothing is
+sent. Service name: `billsincongress-convex`.
+
+The trace and the line are two views of one question. The trace holds the text (question,
+lookups, answer) for 30 days; the line holds none of it and is the cheap thing to count,
+alert on and filter: "every failed answer this week, with its replay". `trace_id` on the
+line opens its trace.
+
+| Line (body) | Level | Written when | Attributes | Where (file) |
+|---|---|---|---|---|
+| `answer served` | INFO, or WARN when the answer was `partial`, `truncated` or had citations dropped | The answer exists, just before it streams to the reader. A write that fails after this (the reader closed the panel) is not logged as a second outcome | `sessionId`, `posthogDistinctId` (when the browser sent them), `trace_id`, `signed_in`, `page`, `bill_id` (bill pages), `duration_ms`, `lookups`, `partial`, `truncated`, `dropped_citations`, `used_web`, `asked_reader` | `convex/answer.ts` (`stream`) |
+| `answer failed` | ERROR | The answer loop threw ("Failed to get a response."), or it ended with no answer (`reason`, e.g. `empty_model_output`: every round came back empty) | the identity/page attributes above, `duration_ms`, and either `error_kind` (when it threw: a fixed label such as `openrouter_503`, never the message, because an upstream error body can quote the question) or `reason` + `lookups` (when it ended empty) | `convex/answer.ts` (`stream`) |
+
+- `sessionId` and `posthogDistinctId` are the attribute names PostHog uses to link a line to
+  the session replay and the person. They come from the browser and are dropped unless
+  they look like PostHog ids (`readTraceIdentity` in `convex/aiTrace.ts`, shared with the
+  trace).
+- **The question text is never on a line**, and a test (`convex/answerLogs.spec.ts`)
+  fails if it ever is.
+- Before setting the token in Convex, `scripts/posthog-logs-smoke.ts` sends one test line
+  built by the same code, to prove PostHog accepts the format and the key.
+- Adding a line follows the same contract as an event: register it in this table, send it
+  through `scheduleLog` in `convex/posthogLogs.ts`, never await the send on a reader's path.
+
 ---
 
 ## Person identification

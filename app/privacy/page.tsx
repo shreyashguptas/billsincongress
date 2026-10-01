@@ -181,6 +181,12 @@ export default function PrivacyPage() {
           conversation is still never written to our own database.
         </p>
         <p>
+          Each answer also leaves one short log entry in PostHog: whether it
+          was answered or failed, how long it took, and which bill page it
+          was asked on, linked to your visit&rsquo;s session replay. It holds
+          no question or answer text, and PostHog deletes it after 14 days.
+        </p>
+        <p>
           Under each answer we ask whether it was right. If you tap
           &ldquo;No&rdquo;, we send PostHog your question (and the one
           before it, if it was a follow-up) together with the answer you

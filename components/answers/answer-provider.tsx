@@ -530,7 +530,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
           signal: stalled.signal,
           method: 'POST',
           // PostHog's distinct and session ids, so the server-side trace of
-          // this answer lands on the same person and session replay.
+          // this answer and its log line land on the same person and session
+          // replay.
           headers: { 'Content-Type': 'application/json', ...analytics.requestHeaders() },
           body: JSON.stringify({
             question: q,
