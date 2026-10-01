@@ -236,7 +236,7 @@ export function AccountView({
                     >
                       <BillHeading bill={row.bill} />
                       <div className="flex shrink-0 flex-col gap-2 sm:w-48 sm:items-end">
-                        <BillStage description={row.bill.progressDescription} />
+                        <BillStage description={row.bill.progressDescription} billType={row.bill.billTypeLabel} />
                         <span className="font-mono text-xs text-ink-3 tabular">Saved {formatShortDate(row.savedAt)}</span>
                       </div>
                     </Link>
@@ -304,16 +304,26 @@ function BillHeading({
 }
 
 /**
- * The stage as a pill over its seven-step track when the stage is one we
- * know, else the description as text.
+ * The stage as a pill over its track when the stage is one we know, else the
+ * description as text. `billType` is the row's printed type ("H.Res."), which
+ * picks the measure's road: an adopted resolution reads "Agreed to by the
+ * House" on a three-step track, not "Passed one chamber" on seven.
  */
-function BillStage({ description, fallback }: { description: string | null; fallback?: string }) {
+function BillStage({
+  description,
+  billType,
+  fallback,
+}: {
+  description: string | null;
+  billType: string;
+  fallback?: string;
+}) {
   const stage = stageFromDescription(description);
   if (stage !== null) {
     return (
       <div className="flex w-full flex-col items-start gap-2 sm:items-end">
-        <StatusPill stage={stage} />
-        <StageTrack stage={stage} className="w-full max-w-[12rem]" />
+        <StatusPill stage={stage} billType={billType} />
+        <StageTrack stage={stage} billType={billType} className="w-full max-w-[12rem]" />
       </div>
     );
   }
@@ -607,7 +617,13 @@ function AlertsSection({
                   )}
                 </Link>
                 <div className="flex shrink-0 flex-col gap-2 sm:w-48 sm:items-end">
-                  {row.bill && <BillStage description={row.bill.progressDescription} fallback="Status unknown" />}
+                  {row.bill && (
+                    <BillStage
+                      description={row.bill.progressDescription}
+                      billType={row.bill.billTypeLabel}
+                      fallback="Status unknown"
+                    />
+                  )}
                   <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:gap-2">
                     {row.lastEmailedAt ? (
                       <span className="font-mono text-xs text-ink-3 tabular">

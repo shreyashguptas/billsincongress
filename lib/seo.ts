@@ -337,7 +337,9 @@ export function congressGovUrl(bill: Bill): string | null {
 
 /** schema.org Legislation `legislationType` for a Congress bill type. */
 export function legislationTypeLabel(billType: string): string {
-  const type = billType.toLowerCase();
+  // Dots and spaces dropped, so the printed type ("H.Con.Res.") reads as its
+  // code ("hconres"): the in-answer card only has the printed number.
+  const type = billType.toLowerCase().replace(/[.\s]/g, '');
   if (type === 'hjres' || type === 'sjres') return 'Joint Resolution';
   if (type === 'hconres' || type === 'sconres') return 'Concurrent Resolution';
   if (type === 'hres' || type === 'sres') return 'Resolution';
