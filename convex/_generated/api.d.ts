@@ -10,6 +10,7 @@
 
 import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
+import type * as aiTrace from "../aiTrace.js";
 import type * as alertDigest from "../alertDigest.js";
 import type * as alerts from "../alerts.js";
 import type * as answer from "../answer.js";
@@ -48,6 +49,7 @@ import type * as feedback from "../feedback.js";
 import type * as feedbackPicture from "../feedbackPicture.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
+import type * as hubOrder from "../hubOrder.js";
 import type * as indexNow from "../indexNow.js";
 import type * as indexNowStatus from "../indexNowStatus.js";
 import type * as llm from "../llm.js";
@@ -72,6 +74,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   aggregateBackfill: typeof aggregateBackfill;
   aggregates: typeof aggregates;
+  aiTrace: typeof aiTrace;
   alertDigest: typeof alertDigest;
   alerts: typeof alerts;
   answer: typeof answer;
@@ -110,6 +113,7 @@ declare const fullApi: ApiFromModules<{
   feedbackPicture: typeof feedbackPicture;
   functions: typeof functions;
   http: typeof http;
+  hubOrder: typeof hubOrder;
   indexNow: typeof indexNow;
   indexNowStatus: typeof indexNowStatus;
   llm: typeof llm;
