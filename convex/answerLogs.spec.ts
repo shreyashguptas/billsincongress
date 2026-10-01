@@ -41,6 +41,8 @@ function stubNetwork(openRouter: () => Response, posthog: () => Response = () =>
   vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
     if (url.startsWith("https://openrouter.ai/")) return openRouter();
+    // The answer's AI trace (convex/aiTrace.ts) posts here on the same key.
+    if (url.endsWith("/batch/")) return new Response("{}");
     if (url.endsWith("/i/v1/logs")) {
       toPosthog.push({
         url,
@@ -78,8 +80,7 @@ async function ask(t: T, ids: { session?: unknown; distinct?: unknown } = { sess
       question: QUESTION,
       context: { route: "bill", billId: "1234hr119" },
       anonymousSessionId: "anon-session-1",
-      posthogSessionId: ids.session,
-      posthogDistinctId: ids.distinct,
+      posthog: { sessionId: ids.session, distinctId: ids.distinct },
     }),
   });
   const stream = await response.text();
@@ -101,13 +102,13 @@ function attributesOf(sent: Sent) {
 beforeEach(() => {
   vi.useFakeTimers();
   process.env.OPENROUTER_API_KEY = "sk-or-test-not-real";
-  process.env.POSTHOG_PROJECT_TOKEN = "phc_test_not_real";
+  process.env.POSTHOG_KEY = "phc_test_not_real";
   delete process.env.POSTHOG_HOST;
 });
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
-  delete process.env.POSTHOG_PROJECT_TOKEN;
+  delete process.env.POSTHOG_KEY;
 });
 
 describe("the answer's PostHog log line", () => {
@@ -127,6 +128,7 @@ describe("the answer's PostHog log line", () => {
     expect(attrs.sessionId).toBe(SESSION);
     expect(attrs.posthogDistinctId).toBe(DISTINCT);
     expect(attrs.bill_id).toBe("1234hr119");
+    expect(typeof attrs.trace_id).toBe("string");
     expect(attrs.page).toBe("bill");
     expect(attrs.signed_in).toBe(false);
     expect(attrs.error_kind).toBe("openrouter_503");
@@ -212,7 +214,7 @@ describe("the answer's PostHog log line", () => {
   });
 
   test("with no PostHog token nothing is scheduled or sent", async () => {
-    delete process.env.POSTHOG_PROJECT_TOKEN;
+    delete process.env.POSTHOG_KEY;
     const toPosthog = stubNetwork(answerOk);
     const stream = await ask(setup());
     expect(stream).toContain("event: done");

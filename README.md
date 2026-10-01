@@ -81,6 +81,8 @@ It adapts to the room it has. On a wide screen it docks to the right and you can
 
 It also knows what you are looking at. Ask "what does this do?" on a bill page and it knows which bill; ask on a filtered list and it answers about those bills rather than all of them. If you tap a bill inside an answer, the panel steps aside so you can read it, and a bar offers to bring the conversation back exactly as you left it — including anything you had half typed.
 
+Under every answer it asks "Was this answer right?". A "No" tells us which answer to check against the records; it is how wrong answers get found and fixed.
+
 It is not a general-purpose chatbot. It answers from this site's own database of Congressional records, and every source it cites is checked against the specific records it was actually shown. See [About the AI](#about-the-ai) below, which is the most important disclosure on this page.
 
 ### Follow a bill (Pro)
@@ -214,11 +216,13 @@ The question panel is the only place in the interface where a machine writes pro
 
 **You can see its work.** When an answer involved lookups, it shows a log of them.
 
+**Every answer is recorded so wrong ones can be found.** Each question is recorded in PostHog as a trace: what the model was sent (the instructions, the conversation so far, the records it looked up), what it replied, and the tokens, cost and time each step took. A reader's "No" under an answer points at its trace. The text of a trace is deleted after 30 days; the counts stay. The point is the loop in `Documentation/overview.md`: a wrong answer found this way becomes a case in the accuracy tests before it is fixed.
+
 **The model itself:** DeepSeek V4 Flash, reached through OpenRouter. Requests carry zero-retention and no-training flags, a maximum price per million tokens so a repriced provider is skipped rather than silently billed, and an automatic failover chain if the primary is unavailable. Routing is pinned to a short allowlist of providers chosen for US data processing — OpenRouter's true region-locking is an enterprise feature, so this is an allowlist, not a hard geographic guarantee.
 
 **Limits:** five questions a day without an account, 100 with a free one, 500 on Pro. Questions are capped at 2,000 characters.
 
-**And the honest part:** AI answers can still be incomplete, outdated, or plainly wrong. The grounding machinery makes fabricated *sources* very hard, but it does not make the prose correct. Treat any answer as a starting point and click through to the record. For anything official, use Congress.gov.
+**And the honest part:** AI answers can still be incomplete, outdated, or plainly wrong. The grounding machinery makes fabricated *sources* very hard, but it does not make the prose correct. Treat any answer as a starting point and click through to the record. For anything official, use Congress.gov. If an answer is wrong, tap **No** under it.
 
 ---
 
@@ -228,10 +232,12 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 
 - **Product analytics run on every page** (PostHog, US cloud) — pages visited, clicks, performance, errors, and session replay. There is currently no cookie banner and no opt-out control on the site.
 - **The full text of every question you ask the assistant is sent to PostHog** as part of that analytics data (the `answer_question_submitted` event), whether or not you are signed in. If you ask about a bills list narrowed by a title search, the words you searched for go with it.
-- **Each answer also leaves one server log line in PostHog**, saying whether it was answered or failed, how long it took, and which bill page it was asked on. It carries the same analytics ID and session ID as the rest of your visit, so we can open the session replay of an answer that went wrong. It does not carry the question. PostHog keeps these lines for 14 days.
+- **Every answer is recorded in PostHog, with the conversation it came from** — the question, the earlier turns, the public records the assistant looked up and the answer — whether or not you are signed in. PostHog deletes that text after 30 days and keeps the counts (tokens, cost, time). A wrong answer may be kept longer as a test case.
+- **If you tap "No" under an answer, the answer goes to PostHog too** (the `answer_rated` event): your question, the one before it if it was a follow-up, the answer as you saw it, and the sources it cited — so it can be checked. Tapping "Yes" records only that you did.
+- **Each answer also leaves one server log line in PostHog**, saying whether it was answered or failed, how long it took, and which bill page it was asked on. It carries the same analytics ID and session ID as the rest of your visit, so we can open the session replay of an answer that went wrong. The line itself does not carry the question or the answer (the record above does). PostHog keeps these lines for 14 days.
 - **Searches and filters on the bills list reach PostHog through the page address.** The search words and every filter, sponsor names included, are written into the URL (`/bills?title=farm`), and analytics records the full URL of every page viewed. The suggestions under the home page's question box, and the search boxes inside the filter pickers (typing to find a sponsor, say), are recorded as a length rather than the text: the suggestions until you ask the question or open "See all matching bills", the pickers until you choose an option, which then goes into the URL.
 - **Pressing Share is recorded** — which bill, and whether the link was shared, copied or cancelled. Not where it went or to whom: your phone's share sheet does not tell the site which app you picked, and the shared link carries no tracking code. Analytics also note whether you are using the site in a browser or as the installed app, and when the browser reports an install.
-- **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database (the question text still reaches PostHog, as above). The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
+- **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database (it still reaches PostHog, as above). The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
 - **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **If you subscribe to Pro, Stripe handles the payment.** Your card details go to Stripe and never reach this site. What this site stores is your Stripe customer and subscription IDs, the plan's status and price, and when it renews or ends.
@@ -327,7 +333,7 @@ More detail lives in [`Documentation/`](Documentation) — an architecture overv
 
 ## Corrections and contributions
 
-If something on the site is wrong — a bill's status, a summary, a label, a broken page — **please [open an issue](https://github.com/shreyashguptas/billsincongress/issues)**. You do not need to know how to code. What you saw and what you expected is enough, and a correction is worth more here than a feature.
+If an answer from the assistant is wrong, tapping **No** under it is enough. If anything else on the site is wrong — a bill's status, a summary, a label, a broken page — **please [open an issue](https://github.com/shreyashguptas/billsincongress/issues)**. You do not need to know how to code. What you saw and what you expected is enough, and a correction is worth more here than a feature.
 
 Code contributions are welcome too. Branch from `main`, run `pnpm test` and `pnpm cf:build`, and open a pull request describing what changed and why.
 

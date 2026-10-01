@@ -1,5 +1,6 @@
 import posthog from 'posthog-js';
 
+import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 
 // Typed PostHog event helpers — the code counterpart of Documentation/ANALYTICS.md.
@@ -593,6 +594,12 @@ export const analytics = {
      * and it systematically ate the closing caveat.
      */
     truncated_by_length: boolean;
+    /**
+     * The PostHog AI trace that recorded this answer (convex/aiTrace.ts). A
+     * PostHog-reserved name, hence the `$`: it is what joins this event to the
+     * trace. Absent until the Convex side that sends it is deployed.
+     */
+    $ai_trace_id?: string;
   }) => capture('answer_received', props),
 
   /**
@@ -626,6 +633,8 @@ export const analytics = {
     error: string;
     elapsed_ms?: number;
     stream_started?: boolean;
+    /** Present when the server got far enough to record a trace. */
+    $ai_trace_id?: string;
   }) => capture('answer_failed', props),
 
   answerSourceClicked: (props: {
@@ -746,6 +755,14 @@ export const analytics = {
     result_count: number;
     engine: string;
   }) => capture('answer_web_search_used', props),
+
+  /**
+   * The reader's own verdict on one answer, from "Was this answer right?". A
+   * "no" carries the question and the answer so it can be reproduced as a truth
+   * case; a "yes" carries neither. The props are built, and tested, in
+   * lib/answer-rating.ts.
+   */
+  answerRated: (props: AnswerRatedProps) => capture('answer_rated', props),
 
   rateLimitSignupClicked: (kind: LimitKind) =>
     capture('rate_limit_signup_clicked', { limit_kind: kind }),

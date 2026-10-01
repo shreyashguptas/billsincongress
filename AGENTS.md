@@ -37,8 +37,12 @@ These rules apply to EVERY change that adds, removes, or modifies a user-facing 
    Note there is currently **no live server-side event**: the one example in the registry,
    `bill_chat_message_processed`, fires from `app/api/bill-chat/send/route.ts`, which no
    part of the UI calls any more. Read it as a reference implementation, not as something
-   that runs. The live answer path (`app/api/answer/route.ts`) sends no server event; it
-   forwards the headers to Convex, which writes a PostHog **log line** per answer.
+   that runs. The live answer path is the exception to "API routes": it forwards the
+   headers from `app/api/answer/route.ts` to Convex, and `convex/aiTrace.ts` records each
+   answer as PostHog AI trace events (`$ai_generation`, `$ai_span`, `$ai_trace`) with
+   `fetch`, not `posthog-node`. They send nothing until `POSTHOG_KEY` is set in the Convex
+   environment and Convex is deployed. See "AI traces" in `Documentation/ANALYTICS.md`.
+   The same key sends one PostHog **log line** per answer (`convex/posthogLogs.ts`).
 6. **PostHog Logs** (server log lines, not events) are registered in the "PostHog Logs"
    section of `Documentation/ANALYTICS.md` and sent only through `scheduleLog` in
    `convex/posthogLogs.ts`. Never put question text, email addresses or other reader

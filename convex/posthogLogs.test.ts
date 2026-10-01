@@ -4,7 +4,7 @@
  * convex/answerLogs.spec.ts.
  */
 import assert from "node:assert/strict";
-import { otlpLogBody, readPosthogId, type LogLine } from "./posthogLogs";
+import { otlpLogBody, type LogLine } from "./posthogLogs";
 
 let passed = 0;
 const failures: string[] = [];
@@ -71,16 +71,6 @@ it("types each attribute the way OTLP JSON expects", () => {
 it("caps a long string, so one error cannot become a huge line", () => {
   const long = record({ ...line, attributes: { error: "x".repeat(5000) } });
   assert.equal(long.attributes[0].value.stringValue?.length, 500);
-});
-
-it("keeps a real PostHog id and drops anything that is not one", () => {
-  assert.equal(readPosthogId("0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"), "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b");
-  assert.equal(readPosthogId(" 0199-abc "), "0199-abc");
-  assert.equal(readPosthogId(undefined), undefined);
-  assert.equal(readPosthogId(""), undefined);
-  assert.equal(readPosthogId(42), undefined);
-  assert.equal(readPosthogId("<script>"), undefined);
-  assert.equal(readPosthogId("a".repeat(201)), undefined);
 });
 
 if (failures.length > 0) {

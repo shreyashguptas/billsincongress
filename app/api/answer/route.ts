@@ -54,11 +54,15 @@ export async function POST(request: Request) {
       history: body.history,
       chatId: body.chatId,
       anonymousSessionId,
-      // The browser's PostHog ids, so Convex's log line for this answer opens
-      // the reader's session replay (convex/posthogLogs.ts). Absent when the
-      // reader has analytics blocked; Convex re-checks both.
-      posthogSessionId: request.headers.get(POSTHOG_SESSION_ID_HEADER) ?? undefined,
-      posthogDistinctId: request.headers.get(POSTHOG_DISTINCT_ID_HEADER) ?? undefined,
+      // Who the browser's PostHog thinks this is, so the answer's trace and its
+      // log line join the reader's person and session replay (convex/aiTrace.ts,
+      // convex/posthogLogs.ts). Headers in, body out: the Convex side reads one
+      // JSON body. Re-validated there.
+      posthog: {
+        distinctId: request.headers.get(POSTHOG_DISTINCT_ID_HEADER) ?? undefined,
+        sessionId: request.headers.get(POSTHOG_SESSION_ID_HEADER) ?? undefined,
+        conversationId: body.conversationId,
+      },
     }),
   });
 

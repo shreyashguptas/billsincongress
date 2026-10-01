@@ -3,11 +3,11 @@
  * (`otlpLogBody` in convex/posthogLogs.ts), and print what PostHog answered.
  *
  * This is the check that PostHog accepts our format and token before
- * `POSTHOG_PROJECT_TOKEN` is set in Convex. The answer path itself cannot run
+ * `POSTHOG_KEY` is set in Convex. The answer path itself cannot run
  * locally (this project has no Convex dev deployment), so this is the only
  * real-network proof short of a deploy.
  *
- *   POSTHOG_PROJECT_TOKEN=phc_… ./node_modules/.bin/tsx scripts/posthog-logs-smoke.ts
+ *   POSTHOG_KEY=phc_… ./node_modules/.bin/tsx scripts/posthog-logs-smoke.ts
  *
  * Optional: POSTHOG_SESSION_ID=<a session id from PostHog> to check that the
  * line links to that session's replay. The line says "posthog logs smoke test"
@@ -15,9 +15,9 @@
  */
 import { otlpLogBody } from "../convex/posthogLogs";
 
-const token = process.env.POSTHOG_PROJECT_TOKEN;
+const token = process.env.POSTHOG_KEY;
 if (!token) {
-  console.error("Set POSTHOG_PROJECT_TOKEN to the project's phc_… key.");
+  console.error("Set POSTHOG_KEY to the project's phc_… key.");
   process.exit(1);
 }
 const host = (process.env.POSTHOG_HOST ?? "https://us.i.posthog.com").replace(/\/+$/, "");

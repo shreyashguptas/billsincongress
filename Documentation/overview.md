@@ -620,8 +620,9 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
 ```
 
 The log line is how a failed or degraded answer is found and watched: it carries the
-reader's PostHog session id, so PostHog opens their session replay at that second. It never
-carries the question. Every attribute on it is listed under "PostHog Logs" in
+reader's PostHog session id, so PostHog opens their session replay at that second, and the
+answer's `trace_id`, which opens its AI trace (see **Record** below). It never carries the
+question; the trace does. Every attribute on it is listed under "PostHog Logs" in
 `Documentation/ANALYTICS.md`. We send it from our own code because Convex's built-in log
 streaming needs its Professional plan, and we are on pay-as-you-go.
 
@@ -774,6 +775,62 @@ review workflow forfeits that review. Until then the gate is local and the skip 
 fix it.** That file is the institutional memory of every way this system has stated something
 untrue.
 
+### Recording and the wrong-answer loop
+
+The loop this exists for: **record every answer → flag the bad ones → save them → turn each into
+a truth case → fix → re-run.**
+
+**Record.** `convex/aiTrace.ts` records each question as a PostHog AI Observability trace:
+one `$ai_generation` per model call (the full messages sent, system prompt and tool results
+included, the reply, tokens, cost, latency, the model that actually served it), one `$ai_span`
+per lookup (arguments and result), and one `$ai_trace` with the question and the answer as
+shown. The events are gathered in memory and posted in one request to PostHog's batch API
+after the `done` frame and before the stream closes, because the action ends with the stream.
+The flush has a 3-second timeout and never throws, so PostHog being down cannot cost a reader
+an answer. The browser's PostHog ids travel `answer-provider.tsx` → `app/api/answer/route.ts`
+(headers) → Convex (body, re-validated) so a trace joins the reader's person and replay; the
+trace id comes back on `done` and `error`, and `answer_received`, `answer_failed` and
+`answer_rated` carry it as `$ai_trace_id`. Registry: "AI traces" in `ANALYTICS.md`.
+
+It needs `POSTHOG_KEY` in the Convex environment and a Convex deploy; until then it records
+nothing. Cost: about 7 events a question (up to five model calls plus lookups plus the trace),
+so roughly 10,000 a month at current volume, inside PostHog's 100,000 free AI events; the AI
+Observability billing cap is $0, so overflow is dropped, not billed. PostHog drops the text of
+every trace after 30 days and keeps the metadata.
+
+Tested end to end in `convex/aiTrace.spec.ts`, which drives the real `/answer/stream`
+httpAction with a scripted model and asserts the exact request PostHog would receive.
+
+**Flag.** Two ways, and the one to watch is where they disagree:
+
+- The reader's **"No"**, below.
+- **Graders** (PostHog → AI Observability → Evaluations), configured in the UI once there is a
+  week of traces. Hog code evals are free — start with `dropped > 0` on the trace, a leaked
+  `[[` marker in the answer, and an empty answer. One LLM-as-judge "states something not in
+  the tool results" eval, sampled at 10–20%, needs an OpenRouter key added in PostHog's
+  settings and is billed by OpenRouter. A reader's "No" on an answer the grader passed is the
+  most valuable signal there is.
+
+**Save.** From a bad trace, "Add to dataset" (datasets are in beta; they cannot run
+experiments yet). Export to JSONL.
+
+**Test and fix.** Each saved answer becomes a case in `scripts/truth/questions.ts` (or
+`scripts/check-grounding.ts`), red first, then fixed — the rule above.
+
+Not used, on purpose: PostHog **prompt management** (a prompt edited in PostHog's UI would
+bypass the git-reviewed system prompt and the truth tests) and **clusters** (they need about
+1,000 traces a week; we have about 300).
+
+**Readers report them too.** Under every finished answer the panel asks "Was this answer
+right?" (`components/answers/answer-check.tsx`). A tap sends `answer_rated` to PostHog; a "No"
+carries the question, the question before it when the answer was a follow-up, the answer text
+as the reader saw it (up to 8,000 characters) and its cited handles, which is enough to write
+the `questions.ts` case without having to reproduce the conversation. A "Yes" carries none of
+that. What each tap sends is built and tested in `lib/answer-rating.ts`. Nothing is written to
+Convex, so it works for signed-out readers too and needs no deploy. To review them, filter
+`answer_rated` on `verdict = wrong` in PostHog; a signed-in reader's report also carries
+`chat_id`, the saved thread.
+
 ### The completeness contract
 
 This is the load-bearing idea of the whole answer engine, and it exists because of what happened
@@ -889,6 +946,10 @@ recoverable: the model rephrases and retries.
 | Signed out | Signed in |
 | --- | --- |
 | Nothing is written server-side. The transcript lives in `sessionStorage` under `bic_answer_transcript`, capped at 10 turns / 8,000 characters, and dies with the tab. | Saved to `chats` / `chatMessages` with citations, allowed handles, entities, web reason, web sources and the work log, so reopening re-renders exactly as given even after the bill's status changes. |
+
+Separately from both, **every answer is recorded in PostHog** as an AI trace — see
+"Recording and the wrong-answer loop" below. That is PostHog's copy, not ours: signed out,
+nothing is still written to Convex.
 
 Signing in mid-conversation offers **once** to keep the transcript (capped at the last 20
 turns). It is never applied silently. Saved conversations are readable only by their owner;
@@ -1572,7 +1633,7 @@ only in an untracked local `.env` and is deliberately **not** a GitHub secret.
 ### Convex deployment side
 
 Set with `npx convex env set --prod`. Ten are configured in production; the Pro rows below
-and `POSTHOG_PROJECT_TOKEN` are new and not yet set anywhere.
+and `POSTHOG_KEY` are new and not yet set anywhere.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -1583,8 +1644,6 @@ and `POSTHOG_PROJECT_TOKEN` are new and not yet set anywhere.
 | `OPENROUTER_FALLBACK_MODELS` | Failover chain | Default chain — **blank disables failover** |
 | `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
-| `POSTHOG_PROJECT_TOKEN` | The project's public `phc_…` key — the same value as `NEXT_PUBLIC_POSTHOG_KEY` — for PostHog Logs | No log lines are sent; answers are unaffected |
-| `POSTHOG_HOST` | PostHog ingest host for log lines | `https://us.i.posthog.com` |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing | none |
 | `SITE_URL` | Auth redirect base; also the base of Stripe return URLs and alert-email links | library default; billing and alerts fall back to `https://billsincongress.com` |
@@ -1596,6 +1655,8 @@ and `POSTHOG_PROJECT_TOKEN` are new and not yet set anywhere.
 | `POSTHOG_EMAIL_BILLING_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: billing" workflow | Plan-change emails fail and are logged; the plan itself is still recorded |
 | `ALERTS_UNSUBSCRIBE_SECRET` | Signs unsubscribe tokens | Digest sends fail rather than mail without a working unsubscribe link |
 | `ALERT_EMAILS_LIVE` | `true` lets alert email reach real addresses | Every alert send is logged and skipped |
+| `POSTHOG_KEY` | The PostHog **project** token (`phc_…`, the same public value as `NEXT_PUBLIC_POSTHOG_KEY`), used to record each answer as an AI trace (`convex/aiTrace.ts`) and as one PostHog Logs line (`convex/posthogLogs.ts`) | Nothing is recorded; answers are unaffected |
+| `POSTHOG_HOST` | PostHog ingestion host, `https://` only | `https://us.i.posthog.com` |
 
 > `CONGRESS_API_KEY` and the `OPENROUTER_*` variables are read by **Convex server code**.
 > Putting them in `.env.local` does nothing — this project never runs `convex dev`.

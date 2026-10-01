@@ -21,6 +21,7 @@ import {
   type Turn as StoredTurn,
 } from '@/lib/transcript-cap';
 import type { AnswerScope } from '@/lib/answer-scope';
+import { answerRatedProps, type AnswerVerdict } from '@/lib/answer-rating';
 import {
   billIdFor,
   pageContextFor,
@@ -85,6 +86,12 @@ export interface Turn {
    * the following turn no longer needs the invitation to reply.
    */
   askedReader?: boolean;
+  /** Where the question was asked, so a later rating reports the same surface. */
+  surface?: string;
+  /** The reader's answer to "Was this answer right?". One per answer. */
+  rating?: AnswerVerdict;
+  /** The PostHog trace that recorded this answer (convex/aiTrace.ts). */
+  traceId?: string;
 }
 
 export interface RateLimitInfo {
@@ -116,6 +123,8 @@ interface AnswerContextValue {
   /** What the current route has open, beyond what the path already says. */
   setPublished: (published: PublishedContext | null) => void;
   ask: (question: string, opts?: AskOptions) => Promise<void>;
+  /** Record the reader's verdict on one answer. A second tap does nothing. */
+  rate: (turnId: string, verdict: AnswerVerdict) => void;
   resume: (chatId: Id<'chats'>) => void;
   newChat: () => void;
   dismissRateLimit: () => void;
@@ -163,6 +172,18 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   const resumed = useQuery(api.chats.messages, resumeId ? { chatId: resumeId } : 'skip');
 
   const navCountRef = useRef(0);
+  /**
+   * One id per conversation, so PostHog groups a thread's traces into one AI
+   * session. Pinned on a thread's first question and kept for its follow-ups —
+   * including after a signed-in thread is saved and gets a `chatId`, which
+   * would otherwise split turn 1 from the rest. Cleared on "New chat" and on
+   * resuming, where the saved thread's `chatId` is used instead.
+   */
+  const conversationIdRef = useRef<string>('');
+  const conversationId = () => {
+    if (!conversationIdRef.current) conversationIdRef.current = crypto.randomUUID();
+    return conversationIdRef.current;
+  };
   const lastSurfaceRef = useRef('home');
   const wasAuthedRef = useRef<boolean | null>(null);
 
@@ -386,6 +407,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!resumeId || resumed === undefined) return;
     if (resumed === null) {
+      conversationIdRef.current = '';
       setResumeId(null);
       setChatId(null);
       setTurns([]);
@@ -428,6 +450,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         content: '',
         work: [],
         done: false,
+        surface,
       };
       const history = turns.map((t) => ({ role: t.role, content: t.content }));
 
@@ -506,8 +529,9 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch('/api/answer', {
           signal: stalled.signal,
           method: 'POST',
-          // PostHog ids ride along so the server's log line for this answer
-          // links to this session's replay. Empty when analytics is off.
+          // PostHog's distinct and session ids, so the server-side trace of
+          // this answer and its log line land on the same person and session
+          // replay.
           headers: { 'Content-Type': 'application/json', ...analytics.requestHeaders() },
           body: JSON.stringify({
             question: q,
@@ -519,6 +543,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
             scope,
             history,
             chatId: chatId ?? undefined,
+            conversationId: conversationIdRef.current || chatId || conversationId(),
           }),
         });
         if (!res.body) throw new Error('no stream');
@@ -564,6 +589,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 webReason: data.webReason ?? '',
                 webSources: data.webSources ?? [],
                 askedReader: Boolean(data.askedReader),
+                ...(typeof data.traceId === 'string' ? { traceId: data.traceId } : {}),
                 done: true,
               }));
               if (data.chatId) setChatId(data.chatId as Id<'chats'>);
@@ -581,6 +607,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 partial: Boolean(data.partial),
                 asked_reader: Boolean(data.askedReader),
                 truncated_by_length: Boolean(data.truncatedByLength),
+                ...(typeof data.traceId === 'string' ? { $ai_trace_id: data.traceId } : {}),
               });
               if ((data.dropped ?? 0) > 0) {
                 analytics.answerCitationUnresolved({
@@ -625,6 +652,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 error: data.reason ?? data.message,
                 elapsed_ms: Date.now() - askedAt,
                 stream_started: streamStarted,
+                ...(typeof data.traceId === 'string' ? { $ai_trace_id: data.traceId } : {}),
               });
             }
           }
@@ -678,6 +706,26 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     [busy, chatId, openPanel, pathname, published, turns],
   );
 
+  const rate = useCallback(
+    (turnId: string, verdict: AnswerVerdict) => {
+      const current = turnsRef.current;
+      const turn = current.find((t) => t.id === turnId);
+      if (!turn || turn.rating) return;
+      const props = answerRatedProps(current, turnId, verdict, {
+        // A resumed or refreshed thread has no record of where it was asked.
+        surface: turn.surface ?? surfaceNow(),
+        chatId,
+      });
+      if (!props) return;
+      // Written to the ref as well as state, so a double tap inside one render
+      // cannot send two verdicts for one answer.
+      turnsRef.current = current.map((t) => (t.id === turnId ? { ...t, rating: verdict } : t));
+      setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, rating: verdict } : t)));
+      analytics.answerRated(props);
+    },
+    [chatId, surfaceNow],
+  );
+
   // Session storage only. Anonymous conversations never reach the database —
   // see spec §4.7. Signed-in threads are persisted server-side instead, by the
   // answer action, so this is a no-op for them beyond refresh resilience.
@@ -689,11 +737,13 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
   }, [turns]);
 
   const resume = useCallback((id: Id<'chats'>) => {
+    conversationIdRef.current = '';
     setError('');
     setResumeId(id);
   }, []);
 
   const newChat = useCallback(() => {
+    conversationIdRef.current = '';
     setTurns([]);
     setChatId(null);
     setError('');
@@ -733,6 +783,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       minimize,
       setPublished,
       ask,
+      rate,
       resume,
       newChat,
       dismissRateLimit: () => setRateLimit(null),
@@ -752,6 +803,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       minimize,
       setPublished,
       ask,
+      rate,
       resume,
       newChat,
       acceptHandoff,

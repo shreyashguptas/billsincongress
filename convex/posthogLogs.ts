@@ -10,12 +10,13 @@
  * A line that carries the reader's `sessionId` and `posthogDistinctId` (the
  * attribute names PostHog looks for) opens that reader's session replay at the
  * second it was written. The browser sends both; the Next.js route forwards
- * them; nothing else identifies the reader.
+ * them; `readTraceIdentity` (convex/aiTrace.ts) checks them. Nothing else
+ * identifies the reader.
  *
  * Logging must never cost a reader their answer, so callers schedule the send
  * (`scheduleLog`) rather than await it, and every step swallows its own errors.
- * With no POSTHOG_PROJECT_TOKEN in the Convex environment nothing is scheduled
- * at all.
+ * With no POSTHOG_KEY in the Convex environment nothing is scheduled at all.
+ * It is the same key, and the same POSTHOG_HOST, as the answer's AI trace.
  */
 import { internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
@@ -89,18 +90,6 @@ export function otlpLogBody(line: LogLine) {
 }
 
 /**
- * A browser-supplied PostHog id, or nothing. The ids are only tags on a log
- * line, but they arrive from the client, so anything that is not a short plain
- * string is dropped rather than written into the log.
- */
-export function readPosthogId(raw: unknown): string | undefined {
-  if (typeof raw !== "string") return undefined;
-  const trimmed = raw.trim();
-  if (trimmed.length === 0 || trimmed.length > 200) return undefined;
-  return /^[\w.:@$+-]+$/.test(trimmed) ? trimmed : undefined;
-}
-
-/**
  * Queue one line for PostHog without waiting on it. Never throws.
  * `ctx` is anything with a scheduler: an action or an HTTP action.
  */
@@ -108,7 +97,7 @@ export async function scheduleLog(
   ctx: Pick<ActionCtx, "scheduler">,
   line: LogLine,
 ): Promise<void> {
-  if (!process.env.POSTHOG_PROJECT_TOKEN) return;
+  if (!process.env.POSTHOG_KEY) return;
   try {
     await ctx.scheduler.runAfter(0, internal.posthogLogs.emit, line);
   } catch (error) {
@@ -125,9 +114,10 @@ export const emit = internalAction({
   },
   returns: v.null(),
   handler: async (_ctx, line): Promise<null> => {
-    const token = process.env.POSTHOG_PROJECT_TOKEN;
+    const token = process.env.POSTHOG_KEY;
     if (!token) return null;
-    const host = (process.env.POSTHOG_HOST ?? DEFAULT_HOST).replace(/\/+$/, "");
+    const configured = process.env.POSTHOG_HOST;
+    const host = (configured?.startsWith("https://") ? configured : DEFAULT_HOST).replace(/\/+$/, "");
     try {
       const response = await fetch(`${host}/i/v1/logs`, {
         method: "POST",

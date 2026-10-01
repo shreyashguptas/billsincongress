@@ -22,7 +22,8 @@ import { payloadFor, workLogLabel } from "./catalog/completeness";
 import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
-import { readPosthogId, scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
+import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
+import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -174,11 +175,25 @@ function providerConfig() {
 async function callModel(
   messages: ChatMessage[],
   apiKey: string,
-  opts: { withTools?: boolean } = {},
+  opts: { withTools?: boolean; trace?: AnswerTrace } = {},
 ) {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const fallbacks = fallbackModels();
   const withTools = opts.withTools ?? true;
+  // Every call is recorded, failures included: a failover or an error is
+  // exactly what a trace is for. See convex/aiTrace.ts.
+  const started = Date.now();
+  const record = (g: Partial<GenerationRecord>) =>
+    opts.trace?.generation({
+      name: "answer",
+      model,
+      input: messages,
+      latencyMs: Date.now() - started,
+      ...(withTools ? { tools: ANSWER_TOOLS } : {}),
+      temperature: 0.3,
+      maxTokens: 2048,
+      ...g,
+    });
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
@@ -202,17 +217,26 @@ async function callModel(
       reasoning: { enabled: false },
       provider: providerConfig(),
     }),
+  }).catch((error: unknown) => {
+    record({ error: String(error) });
+    throw error;
   });
 
   if (!response.ok) {
     const body = (await response.text())
       .slice(0, 500)
       .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
-    throw new Error(`OpenRouter ${response.status} ${response.statusText}: ${body}`);
+    const message = `OpenRouter ${response.status} ${response.statusText}: ${body}`;
+    record({ error: message, httpStatus: response.status });
+    throw new Error(message);
   }
   const data = await response.json();
   // OpenRouter can answer 200 with an error payload when no provider could serve.
-  if (data.error) throw new Error(`OpenRouter error: ${JSON.stringify(data.error).slice(0, 500)}`);
+  if (data.error) {
+    const message = `OpenRouter error: ${JSON.stringify(data.error).slice(0, 500)}`;
+    record({ error: message, httpStatus: response.status });
+    throw new Error(message);
+  }
   // No analytics on this path, so this log is the only place a degraded
   // fallback answer would ever surface.
   const servedModel = typeof data.model === "string" ? data.model : model;
@@ -222,6 +246,14 @@ async function callModel(
     );
   }
   const choice = data.choices?.[0];
+  record({
+    model: servedModel,
+    output: choice?.message ? [choice.message] : [],
+    inputTokens: data.usage?.prompt_tokens,
+    outputTokens: data.usage?.completion_tokens,
+    costUsd: typeof data.usage?.cost === "number" ? data.usage.cost : undefined,
+    httpStatus: response.status,
+  });
   // finish_reason was never read, so a completion cut off at max_tokens was
   // returned as if it were whole. Surfaced here so the loop can say so.
   return {
@@ -235,7 +267,22 @@ async function callModel(
  * server-side web tool: their schema cannot make `reason` a required argument,
  * and the model must not search without telling the reader why.
  */
-async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
+async function searchWeb(
+  query: string,
+  apiKey: string,
+  trace?: AnswerTrace,
+): Promise<WebSource[]> {
+  const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const started = Date.now();
+  const record = (g: Partial<GenerationRecord>) =>
+    trace?.generation({
+      name: "web_search",
+      model,
+      input: [{ role: "user", content: query }],
+      latencyMs: Date.now() - started,
+      maxTokens: 512,
+      ...g,
+    });
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
@@ -245,21 +292,38 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
       "X-OpenRouter-Title": "Bills in Congress",
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+      model,
       messages: [{ role: "user", content: query }],
       max_tokens: 512,
       plugins: [{ id: "web", engine: WEB_ENGINE, max_results: WEB_MAX_RESULTS }],
       provider: providerConfig(),
     }),
+  }).catch((error: unknown) => {
+    record({ error: String(error) });
+    throw error;
   });
 
-  if (!response.ok) return [];
+  if (!response.ok) {
+    record({ error: `OpenRouter ${response.status}`, httpStatus: response.status });
+    return [];
+  }
   const data = await response.json().catch(() => ({}));
-  if (data.error) return [];
+  if (data.error) {
+    record({ error: JSON.stringify(data.error).slice(0, 500), httpStatus: response.status });
+    return [];
+  }
 
   // Annotations come back as { type: "url_citation", url_citation: { url,
   // title, content } }; the flat fallbacks below survive a shape change.
   const annotations = data.choices?.[0]?.message?.annotations ?? [];
+  record({
+    model: typeof data.model === "string" ? data.model : model,
+    output: data.choices?.[0]?.message ? [data.choices[0].message] : [],
+    inputTokens: data.usage?.prompt_tokens,
+    outputTokens: data.usage?.completion_tokens,
+    costUsd: typeof data.usage?.cost === "number" ? data.usage.cost : undefined,
+    httpStatus: response.status,
+  });
   type Annotation = {
     type?: string;
     url?: string;
@@ -322,6 +386,8 @@ async function runLoop(
     apiKey: string;
     scope?: AnswerScope;
     onWork?: (entry: WorkLogEntry) => void;
+    /** Records this turn for PostHog AI Observability. Absent on the CLI path. */
+    trace?: AnswerTrace;
   },
 ): Promise<AnswerResult> {
   // One date for the whole turn: the prompt's calendar note and the rows'
@@ -506,6 +572,7 @@ async function runLoop(
     try {
       ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
         withTools: !isFinalRound,
+        trace: opts.trace,
       }));
     } catch (error) {
       // The final round omits the tool schema while the transcript still contains
@@ -517,6 +584,7 @@ async function runLoop(
       console.error("final round without tools failed, retrying with them:", error);
       ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
         withTools: true,
+        trace: opts.trace,
       }));
     }
     if (lengthCapped) truncatedByLength = true;
@@ -576,6 +644,7 @@ async function runLoop(
     }
 
     for (const call of toolCalls) {
+      const spanStarted = Date.now();
       let result: string;
       let args: Record<string, unknown> = {};
       try {
@@ -641,7 +710,7 @@ async function runLoop(
           if (!guard.ok) {
             result = `ERROR: ${guard.error}`;
           } else {
-            const hits = await searchWeb(query, opts.apiKey);
+            const hits = await searchWeb(query, opts.apiKey, opts.trace);
             for (const h of hits) {
               allowed.add(h.handle);
               webSources.push(h);
@@ -660,6 +729,13 @@ async function runLoop(
         result = `Unknown tool '${call.function.name}'.`;
       }
 
+      opts.trace?.span({
+        name: call.function.name,
+        input: args,
+        output: result,
+        latencyMs: Date.now() - spanStarted,
+        ...(result.startsWith("ERROR") ? { error: result.slice(0, 300) } : {}),
+      });
       messages.push({ role: "tool", tool_call_id: call.id, content: result });
     }
   }
@@ -755,25 +831,34 @@ export const stream = httpAction(async (ctx, request) => {
     typeof body.anonymousSessionId === "string" ? body.anonymousSessionId : null;
   const pageContext = readContext(body.context, body.focusBillId);
 
-  // One line per answer to PostHog Logs (convex/posthogLogs.ts). The two ids
-  // tie the line to the reader's session replay; the question text is never
-  // on it.
-  const posthogSessionId = readPosthogId(body.posthogSessionId);
-  const posthogDistinctId = readPosthogId(body.posthogDistinctId);
-  const logAnswer = (level: LogLevel, message: string, attributes: LogAttributes) =>
-    scheduleLog(ctx, {
+  // One trace per question, sent to PostHog before the stream closes. The id
+  // also goes to the browser on `done`, so the reader's "Was this answer
+  // right?" joins the trace it rates.
+  const identity = readTraceIdentity(body.posthog);
+  const trace = new AnswerTrace({ identity });
+
+  // One line per answer to PostHog Logs (convex/posthogLogs.ts), on the same
+  // ids as the trace: `sessionId` opens the reader's replay, `trace_id` opens
+  // the trace. The question text is never on it. Written once per question.
+  let logged = false;
+  const logAnswer = async (level: LogLevel, message: string, attributes: LogAttributes) => {
+    if (logged) return;
+    logged = true;
+    await scheduleLog(ctx, {
       level,
       message,
       timestampMs: Date.now(),
       attributes: {
-        ...(posthogSessionId ? { sessionId: posthogSessionId } : {}),
-        ...(posthogDistinctId ? { posthogDistinctId } : {}),
+        ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
+        ...(identity.distinctId ? { posthogDistinctId: identity.distinctId } : {}),
+        trace_id: trace.traceId,
         signed_in: userId !== null,
         page: pageContext?.route ?? "unknown",
         ...(pageContext?.billId ? { bill_id: pageContext.billId } : {}),
         ...attributes,
       },
     });
+  };
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -829,20 +914,52 @@ export const stream = httpAction(async (ctx, request) => {
           history: Array.isArray(body.history) ? body.history : [],
           apiKey,
           onWork: (entry) => send("work", entry),
+          trace,
+        });
+        trace.finish({
+          question,
+          answer: result.text,
+          ...(result.error ? { error: result.error } : {}),
+          outcome: result.error ? "failed" : result.askedReader ? "asked_reader" : "answered",
+          extra: {
+            dropped: result.dropped,
+            partial: result.partial,
+            truncated_by_length: result.truncatedByLength ?? false,
+            db_source_count: result.sources.filter((h) => !h.startsWith("web:")).length,
+            web_source_count: result.webSources.length,
+            signed_in: Boolean(userId),
+          },
         });
         // No answer: not streamed, not saved, and not counted as an answer.
         if (result.error) {
           const message =
             result.error === EMPTY_MODEL_OUTPUT ? EMPTY_MODEL_OUTPUT_MESSAGE : result.error;
-          send("error", { message, reason: result.error });
+          send("error", { message, reason: result.error, traceId: trace.traceId });
           await logAnswer("error", "answer failed", {
             duration_ms: Date.now() - startedAt,
             lookups: result.workLog.length,
             reason: result.error,
           });
+          await trace.flush();
           controller.close();
           return;
         }
+        // Logged as soon as the answer exists, like the trace: a write to the
+        // reader that fails after this is not a second outcome for it.
+        // WARN is every way an answer reached the reader worse than it should
+        // have: cut short, cut off, or with citations deleted because the model
+        // cited rows it was never given.
+        const degraded =
+          result.partial || (result.truncatedByLength ?? false) || result.dropped > 0;
+        await logAnswer(degraded ? "warn" : "info", "answer served", {
+          duration_ms: Date.now() - startedAt,
+          lookups: result.workLog.length,
+          partial: result.partial,
+          truncated: result.truncatedByLength ?? false,
+          dropped_citations: result.dropped,
+          used_web: result.webSources.length > 0,
+          asked_reader: result.askedReader ?? false,
+        });
         // Citations resolve only once the whole answer exists, so text is
         // emitted after resolution, chunked — never token-by-token.
         for (const chunk of result.text.match(/[\s\S]{1,60}/g) ?? []) {
@@ -888,31 +1005,33 @@ export const stream = httpAction(async (ctx, request) => {
           // was still to come.
           truncatedByLength: result.truncatedByLength ?? false,
           chatId: savedChatId ?? null,
+          traceId: trace.traceId,
         });
 
-        // WARN is every way an answer reached the reader worse than it should
-        // have: cut short, cut off, or with citations deleted because the model
-        // cited rows it was never given.
-        const degraded =
-          result.partial || (result.truncatedByLength ?? false) || result.dropped > 0;
-        await logAnswer(degraded ? "warn" : "info", "answer served", {
-          duration_ms: Date.now() - startedAt,
-          lookups: result.workLog.length,
-          partial: result.partial,
-          truncated: result.truncatedByLength ?? false,
-          dropped_citations: result.dropped,
-          used_web: result.webSources.length > 0,
-          asked_reader: result.askedReader ?? false,
-        });
       } catch (error) {
         console.error("answer stream failed:", error);
-        send("error", { message: "Failed to get a response." });
+        // A no-op when the turn was already recorded: a write that fails after
+        // the answer exists (the reader closed the panel mid-stream) is not a
+        // second outcome for it. The same holds for the log line (`logged`).
+        trace.finish({ question, error: String(error), outcome: "failed" });
         await logAnswer("error", "answer failed", {
           duration_ms: Date.now() - startedAt,
           error_kind: errorKind(error),
         });
+        try {
+          send("error", { message: "Failed to get a response.", traceId: trace.traceId });
+        } catch {
+          // The reader is gone; the flush below must still run.
+        }
       }
-      controller.close();
+      // After the reader has everything, before the stream closes: the action
+      // ends with the stream, and anything still in memory then is lost.
+      await trace.flush();
+      try {
+        controller.close();
+      } catch {
+        // Already closed by a reader who left.
+      }
     },
   });
 
