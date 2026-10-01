@@ -4,9 +4,13 @@ import Link from 'next/link';
 import type { Bill } from '@/lib/types/bill';
 import { useEffect } from 'react';
 import {
-  stageLabel,
   getStageStep,
-  isValidStage,
+  isStageOnPath,
+  measureStageLabel,
+  PATH_LABELS,
+  stageNote,
+  stagePath,
+  stagePathNote,
   BillStages,
   type BillStage,
 } from '@/lib/utils/bill-stages';
@@ -141,9 +145,16 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   // An unrecognised stage code is shown as unknown — heading "Unknown", no
   // step, an empty track — never as Introduced: that is a status the record
   // does not hold. Only the glyph needs a stand-in.
+  //
+  // Everything below is drawn on the measure's own road: a resolution ends at
+  // "Agreed to", not at law (Documentation/brand.md, "The road a measure
+  // travels"), so a stage off that road is unknown too.
   const stage = progressStage;
-  const { step, total, isVetoed } = getStageStep(stage);
-  const StageGlyph = isValidStage(stage) ? STAGE_GLYPH[stage] : CircleHelp;
+  const billType = bill.bill_type;
+  const { step, total } = getStageStep(stage, billType);
+  const StageGlyph = isStageOnPath(stage, billType) ? STAGE_GLYPH[stage as BillStage] : CircleHelp;
+  const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
+  const roadNote = stagePathNote(billType);
 
   const stateName = STATE_NAMES[bill.sponsor_state] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party] || bill.sponsor_party;
@@ -323,24 +334,20 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   <span
                     className={cn(
                       'flex h-9 w-9 items-center justify-center rounded-full text-on-ink',
-                      stageFill(stage),
+                      stageFill(stage, billType),
                     )}
                   >
                     <StageGlyph className="h-[18px] w-[18px]" strokeWidth={1.75} />
                   </span>
                 </span>
                 <p className="font-serif text-display-sm font-medium text-ink sm:text-display-md">
-                  {stageLabel(stage)}
+                  {measureStageLabel(stage, billType)}
                 </p>
               </div>
               <p className="mt-2 font-mono text-sm text-ink-3 tabular">
                 {/* A vetoed bill is not "stage 5 of 7": it reached the President
                     and stopped there, off the path to law. */}
-                {isVetoed
-                  ? 'Stopped at the President'
-                  : step > 0
-                    ? `Stage ${step} of ${total}`
-                    : 'Stage unknown'}
+                {stageNote(stage, billType)}
               </p>
             </div>
 
@@ -359,16 +366,20 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               )
             ) : (
               <div>
-                <StageTrack stage={stage} labels size="lg" />
-                {/* StageTrack drops its seven step names below `sm`; the two ends
+                <StageTrack stage={stage} billType={billType} labels size="lg" />
+                {/* StageTrack drops its step names below `sm`; the two ends
                     still say which way the track runs. */}
                 <div
                   className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden"
                   aria-hidden="true"
                 >
                   <span className="text-ink">Introduced</span>
-                  <span className={step === total ? 'text-ink' : 'text-ink-3'}>Law</span>
+                  <span className={step === total ? 'text-ink' : 'text-ink-3'}>{roadEnd}</span>
                 </div>
+                {/* Why a resolution's road is short: it ends where it is finished. */}
+                {roadNote && (
+                  <p className="mt-4 max-w-measure text-sm leading-relaxed text-ink-2">{roadNote}</p>
+                )}
               </div>
             )}
           </div>

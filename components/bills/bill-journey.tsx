@@ -5,6 +5,7 @@ import { cn, formatCount } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { StageTrack, stageFill } from '@/components/brand/status';
 import { SourceLine } from '@/components/brand/section';
+import { getStageStep, PATH_LABELS, stagePath, stagePathNote } from '@/lib/utils/bill-stages';
 import {
   axisTicks,
   congressClock,
@@ -46,6 +47,11 @@ export function BillJourneyPanel({
   const view = journeyView({ journey, billType, congress, today });
   const drawn = view.chapters.length >= 2;
   const showClock = !view.finish;
+  // Without a bar, the track is drawn on the measure's own road: a resolution
+  // ends at "Agreed to" (Documentation/brand.md, "The road a measure travels").
+  const { step, total } = getStageStep(journey.finalStage, billType);
+  const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
+  const roadNote = stagePathNote(billType);
 
   useEffect(() => {
     analytics.billJourneyViewed({
@@ -66,13 +72,14 @@ export function BillJourneyPanel({
         <JourneyBar view={view} finalStage={journey.finalStage} />
       ) : (
         <>
-          <StageTrack stage={journey.finalStage} labels size="lg" />
+          <StageTrack stage={journey.finalStage} billType={billType} labels size="lg" />
           {/* StageTrack drops its step names below `sm`; the two ends still
               say which way the track runs. */}
           <div className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden" aria-hidden="true">
             <span className="text-ink">Introduced</span>
-            <span className="text-ink-3">Law</span>
+            <span className={step === total ? 'text-ink' : 'text-ink-3'}>{roadEnd}</span>
           </div>
+          {roadNote && <p className="mt-4 max-w-measure text-sm leading-relaxed text-ink-2">{roadNote}</p>}
         </>
       )}
 
@@ -241,8 +248,8 @@ function CongressClock({
 }) {
   const clock = congressClock(congress, today, introducedDate);
   const ordinal = formatCongressOrdinal(congress);
-  const type = (billType || '').toLowerCase();
-  const goesToPresident = !['hres', 'sres', 'hconres', 'sconres'].includes(type);
+  // The same classification as the track (printed forms like "H.Con.Res." too).
+  const goesToPresident = stagePath(billType) === 'law';
   const outcome = goesToPresident ? 'become law' : 'been adopted';
 
   // Presented but neither signed nor vetoed on the record: a pocket veto or

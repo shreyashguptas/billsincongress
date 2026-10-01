@@ -8,7 +8,7 @@
  * pin a day.
  */
 import type { BillJourney, JourneyEvent } from '../convex/billJourney';
-import { BillStages, stageLabel } from './utils/bill-stages';
+import { BillStages, measureStageLabel } from './utils/bill-stages';
 import { congressStartYear, formatCongressOrdinal } from './congress';
 import { formatCount } from './utils/format';
 
@@ -95,13 +95,15 @@ export type JourneyView = {
   totalDays: number;
 };
 
-function chapterName(stage: number, events: JourneyEvent[]): string {
+function chapterName(stage: number, events: JourneyEvent[], billType: string): string {
   if (stage === BillStages.PASSED_ONE_CHAMBER) {
     // "Passed the House", or "Agreed to in the House" for a resolution.
     const passed = events.find((e) => e.kind === 'passed');
     if (passed) return passed.label;
   }
-  return stageLabel(stage);
+  // "Agreed to by both chambers", not "Passed both chambers", for a
+  // concurrent resolution: the same words as the status panel above it.
+  return measureStageLabel(stage, billType);
 }
 
 /**
@@ -167,7 +169,7 @@ export function journeyView(input: {
     }
     chapters.push(merged);
   });
-  for (const c of chapters) c.name = chapterName(c.stage, c.events);
+  for (const c of chapters) c.name = chapterName(c.stage, c.events, billType);
 
   return {
     chapters,

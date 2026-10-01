@@ -222,7 +222,7 @@ These live in `components/brand/` and compose the primitives above.
 |---|---|---|
 | `Logo`, `ChamberMark` | `components/brand/logo.tsx` | See Logo, below |
 | `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `stageLabel()` in `lib/utils/bill-stages.ts`. Never fill the whole pill with the stage colour |
-| `StageTrack` | `components/brand/status.tsx` | Seven equal segments. Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
+| `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
@@ -263,7 +263,8 @@ Patterns that appear on more than one page:
   (Newsreader at 72px, 56 on phones, "days" in `title` beside it) with what it
   measures under it: "from introduction to law", "since it was introduced".
   Under both, the **journey** when the bill has spent time in two stages or
-  more, otherwise a `StageTrack` with labels.
+  more, otherwise a `StageTrack` with labels. For a resolution, one `text-sm`
+  `ink-2` sentence under that track says why the road is short.
 - **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
   scale, a segment per stage in its stage colour, as wide as the days the bill
   stayed there (never under 6px), ending in a dot of the final stage's colour
@@ -284,6 +285,7 @@ Patterns that appear on more than one page:
   headline is the finding about laws. Beside it a chart legend (dot, stage,
   share, count); hovering or focusing a row drops every other stage's dots to
   35%. The ring is drawn only when the bill has not changed since the count.
+
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the
@@ -349,6 +351,40 @@ What stays hand-built, on purpose:
 - **Caption-size text actions** ("Ask about this →", the work-log toggles),
   where `Button`'s height and padding would change the line they sit in.
 
+### The road a measure travels
+
+Congress numbers eight kinds of measure, and only bills and joint resolutions
+can become law. Drawing every measure on the seven-step road to law told
+readers that an adopted resolution was half-way to the President. It is not.
+It is finished. So the track, the stage name and the share card follow the
+measure's own road (`stagePath()` in `lib/utils/bill-stages.ts`, from the
+classification in `convex/catalog/measureType.ts`):
+
+| Measure | Steps | Last step |
+|---|---|---|
+| Bill, joint resolution (H.R., S., H.J.Res., S.J.Res.) and anything unrecognised | Introduced · Committee · One chamber · Both chambers · To President · Signed · Law | "Became law" |
+| Concurrent resolution (H.Con.Res., S.Con.Res.) | Introduced · Committee · One chamber · Agreed to | "Agreed to by both chambers" |
+| Simple resolution (H.Res., S.Res.) | Introduced · Committee · Agreed to | "Agreed to by the House" or "by the Senate" |
+
+- **"Agreed to"**, not "passed": it is the word the record uses for a
+  resolution, and "passed" invites "…and then what?".
+- **The track ends where the road ends.** An agreed resolution fills every
+  segment. Nothing on the page points past it to the President or to law.
+- **One sentence under the track** says why it is short, in plain words: "A
+  simple resolution is the House's business alone. It is finished once the
+  House agrees to it: it never goes to the Senate or the President, and it is
+  not a law."
+- **The colour stays the stored stage's.** An agreed simple resolution is
+  stage 60 in the data and takes the "passed one chamber" hue; an agreed
+  concurrent resolution takes "passed both". That keeps the bill page in step
+  with every chart that counts it, and keeps the law green for law alone. No
+  new token.
+- **A stage off the road is unknown.** A resolution whose stored stage lies
+  past its own last step (a veto, the President) draws as an unrecognised
+  stage: "Unknown", `ink-3`, an empty track. A confidently wrong stage is worse
+  than none. (None exist in the data today.)
+- **The glyph** for "Agreed to" is the chamber's, `Landmark`.
+
 ## Charts
 
 - Draw the whole set, one mark per bill or per a fixed number of bills, and
@@ -365,7 +401,7 @@ What stays hand-built, on purpose:
   buttons, 20px in the header, always beside a word. The only icon-only
   buttons are menu, close, search and send, and each has an `aria-label`.
 - Stages have fixed glyphs: Introduced `FilePlus`, Committee `Users`, Passed a
-  chamber `Landmark`, President `PenLine`, Became law `ScrollText`, Vetoed
+  chamber or agreed to (a resolution) `Landmark`, President `PenLine`, Became law `ScrollText`, Vetoed
   `Ban`.
 - No emoji. No eagles, flags or Capitol photographs. Civic clichés read as
   campaign material.
@@ -474,7 +510,8 @@ Shared by every card (`lib/og/card-parts.tsx`):
 - **The lockup** top left: the spectrum chamber mark at 64px (its one use on
   the surface) and the wordmark in Newsreader 600 at 42px. Page cards put
   "119th Congress" top right in mono `ink-3`; a bill card has nothing there.
-- **The track**: the seven-step `StageTrack`, full width, 30px segments, every
+- **The track**: the `StageTrack` for the measure's own road (seven steps for
+  a bill, four or three for a resolution), full width, 30px segments, every
   step named under its segment. Reached segments take the stage colour; the
   current step's name is in the stage's text colour, earlier ones ink, later
   ones `ink-3`. Vetoed fills to "To President" in slate. An unrecognised stage
@@ -486,8 +523,12 @@ The cards:
 
 - **A bill** (`bill-share-card.tsx`): the stage glyph in a 136px circle of the
   stage colour, the stage in Newsreader at 104px (88 or 72 for the longer
-  names, so "On the President's desk" stays on one line), "Stage n of 7" (or
-  "Stopped at the President", or "Stage unknown") in mono, and the track.
+  names, so "On the President's desk" stays on one line, and 64 for the
+  longest, "Agreed to by both chambers"), "Stage n of 7" (n of 4 or 3 for a
+  resolution, or "Stopped at the President", or "Stage unknown") in mono, and
+  the track. An agreed resolution's card reads "Agreed to by the Senate,
+  Stage 3 of 3" over a full three-step track: finished, not a third of the way
+  to law.
 - **A status page** (`hub-share-card.tsx`): the finding as the headline, "113
   became law" with the figure at 176px, then "Out of 19,067 bills and
   resolutions introduced" (a percentage once it is at least 1%), then the track

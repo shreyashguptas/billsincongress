@@ -104,6 +104,27 @@ it("every stage produces a distinct human status phrase", () => {
   assert.equal(seen.size, stages.length, `collisions among ${[...seen].join(" / ")}`);
 });
 
+it("an adopted resolution is 'agreed to', and the chamber keeps its capital", () => {
+  // H.Res. 214 (119th), agreed to in the House. "Passed one chamber" in the
+  // title and snippet read as half-way to law; a resolution is finished there.
+  const res = bareBill({ bill_type: "hres", bill_type_label: "H.Res.", bill_number: "214", progress_stage: 60 });
+  assert.equal(billStatusPhrase(res), "Agreed to by the House");
+  assert.match(billSeoTitle(res), /^H\.Res\. 214 — Agreed to by the House/);
+  assert.match(billAnswerParagraph(res), /Its current status is: agreed to by the House\./);
+  assert.match(billSeoDescription(res), /Status: agreed to by the House\./);
+});
+
+it("a resolution with a stage code we do not know keeps the backend's words, not 'Unknown'", () => {
+  const res = bareBill({ bill_type: "hres", bill_type_label: "H.Res.", progress_stage: 55, progress_description: "Reported by Committee" });
+  assert.equal(billStatusPhrase(res), "Reported by Committee");
+  assert.doesNotMatch(billSeoTitle(res), /Unknown/);
+});
+
+it("a resolution stored at a President stage never says it went to the President", () => {
+  const res = bareBill({ bill_type: "hres", bill_type_label: "H.Res.", progress_stage: 90, progress_description: "To President" });
+  assert.doesNotMatch(billStatusPhrase(res), /President/);
+});
+
 it("an unknown stage falls back to the backend's own description", () => {
   const bill = bareBill({ progress_stage: 55, progress_description: "Reported by Committee" });
   assert.equal(billStatusPhrase(bill), "Reported by Committee");
