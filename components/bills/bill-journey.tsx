@@ -248,8 +248,8 @@ function CongressClock({
 }) {
   const clock = congressClock(congress, today, introducedDate);
   const ordinal = formatCongressOrdinal(congress);
-  const type = (billType || '').toLowerCase();
-  const goesToPresident = !['hres', 'sres', 'hconres', 'sconres'].includes(type);
+  // The same classification as the track (printed forms like "H.Con.Res." too).
+  const goesToPresident = stagePath(billType) === 'law';
   const outcome = goesToPresident ? 'become law' : 'been adopted';
 
   // Presented but neither signed nor vetoed on the record: a pocket veto or

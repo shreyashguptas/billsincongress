@@ -75,6 +75,26 @@ it('a law: one chapter per stage it spent time in, as long as it stayed', () => 
   assert.ok(v.chapters.every((c) => !c.ongoing));
 });
 
+it('a concurrent resolution agreed to by one chamber says "agreed to", not "passed"', () => {
+  const v = journeyView({
+    journey: {
+      steps: [
+        { stage: BillStages.INTRODUCED, date: '2026-03-02' },
+        { stage: BillStages.IN_COMMITTEE, date: '2026-03-02' },
+        { stage: BillStages.PASSED_ONE_CHAMBER, date: '2026-04-01' },
+      ],
+      events: [{ date: '2026-03-02', kind: 'introduced', label: 'Introduced' }],
+      finalStage: BillStages.PASSED_ONE_CHAMBER,
+      actionCount: 3,
+    },
+    billType: 'hconres',
+    congress: 119,
+    today: '2026-09-30',
+  });
+  assert.equal(v.finish, null);
+  assert.equal(v.chapters.at(-1)!.name, 'Agreed to by one chamber');
+});
+
 it('a bill still on its way counts to today, and says so', () => {
   const v = journeyView({
     journey: {
