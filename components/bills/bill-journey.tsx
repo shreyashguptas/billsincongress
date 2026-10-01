@@ -15,6 +15,7 @@ import {
   type JourneyEvent,
 } from '@/lib/bill-journey';
 import { formatCongressOrdinal } from '@/lib/congress';
+import { BillStages } from '@/lib/utils/bill-stages';
 
 /**
  * The lower half of the bill page's status panel: how the bill got where it is
@@ -93,6 +94,7 @@ export function BillJourneyPanel({
           introducedDate={introducedDate}
           noun={noun}
           billType={billType}
+          stage={journey.finalStage}
         />
       )}
 
@@ -116,7 +118,9 @@ function JourneyBar({ view, finalStage }: { view: ReturnType<typeof journeyView>
         ? `was vetoed on ${formatDay(view.endDate)}`
         : view.finish === 'adopted'
           ? `was adopted on ${formatDay(view.endDate)}`
-          : view.expired
+          : view.expired && finalStage === BillStages.TO_PRESIDENT
+            ? `was on the President's desk when the Congress ended on ${formatDay(view.endDate)}`
+            : view.expired
             ? `expired on ${formatDay(view.endDate)}`
             : 'is still on its way';
   const label =
@@ -226,18 +230,32 @@ function CongressClock({
   introducedDate,
   noun,
   billType,
+  stage,
 }: {
   congress: number;
   today: string;
   introducedDate: string;
   noun: string;
   billType: string;
+  stage: number;
 }) {
   const clock = congressClock(congress, today, introducedDate);
   const ordinal = formatCongressOrdinal(congress);
   const type = (billType || '').toLowerCase();
   const goesToPresident = !['hres', 'sres', 'hconres', 'sconres'].includes(type);
   const outcome = goesToPresident ? 'become law' : 'been adopted';
+
+  // Presented but neither signed nor vetoed on the record: a pocket veto or
+  // an action not yet synced. "Expired" would claim more than the record does.
+  if (clock.ended && stage === BillStages.TO_PRESIDENT) {
+    return (
+      <p className="mt-8 border-t border-line pt-6 text-sm leading-relaxed text-ink-2">
+        The {ordinal} Congress ended on{' '}
+        <span className="font-mono text-ink tabular">{formatDay(clock.end)}</span> with this {noun} on
+        the President’s desk. The record shows no signature or veto.
+      </p>
+    );
+  }
 
   if (clock.ended) {
     return (

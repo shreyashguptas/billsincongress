@@ -435,7 +435,8 @@ seven-step track and no dot field.
   `app/bills/[id]/page.tsx`). A bill is finished once signed (the public law number follows
   later) or vetoed; a simple resolution once its own chamber adopts it, a concurrent
   resolution once both have. A resolution's passage reads "Agreed to in the House". A bill still pending when its Congress ends
-  (Jan 3 of the year after its second) is shown as expired.
+  (Jan 3 of the year after its second) is shown as expired, except one left on the
+  President's desk, which says just that: the record shows no signature or veto.
 - **The peer counts** are `congressPolicyAreas.stageCounts`: the nightly
   `recomputeCongressPolicyAreas` counts every bill of the Congress by topic and by stage in
   the same pass, so the parts always sum to the topic's `count`. `getJourney` returns them
