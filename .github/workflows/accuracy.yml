@@ -13,9 +13,10 @@ name: Accuracy check
 # Convex deploy key, and that key can also DEPLOY. A pull request job runs the
 # branch's own code, and that includes branches opened by bots. Giving that
 # code a key that can rewrite production is not a trade worth making for
-# earlier feedback. `main` has already been reviewed. So the local gate in
-# AGENTS.md still applies before merging anything under convex/catalog/ or
-# convex/answer.ts. This job catches what slips past it, and it also catches
+# earlier feedback, and the `Production` environment below refuses to hand
+# the key to any job not running on `main` anyway. `main` has already been
+# reviewed. So the local gate in AGENTS.md still applies before merging
+# anything under convex/catalog/ or convex/answer.ts. This job catches what slips past it, and it also catches
 # answers that drift as the data changes underneath code nobody touched.
 on:
   schedule:
@@ -37,6 +38,14 @@ jobs:
     # you pick any branch, and that branch's code would run with the deploy
     # key in reach. That is the exact exposure the header rules out.
     if: github.ref == 'refs/heads/main'
+    # The `Production` environment is what actually keeps CONVEX_DEPLOY_KEY
+    # on `main`. The key is an environment secret, and the environment only
+    # admits jobs running on `main` (Settings -> Environments -> Production ->
+    # Deployment branches). The `if:` above can be deleted by anyone who edits
+    # this file on a branch, and a manual run uses that branch's copy of the
+    # file; the environment rule cannot be edited from a branch. Keep both:
+    # the `if:` skips the job cleanly, the environment is the guarantee.
+    environment: Production
     runs-on: ubuntu-latest
     # The export is about 170MB and takes a few minutes.
     timeout-minutes: 30

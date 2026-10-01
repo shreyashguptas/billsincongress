@@ -38,6 +38,14 @@ jobs:
     # already (it wiped the saved-bills functions). Production is whatever
     # `main` says.
     if: github.ref == 'refs/heads/main'
+    # The `Production` environment is what actually keeps CONVEX_DEPLOY_KEY
+    # on `main`. The key is an environment secret, and the environment only
+    # admits jobs running on `main` (Settings -> Environments -> Production ->
+    # Deployment branches). The `if:` above can be deleted by anyone who edits
+    # this file on a branch, and a manual run uses that branch's copy of the
+    # file; the environment rule cannot be edited from a branch. Keep both:
+    # the `if:` skips the job cleanly, the environment is the guarantee.
+    environment: Production
     runs-on: ubuntu-latest
     # A normal run takes about two minutes. The limit stops a hung upload from
     # holding the deploy queue for six hours, which would block every deploy
@@ -88,7 +96,7 @@ jobs:
           # report success, and leave production untouched.
           case "$CONVEX_DEPLOY_KEY" in
             prod:*) ;;
-            "") echo "::error::The CONVEX_DEPLOY_KEY repository secret is not set. See 'Deploying Convex' in Documentation/overview.md."; exit 1 ;;
+            "") echo "::error::CONVEX_DEPLOY_KEY is empty. It must be a secret of the Production environment, and this job must be running on main. See 'Deploying Convex' in Documentation/overview.md."; exit 1 ;;
             *) echo "::error::CONVEX_DEPLOY_KEY is not a production deploy key (it must start with 'prod:')."; exit 1 ;;
           esac
           pnpm exec convex deploy --yes

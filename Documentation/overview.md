@@ -81,7 +81,7 @@ Two halves, deployed by the same workflow:
   Also deploys automatically on every push to `main`, just before the frontend, from the same
   `deploy.yml` run (see [Deploying Convex](#deploying-convex)).
 
-They can still skew: a manual `npx convex deploy` from a branch, or a failed backend step. `app/api/answer/route.ts` has a user-visible error string for exactly that
+They can still skew: a manual `npx convex deploy` from a branch, or a site step that fails after the backend step succeeded (the backend ahead of the frontend). `app/api/answer/route.ts` has a user-visible error string for exactly that
 case: *"The answer service is not deployed yet. Run `npx convex deploy`."*
 
 ---
@@ -1626,11 +1626,15 @@ Inlined by Next at **build** time, so they must be present wherever `pnpm cf:bui
 
 All four `NEXT_PUBLIC_*` are also GitHub repo secrets, injected by `ci.yml` and `deploy.yml`.
 `CLOUDFLARE_ACCOUNT_ID` is a literal in `deploy.yml`, not a secret. `CONVEX_DEPLOY_KEY` (the
-production deploy key) is in the untracked local `.env` **and** is a GitHub repo secret, read by
-exactly two workflows on `main` only: `deploy.yml` (to deploy the backend) and `accuracy.yml`
-(to copy the public tables). It is set on the one step that needs it, never on an install step,
-and no pull request job can read it. A pull request runs its branch's own code, and this key
-can deploy to production.
+production deploy key, created with `npx convex deployment token create`) is **not** a repo
+secret: it is a secret of the GitHub **`Production` environment**, whose deployment-branch rule
+admits `main` only. Two jobs name that environment: `deploy` in `deploy.yml` (to deploy the
+backend) and `truth` in `accuracy.yml` (to copy the public tables). A job on any other branch,
+including a pull request that edits a workflow to ask for the secret, gets nothing, because the
+rule lives in repository settings, not in a file a branch can change. Within those jobs the key
+is set on the one step that needs it, never on an install step. A repo-level secret would not
+hold this line: a same-repo pull request runs its own edited workflow and can read any repo
+secret.
 
 ### Convex deployment side
 
@@ -1810,8 +1814,8 @@ site step does not run.
 ### Deploying Convex
 
 **Merging deploys it.** The "Deploy the Convex backend" step in `deploy.yml` runs
-`convex deploy` against production on every push to `main`, using the `CONVEX_DEPLOY_KEY` repo
-secret, before the site is built. It runs whether or not `convex/` changed: deploying an
+`convex deploy` against production on every push to `main`, using the `CONVEX_DEPLOY_KEY`
+secret of the `Production` environment, before the site is built. It runs whether or not `convex/` changed: deploying an
 unchanged folder is harmless, and it corrects any drift on the next merge. The step refuses to
 run without the secret, or with a key that does not start with `prod:`, because a preview key
 would deploy to a preview copy and still report success.
