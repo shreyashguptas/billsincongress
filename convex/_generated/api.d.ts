@@ -16,6 +16,7 @@ import type * as answer from "../answer.js";
 import type * as auth from "../auth.js";
 import type * as avatars from "../avatars.js";
 import type * as baseRates from "../baseRates.js";
+import type * as billJourney from "../billJourney.js";
 import type * as billStage from "../billStage.js";
 import type * as billing from "../billing.js";
 import type * as billingEmail from "../billingEmail.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   avatars: typeof avatars;
   baseRates: typeof baseRates;
+  billJourney: typeof billJourney;
   billStage: typeof billStage;
   billing: typeof billing;
   billingEmail: typeof billingEmail;
