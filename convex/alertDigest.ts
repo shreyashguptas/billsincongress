@@ -8,8 +8,8 @@
  * in our voice. Every line in the email is an action or status we hold from
  * Congress.gov, quoted as stored; nothing is summarised or predicted.
  */
-import { BillStageDescriptions } from "./billStage";
 import { formatCongressOrdinal } from "../lib/congress";
+import { measureStageLabel } from "../lib/utils/bill-stages";
 import {
   BRAND,
   C,
@@ -23,6 +23,7 @@ import {
   masthead,
   pill,
   STAGE,
+  stageColours,
   stageTrack,
   preheader,
   type RenderedEmail,
@@ -115,7 +116,7 @@ export function newActionsSince(
 
 export interface BillChange {
   billId: string;
-  billTypeLabel: string; // "H.R."
+  billTypeLabel: string; // "H.R." — also picks the stage's road (lib/utils/bill-stages.ts, stagePath)
   billNumber: string;
   congress: number;
   title: string;
@@ -133,45 +134,44 @@ export function billLabel(change: Pick<BillChange, "billTypeLabel" | "billNumber
   return `${change.billTypeLabel} ${change.billNumber}`;
 }
 
-/** Stage names as the site writes them: sentence case (lib/utils/bill-stages.ts, stageLabel). */
-const STAGE_LABEL: Record<number, string> = {
-  20: "Introduced",
-  40: "In committee",
-  60: "Passed one chamber",
-  80: "Passed both chambers",
-  85: "Vetoed",
-  90: "On the President’s desk",
-  95: "Signed by the President",
-  100: "Became law",
-};
-
-function stageName(stage: number): string {
-  return STAGE_LABEL[stage] ?? BillStageDescriptions[stage] ?? "Status updated";
+/**
+ * A stage as the site writes it, on the measure's own road (lib/utils/bill-stages.ts,
+ * `measureStageLabel`): "Passed one chamber" for a bill, "Agreed to by the House"
+ * for an adopted House resolution. A stage the site would call "Unknown" says
+ * only that the status changed.
+ */
+function stageName(stage: number, billTypeLabel: string): string {
+  const label = measureStageLabel(stage, billTypeLabel);
+  return label === "Unknown" ? "Status updated" : label;
 }
 
-/** "was in committee": lower-case the first letter only, so "President" keeps its capital. */
-function wasStage(stage: number): string {
-  return `was ${stageName(stage).replace(/^./, (ch) => ch.toLowerCase())}`;
+/** Lower-case the first letter only, so "President", "House" and "Senate" keep their capitals. */
+function midSentence(text: string): string {
+  return text.replace(/^./, (ch) => ch.toLowerCase());
 }
 
-/** "Passed One Chamber" → "passed one chamber" for mid-sentence use. */
-function stagePhrase(stage: number): string {
-  const name = stageName(stage);
-  return name === "To President" ? "went to the President" : name.toLowerCase();
+/** "was in committee". */
+function wasStage(stage: number, billTypeLabel: string): string {
+  return `was ${midSentence(stageName(stage, billTypeLabel))}`;
+}
+
+/** "passed one chamber", "agreed to by the Senate" — after the bill's number in a subject. */
+function stagePhrase(stage: number, billTypeLabel: string): string {
+  return midSentence(stageName(stage, billTypeLabel));
 }
 
 export function digestSubject(changes: readonly BillChange[]): string {
   if (changes.length === 1) {
     const c = changes[0];
     return c.stageChange
-      ? `${billLabel(c)} ${stagePhrase(c.stageChange.to)}`
+      ? `${billLabel(c)} ${stagePhrase(c.stageChange.to, c.billTypeLabel)}`
       : `New action on ${billLabel(c)}`;
   }
   // Lead with a status change when there is one: it is the news.
   const lead = changes.find((c) => c.stageChange) ?? changes[0];
   const rest = changes.length - 1;
   const leadText = lead.stageChange
-    ? `${billLabel(lead)} ${stagePhrase(lead.stageChange.to)}`
+    ? `${billLabel(lead)} ${stagePhrase(lead.stageChange.to, lead.billTypeLabel)}`
     : `New action on ${billLabel(lead)}`;
   return `${leadText}, and ${rest} more bill${rest === 1 ? "" : "s"} you follow`;
 }
@@ -217,7 +217,7 @@ function shortTitle(title: string): string {
 /** "H.R. 4318 — Rural Broadband… · now Passed One Chamber · 3 new actions" */
 function compactLine(change: BillChange): string {
   const parts = [`${billLabel(change)} — ${shortTitle(change.title)}`];
-  if (change.stageChange) parts.push(`now ${stageName(change.stageChange.to)}`);
+  if (change.stageChange) parts.push(`now ${stageName(change.stageChange.to, change.billTypeLabel)}`);
   const n = change.newActions.length;
   if (n > 0) parts.push(`${n} new action${n === 1 ? "" : "s"}`);
   return parts.join(" · ");
@@ -228,7 +228,7 @@ function renderCompactHtml(rest: readonly BillChange[], links: DigestLinks, afte
     .map((c) => {
       const url = billUrl(links, c.billId);
       const detail = [
-        c.stageChange ? `now ${escapeHtml(stageName(c.stageChange.to))}` : "",
+        c.stageChange ? `now ${escapeHtml(stageName(c.stageChange.to, c.billTypeLabel))}` : "",
         c.newActions.length > 0
           ? `${c.newActions.length} new action${c.newActions.length === 1 ? "" : "s"}`
           : "",
@@ -252,14 +252,17 @@ function renderBillHtml(change: BillChange, links: DigestLinks): string {
   const url = billUrl(links, change.billId);
 
   // A stage move is the news, so it gets the colour: the stage's pill and the
-  // site's seven-step track. A bill with only a new action stays neutral.
+  // site's track, on the measure's own road — an adopted resolution fills a
+  // three- or four-step track, not three of seven. A bill with only a new
+  // action stays neutral.
+  const type = change.billTypeLabel;
   const stage = change.stageChange
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 6px;"><tr><td style="padding:0 10px 8px 0;">${pill(stageName(change.stageChange.to), STAGE[change.stageChange.to] ?? STAGE[20])}</td>${
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 6px;"><tr><td style="padding:0 10px 8px 0;">${pill(stageName(change.stageChange.to, type), stageColours(change.stageChange.to, type))}</td>${
         change.stageChange.from !== undefined
-          ? `<td style="padding:0 0 8px;font:13px/1.3 ${SANS};color:${C.muted};">${escapeHtml(wasStage(change.stageChange.from))}</td>`
+          ? `<td style="padding:0 0 8px;font:13px/1.3 ${SANS};color:${C.muted};">${escapeHtml(wasStage(change.stageChange.from, type))}</td>`
           : ""
       }</tr></table>
-  <div style="margin:0 0 16px;">${stageTrack(change.stageChange.to)}</div>`
+  <div style="margin:0 0 16px;">${stageTrack(change.stageChange.to, type)}</div>`
     : `<p style="margin:0 0 12px;"><span style="display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid ${C.rule};font:600 12px/1.3 ${SANS};color:${C.muted};">New action</span></p>`;
 
   const rows = shown
@@ -290,8 +293,10 @@ function renderBillText(change: BillChange, links: DigestLinks): string {
   const lines = [`${billLabel(change)} (${formatCongressOrdinal(change.congress)} Congress)`, change.title];
   if (change.stageChange) {
     lines.push(
-      `Now: ${stageName(change.stageChange.to)}` +
-        (change.stageChange.from !== undefined ? ` (was ${stageName(change.stageChange.from)})` : ""),
+      `Now: ${stageName(change.stageChange.to, change.billTypeLabel)}` +
+        (change.stageChange.from !== undefined
+          ? ` (was ${midSentence(stageName(change.stageChange.from, change.billTypeLabel))})`
+          : ""),
     );
   }
   const shown = [...change.newActions].reverse().slice(0, MAX_ACTIONS_PER_BILL);
@@ -312,7 +317,9 @@ function summary(changes: readonly BillChange[]): string {
   const actions = changes.reduce((n, c) => n + c.newActions.length, 0);
   // A count, not a flag: two bills signed together must read "2 to law".
   const toLaw = moved.filter((c) => c.stageChange!.to === 100).length;
-  const dot = moved.length ? (toLaw ? STAGE[100] : STAGE[moved[0].stageChange!.to] ?? STAGE[20]).fill : null;
+  const dot = moved.length
+    ? (toLaw ? STAGE[100] : stageColours(moved[0].stageChange!.to, moved[0].billTypeLabel)).fill
+    : null;
   const fig = (n: number, label: string, colour: string | null, first: boolean) =>
     `<td valign="top" width="33%" style="width:33%;padding:18px 16px 20px ${first ? "0" : "16px"};${first ? "" : `border-left:1px solid ${C.rule};`}">
       <div style="font:300 36px/1 ${SANS};letter-spacing:-0.02em;font-variant-numeric:lining-nums tabular-nums;color:${C.ink};">${n}</div>

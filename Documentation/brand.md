@@ -221,7 +221,7 @@ These live in `components/brand/` and compose the primitives above.
 | Component | File | Rule |
 |---|---|---|
 | `Logo`, `ChamberMark` | `components/brand/logo.tsx` | See Logo, below |
-| `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `stageLabel()` in `lib/utils/bill-stages.ts`. Never fill the whole pill with the stage colour |
+| `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `measureStageLabel()` in `lib/utils/bill-stages.ts` ("Agreed to by the House" for an adopted House resolution). Never fill the whole pill with the stage colour |
 | `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
@@ -267,9 +267,11 @@ Patterns that appear on more than one page:
 Congress numbers eight kinds of measure, and only bills and joint resolutions
 can become law. Drawing every measure on the seven-step road to law told
 readers that an adopted resolution was half-way to the President. It is not.
-It is finished. So the track, the stage name and the share card follow the
-measure's own road (`stagePath()` in `lib/utils/bill-stages.ts`, from the
-classification in `convex/catalog/measureType.ts`):
+It is finished. So every place a stage is drawn follows the measure's own road
+(`stagePath()` in `lib/utils/bill-stages.ts`, from the classification in
+`convex/catalog/measureType.ts`): the bill page and its share card, bill rows in
+every list, the compact in-answer card, the account page's saved and followed
+rows, and the alert email.
 
 | Measure | Steps | Last step |
 |---|---|---|
@@ -295,6 +297,16 @@ classification in `convex/catalog/measureType.ts`):
   stage: "Unknown", `ink-3`, an empty track. A confidently wrong stage is worse
   than none. (None exist in the data today.)
 - **The glyph** for "Agreed to" is the chamber's, `Landmark`.
+- **Every surface passes the type it has.** `StatusPill`, `StageTrack`,
+  `stageFill`, `compactStageLabel` and the email's `stageTrack()` all take a
+  `billType`; omitted, they draw the road to law. A bill row passes
+  `bill_type`; the account page and the alert email pass the printed type
+  ("H.Res."), which classifies the same way; the in-answer card reads it off
+  its printed number ("H.Res. 77"). A compact label for a resolution is the full
+  one ("Agreed to by the House"): there is no shorter honest word. In a bill
+  row's 220px stage column the longest pill ("Agreed to by both chambers")
+  leaves no room for the "4 of 4" counter, so the counter wraps under the pill,
+  still right-aligned, rather than breaking across two lines.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the
@@ -452,7 +464,10 @@ the wordmark and titles).
   strip in the topic colours, and `footer()` closes it with six spectrum dots.
   The code emails put a band under each digit of the code.
 - **Colour still means something**: a stage move gets its stage colour, as a
-  `pill()` and the seven-step `stageTrack()`. "Became law" is the only green.
+  `pill()` and a `stageTrack()` on the measure's own road (seven steps for a
+  bill, three or four for a resolution; see "The road a measure travels").
+  A stage off that road is neutral ink on an empty track. "Became law" is the
+  only green.
   A plan state gets one pill: Pro indigo, a heads-up amber, a problem the
   error red, the free plan grey. A bill with only a new action stays neutral.
 - **Actions**: one ink button per email for the thing it is for. Repeated

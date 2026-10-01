@@ -365,14 +365,25 @@ becameLaw → vetoed → signed → toPresident → passedBoth → passedOne →
 **Resolutions are stored on the same scale but drawn on their own road.** A simple resolution
 (H.Res., S.Res.) agreed to by its chamber is stored at 60, a concurrent resolution (H.Con.Res.,
 S.Con.Res.) agreed to by both at 80, because the calculator reads the same "Passed/agreed to"
-record for every measure. Neither ever goes to the President, so the bill page, its title and
-its share card do not draw them on the seven-step road to law: `stagePath()` in
+record for every measure. Neither ever goes to the President, so no surface draws them on the
+seven-step road to law: `stagePath()` in
 `lib/utils/bill-stages.ts` (from `convex/catalog/measureType.ts`) gives a simple resolution
 three steps and a concurrent one four, both ending at "Agreed to", and `measureStageLabel()`
 names the stage "Agreed to by the House", "…by one chamber" or "…by both chambers". The stored
 value and every chart that counts it are unchanged. See `Documentation/brand.md`, "The road a
-measure travels". Lists, the account page and alert emails still draw every measure on the
-seven-step road.
+measure travels".
+
+Every surface that draws a stage passes the measure's type and so takes the same road: the bill
+page, its title and share card, the bill rows in every list (`components/bills/bill-card.tsx`,
+from `bill_type`), the compact in-answer card (`compactStageLabel()`, with the type read off
+the card's printed number by `billTypeOfLabel()`, since the answer's display projection carries
+no `bill_type`), the search suggestions on the home page, the account page's saved and followed
+rows (from the printed `billTypeLabel`, which `measureClass()` reads as well as a type code),
+and the alert email (`stageTrack()` and `stageColours()` in `convex/emailStyle.ts`, labels from
+`measureStageLabel()` in `convex/alertDigest.ts`). The email imports
+`lib/utils/bill-stages.ts` by relative path, so it cannot draw a different road from the site;
+that file imports `measureType.ts` relatively for the same reason (the Convex bundler does not
+know the `@/` alias).
 
 > **The E30000 trap.** The Library of Congress attaches action code `E30000` to **both**
 > "Signed by President" and "Vetoed by President". An earlier implementation returned early
@@ -1359,6 +1370,11 @@ Every day at 11:00 UTC `alerts.runDigests` pages through `billAlerts` and schedu
   (see [Email](#email)) and retries twice, 1 and 10 minutes later, only when PostHog is
   unreachable or answers 429/5xx. A timeout after PostHog accepted could in principle send one
   digest twice; that is preferred over dropping it.
+
+**A stage move reads in the measure's own words.** An adopted House resolution is emailed as
+"H.Res. 77 agreed to by the House", with a three-step track filled to the end; a concurrent
+resolution "agreed to by both chambers" on four steps. A stage off the measure's road, or an
+unrecognised code, reads "Status updated" with neutral ink and an empty track.
 
 **A heavy day stays one readable email.** Bills are listed status changes first, then by number
 of new actions. Up to 12 are shown in full (up to 8 actions each); every other changed bill gets

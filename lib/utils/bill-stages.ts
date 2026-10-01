@@ -1,4 +1,6 @@
-import { measureClass } from '@/convex/catalog/measureType';
+// Relative, not '@/…': convex/emailStyle.ts imports this file, and the Convex
+// bundler does not know the '@/' alias.
+import { measureClass } from '../../convex/catalog/measureType';
 
 export const BillStages = {
   INTRODUCED: 20,
@@ -75,9 +77,15 @@ export const CompactStageLabel: Record<BillStage, string> = {
  * An unrecognised code names itself rather than borrowing a neighbour's label —
  * "Stage 55" is recoverable, a confidently wrong stage is not. Only a
  * non-numeric stage falls back to "Unknown", since "Stage NaN" says nothing.
+ *
+ * Given a resolution's `billType`, a recognised stage takes the resolution's
+ * own words (`measureStageLabel`): "Agreed to by the House", never "Passed one
+ * chamber", which reads as half-way to a law it can never become.
  */
-export function compactStageLabel(stage: number): string {
-  if (isValidStage(stage)) return CompactStageLabel[stage];
+export function compactStageLabel(stage: number, billType?: string | null): string {
+  if (isValidStage(stage)) {
+    return stagePath(billType) === 'law' ? CompactStageLabel[stage] : measureStageLabel(stage, billType);
+  }
   return Number.isFinite(stage) ? `Stage ${stage}` : 'Unknown';
 }
 
@@ -112,6 +120,18 @@ export type StagePath = 'law' | 'simple_resolution' | 'concurrent_resolution';
 export function stagePath(billType?: string | null): StagePath {
   const cls = billType ? measureClass(billType) : null;
   return cls === 'simple_resolution' || cls === 'concurrent_resolution' ? cls : 'law';
+}
+
+/**
+ * The type part of a printed bill number: "H.Con.Res. 14" → "H.Con.Res.". The
+ * in-answer cards carry only the printed number (convex/catalog/fetch.ts builds
+ * it as `${billTypeLabel} ${billNumber}`), and `stagePath` reads a type label
+ * as well as a type code. Anything that is not "<type> <number>" gives null,
+ * which takes the road to law, as every card did before.
+ */
+export function billTypeOfLabel(label?: string | null): string | null {
+  const match = label?.trim().match(/^(.+?)\s+\d+$/);
+  return match && measureClass(match[1]) ? match[1] : null;
 }
 
 /**

@@ -136,6 +136,60 @@ const links = {
   unsubscribeUrl: "https://billsincongress.com/alerts/unsubscribe?token=abc",
 };
 
+// Resolutions travel a shorter road (Documentation/brand.md, "The road a
+// measure travels"). Before, an adopted House resolution was emailed as
+// "passed one chamber" on a seven-step track filled to three: half-way to a
+// President it never goes to.
+
+const hres = (overrides: Partial<BillChange> = {}) =>
+  change({ billId: "77hres119", billTypeLabel: "H.Res.", billNumber: "77", ...overrides });
+
+/** The track's segments in order: true for a filled one. Spacer cells are skipped. */
+function trackCells(html: string): boolean[] {
+  const track = html.match(/<table[^>]*max-width:320px;"><tr>(.*?)<\/tr><\/table>/)?.[1] ?? "";
+  return [...track.matchAll(/<td height="6"[^>]*background:([^;]+);/g)].map((m) => m[1] !== "#edece6");
+}
+
+it("an adopted simple resolution is agreed to by its chamber, not passed", () => {
+  assert.equal(digestSubject([hres({ stageChange: { from: 40, to: 60 } })]), "H.Res. 77 agreed to by the House");
+  assert.equal(
+    digestSubject([change({ billTypeLabel: "S.Res.", billNumber: "8", stageChange: { from: 40, to: 60 } })]),
+    "S.Res. 8 agreed to by the Senate",
+  );
+  const email = renderDigestEmail([hres({ stageChange: { from: 40, to: 60 } })], links, new Date("2026-09-24T11:00:00Z"));
+  assert.ok(email.bodyHtml.includes("Agreed to by the House"));
+  assert.ok(!email.bodyHtml.includes("Passed one chamber"));
+  assert.ok(email.text.includes("Now: Agreed to by the House (was in committee)"));
+});
+
+it("an adopted simple resolution fills all three steps of its own track", () => {
+  const email = renderDigestEmail([hres({ stageChange: { from: 40, to: 60 } })], links, new Date("2026-09-24T11:00:00Z"));
+  assert.deepEqual(trackCells(email.bodyHtml), [true, true, true]);
+});
+
+it("an adopted concurrent resolution is agreed to by both chambers, on four steps", () => {
+  const conres = change({ billTypeLabel: "H.Con.Res.", billNumber: "14", stageChange: { from: 60, to: 80 } });
+  assert.equal(digestSubject([conres]), "H.Con.Res. 14 agreed to by both chambers");
+  const email = renderDigestEmail([conres], links, new Date("2026-09-24T11:00:00Z"));
+  assert.ok(email.bodyHtml.includes("Agreed to by both chambers"));
+  assert.ok(email.bodyHtml.includes("was agreed to by one chamber"));
+  assert.deepEqual(trackCells(email.bodyHtml), [true, true, true, true]);
+});
+
+it("a bill keeps the seven-step road to law", () => {
+  const email = renderDigestEmail([change({ stageChange: { from: 40, to: 60 } })], links, new Date("2026-09-24T11:00:00Z"));
+  assert.ok(email.bodyHtml.includes("Passed one chamber"));
+  assert.deepEqual(trackCells(email.bodyHtml), [true, true, true, false, false, false, false]);
+});
+
+it("a resolution at a stage off its road fills nothing and takes no stage colour", () => {
+  // A resolution is never sent to the President; a code saying so proves nothing.
+  const email = renderDigestEmail([hres({ stageChange: { from: 60, to: 90 } })], links, new Date("2026-09-24T11:00:00Z"));
+  assert.ok(email.bodyHtml.includes("Status updated"));
+  assert.ok(!email.bodyHtml.includes("#b64d20"), "the To President colour");
+  assert.deepEqual(trackCells(email.bodyHtml), [false, false, false]);
+});
+
 it("escapes bill titles and action text in the HTML", () => {
   const email = renderDigestEmail(
     [change({ title: `To amend <script>alert("x")</script> & more`, newActions: [{ actionDate: "2026-09-23", text: "A <b>bold</b> move" }] })],

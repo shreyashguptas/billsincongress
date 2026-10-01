@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { analytics } from '@/lib/analytics';
 import { CompactBillCard } from '@/components/bills/bill-card';
 import type { AnswerBlock } from '@/lib/answer-entities';
+import { billTypeOfLabel } from '@/lib/utils/bill-stages';
 
 /** The per-bill display projection the server echoes back on `done`. */
 export type EntityDisplay = Record<string, Record<string, unknown>>;
@@ -54,6 +55,7 @@ export function EntityBlock({
               sponsorLastName={sponsor ? sponsor.split(' ').slice(-1)[0] : undefined}
               sponsorParty={str(d?.sponsorParty)}
               stage={typeof d?.progressStage === 'number' ? d.progressStage : undefined}
+              billType={billTypeOfLabel(str(d?.label))}
               onClick={() => track(i + 1, ref.id)}
             />
           );
