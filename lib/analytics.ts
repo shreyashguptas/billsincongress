@@ -445,7 +445,7 @@ export const analytics = {
     progress_stage: number;
     chapters: number;
     total_days: number;
-    outcome: 'law' | 'vetoed' | 'adopted' | 'expired' | 'open';
+    outcome: 'law' | 'signed' | 'vetoed' | 'adopted' | 'expired' | 'open';
     bar_drawn: boolean;
   }) => capture('bill_journey_viewed', props),
 

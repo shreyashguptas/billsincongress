@@ -123,6 +123,8 @@ it('a simple resolution is finished when its own chamber adopts it', () => {
   assert.equal(finishOf(BillStages.PASSED_ONE_CHAMBER, 'sconres'), null);
   assert.equal(finishOf(BillStages.PASSED_BOTH_CHAMBERS, 'sconres'), 'adopted');
   assert.equal(finishOf(BillStages.VETOED, 'hjres'), 'vetoed');
+  // Signed is enacted: no Congress clock, never "expired".
+  assert.equal(finishOf(BillStages.SIGNED_BY_PRESIDENT, 'hr'), 'signed');
 });
 
 it('the 119th Congress ends Jan 3, 2027, and the clock counts to it', () => {
@@ -168,6 +170,10 @@ it('the headline states the finding about laws, in the tense of the Congress', (
   );
   assert.equal(
     peerHeadline({ ...base, lawCount: 0, billIsLaw: false }),
+    'None of the 2,181 Health bills and resolutions this Congress has become law yet.',
+  );
+  assert.equal(
+    peerHeadline({ ...base, lawCount: 0, billIsLaw: true }),
     'None of the 2,181 Health bills and resolutions this Congress has become law yet.',
   );
   assert.equal(

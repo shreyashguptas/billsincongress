@@ -432,8 +432,9 @@ seven-step track and no dot field.
   stage; a difference means the two disagree and the page does not pick a side.
 - **The chapters, the axis and the Congress clock** are computed in the browser by
   `lib/bill-journey.ts` from the server's date in Washington (`today`, passed down from
-  `app/bills/[id]/page.tsx`). A simple resolution is finished once its own chamber adopts it,
-  a concurrent resolution once both have. A bill still pending when its Congress ends
+  `app/bills/[id]/page.tsx`). A bill is finished once signed (the public law number follows
+  later) or vetoed; a simple resolution once its own chamber adopts it, a concurrent
+  resolution once both have. A resolution's passage reads "Agreed to in the House". A bill still pending when its Congress ends
   (Jan 3 of the year after its second) is shown as expired.
 - **The peer counts** are `congressPolicyAreas.stageCounts`: the nightly
   `recomputeCongressPolicyAreas` counts every bill of the Congress by topic and by stage in

@@ -43,15 +43,15 @@ export function BillPeersSection({
 }) {
   const groups = useMemo(() => peerGroups(peers.stageCounts), [peers.stageCounts]);
   const lawCount = groups.find((g) => g.stage === BillStages.BECAME_LAW)?.count ?? 0;
-  const ringed =
-    Boolean(billUpdatedAt) &&
-    billUpdatedAt! <= peers.countedAt &&
-    groups.some((g) => g.stage === billStage);
+  // The bill is counted where it stands only if it has not changed since the
+  // recount. The ring and the headline both rest on that.
+  const counted = Boolean(billUpdatedAt) && billUpdatedAt! <= peers.countedAt;
+  const ringed = counted && groups.some((g) => g.stage === billStage);
   const headline = peerHeadline({
     topic: peers.policyArea,
     total: peers.total,
     lawCount,
-    billIsLaw: billStage === BillStages.BECAME_LAW,
+    billIsLaw: counted && billStage === BillStages.BECAME_LAW,
     congress,
     today,
   });

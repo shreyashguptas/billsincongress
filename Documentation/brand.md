@@ -267,7 +267,7 @@ Patterns that appear on more than one page:
 - **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
   scale, a segment per stage in its stage colour, as wide as the days the bill
   stayed there (never under 6px), ending in a dot of the final stage's colour
-  when the road is over (law, veto, adoption). Under it, `ink-3` mono month
+  when the road is over (law, signature, veto, adoption). Under it, `ink-3` mono month
   ticks, only the two ends on a phone. Then one column per stage (stacked on a
   phone, two up on a tablet): a 3px rule in the stage colour, the days in
   `display-md`, the stage named the reader's way ("Passed the House"), and its

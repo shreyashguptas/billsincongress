@@ -110,7 +110,9 @@ function JourneyBar({ view, finalStage }: { view: ReturnType<typeof journeyView>
   const ending =
     view.finish === 'law'
       ? `became law on ${formatDay(view.endDate)}`
-      : view.finish === 'vetoed'
+      : view.finish === 'signed'
+        ? `was signed into law on ${formatDay(view.endDate)}`
+        : view.finish === 'vetoed'
         ? `was vetoed on ${formatDay(view.endDate)}`
         : view.finish === 'adopted'
           ? `was adopted on ${formatDay(view.endDate)}`

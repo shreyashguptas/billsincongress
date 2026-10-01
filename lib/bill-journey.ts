@@ -52,16 +52,19 @@ export function congressBounds(congress: number): { start: string; end: string }
 }
 
 /**
- * Where a measure's road ends. A bill or joint resolution ends when it becomes
- * law or is vetoed. A simple resolution (H.Res., S.Res.) never goes to the
+ * Where a measure's road ends. A bill or joint resolution ends when the
+ * President signs it (it becomes law, its number following later) or vetoes it. A simple resolution (H.Res., S.Res.) never goes to the
  * other chamber or the President: passing its own chamber is adoption. A
  * concurrent resolution is adopted once both chambers pass it.
  */
 export function finishOf(
   stage: number,
   billType: string,
-): 'law' | 'vetoed' | 'adopted' | null {
+): 'law' | 'signed' | 'vetoed' | 'adopted' | null {
   if (stage === BillStages.BECAME_LAW) return 'law';
+  // Signed is enacted; the public law number follows days later. It no longer
+  // dies with the Congress.
+  if (stage === BillStages.SIGNED_BY_PRESIDENT) return 'signed';
   if (stage === BillStages.VETOED) return 'vetoed';
   const type = (billType || '').toLowerCase();
   if ((type === 'hres' || type === 'sres') && stage >= BillStages.PASSED_ONE_CHAMBER) return 'adopted';
@@ -94,9 +97,9 @@ export type JourneyView = {
 
 function chapterName(stage: number, events: JourneyEvent[]): string {
   if (stage === BillStages.PASSED_ONE_CHAMBER) {
+    // "Passed the House", or "Agreed to in the House" for a resolution.
     const passed = events.find((e) => e.kind === 'passed');
-    if (passed?.chamber === 'house') return 'Passed the House';
-    if (passed?.chamber === 'senate') return 'Passed the Senate';
+    if (passed) return passed.label;
   }
   return stageLabel(stage);
 }
@@ -266,8 +269,11 @@ export function peerHeadline(input: {
   const current = today < congressBounds(congress).end;
   const where = current ? 'this Congress' : `in the ${formatCongressOrdinal(congress)} Congress`;
   const set = `${formatCount(total)} ${topic} bills and resolutions ${where}`;
+  // `billIsLaw` must mean "counted as a law in these figures": the counts are
+  // the last recount, and a bill signed since would read "0 of 2,181 … became
+  // law. This is one of them." With no law counted, say only what was counted.
   if (billIsLaw && lawCount === 1) return `Of ${set}, this is the only one that became law.`;
-  if (billIsLaw) return `${formatCount(lawCount)} of ${set} became law. This is one of them.`;
+  if (billIsLaw && lawCount > 1) return `${formatCount(lawCount)} of ${set} became law. This is one of them.`;
   if (lawCount === 0) {
     return current ? `None of the ${set} has become law yet.` : `None of the ${set} became law.`;
   }

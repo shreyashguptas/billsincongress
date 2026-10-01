@@ -185,7 +185,9 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
     ? null
     : view.finish === 'law'
       ? 'from introduction to law'
-      : view.finish === 'vetoed'
+      : view.finish === 'signed'
+        ? 'from introduction to the signature'
+        : view.finish === 'vetoed'
         ? 'from introduction to the veto'
         : view.finish === 'adopted'
           ? 'from introduction to adoption'

@@ -120,6 +120,10 @@ it("parses tallies in every wording Congress.gov uses", () => {
   assert.deepEqual(parseTally("On passage Passed by the Yeas and Nays: 366 - 57 (Roll no. 151)."), { yeas: 366, nays: 57 });
   assert.deepEqual(parseTally("Passed Senate with an amendment by Yea-Nay Vote. 68 - 30. Record Vote Number: 172."), { yeas: 68, nays: 30 });
   assert.deepEqual(parseTally("On passage Passed by recorded vote: 218 - 214 (Roll no. 145)."), { yeas: 218, nays: 214 });
+  assert.deepEqual(
+    parseTally("On motion to suspend the rules and pass the bill, as amended Agreed to by the Yeas and Nays: (2/3 required): 366 - 57 (Roll no. 151)."),
+    { yeas: 366, nays: 57 },
+  );
   assert.equal(parseTally("Passed Senate without amendment by Unanimous Consent."), null);
 });
 
@@ -129,6 +133,42 @@ it("keeps commas inside a committee's name", () => {
     "Health, Education, Labor, and Pensions",
   );
   assert.equal(committeeName("Referred to the Committee on the Judiciary."), "the Judiciary");
+});
+
+it("a House suspension vote keeps its tally", () => {
+  const j = buildJourney(
+    [
+      act("2025-03-31", "Referred to the Committee on Energy and Commerce."),
+      act("2025-06-04", "On agreeing to the Pettersen amendment Agreed to by voice vote."),
+      act("2025-06-04", "On motion to suspend the rules and pass the bill, as amended Agreed to by the Yeas and Nays: (2/3 required): 366 - 57 (Roll no. 151)."),
+      act("2025-06-04", "Passed House by the Yeas and Nays: (2/3 required): 366 - 57."),
+    ],
+    "2025-03-31",
+  );
+  const house = j.events.find((e) => e.kind === "passed" && e.chamber === "house");
+  assert.equal(house?.yeas, 366);
+  assert.equal(house?.nays, 57);
+  assert.equal(house?.how, undefined);
+});
+
+it("how a bill passed comes from the passage, not a same-day discharge", () => {
+  const j = buildJourney(
+    [
+      act("2025-09-18", "Senate Committee on Finance discharged by Unanimous Consent."),
+      act("2025-09-18", "Passed Senate with an amendment by Voice Vote."),
+    ],
+    "2025-03-01",
+  );
+  assert.equal(j.events.find((e) => e.kind === "passed")?.how, "voice vote");
+});
+
+it("a resolution is agreed to, not passed", () => {
+  const j = buildJourney(
+    [act("2026-09-10", "Passed Senate without amendment by Unanimous Consent.")],
+    "2026-09-08",
+    "sconres",
+  );
+  assert.equal(j.events.find((e) => e.kind === "passed")?.label, "Agreed to in the Senate");
 });
 
 if (failures.length) {

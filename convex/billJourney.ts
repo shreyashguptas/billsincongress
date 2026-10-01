@@ -72,10 +72,16 @@ const KIND_ORDER: Record<JourneyEventKind, number> = {
 /**
  * "366 - 57" from "On passage Passed by the Yeas and Nays: 366 - 57 (Roll no.
  * 151)", "Ordered to be Reported (Amended) by the Yeas and Nays: 36 - 13.",
- * "Passed Senate ... by Yea-Nay Vote. 68 - 30." or "by recorded vote: 218 - 214".
+ * "Passed Senate ... by Yea-Nay Vote. 68 - 30.", "by recorded vote: 218 - 214", and
+ * the suspension vote, the House's usual way to pass a bill: "On motion to
+ * suspend the rules and pass the bill … Agreed to by the Yeas and Nays: (2/3
+ * required): 366 - 57".
  */
 export function parseTally(text: string): { yeas: number; nays: number } | null {
-  const m = /(?:yeas and nays|recorded vote|yea-nay vote)\s*[:.]?\s*(\d+)\s*-\s*(\d+)/i.exec(text);
+  const m =
+    /(?:yeas and nays|recorded vote|yea-nay vote)\s*[:.]?\s*(?:\(2\/3 required\)\s*:?\s*)?(\d+)\s*-\s*(\d+)/i.exec(
+      text,
+    );
   if (!m) return null;
   return { yeas: Number(m[1]), nays: Number(m[2]) };
 }
@@ -101,10 +107,16 @@ export function committeeName(text: string): string | null {
 
 const CHAMBER_NAME = { house: "House", senate: "Senate" } as const;
 
+/** The floor vote that passes a bill, in the wordings that carry its tally. */
+const PASSAGE_VOTE = /on passage|suspend the rules and pass/i;
+
 export function buildJourney(
   actions: JourneyAction[],
   introducedDate: string,
+  billType = "",
 ): BillJourney {
+  // A resolution is agreed to, not passed: that is how the record says it.
+  const resolution = ["hres", "sres", "hconres", "sconres"].includes(billType.toLowerCase());
   const dated = actions
     .filter((a): a is JourneyAction & { actionDate: string } => Boolean(a.actionDate))
     .sort((a, b) => (a.actionDate < b.actionDate ? -1 : a.actionDate > b.actionDate ? 1 : 0));
@@ -169,17 +181,26 @@ export function buildJourney(
     if (chamber && once(`passed:${chamber}`)) {
       // The tally is often on a sibling action from another source system the
       // same day ("On passage Passed by the Yeas and Nays: 366 - 57").
-      const sameDay = dated.filter((s) => s.actionDate === a.actionDate);
-      const withTally = [a, ...sameDay].find(
-        (s) => (passedChamber(s) === chamber || /on passage/i.test(s.text)) && parseTally(s.text),
+      // Only siblings about the passage itself: a discharge or an amendment the
+      // same day ("… discharged by Unanimous Consent", "On agreeing to the
+      // amendment … by voice vote") says nothing about how the bill passed.
+      const aboutPassage = dated.filter(
+        (s) =>
+          s.actionDate === a.actionDate &&
+          (passedChamber(s) === chamber || PASSAGE_VOTE.test(s.text)),
       );
+      const withTally = [a, ...aboutPassage].find((s) => parseTally(s.text));
       const tally = withTally ? parseTally(withTally.text) : null;
-      const how = tally ? undefined : sameDay.map((s) => parseHow(s.text)).find(Boolean);
+      const how = tally
+        ? undefined
+        : parseHow(a.text) ?? aboutPassage.map((s) => parseHow(s.text)).find(Boolean);
       events.push({
         date: a.actionDate,
         kind: "passed",
         chamber,
-        label: `Passed the ${CHAMBER_NAME[chamber]}`,
+        label: resolution
+          ? `Agreed to in the ${CHAMBER_NAME[chamber]}`
+          : `Passed the ${CHAMBER_NAME[chamber]}`,
         ...(tally ?? {}),
         ...(how ? { how } : {}),
       });

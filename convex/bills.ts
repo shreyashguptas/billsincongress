@@ -193,7 +193,7 @@ export const getJourney = query({
     const journey =
       actions.length > MAX_JOURNEY_ACTIONS
         ? null
-        : buildJourney(actions, bill.introducedDate);
+        : buildJourney(actions, bill.introducedDate, bill.billType);
 
     let peers: {
       policyArea: string;
