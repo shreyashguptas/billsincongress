@@ -150,8 +150,14 @@ function midSentence(text: string): string {
   return text.replace(/^./, (ch) => ch.toLowerCase());
 }
 
-/** "was in committee". */
-function wasStage(stage: number, billTypeLabel: string): string {
+/**
+ * "was in committee", or null when the earlier stage is one the site would call
+ * "Unknown" (off the measure's road, or an unrecognised code): "was status
+ * updated" says nothing about the past, so the email leaves the clause out, as
+ * it does when there is no earlier stage at all.
+ */
+function wasStage(stage: number | undefined, billTypeLabel: string): string | null {
+  if (stage === undefined || measureStageLabel(stage, billTypeLabel) === "Unknown") return null;
   return `was ${midSentence(stageName(stage, billTypeLabel))}`;
 }
 
@@ -256,11 +262,10 @@ function renderBillHtml(change: BillChange, links: DigestLinks): string {
   // three- or four-step track, not three of seven. A bill with only a new
   // action stays neutral.
   const type = change.billTypeLabel;
+  const was = change.stageChange ? wasStage(change.stageChange.from, type) : null;
   const stage = change.stageChange
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 6px;"><tr><td style="padding:0 10px 8px 0;">${pill(stageName(change.stageChange.to, type), stageColours(change.stageChange.to, type))}</td>${
-        change.stageChange.from !== undefined
-          ? `<td style="padding:0 0 8px;font:13px/1.3 ${SANS};color:${C.muted};">${escapeHtml(wasStage(change.stageChange.from, type))}</td>`
-          : ""
+        was ? `<td style="padding:0 0 8px;font:13px/1.3 ${SANS};color:${C.muted};">${escapeHtml(was)}</td>` : ""
       }</tr></table>
   <div style="margin:0 0 16px;">${stageTrack(change.stageChange.to, type)}</div>`
     : `<p style="margin:0 0 12px;"><span style="display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid ${C.rule};font:600 12px/1.3 ${SANS};color:${C.muted};">New action</span></p>`;
@@ -292,12 +297,8 @@ function renderBillHtml(change: BillChange, links: DigestLinks): string {
 function renderBillText(change: BillChange, links: DigestLinks): string {
   const lines = [`${billLabel(change)} (${formatCongressOrdinal(change.congress)} Congress)`, change.title];
   if (change.stageChange) {
-    lines.push(
-      `Now: ${stageName(change.stageChange.to, change.billTypeLabel)}` +
-        (change.stageChange.from !== undefined
-          ? ` (was ${midSentence(stageName(change.stageChange.from, change.billTypeLabel))})`
-          : ""),
-    );
+    const was = wasStage(change.stageChange.from, change.billTypeLabel);
+    lines.push(`Now: ${stageName(change.stageChange.to, change.billTypeLabel)}` + (was ? ` (${was})` : ""));
   }
   const shown = [...change.newActions].reverse().slice(0, MAX_ACTIONS_PER_BILL);
   for (const a of shown) lines.push(`  ${formatActionDate(a.actionDate)}  ${a.text}`);

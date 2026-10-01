@@ -176,6 +176,13 @@ it("an adopted concurrent resolution is agreed to by both chambers, on four step
   assert.deepEqual(trackCells(email.bodyHtml), [true, true, true, true]);
 });
 
+it("an earlier stage off the resolution's road is left out, not 'was status updated'", () => {
+  const email = renderDigestEmail([hres({ stageChange: { from: 90, to: 60 } })], links, new Date("2026-09-24T11:00:00Z"));
+  assert.ok(email.bodyHtml.includes("Agreed to by the House"));
+  assert.ok(!/was status updated/i.test(email.bodyHtml));
+  assert.ok(email.text.includes("Now: Agreed to by the House\n"));
+});
+
 it("a bill keeps the seven-step road to law", () => {
   const email = renderDigestEmail([change({ stageChange: { from: 40, to: 60 } })], links, new Date("2026-09-24T11:00:00Z"));
   assert.ok(email.bodyHtml.includes("Passed one chamber"));

@@ -285,6 +285,14 @@ it("billNoun names each legislation type", () => {
   assert.equal(billNoun("sconres"), "concurrent resolution");
 });
 
+it("billNoun reads a printed type as its code", () => {
+  // The in-answer card has only "H.Res. 77"; it used to say "Open this bill".
+  assert.equal(billNoun("H.Res."), "resolution");
+  assert.equal(billNoun("S.Con.Res."), "concurrent resolution");
+  assert.equal(billNoun("H.J.Res."), "joint resolution");
+  assert.equal(billNoun("H.R."), "bill");
+});
+
 it("billNoun falls back to bill for missing or unknown types", () => {
   // The chrome must render something sane rather than throw or print "undefined".
   assert.equal(billNoun(undefined), "bill");

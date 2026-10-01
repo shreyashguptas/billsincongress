@@ -5,6 +5,7 @@ import { analytics } from '@/lib/analytics';
 import { CompactBillCard } from '@/components/bills/bill-card';
 import type { AnswerBlock } from '@/lib/answer-entities';
 import { billTypeOfLabel } from '@/lib/utils/bill-stages';
+import { billNoun } from '@/lib/seo';
 
 /** The per-bill display projection the server echoes back on `done`. */
 export type EntityDisplay = Record<string, Record<string, unknown>>;
@@ -46,6 +47,7 @@ export function EntityBlock({
         {block.refs.map((ref, i) => {
           const d = entities?.[`bills:${ref.id}`];
           const sponsor = str(d?.sponsor);
+          const billType = billTypeOfLabel(str(d?.label));
           return (
             <CompactBillCard
               key={ref.id}
@@ -55,7 +57,8 @@ export function EntityBlock({
               sponsorLastName={sponsor ? sponsor.split(' ').slice(-1)[0] : undefined}
               sponsorParty={str(d?.sponsorParty)}
               stage={typeof d?.progressStage === 'number' ? d.progressStage : undefined}
-              billType={billTypeOfLabel(str(d?.label))}
+              billType={billType}
+              noun={billNoun(billType)}
               onClick={() => track(i + 1, ref.id)}
             />
           );

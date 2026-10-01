@@ -58,9 +58,9 @@ export function CompactBillCard({
   billType?: string | null;
   onClick?: () => void;
   /**
-   * What to call this in the no-title fallback below. Defaults to "bill"
-   * because the in-answer entity cards carry a display projection that has no
-   * bill_type to derive it from; BillCard passes the real noun.
+   * What to call this in the no-title fallback below. Defaults to "bill" when
+   * the type is unknown. BillCard passes the noun for its bill_type; the
+   * in-answer card passes the one for the type read off its printed number.
    */
   noun?: string;
 }) {
