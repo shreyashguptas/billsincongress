@@ -184,7 +184,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
-| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
+| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also offers "Change password" (password accounts only), and shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
@@ -1010,7 +1010,14 @@ The reader enters an email; the page runs the Password provider's `reset` flow, 
 bucket as sign-up codes: five an hour per address). The reader then enters the code and a new
 password (`reset-verification`); the library checks the code, stores the new hash, signs the
 reader in and signs out every other session on the account, then sends them to `?redirect=`
-(carried over from `/sign-in`) or `/account`. Like sign-up, the request step
+(carried over from `/sign-in`) or `/account`.
+
+A signed-in reader changes their password from **"Change password"** on `/account`
+(`components/account/change-password-button.tsx`): the same form in a dialog, fixed to their own
+address, so the emailed code stands in for the old password and a reader who has forgotten it
+can still change it. The button shows only when `api.users.currentUser` reports `hasPassword`
+(an `authAccounts` row with provider `password`); a Google-only account has no password to
+change. Like sign-up, the request step
 advances even when the server refuses — an address with no password account (a Google-only
 account included) throws and one with an account does not — and every failed code gets the
 same message. The "Forgot password?" link no longer carries the typed email in its URL, so

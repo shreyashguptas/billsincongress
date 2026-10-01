@@ -327,9 +327,10 @@ export default function PrivacyPage() {
         <p>
           You can read everything on this site without an account. You
           can block or clear cookies at any time — the site keeps working
-          (you would be signed out, and analytics simply stops). If you
-          forget your password, the &ldquo;Forgot password?&rdquo; link on
-          the sign-in page emails you a code to set a new one.
+          (you would be signed out, and analytics simply stops). To change
+          or reset your password, use &ldquo;Change password&rdquo; on your
+          account page or &ldquo;Forgot password?&rdquo; on the sign-in page;
+          either emails you a code to set a new one.
         </p>
         <p>
           To delete your account — along with your profile photo, saved

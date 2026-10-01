@@ -7,9 +7,10 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { ConvexError } from "convex/values";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { analytics } from "@/lib/analytics";
+import { analytics, type PasswordResetSurface } from "@/lib/analytics";
 import { FormError } from "./auth-card";
 import { PASSWORD_RULES, validatePassword } from "./password-rules";
 import { safeRedirect, withRedirect } from "./safe-redirect";
@@ -24,15 +25,27 @@ const SECONDARY_ACTION = "rounded-xs font-normal text-ink-2 hover:text-ink";
  * Runs the Password provider's "reset" and "reset-verification" flows
  * (convex/auth.ts, convex/emailCodes.ts). A successful reset signs the reader
  * in here and signs out every other session on the account.
+ *
+ * Two homes. On /forgot-password a signed-out reader types an email, and the
+ * form never reveals whether it has an account. On /account ("Change
+ * password") `accountEmail` is the signed-in reader's own address: there is
+ * no email field, and `onChanged` runs instead of the redirect.
  */
-export function ResetPasswordForm() {
+export function ResetPasswordForm({
+  accountEmail,
+  onChanged,
+}: {
+  accountEmail?: string;
+  onChanged?: () => void;
+} = {}) {
   const { signIn } = useAuthActions();
   const router = useRouter();
   const params = useSearchParams();
   const redirect = safeRedirect(params.get("redirect"));
+  const surface: PasswordResetSurface = accountEmail ? "account" : "forgot_password";
 
   const [step, setStep] = React.useState<Step>("request");
-  const [email, setEmail] = React.useState("");
+  const [email, setEmail] = React.useState(accountEmail ?? "");
   const [code, setCode] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -54,7 +67,7 @@ export function ResetPasswordForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    analytics.passwordResetRequested();
+    analytics.passwordResetRequested(surface);
     const normalizedEmail = email.trim().toLowerCase();
     setEmail(normalizedEmail);
     await requestCode(normalizedEmail);
@@ -72,7 +85,7 @@ export function ResetPasswordForm() {
     }
     setBusy(true);
     setError(null);
-    analytics.passwordResetSubmitted();
+    analytics.passwordResetSubmitted(surface);
     try {
       await signIn("password", {
         email,
@@ -80,18 +93,19 @@ export function ResetPasswordForm() {
         newPassword: password,
         flow: "reset-verification",
       });
-      analytics.passwordResetCompleted();
-      router.push(redirect);
+      analytics.passwordResetCompleted(surface);
+      if (onChanged) onChanged();
+      else router.push(redirect);
     } catch (err) {
       console.warn("Password reset failed", err);
       // The server's password rules throw a ConvexError carrying the reason;
       // everything else (wrong or expired code, too many tries, no account)
       // gets the one message, so it too reveals nothing about the address.
       if (err instanceof ConvexError && typeof err.data === "string") {
-        analytics.passwordResetFailed("password_requirements");
+        analytics.passwordResetFailed(surface, "password_requirements");
         setError(err.data);
       } else {
-        analytics.passwordResetFailed("invalid_code");
+        analytics.passwordResetFailed(surface, "invalid_code");
         setError("That code didn't work or has expired. Check your email, or send a new code.");
       }
       setBusy(false);
@@ -101,7 +115,7 @@ export function ResetPasswordForm() {
   async function onResend() {
     setBusy(true);
     setError(null);
-    analytics.passwordResetCodeResent();
+    analytics.passwordResetCodeResent(surface);
     await requestCode(email);
     setResent(true);
     setBusy(false);
@@ -111,8 +125,15 @@ export function ResetPasswordForm() {
     return (
       <div className="space-y-6">
         <p className="text-[15px] leading-relaxed text-ink-2">
-          If <span className="font-medium text-ink">{email}</span> has an account with a
-          password, we sent it a 6-digit code. It expires in 15 minutes.
+          {accountEmail ? (
+            <>We sent a 6-digit code to <span className="font-medium text-ink">{email}</span>.</>
+          ) : (
+            <>
+              If <span className="font-medium text-ink">{email}</span> has an account with a
+              password, we sent it a 6-digit code.
+            </>
+          )}{" "}
+          It expires in 15 minutes.
         </p>
         <form method="post" onSubmit={onResetSubmit} className="space-y-5">
           {/* Tells a password manager which account the new password belongs to. */}
@@ -155,28 +176,31 @@ export function ResetPasswordForm() {
           {error && <FormError>{error}</FormError>}
           {resent && !error && (
             <p role="status" className="text-[13px] leading-snug text-ink-3">
-              If the address has an account, a new code is on its way. Up to five codes an hour.
+              {accountEmail ? "A new code is on its way." : "If the address has an account, a new code is on its way."}{" "}
+              Up to five codes an hour.
             </p>
           )}
           <Button type="submit" size="lg" className="w-full" disabled={busy || code.length !== 6}>
             {busy ? "Resetting…" : "Set new password"}
           </Button>
         </form>
-        <div className="flex items-center justify-between text-sm">
-          <Button
-            type="button"
-            variant="link"
-            onClick={() => {
-              setStep("request");
-              setCode("");
-              setPassword("");
-              setError(null);
-            }}
-            className={SECONDARY_ACTION}
-            disabled={busy}
-          >
-            ← Use a different email
-          </Button>
+        <div className={cn("flex items-center text-sm", accountEmail ? "justify-end" : "justify-between")}>
+          {!accountEmail && (
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => {
+                setStep("request");
+                setCode("");
+                setPassword("");
+                setError(null);
+              }}
+              className={SECONDARY_ACTION}
+              disabled={busy}
+            >
+              ← Use a different email
+            </Button>
+          )}
           <Button
             type="button"
             variant="link"
@@ -188,6 +212,20 @@ export function ResetPasswordForm() {
           </Button>
         </div>
       </div>
+    );
+  }
+
+  if (accountEmail) {
+    return (
+      <form method="post" onSubmit={onRequestSubmit} className="space-y-5">
+        <p className="text-[15px] leading-relaxed text-ink-2">
+          We&apos;ll email a 6-digit code to <span className="font-medium text-ink">{email}</span>. Enter
+          it with your new password. Every other device signed in to this account will be signed out.
+        </p>
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
+          {busy ? "Sending…" : "Email me a code"}
+        </Button>
+      </form>
     );
   }
 
