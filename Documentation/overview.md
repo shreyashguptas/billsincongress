@@ -623,9 +623,11 @@ Replaces the per-bill chat panel, which was removed on 26 August 2026.
 
 ```
 components/answers/answer-provider.tsx      one provider, mounted in app/layout.tsx
-  └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId
+  └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId;
+       │                                 headers carry the PostHog session + distinct id
        └─ app/api/answer/route.ts           attaches the httpOnly auth cookie and the
-            │                                anonymous session cookie, and injects an SSE
+            │                                anonymous session cookie, forwards the two PostHog
+            │                                ids in the body, and injects an SSE
             │                                keep-alive comment while the loop runs silent
             │                                so an idle timeout cannot reap a long answer
             └─ POST {CONVEX_SITE_URL}/answer/stream     (convex/http.ts → answer.stream)
@@ -641,9 +643,18 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │                           still empty → `error` frame (empty_model_output)
                  ├─ deliberation stripped → convex/catalog/answerSanitize.ts
                  ├─ citation resolution → convex/catalog/cite.ts
-                 └─ SSE frames back: work · delta · done · rate_limited · error
-                      (the proxy adds `: keep-alive` comments between them)
+                 ├─ SSE frames back: work · delta · done · rate_limited · error
+                 │    (the proxy adds `: keep-alive` comments between them)
+                 └─ one log line to PostHog Logs, scheduled, never awaited
+                      (convex/posthogLogs.ts — "answer served" or "answer failed")
 ```
+
+The log line is how a failed or degraded answer is found and watched: it carries the
+reader's PostHog session id, so PostHog opens their session replay at that second, and the
+answer's `trace_id`, which opens its AI trace (see **Record** below). It never carries the
+question; the trace does. Every attribute on it is listed under "PostHog Logs" in
+`Documentation/ANALYTICS.md`. We send it from our own code because Convex's built-in log
+streaming needs its Professional plan, and we are on pay-as-you-go.
 
 The panel is mounted in the root layout as a **sibling** of the page content, never inside
 it, so a conversation survives client-side navigation. Prose is emitted only *after* citations
@@ -1652,7 +1663,7 @@ only in an untracked local `.env` and is deliberately **not** a GitHub secret.
 ### Convex deployment side
 
 Set with `npx convex env set --prod`. Ten are configured in production; the Pro rows below
-are new and not yet set anywhere.
+and `POSTHOG_KEY` are new and not yet set anywhere.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -1674,7 +1685,7 @@ are new and not yet set anywhere.
 | `POSTHOG_EMAIL_BILLING_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: billing" workflow | Plan-change emails fail and are logged; the plan itself is still recorded |
 | `ALERTS_UNSUBSCRIBE_SECRET` | Signs unsubscribe tokens | Digest sends fail rather than mail without a working unsubscribe link |
 | `ALERT_EMAILS_LIVE` | `true` lets alert email reach real addresses | Every alert send is logged and skipped |
-| `POSTHOG_KEY` | The PostHog **project** token (`phc_…`, the same public value as `NEXT_PUBLIC_POSTHOG_KEY`), used to record each answer as an AI trace (`convex/aiTrace.ts`) | Nothing is recorded; answers are unaffected |
+| `POSTHOG_KEY` | The PostHog **project** token (`phc_…`, the same public value as `NEXT_PUBLIC_POSTHOG_KEY`), used to record each answer as an AI trace (`convex/aiTrace.ts`) and as one PostHog Logs line (`convex/posthogLogs.ts`) | Nothing is recorded; answers are unaffected |
 | `POSTHOG_HOST` | PostHog ingestion host, `https://` only | `https://us.i.posthog.com` |
 
 > `CONGRESS_API_KEY` and the `OPENROUTER_*` variables are read by **Convex server code**.

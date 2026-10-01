@@ -22,6 +22,7 @@ import { payloadFor, workLogLabel } from "./catalog/completeness";
 import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
+import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import type { Id } from "./_generated/dataModel";
 
@@ -340,6 +341,21 @@ async function searchWeb(
       excerpt: (a.url_citation?.content ?? a.content ?? "").slice(0, 500),
     }))
     .filter((s: WebSource) => s.url !== "");
+}
+
+/**
+ * What kind of failure, as a fixed label — never the message. OpenRouter's
+ * error bodies can quote the prompt (its moderation 403 returns
+ * `flagged_input`), and the prompt is the reader's question, which must never
+ * reach a log line. The full message still goes to console.error.
+ */
+export function errorKind(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  const status = /^OpenRouter (\d{3})\b/.exec(message);
+  if (status) return `openrouter_${status[1]}`;
+  if (message.startsWith("OpenRouter error:")) return "openrouter_error_payload";
+  if (error instanceof Error && /^\w{1,40}$/.test(error.name)) return error.name;
+  return "unknown";
 }
 
 /**
@@ -813,10 +829,36 @@ export const stream = httpAction(async (ctx, request) => {
   const userId = await getAuthUserId(ctx);
   const anonymousSessionId =
     typeof body.anonymousSessionId === "string" ? body.anonymousSessionId : null;
+  const pageContext = readContext(body.context, body.focusBillId);
+
   // One trace per question, sent to PostHog before the stream closes. The id
   // also goes to the browser on `done`, so the reader's "Was this answer
   // right?" joins the trace it rates.
-  const trace = new AnswerTrace({ identity: readTraceIdentity(body.posthog) });
+  const identity = readTraceIdentity(body.posthog);
+  const trace = new AnswerTrace({ identity });
+
+  // One line per answer to PostHog Logs (convex/posthogLogs.ts), on the same
+  // ids as the trace: `sessionId` opens the reader's replay, `trace_id` opens
+  // the trace. The question text is never on it. Written once per question.
+  let logged = false;
+  const logAnswer = async (level: LogLevel, message: string, attributes: LogAttributes) => {
+    if (logged) return;
+    logged = true;
+    await scheduleLog(ctx, {
+      level,
+      message,
+      timestampMs: Date.now(),
+      attributes: {
+        ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
+        ...(identity.distinctId ? { posthogDistinctId: identity.distinctId } : {}),
+        trace_id: trace.traceId,
+        signed_in: userId !== null,
+        page: pageContext?.route ?? "unknown",
+        ...(pageContext?.billId ? { bill_id: pageContext.billId } : {}),
+        ...attributes,
+      },
+    });
+  };
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -860,10 +902,11 @@ export const stream = httpAction(async (ctx, request) => {
         return;
       }
 
+      const startedAt = Date.now();
       try {
         const result = await runLoop(ctx, {
           question,
-          pageContext: readContext(body.context, body.focusBillId),
+          pageContext,
           scope:
             body.scope && typeof body.scope.dataset === "string"
               ? (body.scope as AnswerScope)
@@ -892,10 +935,31 @@ export const stream = httpAction(async (ctx, request) => {
           const message =
             result.error === EMPTY_MODEL_OUTPUT ? EMPTY_MODEL_OUTPUT_MESSAGE : result.error;
           send("error", { message, reason: result.error, traceId: trace.traceId });
+          await logAnswer("error", "answer failed", {
+            duration_ms: Date.now() - startedAt,
+            lookups: result.workLog.length,
+            reason: result.error,
+          });
           await trace.flush();
           controller.close();
           return;
         }
+        // Logged as soon as the answer exists, like the trace: a write to the
+        // reader that fails after this is not a second outcome for it.
+        // WARN is every way an answer reached the reader worse than it should
+        // have: cut short, cut off, or with citations deleted because the model
+        // cited rows it was never given.
+        const degraded =
+          result.partial || (result.truncatedByLength ?? false) || result.dropped > 0;
+        await logAnswer(degraded ? "warn" : "info", "answer served", {
+          duration_ms: Date.now() - startedAt,
+          lookups: result.workLog.length,
+          partial: result.partial,
+          truncated: result.truncatedByLength ?? false,
+          dropped_citations: result.dropped,
+          used_web: result.webSources.length > 0,
+          asked_reader: result.askedReader ?? false,
+        });
         // Citations resolve only once the whole answer exists, so text is
         // emitted after resolution, chunked — never token-by-token.
         for (const chunk of result.text.match(/[\s\S]{1,60}/g) ?? []) {
@@ -943,12 +1007,17 @@ export const stream = httpAction(async (ctx, request) => {
           chatId: savedChatId ?? null,
           traceId: trace.traceId,
         });
+
       } catch (error) {
         console.error("answer stream failed:", error);
         // A no-op when the turn was already recorded: a write that fails after
         // the answer exists (the reader closed the panel mid-stream) is not a
-        // second outcome for it.
+        // second outcome for it. The same holds for the log line (`logged`).
         trace.finish({ question, error: String(error), outcome: "failed" });
+        await logAnswer("error", "answer failed", {
+          duration_ms: Date.now() - startedAt,
+          error_kind: errorKind(error),
+        });
         try {
           send("error", { message: "Failed to get a response.", traceId: trace.traceId });
         } catch {

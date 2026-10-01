@@ -54,9 +54,10 @@ export async function POST(request: Request) {
       history: body.history,
       chatId: body.chatId,
       anonymousSessionId,
-      // Who the browser's PostHog thinks this is, so the answer's trace joins
-      // the reader's person and session replay (convex/aiTrace.ts). Headers
-      // in, body out: the Convex side reads one JSON body. Re-validated there.
+      // Who the browser's PostHog thinks this is, so the answer's trace and its
+      // log line join the reader's person and session replay (convex/aiTrace.ts,
+      // convex/posthogLogs.ts). Headers in, body out: the Convex side reads one
+      // JSON body. Re-validated there.
       posthog: {
         distinctId: request.headers.get(POSTHOG_DISTINCT_ID_HEADER) ?? undefined,
         sessionId: request.headers.get(POSTHOG_SESSION_ID_HEADER) ?? undefined,
