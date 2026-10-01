@@ -54,7 +54,14 @@ const code = readFileSync(join(root, 'lib/analytics.ts'), 'utf8');
  * event-name literal for `capturedEvents()` to find — not because nothing
  * client-side sends it.
  */
-const SERVER_SIDE = new Set(['bill_chat_message_processed', '$exception']);
+const SERVER_SIDE = new Set([
+  'bill_chat_message_processed',
+  '$exception',
+  // AI Observability events, sent from Convex by convex/aiTrace.ts.
+  '$ai_generation',
+  '$ai_span',
+  '$ai_trace',
+]);
 
 /** PostHog's own autocapture events, documented but never sent by us. */
 const AUTOCAPTURED = new Set(['$pageview', '$pageleave', '$autocapture', '$rageclick']);

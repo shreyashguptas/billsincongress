@@ -14,6 +14,8 @@ import { useAnswerReveal } from './use-answer-reveal';
 import { SourceList } from './source-list';
 import { WorkLog } from './work-log';
 import { EntityBlock } from './entity-block';
+import { AnswerCheck } from './answer-check';
+import { canRate } from '@/lib/answer-rating';
 
 /** How close to the bottom still counts as "following along". */
 const PINNED_PX = 72;
@@ -116,6 +118,7 @@ function AssistantTurn({
   // The answer arrives whole, once its citations are checked; it is paced back
   // out word by word here (lib/answer-reveal.ts). Entity cards are held until
   // the reveal reaches them, so they arrive in reading order.
+  const { rate } = useAnswers();
   const { visible, live, settledBefore, complete } = useAnswerReveal(
     turn.id,
     turn.content,
@@ -162,6 +165,16 @@ function AssistantTurn({
           webReason={turn.webReason}
           webSources={turn.webSources}
           className={live ? 'animate-rise-in' : undefined}
+        />
+      )}
+      {/* Waits for the last word, like the sources: asking whether an answer
+          was right before the reader has seen all of it would be asking them
+          to guess. */}
+      {complete && canRate(turn) && (
+        <AnswerCheck
+          rating={turn.rating}
+          onRate={(verdict) => rate(turn.id, verdict)}
+          className={cn('pt-1', live && 'animate-rise-in')}
         />
       )}
     </div>
