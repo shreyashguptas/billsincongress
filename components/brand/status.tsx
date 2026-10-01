@@ -13,7 +13,7 @@ import {
 /**
  * A bill's stage, drawn the same way everywhere (Documentation/brand.md,
  * "StatusPill" and "StageTrack"). Colour is never the only signal: the pill
- * always carries the word, the track always carries "Stage n of 7".
+ * always carries the word, the track always carries "Stage n of N".
  *
  * Each takes the measure's `billType` where it has one, so a resolution is drawn
  * on its own shorter road ("The road a measure travels"). Without it they draw

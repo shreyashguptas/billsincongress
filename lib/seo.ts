@@ -1,5 +1,5 @@
 import type { Bill } from '@/lib/types/bill';
-import { measureStageLabel, stagePath } from '@/lib/utils/bill-stages';
+import { isStageOnPath, isValidStage, measureStageLabel, stagePath } from '@/lib/utils/bill-stages';
 import { formatCongressOrdinal } from '@/lib/congress';
 
 export const SITE_URL = 'https://billsincongress.com';
@@ -118,7 +118,7 @@ const STAGE_PHRASES: Record<number, string> = {
  * A status for the middle of a sentence: "agreed to by the House", not "agreed
  * to by the house". Only the first letter drops; proper nouns keep theirs.
  */
-function lowerFirst(text: string): string {
+export function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
 
@@ -130,7 +130,15 @@ export function billStatusPhrase(bill: Bill): string {
   // A resolution is "agreed to", and finished there; "passed one chamber" in
   // the title and the share preview read as half-way to law. Same words as
   // its status panel (Documentation/brand.md, "The road a measure travels").
-  if (stagePath(bill.bill_type) !== 'law') return measureStageLabel(stage, bill.bill_type);
+  if (stagePath(bill.bill_type) !== 'law') {
+    if (isStageOnPath(stage, bill.bill_type)) return measureStageLabel(stage, bill.bill_type);
+    // A code we do not know yet falls back to the backend's own words, as a
+    // bill's does: "Unknown" in a search title reads as a site that does not know.
+    // A known code off the road (a resolution "to President") keeps "Unknown":
+    // its stored description would name a step a resolution cannot reach.
+    if (!isValidStage(stage)) return bill.progress_description ?? 'Introduced';
+    return measureStageLabel(stage, bill.bill_type);
+  }
   return STAGE_PHRASES[stage] ?? bill.progress_description ?? 'Introduced';
 }
 

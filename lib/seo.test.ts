@@ -114,6 +114,17 @@ it("an adopted resolution is 'agreed to', and the chamber keeps its capital", ()
   assert.match(billSeoDescription(res), /Status: agreed to by the House\./);
 });
 
+it("a resolution with a stage code we do not know keeps the backend's words, not 'Unknown'", () => {
+  const res = bareBill({ bill_type: "hres", bill_type_label: "H.Res.", progress_stage: 55, progress_description: "Reported by Committee" });
+  assert.equal(billStatusPhrase(res), "Reported by Committee");
+  assert.doesNotMatch(billSeoTitle(res), /Unknown/);
+});
+
+it("a resolution stored at a President stage never says it went to the President", () => {
+  const res = bareBill({ bill_type: "hres", bill_type_label: "H.Res.", progress_stage: 90, progress_description: "To President" });
+  assert.doesNotMatch(billStatusPhrase(res), /President/);
+});
+
 it("an unknown stage falls back to the backend's own description", () => {
   const bill = bareBill({ progress_stage: 55, progress_description: "Reported by Committee" });
   assert.equal(billStatusPhrase(bill), "Reported by Committee");

@@ -16,6 +16,7 @@ import {
   congressOrdinal,
   congressGovUrl,
   legislationTypeLabel,
+  lowerFirst,
   truncateAtWord,
 } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/json-ld';
@@ -89,9 +90,6 @@ function billJsonLd(bill: Bill, id: string): object {
     ],
   };
 }
-
-/** "Became law" → "became law", keeping "the President" capitalised. */
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 interface PageProps {
   params: Promise<{ id: string }>;
