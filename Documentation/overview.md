@@ -1077,7 +1077,9 @@ A signed-in reader changes their password from **"Change password"** on `/accoun
 address, so the emailed code stands in for the old password and a reader who has forgotten it
 can still change it. The button shows only when `api.users.currentUser` reports `hasPassword`
 (an `authAccounts` row with provider `password`); a Google-only account has no password to
-change. Like sign-up, the request step
+change. Unlike `/forgot-password`, the dialog says when a code could not be sent (the
+five-an-hour limit, or a failed request): the address is the reader's own, so there is nothing
+to hide. Like sign-up, the request step
 advances even when the server refuses — an address with no password account (a Google-only
 account included) throws and one with an account does not — and every failed code gets the
 same message. The "Forgot password?" link no longer carries the typed email in its URL, so

@@ -124,7 +124,10 @@ export const analytics = {
   passwordResetCodeResent: (surface: PasswordResetSurface) => capture('password_reset_code_resent', { surface }),
   passwordResetSubmitted: (surface: PasswordResetSurface) => capture('password_reset_submitted', { surface }),
   passwordResetCompleted: (surface: PasswordResetSurface) => capture('password_reset_completed', { surface }),
-  passwordResetFailed: (surface: PasswordResetSurface, reason: 'password_requirements' | 'invalid_code') =>
+  passwordResetFailed: (
+    surface: PasswordResetSurface,
+    reason: 'password_requirements' | 'invalid_code' | 'code_not_sent',
+  ) =>
     capture('password_reset_failed', { surface, reason }),
 
   authGoogleClicked: (intent: AuthIntent) => capture('auth_google_clicked', { intent }),

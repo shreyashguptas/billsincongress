@@ -52,15 +52,34 @@ export function ResetPasswordForm({
   const [error, setError] = React.useState<string | null>(null);
   const [resent, setResent] = React.useState(false);
 
-  async function requestCode(address: string) {
+  /**
+   * Asks for a code. Returns why it was not sent, or null. On /forgot-password
+   * the caller ignores that and advances anyway: an email with no password
+   * account throws here and one with an account does not, so showing the
+   * error would tell anyone which addresses are registered (same as sign-up).
+   * On /account the address is the reader's own, so there is nothing to hide
+   * and a failed send is shown rather than leaving them waiting for an email.
+   */
+  async function requestCode(address: string): Promise<string | null> {
     try {
       await signIn("password", { email: address, flow: "reset" });
+      return null;
     } catch (err) {
-      // Advance whatever went wrong. An email with no password account
-      // throws here and one with an account does not, so showing the error
-      // would tell anyone which addresses are registered (same as sign-up).
       console.warn("Password reset request failed", err);
+      const data = err instanceof ConvexError ? err.data : null;
+      if (data && typeof data === "object" && (data as { kind?: unknown }).kind === "RateLimited") {
+        return "That's five codes this hour, the most we send. Try again later.";
+      }
+      return "We couldn't send the code. Try again in a moment.";
     }
+  }
+
+  /** On /account only: show why the code was not sent. True when it was. */
+  function codeSent(failure: string | null): boolean {
+    if (!accountEmail || !failure) return true;
+    analytics.passwordResetFailed(surface, "code_not_sent");
+    setError(failure);
+    return false;
   }
 
   async function onRequestSubmit(e: React.FormEvent) {
@@ -70,9 +89,10 @@ export function ResetPasswordForm({
     analytics.passwordResetRequested(surface);
     const normalizedEmail = email.trim().toLowerCase();
     setEmail(normalizedEmail);
-    await requestCode(normalizedEmail);
-    setResent(false);
-    setStep("reset");
+    if (codeSent(await requestCode(normalizedEmail))) {
+      setResent(false);
+      setStep("reset");
+    }
     setBusy(false);
   }
 
@@ -116,8 +136,7 @@ export function ResetPasswordForm({
     setBusy(true);
     setError(null);
     analytics.passwordResetCodeResent(surface);
-    await requestCode(email);
-    setResent(true);
+    if (codeSent(await requestCode(email))) setResent(true);
     setBusy(false);
   }
 
@@ -222,6 +241,7 @@ export function ResetPasswordForm({
           We&apos;ll email a 6-digit code to <span className="font-medium text-ink">{email}</span>. Enter
           it with your new password. Every other device signed in to this account will be signed out.
         </p>
+        {error && <FormError>{error}</FormError>}
         <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? "Sending…" : "Email me a code"}
         </Button>
