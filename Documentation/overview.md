@@ -184,7 +184,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
-| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
+| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also offers "Change password" (password accounts only), and shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
@@ -1131,10 +1131,28 @@ Deliberate hardening worth preserving:
   same-origin paths, plus `localhost:3000` / `127.0.0.1:3000` for local development).
 - No public function takes a `userId` — enforced by a guard on every test run.
 
-**Not built (UI only):** the password-reset *back end* is wired — `convex/auth.ts` passes
-`reset: PasswordResetCode` (`convex/emailCodes.ts`), which emails a 6-digit reset code on the same rate-limit
-bucket — but no page ever starts the flow, so `/forgot-password` is a static "coming soon"
-page asking people to email. Self-serve account deletion does not exist at all; deletion is
+**Password reset** is self-serve on `/forgot-password` (`components/auth/reset-password-form.tsx`).
+The reader enters an email; the page runs the Password provider's `reset` flow, which emails a
+6-digit code (`PasswordResetCode` in `convex/emailCodes.ts`, on the same `otpRequestPerEmail`
+bucket as sign-up codes: five an hour per address). The reader then enters the code and a new
+password (`reset-verification`); the library checks the code, stores the new hash, signs the
+reader in and signs out every other session on the account, then sends them to `?redirect=`
+(carried over from `/sign-in`) or `/account`.
+
+A signed-in reader changes their password from **"Change password"** on `/account`
+(`components/account/change-password-button.tsx`): the same form in a dialog, fixed to their own
+address, so the emailed code stands in for the old password and a reader who has forgotten it
+can still change it. The button shows only when `api.users.currentUser` reports `hasPassword`
+(an `authAccounts` row with provider `password`); a Google-only account has no password to
+change. Unlike `/forgot-password`, the dialog says when a code could not be sent (the
+five-an-hour limit, or a failed request): the address is the reader's own, so there is nothing
+to hide. Like sign-up, the request step
+advances even when the server refuses — an address with no password account (a Google-only
+account included) throws and one with an account does not — and every failed code gets the
+same message. The "Forgot password?" link no longer carries the typed email in its URL, so
+the address does not reach analytics through `$current_url`.
+
+**Not built:** self-serve account deletion does not exist; deletion is
 handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly. Deleting
 an account by hand must also delete its profile photo (`ctx.storage.delete` on
 `avatarStorageId`), or the daily sweep will once the user row is gone.
@@ -1145,8 +1163,7 @@ an account by hand must also delete its profile photo (`ctx.storage.delete` on
 
 Every email goes out through **PostHog Workflows** from `no-reply@mail.billsincongress.com`.
 Three workflows, one per kind of email, all sharing that sender and one webhook secret: **sign-in
-codes** (sign-up codes today; the password-reset code is wired and rendered the same way, but
-nothing sends it until a page starts the reset flow — see "Not built" above), **bill alerts** (Pro digests; see "How alerts
+codes** (sign-up and password-reset codes), **bill alerts** (Pro digests; see "How alerts
 work") and **billing** (Pro plan changes; see "What the reader sees, state by state"). The
 bullets below describe the sign-in codes; alerts and billing work the same way except where
 those sections say otherwise.

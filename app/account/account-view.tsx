@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { StageTrack, StatusPill } from "@/components/brand/status";
 import { AvatarMark, initialsFor, ProPill, SpectrumStrip } from "@/components/brand/pro-mark";
 import { AvatarButton, type AvatarActions, type AvatarSource } from "@/components/account/avatar-button";
+import { ChangePasswordButton } from "@/components/account/change-password-button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,8 @@ export interface AccountUser {
   avatarUrl?: string | null;
   avatarSource?: AvatarSource;
   hasGooglePicture?: boolean;
+  /** Signs in with a password (not Google only), so "Change password" applies. */
+  hasPassword?: boolean;
 }
 
 /**
@@ -189,10 +192,13 @@ export function AccountView({
               </p>
             )}
           </div>
-          <Button variant="outline" onClick={onSignOut} className="self-start sm:self-center">
-            <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            Sign out
-          </Button>
+          <div className="flex flex-wrap gap-2 self-start sm:flex-col sm:items-stretch sm:self-center">
+            {user.hasPassword && user.email && <ChangePasswordButton email={user.email} />}
+            <Button variant="outline" onClick={onSignOut}>
+              <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              Sign out
+            </Button>
+          </div>
         </div>
       </header>
 
