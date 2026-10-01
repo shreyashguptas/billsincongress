@@ -221,6 +221,23 @@ export const billsService = {
     }
   },
 
+  /**
+   * The bill page's journey and peer counts (`bills.getJourney`). Never throws:
+   * the page draws without them rather than failing, which also covers the
+   * window where the site is deployed before Convex has the query.
+   */
+  async fetchBillJourney(id: string): Promise<FunctionReturnType<BillsQueries['getJourney']>> {
+    const client = getConvexHttpClient();
+    if (!client) return null;
+    try {
+      const { api } = await import('../../convex/_generated/api');
+      return await client.query(api.bills.getJourney, { billId: id });
+    } catch (error) {
+      console.error(`fetchBillJourney(${id}) failed:`, error);
+      return null;
+    }
+  },
+
   async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
     const {
       page = 1,

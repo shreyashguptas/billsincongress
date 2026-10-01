@@ -7,6 +7,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
   BILL_STAGES,
+  DEFAULT_STAGE,
   HOUSE_BILL_TYPES,
   SENATE_BILL_TYPES,
 } from "./aggregates";
@@ -668,8 +669,15 @@ export const writeCongressPolicyAreas = internalMutation({
   args: {
     congress: v.number(),
     areas: v.array(
-      v.object({ policyAreaName: v.string(), count: v.number() }),
+      v.object({
+        policyAreaName: v.string(),
+        count: v.number(),
+        stageCounts: v.optional(
+          v.array(v.object({ stage: v.number(), count: v.number() })),
+        ),
+      }),
     ),
+    countedAt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -682,6 +690,8 @@ export const writeCongressPolicyAreas = internalMutation({
         congress: args.congress,
         policyAreaName: area.policyAreaName,
         count: area.count,
+        stageCounts: area.stageCounts,
+        countedAt: args.countedAt,
       });
     }
   },
@@ -722,6 +732,7 @@ type BillPageResult = {
   page: Array<{
     billId: string;
     policyAreaName?: string;
+    progressStage?: number;
     sponsorFirstName?: string;
     sponsorLastName?: string;
     sponsorParty?: string;
@@ -740,7 +751,13 @@ type BillPageResult = {
 export const recomputeCongressPolicyAreas = internalAction({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
+    // Taken BEFORE the scan: a bill written while it runs carries a later
+    // updatedAt, so the bill page treats it as possibly miscounted rather than
+    // ringing a dot that may not be it.
+    const countedAt = new Date().toISOString();
     const counts = new Map<string, number>();
+    // Per topic, per stage — from the same rows as `counts`, so they sum to it.
+    const stages = new Map<string, Map<number, number>>();
     let cursor: string | null = null;
     for (;;) {
       const page: BillPageResult = await ctx.runQuery(
@@ -753,6 +770,10 @@ export const recomputeCongressPolicyAreas = internalAction({
             b.policyAreaName,
             (counts.get(b.policyAreaName) ?? 0) + 1,
           );
+          const stage = b.progressStage ?? DEFAULT_STAGE;
+          const byStage = stages.get(b.policyAreaName) ?? new Map<number, number>();
+          byStage.set(stage, (byStage.get(stage) ?? 0) + 1);
+          stages.set(b.policyAreaName, byStage);
         }
       }
       if (page.isDone) break;
@@ -760,13 +781,20 @@ export const recomputeCongressPolicyAreas = internalAction({
     }
 
     const areas = [...counts.entries()]
-      .map(([policyAreaName, count]) => ({ policyAreaName, count }))
+      .map(([policyAreaName, count]) => ({
+        policyAreaName,
+        count,
+        stageCounts: [...(stages.get(policyAreaName) ?? new Map<number, number>())]
+          .map(([stage, n]) => ({ stage, count: n }))
+          .sort((a, b) => a.stage - b.stage),
+      }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 50);
 
     await ctx.runMutation(internal.mutations.writeCongressPolicyAreas, {
       congress: args.congress,
       areas,
+      countedAt,
     });
   },
 });
