@@ -250,6 +250,8 @@ fires roughly once per settled search.
 |---|---|---|---|
 | `bill_viewed` | Bill detail page rendered (top of the chat funnel) | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage`, `has_summary`, `has_pdf` | `components/bills/bill-details.tsx` |
 | `bill_base_rate_viewed` | Committee base-rate context line shown on a bill detail page (passive, once per bill view) | `bill_id`, `chamber`, `days_in_committee`, `base_rate_percent`, `base_rate_sample` | `components/bills/bill-details.tsx` |
+| `bill_journey_viewed` | The journey (the to-scale stage bar, its chapters and the Congress clock) drawn in a bill page's status panel (passive, once per bill view). `bar_drawn` is false when the bill has spent time in only one stage and the plain track shows instead; `outcome` is `law`, `signed`, `vetoed`, `adopted`, `expired` or `open` | `bill_id`, `progress_stage`, `chapters`, `total_days`, `outcome`, `bar_drawn` | `components/bills/bill-journey.tsx` |
+| `bill_peers_viewed` | The reader scrolled to the "Among its peers" dot field on a bill page (30% of it on screen; once per bill view) | `bill_id`, `policy_area`, `peer_total`, `law_count`, `ring_shown` | `components/bills/bill-peers.tsx` |
 | `bill_pdf_opened` | User clicks "Read full text (PDF)" | `bill_id` | `components/bills/bill-details.tsx` |
 | `bill_save_toggled` | Signed-in user saves or unsaves a bill on the detail page | `bill_id`, `action: "saved" \| "unsaved"`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/save-bill-button.tsx` |
 | `bill_save_signin_redirected` | Signed-out user clicked Save and was sent to sign-in (conversion moment) | `bill_id` | `components/bills/save-bill-button.tsx` |
