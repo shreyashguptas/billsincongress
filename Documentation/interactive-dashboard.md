@@ -200,6 +200,12 @@ Live `congressStats`, 29 August 2026:
 | 118 | 19,315 | 12,556 | 6,759 | 575 | 18,229 | 224 | 0 | 13 | 274 |
 | 119 | 18,472 | 12,005 | 6,467 | 479 | 17,693 | 194 | 0 | 2 | 104 |
 
+These figures predate the 30 Sep 2026 stage-calculator fix. The calculator did not recognise
+the Library of Congress's "Passed/agreed to in House/Senate" record, so roughly 1,200 measures
+per Congress sat in "Introduced" or "In committee" after passing a chamber. Re-derived from the
+30 Sep production copy, the 119th reads 52 introduced, 17,668 in committee, 1,452 passed one
+chamber, 43 passed both — the live row matches once the backfill below has run.
+
 Stages 90 and 95 are zero in all three Congresses — the pipeline records those transitions
 as "Became Law", which is why no hub page exists for them either.
 

@@ -1177,6 +1177,67 @@ async function main() {
     }
   });
 
+  // --- chamber passage the stage calculator could not see -------------------
+  //
+  // "H.R. 10326 is in committee." It passed the House 217–207 on 16 Sep 2026.
+  // The calculator only knew the phrase "passed House", which the House floor
+  // log never uses about a bill, so 3,766 measures that had passed a chamber
+  // read "In Committee" or "Introduced" — and 11 whose RULE passed ("Rule
+  // H. Res. 864 passed House.") read as if the bill had. The oracle is the
+  // Library of Congress's own passage record, read here by hand: code 8000 is
+  // "Passed/agreed to in House", 17000 is "Passed/agreed to in Senate".
+
+  const passages = new Map<string, Set<"house" | "senate">>();
+  const actionsByBill = new Map<string, any[]>();
+  for (const act of ctx.db.rowsOf("billActions") as any[]) {
+    const list = actionsByBill.get(act.billId);
+    if (list) list.push(act);
+    else actionsByBill.set(act.billId, [act]);
+    const chamber =
+      act.actionCode === "8000" ? "house" : act.actionCode === "17000" ? "senate" : null;
+    if (!chamber) continue;
+    const seen = passages.get(act.billId) ?? new Set();
+    seen.add(chamber);
+    passages.set(act.billId, seen);
+  }
+
+  await it("the stage calculator counts every chamber passage on record", async () => {
+    // The code half: holds as soon as the fix is in, before any backfill.
+    const { calculateBillStage } = await import("../../convex/billStage");
+    const missed: string[] = [];
+    for (const [billId, chambers] of passages) {
+      const { stage } = calculateBillStage(actionsByBill.get(billId) ?? []);
+      const floor = chambers.size === 2 ? 80 : 60;
+      if (stage < floor && stage !== 85) missed.push(`${billId} (${stage})`);
+    }
+    assert.deepEqual(missed.slice(0, 10), [], `${missed.length} bills under-staged`);
+  });
+
+  await it("H.R. 10326 passed the House on 16 Sep 2026; it is not 'in committee'", async () => {
+    // The data half: red until production is backfilled and re-dumped.
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "10326hr119" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.rows.length, 1);
+    assert.ok(passages.get("10326hr119")?.has("house"), "sanity: the House passage is on record");
+    assert.ok(r.rows[0].progressStage >= 60, `stored stage ${r.rows[0].progressStage} says it never left committee`);
+  });
+
+  await it("no stored stage sits below a chamber passage on record", async () => {
+    const stale: string[] = [];
+    for (const b of bills as any[]) {
+      const chambers = passages.get(b.billId);
+      if (!chambers) continue;
+      const floor = chambers.size === 2 ? 80 : 60;
+      const stage = b.progressStage ?? 20;
+      if (stage < floor && stage !== 85) stale.push(`${b.billId} (${stage})`);
+    }
+    assert.deepEqual(
+      stale.slice(0, 10),
+      [],
+      `${stale.length} stored stages are behind the actions — run backfillBillFieldsFromActions`,
+    );
+  });
+
   // --- the invariant, checked across many shapes ----------------------------
 
   await it("no result ever carries a total without claiming completeness", async () => {
