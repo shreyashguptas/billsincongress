@@ -89,7 +89,8 @@ export const analytics = {
 
   /**
    * Headers that let server-side captures attach to the same person/session.
-   * Spread into fetch() headers for API calls whose routes capture events.
+   * Spread into fetch() headers for API calls whose routes capture events or
+   * write PostHog log lines (`/api/answer` → convex/posthogLogs.ts).
    */
   requestHeaders(): Record<string, string> {
     if (!ready()) return {};

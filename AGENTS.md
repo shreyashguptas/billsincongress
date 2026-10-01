@@ -42,6 +42,11 @@ These rules apply to EVERY change that adds, removes, or modifies a user-facing 
    answer as PostHog AI trace events (`$ai_generation`, `$ai_span`, `$ai_trace`) with
    `fetch`, not `posthog-node`. They send nothing until `POSTHOG_KEY` is set in the Convex
    environment and Convex is deployed. See "AI traces" in `Documentation/ANALYTICS.md`.
+   The same key sends one PostHog **log line** per answer (`convex/posthogLogs.ts`).
+6. **PostHog Logs** (server log lines, not events) are registered in the "PostHog Logs"
+   section of `Documentation/ANALYTICS.md` and sent only through `scheduleLog` in
+   `convex/posthogLogs.ts`. Never put question text, email addresses or other reader
+   content on a line.
 
 A feature change without its analytics change is an incomplete change — do not consider
 the work done, and do not say it's done, until both halves are in place.
