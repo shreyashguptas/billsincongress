@@ -182,7 +182,7 @@ the read. See [Known gaps](#known-gaps).
 | Table | Written by | Rows today |
 | --- | --- | --- |
 | `congressStats` | `writeCongressStats` (patch-or-insert) | 3 |
-| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th) |
+| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th). Each row also carries `stageCounts` (the same bills by stage, counted in the same pass, so they sum to `count`) and `countedAt`, which the bill page's "Among its peers" dot field reads through `bills.getJourney` |
 | `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress (550 / 595 / 552 for 119 / 118 / 117) |
 | `congressChamberBreakdowns` | `writeCongressChamberBreakdown` (patch-or-insert) | 6 (3 Congresses × 2 chambers) |
 

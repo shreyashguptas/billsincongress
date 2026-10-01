@@ -22,6 +22,10 @@ import SaveBillButton from './save-bill-button';
 import BillAlertButton from './bill-alert-button';
 import ShareBillButton from './share-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
+import { BillJourneyPanel } from './bill-journey';
+import { BillPeersSection } from './bill-peers';
+import { journeyView } from '@/lib/bill-journey';
+import type { billsService } from '@/lib/services/bills-service';
 import {
   ArrowLeft,
   Ban,
@@ -73,9 +77,13 @@ const LONG_TITLE_CHARS = 90;
 
 interface BillDetailsProps {
   bill: Bill;
+  /** The journey and peer counts; null when Convex could not supply them. */
+  extras?: Awaited<ReturnType<typeof billsService.fetchBillJourney>>;
+  /** Today in Washington, YYYY-MM-DD, from the server. */
+  today: string;
 }
 
-export default function BillDetails({ bill }: BillDetailsProps) {
+export default function BillDetails({ bill, extras = null, today }: BillDetailsProps) {
   // Derived, not state: stripping the CRS markup used to happen in an effect via
   // document.createElement, which meant the server-rendered HTML shipped the raw
   // "&lt;p&gt;&lt;strong&gt;…" tag soup and only became readable once JS ran.
@@ -162,6 +170,28 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     policy_area: bill.bill_subjects?.policy_area_name ?? '',
     progress_stage: progressStage,
   };
+
+  // The journey is drawn only when its last stage is the stage this page
+  // states: both come from the same calculator, so a difference means the
+  // stored stage and the actions disagree, and the page does not pick a side.
+  const journey =
+    extras?.journey && extras.journey.finalStage === stage && bill.introduced_date
+      ? extras.journey
+      : null;
+  const view = journey
+    ? journeyView({ journey, billType: bill.bill_type, congress: bill.congress, today })
+    : null;
+  const figureCaption = !view
+    ? null
+    : view.finish === 'law'
+      ? 'from introduction to law'
+      : view.finish === 'vetoed'
+        ? 'from introduction to the veto'
+        : view.finish === 'adopted'
+          ? 'from introduction to adoption'
+          : view.expired
+            ? `from introduction to the end of the ${formatCongressOrdinal(bill.congress)} Congress`
+            : 'since it was introduced';
 
   const hasBaseRate =
     bill.base_rate_percent !== undefined &&
@@ -269,7 +299,14 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           aria-labelledby="bill-status-label"
           className="rounded-lg border border-line bg-raised p-6 sm:px-8 sm:py-7"
         >
-          <div className="grid gap-6 sm:grid-cols-[280px_minmax(0,1fr)] sm:items-center sm:gap-12">
+          <div
+            className={cn(
+              'grid gap-6 sm:items-center sm:gap-12',
+              view
+                ? 'sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'
+                : 'sm:grid-cols-[280px_minmax(0,1fr)]',
+            )}
+          >
             <div>
               <p id="bill-status-label" className="label-eyebrow">
                 Current status
@@ -305,19 +342,48 @@ export default function BillDetails({ bill }: BillDetailsProps) {
               </p>
             </div>
 
-            <div>
-              <StageTrack stage={stage} labels size="lg" />
-              {/* StageTrack drops its seven step names below `sm`; the two ends
-                  still say which way the track runs. */}
-              <div
-                className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden"
-                aria-hidden="true"
-              >
-                <span className="text-ink">Introduced</span>
-                <span className={step === total ? 'text-ink' : 'text-ink-3'}>Law</span>
+            {view ? (
+              // How long the road has been, beside where it stands.
+              view.totalDays > 0 && (
+                <div className="sm:text-right">
+                  <p className="flex items-baseline gap-2.5 sm:justify-end">
+                    <span className="font-serif text-[56px] font-normal leading-none text-ink tabular sm:text-[72px]">
+                      {formatCount(view.totalDays)}
+                    </span>
+                    <span className="text-title text-ink-2">{view.totalDays === 1 ? 'day' : 'days'}</span>
+                  </p>
+                  <p className="mt-1.5 text-sm text-ink-2">{figureCaption}</p>
+                </div>
+              )
+            ) : (
+              <div>
+                <StageTrack stage={stage} labels size="lg" />
+                {/* StageTrack drops its seven step names below `sm`; the two ends
+                    still say which way the track runs. */}
+                <div
+                  className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden"
+                  aria-hidden="true"
+                >
+                  <span className="text-ink">Introduced</span>
+                  <span className={step === total ? 'text-ink' : 'text-ink-3'}>Law</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
+
+          {journey && (
+            <div className="mt-8 sm:mt-9">
+              <BillJourneyPanel
+                billId={String(bill.id)}
+                billType={bill.bill_type}
+                congress={bill.congress}
+                introducedDate={bill.introduced_date}
+                journey={journey}
+                today={today}
+                noun={noun}
+              />
+            </div>
+          )}
 
           {hasBaseRate && (
             <div className="mt-6 max-w-measure space-y-1.5 border-t border-line pt-5">
@@ -404,6 +470,18 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           </aside>
         </div>
       </div>
+
+      {extras?.peers && (
+        <BillPeersSection
+          billId={String(bill.id)}
+          billLabel={billLabel}
+          billStage={stage}
+          billUpdatedAt={extras.billUpdatedAt}
+          congress={bill.congress}
+          peers={extras.peers}
+          today={today}
+        />
+      )}
 
       {/* Ask the record — the page's quiet closing band */}
       <section aria-labelledby="bill-ask-title" className="bg-sunken py-16 sm:py-[72px]">

@@ -433,6 +433,33 @@ export const analytics = {
     base_rate_sample: number;
   }) => capture('bill_base_rate_viewed', props),
 
+  /**
+   * The journey (the to-scale stage bar, its chapters and the Congress clock)
+   * was drawn on a bill page. Passive, once per bill view. `bar_drawn` is false
+   * when the bill has spent time in only one stage and the panel shows the plain
+   * track instead.
+   */
+  billJourneyViewed: (props: {
+    bill_id: string;
+    progress_stage: number;
+    chapters: number;
+    total_days: number;
+    outcome: 'law' | 'vetoed' | 'adopted' | 'expired' | 'open';
+    bar_drawn: boolean;
+  }) => capture('bill_journey_viewed', props),
+
+  /**
+   * The reader scrolled to the "Among its peers" dot field on a bill page
+   * (30% of it on screen). Once per bill view.
+   */
+  billPeersViewed: (props: {
+    bill_id: string;
+    policy_area: string;
+    peer_total: number;
+    law_count: number;
+    ring_shown: boolean;
+  }) => capture('bill_peers_viewed', props),
+
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
 
   billSaveToggled: (props: {

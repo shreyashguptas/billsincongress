@@ -259,7 +259,31 @@ Patterns that appear on more than one page:
   show the plain introduction date. A row never shows a date other than the one
   its label names; an undated bill shows none.
 - **Status panel** (bill page): `rounded-lg`, raised, the stage in
-  `display-md` beside a `StageTrack` with labels.
+  `display-md` with its glyph. Opposite it, the journey's length as a figure
+  (Newsreader at 72px, 56 on phones, "days" in `title` beside it) with what it
+  measures under it: "from introduction to law", "since it was introduced".
+  Under both, the **journey** when the bill has spent time in two stages or
+  more, otherwise a `StageTrack` with labels.
+- **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
+  scale, a segment per stage in its stage colour, as wide as the days the bill
+  stayed there (never under 6px), ending in a dot of the final stage's colour
+  when the road is over (law, veto, adoption). Under it, `ink-3` mono month
+  ticks, only the two ends on a phone. Then one column per stage (stacked on a
+  phone, two up on a tablet): a 3px rule in the stage colour, the days in
+  `display-md`, the stage named the reader's way ("Passed the House"), and its
+  moments, each a mono date over a sentence in `ink-2`. A recorded vote adds a
+  140px bar: the yes share in ink, the rest `sunken` with a `line-strong` edge,
+  and the tally in mono. A vote is neither a stage, a party nor a topic, so it
+  takes no hue. A bill still on its way ends the panel with the **Congress
+  clock**: the days left in the Congress in `display-md`, why that matters in
+  one sentence, and the two-year Congress as a bar, the time gone in `sunken`,
+  the time left hatched with an ink edge, an ink tick at the introduction.
+- **Peer dots** ("Among its peers", bill page, `components/bills/bill-peers.tsx`):
+  every bill on the bill's topic in its Congress, one dot each (7px, 5px on
+  phones), in path order and stage colours, with this bill ringed in ink. The
+  headline is the finding about laws. Beside it a chart legend (dot, stage,
+  share, count); hovering or focusing a row drops every other stage's dots to
+  35%. The ring is drawn only when the bill has not changed since the count.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the

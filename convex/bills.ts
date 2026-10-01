@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage, BillStages } from "./billStage";
+import { buildJourney } from "./billJourney";
 import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
 import {
@@ -159,6 +160,70 @@ export const getById = query({
       pdf_url: text?.formatsUrlPdf || "",
       ...baseRate,
     };
+  },
+});
+
+// Past this many stored actions the journey is not drawn, rather than drawn
+// from part of the record. The longest bills of the 119th have ~115.
+const MAX_JOURNEY_ACTIONS = 1000;
+
+/**
+ * What the bill page draws beyond the bill itself: its journey (the day it
+ * reached each stage, and its votes) and the stage counts of every bill on its
+ * topic in its Congress (the dot field).
+ *
+ * Each part is null when it cannot be drawn honestly: no topic, a topic row
+ * counted before stage counts existed, parts that do not sum to the topic's
+ * total, or more actions than the cap (a journey from part of the record would
+ * misdate a stage).
+ */
+export const getJourney = query({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (!bill) return null;
+
+    const actions = await ctx.db
+      .query("billActions")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(MAX_JOURNEY_ACTIONS + 1);
+    const journey =
+      actions.length > MAX_JOURNEY_ACTIONS
+        ? null
+        : buildJourney(actions, bill.introducedDate);
+
+    let peers: {
+      policyArea: string;
+      total: number;
+      stageCounts: Array<{ stage: number; count: number }>;
+      countedAt: string;
+    } | null = null;
+    if (bill.policyAreaName) {
+      const rows = await ctx.db
+        .query("congressPolicyAreas")
+        .withIndex("by_congress", (q) => q.eq("congress", bill.congress))
+        .take(MAX_POLICY_AREAS_PER_CONGRESS);
+      const row = rows.find((r) => r.policyAreaName === bill.policyAreaName);
+      const parts = row?.stageCounts;
+      if (
+        row &&
+        parts &&
+        row.countedAt &&
+        parts.reduce((sum, p) => sum + p.count, 0) === row.count
+      ) {
+        peers = {
+          policyArea: row.policyAreaName,
+          total: row.count,
+          stageCounts: parts,
+          countedAt: row.countedAt,
+        };
+      }
+    }
+
+    return { journey, peers, billUpdatedAt: bill.updatedAt };
   },
 });
 

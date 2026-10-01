@@ -344,6 +344,17 @@ export default defineSchema({
     congress: v.number(),
     policyAreaName: v.string(),
     count: v.number(),
+    // The same bills as `count`, split by progressStage, counted in the same
+    // pass over the whole Congress, so the parts always sum to `count`. Drawn as
+    // the dot field on a bill page ("Of 2,181 Health bills…"). Optional so rows
+    // written before it existed still validate; a row without it draws nothing.
+    stageCounts: v.optional(
+      v.array(v.object({ stage: v.number(), count: v.number() })),
+    ),
+    // When this row was counted. A bill changed after this may not be counted
+    // where it now stands, so the page only rings "this bill" for bills that
+    // have not changed since.
+    countedAt: v.optional(v.string()),
   })
     .index("by_congress", ["congress"])
     .index("by_congress_and_count", ["congress", "count"]),
