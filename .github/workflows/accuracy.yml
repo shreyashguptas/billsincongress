@@ -1,0 +1,89 @@
+name: Accuracy check
+
+# The answer-accuracy tests (scripts/truth/) drive the real fetch handlers
+# against a copy of production's public tables. They are the only check that
+# the answer engine does not state numbers it cannot defend. On a pull request
+# they report SKIPPED, because the copy is not committed, so until this file
+# existed they ran only when somebody remembered to run them on a laptop.
+#
+# This runs them every night against `main` and a fresh copy, and fails loudly
+# when an answer has gone wrong. GitHub emails the failure.
+#
+# Why nightly and not on every pull request: copying production needs the
+# Convex deploy key, and that key can also DEPLOY. A pull request job runs the
+# branch's own code, and that includes branches opened by bots. Giving that
+# code a key that can rewrite production is not a trade worth making for
+# earlier feedback, and the `Production` environment below refuses to hand
+# the key to any job not running on `main` anyway. `main` has already been
+# reviewed. So the local gate in AGENTS.md still applies before merging
+# anything under convex/catalog/ or convex/answer.ts. This job catches what slips past it, and it also catches
+# answers that drift as the data changes underneath code nobody touched.
+on:
+  schedule:
+    # 10:17 UTC is about 6 a.m. Eastern. Off the hour, because scheduled runs
+    # at :00 queue behind everyone else's.
+    - cron: "17 10 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: accuracy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  truth:
+    # `main` only, including for a manual run. The "Run workflow" button lets
+    # you pick any branch, and that branch's code would run with the deploy
+    # key in reach. That is the exact exposure the header rules out.
+    if: github.ref == 'refs/heads/main'
+    # The `Production` environment is what actually keeps CONVEX_DEPLOY_KEY
+    # on `main`. The key is an environment secret, and the environment only
+    # admits jobs running on `main` (Settings -> Environments -> Production ->
+    # Deployment branches). The `if:` above can be deleted by anyone who edits
+    # this file on a branch, and a manual run uses that branch's copy of the
+    # file; the environment rule cannot be edited from a branch. Keep both:
+    # the `if:` skips the job cleanly, the environment is the guarantee.
+    environment: Production
+    runs-on: ubuntu-latest
+    # The export is about 170MB and takes a few minutes.
+    timeout-minutes: 30
+    steps:
+      # Pinned to commits, not tags, matching the other workflows. A tag is
+      # mutable, and this job holds the Convex deploy key.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Read-only. dump.ts runs `convex export` and nothing else. It keeps the
+      # eight public legislative tables and deletes the full snapshot, which
+      # holds readers' accounts and chats, before it exits, even if it fails.
+      # Nothing here uploads .truth-cache/ anywhere. Keep it that way: no
+      # upload-artifact step in this job, ever.
+      #
+      # The key is set on this step only, never on the install step above or
+      # the test step below.
+      - name: Copy production's public tables
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: ./node_modules/.bin/tsx scripts/truth/dump.ts
+
+      # REQUIRE_TRUTH_CACHE=1 turns every "skipped, no production copy" into a
+      # failure, so this job cannot go green without the accuracy tests having
+      # run. That is the whole difference between this and the pull request
+      # check.
+      - name: Run every test, accuracy tests included
+        env:
+          REQUIRE_TRUTH_CACHE: "1"
+        run: pnpm test

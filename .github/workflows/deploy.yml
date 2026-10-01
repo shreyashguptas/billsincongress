@@ -23,13 +23,38 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+# Read-only. The deploys authenticate with their own credentials (the
+# Cloudflare token and the Convex deploy key), not the GitHub token, so the
+# token needs nothing beyond reading the code.
+permissions:
+  contents: read
+
 jobs:
   deploy:
+    # `main` only, including for a manual run. The "Run workflow" button lets
+    # you pick any branch, and `convex deploy` pushes the checked-out convex/
+    # folder wholesale: a run from a stale branch would undo every backend
+    # change merged since that branch was cut. That has happened by hand once
+    # already (it wiped the saved-bills functions). Production is whatever
+    # `main` says.
+    if: github.ref == 'refs/heads/main'
+    # The `Production` environment is what actually keeps CONVEX_DEPLOY_KEY
+    # on `main`. The key is an environment secret, and the environment only
+    # admits jobs running on `main` (Settings -> Environments -> Production ->
+    # Deployment branches). The `if:` above can be deleted by anyone who edits
+    # this file on a branch, and a manual run uses that branch's copy of the
+    # file; the environment rule cannot be edited from a branch. Keep both:
+    # the `if:` skips the job cleanly, the environment is the guarantee.
+    environment: Production
     runs-on: ubuntu-latest
+    # A normal run takes about two minutes. The limit stops a hung upload from
+    # holding the deploy queue for six hours, which would block every deploy
+    # behind it.
+    timeout-minutes: 20
     steps:
       # Pinned to commits, not tags. A tag is mutable: whoever controls it
       # controls what runs here. That matters most in this file, which is the
-      # one holding the Cloudflare deploy credential. Re-resolve a tag and
+      # one holding the Cloudflare and Convex deploy credentials. Re-resolve a tag and
       # update these lines deliberately when taking a new version.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -44,6 +69,37 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # The backend first, then the site. Merging used to deploy only the site,
+      # and the backend waited for someone to remember `npx convex deploy`.
+      # Production once ran three days behind `main` that way, telling readers
+      # on a bill page about a different bill.
+      #
+      # Backend first because new site code usually calls new backend
+      # functions, and the reverse is rarely true. If this step fails (a type
+      # error, or a schema the existing data does not fit), the step below does
+      # not run either, so the site never ships against a backend it expects
+      # but did not get.
+      #
+      # It runs on every push, not only when convex/ changed. Deploying an
+      # unchanged folder is harmless, and it fixes any drift, such as a manual
+      # deploy from a branch, on the next merge.
+      #
+      # The key is set on THIS step only. The install step above runs
+      # dependencies' install scripts and must never see it.
+      - name: Deploy the Convex backend
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: |
+          # A missing secret would otherwise surface as a vague CLI error. A
+          # preview key is worse: the CLI would deploy to a preview copy,
+          # report success, and leave production untouched.
+          case "$CONVEX_DEPLOY_KEY" in
+            prod:*) ;;
+            "") echo "::error::CONVEX_DEPLOY_KEY is empty. It must be a secret of the Production environment, and this job must be running on main. See 'Deploying Convex' in Documentation/overview.md."; exit 1 ;;
+            *) echo "::error::CONVEX_DEPLOY_KEY is not a production deploy key (it must start with 'prod:')."; exit 1 ;;
+          esac
+          pnpm exec convex deploy --yes
 
       - name: Build and deploy to Cloudflare
         run: pnpm run deploy

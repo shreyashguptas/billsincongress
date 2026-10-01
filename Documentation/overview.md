@@ -73,14 +73,15 @@ Reader feedback sits beside it too, and mostly outside Convex: the Feedback box 
 responses. Only a picture attached to feedback touches Convex, through the public HTTP action
 `POST /feedback/picture` (convex/feedback.ts). See [Reader feedback](#reader-feedback).
 
-Two independently deployed halves:
+Two halves, deployed by the same workflow:
 
 - **Frontend** — Next.js 16 built by OpenNext into a single Cloudflare Worker. Deploys
   automatically on every push to `main`.
 - **Backend** — Convex (database, queries, mutations, actions, crons, HTTP actions).
-  **Deployed by hand.** Nothing in CI touches it.
+  Also deploys automatically on every push to `main`, just before the frontend, from the same
+  `deploy.yml` run (see [Deploying Convex](#deploying-convex)).
 
-They can skew. `app/api/answer/route.ts` has a user-visible error string for exactly that
+They can still skew: a manual `npx convex deploy` from a branch, or a site step that fails after the backend step succeeded (the backend ahead of the frontend). `app/api/answer/route.ts` has a user-visible error string for exactly that
 case: *"The answer service is not deployed yet. Run `npx convex deploy`."*
 
 ---
@@ -765,9 +766,17 @@ while, and `pnpm test` printed "0 failed", so a green check read as proof of the
 not checked. `REQUIRE_TRUTH_CACHE=1 pnpm test` turns those skips into failures and is the gate to
 run before merging anything under `convex/catalog/`.
 
-Wiring CI to run them would mean either committing a copy of the production tables or giving the
-workflow a Convex key — both are decisions worth making deliberately, and a PR that edits its own
-review workflow forfeits that review. Until then the gate is local and the skip is loud.
+**They run every night in CI**, in `accuracy.yml`: a fresh `dump.ts` copy of production, then
+`REQUIRE_TRUTH_CACHE=1 pnpm test`, on `main` only. GitHub emails the failure. They still do
+**not** run on pull requests, by design. Copying production needs `CONVEX_DEPLOY_KEY`, which can
+also deploy, and a pull request job runs its branch's own code (bots' branches included). So the
+local gate is still the one to run before merging anything under `convex/catalog/` or
+`convex/answer.ts`. The nightly run catches what slips past it, and answers that drift as the
+data changes under code nobody touched.
+
+On the runner, the full snapshot (readers' accounts and chats included) exists only while
+`dump.ts` pulls the eight public tables out of it, and is deleted before the script exits, even
+on failure. The runner is discarded after the job, and the job uploads nothing. Never add an `upload-artifact` step to it.
 
 `check-answers.ts` costs real model calls against production and is run deliberately, never in CI.
 
@@ -1627,8 +1636,16 @@ Inlined by Next at **build** time, so they must be present wherever `pnpm cf:bui
 | `CONVEX_DEPLOYMENT` | Convex CLI only — no `process.env` reference in app code |
 
 All four `NEXT_PUBLIC_*` are also GitHub repo secrets, injected by `ci.yml` and `deploy.yml`.
-`CLOUDFLARE_ACCOUNT_ID` is a literal in `deploy.yml`, not a secret. `CONVEX_DEPLOY_KEY` lives
-only in an untracked local `.env` and is deliberately **not** a GitHub secret.
+`CLOUDFLARE_ACCOUNT_ID` is a literal in `deploy.yml`, not a secret. `CONVEX_DEPLOY_KEY` (the
+production deploy key, created with `npx convex deployment token create`) is **not** a repo
+secret: it is a secret of the GitHub **`Production` environment**, whose deployment-branch rule
+admits `main` only. Two jobs name that environment: `deploy` in `deploy.yml` (to deploy the
+backend) and `truth` in `accuracy.yml` (to copy the public tables). A job on any other branch,
+including a pull request that edits a workflow to ask for the secret, gets nothing, because the
+rule lives in repository settings, not in a file a branch can change. Within those jobs the key
+is set on the one step that needs it, never on an install step. A repo-level secret would not
+hold this line: a same-repo pull request runs its own edited workflow and can read any repo
+secret.
 
 ### Convex deployment side
 
@@ -1731,14 +1748,19 @@ file name with more than one dot.
 
 ### CI
 
-Two required status checks on every pull request, plus one workflow that only runs when
-somebody asks it to:
+Two required status checks on every pull request, one workflow that only runs when somebody
+asks it to, and a nightly accuracy check on `main`:
 
 | Workflow | Job | Trigger | Steps |
 | --- | --- | --- | --- |
 | `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `pnpm cf:build` |
 | `claude-code-review.yml` | `review` | every PR push | install → capture `pnpm test` and `tsc --noEmit` output → automated code review |
 | `claude.yml` | `claude` | an `@claude` comment | install → answer the comment in the thread |
+| `accuracy.yml` | `truth` | nightly at 10:17 UTC, or by hand on `main` | install → `scripts/truth/dump.ts` → `REQUIRE_TRUTH_CACHE=1 pnpm test` |
+
+`ci.yml`, `deploy.yml` and `accuracy.yml` declare `permissions: contents: read` and a
+`timeout-minutes`, so none of them can hold write access they do not use, or hold a runner for
+GitHub's six-hour default when something hangs.
 
 `main` is protected by a **repository ruleset** (`main`, id 21753630), not classic branch
 protection — the classic settings page will look empty. It requires a pull request (0
@@ -1787,15 +1809,36 @@ retriggers itself in a loop.
 
 ### Deploy
 
-Any push to `main` (or a manual dispatch) triggers `deploy.yml`, which runs `pnpm run deploy`.
+Any push to `main` (or a manual dispatch from `main`) triggers `deploy.yml`, which deploys the
+Convex backend and then runs `pnpm run deploy` for the site. If the backend step fails, the
+site step does not run.
 
 - **The deploy workflow runs no tests.** Tests gate pull requests only.
+- **It runs from `main` only.** The job has `if: github.ref == 'refs/heads/main'`, because the
+  "Run workflow" button lets you pick any branch, and a backend deploy from a stale branch
+  reverts everything merged since that branch was cut.
 - Deploys are **serialized, never cancelled** (`group: deploy-production`,
   `cancel-in-progress: false`) because merging four PRs inside a minute once started four
   racing deploys. A burst now collapses to "finish the current deploy, then deploy the newest
   commit."
 
 ### Deploying Convex
+
+**Merging deploys it.** The "Deploy the Convex backend" step in `deploy.yml` runs
+`convex deploy` against production on every push to `main`, using the `CONVEX_DEPLOY_KEY`
+secret of the `Production` environment, before the site is built. It runs whether or not `convex/` changed: deploying an
+unchanged folder is harmless, and it corrects any drift on the next merge. The step refuses to
+run without the secret, or with a key that does not start with `prod:`, because a preview key
+would deploy to a preview copy and still report success.
+
+This replaced a manual step. Production once ran three days behind `main` on the answer engine,
+and for the whole of that time readers on a bill page were told about a different bill,
+confidently and with working citations, because the fix had been merged and never shipped.
+
+**To redeploy without a merge**, re-run the latest Deploy run, or use "Run workflow" on
+`main`, from the Actions tab.
+
+**By hand**, only when CI cannot (the secret is broken, say):
 
 ```bash
 npx convex deploy
@@ -1809,20 +1852,15 @@ CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy --dry-run   # pre
 CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy             # the real deploy
 ```
 
-**Manual, and shared.** Every worktree, branch and local dev server talks to the same
-production Convex deployment.
+**Shared.** Every worktree, branch and local dev server talks to the same production Convex
+deployment, so a manual deploy from a branch changes what every reader gets.
 
 > **`convex deploy` pushes the local `convex/` directory wholesale.** Deploying from a branch
 > that has not merged `origin/main` **reverts** every Convex-side feature merged since that
 > branch diverged. This has happened — it once clobbered the saved-bills functions.
-> **Always merge `origin/main` before running `npx convex deploy`.**
-
-> **Merging a PR does NOT deploy the backend.** The GitHub Actions workflow above deploys the
-> Next.js site to Cloudflare; it does not touch `convex/`. Production once ran three days behind
-> `main` on the answer engine, and for the whole of that time readers on a bill page were told
-> about a different bill — confidently, with working citations, because the fix that seeds the
-> focused bill's row had been merged and never shipped.
-> **After merging any PR that touches `convex/`: `git checkout main && git pull && npx convex deploy -y`.**
+> **Always merge `origin/main` before running `npx convex deploy`.** The next merge to `main`
+> redeploys from `main` and undoes a branch deploy, which is the right outcome but means a
+> branch deploy only lasts until then.
 
 **Changes that need a recompute, not just a deploy.** Some Convex changes add a field to a
 precomputed table, and the deploy alone leaves that field empty on every existing row. The
@@ -1972,7 +2010,7 @@ Congress, so a deleted historical Congress does not come back on its own.
 | The assistant refuses to name "the most recent" | The result came back `order: "arbitrary"`. Either the question needs a `sort` filter, or the set is too big to read completely and the sort was honestly refused |
 | A filtered list looks short | The 1,200-row scan cap — see [query limits](#query-limits-and-how-truncation-is-surfaced). If the page says "partial list" it is working as intended; if it does not, the filter has an index and the list is complete |
 | AI chat 404s after a deploy | The provider allowlist and the OpenRouter **account** setting no longer overlap |
-| "The answer service is not deployed yet" | The frontend shipped but Convex did not. Run `npx convex deploy` |
+| "The answer service is not deployed yet" | The frontend is ahead of Convex. Check the "Deploy the Convex backend" step of the latest Deploy run; re-run it from the Actions tab (on `main`) once fixed |
 | A Congress shows with 0 bills | The nightly 04:00 recompute will clean it up, or delete it manually |
 | Intermittent Worker `1101` errors | The KV cache bindings are missing or misconfigured |
 | Data looks stale | Check `bills:getSyncStatus`; the daily sync runs 01:00 UTC and stats rebuild at 04:00 UTC |

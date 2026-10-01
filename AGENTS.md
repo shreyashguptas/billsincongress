@@ -138,10 +138,11 @@ Three rules, in order of importance:
    handlers against a local copy of production via `scripts/truth/fakedb.ts`. Every accuracy fix
    needs a case there, written as the wrong answer a reader actually got.
 
-   **These tests do not run in CI**, because the production copy is not committed. `pnpm test`
-   reports them as `SKIPPED` and prints what did not run — a green CI check is NOT evidence the
-   answer engine was checked. Before merging anything under `convex/catalog/` or
-   `convex/answer.ts`, run the gate locally:
+   **These tests do not run on pull requests**, because the production copy is not committed.
+   `pnpm test` reports them as `SKIPPED` and prints what did not run — a green PR check is NOT
+   evidence the answer engine was checked. (`.github/workflows/accuracy.yml` runs them nightly
+   against `main`, but that is after the merge, not before.) Before merging anything under
+   `convex/catalog/` or `convex/answer.ts`, run the gate locally:
 
    ```bash
    export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)
@@ -158,11 +159,13 @@ Three rules, in order of importance:
 When a wrong answer is found in the wild, add it to `scripts/truth/questions.ts` FIRST, watch it
 go red, then fix it.
 
-**Deploying `convex/` is manual and merging does not do it.** See "Deploying Convex" in
-`Documentation/overview.md`. In a checkout not linked to the project, target production
-explicitly: `CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy` (dry-run it first
-with `--dry-run`). Production once ran three days behind `main` here and answered
-bill-page questions about the wrong bill for the duration.
+**Merging to `main` deploys `convex/` to production**, in the same `deploy.yml` run as the site
+and just before it. So a merge that touches `convex/` changes live backend behaviour within
+minutes; there is no separate step to remember, and none to hold it back. See "Deploying
+Convex" in `Documentation/overview.md`. Do not deploy by hand from a branch: it reverts
+whatever `main` has that the branch does not, until the next merge redeploys `main`. A change
+that adds a field to a precomputed table still needs its recompute run after the deploy
+(same section).
 
 <posthog>
 ## PostHog
