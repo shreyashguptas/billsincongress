@@ -48,7 +48,7 @@ export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> 
 // checked first. The House's own floor log never says "passed House" about a
 // bill — it says "On passage Passed by the Yeas and Nays" — so matching only
 // that phrase left 3,766 bills that had passed a chamber reading "In Committee"
-// or "Introduced" (H.R. 10326 in the 119th, passed 217 votes to 212 on
+// or "Introduced" (H.R. 10326 in the 119th, passed 217-207 on
 // 16 Sep 2026). The phrase does appear on rules: "Rule H. Res. 864 passed
 // House." is the House adopting the terms of debate for H.R. 5894, which never
 // passed, so a rule never counts.

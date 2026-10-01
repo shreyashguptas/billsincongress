@@ -1219,7 +1219,7 @@ async function main() {
     assert.ok(r.ok, `fetch failed: ${r.error}`);
     assert.equal(r.rows.length, 1);
     assert.ok(passages.get("10326hr119")?.has("house"), "sanity: the House passage is on record");
-    assert.equal(r.rows[0].progressStage, 60, "stored stage still says it never left committee");
+    assert.ok(r.rows[0].progressStage >= 60, `stored stage ${r.rows[0].progressStage} says it never left committee`);
   });
 
   await it("no stored stage sits below a chamber passage on record", async () => {

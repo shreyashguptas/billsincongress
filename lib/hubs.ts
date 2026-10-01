@@ -125,11 +125,11 @@ const STATUS_HUBS: HubDefinition[] = [
     kind: 'status',
     path: '/bills/passed-one-chamber',
     heading: 'Bills that passed one chamber',
-    metaTitle: 'Bills That Passed One Chamber — Half-Way Through Congress',
+    metaTitle: 'Bills That Passed One Chamber of Congress',
     metaDescription:
-      'Bills approved by either the House or the Senate but not yet by both, and so not yet law.',
+      'Bills approved by either the House or the Senate but not yet by both, and resolutions adopted by the one chamber they concern.',
     explainer:
-      'These bills cleared a floor vote in one chamber and now await the other. To become law, the second chamber must pass the identical text — any differences have to be reconciled first. Passing one chamber is real progress and still no guarantee: many bills stop here when the other chamber never takes them up.',
+      'These bills cleared a floor vote in one chamber and now await the other. To become law, the second chamber must pass the identical text — any differences have to be reconciled first. Passing one chamber is real progress and still no guarantee: many bills stop here when the other chamber never takes them up. The list also holds simple resolutions (H.Res. and S.Res.), which concern only one chamber: for them, being agreed to there is the whole journey, not half of it.',
     filter: { progressStage: '60' },
   },
   {
