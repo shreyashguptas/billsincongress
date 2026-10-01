@@ -43,7 +43,11 @@ should not exist in the code — and if it's in this file, it must exist in the 
    **person profile** via `identify()`, never on individual events.
    Reader-typed free text does reach event properties today, deliberately, because knowing
    what people ask is the point of collecting it: `answer_question_submitted.question` (the
-   whole question), and — less obviously — `answer_question_submitted.scope_label` and
+   whole question), `answer_rated.question` and `.previous_question` when a reader says an
+   answer was wrong (the same text again, sent with the answer so the report can be
+   reproduced; `answer_rated.answer` is the assistant's text, which can quote the reader),
+   the AI traces' `$ai_input` / `$ai_input_state` (the question and the whole conversation
+   so far, kept 30 days — see "AI traces"), and — less obviously — `answer_question_submitted.scope_label` and
    `answer_starter_clicked.starter_text`, both of which interpolate the reader's typed title
    search into a label. The custom search events send a `query_length`, not the text
    (`bills_no_results` stopped sending `title_query` in the filter redesign), **but that does
@@ -330,8 +334,8 @@ emits `list`.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-provider.tsx` |
-| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence. Fires when the finished answer arrives, before the panel's word-by-word reveal (up to 5s) has finished drawing it, so `response_ms` is the server's time, not the time until the reader sees the last word | `components/answers/answer-provider.tsx` |
-| `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), `"empty_model_output"` (the model gave no answer and no lookup, even after one nudge and a final round without tools; **until #135's Convex deploy on 30 Sep 2026 at about 17:42 UTC (13:42 ET) the reader got a canned apology instead, recorded as an `answer_received`**, so no `empty_model_output` event predates that deploy), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence, `$ai_trace_id` — the answer's AI trace (see "AI traces" below; absent until that Convex change is deployed). Fires when the finished answer arrives, before the panel's word-by-word reveal (up to 5s) has finished drawing it, so `response_ms` is the server's time, not the time until the reader sees the last word | `components/answers/answer-provider.tsx` |
+| `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), `"empty_model_output"` (the model gave no answer and no lookup, even after one nudge and a final round without tools; **until #135's Convex deploy on 30 Sep 2026 at about 17:42 UTC (13:42 ET) the reader got a canned apology instead, recorded as an `answer_received`**, so no `empty_model_output` event predates that deploy), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first, `$ai_trace_id` — when the server got far enough to record a trace. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
 | `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |
 | `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-provider.tsx` |
@@ -347,6 +351,7 @@ emits `list`.
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
 | `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` (also every home chart's "Ask about this"), `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
 | `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
+| `answer_rated` | Reader answered "Was this answer right?" under a finished answer. Once per answer; a clarifying question gets no check. Added 30 Sep 2026 | `surface` (where the question was asked), `verdict: "right" \| "wrong"`, `answer_id`, `question_number`, `answer_length`, `db_source_count`, `web_source_count`, `chat_id` (signed-in threads only), `$ai_trace_id` — the rated answer's AI trace, which holds everything the model was given (absent for an answer restored after a refresh). **`wrong` only:** `question`, `previous_question` (follow-ups only), `answer` — the text the reader saw, up to 8,000 characters, `answer_clipped`, `sources` — the cited handles. Built and tested in `lib/answer-rating.ts` | `components/answers/answer-check.tsx` via `components/answers/answer-provider.tsx` |
 
 > **`dropped` is the grounding-health number.** It counts citations the model
 > produced for rows it was never handed, which the server deletes before display.
@@ -435,14 +440,39 @@ person via the `X-PostHog-Distinct-Id` / `X-PostHog-Session-Id` headers sent by 
 | `bill_chat_message_processed` | Server finished handling a per-bill chat message | `bill_id`, `success`, `rate_limited`, `user_type`, `question_length` | `app/api/bill-chat/send/route.ts` | **Dead.** The route is still deployed and publicly callable, but its only client (`billsService.sendChatMessage`) has no call site anywhere in the app. Last event 27 Aug 2026. |
 | `$exception` (server) | An API route threw | error details | `app/api/bill-chat/send/route.ts` (dead), `app/api/bill-chat/usage/route.ts` (live, called by `app/account/page.tsx`) | Partly live |
 
-> **The live answer path has no server-side instrumentation at all.**
-> `app/api/answer/route.ts` imports nothing from `lib/posthog-server.ts`, and the
-> browser's `fetch('/api/answer')` does not send the PostHog identity headers, so a
-> server event added there today would not attach to the browser's person or session.
-> Everything we know about answers comes from the client events above — which means a
-> question that fails before the browser sees a response is invisible. If server-side
-> truth for the costly action matters again, this is the gap to close, and it needs
-> `analytics.requestHeaders()` wired into that fetch first.
+#### AI traces (every answer, from Convex)
+
+Since 30 Sep 2026 every question the answer engine handles is recorded as a PostHog **AI
+Observability** trace, sent from Convex rather than from an API route:
+`convex/aiTrace.ts` collects the events during the turn and posts them in one request to
+PostHog's batch API just before the `/answer/stream` response closes (an httpAction cannot
+run `posthog-node`). The browser sends `analytics.requestHeaders()` on
+`fetch('/api/answer')`; `app/api/answer/route.ts` forwards the two ids, plus the panel's
+conversation id, to Convex in the body, where they are re-validated. **Nothing is sent
+until `POSTHOG_KEY` is set in the Convex deployment's environment and the Convex side is
+deployed** — see "Deploying Convex" in `overview.md`.
+
+These are PostHog's own event names and properties, so they do not follow rule 5. Every
+event carries `$ai_trace_id` (one per question), `$ai_session_id` (the conversation: a random id pinned on a
+thread's first question and kept for its follow-ups; a resumed saved thread uses its chat id),
+`distinct_id` (the browser's, so the trace joins the person) and `$session_id` (so it
+links to the replay). With no valid id from the browser the trace is recorded under its
+own id with `$process_person_profile: false`.
+
+| Event | Fired when | Properties | Where (file) | Status |
+|---|---|---|---|---|
+| `$ai_generation` | Each model call: every round of the answer loop, and the web-search call | `$ai_span_name: "answer" \| "web_search"`, `$ai_model` (the model that served it, which exposes a failover), `$ai_provider: "openrouter"`, `$ai_input` — every message sent, system prompt and tool results included, each clipped at 20,000 characters, `$ai_output_choices`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd` (when OpenRouter reports it), `$ai_latency` (s), `$ai_http_status`, `$ai_tools`, `$ai_temperature`, `$ai_max_tokens`, `$ai_is_error`, `$ai_error` | `convex/answer.ts` (`callModel`, `searchWeb`) via `convex/aiTrace.ts` | Live once deployed |
+| `$ai_span` | Each lookup the model made | `$ai_span_name` (the tool: `describe_dataset`, `fetch_dataset`, `search_web`, `ask_reader`), `$ai_input_state` — its arguments, `$ai_output_state` — what it was handed back, clipped at 20,000, `$ai_latency`, `$ai_is_error` (the call was invalid) | `convex/answer.ts` (tool loop) | Live once deployed |
+| `$ai_trace` | The turn ended, answered or failed | `$ai_input_state` — the reader's question, `$ai_output_state` — the answer as shown (after citation resolution), each as a one-message chat list (`[{role, content}]`), the shape PostHog's trace view renders, `$ai_latency`, `$ai_is_error`, `$ai_error`, and ours: `outcome: "answered" \| "asked_reader" \| "failed"`, `dropped`, `partial`, `truncated_by_length`, `db_source_count`, `web_source_count`, `signed_in` | `convex/answer.ts` (`stream`) | Live once deployed |
+
+PostHog keeps the large properties (`$ai_input`, `$ai_output_choices`, `$ai_input_state`,
+`$ai_output_state`, `$ai_tools`) for **30 days** only, in the `posthog.ai_events` table;
+the rest of each event stays in `events` like any other. So a wrong answer worth keeping
+must be saved to a dataset (or into `scripts/truth/questions.ts`) inside that window.
+
+The client events join these by the same id: `answer_received`, `answer_failed` and
+`answer_rated` carry `$ai_trace_id` when the server sent one. Not on the CLI path
+(`answer:ask`), which records nothing.
 
 ---
 
@@ -548,6 +578,12 @@ These are the saved insights the project should maintain in the PostHog UI:
     number was impossible to record before it, because the old pill only appeared once a
     conversation already existed.
 12. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+13. **Reader-reported wrong answers** — `answer_rated` where `verdict = wrong`, as a table of
+    `question`, `answer`, `sources` and `$ai_trace_id`, newest first. Open the trace (AI
+    Observability → Traces) to see what the model was given; add it to a dataset within 30
+    days, before PostHog drops its text. Each row is a candidate case for
+    `scripts/truth/questions.ts`. Alongside it, the share of ratings that are `wrong`, and
+    ratings as a share of `answer_received`: a check nobody taps says nothing either way.
 
 ---
 

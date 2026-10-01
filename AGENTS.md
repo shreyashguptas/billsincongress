@@ -37,8 +37,11 @@ These rules apply to EVERY change that adds, removes, or modifies a user-facing 
    Note there is currently **no live server-side event**: the one example in the registry,
    `bill_chat_message_processed`, fires from `app/api/bill-chat/send/route.ts`, which no
    part of the UI calls any more. Read it as a reference implementation, not as something
-   that runs. The live answer path (`app/api/answer/route.ts`) sends no server event and
-   does not forward the headers.
+   that runs. The live answer path is the exception to "API routes": it forwards the
+   headers from `app/api/answer/route.ts` to Convex, and `convex/aiTrace.ts` records each
+   answer as PostHog AI trace events (`$ai_generation`, `$ai_span`, `$ai_trace`) with
+   `fetch`, not `posthog-node`. They send nothing until `POSTHOG_KEY` is set in the Convex
+   environment and Convex is deployed. See "AI traces" in `Documentation/ANALYTICS.md`.
 
 A feature change without its analytics change is an incomplete change — do not consider
 the work done, and do not say it's done, until both halves are in place.
