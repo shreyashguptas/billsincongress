@@ -755,49 +755,6 @@ export const fullSync = internalAction({
   },
 });
 
-// Legacy entry point (documented in Documentation/interactive-dashboard.md);
-// delegates to incrementalSync. Not wired to any cron.
-export const dailySync = internalAction({
-  handler: async (ctx) => {
-    console.log("Daily sync delegating to incrementalSync");
-    await ctx.scheduler.runAfter(0, internal.congressApi.incrementalSync);
-  },
-});
-
-/**
- * One-time historical pull for the last 3 congresses.
- * Trigger this manually from the Convex dashboard after initial setup.
- */
-export const initialHistoricalPull = internalAction({
-  handler: async (ctx) => {
-    const currentYear = new Date().getFullYear();
-    const currentCongress = Math.floor((currentYear - 1789) / 2) + 1;
-
-    const congressesToSync = [
-      currentCongress,
-      currentCongress - 1,
-      currentCongress - 2,
-    ];
-
-    console.log(
-      `Starting historical pull for congresses: ${congressesToSync.join(", ")}`
-    );
-
-    // Stagger each congress by 2 hours — each congress has 8 bill types
-    // staggered by 10 min internally, so ~80 min per congress
-    for (let i = 0; i < congressesToSync.length; i++) {
-      await ctx.scheduler.runAfter(
-        i * 7200000, // 2 hour gap between congresses
-        internal.congressApi.syncCongress,
-        {
-          congress: congressesToSync[i],
-          syncType: "historical",
-        }
-      );
-    }
-  },
-});
-
 const RECONCILE_LIST_PAGE = 250; // API list page size (max allowed)
 const RECONCILE_MAX_LIST_PAGES = 500; // 125k bills/type — far beyond any congress
 const RECONCILE_MAX_RUN_MS = 8 * 60 * 1000; // stop before the 10-min action kill

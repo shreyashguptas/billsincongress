@@ -5,7 +5,7 @@
 /*
  * Bills in Congress — design tokens.
  *
- * Documentation/brand.md is the source of truth for everything in this block:
+ * documentation/brand.md is the source of truth for everything in this block:
  * what each token is for, which grounds it is legible on, and why the chrome
  * has no hue of its own ("color belongs to the data"). Change a value here and
  * the brand doc in the same commit.
@@ -113,7 +113,7 @@
  * shadcn/ui's semantic variables, pointed at the brand. components/ui is
  * shadcn/ui, and every component in it — and any added later with the shadcn
  * CLI — reads these names, so it arrives on-brand with no restyling. The
- * mapping is in Documentation/brand.md ("Components").
+ * mapping is in documentation/brand.md ("Components").
  *
  * Declared on `.dark` as well as `:root` on purpose: a custom property that
  * references another is resolved where it is declared, so without the second

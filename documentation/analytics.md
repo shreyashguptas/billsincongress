@@ -6,7 +6,7 @@ should not exist in the code — and if it's in this file, it must exist in the 
 
 - PostHog project: **BillsInCongress** (project id `451900`, US Cloud, `https://us.posthog.com`)
 - Client SDK: `posthog-js`, initialized in `instrumentation-client.ts`
-- Server SDK: `posthog-node`, wrapped in `lib/posthog-server.ts`
+- Server SDK: `posthog-node`, wrapped in `lib/posthog-server.ts` (server-side `$exception` only; the AI traces and log lines are sent from Convex with `fetch`)
 - Typed event helpers (use these, never call `posthog.capture` with a raw string): `lib/analytics.ts`
 
 ---
@@ -60,9 +60,9 @@ should not exist in the code — and if it's in this file, it must exist in the 
    control on its own; the URL has to be handled as well. All of this is
    disclosed in the Privacy Policy (`app/privacy/page.tsx`): §2 lists what typed text reaches
    analytics, §3 says question text goes to PostHog, and §6 names it on the PostHog entry; the
-   README's "What is collected about you" says the same. Adding another free-text property is
-   a privacy decision, not a routine one: raise it explicitly and update the Privacy Policy
-   and the README in the same change.
+   reader guide's ["What is collected about you"](reader-guide.md#what-is-collected-about-you)
+   says the same. Adding another free-text property is a privacy decision, not a routine one:
+   raise it explicitly and update the Privacy Policy and the reader guide in the same change.
 
 ---
 
@@ -81,11 +81,12 @@ repository.
 | `$pageview` / `$pageleave` | Every page visited, time on page, exit pages, full URL, referrer | `defaults` preset |
 | `$autocapture` | Every click on links/buttons/inputs across the whole site (incl. nav, footer, Learn/About CTAs) | `defaults` preset + project setting `autocapture_opt_out: null` |
 | Session replay | Video-style recordings of real sessions, console logs, network perf | Project setting `session_recording_opt_in: true` |
-| Web vitals | LCP, CLS, FCP, INP per page | Project setting `autocapture_web_vitals_opt_in: true` |
+| `$web_vitals` | LCP, CLS, FCP, INP per page | Project setting `autocapture_web_vitals_opt_in: true` |
 | `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below. Since 13 Sep 2026 also reported explicitly by the error boundaries, which catch a render failure before the window-level handler can see it | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle), plus `analytics.captureException()` from `app/error.tsx` and `app/global-error.tsx` |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) | Project setting `heatmaps_opt_in: true` |
 | `$rageclick` | Repeated frustrated clicks on the same element | `defaults` preset |
-| `$workflows_email_*` | Delivery of each email the site sends (sign-up codes, password-reset codes, bill alerts, Pro plan-change notices): `sent`, `delivered`, `bounced`, `blocked`. No opens or clicks, because tracking is off on those sends. All under one distinct id, `bills-congress-mailer`, so no per-recipient profiles are created; the recipient is in `$email_to` | PostHog Workflows, not the browser. The workflows are "Bills.Congress: sign-in codes", "…: bill alerts" and "…: billing"; see "Email" in `overview.md`. The site's request names its run `bic_email_requested`, but that is **not** an ingested event (the workflow has no "Capture event" step) and never appears in insights; the payload, code included, is kept only in the workflow's Invocations tab |
+| `$conversations_loaded` | PostHog's support (Conversations) widget loaded on the page. Arrives on every page view since 12 Sep 2026, about 5,700 events in the 30 days to 1 Oct 2026, so it is noise in any "all events" chart | PostHog project settings (the Conversations product), not this repository |
+| `$workflows_email_*` | **Not captured: the project setting is off.** PostHog can record each email a workflow sends as `sent`, `delivered`, `bounced` and `blocked` events, but only when "Capture email engagement events" is on (Settings → Workflows → Engagement events; `workflows_config.capture_workflows_engagement_events`). On this project it is off, so none reach the event stream, although the emails do go out: in the 30 days to 1 Oct 2026 the workflow metrics show sign-in codes 7 sent, 7 delivered, 0 failed (one soft bounce on 30 Sep), billing 2 sent and 2 delivered (25 Sep), and bill alerts none ever sent. Delivery and bounces of every email the site sends (sign-up and password-reset codes, bill alerts, Pro plan-change notices) are recorded only in each workflow's Metrics and Invocations tabs. No opens or clicks are tracked either way, because tracking is off on those sends | PostHog Workflows, not the browser. The workflows are "Bills.Congress: sign-in codes", "…: bill alerts" and "…: billing"; see "Email" in [`overview.md`](overview.md#email). The site's request names its run `bic_email_requested`, but that is **not** an ingested event either (the workflow has no "Capture event" step); the payload, code included, is kept only in the workflow's Invocations tab |
 
 Project-side settings worth knowing when reading this data, because none of them are
 visible in the repo:
@@ -120,6 +121,18 @@ visible in the repo:
 > which report no failure. These are deliberately not part of the count above —
 > they were first seen on 1 Sep 2026, after that ten-week window closed, and
 > numbered 3 events from one visitor.
+>
+> Added 1 Oct 2026: two more third-party sources. A crypto-wallet script that
+> browsers inject (`window.ethereum`; 9 events from one Brave-on-iOS visitor on
+> 30 Sep 2026 — this site has no wallet code), and Facebook's Android in-app
+> browser losing its Java bridge (`Error invoking postMessage: Java object is
+> gone`, 1 event). React's `Failed to execute 'removeChild' on 'Node'` is
+> deliberately **not** dropped. Translators and page-rewriting extensions cause
+> it, but its frames are identical to a real bug of ours, and every recorded
+> instance (9 events, 3 visitors, 28–30 Sep 2026) came through the error
+> boundaries, so each was a reader shown the error screen. They were: the shared
+> `Select` rendered bare text that translation replaces, fixed the same day (see
+> "Gaps worth fixing" in `overview.md`), so a new one is worth a look.
 >
 > The rules live in `lib/error-filter.ts` with the reasoning for each, and are
 > tested against verbatim production messages in `lib/error-filter.test.ts`.
@@ -157,7 +170,7 @@ picker) and fires one custom event — see "Learn page" below.
 | `signin_submitted` | User submits the sign-in form | `method: "password"` | `components/auth/sign-in-form.tsx` |
 | `signin_completed` | Sign-in succeeded (password, or Google OAuth return for an existing account) | `method: "password" \| "google"` | `components/auth/sign-in-form.tsx`, `components/analytics/posthog-auth-sync.tsx` |
 | `signin_failed` | Sign-in failed | `reason: "invalid_credentials" \| "other"` | `components/auth/sign-in-form.tsx` |
-| `password_reset_requested` | Reader asks for a reset code (added 2026-09-30): submits their email on `/forgot-password` (`surface: "forgot_password"`), or presses "Email me a code" under "Change password" on `/account` (`"account"`). On `/forgot-password` the form moves on to the code step whatever the server says, so this counts attempts, not emails sent; compare with `$workflows_email_sent` on the sign-in codes workflow | `surface: "forgot_password" \| "account"` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
+| `password_reset_requested` | Reader asks for a reset code (added 2026-09-30): submits their email on `/forgot-password` (`surface: "forgot_password"`), or presses "Email me a code" under "Change password" on `/account` (`"account"`). On `/forgot-password` the form moves on to the code step whatever the server says, so this counts attempts, not emails sent; compare with the sign-in codes workflow's own metrics in PostHog | `surface: "forgot_password" \| "account"` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
 | `password_reset_code_resent` | Reader clicks "Resend code" on the reset step | `surface` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
 | `password_reset_submitted` | Reader submits the 6-digit code and a new password | `surface` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
 | `password_reset_completed` | The new password was saved; the reader is signed in and every other session on the account is signed out (from `/account` the reader simply stays signed in). Not also sent as `signin_completed` | `surface` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
@@ -178,7 +191,7 @@ picker) and fires one custom event — see "Learn page" below.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `dashboard_congress_selected` | User switches Congress with the dropdown in the home hero | `congress` | `components/dashboard/home/shared.tsx` |
-| `dashboard_drilldown_clicked` | User clicks any home-page stat or chart that drills into the bills data: the four headline figures, a stage in "Where bills stand", a topic's "→" link or the pinned topic's "See these bills", the grey "Other topics, or none tagged" slice's browse link, a sponsor bar, a state tile or top-five row. Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page. `filter_type` is one of `congress`, `chamber` (House/Senate cards, since 24 Sep 2026), `status`, `policyArea`, `sponsor`, `state` | `filter_type`, `filter_value`, `congress` | `components/dashboard/DashboardClient.tsx` (`handleDrillDown`), `components/dashboard/home/topic-wheel.tsx` |
+| `dashboard_drilldown_clicked` | User clicks any home-page stat or chart that drills into the bills data: the four headline figures, a stage in "Where bills stand", a topic's "→" link or the pinned topic's "See these bills", the grey "Other topics, or none tagged" slice's browse link, a sponsor bar, a state tile or top-five row. Destination is a filtered `/bills` URL, except a policy area on the newest Congress, which goes to that topic's hub page. `filter_type` is one of `congress`, `chamber` (House/Senate cards, since 24 Sep 2026), `status`, `policyArea`, `sponsor`, `state` | `filter_type`, `filter_value`, `congress` | `components/dashboard/dashboard-client.tsx` (`handleDrillDown`), `components/dashboard/home/topic-wheel.tsx` |
 | `home_chamber_party_focused` | Reader hovers a party's seats in the hero chamber, or hovers/focuses its legend entry. Once per party per page view | `party: "D" \| "R" \| "I" \| "U"`, `congress` | `components/dashboard/home/hero.tsx` |
 | `home_topic_selected` | Reader pins a slice of the topic wheel (clicking the slice or its legend row). Unpinning sends nothing | `policy_area`, `is_rest` (the grey "Other topics, or none tagged" slice), `congress` | `components/dashboard/home/topic-wheel.tsx` |
 | `home_state_map_measure_changed` | Reader switches the state map between total bills and bills per member | `measure: "total" \| "per_member"`, `congress` | `components/dashboard/home/state-map.tsx` |
@@ -201,12 +214,12 @@ picker) and fires one custom event — see "Learn page" below.
 | `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+order+page) | `hub_kind`, `hub_path`, `bill_count`, `page`, `order` (`newest` \| `oldest`; added 2026-09-30, absent on earlier events) | `app/bills/_hub/hub-view-tracker.tsx` |
 | `hub_order_changed` | Reader switches a hub between "Newest first" and "Oldest first" (added 2026-09-30, when hubs gained a real date order). The page that follows reports its own `hub_viewed` with the new `order` | `hub_kind`, `hub_path`, `from_order`, `to_order`, `page` (the page they were on; a change of order returns to page 1) | `app/bills/_hub/hub-view-tracker.tsx` (`HubOrderSwitch`) |
-| `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, a sibling row on another hub, or the site footer (`placement: "footer"`, since 2026-09-25: House bills, Senate bills and Bills that became law; before that the footer's seven chamber and stage links reported only `$autocapture`). **Not** the homepage topic wheel's links, which go to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
+| `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, a sibling row on another hub, or the site footer (`placement: "footer"`, since 2026-09-25: House bills, Senate bills and Bills that became law; before that the footer's seven chamber and stage links reported only `$autocapture`). **Not** the homepage topic wheel's links, which go to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx`, `components/footer.tsx` (each through `HubLinkTracker` or the helper directly) |
 
 **`filter_kind` vocabulary** (shared by `bills_filter_applied`,
 `bills_filter_removed`, `bills_filter_panel_*` and
 `bills_no_results_filter_removed`, and defined once in
-`lib/bills/filter-registry.ts`): `title`, `bill_reference`, `bill_number`,
+`lib/bills/filter-registry.ts`): `title`, `bill_number`,
 `status`, `policy_area`, `state`, `bill_type`, `sponsor`, `introduced_date`,
 `last_action_date`, `congress`, `chamber`. These are deliberately NOT renamed to
 match the reader-facing labels ("Outcome", "Topic", "Sponsor's state") — the
@@ -310,11 +323,12 @@ No event carries card data, prices paid or Stripe ids. Revenue lives in Stripe.
 | `bill_alerts_unsubscribed` | Reader used the link in an alert email to stop all alert emails | `removed` (number of bills unfollowed) | `app/alerts/unsubscribe/unsubscribe-form.tsx` |
 
 Not tracked by us: whether an alert email was opened or clicked — tracking is off on the
-alerts workflow, so there is no pixel and no rewritten link. Delivery (`sent`, `delivered`,
-`bounced`, `blocked`) arrives as PostHog's own `$workflows_email_*` events, like the sign-in
-codes (see the automatic-capture table). A one-click unsubscribe from a mail client's own
-button goes to PostHog, not to us: it records `$workflows_email_unsubscribed` and puts the
-address on PostHog's opt-out list, and `bill_alerts_unsubscribed` does not fire.
+alerts workflow, so there is no pixel and no rewritten link. Delivery and bounces are recorded
+only in the workflow's Metrics and Invocations tabs: no `$workflows_email_*` events reach the
+event stream, because the project setting "Capture email engagement events" is off (see the
+automatic-capture table). The alerts workflow has not sent an email yet. A one-click unsubscribe from a mail client's own button goes to
+PostHog, not to us: it puts the address on PostHog's opt-out list, and
+`bill_alerts_unsubscribed` does not fire.
 
 ### Grounded answers
 
@@ -341,7 +355,7 @@ emits `list`.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-provider.tsx` |
-| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence, `$ai_trace_id` — the answer's AI trace (see "AI traces" below; absent until that Convex change is deployed). Fires when the finished answer arrives, before the panel's word-by-word reveal (up to 5s) has finished drawing it, so `response_ms` is the server's time, not the time until the reader sees the last word | `components/answers/answer-provider.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence, `$ai_trace_id` — the answer's AI trace (see "AI traces" below; present since 30 Sep 2026). Fires when the finished answer arrives, before the panel's word-by-word reveal (up to 5s) has finished drawing it, so `response_ms` is the server's time, not the time until the reader sees the last word | `components/answers/answer-provider.tsx` |
 | `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), `"empty_model_output"` (the model gave no answer and no lookup, even after one nudge and a final round without tools; **until #135's Convex deploy on 30 Sep 2026 at about 17:42 UTC (13:42 ET) the reader got a canned apology instead, recorded as an `answer_received`**, so no `empty_model_output` event predates that deploy), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first, `$ai_trace_id` — when the server got far enough to record a trace. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
 | `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |
@@ -387,11 +401,11 @@ property exists to settle, with data, which placements earn their spot.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
-| `podcast_promo_clicked` | User clicks "Listen on Spotify" / "Listen on Apple Podcasts" in any podcast promo | `placement: "home" \| "learn" \| "bill"`, `platform: "spotify" \| "apple"`, `bill_id` (bill pages only) | `components/podcast-promo.tsx` (rendered by `components/dashboard/DashboardClient.tsx`, `app/learn/page.tsx`, `components/bills/bill-details.tsx`) |
+| `podcast_promo_clicked` | User clicks "Listen on Spotify" / "Listen on Apple Podcasts" in any podcast promo | `placement: "home" \| "learn" \| "bill"`, `platform: "spotify" \| "apple"`, `bill_id` (bill pages only) | `components/podcast-promo.tsx` (rendered by `components/dashboard/dashboard-client.tsx`, `app/learn/page.tsx`, `components/bills/bill-details.tsx`) |
 
 ### Installed app (PWA)
 
-Added 2026-09-25 with the installable app (Documentation/overview.md, "The installed
+Added 2026-09-25 with the installable app (documentation/overview.md, "The installed
 app"). The funnel is `app_install_clicked` → `app_installed`, and `display_mode` says how
 much of the site's use happens inside the installed app.
 
@@ -411,7 +425,7 @@ it.
 
 Added 2026-09-29. Two forms the site draws itself, each backed by a PostHog survey of type
 `api` so the answers land in PostHog's **Surveys** tab with its own charts and filters
-(Documentation/overview.md, "Reader feedback"). Because the Surveys tab reads PostHog's own
+(documentation/overview.md, "Reader feedback"). Because the Surveys tab reads PostHog's own
 event names and `$survey_*` properties, these three events are **PostHog's**, not
 `object_action` names of ours: renaming them would take the answers out of the Surveys tab.
 They are still sent only through the helpers in `lib/analytics.ts` (`surveyShown`,
@@ -439,13 +453,17 @@ site shows the prompt only while PostHog has the survey open (`analytics.whenSur
 
 ### Server-side events
 
-Captured with `posthog-node` (`lib/posthog-server.ts`) from API routes, tied to the same
-person via the `X-PostHog-Distinct-Id` / `X-PostHog-Session-Id` headers sent by the browser.
+`posthog-node` (`lib/posthog-server.ts`) is used for one thing only: reporting an exception
+from an API route, through `captureServerException`. No API route sends a product event.
+The last one, `bill_chat_message_processed`, went with the old per-bill chat route on
+1 Oct 2026 (see "Retired events"). The header names the browser uses to tie a server event to
+its person (`x-posthog-distinct-id`, `x-posthog-session-id`) are still exported from that file;
+today they are read only by `app/api/answer/route.ts`, which forwards them to Convex for the AI
+traces below.
 
 | Event | Fired when | Properties | Where (file) | Status |
 |---|---|---|---|---|
-| `bill_chat_message_processed` | Server finished handling a per-bill chat message | `bill_id`, `success`, `rate_limited`, `user_type`, `question_length` | `app/api/bill-chat/send/route.ts` | **Dead.** The route is still deployed and publicly callable, but its only client (`billsService.sendChatMessage`) has no call site anywhere in the app. Last event 27 Aug 2026. |
-| `$exception` (server) | An API route threw | error details | `app/api/bill-chat/send/route.ts` (dead), `app/api/bill-chat/usage/route.ts` (live, called by `app/account/page.tsx`) | Partly live |
+| `$exception` (server) | An API route threw | error details, `route` | `app/api/bill-chat/usage/route.ts` (called by the account page), `app/api/alerts/unsubscribe/route.ts`, `app/api/bills/query/route.ts` | Live |
 
 #### AI traces (every answer, from Convex)
 
@@ -455,9 +473,10 @@ Observability** trace, sent from Convex rather than from an API route:
 PostHog's batch API just before the `/answer/stream` response closes (an httpAction cannot
 run `posthog-node`). The browser sends `analytics.requestHeaders()` on
 `fetch('/api/answer')`; `app/api/answer/route.ts` forwards the two ids, plus the panel's
-conversation id, to Convex in the body, where they are re-validated. **Nothing is sent
-until `POSTHOG_KEY` is set in the Convex deployment's environment and the Convex side is
-deployed** — see "Deploying Convex" in `overview.md`.
+conversation id, to Convex in the body, where they are re-validated. Nothing is sent
+without `POSTHOG_KEY` in the Convex deployment's environment; it is set in production, and the
+first traces arrived on 30 Sep 2026. See "Deploying Convex" in
+[`overview.md`](overview.md#deploying-convex).
 
 These are PostHog's own event names and properties, so they do not follow rule 5. Every
 event carries `$ai_trace_id` (one per question), `$ai_session_id` (the conversation: a random id pinned on a
@@ -468,9 +487,9 @@ own id with `$process_person_profile: false`.
 
 | Event | Fired when | Properties | Where (file) | Status |
 |---|---|---|---|---|
-| `$ai_generation` | Each model call: every round of the answer loop, and the web-search call | `$ai_span_name: "answer" \| "web_search"`, `$ai_model` (the model that served it, which exposes a failover), `$ai_provider: "openrouter"`, `$ai_input` — every message sent, system prompt and tool results included, each clipped at 20,000 characters, `$ai_output_choices`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd` (when OpenRouter reports it), `$ai_latency` (s), `$ai_http_status`, `$ai_tools`, `$ai_temperature`, `$ai_max_tokens`, `$ai_is_error`, `$ai_error` | `convex/answer.ts` (`callModel`, `searchWeb`) via `convex/aiTrace.ts` | Live once deployed |
-| `$ai_span` | Each lookup the model made | `$ai_span_name` (the tool: `describe_dataset`, `fetch_dataset`, `search_web`, `ask_reader`), `$ai_input_state` — its arguments, `$ai_output_state` — what it was handed back, clipped at 20,000, `$ai_latency`, `$ai_is_error` (the call was invalid) | `convex/answer.ts` (tool loop) | Live once deployed |
-| `$ai_trace` | The turn ended, answered or failed | `$ai_input_state` — the reader's question, `$ai_output_state` — the answer as shown (after citation resolution), each as a one-message chat list (`[{role, content}]`), the shape PostHog's trace view renders, `$ai_latency`, `$ai_is_error`, `$ai_error`, and ours: `outcome: "answered" \| "asked_reader" \| "failed"`, `dropped`, `partial`, `truncated_by_length`, `db_source_count`, `web_source_count`, `signed_in` | `convex/answer.ts` (`stream`) | Live once deployed |
+| `$ai_generation` | Each model call: every round of the answer loop, and the web-search call | `$ai_span_name: "answer" \| "web_search"`, `$ai_model` (the model that served it, which exposes a failover), `$ai_provider: "openrouter"`, `$ai_input` — every message sent, system prompt and tool results included, each clipped at 20,000 characters, `$ai_output_choices`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd` (when OpenRouter reports it), `$ai_latency` (s), `$ai_http_status`, `$ai_tools`, `$ai_temperature`, `$ai_max_tokens`, `$ai_is_error`, `$ai_error` | `convex/answer.ts` (`callModel`, `searchWeb`) via `convex/aiTrace.ts` | Live (since 30 Sep 2026) |
+| `$ai_span` | Each lookup the model made | `$ai_span_name` (the tool: `describe_dataset`, `fetch_dataset`, `search_web`, `ask_reader`), `$ai_input_state` — its arguments, `$ai_output_state` — what it was handed back, clipped at 20,000, `$ai_latency`, `$ai_is_error` (the call was invalid) | `convex/answer.ts` (tool loop) | Live (since 30 Sep 2026) |
+| `$ai_trace` | The turn ended, answered or failed | `$ai_input_state` — the reader's question, `$ai_output_state` — the answer as shown (after citation resolution), each as a one-message chat list (`[{role, content}]`), the shape PostHog's trace view renders, `$ai_latency`, `$ai_is_error`, `$ai_error`, and ours: `outcome: "answered" \| "asked_reader" \| "failed"`, `dropped`, `partial`, `truncated_by_length`, `db_source_count`, `web_source_count`, `signed_in` | `convex/answer.ts` (`stream`) | Live (since 30 Sep 2026) |
 
 PostHog keeps the large properties (`$ai_input`, `$ai_output_choices`, `$ai_input_state`,
 `$ai_output_state`, `$ai_tools`) for **30 days** only, in the `posthog.ai_events` table;
@@ -490,7 +509,8 @@ the Logs billing limit is set to $0, so past the free tier they stop rather than
 They are sent from our own code, `convex/posthogLogs.ts`, because Convex's built-in log
 streaming needs its Professional plan. They use the same `POSTHOG_KEY` (and
 `POSTHOG_HOST`) as the AI traces above; with no key in the Convex environment nothing is
-sent. Service name: `billsincongress-convex`.
+sent. The key is set in production, and lines have arrived since 30 Sep 2026 at 17:42 UTC.
+Service name: `billsincongress-convex`.
 
 The trace and the line are two views of one question. The trace holds the text (question,
 lookups, answer) for 30 days; the line holds none of it and is the cheap thing to count,
@@ -566,7 +586,7 @@ Rebuild them on the `answer_*` equivalents:
 | Bill discovery → AI chat funnel | `qcr4jGHS` | `bill_chat_question_submitted` as the last step | `answer_question_submitted` |
 | Weekly retention: AI chat users | `V2vWhvQ3` | `bill_chat_question_submitted` | `answer_question_submitted` |
 | Rate limit → sign-up conversion | `cztOt3GV` | `bill_chat_rate_limited` | `answer_rate_limited` |
-| Bill searches & filters applied per day | `pI36FO07` | `bills_filters_applied` | Nothing yet — filter usage is uninstrumented, see "Known gap" below |
+| Bill searches & filters applied per day | `pI36FO07` | `bills_filters_applied` | `bills_filter_applied` (singular), broken down by `filter_kind`; see the note under "Retired events" |
 
 These are the saved insights the project should maintain in the PostHog UI:
 
@@ -602,22 +622,22 @@ These are the saved insights the project should maintain in the PostHog UI:
    near zero. It was previously undetectable, and because an answer states its claim
    before its qualification, truncation removes precisely the caveat that made the
    claim honest.
-9. **Where intent actually lives** — `answer_question_submitted` split by `surface`.
+11. **Where intent actually lives** — `answer_question_submitted` split by `surface`.
    The spec's bet is that `filtered` converts best per impression. If it does not,
    the ask bar is in the wrong place.
-10. **Step-aside and return rate** — `answer_entity_clicked` →
+12. **Step-aside and return rate** — `answer_entity_clicked` →
     `answer_panel_closed (reason: entity_navigation)` → `answer_panel_restored`, split by
     viewport width. This is the number that says whether the mobile fix worked: readers
     used to tap a bill inside an answer and see nothing happen, because the sheet covered
     the page it had just opened. A large first drop means the panel is not stepping aside;
     a large second drop means readers cannot find their way back to the conversation.
-11. **Cold asks** — `answer_panel_opened` where `has_conversation` is false, split by
+13. **Cold asks** — `answer_panel_opened` where `has_conversation` is false, split by
     `surface`. The always-available launcher exists so that a reader on a hub page or the
     Learn guide — pages with no ask box of their own — can ask anything at all. This
     number was impossible to record before it, because the old pill only appeared once a
     conversation already existed.
-12. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
-13. **Reader-reported wrong answers** — `answer_rated` where `verdict = wrong`, as a table of
+14. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+15. **Reader-reported wrong answers** — `answer_rated` where `verdict = wrong`, as a table of
     `question`, `answer`, `sources` and `$ai_trace_id`, newest first. Open the trace (AI
     Observability → Traces) to see what the model was given; add it to a dataset within 30
     days, before PostHog drops its text. Each row is a candidate case for
@@ -636,7 +656,7 @@ is reviewed like any other.
 |---|---|
 | PostHog project | BillsInCongress (`451900`) |
 | Setup script | `pnpm posthog:self-driving` (after `posthog-cli login`) |
-| Integration report | `posthog-setup-report.md` |
+| Integration report | [`posthog-setup-report.md`](posthog-setup-report.md) |
 | GitHub repo | `shreyashguptas/billsincongress` |
 | Billing | Inbox limit **$0** — first 3 PRs/month free, paid PRs blocked |
 | AI provider | PostHog AI (no BYOK / Claude subscription) |
@@ -648,7 +668,7 @@ is reviewed like any other.
 | Error tracking (`issue_created`, `issue_reopened`, `issue_spiking`) | Native inbox source |
 | Health checks (`health_issue`) | Native inbox source |
 | Support (`conversations` / `ticket`) | Native inbox source (idle until a channel is connected) |
-| Session replay | **Replay Vision scanners** (broken-experience + rage-click monitors) — not `session_analysis_cluster` |
+| Session replay | **Replay Vision scanners** (two monitors, "Bill discovery and answer breakage" on `/bills` URLs and "Bill research frustration" on `$rageclick`; the setup script finds them by type and prompt, not name, so a re-run updates rather than duplicates) — not `session_analysis_cluster` |
 | Scout findings | On by default via `signals_scout` gate |
 
 ### Scout troop (tuned for this product)
@@ -720,35 +740,46 @@ Notes:
 ### PostHog CLI
 
 `@posthog/cli` is installed as a dev dependency (`npx posthog-cli --help`).
-Authenticate once with `npx posthog-cli login`. It is used **manually only** — for ad-hoc
-queries. No `package.json` script and no GitHub workflow invokes it, so despite what an
-earlier version of this file said, **sourcemaps are not uploaded**. Stack traces in Error
-Tracking are therefore against minified production bundles. Wiring sourcemap upload into
-`cf:build` is an open improvement, not something that already happens.
+Authenticate once with `npx posthog-cli login`. It is used for ad-hoc queries and by one
+script, `pnpm posthog:self-driving` (`scripts/posthog-self-driving-setup.ts`, see "PostHog
+Self-driving" above), which calls its `api` commands to configure the Inbox. `posthog-cli`
+0.7.34 does not expose the `vision-scanners-*` tools, so the script currently skips the scanner
+step; the two monitors were created by PostHog's wizard on 13 Sep 2026. Nothing in the
+build or any GitHub workflow invokes it, so despite what an earlier version of this file said,
+**sourcemaps are not uploaded**. Stack traces in Error Tracking are therefore against minified
+production bundles. Wiring sourcemap upload into `cf:build` is an open improvement, not
+something that already happens.
 
 ---
 
 ## Wired in code but never observed
 
-As of 29 Aug 2026, seven registered events had never been received once. Each is either a
-genuinely rare path or a broken one, and the difference matters — an event that *cannot*
-fire is a silent instrumentation bug, not a quiet feature. The seven filter-redesign events
-shipped the same day and are deliberately left out of this table: they need a week of
-traffic before their absence tells you anything.
+Re-checked 1 Oct 2026 against the previous 30 days. An event that *cannot* fire is a silent
+instrumentation bug, not a quiet feature, so an absence here is worth a look before it is put
+down to rarity.
+
+**Now arriving.** Three events on the 29 Aug 2026 version of this list have since been seen:
+`hub_link_clicked` (39 in 30 days), `rate_limit_signin_clicked` (9) and `answer_rate_limited`
+(66).
+
+**Not seen once in 30 days**, on paths that have existed for longer than that:
 
 | Event | Most likely explanation |
 |---|---|
-| `signup_verification_code_resent` | Rare path — few people need to resend the code. |
-| `signup_failed` | Rare path — only fires on a failed password-rules check or a wrong code. |
-| `hub_link_clicked` | Hub pages only shipped 18 Aug 2026, and until the /bills browse disclosure and the filter-picker footers landed, the only way to fire this was a sibling row far down a hub page. |
-| `rate_limit_signin_clicked` | Rare — few readers hit the cap and already have an account. |
-| `answer_rate_limited` | Expected to be rare while answer volume is low, but worth watching: it is the top of the rate-limit conversion funnel. |
+| `bill_alert_toggled` | Following a bill needs Pro. Worth confirming it fires the next time a subscriber follows or unfollows a bill. |
+| `bill_alerts_unsubscribed` | Needs an alert email to have gone out first, and then a reader to use its unsubscribe link. |
+| `pro_welcome_step_clicked` | Needs a new subscriber to press a step in the "Welcome to Pro" dialog. |
 | `answer_thread_deleted` | Requires a signed-in reader to delete a saved conversation. |
 | `answer_anon_thread_saved` | Requires signing in mid-conversation and choosing "Keep it". |
 
-Before assuming any of these is simply rare, check it can fire at all — the answer-family
-events only started arriving on 27 Aug 2026, so this list should be re-read once the
-feature has real usage behind it.
+**Zero in 30 days, but new or expected to be rare:** the five `password_reset_*` events
+(shipped 30 Sep 2026), `signup_failed`, `signup_verification_code_resent`,
+`avatar_editor_cancelled`, `avatar_failed`, `avatar_removed`, `avatar_google_restored`,
+`pro_checkout_failed` and `rate_limit_upgrade_clicked`.
+
+**Stopped arriving:** `answer_history_opened` and `answer_history_thread_resumed` last arrived
+on 31 Aug 2026. Both need a signed-in reader to open their saved conversations, so this may be
+a quiet month rather than a break, but it is the one entry here that used to work.
 
 ---
 
@@ -756,6 +787,7 @@ feature has real usage behind it.
 
 | Event | Properties | Retired | Why |
 | --- | --- | --- | --- |
+| `bill_chat_message_processed` | `bill_id`, `success`, `rate_limited`, `user_type`, `question_length` | 2026-10-01 | Server-side (`posthog-node`) event from `app/api/bill-chat/send/route.ts`, the old per-bill chat route. The route had had no caller in the app since bill chat became the grounded answer panel, and was deleted with `convex/llm.ts`, `convex/chatAnalytics.ts` and `captureServerEvent`. Last event 27 Aug 2026. |
 | `learn_journey_step_viewed` | `step` (1–7), `step_title`, `method: "next" \| "back" \| "jump"` | 2026-09-25 | The seven-step journey stepper was replaced by a static picture path when the Learn page was rebuilt for young readers and page speed. Last 30 days before retirement: 125 events from 18 people. |
 | `learn_quiz_answered` | `question` (1–5), `correct` | 2026-09-25 | The civics quiz was removed in the same rebuild. Last 30 days: 86 events from 16 people. |
 | `learn_quiz_completed` | `score`, `total` | 2026-09-25 | Quiz removed (see above). Last 30 days: 16 events from 14 people. |

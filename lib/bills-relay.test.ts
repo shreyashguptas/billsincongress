@@ -17,6 +17,7 @@
 import assert from 'node:assert/strict';
 import { convexToJson } from 'convex/values';
 import { BILLS_RELAY_PATH, isUnreachable, parseRelayRequest } from './bills-relay';
+import { MAX_SEARCH_TEXT_LENGTH, MAX_SPONSOR_FILTERS } from './bill-query';
 
 let passed = 0;
 const failures: string[] = [];
@@ -77,6 +78,7 @@ const run = async () => {
   const calls: Route[] = [];
   let convexBehaviour: 'unreachable' | 'function-error' = 'unreachable';
   let relayStatus = 200;
+  let lastRelayArgs: Record<string, unknown> | null = null;
 
   const ROW = {
     billId: '5193hr118',
@@ -92,7 +94,11 @@ const run = async () => {
     if (url === BILLS_RELAY_PATH) {
       calls.push('relay');
       if (relayStatus !== 200) return new Response('{"error":"Query failed"}', { status: relayStatus });
-      const { name } = JSON.parse(String(init?.body)) as { name: string };
+      const { name, args } = JSON.parse(String(init?.body)) as {
+        name: string;
+        args: Record<string, unknown>;
+      };
+      lastRelayArgs = args;
       return Response.json({
         value: convexToJson(
           name === 'listCount'
@@ -146,6 +152,18 @@ const run = async () => {
     calls.length = 0;
     await billsService.fetchBills({ chamber: 'house' });
     assert.deepEqual(calls, ['relay']);
+  });
+
+  // bills.list throws on a title past 120 characters or more than 10 sponsors.
+  // The home page's suggestions search text from a 2,000-character box.
+  await it('cuts over-long text and sponsor lists to what bills.list accepts', async () => {
+    const title = 'school lunch '.repeat(20);
+    const sponsorFilter = Array.from({ length: 12 }, (_, i) => `Sponsor ${i}`);
+    await billsService.fetchBills({ titleFilter: title, sponsorFilter });
+    assert.equal(lastRelayArgs?.titleFilter, title.slice(0, MAX_SEARCH_TEXT_LENGTH));
+    assert.deepEqual(lastRelayArgs?.sponsorFilter, sponsorFilter.slice(0, MAX_SPONSOR_FILTERS));
+    await billsService.fetchBillsCount({ billNumber: '9'.repeat(200) });
+    assert.equal((lastRelayArgs?.billNumber as string).length, MAX_SEARCH_TEXT_LENGTH);
   });
 
   await it('when the relay fails too, fetchBills throws instead of returning no bills', async () => {

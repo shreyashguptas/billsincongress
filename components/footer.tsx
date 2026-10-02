@@ -9,7 +9,7 @@ import { FooterFeedback } from '@/components/feedback/feedback-box';
 
 // `flex w-fit`, not `inline-flex`: a row that starts with an icon, loose in a
 // list item, lines up by the icon's bottom edge and rides above its neighbours
-// (Documentation/brand.md, "Icons beside text").
+// (documentation/brand.md, "Icons beside text").
 const linkClass =
   'focus-ring flex w-fit items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline';
 

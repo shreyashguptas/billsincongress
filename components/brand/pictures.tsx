@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 // The site's picture primitives: small flat scenes drawn in SVG on the server,
 // so they cost no client JavaScript. Everything is ink except the one colour a
 // scene is about — a stage (Learn), the spectrum that signs the alert email, or
-// Pro's indigo (Documentation/brand.md, "Pictures"). Every scene carries its
+// Pro's indigo (documentation/brand.md, "Pictures"). Every scene carries its
 // own text alternative.
 //
 // Used by the Learn page (app/learn/components/pictures.tsx) and the Pro page

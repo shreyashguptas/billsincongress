@@ -9,15 +9,15 @@ Generated for Self-driving / scout context. Project **BillsInCongress** (id `451
 | Framework | Next.js App Router |
 | Client init | `instrumentation-client.ts` — single `posthog.init()` site |
 | Client helpers | `lib/analytics.ts` — all custom events |
-| Server client | `lib/posthog-server.ts` — API routes only |
+| Server client | `lib/posthog-server.ts` — `$exception` from three API routes only (`captureServerException`) |
 | Auth sync | `components/analytics/posthog-auth-sync.tsx` |
 | Reverse proxy | `https://t.billsincongress.com` (managed, DNS-only CNAME) |
 | Error tracking | `capture_exceptions: true` + `lib/error-filter.ts` before_send |
-| Event registry | `Documentation/ANALYTICS.md` (contract test: `lib/analytics-contract.test.ts`) |
+| Event registry | [`analytics.md`](analytics.md) (contract test: `lib/analytics-contract.test.ts`) |
 
 ## Custom events
 
-- **~70 live custom events** in `lib/analytics.ts`, all registered in `Documentation/ANALYTICS.md`.
+- **94 live custom events** in `lib/analytics.ts`, all registered in [`analytics.md`](analytics.md).
 - No raw `posthog.capture()` in components — only inside `lib/analytics.ts`.
 - Primary surfaces: bill browse/filters, bill detail, grounded answer panel, auth, Learn page, podcast promos, and the Pro plan (bill alerts, Stripe checkout, billing portal).
 - Pro funnel: `bill_alert_upsell_shown` / `rate_limit_upgrade_clicked` → `pro_checkout_started` → `pro_checkout_returned` → `pro_activated`.
@@ -29,8 +29,8 @@ Generated for Self-driving / scout context. Project **BillsInCongress** (id `451
 
 ## Server-side gaps
 
-- Live answer path (`/api/answer`) forwards the PostHog identity headers to Convex, which records each answer as PostHog AI trace events (`convex/aiTrace.ts`; "AI traces" in `Documentation/ANALYTICS.md`) and sends one PostHog Logs line per answer (`convex/posthogLogs.ts`; "PostHog Logs" in the same file). It has no `posthog-node` event.
-- Dead route `bill_chat_message_processed` still exists on `/api/bill-chat/send` (no UI caller).
+- Live answer path (`/api/answer`) forwards the PostHog identity headers to Convex, which records each answer as PostHog AI trace events (`convex/aiTrace.ts`; "AI traces" in [`analytics.md`](analytics.md#ai-traces-every-answer-from-convex)) and sends one PostHog Logs line per answer (`convex/posthogLogs.ts`; ["PostHog Logs"](analytics.md#posthog-logs) in the same file). Both have been live since 30 Sep 2026. It has no `posthog-node` event.
+- No API route sends a product event. The old per-bill chat route (`/api/bill-chat/send`, the only source of `bill_chat_message_processed`) was deleted on 1 Oct 2026.
 
 ## Self-driving configuration (target state)
 

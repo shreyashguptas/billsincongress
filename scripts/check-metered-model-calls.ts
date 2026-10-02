@@ -28,7 +28,7 @@ const offenders: string[] = [];
  *
  * Matching a bare `action(` or `query(` instead would also hit `ctx.db.query(`
  * and `ctx.runQuery(`, which is how the first version of this check produced
- * six false positives in llm.ts. The `export const NAME =` prefix is what makes
+ * six false positives in the old per-bill chat (convex/llm.ts, since removed). The `export const NAME =` prefix is what makes
  * a bare `\(` safe here.
  *
  * Do NOT require `({` after the call: `httpAction(async (ctx, req) => {` is the

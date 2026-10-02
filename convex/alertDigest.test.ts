@@ -136,7 +136,7 @@ const links = {
   unsubscribeUrl: "https://billsincongress.com/alerts/unsubscribe?token=abc",
 };
 
-// Resolutions travel a shorter road (Documentation/brand.md, "The road a
+// Resolutions travel a shorter road (documentation/brand.md, "The road a
 // measure travels"). Before, an adopted House resolution was emailed as
 // "passed one chamber" on a seven-step track filled to three: half-way to a
 // President it never goes to.

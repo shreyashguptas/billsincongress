@@ -27,12 +27,37 @@ import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-/** Kept in step with convex/llm.ts — both are overridden by the same env vars. */
+/**
+ * Baked-in model; override per-deployment with OPENROUTER_MODEL. Pinned to a
+ * dated release rather than a floating alias: an alias can resolve to a version
+ * no US-datacenter provider carries yet, which the allowlist below turns into
+ * an outage.
+ */
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
+/**
+ * Provider allowlist, so questions are only served from providers that process
+ * data in the US; override with OPENROUTER_PROVIDERS. Every slug here must ALSO
+ * be permitted by the OpenRouter account's own allowed-providers setting: if
+ * the two lists do not overlap, OpenRouter rejects every request with a 404
+ * rather than falling back — which is how this default once took chat down.
+ */
 const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
-/** Failover chain. Rules live on DEFAULT_FALLBACK_MODELS in convex/llm.ts. */
+/**
+ * Automatic failover chain, tried in order when the primary errors. Every entry
+ * must meet the primary's constraints — US provider, zero retention, no
+ * training on our readers, inside MAX_PRICE — so re-verify with
+ * scripts/check-provider-retention.ts before adding one: an entry that fails
+ * the retention filters is silently unreachable, not loudly broken. The first
+ * entry is a FLOATING alias on purpose, so the family tier outlives the dated
+ * primary.
+ */
 const DEFAULT_FALLBACK_MODELS =
   "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
+/**
+ * Runaway-cost guard, USD per million tokens — not the target price. A provider
+ * repricing or a careless OPENROUTER_MODEL change fails loudly instead of
+ * multiplying the bill.
+ */
 const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
 const SITE_URL = "https://billsincongress.com";
 /** Cap on client-supplied history (spec §4.7). */
@@ -883,7 +908,7 @@ export const stream = httpAction(async (ctx, request) => {
       }
 
       // Consume the daily token BEFORE calling the model (spec §9): this is the
-      // only spend cap on this path, which bypasses the one in convex/llm.ts.
+      // only spend cap on this path.
       // Which allowance applies (anonymous, free or Pro) is decided in one
       // place, convex/rateLimits.ts, from the stored plan.
       const limitStatus = await limitChatQuestion(

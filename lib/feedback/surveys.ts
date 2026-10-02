@@ -4,7 +4,7 @@
 //
 // Changing a question's wording: edit it in PostHog too, and keep its id —
 // responses are keyed by question id, so a new id starts a new column.
-// Documentation/ANALYTICS.md, "Feedback and surveys", lists both.
+// documentation/analytics.md, "Feedback and surveys", lists both.
 
 export interface SurveyQuestion {
   id: string;

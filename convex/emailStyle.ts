@@ -13,7 +13,7 @@ import { getStageStep, isStageOnPath } from "../lib/utils/bill-stages";
 
 export const BRAND = "Bills in Congress";
 
-// The site's Day palette (Documentation/brand.md): paper, raised, ink, ink-3
+// The site's Day palette (documentation/brand.md): paper, raised, ink, ink-3
 // and line. Mail clients ignore CSS variables and most ignore dark-mode media
 // queries, so it is literal. Like the site, the chrome has no accent: colour
 // comes from the data palette below.
@@ -31,7 +31,7 @@ export const SANS = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 export const MONO = "'SFMono-Regular',Menlo,Consolas,monospace";
 
 /**
- * The data palette, for email (Documentation/brand.md, "Email"). The same Day
+ * The data palette, for email (documentation/brand.md, "Email"). The same Day
  * values as app/globals.css: the six topic colours, which together are the
  * brand's spectrum, and the stage ramp. As on the site, a colour means
  * something — the spectrum signs the email, a stage colour is a stage.
@@ -85,7 +85,7 @@ export function pill(label: string, colours: { fill: string; tint: string; text:
 
 /**
  * The site's stage track, filled to `stage` in its colour, on the measure's own
- * road (Documentation/brand.md, "The road a measure travels"): seven steps to
+ * road (documentation/brand.md, "The road a measure travels"): seven steps to
  * law for a bill, three for a simple resolution, four for a concurrent one.
  * The step count comes from the same `getStageStep` the site draws with, so the
  * email and the bill page cannot disagree. An unrecognised stage fills nothing.

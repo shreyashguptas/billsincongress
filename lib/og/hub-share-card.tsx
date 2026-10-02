@@ -15,7 +15,7 @@ import {
 
 /**
  * The pictures a status, chamber or topic page's link unfurls into
- * (Documentation/brand.md, "Share card"). Same frame as a bill's card; the
+ * (documentation/brand.md, "Share card"). Same frame as a bill's card; the
  * body is the page's finding, stated as a figure and drawn.
  *
  * Every number here must be a complete count (AGENTS.md, "Answer accuracy"):

@@ -26,29 +26,13 @@ export const BillStageDescriptions: Record<BillStage, string> = {
   [BillStages.BECAME_LAW]: 'Became Law',
 } as const;
 
-export const BillStageOrder: BillStage[] = [
-  BillStages.INTRODUCED,
-  BillStages.IN_COMMITTEE,
-  BillStages.PASSED_ONE_CHAMBER,
-  BillStages.PASSED_BOTH_CHAMBERS,
-  BillStages.VETOED,
-  BillStages.TO_PRESIDENT,
-  BillStages.SIGNED_BY_PRESIDENT,
-  BillStages.BECAME_LAW,
-];
-
-export function getStageDescription(stage: number): string {
-  return BillStageDescriptions[stage as BillStage] || 'Unknown';
-}
-
 export function isValidStage(stage: number): stage is BillStage {
   return Object.values(BillStages).includes(stage as BillStage);
 }
 
 /**
- * Short stage labels for `CompactBillCard`. Its only caller today is the
- * in-answer entity card — `BillCard`'s `compact` variant exists but nothing
- * renders it — which is why D29 was visible in answers and nowhere else.
+ * Short stage labels for `CompactBillCard`, the in-answer entity card — which
+ * is why D29 was visible in answers and nowhere else.
  *
  * Typed `Record<BillStage, string>` on purpose. The card used to keep its own
  * copy of this map and that copy had no entry for 85, so a vetoed bill's card
@@ -105,7 +89,7 @@ const StageSteps: Record<BillStage, number> = {
 export const TOTAL_STAGE_STEPS = 7;
 
 /**
- * The road a measure travels (Documentation/brand.md, "The road a measure
+ * The road a measure travels (documentation/brand.md, "The road a measure
  * travels"). Bills and joint resolutions can become law and take the seven-step
  * road. A simple resolution binds one chamber and is finished once that chamber
  * agrees to it; a concurrent resolution is finished once both chambers do.
@@ -207,7 +191,7 @@ export const MAIN_PATH_LABELS = [
 
 /**
  * A stage as the interface writes it: sentence case, the way a reader would say
- * it (Documentation/brand.md, "Voice"). `BillStageDescriptions` above stays as
+ * it (documentation/brand.md, "Voice"). `BillStageDescriptions` above stays as
  * the stored vocabulary — it mirrors convex/billStage.ts, and the account page
  * maps saved descriptions back to stage codes through it.
  */

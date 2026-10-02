@@ -95,7 +95,7 @@ function UserMenuInner() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {/* The initials avatar, 36px. On Pro it wears the spectrum ring, the
-            Pro mark (Documentation/brand.md, "Pro"); the label says so too. */}
+            Pro mark (documentation/brand.md, "Pro"); the label says so too. */}
         <Button
           type="button"
           variant="ghost"

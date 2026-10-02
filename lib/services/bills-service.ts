@@ -1,6 +1,11 @@
 import { Bill } from '@/lib/types/bill';
 import type { HubOrder, HubSortScope, HubSortedBy } from '@/lib/hubs';
-import { parseBillReference, expandSearchAcronym } from '@/lib/bill-query';
+import {
+  clampFilterList,
+  clampFilterText,
+  expandSearchAcronym,
+  parseBillReference,
+} from '@/lib/bill-query';
 import { getConvexHttpClient } from '@/lib/convex-client';
 import {
   BILLS_RELAY_PATH,
@@ -15,22 +20,6 @@ import type { api as Api } from '../../convex/_generated/api';
  * Bills service that fetches data from Convex backend.
  * Falls back to empty results if Convex is not configured.
  */
-
-/**
- * PostHog distinct/session ID headers so server-side captures in API routes
- * attach to the same person and session replay as the browser's events.
- * Browser-only (dynamic import) so this shared client/server file stays
- * safe to import from server components.
- */
-async function getPostHogHeaders(): Promise<Record<string, string>> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const { analytics } = await import('@/lib/analytics');
-    return analytics.requestHeaders();
-  } catch {
-    return {};
-  }
-}
 
 export interface BillQueryParams {
   page?: number;
@@ -80,12 +69,18 @@ export interface BillsCountResult {
  * An explicit bill-type dropdown selection wins over the type in the typed
  * reference — the visible control should not be silently overridden — so a
  * contradictory pair simply returns nothing, which the empty state explains.
+ *
+ * Both texts are cut to what `bills.list` accepts first. The /bills URL parsers
+ * already do this; this covers every other caller, such as the home page's
+ * bill suggestions, which search text from a 2,000-character box.
  */
 function resolveTextQuery(
-  titleFilter: string,
-  billNumber: string,
+  rawTitleFilter: string,
+  rawBillNumber: string,
   billType: string | null,
 ): { titleFilter?: string; billNumber?: string; billType?: string } {
+  const titleFilter = clampFilterText(rawTitleFilter);
+  const billNumber = clampFilterText(rawBillNumber);
   const explicitType = billType && billType !== 'all' ? billType : undefined;
 
   // An explicit bill-number filter is already unambiguous; leave it alone.
@@ -271,7 +266,7 @@ export const billsService = {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
-        sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
+        sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
@@ -351,7 +346,7 @@ export const billsService = {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
         progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
-        sponsorFilter: sponsorFilter.length > 0 ? sponsorFilter : undefined,
+        sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
@@ -418,56 +413,6 @@ export const billsService = {
     }
   },
 
-  /**
-   * Fetch persisted chat history for the signed-in user and bill.
-   * Returns an empty array when no conversation exists yet.
-   */
-  async getBillChatHistory(
-    billId: string
-  ): Promise<Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>> {
-    const client = getConvexHttpClient();
-    if (!client) return [];
-
-    try {
-      const { api } = await import('../../convex/_generated/api');
-      const result = await client.query(api.llm.getBillChatHistory, { billId });
-      return result as Array<{ _id: string; role: 'user' | 'assistant'; content: string; createdAt: string }>;
-    } catch (error) {
-      console.error('Error fetching bill chat history:', error);
-      return [];
-    }
-  },
-
-  /**
-   * Send a message in the bill chat and return the AI response.
-   * Persists both the user message and the assistant reply in Convex.
-   *
-   * On rate-limit hit, returns `error: "RATE_LIMITED"` with a `rateLimit`
-   * object describing the cap and reset time. Caller is
-   * expected to render a dialog from those fields.
-   */
-  async sendChatMessage(
-    billId: string,
-    question: string,
-    clientSessionId?: string,
-  ): Promise<ChatResult> {
-    try {
-      const response = await fetch('/api/bill-chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await getPostHogHeaders()) },
-        body: JSON.stringify({ billId, question, clientSessionId }),
-      });
-      const result = (await response.json()) as ChatResult;
-      if (!response.ok && !result.error) {
-        return { answer: "", error: "Failed to get response" };
-      }
-      return result;
-    } catch (error) {
-      console.error('Error sending chat message:', error);
-      return { answer: "", error: "Failed to get response" };
-    }
-  },
-
   async getChatUsage(): Promise<ChatUsageResult> {
     try {
       const response = await fetch('/api/bill-chat/usage');
@@ -490,22 +435,6 @@ export const billsService = {
       };
     }
   },
-};
-
-/**
- * Return type for the bill chat. The `RATE_LIMITED` branch carries enough
- * info for the UI to render a "you've hit your daily limit" dialog with
- * the right copy + reset time, without a second round-trip.
- */
-export type ChatResult = {
-  answer: string;
-  error?: string;
-  rateLimit?: {
-    kind: "anonymous" | "authed";
-    max: number;
-    retryAfterMs: number;
-    resetAt: number;
-  };
 };
 
 export type ChatUsageResult = {

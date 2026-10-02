@@ -31,16 +31,25 @@ const FAILURE_COPY: Record<string, string> = {
  * The bill a checkout in this tab started from. The bill page acts on
  * `?checkout=…` only when this matches, so a shared or hand-typed link cannot
  * follow a bill for a reader or replay the Pro welcome. Session storage
- * survives the round trip to Stripe in the same tab.
+ * survives the round trip to Stripe in the same tab. It is stamped with the
+ * time it was set, so a checkout abandoned in this tab does not match a
+ * `?checkout=` link opened hours later.
  */
 export const CHECKOUT_BILL_KEY = 'bic-checkout-bill';
+const CHECKOUT_BILL_MAX_AGE_MS = 60 * 60 * 1000;
 
-/** Reads and clears the marker; true only if it named `billId`. */
+/** Reads and clears the marker; true only if it named `billId` within the last hour. */
 export function takeCheckoutBill(billId: string): boolean {
   try {
-    const started = window.sessionStorage.getItem(CHECKOUT_BILL_KEY);
+    const raw = window.sessionStorage.getItem(CHECKOUT_BILL_KEY);
     window.sessionStorage.removeItem(CHECKOUT_BILL_KEY);
-    return started === billId;
+    if (!raw) return false;
+    const started = JSON.parse(raw) as { billId?: unknown; at?: unknown };
+    return (
+      started.billId === billId &&
+      typeof started.at === 'number' &&
+      Date.now() - started.at < CHECKOUT_BILL_MAX_AGE_MS
+    );
   } catch {
     return false;
   }
@@ -59,23 +68,6 @@ export function useProCheckout(surface: 'pro_page' | 'alert_prompt', returnTo: s
   const [busy, setBusy] = useState<ProInterval | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // A backend deployed before `billId` existed rejects the unknown argument
-  // outright, and production hides why ("Server Error", no error code). So a
-  // failure that is not one of our coded refusals is retried once without the
-  // bill: Checkout still opens, it just returns to the account page.
-  // TODO(2026-09-29): remove once the `billId` version of convex/billing.ts is
-  // deployed (after PR #137). Until then a Stripe or network failure is also
-  // retried, costing a second session and the return to the bill.
-  const startWithFallback = async (interval: ProInterval) => {
-    if (!billId) return startCheckout({ interval });
-    try {
-      return await startCheckout({ interval, billId });
-    } catch (err) {
-      if (err instanceof ConvexError) throw err;
-      return startCheckout({ interval });
-    }
-  };
-
   const choose = async (interval: ProInterval) => {
     setError(null);
     if (!isAuthenticated) {
@@ -88,12 +80,12 @@ export function useProCheckout(surface: 'pro_page' | 'alert_prompt', returnTo: s
     try {
       if (billId) {
         try {
-          window.sessionStorage.setItem(CHECKOUT_BILL_KEY, billId);
+          window.sessionStorage.setItem(CHECKOUT_BILL_KEY, JSON.stringify({ billId, at: Date.now() }));
         } catch {
           // No storage: the reader still pays, and lands on the bill without the auto-follow.
         }
       }
-      const { url } = await startWithFallback(interval);
+      const { url } = await startCheckout(billId ? { interval, billId } : { interval });
       window.location.href = url;
     } catch (err) {
       try {
@@ -138,17 +130,21 @@ function Rows({ rows }: { rows: Row[] }) {
   return (
     <ul className="mt-5 flex-1 border-t border-line text-[15px] leading-snug">
       {rows.map((row) => (
+        // A label may wrap at phone width, so the row is top-aligned and the
+        // icon sits in a box one line of the label tall (brand.md, "Icons
+        // beside text"): centred on the first line, never nudged.
         <li key={row.label} className="flex min-h-11 items-start gap-2.5 border-b border-line py-2.5">
-          {row.included ? (
-            <Check
-              aria-hidden="true"
-              strokeWidth={2.25}
-              // Pro's indigo marks what Pro adds; the words carry it too.
-              className={cn('mt-0.5 h-4 w-4 shrink-0', row.adds ? 'text-topic-3' : 'text-ink')}
-            />
-          ) : (
-            <Minus aria-hidden="true" strokeWidth={2} className="mt-0.5 h-4 w-4 shrink-0 text-ink-3" />
-          )}
+          <span aria-hidden="true" className="flex h-[1lh] shrink-0 items-center">
+            {row.included ? (
+              <Check
+                strokeWidth={2.25}
+                // Pro's indigo marks what Pro adds; the words carry it too.
+                className={cn('h-4 w-4', row.adds ? 'text-topic-3' : 'text-ink')}
+              />
+            ) : (
+              <Minus strokeWidth={2} className="h-4 w-4 text-ink-3" />
+            )}
+          </span>
           <span className={cn('tabular', row.included ? 'text-ink' : 'text-ink-3')}>
             {row.included ? row.label : <><span className="sr-only">Not included: </span>{row.label}</>}
           </span>

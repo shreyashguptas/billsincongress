@@ -3,7 +3,7 @@
  *
  * Configures signal sources, tunes the scout troop, creates Replay Vision
  * scanners (when the API is available), and writes scout steering notes so
- * agent PRs respect Documentation/ANALYTICS.md.
+ * agent PRs respect documentation/analytics.md.
  *
  * Prerequisites:
  *   1. `posthog-cli login` (or set POSTHOG_CLI_API_KEY + POSTHOG_CLI_PROJECT_ID)
@@ -233,12 +233,22 @@ function configureScouts() {
   log('scouts', `Troop: ${enabled} active, ${disabled} disabled`);
 }
 
-const PRODUCT_CONTEXT = [
-  'Bills in Congress (billsincongress.com) is an independent U.S. legislation tracker.',
-  'Readers browse/filter bills, open bill detail pages, and ask grounded questions via a persistent answer panel.',
-  'Custom analytics live in lib/analytics.ts; Documentation/ANALYTICS.md is the event registry.',
-  'Answer accuracy under convex/catalog/ and convex/answer.ts is safety-critical — never auto-fix without scripts/truth tests.',
-].join(' ');
+/**
+ * The two Replay Vision monitors, as they are live in project 451900.
+ *
+ * PostHog's setup wizard created these on 2026-09-13, under its own names and
+ * prompts. This script used to carry different ones ("Bill browse and answer
+ * failures", "Browse and ask frustration") and looked for an existing scanner
+ * by name, so a re-run would have created a second copy of each monitor and
+ * paid for every session twice. The payloads below mirror what is live, so a
+ * re-run is a no-op; the match in `createReplayVisionScanners` no longer
+ * depends on the name at all.
+ *
+ * The context sentence is plain product fact on purpose: PostHog's scanner
+ * guidance forbids repo internals, file paths and instructions in a prompt.
+ */
+const PRODUCT_CONTEXT =
+  'Bills in Congress lets readers browse and filter congressional bills, open bill details, and ask grounded questions about them.';
 
 type ReplayVisionScannerPayload = {
   name: string;
@@ -250,20 +260,26 @@ type ReplayVisionScannerPayload = {
   model: string;
 };
 
+/**
+ * A literal phrase from each monitor's prompt scaffold. Together with
+ * `scanner_type` and `emits_signals` it identifies the monitor across renames
+ * and prompt edits — the re-run test from PostHog's scanner skill.
+ */
+const BROKEN_MATCH_PHRASE = 'visibly broke';
+const FRUSTRATION_MATCH_PHRASE = 'got stuck';
+
 const BROKEN_SCANNER: ReplayVisionScannerPayload = {
-  name: 'Bill browse and answer failures',
+  name: 'Bill discovery and answer breakage',
   scanner_type: 'monitor',
   emits_signals: true,
   scanner_config: {
     prompt: [
-      'Watch this session for moments where the product visibly broke for the user: an error message or toast, a blank/white screen, content that failed to load, obviously broken layout, a spinner that never resolves, or a button/form/action that clearly did nothing or failed.',
-      'In this product that especially means: the bills list stuck empty while filters are active, the answer panel showing an error or spinning forever, a bill detail page that fails to render summary or metadata, dashboard charts not loading, or navigation that leaves the reader on a broken /bills URL.',
-      'Only flag issues that are unambiguous on screen and would actually matter to the user – ignore cosmetic nits and anything you are unsure about.',
-      'For each: what the user was trying to do, what broke, and the URL.',
-      '',
+      "Watch this session for moments where the product visibly broke for the user: an error message or toast, a blank/white screen, content that failed to load, obviously broken layout, a spinner that never resolves, or a button/form/action that clearly did nothing or failed. In this product that especially means: bill results failing to load after a filter change, a filter control or clear action not responding, a bill card or detail page failing to open, the grounded-answer panel or answer spinner never resolving, a citation or linked bill doing nothing, or a sign-in or rate-limit action failing. Only flag issues that are unambiguous on screen and would actually matter to the user – ignore cosmetic nits and anything you're unsure about. For each: what the user was trying to do, what broke, and the URL.",
       PRODUCT_CONTEXT,
-    ].join(' '),
+    ].join('\n\n'),
   },
+  // The breakage monitor owns WHERE the reader is; the frustration monitor owns
+  // WHAT they did. Keep the two queries disjoint so no session is scanned twice.
   query: {
     kind: 'RecordingsQuery',
     properties: [
@@ -275,18 +291,14 @@ const BROKEN_SCANNER: ReplayVisionScannerPayload = {
 };
 
 const FRUSTRATION_SCANNER: ReplayVisionScannerPayload = {
-  name: 'Browse and ask frustration',
+  name: 'Bill research frustration',
   scanner_type: 'monitor',
   emits_signals: true,
   scanner_config: {
     prompt: [
-      'Watch this session for clear signs the user got stuck or frustrated: repeatedly clicking the same element, hammering a button that is not responding, retrying the same action over and over, visibly hunting for something they cannot find, or abandoning a flow partway through.',
-      'In this product that especially means: rage-clicking filter chips or the load-more control on /bills, hammering the ask launcher when the answer panel will not open, retrying sign-in or rate-limit dialogs, or clicking bill cards that do not navigate.',
-      'Only flag genuine struggle you can see – not normal browsing or a single mis-click.',
-      'For each: what they were trying to do, where they got stuck, and the URL.',
-      '',
+      "Watch this session for clear signs the user got stuck or frustrated: repeatedly clicking the same element, hammering a button that isn't responding, retrying the same action over and over, visibly hunting for something they can't find, or abandoning a flow partway through. In this product that especially means: repeatedly changing bill filters or trying to clear them, retrying a search that returns no bills, clicking bill cards that do not open, repeatedly submitting a grounded question, hunting for a citation or bill link, or retrying a sign-in or account action. Only flag genuine struggle you can see – not normal browsing or a single mis-click. For each: what they were trying to do, where they got stuck, and the URL.",
       PRODUCT_CONTEXT,
-    ].join(' '),
+    ].join('\n\n'),
   },
   query: {
     kind: 'RecordingsQuery',
@@ -303,7 +315,7 @@ function createReplayVisionScanners() {
   const listTool = 'vision-scanners-list';
   const updateTool = 'vision-scanners-update';
 
-  if (!apiAvailable(createTool)) {
+  if (!apiAvailable(createTool) || !apiAvailable(listTool)) {
     log(
       'replay-vision',
       'Scanner API not on this PostHog deploy — create monitors manually in PostHog → Session replay → Replay Vision, or re-run after upgrading.',
@@ -311,38 +323,62 @@ function createReplayVisionScanners() {
     return;
   }
 
-  type ScannerRow = { id: string; name: string; emits_signals?: boolean };
+  type ScannerRow = {
+    id: string;
+    name: string;
+    scanner_type?: string;
+    emits_signals?: boolean;
+    scanner_config?: { prompt?: string };
+  };
   let existing: ScannerRow[] = [];
   try {
-    const listed = apiCall<{ results?: ScannerRow[] }>(listTool, {});
+    const listed = apiCall<{ results?: ScannerRow[]; next?: string | null }>(listTool, {
+      limit: 100,
+    });
     existing = listed.results ?? [];
+    if (listed.next) {
+      // Creating without seeing every scanner is how duplicates happen.
+      log('replay-vision', 'More than 100 scanners — not sure what exists, skipping creation');
+      return;
+    }
   } catch {
     log('replay-vision', 'Could not list scanners — skipping creation');
     return;
   }
 
   const upsert = (payload: ReplayVisionScannerPayload, matchPhrase: string) => {
-    const match = existing.find((row) => row.name === payload.name);
+    const sameBrief = (row: ScannerRow) =>
+      row.scanner_type === payload.scanner_type &&
+      (row.scanner_config?.prompt ?? '').includes(matchPhrase);
+
+    // Ours: same type, same scaffold phrase, and emitting signals (a scanner
+    // with signals off belongs to PostHog's plain Replay Vision flow).
+    const match = existing.find((row) => sameBrief(row) && row.emits_signals === true);
     if (match) {
-      if (match.emits_signals) {
-        log('replay-vision', `"${payload.name}" — already exists with signals on`);
+      if (
+        match.name === payload.name &&
+        match.scanner_config?.prompt === payload.scanner_config.prompt
+      ) {
+        log('replay-vision', `"${payload.name}" — already exists`);
         return;
       }
+      // Never sends `enabled`: a scanner someone paused stays paused.
       try {
         apiCall(updateTool, { id: match.id, ...payload });
-        log('replay-vision', `"${payload.name}" — upgraded to emits_signals`);
+        log('replay-vision', `"${match.name}" — updated in place as "${payload.name}"`);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        log('replay-vision', `"${payload.name}" — update failed: ${msg}`);
+        log('replay-vision', `"${match.name}" — update failed: ${msg}`);
       }
       return;
     }
 
-    const duplicate = existing.find((row) =>
-      row.name.toLowerCase().includes(matchPhrase.split(' ')[0] ?? ''),
-    );
-    if (duplicate?.emits_signals) {
-      log('replay-vision', `"${payload.name}" — similar scanner "${duplicate.name}" already emits signals`);
+    const otherFlow = existing.find(sameBrief);
+    if (otherFlow) {
+      log(
+        'replay-vision',
+        `"${payload.name}" — "${otherFlow.name}" covers the same ground with signals off; left untouched, not creating a second`,
+      );
       return;
     }
 
@@ -355,23 +391,23 @@ function createReplayVisionScanners() {
     }
   };
 
-  upsert(BROKEN_SCANNER, 'visibly broke');
-  upsert(FRUSTRATION_SCANNER, 'got stuck');
+  upsert(BROKEN_SCANNER, BROKEN_MATCH_PHRASE);
+  upsert(FRUSTRATION_SCANNER, FRUSTRATION_MATCH_PHRASE);
 }
 
 function writeScoutScratchpad() {
   if (!apiAvailable('signals-scout-scratchpad-remember')) {
-    log('scratchpad', 'Scratchpad API unavailable — paste scout note from Documentation/ANALYTICS.md manually');
+    log('scratchpad', 'Scratchpad API unavailable — paste scout note from documentation/analytics.md manually');
     return;
   }
 
-  const steering = readFileSync(join(ROOT, 'Documentation/ANALYTICS.md'), 'utf8');
+  const steering = readFileSync(join(ROOT, 'documentation/analytics.md'), 'utf8');
   const contractStart = steering.indexOf('## ⚠️ The contract');
   const contractEnd = steering.indexOf('---', contractStart + 1);
   const contract =
     contractStart !== -1 && contractEnd !== -1
       ? steering.slice(contractStart, contractEnd).trim()
-      : 'See Documentation/ANALYTICS.md for the analytics contract.';
+      : 'See documentation/analytics.md for the analytics contract.';
 
   const content = [
     '# Bills in Congress — agent steering for Self-driving PRs',
@@ -420,7 +456,7 @@ Manual steps (cannot be done via API)
 4. Claude subscription: Self-driving uses PostHog's AI, not your Claude
    subscription. There is no BYOK option today.
 
-5. Broken insights (optional UI fix — see Documentation/ANALYTICS.md):
+5. Broken insights (optional UI fix — see documentation/analytics.md):
    Five insights still query retired bill_chat_* events. Rebuild on answer_*.
 
 Inbox: https://us.posthog.com/project/${POSTHOG_PROJECT_ID}/inbox
