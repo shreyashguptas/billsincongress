@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MAX_SEARCH_TEXT_LENGTH } from '@/lib/bill-query';
 
 /** Long enough to absorb a word, short enough not to feel laggy. */
 const DEBOUNCE_MS = 250;
@@ -97,6 +98,8 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
           }
         }}
         onBlur={() => commit(draft)}
+        // The server rejects a longer title search outright.
+        maxLength={MAX_SEARCH_TEXT_LENGTH}
         placeholder="Search bills, or type a bill number"
         // text-base on touch: anything smaller makes iOS Safari zoom in on
         // focus and never zoom back out.

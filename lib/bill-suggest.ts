@@ -10,7 +10,7 @@
  *
  * Pure module (imports only other pure modules) so it carries unit tests.
  */
-import { expandSearchAcronym, parseBillReference } from './bill-query';
+import { MAX_SEARCH_TEXT_LENGTH, expandSearchAcronym, parseBillReference } from './bill-query';
 
 /** Below this many characters a title search matches too much to be useful. */
 export const MIN_SUGGEST_LENGTH = 2;
@@ -33,6 +33,10 @@ export function suggestKind(raw: string): SuggestKind | null {
     // A single digit is still a complete bill reference ("S 5").
     return parseBillReference(q) ? 'number' : null;
   }
+  // The ask box takes 2,000 characters, the bills search 120. A longer entry
+  // is a question, not a title, and searching it only fails on the server —
+  // once per keystroke (206 console errors in 3 sessions on 29 Sep 2026).
+  if (q.length > MAX_SEARCH_TEXT_LENGTH) return null;
   if (parseBillReference(q)) return 'number';
   if (expandSearchAcronym(q)) return 'acronym';
   return 'title';

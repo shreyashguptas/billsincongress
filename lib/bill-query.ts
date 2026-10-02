@@ -12,6 +12,16 @@
  */
 
 /**
+ * Longest text the public bills queries accept as a title search.
+ *
+ * Mirrors `MAX_TEXT_FILTER_LENGTH` in `convex/bills.ts`, which throws on
+ * anything longer. The browser only sees that as a bare "Server Error", so the
+ * search inputs cap themselves at this length and the home-page suggestions
+ * stop searching past it. `lib/bill-suggest.test.ts` fails if the two drift.
+ */
+export const MAX_SEARCH_TEXT_LENGTH = 120;
+
+/**
  * Acronyms readers search for that appear in no bill title. "NDAA" is the
  * clearest case: the bill is titled "National Defense Authorization Act for
  * Fiscal Year 2027" and those letters occur nowhere in it. Expansion happens at
