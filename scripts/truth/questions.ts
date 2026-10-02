@@ -327,6 +327,27 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
 
+  {
+    id: "measures-introduced",
+    question:
+      `How many measures, bills and resolutions together, have been introduced in ` +
+      `the ${CURRENT_CONGRESS}th Congress?` + ONE_NUMBER,
+    defect:
+      "Wrote a fetch_dataset(...) call out as text instead of making it, then " +
+      "told the reader 1,557 bills had been introduced in the 119th. It was " +
+      "19,441 measures on 2026-10-02; 1,557 appears in no row.",
+    expect: (db) => {
+      const measures = billsIn(db, CURRENT_CONGRESS);
+      return {
+        kind: "number",
+        value: measures.length,
+        note:
+          `Every row in the ${CURRENT_CONGRESS}th, all eight types. Must reject ` +
+          `1,557, which no lookup returned.`,
+      };
+    },
+  },
+
   // --- Confident zeroes over a capped, in-memory-filtered window ------------
   {
     id: "health-laws",

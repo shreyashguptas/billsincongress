@@ -19,7 +19,11 @@ import {
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
-import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
+import {
+  containsTextToolCall,
+  isAllDeliberation,
+  sanitizeAnswer,
+} from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
@@ -535,7 +539,7 @@ async function runLoop(
     // dangling source. Enforced in code because the prompt asking for it did not
     // hold: readers were shown "The result says truncated: false" as reassurance,
     // and once a false claim that our own data was incomplete.
-    const cleaned = sanitizeAnswer(raw);
+    const cleaned = sanitizeAnswer(raw, opts.question);
     const resolved = resolveAnswer(cleaned.text, allowed);
     return {
       ...resolved,
@@ -598,7 +602,17 @@ async function runLoop(
       // than streaming the reader a blank panel. Neither is the model thinking
       // out loud: a reader was shown "Let me fetch the remaining policy areas I
       // haven't gotten yet." as the answer to a question about laws by category.
-      if (text.trim().length > 0 && !isAllDeliberation(text)) return finish(text);
+      // Nor is a lookup written out as text: one reader got a literal
+      // fetch_dataset(...) line and then "1,557 bills" — a count the model never
+      // fetched (it was 19,441). The prose around such a call is unverified, so
+      // the whole reply is discarded, not trimmed.
+      if (
+        text.trim().length > 0 &&
+        !isAllDeliberation(text) &&
+        !containsTextToolCall(text)
+      ) {
+        return finish(text);
+      }
       if (isFinalRound) break;
       console.error(`no answer and no tool call in round ${round}; ${nudged ? "final round now" : "nudging"}`);
       // A visible step, so the client's stall watchdog restarts for the extra call.

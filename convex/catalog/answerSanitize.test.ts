@@ -8,7 +8,13 @@
  * (Jodey Arrington, TX) became law.
  */
 import assert from "node:assert/strict";
-import { INTERNAL_VOCABULARY, isAllDeliberation, sanitizeAnswer } from "./answerSanitize";
+import {
+  INTERNAL_VOCABULARY,
+  containsTextToolCall,
+  dropQuestionEcho,
+  isAllDeliberation,
+  sanitizeAnswer,
+} from "./answerSanitize";
 
 let passed = 0;
 const failures: string[] = [];
@@ -380,6 +386,95 @@ it("does not treat every colon as a sentence break", () => {
     "**Health:** 1 law.\n\n**Energy:** 7 laws.",
   ]) {
     assert.equal(sanitizeAnswer(clean).text, clean, clean);
+  }
+});
+
+// --- Lookups written as text (stability plan, 2026-10-02) --------------------
+// The four shapes below are paraphrases of traced answers, not reader text.
+
+it("recognises a fetch_dataset call written out as prose", () => {
+  assert.equal(
+    containsTextToolCall(
+      "I'll count them.\nfetch_dataset(dataset=\"bills\", filters={\"congress\": 119}, limit=0)\n" +
+        "So far 1,557 bills have been introduced in the 119th Congress.",
+    ),
+    true,
+  );
+  assert.equal(containsTextToolCall('describe_dataset("topics")'), true);
+  assert.equal(containsTextToolCall("search_web (query: x)"), true);
+});
+
+it("recognises search_web's arguments written as query and reason lines", () => {
+  assert.equal(
+    containsTextToolCall(
+      "about the farm bill\nquery: \"farm bill 2026 status\"\nreason: \"We do not hold news coverage.\"",
+    ),
+    true,
+  );
+});
+
+it("recognises a run of describe_dataset JSON", () => {
+  assert.equal(
+    containsTextToolCall(
+      '{"name":"topics","filters":{"congress":"number"},"short_description":"Bills per policy area"}\n' +
+        '{"name":"stats","filters":{},"short_description":"Totals"}',
+    ),
+    true,
+  );
+});
+
+it("leaves ordinary answers alone", () => {
+  for (const clean of [
+    "19,441 measures have been introduced in the 119th Congress.",
+    "**H.R. 1** (Jodey Arrington) became law.",
+    "The search for that query returned nothing.\n\nThe reason is that no bill uses the word.",
+    "Query: none.",
+    "Reason: the bill was referred to committee.",
+    "The bill's name (H.R. 7027) is short for its subject.",
+    "A JSON export is not something we offer.",
+  ]) {
+    assert.equal(containsTextToolCall(clean), false, clean);
+  }
+});
+
+it("an echo must match whole words", () => {
+  // "lawful under federal law" ends "unlawful under federal law" only mid-word.
+  const answer = "lawful under federal law\nNo bill would make it unlawful.";
+  assert.equal(
+    dropQuestionEcho(answer, "Which bills make drone hunting unlawful under federal law?").text,
+    answer,
+  );
+});
+
+it("drops a first line that only repeats the end of the question", () => {
+  const r = dropQuestionEcho(
+    "bills about wildfire smoke this year\nThree bills about wildfire smoke were introduced in 2026.",
+    "How many bills about wildfire smoke this year?",
+  );
+  assert.equal(r.text, "Three bills about wildfire smoke were introduced in 2026.");
+  assert.deepEqual(r.removed, ["bills about wildfire smoke this year"]);
+});
+
+it("sanitizeAnswer applies the echo rule only when it is given the question", () => {
+  const answer = "bills about wildfire smoke this year\nThree bills were introduced.";
+  assert.equal(sanitizeAnswer(answer).text, answer);
+  assert.equal(
+    sanitizeAnswer(answer, "how many bills about wildfire smoke this year").text,
+    "Three bills were introduced.",
+  );
+});
+
+it("keeps first lines that are not an echo", () => {
+  const question = "Which bill most recently became law?";
+  for (const answer of [
+    // Too short to call an echo.
+    "became law\nS. 629 most recently became law.",
+    // A real answer line that shares words but does not end the question.
+    "S. 629 most recently became law.\nIt was signed on 2026-09-18.",
+    // Nothing follows it: left for the caller, not blanked here.
+    "most recently became law",
+  ]) {
+    assert.equal(dropQuestionEcho(answer, question).text, answer, answer);
   }
 });
 
