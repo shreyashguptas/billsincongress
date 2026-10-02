@@ -51,3 +51,23 @@ export function buildHemicycle(
   seats.sort((a, b) => b.angle - a.angle);
   return seats.map(({ x, y }) => ({ x, y }));
 }
+
+/** Two decimals, so `x - r` prints as 9.1 and not 9.100000000000001. */
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * The seats as ONE svg path of circles, for a single `<path d>`.
+ *
+ * Each seat used to be its own `<circle>`: 1,070 of them on /learn, well over
+ * half the page's elements. Opening the state picker's Select makes the browser
+ * recalculate style for the whole document, and every one of those elements
+ * paid for it — on school Chromebooks the picker took about a third of a second
+ * to open, and it became the site's top rage-click target. A path draws the same
+ * circles as one element.
+ */
+export function seatsPath(seats: Seat[], r: number): string {
+  const d = round2(2 * r);
+  return seats
+    .map((s) => `M${round2(s.x - r)} ${s.y}a${r} ${r} 0 1 0 ${d} 0a${r} ${r} 0 1 0 ${-d} 0`)
+    .join('');
+}

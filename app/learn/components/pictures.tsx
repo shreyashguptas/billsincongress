@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import { Arrow, Floor, Paper, Person, Scene } from '@/components/brand/pictures';
-import { buildHemicycle } from './hemicycle';
+import { buildHemicycle, seatsPath } from './hemicycle';
 
 // The Learn page's pictures: small flat scenes drawn in SVG on the server, so
 // they cost no client JavaScript. Everything is ink except the one stage colour
@@ -97,17 +97,9 @@ function VoteChamber({
   const seats = buildHemicycle(total, rows, inner, 104, 120, 132);
   return (
     <Scene label={label}>
-      {/* Two groups, so each seat is just a circle: the yes votes, then the rest. */}
-      <g className={fill}>
-        {seats.slice(0, yes).map((s, i) => (
-          <circle key={i} cx={s.x} cy={s.y} r={r} />
-        ))}
-      </g>
-      <g className="fill-ink/15">
-        {seats.slice(yes).map((s, i) => (
-          <circle key={i} cx={s.x} cy={s.y} r={r} />
-        ))}
-      </g>
+      {/* Two paths, not one circle per seat (see seatsPath): the yes votes, then the rest. */}
+      <path d={seatsPath(seats.slice(0, yes), r)} className={fill} />
+      <path d={seatsPath(seats.slice(yes), r)} className="fill-ink/15" />
       <circle cx={120} cy={118} r={17} className={fill} />
       <path d="M111 118l6 6l12-13" className="fill-none stroke-on-ink" strokeWidth={3.5} />
     </Scene>
