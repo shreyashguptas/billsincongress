@@ -19,7 +19,11 @@ import {
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
-import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
+import {
+  containsTextToolCall,
+  isAllDeliberation,
+  sanitizeAnswer,
+} from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
@@ -59,6 +63,16 @@ const FINAL_ROUND_INSTRUCTION =
 const NO_ANSWER_NUDGE =
   "That was not an answer and not a lookup. If you need data, call a tool now. Otherwise answer " +
   "the question from what you already retrieved.";
+/**
+ * Sent instead of NO_ANSWER_NUDGE when the model wrote a lookup out as text.
+ * That reply is NOT put back in the transcript: it once carried "1,557 bills",
+ * a figure no lookup returned, and NO_ANSWER_NUDGE's "answer from what you
+ * already retrieved" would have invited the model to repeat it.
+ */
+const TEXT_TOOL_CALL_NUDGE =
+  "Your last reply wrote a lookup out as text instead of calling the tool. It was not run, so " +
+  "nothing in that reply is data and it has been discarded. If you need data, call a tool now. " +
+  "Otherwise answer only from tool results you have actually received.";
 /**
  * The `answer_failed` reason when every attempt came back empty. Sent as an
  * error, not as an answer, so completion metrics count it.
@@ -535,7 +549,7 @@ async function runLoop(
     // dangling source. Enforced in code because the prompt asking for it did not
     // hold: readers were shown "The result says truncated: false" as reassurance,
     // and once a false claim that our own data was incomplete.
-    const cleaned = sanitizeAnswer(raw);
+    const cleaned = sanitizeAnswer(raw, opts.question);
     const resolved = resolveAnswer(cleaned.text, allowed);
     return {
       ...resolved,
@@ -598,7 +612,20 @@ async function runLoop(
       // than streaming the reader a blank panel. Neither is the model thinking
       // out loud: a reader was shown "Let me fetch the remaining policy areas I
       // haven't gotten yet." as the answer to a question about laws by category.
-      if (text.trim().length > 0 && !isAllDeliberation(text)) return finish(text);
+      // Nor is a lookup written out as text: one reader got a literal
+      // fetch_dataset(...) line and then "1,557 bills" — a count the model never
+      // fetched (it was 19,441). The prose around such a call is unverified, so
+      // the whole reply is discarded, not trimmed — and kept out of the
+      // transcript below, where the model would read its own invented figure
+      // back as something it had "already retrieved".
+      const wroteCallAsText = containsTextToolCall(text);
+      if (
+        text.trim().length > 0 &&
+        !isAllDeliberation(text) &&
+        !wroteCallAsText
+      ) {
+        return finish(text);
+      }
       if (isFinalRound) break;
       console.error(`no answer and no tool call in round ${round}; ${nudged ? "final round now" : "nudging"}`);
       // A visible step, so the client's stall watchdog restarts for the extra call.
@@ -607,8 +634,12 @@ async function runLoop(
         finalNow = true;
       } else {
         nudged = true;
-        if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
-        messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+        if (wroteCallAsText) {
+          messages.push({ role: "user", content: TEXT_TOOL_CALL_NUDGE });
+        } else {
+          if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
+          messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+        }
       }
       continue;
     }
