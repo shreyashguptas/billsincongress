@@ -7,10 +7,16 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
   BILL_STAGES,
+  DEFAULT_STAGE,
   HOUSE_BILL_TYPES,
   SENATE_BILL_TYPES,
 } from "./aggregates";
-import { calculateBillStage, passedChamber, BillStages } from "./billStage";
+import {
+  calculateBillStage,
+  passedChamber,
+  stageDateFor,
+  BillStages,
+} from "./billStage";
 import { chamberOf } from "./chamber";
 import { queueForIndexNow } from "./indexNow";
 import { computeBaseRateBuckets, MS_PER_DAY } from "./baseRates";
@@ -32,6 +38,12 @@ export const upsertBill = internalMutation({
     sponsorState: v.optional(v.string()),
     progressStage: v.optional(v.number()),
     progressDescription: v.optional(v.string()),
+    // Written with progressStage, from the same `calculateBillStage` call.
+    // `null` means "this stage has no date": it CLEARS a stored date, which an
+    // absent argument cannot do (undefined is dropped on the way in). Leaving
+    // the key out entirely — the repair path, which sends no stage fields —
+    // leaves the stored date alone.
+    stageDate: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -39,8 +51,14 @@ export const upsertBill = internalMutation({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
 
+    const { stageDate, ...rest } = args;
+    const fields = {
+      ...rest,
+      // null → undefined: a patch removes the field, an insert omits it.
+      ...("stageDate" in args ? { stageDate: stageDate ?? undefined } : {}),
+    };
     const data = {
-      ...args,
+      ...fields,
       updatedAt: new Date().toISOString(),
     };
 
@@ -49,8 +67,8 @@ export const upsertBill = internalMutation({
       // (convex/functions.ts) and restamps `updatedAt`, which is the <lastmod>
       // the sitemap gives search engines (app/sitemap.ts). The monthly re-pull
       // resends every bill unchanged, so blind patching announces fake updates.
-      const changed = (Object.keys(args) as Array<keyof typeof args>).some(
-        (key) => (existing as Record<string, unknown>)[key] !== args[key],
+      const changed = (Object.keys(fields) as Array<keyof typeof fields>).some(
+        (key) => (existing as Record<string, unknown>)[key] !== fields[key],
       );
       if (!changed) return existing._id;
 
@@ -471,6 +489,8 @@ export const getBillBackfillPage = internalQuery({
         progressStage: b.progressStage,
         progressDescription: b.progressDescription,
         latestActionDate: b.latestActionDate,
+        introducedDate: b.introducedDate,
+        stageDate: b.stageDate,
         extraSyncedBits: b.extraSyncedBits ?? 0,
       })),
       isDone: page.isDone,
@@ -505,6 +525,8 @@ export const getBillBackfillPageByCongress = internalQuery({
         progressStage: b.progressStage,
         progressDescription: b.progressDescription,
         latestActionDate: b.latestActionDate,
+        introducedDate: b.introducedDate,
+        stageDate: b.stageDate,
         extraSyncedBits: b.extraSyncedBits ?? 0,
       })),
       isDone: page.isDone,
@@ -514,8 +536,8 @@ export const getBillBackfillPageByCongress = internalQuery({
 });
 
 /**
- * Re-derives progressStage / progressDescription / latestActionDate from the
- * stored actions and patches only what changed.
+ * Re-derives progressStage / progressDescription / stageDate /
+ * latestActionDate from the stored actions and patches only what changed.
  *
  * Uses the trigger-wrapped internalMutation so the billsByStage / billsByChamber
  * aggregates stay in sync. Bills with no stored actions are skipped, correctly
@@ -533,6 +555,10 @@ export const rederiveBillFieldsFromActions = internalMutation({
         progressStage: v.optional(v.number()),
         progressDescription: v.optional(v.string()),
         latestActionDate: v.optional(v.string()),
+        // Optional so a backfill run started before this field existed still
+        // validates; an absent introducedDate just means no fallback date.
+        introducedDate: v.optional(v.string()),
+        stageDate: v.optional(v.string()),
       }),
     ),
   },
@@ -546,15 +572,33 @@ export const rederiveBillFieldsFromActions = internalMutation({
         .take(250);
       if (actions.length === 0) {
         skippedNoActions++;
+        // Nothing to re-derive the stage from, but a bill still at
+        // "Introduced" is dated by its introduction, which it always has.
+        const fallback = stageDateFor(
+          { stage: BillStages.INTRODUCED, stageDate: null },
+          bill.introducedDate,
+        );
+        if (
+          (bill.progressStage === undefined ||
+            bill.progressStage === BillStages.INTRODUCED) &&
+          fallback !== undefined &&
+          bill.stageDate !== fallback
+        ) {
+          await ctx.db.patch(bill._id, { stageDate: fallback });
+          changed++;
+        }
         continue;
       }
-      const { stage, description } = calculateBillStage(
+      const computed = calculateBillStage(
         actions.map((a) => ({
           text: a.text,
           type: a.type,
           actionCode: a.actionCode,
+          actionDate: a.actionDate,
         })),
       );
+      const { stage, description } = computed;
+      const stageDate = stageDateFor(computed, bill.introducedDate);
       // Mirror upsertBillActions' max-actionDate reducer exactly.
       const latestActionDate =
         actions.reduce<string | null>(
@@ -567,6 +611,7 @@ export const rederiveBillFieldsFromActions = internalMutation({
         progressStage?: number;
         progressDescription?: string;
         latestActionDate?: string;
+        stageDate?: string;
       } = {};
       if (
         bill.progressStage !== stage ||
@@ -574,6 +619,11 @@ export const rederiveBillFieldsFromActions = internalMutation({
       ) {
         patch.progressStage = stage;
         patch.progressDescription = description;
+      }
+      // Also clears a date that is no longer true: an Introduced bill dated by
+      // its introduction that then moves on through an undated action.
+      if (bill.stageDate !== stageDate) {
+        patch.stageDate = stageDate;
       }
       if (latestActionDate && bill.latestActionDate !== latestActionDate) {
         patch.latestActionDate = latestActionDate;
@@ -619,8 +669,15 @@ export const writeCongressPolicyAreas = internalMutation({
   args: {
     congress: v.number(),
     areas: v.array(
-      v.object({ policyAreaName: v.string(), count: v.number() }),
+      v.object({
+        policyAreaName: v.string(),
+        count: v.number(),
+        stageCounts: v.optional(
+          v.array(v.object({ stage: v.number(), count: v.number() })),
+        ),
+      }),
     ),
+    countedAt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -633,6 +690,8 @@ export const writeCongressPolicyAreas = internalMutation({
         congress: args.congress,
         policyAreaName: area.policyAreaName,
         count: area.count,
+        stageCounts: area.stageCounts,
+        countedAt: args.countedAt,
       });
     }
   },
@@ -673,6 +732,7 @@ type BillPageResult = {
   page: Array<{
     billId: string;
     policyAreaName?: string;
+    progressStage?: number;
     sponsorFirstName?: string;
     sponsorLastName?: string;
     sponsorParty?: string;
@@ -691,7 +751,13 @@ type BillPageResult = {
 export const recomputeCongressPolicyAreas = internalAction({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
+    // Taken BEFORE the scan: a bill written while it runs carries a later
+    // updatedAt, so the bill page treats it as possibly miscounted rather than
+    // ringing a dot that may not be it.
+    const countedAt = new Date().toISOString();
     const counts = new Map<string, number>();
+    // Per topic, per stage — from the same rows as `counts`, so they sum to it.
+    const stages = new Map<string, Map<number, number>>();
     let cursor: string | null = null;
     for (;;) {
       const page: BillPageResult = await ctx.runQuery(
@@ -704,6 +770,10 @@ export const recomputeCongressPolicyAreas = internalAction({
             b.policyAreaName,
             (counts.get(b.policyAreaName) ?? 0) + 1,
           );
+          const stage = b.progressStage ?? DEFAULT_STAGE;
+          const byStage = stages.get(b.policyAreaName) ?? new Map<number, number>();
+          byStage.set(stage, (byStage.get(stage) ?? 0) + 1);
+          stages.set(b.policyAreaName, byStage);
         }
       }
       if (page.isDone) break;
@@ -711,13 +781,20 @@ export const recomputeCongressPolicyAreas = internalAction({
     }
 
     const areas = [...counts.entries()]
-      .map(([policyAreaName, count]) => ({ policyAreaName, count }))
+      .map(([policyAreaName, count]) => ({
+        policyAreaName,
+        count,
+        stageCounts: [...(stages.get(policyAreaName) ?? new Map<number, number>())]
+          .map(([stage, n]) => ({ stage, count: n }))
+          .sort((a, b) => a.stage - b.stage),
+      }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 50);
 
     await ctx.runMutation(internal.mutations.writeCongressPolicyAreas, {
       congress: args.congress,
       areas,
+      countedAt,
     });
   },
 });

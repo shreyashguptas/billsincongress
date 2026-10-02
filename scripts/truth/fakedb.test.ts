@@ -191,19 +191,29 @@ async function main() {
     // This is the defect a reader caught: the page is in insertion order, so the
     // model took the max date within an arbitrary 50 and answered S. 1003 when
     // the genuinely most recent law (then S. 629) was not on the page at all.
+    //
+    // Asked of the 118th, which is closed history. The 119th stopped reproducing
+    // on 2026-09-25, when six laws signed that day were also among the newest
+    // rows inserted; a live Congress can do that again any week.
+    const laws118 = bills.filter((r: any) => r.congress === 118 && r.progressStage === 100);
     const page = await ctx.db
       .query("bills")
       .withIndex("by_congress_and_progress_stage", (q: any) =>
-        q.eq("congress", 119).eq("progressStage", 100),
+        q.eq("congress", 118).eq("progressStage", 100),
       )
       .order("desc")
       .take(50);
-    assert.deepEqual(ids(page), ids(lawsInIndexOrder.slice(0, 50)), "the page is Convex's index order");
-    const latestDate = laws119.reduce(
+    assert.ok(laws118.length > 50, "sanity: the 118th has more laws than one page");
+    assert.deepEqual(
+      ids(page),
+      ids([...laws118].sort(byCreationDesc).slice(0, 50)),
+      "the page is Convex's index order",
+    );
+    const latestDate = laws118.reduce(
       (max: string, r: any) => ((r.latestActionDate ?? "") > max ? r.latestActionDate : max),
       "",
     );
-    const latestLaws = ids(laws119.filter((r: any) => r.latestActionDate === latestDate));
+    const latestLaws = ids(laws118.filter((r: any) => r.latestActionDate === latestDate));
     assert.ok(latestDate !== "", "sanity: laws carry action dates");
     assert.ok(
       !page.some((r: any) => latestLaws.includes(r.billId)),

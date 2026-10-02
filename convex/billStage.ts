@@ -42,6 +42,16 @@ export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> 
 
 // Returns "house" / "senate" / null. Shared by calculateBillStage and the
 // committee base-rate job so both agree on what "passed a chamber" means.
+//
+// The Library of Congress records every passage as code 8000 ("Passed/agreed
+// to in House: ...") or 17000 ("Passed/agreed to in Senate: ..."), and those are
+// checked first. The House's own floor log never says "passed House" about a
+// bill — it says "On passage Passed by the Yeas and Nays" — so matching only
+// that phrase left 3,766 bills that had passed a chamber reading "In Committee"
+// or "Introduced" (H.R. 10326 in the 119th, passed 217-207 on
+// 16 Sep 2026). The phrase does appear on rules: "Rule H. Res. 864 passed
+// House." is the House adopting the terms of debate for H.R. 5894, which never
+// passed, so a rule never counts.
 export function passedChamber(action: {
   text?: string;
   type?: string;
@@ -50,8 +60,15 @@ export function passedChamber(action: {
   const text = (action.text || "").toLowerCase();
   const type = (action.type || "").toLowerCase();
   const code = action.actionCode || "";
+  if (code === "8000" || text.startsWith("passed/agreed to in house")) {
+    return "house";
+  }
+  if (code === "17000" || text.startsWith("passed/agreed to in senate")) {
+    return "senate";
+  }
+  const isRule = text.startsWith("rule ");
   if (
-    text.includes("passed house") ||
+    (text.includes("passed house") && !isRule) ||
     type === "passedhouse" ||
     code === "H32500"
   ) {
@@ -82,11 +99,37 @@ export function passedChamber(action: {
  * outranks signed defensively so a veto can never be reported as a signing.
  */
 export function calculateBillStage(
-  actions: Array<{ text: string; type?: string; actionCode?: string }>,
-): { stage: number; description: string } {
-  const stageResult = (stage: number) => ({
+  actions: Array<{
+    text: string;
+    type?: string;
+    actionCode?: string;
+    actionDate?: string;
+  }>,
+): { stage: number; description: string; stageDate: string | null } {
+  // Earliest dated action behind each flag below. The stage's date is the
+  // first time the bill got there — the day it became law, was vetoed, passed
+  // its first chamber — not its latest action: a committee can file paperwork
+  // on a bill months after it was signed (H.R. 1043 in the 119th was signed on
+  // 29 Dec 2025 and its last action is a report filed on 11 Feb 2026).
+  const dates: Record<string, string | null> = {
+    becameLaw: null,
+    vetoed: null,
+    signed: null,
+    toPresident: null,
+    passedHouse: null,
+    passedSenate: null,
+    inCommittee: null,
+  };
+  const saw = (flag: keyof typeof dates, date: string | undefined) => {
+    if (!date) return;
+    const current = dates[flag];
+    if (current === null || date < current) dates[flag] = date;
+  };
+
+  const stageResult = (stage: number, stageDate: string | null = null) => ({
     stage,
     description: BillStageDescriptions[stage],
+    stageDate,
   });
 
   if (!actions || !Array.isArray(actions) || actions.length === 0) {
@@ -114,6 +157,7 @@ export function calculateBillStage(
       code === "E40000"
     ) {
       becameLaw = true;
+      saw("becameLaw", action.actionDate);
     }
 
     // Veto detection. `E30000` is deliberately NOT used here or for "signed";
@@ -129,11 +173,13 @@ export function calculateBillStage(
       code === "31000"
     ) {
       vetoed = true;
+      saw("vetoed", action.actionDate);
     }
 
     // Signing is recognised ONLY by its unambiguous text (never by E30000).
     if (text.includes("signed by president")) {
       signed = true;
+      saw("signed", action.actionDate);
     }
 
     if (
@@ -143,11 +189,18 @@ export function calculateBillStage(
       code === "E20000"
     ) {
       toPresident = true;
+      saw("toPresident", action.actionDate);
     }
 
     const chamber = passedChamber(action);
-    if (chamber === "house") passedHouse = true;
-    if (chamber === "senate") passedSenate = true;
+    if (chamber === "house") {
+      passedHouse = true;
+      saw("passedHouse", action.actionDate);
+    }
+    if (chamber === "senate") {
+      passedSenate = true;
+      saw("passedSenate", action.actionDate);
+    }
 
     if (
       text.includes("referred to") ||
@@ -158,17 +211,50 @@ export function calculateBillStage(
       code === "S11100"
     ) {
       inCommittee = true;
+      saw("inCommittee", action.actionDate);
     }
   }
 
-  if (becameLaw) return stageResult(BillStages.BECAME_LAW);
-  if (vetoed) return stageResult(BillStages.VETOED);
-  if (signed) return stageResult(BillStages.SIGNED_BY_PRESIDENT);
-  if (toPresident) return stageResult(BillStages.TO_PRESIDENT);
-  if (passedHouse && passedSenate)
-    return stageResult(BillStages.PASSED_BOTH_CHAMBERS);
-  if (passedHouse || passedSenate)
-    return stageResult(BillStages.PASSED_ONE_CHAMBER);
-  if (inCommittee) return stageResult(BillStages.IN_COMMITTEE);
+  if (becameLaw) return stageResult(BillStages.BECAME_LAW, dates.becameLaw);
+  if (vetoed) return stageResult(BillStages.VETOED, dates.vetoed);
+  if (signed) return stageResult(BillStages.SIGNED_BY_PRESIDENT, dates.signed);
+  if (toPresident) return stageResult(BillStages.TO_PRESIDENT, dates.toPresident);
+  if (passedHouse && passedSenate) {
+    // Both chambers had passed it once the later of the two first passages happened.
+    const house = dates.passedHouse;
+    const senate = dates.passedSenate;
+    return stageResult(
+      BillStages.PASSED_BOTH_CHAMBERS,
+      house !== null && senate !== null ? (house > senate ? house : senate) : null,
+    );
+  }
+  if (passedHouse || passedSenate) {
+    const house = dates.passedHouse;
+    const senate = dates.passedSenate;
+    const first =
+      house === null ? senate : senate === null ? house : house < senate ? house : senate;
+    return stageResult(BillStages.PASSED_ONE_CHAMBER, first);
+  }
+  if (inCommittee) return stageResult(BillStages.IN_COMMITTEE, dates.inCommittee);
+  // Introduction is not an action the flags track; callers fall back to the
+  // bill's own introducedDate (see `stageDateFor`).
   return stageResult(BillStages.INTRODUCED);
+}
+
+/**
+ * The date stored as `bills.stageDate`: the day the bill reached its current
+ * stage. A bill still at "Introduced" is dated by its introduction, which is
+ * exactly when it got there. Any other stage takes only a dated action: a law
+ * whose "Became Public Law" action carries no date is left undated rather than
+ * labelled "Became law" with its introduction date. Empty strings are stored as
+ * absent, so an undated bill sorts after every dated one in both directions
+ * rather than first in one of them.
+ */
+export function stageDateFor(
+  computed: { stage: number; stageDate: string | null },
+  introducedDate: string | undefined,
+): string | undefined {
+  if (computed.stageDate) return computed.stageDate;
+  if (computed.stage === BillStages.INTRODUCED) return introducedDate || undefined;
+  return undefined;
 }

@@ -43,7 +43,11 @@ should not exist in the code — and if it's in this file, it must exist in the 
    **person profile** via `identify()`, never on individual events.
    Reader-typed free text does reach event properties today, deliberately, because knowing
    what people ask is the point of collecting it: `answer_question_submitted.question` (the
-   whole question), and — less obviously — `answer_question_submitted.scope_label` and
+   whole question), `answer_rated.question` and `.previous_question` when a reader says an
+   answer was wrong (the same text again, sent with the answer so the report can be
+   reproduced; `answer_rated.answer` is the assistant's text, which can quote the reader),
+   the AI traces' `$ai_input` / `$ai_input_state` (the question and the whole conversation
+   so far, kept 30 days — see "AI traces"), and — less obviously — `answer_question_submitted.scope_label` and
    `answer_starter_clicked.starter_text`, both of which interpolate the reader's typed title
    search into a label. The custom search events send a `query_length`, not the text
    (`bills_no_results` stopped sending `title_query` in the filter redesign), **but that does
@@ -81,7 +85,7 @@ repository.
 | `$exception` | Uncaught JS errors and unhandled promise rejections (Error Tracking) — third-party noise filtered, see below. Since 13 Sep 2026 also reported explicitly by the error boundaries, which catch a render failure before the window-level handler can see it | **Code**: `capture_exceptions: true` (also on project-side as `autocapture_exceptions_opt_in`, but the init key is what makes it independent of the UI toggle), plus `analytics.captureException()` from `app/error.tsx` and `app/global-error.tsx` |
 | Heatmaps | Click/move/scroll-depth maps per page (rendered from autocapture data) | Project setting `heatmaps_opt_in: true` |
 | `$rageclick` | Repeated frustrated clicks on the same element | `defaults` preset |
-| `$workflows_email_*` | Delivery of each email the site sends (sign-up codes, bill alerts, Pro plan-change notices; password-reset codes are wired but no page sends one yet — see `overview.md`): `sent`, `delivered`, `bounced`, `blocked`. No opens or clicks, because tracking is off on those sends. All under one distinct id, `bills-congress-mailer`, so no per-recipient profiles are created; the recipient is in `$email_to` | PostHog Workflows, not the browser. The workflows are "Bills.Congress: sign-in codes", "…: bill alerts" and "…: billing"; see "Email" in `overview.md`. The site's request names its run `bic_email_requested`, but that is **not** an ingested event (the workflow has no "Capture event" step) and never appears in insights; the payload, code included, is kept only in the workflow's Invocations tab |
+| `$workflows_email_*` | Delivery of each email the site sends (sign-up codes, password-reset codes, bill alerts, Pro plan-change notices): `sent`, `delivered`, `bounced`, `blocked`. No opens or clicks, because tracking is off on those sends. All under one distinct id, `bills-congress-mailer`, so no per-recipient profiles are created; the recipient is in `$email_to` | PostHog Workflows, not the browser. The workflows are "Bills.Congress: sign-in codes", "…: bill alerts" and "…: billing"; see "Email" in `overview.md`. The site's request names its run `bic_email_requested`, but that is **not** an ingested event (the workflow has no "Capture event" step) and never appears in insights; the payload, code included, is kept only in the workflow's Invocations tab |
 
 Project-side settings worth knowing when reading this data, because none of them are
 visible in the repo:
@@ -153,10 +157,21 @@ picker) and fires one custom event — see "Learn page" below.
 | `signin_submitted` | User submits the sign-in form | `method: "password"` | `components/auth/sign-in-form.tsx` |
 | `signin_completed` | Sign-in succeeded (password, or Google OAuth return for an existing account) | `method: "password" \| "google"` | `components/auth/sign-in-form.tsx`, `components/analytics/posthog-auth-sync.tsx` |
 | `signin_failed` | Sign-in failed | `reason: "invalid_credentials" \| "other"` | `components/auth/sign-in-form.tsx` |
+| `password_reset_requested` | Reader asks for a reset code (added 2026-09-30): submits their email on `/forgot-password` (`surface: "forgot_password"`), or presses "Email me a code" under "Change password" on `/account` (`"account"`). On `/forgot-password` the form moves on to the code step whatever the server says, so this counts attempts, not emails sent; compare with `$workflows_email_sent` on the sign-in codes workflow | `surface: "forgot_password" \| "account"` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
+| `password_reset_code_resent` | Reader clicks "Resend code" on the reset step | `surface` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
+| `password_reset_submitted` | Reader submits the 6-digit code and a new password | `surface` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
+| `password_reset_completed` | The new password was saved; the reader is signed in and every other session on the account is signed out (from `/account` the reader simply stays signed in). Not also sent as `signin_completed` | `surface` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
+| `password_reset_failed` | A reset was refused. `invalid_code` covers a wrong or expired code, too many tries and an address with no password account, which the form deliberately cannot tell apart — and also any other failure (a dropped connection, a server error), so it is not purely a count of bad codes. `code_not_sent` is `/account` only: the reset code could not be sent (the five-an-hour limit, or a failed request) and the dialog said so; `/forgot-password` never reports it, so it cannot reveal which addresses have accounts | `surface`, `reason: "password_requirements" \| "invalid_code" \| "code_not_sent"` | `components/auth/reset-password-form.tsx` (on `/account`, inside `components/account/change-password-button.tsx`) |
 | `header_auth_clicked` | Signed-out reader clicks Sign in or Sign up in the header (added 2026-09-25). A device where an account has been signed in before is offered only Sign in; any other device gets both on desktop and Sign up alone on phones; an auth page shows only the other form (`lib/auth-cta.ts`) | `cta: "sign_in" \| "sign_up"`, `known_device` | `components/auth/user-menu.tsx` |
 | `auth_google_clicked` | User clicks a "Continue with Google" button (before OAuth redirect) | `intent: "sign_in" \| "sign_up"` | `components/auth/google-button.tsx` |
 | `signed_out` | User signs out | — | `components/auth/user-menu.tsx`, `app/account/page.tsx` |
 | `welcome_modal_shown` | New-user welcome/celebration modal appeared | — | `components/auth/welcome-new-user.tsx` |
+| `avatar_editor_opened` | Reader picked a photo from the account page's avatar and it decoded; the crop dialog opened (added 2026-09-29) | `file_type` (the picked file's MIME type), `file_kb` (its size), `had_photo` | `components/account/avatar-button.tsx` |
+| `avatar_editor_cancelled` | Reader closed the crop dialog without saving | — | `components/account/avatar-button.tsx` |
+| `avatar_saved` | The cropped photo was uploaded and attached; it is now the reader's avatar | `format: "webp" \| "jpeg"` (JPEG only where the browser cannot encode WebP), `output_kb`, `zoom` (1–4, two decimals), `replaced: "upload" \| "google" \| "none"`, `duration_ms` (Upload press to attached) | `components/account/avatar-button.tsx` |
+| `avatar_failed` | A photo could not be read (`stage: "read"`: not an image the browser can open, or over 50 MB), uploaded (`"upload"`) or attached (`"save"`: rejected by the server, or rate limited) | `stage`, `reason` (our code, e.g. `UNREADABLE_IMAGE`, `TOO_LARGE`, `RATE_LIMITED`, `AVATAR_INVALID`) | `components/account/avatar-button.tsx` |
+| `avatar_removed` | Reader chose "Remove photo"; the avatar is back to initials | `previous: "upload" \| "google"` | `components/account/avatar-button.tsx` |
+| `avatar_google_restored` | Reader chose "Use Google photo" to show their Google picture again | — | `components/account/avatar-button.tsx` |
 
 ### Bill discovery (dashboard + browse)
 
@@ -186,7 +201,8 @@ picker) and fires one custom event — see "Learn page" below.
 | `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set while the list is open (passive, 150ms debounce, once per settled query and Congress, including zero results) | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
 | `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
 | `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
-| `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+page) | `hub_kind`, `hub_path`, `bill_count`, `page` | `app/bills/_hub/hub-view-tracker.tsx` |
+| `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+order+page) | `hub_kind`, `hub_path`, `bill_count`, `page`, `order` (`newest` \| `oldest`; added 2026-09-30, absent on earlier events) | `app/bills/_hub/hub-view-tracker.tsx` |
+| `hub_order_changed` | Reader switches a hub between "Newest first" and "Oldest first" (added 2026-09-30, when hubs gained a real date order). The page that follows reports its own `hub_viewed` with the new `order` | `hub_kind`, `hub_path`, `from_order`, `to_order`, `page` (the page they were on; a change of order returns to page 1) | `app/bills/_hub/hub-view-tracker.tsx` (`HubOrderSwitch`) |
 | `hub_link_clicked` | User clicks a link into a hub from the /bills browse disclosure, a filter picker footer, a sibling row on another hub, or the site footer (`placement: "footer"`, since 2026-09-25: House bills, Senate bills and Bills that became law; before that the footer's seven chamber and stage links reported only `$autocapture`). **Not** the homepage topic wheel's links, which go to a topic hub but report `dashboard_drilldown_clicked` instead | `from_path`, `to_path`, `hub_kind`, `placement` | `app/bills/_hub/hub-view-tracker.tsx`, `app/bills/_hub/hub-directory.tsx`, `components/bills/filters/filter-field.tsx` |
 
 **`filter_kind` vocabulary** (shared by `bills_filter_applied`,
@@ -241,6 +257,8 @@ fires roughly once per settled search.
 |---|---|---|---|
 | `bill_viewed` | Bill detail page rendered (top of the chat funnel) | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage`, `has_summary`, `has_pdf` | `components/bills/bill-details.tsx` |
 | `bill_base_rate_viewed` | Committee base-rate context line shown on a bill detail page (passive, once per bill view) | `bill_id`, `chamber`, `days_in_committee`, `base_rate_percent`, `base_rate_sample` | `components/bills/bill-details.tsx` |
+| `bill_journey_viewed` | The journey (the to-scale stage bar, its chapters and the Congress clock) drawn in a bill page's status panel (passive, once per bill view). `bar_drawn` is false when the bill has spent time in only one stage and the plain track shows instead; `outcome` is `law`, `signed`, `vetoed`, `adopted`, `expired` or `open` | `bill_id`, `progress_stage`, `chapters`, `total_days`, `outcome`, `bar_drawn` | `components/bills/bill-journey.tsx` |
+| `bill_peers_viewed` | The reader scrolled to the "Among its peers" dot field on a bill page (30% of it on screen; once per bill view) | `bill_id`, `policy_area`, `peer_total`, `law_count`, `ring_shown` | `components/bills/bill-peers.tsx` |
 | `bill_pdf_opened` | User clicks "Read full text (PDF)" | `bill_id` | `components/bills/bill-details.tsx` |
 | `bill_save_toggled` | Signed-in user saves or unsaves a bill on the detail page | `bill_id`, `action: "saved" \| "unsaved"`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/save-bill-button.tsx` |
 | `bill_save_signin_redirected` | Signed-out user clicked Save and was sent to sign-in (conversion moment) | `bill_id` | `components/bills/save-bill-button.tsx` |
@@ -325,8 +343,8 @@ emits `list`.
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|
 | `answer_question_submitted` | Reader submits a question | `surface`, `question`, `question_length`, `source: "typed" \| "starter"`, `question_number`, `scope_label` (filtered lists only) | `components/answers/answer-provider.tsx` |
-| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence | `components/answers/answer-provider.tsx` |
-| `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
+| `answer_received` | Answer completed | `surface`, `response_ms`, `answer_length`, `db_source_count`, `web_source_count`, `dropped`, `partial`, `asked_reader` — the assistant asked a clarifying question instead of answering, `truncated_by_length` — the answer hit the token ceiling mid-sentence, `$ai_trace_id` — the answer's AI trace (see "AI traces" below; absent until that Convex change is deployed). Fires when the finished answer arrives, before the panel's word-by-word reveal (up to 5s) has finished drawing it, so `response_ms` is the server's time, not the time until the reader sees the last word | `components/answers/answer-provider.tsx` |
+| `answer_failed` | Request errored (not rate limit) | `surface`, `error` — one of `"connection_failed"`, `"stream_dropped"` (connection cut mid-answer, the idle-timeout fingerprint), `"no_stream_body"`, `"stream_incomplete"`, `"stalled_no_progress"` (the reader saw nothing new for 45s and the client stopped waiting — not a cut connection), `"empty_model_output"` (the model gave no answer and no lookup, even after one nudge and a final round without tools; **until #135's Convex deploy on 30 Sep 2026 at about 17:42 UTC (13:42 ET) the reader got a canned apology instead, recorded as an `answer_received`**, so no `empty_model_output` event predates that deploy), or the server's message — including the proxy's own "The answer took too long and was stopped." when a hung stream hits the cap in `lib/sse-keepalive.ts`, `elapsed_ms` — ms waited before failing, `stream_started` — whether any byte arrived first, `$ai_trace_id` — when the server got far enough to record a trace. **Before 13 Sep 2026 every one of these was recorded as a single `"network_error"`**, so that value still fills the history and a chart spanning the change will show it giving way to the specific reasons rather than a real drop | `components/answers/answer-provider.tsx` |
 | `answer_source_clicked` | A numbered source was clicked | `surface`, `source_kind: "db" \| "web"`, `position` | `components/answers/source-list.tsx` |
 | `answer_citation_unresolved` | The server deleted a citation the model invented | `surface`, `marker_count`, `model` — a hardcoded `'deepseek-v4-flash'` literal, **not** the model that actually served the turn, so it cannot detect a failover | `components/answers/answer-provider.tsx` |
 | `answer_rate_limited` | Reader hit the daily question cap | `surface`, `limit_kind: "anonymous" \| "authed"`, `max` | `components/answers/answer-provider.tsx` |
@@ -342,6 +360,7 @@ emits `list`.
 | `answer_anon_thread_saved` | A signed-out conversation was kept after signing in | `turn_count` | `components/answers/answer-provider.tsx` |
 | `answer_starter_clicked` | A generated starter or chart question was used. Since 2026-09-24 the three home masthead starters open the page that answers them instead of asking, so `answer_question_submitted` with `source: "starter"` on `home` drops from that date by design | `surface: "home" \| "filtered" \| "bill"`, `starter_text`; home masthead only: `action: "ask" \| "open_page"`, and `destination` (path) when `open_page` | `components/answers/hero-ask.tsx`, `components/answers/ask-about.tsx` (also every home chart's "Ask about this"), `components/answers/scope-ask-bar.tsx`, `components/bills/ask-about-bill.tsx` |
 | `answer_web_search_used` | The answer fell back to the open web | `surface`, `reason`, `result_count`, `engine` | `components/answers/answer-provider.tsx` |
+| `answer_rated` | Reader answered "Was this answer right?" under a finished answer. Once per answer; a clarifying question gets no check. Added 30 Sep 2026 | `surface` (where the question was asked), `verdict: "right" \| "wrong"`, `answer_id`, `question_number`, `answer_length`, `db_source_count`, `web_source_count`, `chat_id` (signed-in threads only), `$ai_trace_id` — the rated answer's AI trace, which holds everything the model was given (absent for an answer restored after a refresh). **`wrong` only:** `question`, `previous_question` (follow-ups only), `answer` — the text the reader saw, up to 8,000 characters, `answer_clipped`, `sources` — the cited handles. Built and tested in `lib/answer-rating.ts` | `components/answers/answer-check.tsx` via `components/answers/answer-provider.tsx` |
 
 > **`dropped` is the grounding-health number.** It counts citations the model
 > produced for rows it was never handed, which the server deletes before display.
@@ -390,6 +409,36 @@ iOS included. Break any insight down by it to compare installed-app readers with
 readers. Events captured before the component mounts (the first `$pageview`) do not carry
 it.
 
+### Feedback and surveys
+
+Added 2026-09-29. Two forms the site draws itself, each backed by a PostHog survey of type
+`api` so the answers land in PostHog's **Surveys** tab with its own charts and filters
+(Documentation/overview.md, "Reader feedback"). Because the Surveys tab reads PostHog's own
+event names and `$survey_*` properties, these three events are **PostHog's**, not
+`object_action` names of ours: renaming them would take the answers out of the Surveys tab.
+They are still sent only through the helpers in `lib/analytics.ts` (`surveyShown`,
+`surveyDismissed`, `surveySent`).
+
+| Survey | PostHog id | Questions (id order) |
+|---|---|---|
+| "Feedback" (the header / menu / footer box) | `01a0ee82-e9d6-0000-2be7-a3a3010e9529` | "What would you like to share?" (`Issue` \| `Idea`), "What's on your mind?" (the message), "Picture" (a link to the attached picture in Convex storage, or unanswered) |
+| "Did you find what you were looking for?" (the page-3 prompt) | `01a0ee82-f301-0000-9572-4b5e0e2d5cd3` | "Did you find what you were looking for?" (`Yes` \| `No`), "What was missing?" (optional, asked only after No). Response limit 1,000 |
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `survey shown` | The Feedback box opens, or the page-3 prompt appears | `$survey_id`, `$survey_name`, `surface: "header" \| "menu" \| "footer" \| "prompt"` | `components/feedback/feedback-box.tsx`, `components/feedback/found-it-prompt.tsx` |
+| `survey dismissed` | The Feedback box closes without sending, or the prompt is closed before answering | `$survey_id`, `$survey_name`; for the prompt also `$set: {"$survey_dismissed/<id>": true}` | same |
+| `survey sent` | Feedback is sent, or the prompt is answered (Yes; or No, with or without the follow-up; closing after No sends the No) | `$survey_id`, `$survey_name`, `$survey_questions` (`[{id, question, response}]`), `$survey_response_<question id>` per answered question plus the legacy index keys (`$survey_response`, `$survey_response_1`, …), `$survey_completed: true`, `$survey_submission_id`; for the prompt also `$set: {"$survey_responded/<id>": true}` | same, plus `components/feedback/feedback-panel.tsx` |
+
+**Reader-typed free text, deliberately** (contract rule 6). The feedback message and the
+prompt's "What was missing?" are the whole point of these forms, so they ride on `survey sent`
+verbatim, as does the picture's public link. Disclosed in the Privacy Policy (§2, "Feedback you
+send") in the same commit.
+
+**Free-plan budget.** Every `survey sent` counts toward PostHog's 1,500 free survey responses a
+month, across both surveys. The prompt's 1,000-response limit is what keeps it inside that: the
+site shows the prompt only while PostHog has the survey open (`analytics.whenSurveyActive`).
+
 ### Server-side events
 
 Captured with `posthog-node` (`lib/posthog-server.ts`) from API routes, tied to the same
@@ -400,14 +449,71 @@ person via the `X-PostHog-Distinct-Id` / `X-PostHog-Session-Id` headers sent by 
 | `bill_chat_message_processed` | Server finished handling a per-bill chat message | `bill_id`, `success`, `rate_limited`, `user_type`, `question_length` | `app/api/bill-chat/send/route.ts` | **Dead.** The route is still deployed and publicly callable, but its only client (`billsService.sendChatMessage`) has no call site anywhere in the app. Last event 27 Aug 2026. |
 | `$exception` (server) | An API route threw | error details | `app/api/bill-chat/send/route.ts` (dead), `app/api/bill-chat/usage/route.ts` (live, called by `app/account/page.tsx`) | Partly live |
 
-> **The live answer path has no server-side instrumentation at all.**
-> `app/api/answer/route.ts` imports nothing from `lib/posthog-server.ts`, and the
-> browser's `fetch('/api/answer')` does not send the PostHog identity headers, so a
-> server event added there today would not attach to the browser's person or session.
-> Everything we know about answers comes from the client events above — which means a
-> question that fails before the browser sees a response is invisible. If server-side
-> truth for the costly action matters again, this is the gap to close, and it needs
-> `analytics.requestHeaders()` wired into that fetch first.
+#### AI traces (every answer, from Convex)
+
+Since 30 Sep 2026 every question the answer engine handles is recorded as a PostHog **AI
+Observability** trace, sent from Convex rather than from an API route:
+`convex/aiTrace.ts` collects the events during the turn and posts them in one request to
+PostHog's batch API just before the `/answer/stream` response closes (an httpAction cannot
+run `posthog-node`). The browser sends `analytics.requestHeaders()` on
+`fetch('/api/answer')`; `app/api/answer/route.ts` forwards the two ids, plus the panel's
+conversation id, to Convex in the body, where they are re-validated. **Nothing is sent
+until `POSTHOG_KEY` is set in the Convex deployment's environment and the Convex side is
+deployed** — see "Deploying Convex" in `overview.md`.
+
+These are PostHog's own event names and properties, so they do not follow rule 5. Every
+event carries `$ai_trace_id` (one per question), `$ai_session_id` (the conversation: a random id pinned on a
+thread's first question and kept for its follow-ups; a resumed saved thread uses its chat id),
+`distinct_id` (the browser's, so the trace joins the person) and `$session_id` (so it
+links to the replay). With no valid id from the browser the trace is recorded under its
+own id with `$process_person_profile: false`.
+
+| Event | Fired when | Properties | Where (file) | Status |
+|---|---|---|---|---|
+| `$ai_generation` | Each model call: every round of the answer loop, and the web-search call | `$ai_span_name: "answer" \| "web_search"`, `$ai_model` (the model that served it, which exposes a failover), `$ai_provider: "openrouter"`, `$ai_input` — every message sent, system prompt and tool results included, each clipped at 20,000 characters, `$ai_output_choices`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd` (when OpenRouter reports it), `$ai_latency` (s), `$ai_http_status`, `$ai_tools`, `$ai_temperature`, `$ai_max_tokens`, `$ai_is_error`, `$ai_error` | `convex/answer.ts` (`callModel`, `searchWeb`) via `convex/aiTrace.ts` | Live once deployed |
+| `$ai_span` | Each lookup the model made | `$ai_span_name` (the tool: `describe_dataset`, `fetch_dataset`, `search_web`, `ask_reader`), `$ai_input_state` — its arguments, `$ai_output_state` — what it was handed back, clipped at 20,000, `$ai_latency`, `$ai_is_error` (the call was invalid) | `convex/answer.ts` (tool loop) | Live once deployed |
+| `$ai_trace` | The turn ended, answered or failed | `$ai_input_state` — the reader's question, `$ai_output_state` — the answer as shown (after citation resolution), each as a one-message chat list (`[{role, content}]`), the shape PostHog's trace view renders, `$ai_latency`, `$ai_is_error`, `$ai_error`, and ours: `outcome: "answered" \| "asked_reader" \| "failed"`, `dropped`, `partial`, `truncated_by_length`, `db_source_count`, `web_source_count`, `signed_in` | `convex/answer.ts` (`stream`) | Live once deployed |
+
+PostHog keeps the large properties (`$ai_input`, `$ai_output_choices`, `$ai_input_state`,
+`$ai_output_state`, `$ai_tools`) for **30 days** only, in the `posthog.ai_events` table;
+the rest of each event stays in `events` like any other. So a wrong answer worth keeping
+must be saved to a dataset (or into `scripts/truth/questions.ts`) inside that window.
+
+The client events join these by the same id: `answer_received`, `answer_failed` and
+`answer_rated` carry `$ai_trace_id` when the server sent one. Not on the CLI path
+(`answer:ask`), which records nothing.
+
+### PostHog Logs
+
+Log lines are not events: they go to PostHog Logs (OpenTelemetry, `/i/v1/logs`), not to
+the event stream, and are not in funnels or insights. Free to 10 GB a month, kept 14 days;
+the Logs billing limit is set to $0, so past the free tier they stop rather than bill.
+
+They are sent from our own code, `convex/posthogLogs.ts`, because Convex's built-in log
+streaming needs its Professional plan. They use the same `POSTHOG_KEY` (and
+`POSTHOG_HOST`) as the AI traces above; with no key in the Convex environment nothing is
+sent. Service name: `billsincongress-convex`.
+
+The trace and the line are two views of one question. The trace holds the text (question,
+lookups, answer) for 30 days; the line holds none of it and is the cheap thing to count,
+alert on and filter: "every failed answer this week, with its replay". `trace_id` on the
+line opens its trace.
+
+| Line (body) | Level | Written when | Attributes | Where (file) |
+|---|---|---|---|---|
+| `answer served` | INFO, or WARN when the answer was `partial`, `truncated` or had citations dropped | The answer exists, just before it streams to the reader. A write that fails after this (the reader closed the panel) is not logged as a second outcome | `sessionId`, `posthogDistinctId` (when the browser sent them), `trace_id`, `signed_in`, `page`, `bill_id` (bill pages), `duration_ms`, `lookups`, `partial`, `truncated`, `dropped_citations`, `used_web`, `asked_reader` | `convex/answer.ts` (`stream`) |
+| `answer failed` | ERROR | The answer loop threw ("Failed to get a response."), or it ended with no answer (`reason`, e.g. `empty_model_output`: every round came back empty) | the identity/page attributes above, `duration_ms`, and either `error_kind` (when it threw: a fixed label such as `openrouter_503`, never the message, because an upstream error body can quote the question) or `reason` + `lookups` (when it ended empty) | `convex/answer.ts` (`stream`) |
+
+- `sessionId` and `posthogDistinctId` are the attribute names PostHog uses to link a line to
+  the session replay and the person. They come from the browser and are dropped unless
+  they look like PostHog ids (`readTraceIdentity` in `convex/aiTrace.ts`, shared with the
+  trace).
+- **The question text is never on a line**, and a test (`convex/answerLogs.spec.ts`)
+  fails if it ever is.
+- Before setting the token in Convex, `scripts/posthog-logs-smoke.ts` sends one test line
+  built by the same code, to prove PostHog accepts the format and the key.
+- Adding a line follows the same contract as an event: register it in this table, send it
+  through `scheduleLog` in `convex/posthogLogs.ts`, never await the send on a reader's path.
 
 ---
 
@@ -513,6 +619,12 @@ These are the saved insights the project should maintain in the PostHog UI:
     number was impossible to record before it, because the old pill only appeared once a
     conversation already existed.
 12. **Web analytics dashboard**: PostHog's built-in one (enabled by default).
+13. **Reader-reported wrong answers** — `answer_rated` where `verdict = wrong`, as a table of
+    `question`, `answer`, `sources` and `$ai_trace_id`, newest first. Open the trace (AI
+    Observability → Traces) to see what the model was given; add it to a dataset within 30
+    days, before PostHog drops its text. Each row is a candidate case for
+    `scripts/truth/questions.ts`. Alongside it, the share of ratings that are `wrong`, and
+    ratings as a share of `answer_received`: a check nobody taps says nothing either way.
 
 ---
 

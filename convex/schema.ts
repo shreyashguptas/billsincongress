@@ -36,8 +36,16 @@ export default defineSchema({
     stripePriceId: v.optional(v.string()),
     stripeCurrentPeriodEnd: v.optional(v.number()), // unix seconds
     cancelAtPeriodEnd: v.optional(v.boolean()),
+
+    // App-managed profile photo (convex/avatars.ts). Kept apart from `image`,
+    // which @convex-dev/auth overwrites with the Google picture on every
+    // Google sign-in. `avatarHidden` is "show my initials": set by Remove,
+    // so a removed Google picture does not come back at the next sign-in.
+    avatarStorageId: v.optional(v.id("_storage")),
+    avatarHidden: v.optional(v.boolean()),
   })
     .index("email", ["email"])
+    .index("by_avatarStorageId", ["avatarStorageId"])
     .index("by_stripeCustomerId", ["stripeCustomerId"])
     .index("by_stripeSubscriptionId", ["stripeSubscriptionId"]),
 
@@ -116,6 +124,15 @@ export default defineSchema({
     progressStage: v.optional(v.number()), // 20, 40, 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
+    // The day the bill reached its current stage: when it became law, was
+    // vetoed, passed its first chamber, went to committee — or, still at
+    // "Introduced", its introduction date. Derived with the stage
+    // (`calculateBillStage` + `stageDateFor`) and written alongside it, so the
+    // two never disagree. This, not
+    // latestActionDate, is what "newest law first" means: a committee can act on
+    // a bill after it is signed, and 5 of 758 laws had a later latest action.
+    // Absent (never "") when nothing dates it, so undated bills sort last.
+    stageDate: v.optional(v.string()),
     // Denormalised copy of billSubjects.policyAreaName: a topic filter must be
     // an indexed lookup. The cross-table intersection it replaced matched the
     // oldest 2,000 subject rows against the newest 1,200 bills of one congress
@@ -167,6 +184,27 @@ export default defineSchema({
     .index("by_congress_stage_and_action", [
       "congress",
       "progressStage",
+      "latestActionDate",
+    ])
+    // The hub pages' two orders ("Newest first" / "Oldest first",
+    // app/bills/_hub). Each index enforces the hub's whole filter, so a sorted
+    // page is a real index range over the complete set — never a capped scan
+    // sorted in memory. Stage hubs sort by the date the bill reached that stage;
+    // topic and chamber hubs by latest action. A chamber is four bill types,
+    // merged in order by `listSorted`.
+    .index("by_congress_stage_and_stage_date", [
+      "congress",
+      "progressStage",
+      "stageDate",
+    ])
+    .index("by_congress_policy_area_and_latest_action", [
+      "congress",
+      "policyAreaName",
+      "latestActionDate",
+    ])
+    .index("by_congress_type_and_latest_action", [
+      "congress",
+      "billType",
       "latestActionDate",
     ])
     .index("by_progress_stage", ["progressStage"])
@@ -306,6 +344,17 @@ export default defineSchema({
     congress: v.number(),
     policyAreaName: v.string(),
     count: v.number(),
+    // The same bills as `count`, split by progressStage, counted in the same
+    // pass over the whole Congress, so the parts always sum to `count`. Drawn as
+    // the dot field on a bill page ("Of 2,181 Health bills…"). Optional so rows
+    // written before it existed still validate; a row without it draws nothing.
+    stageCounts: v.optional(
+      v.array(v.object({ stage: v.number(), count: v.number() })),
+    ),
+    // When this row was counted. A bill changed after this may not be counted
+    // where it now stands, so the page only rings "this bill" for bills that
+    // have not changed since.
+    countedAt: v.optional(v.string()),
   })
     .index("by_congress", ["congress"])
     .index("by_congress_and_count", ["congress", "count"]),
@@ -547,4 +596,15 @@ export default defineSchema({
   })
     .index("by_congress", ["congress"])
     .index("by_status", ["status"]),
+
+  // Pictures readers attach to the header's Feedback box (convex/feedback.ts).
+  // The message itself goes to PostHog with a link to the file; this row only
+  // exists so a daily cron can delete each picture 180 days after it arrived,
+  // and so avatars.sweepOrphans knows the file is not an orphaned photo.
+  // Nothing here identifies who sent it.
+  feedbackPictures: defineTable({
+    storageId: v.id("_storage"),
+    contentType: v.string(),
+    size: v.number(),
+  }).index("by_storageId", ["storageId"]),
 });

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
-import { hubByPath } from '@/lib/hubs';
+import { hubByPath, parseHubOrder } from '@/lib/hubs';
 import { HubView, hubMetadata, parseHubPage } from './hub-view';
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -12,11 +12,16 @@ export function makeHubPage(path: string) {
   const hub = hubByPath(path)!;
 
   return {
-    generateMetadata: async ({ searchParams }: PageProps): Promise<Metadata> =>
-      await hubMetadata(hub, parseHubPage((await searchParams).page)),
+    generateMetadata: async ({ searchParams }: PageProps): Promise<Metadata> => {
+      const params = await searchParams;
+      return await hubMetadata(hub, parseHubPage(params.page), parseHubOrder(params.sort));
+    },
 
-    Page: async ({ searchParams }: PageProps): Promise<ReactElement> => (
-      <HubView hub={hub} page={parseHubPage((await searchParams).page)} />
-    ),
+    Page: async ({ searchParams }: PageProps): Promise<ReactElement> => {
+      const params = await searchParams;
+      return (
+        <HubView hub={hub} page={parseHubPage(params.page)} order={parseHubOrder(params.sort)} />
+      );
+    },
   };
 }

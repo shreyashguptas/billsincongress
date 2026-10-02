@@ -1,4 +1,5 @@
 import type { Bill } from '@/lib/types/bill';
+import { isStageOnPath, isValidStage, measureStageLabel, stagePath } from '@/lib/utils/bill-stages';
 import { formatCongressOrdinal } from '@/lib/congress';
 
 export const SITE_URL = 'https://billsincongress.com';
@@ -26,8 +27,9 @@ export function billShareUrl(billId: string): string {
  * card's image URL, so a platform that caches images by URL — Facebook,
  * LinkedIn, WhatsApp — fetches the new drawing rather than keeping the old one.
  * 2: the stage-only redesign, and cards for the status, chamber and topic pages.
+ * 3: resolutions drawn on their own road, ending at "Agreed to".
  */
-export const SHARE_CARD_VERSION = 2;
+export const SHARE_CARD_VERSION = 3;
 
 /** The share card's canvas: Open Graph's 1.91:1 at the width every platform expects. */
 export const SHARE_CARD_SIZE = { width: 1200, height: 630 } as const;
@@ -112,11 +114,31 @@ const STAGE_PHRASES: Record<number, string> = {
   100: 'Became law',
 };
 
+/**
+ * A status for the middle of a sentence: "agreed to by the House", not "agreed
+ * to by the house". Only the first letter drops; proper nouns keep theirs.
+ */
+export function lowerFirst(text: string): string {
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
 export function billStatusPhrase(bill: Bill): string {
   const stage =
     typeof bill.progress_stage === 'string'
       ? parseInt(bill.progress_stage, 10)
       : bill.progress_stage;
+  // A resolution is "agreed to", and finished there; "passed one chamber" in
+  // the title and the share preview read as half-way to law. Same words as
+  // its status panel (Documentation/brand.md, "The road a measure travels").
+  if (stagePath(bill.bill_type) !== 'law') {
+    if (isStageOnPath(stage, bill.bill_type)) return measureStageLabel(stage, bill.bill_type);
+    // A code we do not know yet falls back to the backend's own words, as a
+    // bill's does: "Unknown" in a search title reads as a site that does not know.
+    // A known code off the road (a resolution "to President") keeps "Unknown":
+    // its stored description would name a step a resolution cannot reach.
+    if (!isValidStage(stage)) return bill.progress_description ?? 'Introduced';
+    return measureStageLabel(stage, bill.bill_type);
+  }
   return STAGE_PHRASES[stage] ?? bill.progress_description ?? 'Introduced';
 }
 
@@ -223,7 +245,7 @@ function isDescriptiveTitle(title: string | undefined): boolean {
  */
 export function billSeoDescription(bill: Bill): string {
   const id = billIdentifier(bill);
-  const status = billStatusPhrase(bill).toLowerCase();
+  const status = lowerFirst(billStatusPhrase(bill));
   const summary = billSummaryText(bill);
 
   if (summary) {
@@ -268,7 +290,7 @@ export function billAnswerParagraph(bill: Bill): string {
   const area = bill.bill_subjects?.policy_area_name;
   const sponsor = sponsorPhrase(bill);
   const when = introducedPhrase(bill);
-  const status = billStatusPhrase(bill).toLowerCase();
+  const status = lowerFirst(billStatusPhrase(bill));
 
   const kind = legislationTypeLabel(bill.bill_type ?? '').toLowerCase();
   let text = `${id} is ${withArticle(area ? `${area} ${kind}` : kind)}`;
@@ -315,7 +337,9 @@ export function congressGovUrl(bill: Bill): string | null {
 
 /** schema.org Legislation `legislationType` for a Congress bill type. */
 export function legislationTypeLabel(billType: string): string {
-  const type = billType.toLowerCase();
+  // Dots and spaces dropped, so the printed type ("H.Con.Res.") reads as its
+  // code ("hconres"): the in-answer card only has the printed number.
+  const type = billType.toLowerCase().replace(/[.\s]/g, '');
   if (type === 'hjres' || type === 'sjres') return 'Joint Resolution';
   if (type === 'hconres' || type === 'sconres') return 'Concurrent Resolution';
   if (type === 'hres' || type === 'sres') return 'Resolution';

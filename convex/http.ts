@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { auth } from "./auth";
 import { stream as answerStream } from "./answer";
 import { handleStripeWebhook } from "./billing";
+import { pictureOptions, uploadPicture } from "./feedback";
 
 const http = httpRouter();
 
@@ -24,6 +25,20 @@ http.route({
   path: "/stripe/webhook",
   method: "POST",
   handler: handleStripeWebhook,
+});
+
+// A picture attached to the header's Feedback box. Called straight from the
+// browser (hence the CORS preflight), and public and anonymous like the box
+// itself; size, type and a site-wide daily cap are checked in the handler.
+http.route({
+  path: "/feedback/picture",
+  method: "POST",
+  handler: uploadPicture,
+});
+http.route({
+  path: "/feedback/picture",
+  method: "OPTIONS",
+  handler: pictureOptions,
 });
 
 export default http;

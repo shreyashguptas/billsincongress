@@ -1,6 +1,5 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono, Newsreader } from 'next/font/google';
 import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Navigation } from '@/components/navigation';
@@ -10,10 +9,13 @@ import { AnswerPanel } from '@/components/answers/answer-panel';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { PwaSetup } from '@/components/pwa/pwa-setup';
+import { IconAlignmentCheck } from '@/components/brand/icon-alignment-check';
+import { FoundItPrompt } from '@/components/feedback/found-it-prompt';
 import { ConvexClientProvider } from '@/components/convex-client-provider';
 import { sharedViewport, sharedThemeColor } from './shared-metadata';
 import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/json-ld';
+import { fontVariables } from '@/app/fonts';
 
 // Sitewide identity for search engines: who publishes this site and how its
 // search works. Bill pages add Legislation + BreadcrumbList nodes of their own.
@@ -95,27 +97,6 @@ const SITE_GRAPH = {
   ],
 };
 
-// The three faces of Documentation/brand.md. Newsreader carries its optical-size
-// axis so headlines get the display cut and summaries the text cut.
-const newsreader = Newsreader({
-  subsets: ['latin'],
-  variable: '--font-serif',
-  display: 'swap',
-  axes: ['opsz'],
-});
-
-const geist = Geist({
-  subsets: ['latin'],
-  variable: '--font-sans',
-  display: 'swap',
-});
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-  display: 'swap',
-});
-
 export const viewport: Viewport = {
   ...sharedViewport,
   themeColor: sharedThemeColor,
@@ -177,7 +158,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${newsreader.variable} ${geist.variable} ${geistMono.variable}`}
+      className={fontVariables}
     >
       <body className="min-h-screen bg-paper text-ink font-sans antialiased">
         <JsonLd data={SITE_GRAPH} />
@@ -218,9 +199,11 @@ export default function RootLayout({
                   <Footer />
                 </div>
                 <AnswerPanel />
+                <FoundItPrompt />
                 <WelcomeNewUser />
                 <PostHogAuthSync />
                 <PwaSetup />
+                {process.env.NODE_ENV === 'development' && <IconAlignmentCheck />}
               </AnswerProvider>
             </ThemeProvider>
           </ConvexClientProvider>

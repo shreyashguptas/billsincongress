@@ -3,9 +3,11 @@ import { C, SPECTRUM, STAGE } from '@/convex/emailStyle';
 import {
   BillStages,
   getStageStep,
-  isValidStage,
-  MAIN_PATH_LABELS,
-  stageLabel,
+  isStageOnPath,
+  measureStageLabel,
+  PATH_LABELS,
+  stageNote as measureStageNote,
+  stagePath,
   type BillStage,
 } from '@/lib/utils/bill-stages';
 import { geist500, geistMono500, newsreader500, newsreader600 } from './fonts';
@@ -49,22 +51,23 @@ const GLYPHS: Record<BillStage | 'unknown', string> = {
     '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
 };
 
-function glyphDataUri(stage: number, colour: string): string {
-  const children = isValidStage(stage) ? GLYPHS[stage] : GLYPHS.unknown;
+function glyphDataUri(stage: number, colour: string, billType?: string | null): string {
+  const children = isStageOnPath(stage, billType) ? GLYPHS[stage as BillStage] : GLYPHS.unknown;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${colour}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${children}</svg>`;
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
 }
 
-/** A stage's fill, tint and text colours; an unknown stage is neutral ink-3. */
-export function stageColours(stage: number): { fill: string; text: string } {
-  return isValidStage(stage) ? STAGE[stage] : { fill: C.muted, text: C.muted };
+/**
+ * A stage's fill, tint and text colours; an unknown stage, or one off the
+ * measure's road, is neutral ink-3.
+ */
+export function stageColours(stage: number, billType?: string | null): { fill: string; text: string } {
+  return isStageOnPath(stage, billType) ? STAGE[stage as BillStage] : { fill: C.muted, text: C.muted };
 }
 
 /** "Stage 3 of 7", "Stopped at the President", "Stage unknown" — as on the bill page. */
-export function stageNote(stage: number): string {
-  const { step, total, isVetoed } = getStageStep(stage);
-  if (isVetoed) return 'Stopped at the President';
-  return step > 0 ? `Stage ${step} of ${total}` : 'Stage unknown';
+export function stageNote(stage: number, billType?: string | null): string {
+  return measureStageNote(stage, billType);
 }
 
 /** The chamber mark's geometry (components/brand/logo.tsx), spectrum cut. */
@@ -137,18 +140,22 @@ export function CardFrame({ context, children }: { context?: string; children: R
 /**
  * Display size for a stage name in the 880px beside its glyph: "In committee"
  * at full size, "On the President's desk" and "Signed by the President" smaller
- * so they stay on one line.
+ * so they stay on one line, and "Agreed to by both chambers" smaller still.
  */
 export function stageHeadlineSize(label: string): number {
   if (label.length <= 12) return 104;
   if (label.length <= 18) return 88;
-  return 72;
+  if (label.length <= 23) return 72;
+  return 64;
 }
 
-/** The stage glyph in its colour, the stage in display type, the note under it. */
-export function StageHeadline({ stage }: { stage: number }) {
-  const { fill } = stageColours(stage);
-  const label = stageLabel(stage);
+/**
+ * The stage glyph in its colour, the stage in display type, the note under it.
+ * `billType` picks the measure's road: a resolution is "Agreed to", not passed.
+ */
+export function StageHeadline({ stage, billType }: { stage: number; billType?: string | null }) {
+  const { fill } = stageColours(stage, billType);
+  const label = measureStageLabel(stage, billType);
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
       <div
@@ -164,7 +171,7 @@ export function StageHeadline({ stage }: { stage: number }) {
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
-        <img src={glyphDataUri(stage, C.ground)} width={68} height={68} />
+        <img src={glyphDataUri(stage, C.ground, billType)} width={68} height={68} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', marginLeft: 40 }}>
         <div
@@ -180,7 +187,7 @@ export function StageHeadline({ stage }: { stage: number }) {
           {label}
         </div>
         <div style={{ fontFamily: 'Geist Mono', fontSize: 34, color: C.muted, marginTop: 14 }}>
-          {stageNote(stage)}
+          {stageNote(stage, billType)}
         </div>
       </div>
     </div>
@@ -188,13 +195,15 @@ export function StageHeadline({ stage }: { stage: number }) {
 }
 
 /**
- * The seven-step track, full width, every step named under its segment.
- * Reached segments take the stage's colour; the current step's name is in the
- * stage's text colour, earlier ones ink, later ones ink-3.
+ * The track for the measure's road (seven steps for a bill, four or three for a
+ * resolution), full width, every step named under its segment. Reached segments
+ * take the stage's colour; the current step's name is in the stage's text
+ * colour, earlier ones ink, later ones ink-3. Page cards pass no `billType` and
+ * get the seven-step road to law.
  */
-export function StageTrack({ stage }: { stage: number }) {
-  const { step, total } = getStageStep(stage);
-  const { fill, text } = stageColours(stage);
+export function StageTrack({ stage, billType }: { stage: number; billType?: string | null }) {
+  const { step, total } = getStageStep(stage, billType);
+  const { fill, text } = stageColours(stage, billType);
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex' }}>
@@ -213,7 +222,7 @@ export function StageTrack({ stage }: { stage: number }) {
         ))}
       </div>
       <div style={{ display: 'flex', marginTop: 14 }}>
-        {MAIN_PATH_LABELS.map((label, i) => (
+        {PATH_LABELS[stagePath(billType)].map((label, i) => (
           <div
             key={label}
             style={{

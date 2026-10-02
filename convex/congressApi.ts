@@ -13,7 +13,7 @@ import {
   EXTRA_TEXT_VERSIONS,
   EXTRA_COMPLETE,
 } from "./sync";
-import { calculateBillStage } from "./billStage";
+import { calculateBillStage, stageDateFor } from "./billStage";
 import { Id } from "./_generated/dataModel";
 
 // Shape returned by internal.mutations.getBillBackfillPage. Declared explicitly
@@ -29,6 +29,8 @@ type BillBackfillPage = {
     progressStage?: number;
     progressDescription?: string;
     latestActionDate?: string;
+    introducedDate: string;
+    stageDate?: string;
     extraSyncedBits: number;
   }>;
   isDone: boolean;
@@ -308,7 +310,8 @@ async function syncSingleBill(
     // Actions fetch failure is non-critical
   }
 
-  const { stage, description } = calculateBillStage(actions);
+  const computed = calculateBillStage(actions);
+  const { stage, description } = computed;
 
   const titleWithoutNumber =
     billDetail.title?.replace(
@@ -331,6 +334,8 @@ async function syncSingleBill(
     sponsorState: billDetail.sponsors?.[0]?.state,
     progressStage: stage,
     progressDescription: description,
+    // null, not undefined, so a stage with no date clears a stored one.
+    stageDate: stageDateFor(computed, billDetail.introducedDate) ?? null,
   });
 
   if (actions.length > 0) {
@@ -1333,6 +1338,8 @@ export const backfillBillFieldsFromActions = internalAction({
                 progressStage: b.progressStage,
                 progressDescription: b.progressDescription,
                 latestActionDate: b.latestActionDate,
+                introducedDate: b.introducedDate,
+                stageDate: b.stageDate,
               })),
             },
           );

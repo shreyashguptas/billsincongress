@@ -290,6 +290,18 @@
   animation: rise-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* An answer being revealed in the ask panel (lib/answer-reveal.ts): each word
+   is its own span and fades up out of a slight blur as the reveal reaches it.
+   Opacity and filter only — no transform, so nothing shifts the line it sits
+   in. `backwards`, not `forwards`, so a finished word keeps no filter at all. */
+@keyframes word-in {
+  from { opacity: 0; filter: blur(3px); }
+  to   { opacity: 1; filter: none; }
+}
+.animate-word-in {
+  animation: word-in 0.45s ease-out backwards;
+}
+
 /* ── Overlay surfaces ─────────────────────────────────────────────────────
    Sheets, dialogs and popovers. Radix keeps an element mounted while its
    exit animation runs, so every surface needs BOTH directions — with only an
@@ -489,6 +501,21 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   to   { transform: none; opacity: 1; }
 }
 
+/* "Did you find what you were looking for?" (components/feedback/found-it-prompt.tsx).
+   Stacked above the launcher pill (3rem tall) rather than beside it, so the two
+   never overlap at any width. It only shows while the panel is closed, so the
+   launcher is always the pill here, never the phone's bottom bar. */
+.found-it-prompt {
+  position: fixed;
+  z-index: 40;
+  right: 1rem;
+  bottom: calc(1rem + 3rem + 0.75rem + env(safe-area-inset-bottom, 0px));
+  width: 22rem;
+}
+@media (max-width: 639.98px) {
+  .found-it-prompt { left: 1rem; width: auto; }
+}
+
 /* Only drawn in the bottom-bar shape of the launcher. */
 .ask-launcher-arrow { display: none; }
 @media (max-width: 1023.98px) {
@@ -519,4 +546,5 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 .animate-bar-grow { animation: bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) {
   .animate-odds-in, .odds-law, .animate-seat-in, .animate-bar-grow { animation-delay: 0s !important; }
+  .animate-word-in { animation: none; }
 }

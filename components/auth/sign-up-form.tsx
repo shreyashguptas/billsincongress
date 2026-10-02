@@ -5,19 +5,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthActions } from "@convex-dev/auth/react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { analytics } from "@/lib/analytics";
-import { AuthDivider } from "./auth-card";
+import { AuthDivider, FormError } from "./auth-card";
 import { GoogleButton } from "./google-button";
 import { safeRedirect } from "./safe-redirect";
+import { PASSWORD_RULES, validatePassword } from "./password-rules";
 import { markSignupCelebrationPending } from "./welcome-new-user";
 
 type Step = "credentials" | "verify";
-
-const PASSWORD_RULES = "At least 10 characters, with upper-, lower-case, and a number.";
 
 // The verify step's two quiet actions: link Buttons at text height, in ink-2
 // so the submit stays the one strong control.
@@ -39,14 +37,6 @@ export function SignUpForm() {
   const [code, setCode] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<ErrorState>(null);
-
-  function validatePassword(pw: string): string | null {
-    if (pw.length < 10) return "Password must be at least 10 characters.";
-    if (!/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw)) {
-      return "Password needs upper-, lower-case, and a number.";
-    }
-    return null;
-  }
 
   async function onCredentialsSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -241,14 +231,5 @@ export function SignUpForm() {
         </Link>
       </p>
     </div>
-  );
-}
-
-/** The one line of error text under the fields. Alert brings role="alert". */
-function FormError({ children }: { children: React.ReactNode }) {
-  return (
-    <Alert variant="destructive" className="border-0 p-0">
-      <AlertDescription>{children}</AlertDescription>
-    </Alert>
   );
 }

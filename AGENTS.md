@@ -37,8 +37,16 @@ These rules apply to EVERY change that adds, removes, or modifies a user-facing 
    Note there is currently **no live server-side event**: the one example in the registry,
    `bill_chat_message_processed`, fires from `app/api/bill-chat/send/route.ts`, which no
    part of the UI calls any more. Read it as a reference implementation, not as something
-   that runs. The live answer path (`app/api/answer/route.ts`) sends no server event and
-   does not forward the headers.
+   that runs. The live answer path is the exception to "API routes": it forwards the
+   headers from `app/api/answer/route.ts` to Convex, and `convex/aiTrace.ts` records each
+   answer as PostHog AI trace events (`$ai_generation`, `$ai_span`, `$ai_trace`) with
+   `fetch`, not `posthog-node`. They send nothing until `POSTHOG_KEY` is set in the Convex
+   environment and Convex is deployed. See "AI traces" in `Documentation/ANALYTICS.md`.
+   The same key sends one PostHog **log line** per answer (`convex/posthogLogs.ts`).
+6. **PostHog Logs** (server log lines, not events) are registered in the "PostHog Logs"
+   section of `Documentation/ANALYTICS.md` and sent only through `scheduleLog` in
+   `convex/posthogLogs.ts`. Never put question text, email addresses or other reader
+   content on a line.
 
 A feature change without its analytics change is an incomplete change — do not consider
 the work done, and do not say it's done, until both halves are in place.
@@ -94,6 +102,19 @@ Rules:
    same commit.
 4. Check every visual change in both themes (Day and Night) and at phone (390px) and desktop
    (1440px) widths before calling it done.
+
+# Screenshots — never in the repository
+
+Screenshots and recordings that show a change go **in the pull request**: drag them into the
+PR description or a comment on github.com, where GitHub hosts them. They are **never
+committed** — not in `.github/`, not in `Documentation/`, not on another branch. Only images
+the site itself serves belong in the tree, under `public/`.
+
+`scripts/check-no-committed-screenshots.ts` runs in `pnpm test` and fails on any image or video
+outside `public/` (and on screenshot-named files anywhere). Do not widen it to make a
+screenshot fit. This happened once: #138 committed its review screenshots and #145 removed them.
+The one exception is screenshots the site serves in its web app manifest: they go in
+`public/manifest-screenshots/` and pass only while `app/manifest.ts` references each by path.
 
 # Answer accuracy — mandatory for anything touching `convex/catalog/` or `convex/answer.ts`
 

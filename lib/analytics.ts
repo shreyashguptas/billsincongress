@@ -1,5 +1,6 @@
 import posthog from 'posthog-js';
 
+import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 import type { SponsorMatchKind } from '@/lib/sponsor-match';
 
@@ -42,6 +43,8 @@ export type ShareOutcome = 'shared' | 'cancelled' | 'copied' | 'failed';
 export type DisplayMode = 'browser' | 'standalone';
 
 export type AuthIntent = 'sign_in' | 'sign_up';
+/** Where a password reset ran: the signed-out page, or "Change password" on /account. */
+export type PasswordResetSurface = 'forgot_password' | 'account';
 export type LimitKind = 'anonymous' | 'authed';
 
 export const analytics = {
@@ -89,7 +92,8 @@ export const analytics = {
 
   /**
    * Headers that let server-side captures attach to the same person/session.
-   * Spread into fetch() headers for API calls whose routes capture events.
+   * Spread into fetch() headers for API calls whose routes capture events or
+   * write PostHog log lines (`/api/answer` → convex/posthogLogs.ts).
    */
   requestHeaders(): Record<string, string> {
     if (!ready()) return {};
@@ -112,6 +116,22 @@ export const analytics = {
   signinCompleted: (method: 'password' | 'google') => capture('signin_completed', { method }),
   signinFailed: (reason: 'invalid_credentials' | 'other') => capture('signin_failed', { reason }),
 
+  /**
+   * Password reset: on /forgot-password (signed out) or from "Change
+   * password" on /account (`surface`). On /forgot-password the request step
+   * advances whatever the server says (so the form never reveals which emails
+   * have accounts), which means `requested` counts attempts, not emails sent.
+   */
+  passwordResetRequested: (surface: PasswordResetSurface) => capture('password_reset_requested', { surface }),
+  passwordResetCodeResent: (surface: PasswordResetSurface) => capture('password_reset_code_resent', { surface }),
+  passwordResetSubmitted: (surface: PasswordResetSurface) => capture('password_reset_submitted', { surface }),
+  passwordResetCompleted: (surface: PasswordResetSurface) => capture('password_reset_completed', { surface }),
+  passwordResetFailed: (
+    surface: PasswordResetSurface,
+    reason: 'password_requirements' | 'invalid_code' | 'code_not_sent',
+  ) =>
+    capture('password_reset_failed', { surface, reason }),
+
   authGoogleClicked: (intent: AuthIntent) => capture('auth_google_clicked', { intent }),
 
   /**
@@ -130,6 +150,27 @@ export const analytics = {
   },
 
   welcomeModalShown: () => capture('welcome_modal_shown'),
+
+  // Profile photo (account page; components/account/avatar-button.tsx)
+
+  /** A picked photo decoded and the crop dialog opened. */
+  avatarEditorOpened: (props: { file_type: string; file_kb: number; had_photo: boolean }) =>
+    capture('avatar_editor_opened', props),
+  /** Closed the crop dialog without saving. */
+  avatarEditorCancelled: () => capture('avatar_editor_cancelled'),
+  /** The cropped photo was stored and is now the reader's avatar. */
+  avatarSaved: (props: {
+    format: 'webp' | 'jpeg';
+    output_kb: number;
+    zoom: number;
+    replaced: 'upload' | 'google' | 'none';
+    duration_ms: number;
+  }) => capture('avatar_saved', props),
+  /** A photo could not be read, uploaded or saved. `reason` is our code, never the file. */
+  avatarFailed: (props: { stage: 'read' | 'upload' | 'save'; reason: string }) =>
+    capture('avatar_failed', props),
+  avatarRemoved: (previous: 'upload' | 'google') => capture('avatar_removed', { previous }),
+  avatarGooglePictureRestored: () => capture('avatar_google_restored'),
 
   /**
    * Google OAuth does a full-page redirect, so completion can't be captured in
@@ -342,7 +383,23 @@ export const analytics = {
     hub_path: string;
     bill_count: number | null;
     page: number;
+    /** Since 2026-09-30, when hubs gained a real order. Absent on earlier events. */
+    order: 'newest' | 'oldest';
   }) => capture('hub_viewed', props),
+
+  /**
+   * The reader switched a hub between "Newest first" and "Oldest first". Fires
+   * on the click; the page that follows reports its own `hub_viewed` with the
+   * new `order`. `page` is the page they were on, which a change of order
+   * resets to 1.
+   */
+  hubOrderChanged: (props: {
+    hub_kind: 'chamber' | 'status' | 'topic';
+    hub_path: string;
+    from_order: 'newest' | 'oldest';
+    to_order: 'newest' | 'oldest';
+    page: number;
+  }) => capture('hub_order_changed', props),
 
   /**
    * A link from one hub to a sibling hub, from /bills into a hub, or from the
@@ -414,6 +471,33 @@ export const analytics = {
     base_rate_percent: number;
     base_rate_sample: number;
   }) => capture('bill_base_rate_viewed', props),
+
+  /**
+   * The journey (the to-scale stage bar, its chapters and the Congress clock)
+   * was drawn on a bill page. Passive, once per bill view. `bar_drawn` is false
+   * when the bill has spent time in only one stage and the panel shows the plain
+   * track instead.
+   */
+  billJourneyViewed: (props: {
+    bill_id: string;
+    progress_stage: number;
+    chapters: number;
+    total_days: number;
+    outcome: 'law' | 'signed' | 'vetoed' | 'adopted' | 'expired' | 'open';
+    bar_drawn: boolean;
+  }) => capture('bill_journey_viewed', props),
+
+  /**
+   * The reader scrolled to the "Among its peers" dot field on a bill page
+   * (30% of it on screen). Once per bill view.
+   */
+  billPeersViewed: (props: {
+    bill_id: string;
+    policy_area: string;
+    peer_total: number;
+    law_count: number;
+    ring_shown: boolean;
+  }) => capture('bill_peers_viewed', props),
 
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
 
@@ -575,6 +659,12 @@ export const analytics = {
      * and it systematically ate the closing caveat.
      */
     truncated_by_length: boolean;
+    /**
+     * The PostHog AI trace that recorded this answer (convex/aiTrace.ts). A
+     * PostHog-reserved name, hence the `$`: it is what joins this event to the
+     * trace. Absent until the Convex side that sends it is deployed.
+     */
+    $ai_trace_id?: string;
   }) => capture('answer_received', props),
 
   /**
@@ -592,6 +682,12 @@ export const analytics = {
    *                         'stream_dropped' on purpose: nothing was cut, WE
    *                         stopped waiting, so folding the two together would
    *                         inflate the number that measures the keep-alive.
+   *   'empty_model_output' — the model gave no answer and no lookup, even after
+   *                         one nudge and a final round without tools. Until
+   *                         #135's Convex deploy on 30 Sep 2026 at about
+   *                         17:42 UTC (13:42 ET) the reader got a canned
+   *                         apology and this was recorded as an
+   *                         `answer_received`.
    *   any other string    — the server's own error message.
    * `stream_started` says whether any byte arrived before the failure and
    * `elapsed_ms` how long the reader waited — together they separate "never
@@ -602,6 +698,8 @@ export const analytics = {
     error: string;
     elapsed_ms?: number;
     stream_started?: boolean;
+    /** Present when the server got far enough to record a trace. */
+    $ai_trace_id?: string;
   }) => capture('answer_failed', props),
 
   answerSourceClicked: (props: {
@@ -723,6 +821,14 @@ export const analytics = {
     engine: string;
   }) => capture('answer_web_search_used', props),
 
+  /**
+   * The reader's own verdict on one answer, from "Was this answer right?". A
+   * "no" carries the question and the answer so it can be reproduced as a truth
+   * case; a "yes" carries neither. The props are built, and tested, in
+   * lib/answer-rating.ts.
+   */
+  answerRated: (props: AnswerRatedProps) => capture('answer_rated', props),
+
   rateLimitSignupClicked: (kind: LimitKind) =>
     capture('rate_limit_signup_clicked', { limit_kind: kind }),
 
@@ -745,4 +851,85 @@ export const analytics = {
   /** User picked their state in the "two rooms" seat pictures. */
   learnStateSelected: (state: string, representatives: number) =>
     capture('learn_state_selected', { state, representatives }),
+
+  // Feedback and surveys (components/feedback/). PostHog's own survey events,
+  // not custom ones: their names and `$survey_*` properties are what fill the
+  // Surveys tab, so they must stay exactly as PostHog's SDK would send them.
+
+  /** Whether anything a reader types into a survey can reach PostHog at all. */
+  canSendSurveys(): boolean {
+    return ready();
+  },
+
+  /**
+   * Calls back once with whether the survey is still open in PostHog: launched,
+   * not stopped, and under its response limit (PostHog ends a survey when it
+   * reaches the limit, which is how the 1,000-answer cap reaches the site).
+   *
+   * Deliberately not `getActiveMatchingSurveys`: that also needs each survey's
+   * internal targeting flag, which this project's flags response does not
+   * carry (surveys are off in its remote config, since the site draws its own),
+   * so it reports nothing as active. Who has already seen it is the caller's
+   * job (lib/feedback/visit.ts).
+   */
+  whenSurveyActive(surveyId: string, callback: (active: boolean) => void) {
+    if (!ready()) return;
+    let called = false;
+    posthog.getSurveys((surveys, context) => {
+      if (called || context?.isLoaded === false) return;
+      called = true;
+      const s = surveys.find((x) => x.id === surveyId);
+      const now = Date.now();
+      callback(
+        !!s &&
+          !!s.start_date &&
+          new Date(s.start_date).getTime() <= now &&
+          (!s.end_date || new Date(s.end_date).getTime() > now),
+      );
+    });
+  },
+
+  surveyShown(survey: SurveyRef, props?: { surface?: 'header' | 'menu' | 'footer' | 'prompt' }) {
+    if (!ready()) return;
+    capture('survey shown', { $survey_id: survey.id, $survey_name: survey.name, ...props });
+    // Once per person: PostHog's display logic stops listing it on this browser.
+    if (survey.once) posthog.surveys?.markSurveyAsSeen(survey.id);
+  },
+
+  surveyDismissed(survey: SurveyRef) {
+    capture('survey dismissed', {
+      $survey_id: survey.id,
+      $survey_name: survey.name,
+      // …and on every other browser this person signs in on.
+      ...(survey.once ? { $set: { [`$survey_dismissed/${survey.id}`]: true } } : {}),
+    });
+  },
+
+  /** `answers` in PostHog's question order; an unanswered question is `undefined`. */
+  surveySent(survey: SurveyRef, answers: { id: string; question: string; response?: string }[]) {
+    const byId: Record<string, string> = {};
+    const byIndex: Record<string, string> = {};
+    answers.forEach((a, i) => {
+      if (a.response === undefined) return;
+      byId[`$survey_response_${a.id}`] = a.response;
+      byIndex[i === 0 ? '$survey_response' : `$survey_response_${i}`] = a.response;
+    });
+    capture('survey sent', {
+      $survey_id: survey.id,
+      $survey_name: survey.name,
+      $survey_questions: answers.map((a) => ({ id: a.id, question: a.question, response: a.response ?? null })),
+      $survey_completed: true,
+      $survey_submission_id: crypto.randomUUID(),
+      ...byIndex,
+      ...byId,
+      ...(survey.once ? { $set: { [`$survey_responded/${survey.id}`]: true } } : {}),
+    });
+  },
 };
+
+/** A survey as the helpers above need it. `once` for surveys a person sees a single time. */
+export interface SurveyRef {
+  id: string;
+  name: string;
+  once?: boolean;
+}

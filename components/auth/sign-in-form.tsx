@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { analytics } from "@/lib/analytics";
 import { AuthDivider } from "./auth-card";
 import { GoogleButton } from "./google-button";
-import { safeRedirect } from "./safe-redirect";
+import { safeRedirect, withRedirect } from "./safe-redirect";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
@@ -87,7 +87,7 @@ export function SignInForm() {
           <div className="flex items-baseline justify-between">
             <Label htmlFor="password" className="text-ink">Password</Label>
             <Link
-              href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+              href={withRedirect("/forgot-password", redirect)}
               className="link focus-ring rounded-xs text-[13px]"
             >
               Forgot password?

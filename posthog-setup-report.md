@@ -29,7 +29,7 @@ Generated for Self-driving / scout context. Project **BillsInCongress** (id `451
 
 ## Server-side gaps
 
-- Live answer path (`/api/answer`) has **no** server event and does not forward PostHog identity headers.
+- Live answer path (`/api/answer`) forwards the PostHog identity headers to Convex, which records each answer as PostHog AI trace events (`convex/aiTrace.ts`; "AI traces" in `Documentation/ANALYTICS.md`) and sends one PostHog Logs line per answer (`convex/posthogLogs.ts`; "PostHog Logs" in the same file). It has no `posthog-node` event.
 - Dead route `bill_chat_message_processed` still exists on `/api/bill-chat/send` (no UI caller).
 
 ## Self-driving configuration (target state)

@@ -22,6 +22,8 @@ import { payloadFor, workLogLabel } from "./catalog/completeness";
 import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
+import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
+import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -49,6 +51,20 @@ const FINAL_ROUND_INSTRUCTION =
   "You have no lookups left. Answer now from what you already retrieved. If that covers only " +
   "part of what was asked, give that part and say plainly, in the same sentence, which part you " +
   "could not get. Do not ask the reader to rephrase.";
+/**
+ * Sent once, with the tools still offered, when a round comes back with no
+ * answer and no tool call. The model had usually written "Let me look up…" and
+ * stopped, and the reader got a canned apology about four seconds in.
+ */
+const NO_ANSWER_NUDGE =
+  "That was not an answer and not a lookup. If you need data, call a tool now. Otherwise answer " +
+  "the question from what you already retrieved.";
+/**
+ * The `answer_failed` reason when every attempt came back empty. Sent as an
+ * error, not as an answer, so completion metrics count it.
+ */
+export const EMPTY_MODEL_OUTPUT = "empty_model_output";
+const EMPTY_MODEL_OUTPUT_MESSAGE = "I could not finish looking that up. Please try again.";
 const WEB_MAX_RESULTS = 5;
 
 export interface WorkLogEntry {
@@ -159,11 +175,25 @@ function providerConfig() {
 async function callModel(
   messages: ChatMessage[],
   apiKey: string,
-  opts: { withTools?: boolean } = {},
+  opts: { withTools?: boolean; trace?: AnswerTrace } = {},
 ) {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const fallbacks = fallbackModels();
   const withTools = opts.withTools ?? true;
+  // Every call is recorded, failures included: a failover or an error is
+  // exactly what a trace is for. See convex/aiTrace.ts.
+  const started = Date.now();
+  const record = (g: Partial<GenerationRecord>) =>
+    opts.trace?.generation({
+      name: "answer",
+      model,
+      input: messages,
+      latencyMs: Date.now() - started,
+      ...(withTools ? { tools: ANSWER_TOOLS } : {}),
+      temperature: 0.3,
+      maxTokens: 2048,
+      ...g,
+    });
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
@@ -187,17 +217,26 @@ async function callModel(
       reasoning: { enabled: false },
       provider: providerConfig(),
     }),
+  }).catch((error: unknown) => {
+    record({ error: String(error) });
+    throw error;
   });
 
   if (!response.ok) {
     const body = (await response.text())
       .slice(0, 500)
       .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
-    throw new Error(`OpenRouter ${response.status} ${response.statusText}: ${body}`);
+    const message = `OpenRouter ${response.status} ${response.statusText}: ${body}`;
+    record({ error: message, httpStatus: response.status });
+    throw new Error(message);
   }
   const data = await response.json();
   // OpenRouter can answer 200 with an error payload when no provider could serve.
-  if (data.error) throw new Error(`OpenRouter error: ${JSON.stringify(data.error).slice(0, 500)}`);
+  if (data.error) {
+    const message = `OpenRouter error: ${JSON.stringify(data.error).slice(0, 500)}`;
+    record({ error: message, httpStatus: response.status });
+    throw new Error(message);
+  }
   // No analytics on this path, so this log is the only place a degraded
   // fallback answer would ever surface.
   const servedModel = typeof data.model === "string" ? data.model : model;
@@ -207,6 +246,14 @@ async function callModel(
     );
   }
   const choice = data.choices?.[0];
+  record({
+    model: servedModel,
+    output: choice?.message ? [choice.message] : [],
+    inputTokens: data.usage?.prompt_tokens,
+    outputTokens: data.usage?.completion_tokens,
+    costUsd: typeof data.usage?.cost === "number" ? data.usage.cost : undefined,
+    httpStatus: response.status,
+  });
   // finish_reason was never read, so a completion cut off at max_tokens was
   // returned as if it were whole. Surfaced here so the loop can say so.
   return {
@@ -220,7 +267,22 @@ async function callModel(
  * server-side web tool: their schema cannot make `reason` a required argument,
  * and the model must not search without telling the reader why.
  */
-async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
+async function searchWeb(
+  query: string,
+  apiKey: string,
+  trace?: AnswerTrace,
+): Promise<WebSource[]> {
+  const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  const started = Date.now();
+  const record = (g: Partial<GenerationRecord>) =>
+    trace?.generation({
+      name: "web_search",
+      model,
+      input: [{ role: "user", content: query }],
+      latencyMs: Date.now() - started,
+      maxTokens: 512,
+      ...g,
+    });
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
@@ -230,21 +292,38 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
       "X-OpenRouter-Title": "Bills in Congress",
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || DEFAULT_MODEL,
+      model,
       messages: [{ role: "user", content: query }],
       max_tokens: 512,
       plugins: [{ id: "web", engine: WEB_ENGINE, max_results: WEB_MAX_RESULTS }],
       provider: providerConfig(),
     }),
+  }).catch((error: unknown) => {
+    record({ error: String(error) });
+    throw error;
   });
 
-  if (!response.ok) return [];
+  if (!response.ok) {
+    record({ error: `OpenRouter ${response.status}`, httpStatus: response.status });
+    return [];
+  }
   const data = await response.json().catch(() => ({}));
-  if (data.error) return [];
+  if (data.error) {
+    record({ error: JSON.stringify(data.error).slice(0, 500), httpStatus: response.status });
+    return [];
+  }
 
   // Annotations come back as { type: "url_citation", url_citation: { url,
   // title, content } }; the flat fallbacks below survive a shape change.
   const annotations = data.choices?.[0]?.message?.annotations ?? [];
+  record({
+    model: typeof data.model === "string" ? data.model : model,
+    output: data.choices?.[0]?.message ? [data.choices[0].message] : [],
+    inputTokens: data.usage?.prompt_tokens,
+    outputTokens: data.usage?.completion_tokens,
+    costUsd: typeof data.usage?.cost === "number" ? data.usage.cost : undefined,
+    httpStatus: response.status,
+  });
   type Annotation = {
     type?: string;
     url?: string;
@@ -262,6 +341,21 @@ async function searchWeb(query: string, apiKey: string): Promise<WebSource[]> {
       excerpt: (a.url_citation?.content ?? a.content ?? "").slice(0, 500),
     }))
     .filter((s: WebSource) => s.url !== "");
+}
+
+/**
+ * What kind of failure, as a fixed label — never the message. OpenRouter's
+ * error bodies can quote the prompt (its moderation 403 returns
+ * `flagged_input`), and the prompt is the reader's question, which must never
+ * reach a log line. The full message still goes to console.error.
+ */
+export function errorKind(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  const status = /^OpenRouter (\d{3})\b/.exec(message);
+  if (status) return `openrouter_${status[1]}`;
+  if (message.startsWith("OpenRouter error:")) return "openrouter_error_payload";
+  if (error instanceof Error && /^\w{1,40}$/.test(error.name)) return error.name;
+  return "unknown";
 }
 
 /**
@@ -292,6 +386,8 @@ async function runLoop(
     apiKey: string;
     scope?: AnswerScope;
     onWork?: (entry: WorkLogEntry) => void;
+    /** Records this turn for PostHog AI Observability. Absent on the CLI path. */
+    trace?: AnswerTrace;
   },
 ): Promise<AnswerResult> {
   // One date for the whole turn: the prompt's calendar note and the rows'
@@ -454,12 +550,17 @@ async function runLoop(
     };
   };
 
+  // A round with no answer and no tool call gets one nudge, then the final
+  // round early.
+  let nudged = false;
+  let finalNow = false;
+
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     // On the final round the tools are WITHHELD, not discouraged. Asking the
     // model to "answer now" while still handing it the tool schema left it free
     // to call one more tool, after which the loop fell out of the bottom and
     // returned a canned apology — discarding everything it had gathered.
-    const isFinalRound = round === MAX_TOOL_ROUNDS;
+    const isFinalRound = finalNow || round === MAX_TOOL_ROUNDS;
     if (isFinalRound) partial = true;
 
     const finalMessages = isFinalRound
@@ -471,6 +572,7 @@ async function runLoop(
     try {
       ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
         withTools: !isFinalRound,
+        trace: opts.trace,
       }));
     } catch (error) {
       // The final round omits the tool schema while the transcript still contains
@@ -482,6 +584,7 @@ async function runLoop(
       console.error("final round without tools failed, retrying with them:", error);
       ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
         withTools: true,
+        trace: opts.trace,
       }));
     }
     if (lengthCapped) truncatedByLength = true;
@@ -495,8 +598,19 @@ async function runLoop(
       // than streaming the reader a blank panel. Neither is the model thinking
       // out loud: a reader was shown "Let me fetch the remaining policy areas I
       // haven't gotten yet." as the answer to a question about laws by category.
-      if (text.trim().length === 0 || isAllDeliberation(text)) break;
-      return finish(text);
+      if (text.trim().length > 0 && !isAllDeliberation(text)) return finish(text);
+      if (isFinalRound) break;
+      console.error(`no answer and no tool call in round ${round}; ${nudged ? "final round now" : "nudging"}`);
+      // A visible step, so the client's stall watchdog restarts for the extra call.
+      note({ tool: "retry", detail: nudged ? "answering from what was found" : "checking again" });
+      if (nudged) {
+        finalNow = true;
+      } else {
+        nudged = true;
+        if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
+        messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+      }
+      continue;
     }
 
     messages.push({ role: "assistant", content: message.content ?? null, tool_calls: toolCalls });
@@ -530,6 +644,7 @@ async function runLoop(
     }
 
     for (const call of toolCalls) {
+      const spanStarted = Date.now();
       let result: string;
       let args: Record<string, unknown> = {};
       try {
@@ -595,7 +710,7 @@ async function runLoop(
           if (!guard.ok) {
             result = `ERROR: ${guard.error}`;
           } else {
-            const hits = await searchWeb(query, opts.apiKey);
+            const hits = await searchWeb(query, opts.apiKey, opts.trace);
             for (const h of hits) {
               allowed.add(h.handle);
               webSources.push(h);
@@ -614,15 +729,22 @@ async function runLoop(
         result = `Unknown tool '${call.function.name}'.`;
       }
 
+      opts.trace?.span({
+        name: call.function.name,
+        input: args,
+        output: result,
+        latencyMs: Date.now() - spanStarted,
+        ...(result.startsWith("ERROR") ? { error: result.slice(0, 300) } : {}),
+      });
       messages.push({ role: "tool", tool_call_id: call.id, content: result });
     }
   }
 
-  // Unreachable in normal operation: the final round is called without tools, so
-  // it cannot end in a tool call, and any non-empty answer returns above. Kept as
-  // the honest thing to say when the model returns nothing at all.
+  // Reached only when the final round also came back empty. Returned as an
+  // error so `stream` reports a failure, not an answer.
   return {
-    text: "I could not finish looking that up. Please try asking more specifically.",
+    text: "",
+    error: EMPTY_MODEL_OUTPUT,
     sources: [],
     workLog,
     dropped: 0,
@@ -696,7 +818,7 @@ export const ask = internalAction({
  * SSE entry point (spec §7.3). Same loop as `ask`, streamed as it happens.
  *
  * Events: work {tool,detail} · delta {text} · done {sources,dropped,partial}
- *         · rate_limited {kind,max,resetAt} · error {message}
+ *         · rate_limited {kind,max,resetAt} · error {message, reason?}
  */
 export const stream = httpAction(async (ctx, request) => {
   const body = await request.json().catch(() => ({}));
@@ -707,6 +829,36 @@ export const stream = httpAction(async (ctx, request) => {
   const userId = await getAuthUserId(ctx);
   const anonymousSessionId =
     typeof body.anonymousSessionId === "string" ? body.anonymousSessionId : null;
+  const pageContext = readContext(body.context, body.focusBillId);
+
+  // One trace per question, sent to PostHog before the stream closes. The id
+  // also goes to the browser on `done`, so the reader's "Was this answer
+  // right?" joins the trace it rates.
+  const identity = readTraceIdentity(body.posthog);
+  const trace = new AnswerTrace({ identity });
+
+  // One line per answer to PostHog Logs (convex/posthogLogs.ts), on the same
+  // ids as the trace: `sessionId` opens the reader's replay, `trace_id` opens
+  // the trace. The question text is never on it. Written once per question.
+  let logged = false;
+  const logAnswer = async (level: LogLevel, message: string, attributes: LogAttributes) => {
+    if (logged) return;
+    logged = true;
+    await scheduleLog(ctx, {
+      level,
+      message,
+      timestampMs: Date.now(),
+      attributes: {
+        ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
+        ...(identity.distinctId ? { posthogDistinctId: identity.distinctId } : {}),
+        trace_id: trace.traceId,
+        signed_in: userId !== null,
+        page: pageContext?.route ?? "unknown",
+        ...(pageContext?.billId ? { bill_id: pageContext.billId } : {}),
+        ...attributes,
+      },
+    });
+  };
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -750,10 +902,11 @@ export const stream = httpAction(async (ctx, request) => {
         return;
       }
 
+      const startedAt = Date.now();
       try {
         const result = await runLoop(ctx, {
           question,
-          pageContext: readContext(body.context, body.focusBillId),
+          pageContext,
           scope:
             body.scope && typeof body.scope.dataset === "string"
               ? (body.scope as AnswerScope)
@@ -761,6 +914,51 @@ export const stream = httpAction(async (ctx, request) => {
           history: Array.isArray(body.history) ? body.history : [],
           apiKey,
           onWork: (entry) => send("work", entry),
+          trace,
+        });
+        trace.finish({
+          question,
+          answer: result.text,
+          ...(result.error ? { error: result.error } : {}),
+          outcome: result.error ? "failed" : result.askedReader ? "asked_reader" : "answered",
+          extra: {
+            dropped: result.dropped,
+            partial: result.partial,
+            truncated_by_length: result.truncatedByLength ?? false,
+            db_source_count: result.sources.filter((h) => !h.startsWith("web:")).length,
+            web_source_count: result.webSources.length,
+            signed_in: Boolean(userId),
+          },
+        });
+        // No answer: not streamed, not saved, and not counted as an answer.
+        if (result.error) {
+          const message =
+            result.error === EMPTY_MODEL_OUTPUT ? EMPTY_MODEL_OUTPUT_MESSAGE : result.error;
+          send("error", { message, reason: result.error, traceId: trace.traceId });
+          await logAnswer("error", "answer failed", {
+            duration_ms: Date.now() - startedAt,
+            lookups: result.workLog.length,
+            reason: result.error,
+          });
+          await trace.flush();
+          controller.close();
+          return;
+        }
+        // Logged as soon as the answer exists, like the trace: a write to the
+        // reader that fails after this is not a second outcome for it.
+        // WARN is every way an answer reached the reader worse than it should
+        // have: cut short, cut off, or with citations deleted because the model
+        // cited rows it was never given.
+        const degraded =
+          result.partial || (result.truncatedByLength ?? false) || result.dropped > 0;
+        await logAnswer(degraded ? "warn" : "info", "answer served", {
+          duration_ms: Date.now() - startedAt,
+          lookups: result.workLog.length,
+          partial: result.partial,
+          truncated: result.truncatedByLength ?? false,
+          dropped_citations: result.dropped,
+          used_web: result.webSources.length > 0,
+          asked_reader: result.askedReader ?? false,
         });
         // Citations resolve only once the whole answer exists, so text is
         // emitted after resolution, chunked — never token-by-token.
@@ -807,12 +1005,33 @@ export const stream = httpAction(async (ctx, request) => {
           // was still to come.
           truncatedByLength: result.truncatedByLength ?? false,
           chatId: savedChatId ?? null,
+          traceId: trace.traceId,
         });
+
       } catch (error) {
         console.error("answer stream failed:", error);
-        send("error", { message: "Failed to get a response." });
+        // A no-op when the turn was already recorded: a write that fails after
+        // the answer exists (the reader closed the panel mid-stream) is not a
+        // second outcome for it. The same holds for the log line (`logged`).
+        trace.finish({ question, error: String(error), outcome: "failed" });
+        await logAnswer("error", "answer failed", {
+          duration_ms: Date.now() - startedAt,
+          error_kind: errorKind(error),
+        });
+        try {
+          send("error", { message: "Failed to get a response.", traceId: trace.traceId });
+        } catch {
+          // The reader is gone; the flush below must still run.
+        }
       }
-      controller.close();
+      // After the reader has everything, before the stream closes: the action
+      // ends with the stream, and anything still in memory then is lost.
+      await trace.flush();
+      try {
+        controller.close();
+      } catch {
+        // Already closed by a reader who left.
+      }
     },
   });
 

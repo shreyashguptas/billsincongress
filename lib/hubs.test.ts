@@ -15,7 +15,11 @@ import {
   RESERVED_BILL_SLUGS,
   TOPIC_HUBS,
   hubByPath,
+  hubDateLabel,
+  hubHref,
+  hubSortScope,
   hubsOfKind,
+  parseHubOrder,
   policyAreaFromSlug,
   topicSlug,
 } from "./hubs";
@@ -152,6 +156,43 @@ it("gives every hub exactly one filter dimension", () => {
     const set = Object.values(hub.filter).filter((v) => v !== undefined);
     assert.equal(set.length, 1, `${hub.path} filters on ${set.length} things`);
   }
+});
+
+// --- order ----------------------------------------------------------------
+
+it("reads ?sort=oldest and treats anything else as newest first", () => {
+  assert.equal(parseHubOrder("oldest"), "oldest");
+  assert.equal(parseHubOrder(["oldest", "newest"]), "oldest");
+  assert.equal(parseHubOrder(undefined), "newest");
+  assert.equal(parseHubOrder("newest"), "newest");
+  assert.equal(parseHubOrder("random"), "newest");
+});
+
+it("builds hub URLs with no parameters for the defaults", () => {
+  const hub = hubByPath("/bills/enacted")!;
+  assert.equal(hubHref(hub, {}), "/bills/enacted");
+  assert.equal(hubHref(hub, { page: 1, order: "newest" }), "/bills/enacted");
+  assert.equal(hubHref(hub, { page: 2 }), "/bills/enacted?page=2");
+  assert.equal(hubHref(hub, { order: "oldest" }), "/bills/enacted?sort=oldest");
+  assert.equal(hubHref(hub, { page: 3, order: "oldest" }), "/bills/enacted?sort=oldest&page=3");
+});
+
+it("gives every hub a sort scope listSorted can serve", () => {
+  for (const hub of ALL_HUBS) {
+    const scope = hubSortScope(hub);
+    if (hub.kind === "status") assert.equal(scope.kind, "stage", hub.path);
+    if (hub.kind === "topic") assert.equal(scope.kind, "topic", hub.path);
+    if (hub.kind === "chamber") assert.equal(scope.kind, "chamber", hub.path);
+    if (scope.kind === "stage") assert.ok(Number.isInteger(scope.progressStage), hub.path);
+  }
+});
+
+it("labels every stage hub's date with what it is", () => {
+  for (const hub of hubsOfKind("status")) {
+    assert.notEqual(hubDateLabel(hub, "stageDate"), "Reached this stage", `${hub.path} has no label`);
+  }
+  assert.equal(hubDateLabel(hubByPath("/bills/enacted")!, "stageDate"), "Became law");
+  assert.equal(hubDateLabel(hubByPath("/bills/house")!, "latestActionDate"), "Latest action");
 });
 
 if (failures.length > 0) {

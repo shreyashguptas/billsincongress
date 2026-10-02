@@ -230,6 +230,7 @@ function BillAlertButtonInner({ billId, analyticsProps, className }: BillAlertBu
           open={celebrating}
           onOpenChange={setCelebrating}
           initials={initialsFor(me?.name ?? me?.email)}
+          avatarUrl={me?.avatarUrl}
           questionsPerDay={billing.limits.questionsPerDay}
           alertBills={billing.limits.alertBills}
           followingBill={status?.following === true}

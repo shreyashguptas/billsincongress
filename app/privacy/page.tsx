@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'September 29, 2026';
+const LAST_UPDATED = 'September 30, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -100,6 +100,20 @@ export default function PrivacyPage() {
           matching bills&rdquo;.
         </p>
         <p>
+          Feedback you send is recorded there too. The Feedback button
+          sends what you write, whether it is an issue or an idea, and the
+          page you were on, linked to that visit&rsquo;s session replay. If
+          you attach a picture, your browser first shrinks it and strips
+          its hidden details (such as a photo&rsquo;s location), then we
+          store it in our database under a long random link and delete it
+          after 180 days. The link is unlisted, not private: anyone who has
+          it can open the picture, so leave out anything personal. On your
+          third page of a visit we may also ask, once, whether you found
+          what you were looking for; your answer, and anything you type
+          about what was missing, is recorded the same way. None of this
+          asks for your name or email.
+        </p>
+        <p>
           Your IP address is processed by our hosting provider
           (Cloudflare) to deliver the site and protect it from abuse, and
           by our analytics provider to estimate an approximate, city-level
@@ -131,8 +145,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you are not signed in, your conversation is never stored on
-          our servers (your question text still reaches our analytics, as
-          described below) — it lives in your browser and disappears when you
+          our servers (it still reaches our analytics, as described below) — it lives in your browser and disappears when you
           close the tab. To be exact: each question is sent to our server
           along with the conversation so far, so the assistant can follow
           the thread, but none of it is written to our database. The table
@@ -157,6 +170,31 @@ export default function PrivacyPage() {
           and if you are signed in it is linked to your account.
         </p>
         <p>
+          We also record each answer in PostHog so we can find and fix
+          wrong ones: your question, the conversation so far, the public
+          records the assistant looked up, and the answer it gave, along
+          with how long it took and what it cost. This happens whether or
+          not you are signed in. PostHog deletes the text of these records
+          after 30 days and keeps only the counts and timings. If an answer
+          turns out to be wrong, we may keep a copy of that one
+          conversation for longer, to test the fix against. Signed out, the
+          conversation is still never written to our own database.
+        </p>
+        <p>
+          Each answer also leaves one short log entry in PostHog: whether it
+          was answered or failed, how long it took, and which bill page it
+          was asked on, linked to your visit&rsquo;s session replay. It holds
+          no question or answer text, and PostHog deletes it after 14 days.
+        </p>
+        <p>
+          Under each answer we ask whether it was right. If you tap
+          &ldquo;No&rdquo;, we send PostHog your question (and the one
+          before it, if it was a follow-up) together with the answer you
+          were shown and the sources it cited, so we can check it against
+          the records and fix what went wrong. If you tap &ldquo;Yes&rdquo;,
+          we record only that you did. You never have to answer.
+        </p>
+        <p>
           To delete your whole account, email us at{' '}
           <ExternalLink href="mailto:hi@billsincongress.com">
             hi@billsincongress.com
@@ -177,13 +215,23 @@ export default function PrivacyPage() {
           password.
         </p>
         <p>
+          You can add a profile photo. It is cropped and shrunk in your
+          browser to a small square before it is sent, so the original
+          file never leaves your device, and only that small copy is
+          stored with your account. Its address is given only to you,
+          though anyone who had that exact address could open it, as with
+          most profile pictures. Replacing or removing it deletes the
+          stored copy. If you signed in with Google, your Google profile
+          picture is shown until you upload your own or remove it.
+        </p>
+        <p>
           While you use your account, we also store the things you do
           with it: the bills you save and your bill-chat history. Once
           you are signed in, our analytics link your activity to your
           account (including your email address) so we can understand the
           journey from first visit to sign-up. We send email for three
-          reasons only: account emails (today, sign-up verification
-          codes; password-reset codes once self-serve reset is built),
+          reasons only: account emails (sign-up verification and
+          password-reset codes),
           notices when your Pro plan starts, changes or ends,
           and bill alerts you have turned on yourself. All of them go
           through PostHog, the same provider that runs our analytics.
@@ -287,12 +335,16 @@ export default function PrivacyPage() {
 
       <Section number={8} title="How long we keep things">
         <p>
-          Account data, saved bills, and signed-in chat history are kept
+          Account data, your profile photo, saved bills, and signed-in chat history are kept
           for as long as your account exists. Sign-in sessions expire
           after at most 60 days of inactivity. Signed-out chat
           conversations are keyed to a cookie that expires after 60 days.
-          Analytics data is retained by PostHog under its standard
-          retention policies.
+          Analytics data, including feedback and survey answers, is
+          retained by PostHog under its standard retention policies,
+          except the text of recorded answers (your question, the
+          conversation and the answer), which PostHog deletes after 30
+          days. Pictures attached to feedback are deleted from our
+          database after 180 days.
         </p>
       </Section>
 
@@ -301,13 +353,14 @@ export default function PrivacyPage() {
         <p>
           You can read everything on this site without an account. You
           can block or clear cookies at any time — the site keeps working
-          (you would be signed out, and analytics simply stops). Self-serve
-          password reset is not built yet — no reset email is sent today —
-          so email us and we will reset it for you.
+          (you would be signed out, and analytics simply stops). To change
+          or reset your password, use &ldquo;Change password&rdquo; on your
+          account page or &ldquo;Forgot password?&rdquo; on the sign-in page;
+          either emails you a code to set a new one.
         </p>
         <p>
-          To delete your account — along with your saved bills and chat
-          history — or to request a copy of the data we hold about you,
+          To delete your account — along with your profile photo, saved
+          bills and chat history — or to request a copy of the data we hold about you,
           email{' '}
           <a
             href="mailto:hi@billsincongress.com"
@@ -349,7 +402,7 @@ const summary = [
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
-  'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know.',
+  'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. Each answer is recorded there too, with the conversation it came from, so we can find and fix wrong ones; that text is deleted after 30 days.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
   'We email you only for account reasons and bill alerts you turn on — never marketing.',
   'Reading is free. If you pay for Pro, Stripe handles your card; we never see it.',
@@ -386,6 +439,18 @@ const cookies = [
     lifespan: 'until cleared',
   },
   {
+    name: 'bic_found_it_seen (local storage)',
+    purpose:
+      'Remembers that we already asked “Did you find what you were looking for?” on this browser, so we never ask again. Holds the value 1 and never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
+    name: 'bic_visit_* (session storage)',
+    purpose:
+      'Counts the pages of this visit, so that question waits for your third page, and notes whether you opened the Feedback box. Never leaves your browser.',
+    lifespan: 'until you close the tab',
+  },
+  {
     name: 'Offline page (service worker cache)',
     purpose:
       'A copy of the site’s one “You’re offline” page, shown if you open the site with no connection. Holds nothing about you and none of the pages you read.',
@@ -396,7 +461,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts, saved bills, followed bills, chat history, your plan status, and the public bill data.',
+    role: 'Our database and authentication backend. Stores accounts (with your profile photo, if you add one), saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), and the public bill data.',
   },
   {
     name: 'Cloudflare',
@@ -404,7 +469,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

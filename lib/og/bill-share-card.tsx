@@ -14,7 +14,9 @@ export { shareCardFonts, stageNote as shareCardStageNote } from './card-parts';
  * requesting…") and the domain, so the card does not repeat the number, the
  * title, the sponsor or the address. What text cannot do at a glance is the
  * stage, drawn: its glyph, its name in display type, "Stage n of 7", and the
- * seven-step track with every step named.
+ * track with every step named. A resolution's card is drawn on its own road,
+ * which ends at "Agreed to" (Documentation/brand.md, "The road a measure
+ * travels"): an adopted resolution is finished, not part-way to law.
  */
 export function BillShareCard({ bill }: { bill: Bill }): ReactElement {
   const stage =
@@ -26,9 +28,9 @@ export function BillShareCard({ bill }: { bill: Bill }): ReactElement {
     <CardFrame>
       {/* The headline centred in the room the track leaves. */}
       <div style={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
-        <StageHeadline stage={stage} />
+        <StageHeadline stage={stage} billType={bill.bill_type} />
       </div>
-      <StageTrack stage={stage} />
+      <StageTrack stage={stage} billType={bill.bill_type} />
     </CardFrame>
   );
 }

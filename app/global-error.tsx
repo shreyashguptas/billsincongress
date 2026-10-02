@@ -3,17 +3,13 @@
 import './globals.css';
 
 import { useEffect, useState } from 'react';
-import { Geist, Geist_Mono, Newsreader } from 'next/font/google';
 
 import { ChamberMark } from '@/components/brand/logo';
 import { Button } from '@/components/ui/button';
 import { useChunkErrorRecovery } from '@/lib/use-chunk-error-recovery';
-
-// The same three faces as app/layout.tsx, declared again because this file
-// replaces the root layout and inherits none of it.
-const newsreader = Newsreader({ subsets: ['latin'], variable: '--font-serif', display: 'swap', axes: ['opsz'] });
-const geist = Geist({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono', display: 'swap' });
+// The same faces as app/layout.tsx: this file replaces the root layout and
+// inherits none of it.
+import { fontVariables } from '@/app/fonts';
 
 /**
  * The theme the rest of the site would have shown: next-themes keeps the
@@ -57,7 +53,7 @@ export default function GlobalError({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${newsreader.variable} ${geist.variable} ${geistMono.variable}${theme === 'dark' ? ' dark' : ''}`}
+      className={`${fontVariables}${theme === 'dark' ? ' dark' : ''}`}
     >
       <body className="flex min-h-screen items-center justify-center bg-paper px-4 py-16 font-sans text-ink antialiased">
         <main className="flex max-w-lg flex-col items-center text-center">

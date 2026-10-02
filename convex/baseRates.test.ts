@@ -53,6 +53,23 @@ it("passedChamber detects Senate by text / type / code", () => {
   assert.equal(passedChamber({ text: "", actionCode: "S32500" }), "senate");
 });
 
+it("passedChamber reads the Library of Congress passage record", () => {
+  assert.equal(passedChamber({ text: "", actionCode: "8000" }), "house");
+  assert.equal(
+    passedChamber({ text: "Passed/agreed to in House: On passage Passed by the Yeas and Nays: 217 - 207 (Roll no. 310)." }),
+    "house",
+  );
+  assert.equal(passedChamber({ text: "", actionCode: "17000" }), "senate");
+  assert.equal(
+    passedChamber({ text: "Passed/agreed to in Senate: Submitted in the Senate, considered, and agreed to without amendment by Unanimous Consent." }),
+    "senate",
+  );
+});
+
+it("passedChamber does not count a rule passing the House as the bill passing", () => {
+  assert.equal(passedChamber({ text: "Rule H. Res. 864 passed House.", actionCode: "H1L220" }), null);
+});
+
 it("passedChamber returns null for committee / referral actions", () => {
   assert.equal(passedChamber({ text: "Referred to the Committee on Finance." }), null);
   assert.equal(passedChamber({ text: "Introduced in House" }), null);
