@@ -64,6 +64,16 @@ const NO_ANSWER_NUDGE =
   "That was not an answer and not a lookup. If you need data, call a tool now. Otherwise answer " +
   "the question from what you already retrieved.";
 /**
+ * Sent instead of NO_ANSWER_NUDGE when the model wrote a lookup out as text.
+ * That reply is NOT put back in the transcript: it once carried "1,557 bills",
+ * a figure no lookup returned, and NO_ANSWER_NUDGE's "answer from what you
+ * already retrieved" would have invited the model to repeat it.
+ */
+const TEXT_TOOL_CALL_NUDGE =
+  "Your last reply wrote a lookup out as text instead of calling the tool. It was not run, so " +
+  "nothing in that reply is data and it has been discarded. If you need data, call a tool now. " +
+  "Otherwise answer only from tool results you have actually received.";
+/**
  * The `answer_failed` reason when every attempt came back empty. Sent as an
  * error, not as an answer, so completion metrics count it.
  */
@@ -605,11 +615,14 @@ async function runLoop(
       // Nor is a lookup written out as text: one reader got a literal
       // fetch_dataset(...) line and then "1,557 bills" — a count the model never
       // fetched (it was 19,441). The prose around such a call is unverified, so
-      // the whole reply is discarded, not trimmed.
+      // the whole reply is discarded, not trimmed — and kept out of the
+      // transcript below, where the model would read its own invented figure
+      // back as something it had "already retrieved".
+      const wroteCallAsText = containsTextToolCall(text);
       if (
         text.trim().length > 0 &&
         !isAllDeliberation(text) &&
-        !containsTextToolCall(text)
+        !wroteCallAsText
       ) {
         return finish(text);
       }
@@ -621,8 +634,12 @@ async function runLoop(
         finalNow = true;
       } else {
         nudged = true;
-        if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
-        messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+        if (wroteCallAsText) {
+          messages.push({ role: "user", content: TEXT_TOOL_CALL_NUDGE });
+        } else {
+          if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
+          messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+        }
       }
       continue;
     }

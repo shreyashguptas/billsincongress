@@ -344,8 +344,8 @@ const MIN_ECHO_WORDS = 3;
  *
  * A traced answer on 2026-10-01 opened with the last few words of what the
  * reader had typed, on a line of its own, before the answer proper. Only the
- * FIRST line, only when it is a whole-word suffix of the question, and only when
- * something follows it: an answer that is nothing but the echo is left for the
+ * FIRST line, only when it is a whole-word suffix of the question that does not
+ * end a sentence of its own, and only when something follows it: an answer that is nothing but the echo is left for the
  * caller's empty-answer handling rather than blanked here.
  */
 export function dropQuestionEcho(text: string, question: string): SanitizeResult {
@@ -355,6 +355,10 @@ export function dropQuestionEcho(text: string, question: string): SanitizeResult
   const rest = text.slice(newline + 1);
   if (rest.trim() === "") return { text, removed: [] };
 
+  // A line that ends a sentence is a statement, not a fragment of a question:
+  // asked "Can you confirm S. 629 became law?", the answer "S. 629 became law."
+  // ends the question too, and is the answer.
+  if (/[.!]\s*$/.test(firstLine)) return { text, removed: [] };
   const line = normalizeEcho(firstLine);
   const asked = normalizeEcho(question);
   if (line === "" || line.split(" ").length < MIN_ECHO_WORDS) return { text, removed: [] };

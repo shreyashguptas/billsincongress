@@ -115,7 +115,10 @@ test("a lookup written as text is not published, and its invented number never r
   expect(result.text).toBe("No bill in the 119th Congress matches that.");
   expect(requests).toHaveLength(2);
   expect(requests[1].tools).toBeDefined();
-  expect(requests[1].messages.at(-1)?.content).toMatch(/call a tool now/);
+  expect(requests[1].messages.at(-1)?.content).toMatch(/was not run/);
+  // The rejected reply is not fed back as something the model "retrieved".
+  expect(JSON.stringify(requests[1].messages)).not.toContain("1,557");
+  expect(JSON.stringify(requests[1].messages)).not.toContain("fetch_dataset(");
 });
 
 test("text-form lookups on every attempt end as a failure, not as an answer", async () => {
@@ -125,6 +128,8 @@ test("text-form lookups on every attempt end as a failure, not as an answer", as
   expect(result.error).toBe(EMPTY_MODEL_OUTPUT);
   expect(result.text).toBe("");
   expect(requests).toHaveLength(3);
+  // Not even the final, tool-less round sees the fake call.
+  expect(JSON.stringify(requests[2].messages)).not.toContain("farm bill status");
 });
 
 test("a first line repeating the end of the question is dropped", async () => {

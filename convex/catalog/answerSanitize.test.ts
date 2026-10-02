@@ -464,6 +464,11 @@ it("sanitizeAnswer applies the echo rule only when it is given the question", ()
   );
 });
 
+it("keeps a first line that answers a question ending in a statement", () => {
+  const answer = "S. 629 became law.\nIt was signed on 2026-07-12.";
+  assert.equal(dropQuestionEcho(answer, "Can you confirm S. 629 became law?").text, answer);
+});
+
 it("keeps first lines that are not an echo", () => {
   const question = "Which bill most recently became law?";
   for (const answer of [
