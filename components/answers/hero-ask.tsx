@@ -216,7 +216,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                         {bill.title}
                       </span>
                       <span className="hidden shrink-0 text-xs text-ink-2 sm:inline">
-                        {compactStageLabel(bill.progress_stage)}
+                        {compactStageLabel(bill.progress_stage, bill.bill_type)}
                       </span>
                     </Link>
                   </li>

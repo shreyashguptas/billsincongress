@@ -120,7 +120,12 @@ themes. It is the one dark band on a light page. Use it once per site.
 | **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans |
 | **Geist Mono** | `--font-mono` | `font-mono` | Bill numbers, counts, dates: anything that lines up |
 
-All three load through `next/font/google` in `app/layout.tsx`.
+All three are declared once, in `app/fonts/index.ts`, for the root layout and
+`app/global-error.tsx`. Geist and Geist Mono come through `next/font/google`.
+Newsreader comes through `next/font/local` from `app/fonts/`: Google's files
+with the line box moved to centre on the capitals (see "Icons beside text").
+Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
+`next/font/google`.
 
 | Class | Size / line | Use |
 |---|---|---|
@@ -207,6 +212,7 @@ existing brand edits:
 | `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 70% with a slight blur, not black (a dark scrim lightens nothing in Night); `shadow-float` |
 | `Sheet`, `Popover` | Their own enter/exit keyframes, tuned before `tailwindcss-animate` was installed |
 | `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
+| `Textarea` | On `card` like `Input`; 15px from `sm` up, 16px on phones, where anything smaller makes iOS zoom the page on focus |
 
 ### Brand pieces built on top
 
@@ -215,12 +221,12 @@ These live in `components/brand/` and compose the primitives above.
 | Component | File | Rule |
 |---|---|---|
 | `Logo`, `ChamberMark` | `components/brand/logo.tsx` | See Logo, below |
-| `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `stageLabel()` in `lib/utils/bill-stages.ts`. Never fill the whole pill with the stage colour |
-| `StageTrack` | `components/brand/status.tsx` | Seven equal segments. Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
+| `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `measureStageLabel()` in `lib/utils/bill-stages.ts` ("Agreed to by the House" for an adopted House resolution). Never fill the whole pill with the stage colour |
+| `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
-| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's initials in a circle, and the Pro mark. See Pro, below |
+| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
 
 Patterns that appear on more than one page:
@@ -228,10 +234,58 @@ Patterns that appear on more than one page:
 - **Ask composer**: 60px tall, `rounded-lg`, raised, `line-strong` edge; the
   send button is a 40px ink circle. Starter questions are `rounded-full`
   outline pills in `ink-2`, each written from a live figure.
+- **Answer reveal**: a new answer is written onto the page word by word, each
+  word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
+  words a second, faster for a long answer so none takes more than five
+  seconds. Bill cards rise in when the text reaches them; the sources wait
+  for the last word. It plays once, for the answer being written — a resumed
+  conversation, and anyone under `prefers-reduced-motion`, sees it whole.
+- **Answer check**: under every finished answer, after its sources, one line
+  of 13px `ink-3` asks "Was this answer right?" beside two small outline
+  buttons, "Yes" and "No" (44px on touch). No icons and no colour: a hue would
+  be chrome pretending to be data, and a thumbs-up is an emoji in all but name.
+  It waits for the last word, like the sources. After a tap the buttons go and
+  the line thanks the reader in place; an answer is rated once. A clarifying
+  question from the assistant is not an answer and gets no check.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
+- **Hub order** (`HubOrderSwitch`, the hub pages): "Newest first" and "Oldest
+  first" at the right of the results bar, above its ink rule, dropping under
+  the count on a phone. It looks like the Congress switch on /bills — a
+  `sunken` track, the chosen order a `raised` segment with `shadow-sm` — but
+  is two links, not a `ToggleGroup`, because each order is its own URL. Every
+  row on a hub then shows the date the list is ordered by, labelled in `ink-3`
+  above it in `ink-2` mono ("Became law" / "Sep 25, 2026"), where other lists
+  show the plain introduction date. A row never shows a date other than the one
+  its label names; an undated bill shows none.
 - **Status panel** (bill page): `rounded-lg`, raised, the stage in
-  `display-md` beside a `StageTrack` with labels.
+  `display-md` with its glyph. Opposite it, the journey's length as a figure
+  (Newsreader at 72px, 56 on phones, "days" in `title` beside it) with what it
+  measures under it: "from introduction to law", "since it was introduced".
+  Under both, the **journey** when the bill has spent time in two stages or
+  more, otherwise a `StageTrack` with labels. For a resolution, one `text-sm`
+  `ink-2` sentence under that track says why the road is short.
+- **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
+  scale, a segment per stage in its stage colour, as wide as the days the bill
+  stayed there (never under 6px), ending in a dot of the final stage's colour
+  when the road is over (law, signature, veto, adoption). Under it, `ink-3` mono month
+  ticks, only the two ends on a phone. Then one column per stage (stacked on a
+  phone, two up on a tablet): a 3px rule in the stage colour, the days in
+  `display-md`, the stage named the reader's way ("Passed the House"), and its
+  moments, each a mono date over a sentence in `ink-2`. A recorded vote adds a
+  140px bar: the yes share in ink, the rest `sunken` with a `line-strong` edge,
+  and the tally in mono. A vote is neither a stage, a party nor a topic, so it
+  takes no hue. A bill still on its way ends the panel with the **Congress
+  clock**: the days left in the Congress in `display-md`, why that matters in
+  one sentence, and the two-year Congress as a bar, the time gone in `sunken`,
+  the time left hatched with an ink edge, an ink tick at the introduction.
+- **Peer dots** ("Among its peers", bill page, `components/bills/bill-peers.tsx`):
+  every bill on the bill's topic in its Congress, one dot each (7px, 5px on
+  phones), in path order and stage colours, with this bill ringed in ink. The
+  headline is the finding about laws. Beside it a chart legend (dot, stage,
+  share, count); hovering or focusing a row drops every other stage's dots to
+  35%. The ring is drawn only when the bill has not changed since the count.
+
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the
@@ -249,18 +303,41 @@ Patterns that appear on more than one page:
   `prefers-reduced-motion`.
 - **Ask panel title bar**: from `lg` up, exactly the header's height
   (`--header-h`), so docked beside it the two bottom rules are one line.
+- **Profile photo** (account page, `components/account/`): the avatar is the
+  control. Hovering or focusing it lays an ink veil (`ink/70` over a photo,
+  solid over initials) with a Lucide `Camera` and "Upload" (or "Change"); a
+  small `raised` circle with the camera sits at its lower right at all times,
+  for touch screens. With no photo
+  a click opens the device's own picker; with one, a menu offers "Upload a
+  photo", "Use Google photo" and "Remove photo". The crop dialog is a 280px
+  square with the circle drawn in `line-strong` and everything outside it
+  dimmed with `paper`, a zoom `Slider` between two ghost icon buttons, and
+  "Upload" as the one ink button.
 - **Account slot** (header, right edge): signed in, the 36px avatar (see
   "Pro"). Signed out, small (`sm`) buttons and never ink: "Sign up" is
   `outline`, "Sign in" is `ghost`. The header is on every page and must not
   compete with the page's one primary action. When both show, "Sign up" sits
   at the edge and is the only one kept below `sm`. A device that has had an
   account signed in sees "Sign in" alone.
+- **Feedback** (header, before the search): a `ghost` `sm` button reading "Feedback", from
+  `lg` up only, because below that the header has no room. Phones reach it as "Send
+  feedback" at the foot of the menu sheet, under a hairline; every width below `lg` also
+  finds it in the footer's link row. The box itself is a popover under the button (360px)
+  or, below `lg`, a dialog set high on the screen, away from the keyboard: two tiles, Issue
+  (`TriangleAlert`) and Idea (`Lightbulb`), in ink on `raised` with a `line-strong` edge;
+  then the message, a "Picture" outline button with `ImagePlus`, and the ink Send. No hue
+  anywhere: an issue is not an error state until something failed.
+- **Quick question** ("Did you find what you were looking for?"): a `raised` card with a
+  `line-strong` edge, `rounded-md` and `shadow-float`, since it floats over the page. Bottom
+  right, stacked above the Ask launcher (full width minus the gutters below `sm`). Yes and No
+  are outline buttons with `ThumbsUp` / `ThumbsDown` beside the word; the close is the
+  icon-only X. Once per browser, never on the first two pages of a visit.
 - **Footer**: only what has no other home. The lockup, a one-line serif
   statement of what the site is, and "Not affiliated with the U.S.
   government"; the install and theme controls opposite. Under that sit three
   hub links (House bills, Senate bills, Bills that became law), then a
-  hairline and one row: Pro, Privacy, Terms, Source (GitHub glyph) on the
-  left, the mono copyright and Congress.gov credit on the right. Links are
+  hairline and one row: Pro, Privacy, Terms, Feedback (below `lg` only, where the
+  header has no Feedback button), Source (GitHub glyph) on the left, the mono copyright and Congress.gov credit on the right. Links are
   `ink-2` text, underlined on hover, never pills. Anything in the header is
   not repeated here.
 
@@ -269,10 +346,56 @@ What stays hand-built, on purpose:
 - **The charts.** A seat, a slice or a waffle square is data, not a control, so
   the hemicycle, topic wheel, state map and the rest draw their own marks.
 - **Rows and handles that are not buttons**: listbox options, suggestion rows,
-  pagination links, the ask panel's resize handle and grab bars, whole-row
+  pagination links, the hub order links, the ask panel's resize handle and grab bars, whole-row
   history entries.
 - **Caption-size text actions** ("Ask about this →", the work-log toggles),
   where `Button`'s height and padding would change the line they sit in.
+
+### The road a measure travels
+
+Congress numbers eight kinds of measure, and only bills and joint resolutions
+can become law. Drawing every measure on the seven-step road to law told
+readers that an adopted resolution was half-way to the President. It is not.
+It is finished. So every place a stage is drawn follows the measure's own road
+(`stagePath()` in `lib/utils/bill-stages.ts`, from the classification in
+`convex/catalog/measureType.ts`): the bill page, its journey and share card,
+bill rows in every list, the compact in-answer card, the account page's saved
+and followed rows, and the alert email.
+
+| Measure | Steps | Last step |
+|---|---|---|
+| Bill, joint resolution (H.R., S., H.J.Res., S.J.Res.) and anything unrecognised | Introduced · Committee · One chamber · Both chambers · To President · Signed · Law | "Became law" |
+| Concurrent resolution (H.Con.Res., S.Con.Res.) | Introduced · Committee · One chamber · Agreed to | "Agreed to by both chambers" |
+| Simple resolution (H.Res., S.Res.) | Introduced · Committee · Agreed to | "Agreed to by the House" or "by the Senate" |
+
+- **"Agreed to"**, not "passed": it is the word the record uses for a
+  resolution, and "passed" invites "…and then what?".
+- **The track ends where the road ends.** An agreed resolution fills every
+  segment. Nothing on the page points past it to the President or to law.
+- **One sentence under the track** says why it is short, in plain words: "A
+  simple resolution is the House's business alone. It is finished once the
+  House agrees to it: it never goes to the Senate or the President, and it is
+  not a law."
+- **The colour stays the stored stage's.** An agreed simple resolution is
+  stage 60 in the data and takes the "passed one chamber" hue; an agreed
+  concurrent resolution takes "passed both". That keeps the bill page in step
+  with every chart that counts it, and keeps the law green for law alone. No
+  new token.
+- **A stage off the road is unknown.** A resolution whose stored stage lies
+  past its own last step (a veto, the President) draws as an unrecognised
+  stage: "Unknown", `ink-3`, an empty track. A confidently wrong stage is worse
+  than none. (None exist in the data today.)
+- **The glyph** for "Agreed to" is the chamber's, `Landmark`.
+- **Every surface passes the type it has.** `StatusPill`, `StageTrack`,
+  `stageFill`, `compactStageLabel` and the email's `stageTrack()` all take a
+  `billType`; omitted, they draw the road to law. A bill row passes
+  `bill_type`; the account page and the alert email pass the printed type
+  ("H.Res."), which classifies the same way; the in-answer card reads it off
+  its printed number ("H.Res. 77"). A compact label for a resolution is the full
+  one ("Agreed to by the House"): there is no shorter honest word. In a bill
+  row's 220px stage column the longest pill ("Agreed to by both chambers")
+  leaves no room for the "4 of 4" counter, so the counter wraps under the pill,
+  still right-aligned, rather than breaking across two lines.
 
 ## Charts
 
@@ -290,10 +413,43 @@ What stays hand-built, on purpose:
   buttons, 20px in the header, always beside a word. The only icon-only
   buttons are menu, close, search and send, and each has an `aria-label`.
 - Stages have fixed glyphs: Introduced `FilePlus`, Committee `Users`, Passed a
-  chamber `Landmark`, President `PenLine`, Became law `ScrollText`, Vetoed
+  chamber or agreed to (a resolution) `Landmark`, President `PenLine`, Became law `ScrollText`, Vetoed
   `Ban`.
 - No emoji. No eagles, flags or Capitol photographs. Civic clichés read as
   campaign material.
+
+### Icons beside text
+
+An icon's middle is level with the middle of its label's capitals. Three things
+break that, and each is fixed at the root, not per component:
+
+- **The font.** A centred row centres the text's line box, so the letters land
+  in the middle only if the font's box is centred on its capitals. Geist's is.
+  Newsreader's, as Google ships it, is not — its letters rode 0.12em high, 3px
+  beside a 26px panel title — so the site serves a copy with the box moved
+  (`scripts/generate-serif-font.ts` explains it). Any new face gets the same
+  check before it ships. So: centre the row (`flex items-center`) and never
+  nudge an icon with a margin or `translate` to make it look right.
+- **A row loose in a line of text.** An SVG has no baseline, so an
+  `inline-flex` row that starts with an icon lines up with the text around it
+  by the icon's bottom edge, and its label rides above its neighbours (the
+  footer's "Source" did). Put an icon row inside a flex or grid parent, or make
+  it `flex w-fit`; don't leave it `inline-flex` in a paragraph, a list item or
+  a plain `div`. The one safe loose row is `items-baseline`, where the label
+  sets the baseline — the lockup, which sits its wordmark on the mark's floor
+  on purpose (see Logo).
+- **A label that wraps** centres the icon on the whole block. Keep icon labels
+  to one line; where one must wrap, make the row `items-start`, give it the
+  label's text size so `1lh` is one line of the label, and put the icon in a
+  box that tall (`flex h-[1lh] items-center`). A badge taller than the line
+  overhangs that box, so pad the row by the overhang:
+  `py-[max(0px,calc((<badge>-1lh)/2))]` (the Learn steps and the bill stage
+  do this).
+
+In development, `components/brand/icon-alignment-check.tsx` measures every page
+after it settles and warns in the console (`[icon-alignment]`) about any of
+these. Menus and dialogs open later: run `window.findIconMisalignments()` in
+the console with one open.
 
 ## Logo
 
@@ -333,7 +489,10 @@ the wordmark and titles).
   strip in the topic colours, and `footer()` closes it with six spectrum dots.
   The code emails put a band under each digit of the code.
 - **Colour still means something**: a stage move gets its stage colour, as a
-  `pill()` and the seven-step `stageTrack()`. "Became law" is the only green.
+  `pill()` and a `stageTrack()` on the measure's own road (seven steps for a
+  bill, three or four for a resolution; see "The road a measure travels").
+  A stage off that road is neutral ink on an empty track. "Became law" is the
+  only green.
   A plan state gets one pill: Pro indigo, a heads-up amber, a problem the
   error red, the free plan grey. A bill with only a new action stays neutral.
 - **Actions**: one ink button per email for the thing it is for. Repeated
@@ -366,7 +525,8 @@ Shared by every card (`lib/og/card-parts.tsx`):
 - **The lockup** top left: the spectrum chamber mark at 64px (its one use on
   the surface) and the wordmark in Newsreader 600 at 42px. Page cards put
   "119th Congress" top right in mono `ink-3`; a bill card has nothing there.
-- **The track**: the seven-step `StageTrack`, full width, 30px segments, every
+- **The track**: the `StageTrack` for the measure's own road (seven steps for
+  a bill, four or three for a resolution), full width, 30px segments, every
   step named under its segment. Reached segments take the stage colour; the
   current step's name is in the stage's text colour, earlier ones ink, later
   ones `ink-3`. Vetoed fills to "To President" in slate. An unrecognised stage
@@ -378,8 +538,12 @@ The cards:
 
 - **A bill** (`bill-share-card.tsx`): the stage glyph in a 136px circle of the
   stage colour, the stage in Newsreader at 104px (88 or 72 for the longer
-  names, so "On the President's desk" stays on one line), "Stage n of 7" (or
-  "Stopped at the President", or "Stage unknown") in mono, and the track.
+  names, so "On the President's desk" stays on one line, and 64 for the
+  longest, "Agreed to by both chambers"), "Stage n of 7" (n of 4 or 3 for a
+  resolution, or "Stopped at the President", or "Stage unknown") in mono, and
+  the track. An agreed resolution's card reads "Agreed to by the Senate,
+  Stage 3 of 3" over a full three-step track: finished, not a third of the way
+  to law.
 - **A status page** (`hub-share-card.tsx`): the finding as the headline, "113
   became law" with the figure at 176px, then "Out of 19,067 bills and
   resolutions introduced" (a percentage once it is at least 1%), then the track
@@ -452,7 +616,7 @@ writing, an arrow, the alert email as an envelope, a seven-step track.
 A reader on Pro is shown so in one consistent way, the **Pro mark**:
 
 - **The spectrum ring**: the six topic colours as a ring around the reader's
-  initials, then a paper gap, then the circle (`AvatarMark pro`). It appears on
+  photo or initials, then a paper gap, then the circle (`AvatarMark pro`). It appears on
   the header's account button (36px overall, focus ring outside it), on the
   account page's "you" card, and in the Welcome to Pro dialog. Free readers get
   the plain circle with a `line-strong` edge.

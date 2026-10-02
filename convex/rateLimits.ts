@@ -63,6 +63,25 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: HOUR,
   },
+  // Profile-photo upload URLs, per signed-in reader (convex/avatars.ts). An
+  // upload URL accepts a file of any size before setAvatar can check it, so
+  // this caps how much one account can park in storage between sweeps.
+  avatarUploadPerUser: {
+    kind: "fixed window",
+    rate: 20,
+    period: HOUR,
+  },
+  // Feedback pictures, for the whole site at once (key "all"): the upload
+  // endpoint is public and anonymous, so there is no reader to key it by. Real
+  // feedback arrives a few times a month. This slows a script down; the hard
+  // bound on storage is MAX_STORED_PICTURES in convex/feedbackPicture.ts. A
+  // script can spend the day's 20 and block real pictures until tomorrow, but
+  // the message itself still sends.
+  feedbackPicturesPerDay: {
+    kind: "fixed window",
+    rate: 20,
+    period: DAY,
+  },
 });
 
 // Read-only chat quota status — never consumes a token. The UI calls it after

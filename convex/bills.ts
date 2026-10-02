@@ -4,9 +4,22 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage, BillStages } from "./billStage";
+import { buildJourney } from "./billJourney";
 import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
-import { chamberBounds, chamberOf } from "./chamber";
+import {
+  chamberBounds,
+  chamberOf,
+  HOUSE_BILL_TYPES,
+  SENATE_BILL_TYPES,
+} from "./chamber";
+import {
+  compareForOrder,
+  concatStreams,
+  mergeOrdered,
+  takeFirst,
+  type HubOrder,
+} from "./hubOrder";
 import { candidateSurnames } from "./catalog/sponsorName";
 
 // Generous safety caps; real bills have only a handful of each.
@@ -147,6 +160,70 @@ export const getById = query({
       pdf_url: text?.formatsUrlPdf || "",
       ...baseRate,
     };
+  },
+});
+
+// Past this many stored actions the journey is not drawn, rather than drawn
+// from part of the record. The longest bills of the 119th have ~115.
+const MAX_JOURNEY_ACTIONS = 1000;
+
+/**
+ * What the bill page draws beyond the bill itself: its journey (the day it
+ * reached each stage, and its votes) and the stage counts of every bill on its
+ * topic in its Congress (the dot field).
+ *
+ * Each part is null when it cannot be drawn honestly: no topic, a topic row
+ * counted before stage counts existed, parts that do not sum to the topic's
+ * total, or more actions than the cap (a journey from part of the record would
+ * misdate a stage).
+ */
+export const getJourney = query({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (!bill) return null;
+
+    const actions = await ctx.db
+      .query("billActions")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(MAX_JOURNEY_ACTIONS + 1);
+    const journey =
+      actions.length > MAX_JOURNEY_ACTIONS
+        ? null
+        : buildJourney(actions, bill.introducedDate, bill.billType);
+
+    let peers: {
+      policyArea: string;
+      total: number;
+      stageCounts: Array<{ stage: number; count: number }>;
+      countedAt: string;
+    } | null = null;
+    if (bill.policyAreaName) {
+      const rows = await ctx.db
+        .query("congressPolicyAreas")
+        .withIndex("by_congress", (q) => q.eq("congress", bill.congress))
+        .take(MAX_POLICY_AREAS_PER_CONGRESS);
+      const row = rows.find((r) => r.policyAreaName === bill.policyAreaName);
+      const parts = row?.stageCounts;
+      if (
+        row &&
+        parts &&
+        row.countedAt &&
+        parts.reduce((sum, p) => sum + p.count, 0) === row.count
+      ) {
+        peers = {
+          policyArea: row.policyAreaName,
+          total: row.count,
+          stageCounts: parts,
+          countedAt: row.countedAt,
+        };
+      }
+    }
+
+    return { journey, peers, billUpdatedAt: bill.updatedAt };
   },
 });
 
@@ -817,6 +894,188 @@ export const list = query({
     };
   },
 });
+
+/**
+ * The bills of one hub page in a real date order — "Newest first" or "Oldest
+ * first" on /bills/enacted, /bills/house, /bills/topic/health and the rest.
+ *
+ * Unlike `list`, the order here is a promise, so this only takes the three hub
+ * shapes an index can serve whole: a stage, a topic, or a chamber. Each reads
+ * an index that enforces its entire filter, so there is no scan cap, nothing
+ * filtered in memory, and page 10 is as correct as page 1. (`list` walks
+ * insertion order, which on /bills/enacted buried the newest laws on pages 2
+ * and 3 under dates that were introduction dates.)
+ *
+ *  - stage:   by `stageDate`, the day the bill reached that stage — when it
+ *             became law, was vetoed, passed a chamber.
+ *  - topic:   by `latestActionDate`.
+ *  - chamber: by `latestActionDate`, merging the chamber's four bill types.
+ *
+ * Bills with no date sort last in both directions (see convex/hubOrder.ts).
+ * scripts/truth/hub-order.test.ts runs `sortedBills` against a copy of
+ * production.
+ * `sortedBy` says which date the order is by, so the page labels the date it
+ * shows with what it actually is.
+ */
+export const listSorted = query({
+  args: {
+    congress: v.optional(v.number()),
+    scope: v.union(
+      v.object({ kind: v.literal("stage"), progressStage: v.number() }),
+      v.object({ kind: v.literal("topic"), policyArea: v.string() }),
+      v.object({
+        kind: v.literal("chamber"),
+        chamber: v.union(v.literal("house"), v.literal("senate")),
+      }),
+    ),
+    order: v.union(v.literal("newest"), v.literal("oldest")),
+    offset: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { scope, order } = args;
+    if (scope.kind === "topic" && scope.policyArea.length > MAX_TEXT_FILTER_LENGTH) {
+      throw new Error("policyArea is too long.");
+    }
+    const limit = Math.max(1, clampPageNumber(args.limit, 9, MAX_LIST_LIMIT));
+    const offset = clampPageNumber(args.offset, 0, MAX_LIST_OFFSET);
+    const sortedBy: "stageDate" | "latestActionDate" =
+      scope.kind === "stage" ? "stageDate" : "latestActionDate";
+
+    const congress = await resolveCongress(ctx, args.congress);
+    if (congress === null) return { data: [], hasMore: false, sortedBy };
+
+    const rows = await takeFirst(
+      sortedBills(ctx, congress, scope, order),
+      offset + limit + 1,
+    );
+    return {
+      data: await enrichWithSubjects(ctx, rows.slice(offset, offset + limit)),
+      hasMore: rows.length > offset + limit,
+      sortedBy,
+    };
+  },
+});
+
+export type HubScope =
+  | { kind: "stage"; progressStage: number }
+  | { kind: "topic"; policyArea: string }
+  | { kind: "chamber"; chamber: "house" | "senate" };
+
+/**
+ * One hub's bills as an ordered stream. Newest-first is a single descending
+ * range per index prefix (an index already puts "" and absent below every
+ * date); oldest-first reads dated, "", then absent, so undated bills stay last.
+ */
+export function sortedBills(
+  ctx: QueryCtx,
+  congress: number,
+  scope: HubScope,
+  order: HubOrder,
+): AsyncIterable<Doc<"bills">> {
+  if (scope.kind === "stage") {
+    const stage = scope.progressStage;
+    const index = "by_congress_stage_and_stage_date" as const;
+    if (order === "newest") {
+      return ctx.db
+        .query("bills")
+        .withIndex(index, (q) => q.eq("congress", congress).eq("progressStage", stage))
+        .order("desc");
+    }
+    return concatStreams([
+      () =>
+        ctx.db
+          .query("bills")
+          .withIndex(index, (q) =>
+            q.eq("congress", congress).eq("progressStage", stage).gt("stageDate", ""),
+          ),
+      () =>
+        ctx.db
+          .query("bills")
+          .withIndex(index, (q) =>
+            q.eq("congress", congress).eq("progressStage", stage).eq("stageDate", ""),
+          ),
+      () =>
+        ctx.db
+          .query("bills")
+          .withIndex(index, (q) =>
+            q.eq("congress", congress).eq("progressStage", stage).eq("stageDate", undefined),
+          ),
+    ]);
+  }
+
+  if (scope.kind === "topic") {
+    const area = scope.policyArea;
+    const index = "by_congress_policy_area_and_latest_action" as const;
+    if (order === "newest") {
+      return ctx.db
+        .query("bills")
+        .withIndex(index, (q) => q.eq("congress", congress).eq("policyAreaName", area))
+        .order("desc");
+    }
+    return concatStreams([
+      () =>
+        ctx.db
+          .query("bills")
+          .withIndex(index, (q) =>
+            q.eq("congress", congress).eq("policyAreaName", area).gt("latestActionDate", ""),
+          ),
+      () =>
+        ctx.db
+          .query("bills")
+          .withIndex(index, (q) =>
+            q.eq("congress", congress).eq("policyAreaName", area).eq("latestActionDate", ""),
+          ),
+      () =>
+        ctx.db
+          .query("bills")
+          .withIndex(index, (q) =>
+            q
+              .eq("congress", congress)
+              .eq("policyAreaName", area)
+              .eq("latestActionDate", undefined),
+          ),
+    ]);
+  }
+
+  // A chamber is four bill types, each its own ordered range; merging them
+  // reads only as many rows as the page needs, plus one look-ahead per type.
+  const types = scope.chamber === "house" ? HOUSE_BILL_TYPES : SENATE_BILL_TYPES;
+  const index = "by_congress_type_and_latest_action" as const;
+  const byType = (billType: string): AsyncIterable<Doc<"bills">> =>
+    order === "newest"
+      ? ctx.db
+          .query("bills")
+          .withIndex(index, (q) => q.eq("congress", congress).eq("billType", billType))
+          .order("desc")
+      : concatStreams([
+          () =>
+            ctx.db
+              .query("bills")
+              .withIndex(index, (q) =>
+                q.eq("congress", congress).eq("billType", billType).gt("latestActionDate", ""),
+              ),
+          () =>
+            ctx.db
+              .query("bills")
+              .withIndex(index, (q) =>
+                q.eq("congress", congress).eq("billType", billType).eq("latestActionDate", ""),
+              ),
+          () =>
+            ctx.db
+              .query("bills")
+              .withIndex(index, (q) =>
+                q
+                  .eq("congress", congress)
+                  .eq("billType", billType)
+                  .eq("latestActionDate", undefined),
+              ),
+        ]);
+  return mergeOrdered(
+    types.map(byType),
+    compareForOrder<Doc<"bills">>(order, (bill) => bill.latestActionDate),
+  );
+}
 
 /**
  * Exact count of bills matching filters when we can answer from precomputed

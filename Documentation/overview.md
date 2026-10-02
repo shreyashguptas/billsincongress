@@ -25,6 +25,7 @@ Figures were verified against production on **29 August 2026**.
 - [Accounts and auth](#accounts-and-auth)
 - [Email](#email)
 - [Pro: billing and bill alerts](#pro-billing-and-bill-alerts)
+- [Reader feedback](#reader-feedback)
 - [Sharing and the installed app](#sharing-and-the-installed-app)
 - [Environment variables](#environment-variables)
 - [Build, test and deploy](#build-test-and-deploy)
@@ -40,7 +41,7 @@ Figures were verified against production on **29 August 2026**.
 ```
 Congress.gov API v3  (Library of Congress)
       │
-      │  nine sync jobs + two alert-email jobs — convex/crons.ts
+      │  nine sync jobs + one alert-email job + a profile-photo cleanup + a feedback-picture purge — convex/crons.ts
       ▼
 convex/congressApi.ts   sync, reconcile, repair, backfill
       │
@@ -66,6 +67,11 @@ Pro billing and bill alerts sit beside this: Stripe calls the Convex HTTP action
 `POST /stripe/webhook` (convex/billing.ts), which is the only writer of `users.plan`, and a
 daily cron (convex/alerts.ts) emails followed-bill digests through PostHog Workflows. See
 [Pro: billing and bill alerts](#pro-billing-and-bill-alerts).
+
+Reader feedback sits beside it too, and mostly outside Convex: the Feedback box and the
+"Did you find what you were looking for?" prompt send their answers to PostHog as survey
+responses. Only a picture attached to feedback touches Convex, through the public HTTP action
+`POST /feedback/picture` (convex/feedback.ts). See [Reader feedback](#reader-feedback).
 
 Two independently deployed halves:
 
@@ -100,6 +106,8 @@ app/                       Next.js App Router — 19 page.tsx files
   api/                     answer/, bill-chat/send, bill-chat/usage
   robots.ts sitemap.ts sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
+  fonts/                   The three faces (index.ts, shared with global-error.tsx); Newsreader re-centred
+                           on its capitals (scripts/generate-serif-font.ts), with its OFL licence
   error.tsx global-error.tsx   Client error boundaries (recover from a stale-asset chunk failure)
 
 components/                Shared React components
@@ -107,9 +115,12 @@ components/                Shared React components
                            hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
   brand/                   The design language in code (Documentation/brand.md): logo and
                            chamber mark, stage pill and track, party tag, section header,
-                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx)
+                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx);
+                           icon-alignment-check.tsx warns in dev about icons off their label
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
+  account/                 The profile photo: avatar-button.tsx (the account page's avatar, its
+                           menu and the file picker) and avatar-editor.tsx (the crop dialog)
   bills/                   Card, details, save, alert and share buttons
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               DashboardClient.tsx (data, Congress switching, drill-down)
@@ -122,30 +133,35 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 30 modules + 27 test files, then the folders below
+lib/                       Pure client/shared modules — 35 modules + 31 test files, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server events go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
   seo.ts hubs.ts pagination.ts cacheable-routes.ts indexnow.ts sitemap-ids.ts
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
+  answer-reveal.ts         The ask panel's word-by-word reveal of a finished answer
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
+  icon-alignment.ts        Measures the page for icons that do not line up with their label (dev only)
+  avatar-image.ts          Profile photos in the browser: decode, crop geometry, WebP encode
   og/                      The share cards: card-parts.tsx (frame, headline, track), bill-share-card.tsx,
                            hub-share-card.tsx + hub-share-data.ts (page cards and their figures),
                            home-share-card.tsx + home-share-data.ts, generic-share-card.tsx, all
                            tested; fonts.ts (embedded fonts, generated)
   services/bills-service.ts  constants/  types/  utils/
 
-convex/                    Backend — 30 top-level modules + catalog/ + 9 test files
-  schema.ts                24 application tables (+ 6 from the auth library)
+convex/                    Backend — 41 top-level modules + catalog/ + 15 test and spec files
+  schema.ts                26 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
   answer.ts catalog/       The grounded answer engine
   chats.ts savedBills.ts users.ts auth.ts   Accounts
+  avatars.ts               Profile photos in Convex file storage
   billing.ts alerts.ts email.ts             Pro: Stripe webhook + checkout, bill alerts, alert delivery
+  feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts
   billStage.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts                    Pure, unit-tested
@@ -168,7 +184,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
-| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
+| `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also offers "Change password" (password accounts only), and shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
@@ -216,6 +232,28 @@ says all three are zero, which is no longer exactly true.)
 Every hub carries a hand-written plain-language explainer; the rule recorded in
 `lib/hubs.ts` is that a hub must be a document, not a filtered list with a new heading. A hub
 with zero bills still renders but is marked `noindex`.
+
+**Hub order.** Every hub is sorted by a date, newest first by default, with "Oldest first" one
+link away (`?sort=oldest`, which is `noindex, follow` so the same set is not indexed twice; page
+links keep the order). Until 30 Sep 2026 hubs read `bills.list`, which walks insertion order:
+/bills/enacted showed the 119th's laws Senate batch then House batch, with the five laws signed
+on 25 Sep 2026 at rows 13, 64, 68, 98 and 107, under unlabelled introduction dates that made the
+list look sorted. Hubs now read `bills.listSorted`, which takes only the three shapes an index
+can serve whole and says which date it sorted by (`sortedBy`):
+
+| Hub | Ordered by | Index |
+| --- | --- | --- |
+| Stage | `stageDate` — the day the bill reached that stage | `by_congress_stage_and_stage_date` |
+| Topic | `latestActionDate` | `by_congress_policy_area_and_latest_action` |
+| Chamber | `latestActionDate`, the chamber's four bill types merged in order (`convex/hubOrder.ts`) | `by_congress_type_and_latest_action` |
+
+Each index enforces the hub's whole filter, so there is no scan cap and page 10 is as correct as
+page 1. Bills with no date sort last in both directions. Each row shows the date the list is
+ordered by, labelled ("Became law", "Vetoed", "Passed a chamber", "Sent to committee",
+"Introduced", "Latest action"). If `listSorted` fails — for instance while the site is deployed
+ahead of Convex — the hub falls back to `list` and shows no order switch and no labelled dates,
+rather than an empty page. `scripts/truth/hub-order.test.ts` runs the real ordering against the
+production copy.
 
 **Middleware** (`middleware.ts`, not `proxy.ts` — see [Hosting](#hosting-and-cloudflare-constraints)):
 301-redirects `www` to the apex, sends signed-out visitors from `/account` to `/sign-in`,
@@ -278,7 +316,8 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 
 ### The cron jobs
 
-Nine keep the data in step with Congress; a tenth (the last row) sends bill alerts.
+Nine keep the data in step with Congress; a tenth sends bill alerts, an eleventh cleans up
+profile-photo uploads, and a twelfth deletes old feedback pictures (the last three rows).
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -292,6 +331,8 @@ Nine keep the data in step with Congress; a tenth (the last row) sends bill aler
 | `weekly-reconcile-recent-congresses` | Mon 06:00 | Current + 2 | Diff the full live list against ours — **the only path that finds never-synced bills in a previous Congress** (the monthly re-pull covers the current one) |
 | `indexnow-submit-evening` | 13:30 daily | — | Second queue drain |
 | `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
+| `daily-avatar-orphan-sweep` | 08:00 daily | File storage | Delete profile-photo uploads no account points at and over an hour old (`avatars.sweepOrphans`) |
+| `daily-feedback-picture-purge` | 09:15 daily | `feedbackPictures` | Delete each feedback picture, file and row, 180 days after it arrived (`feedback.purgeOldPictures`), 100 per run, rescheduling itself while more remain. The privacy policy promises the 180 days |
 
 ### Throttling
 
@@ -320,6 +361,29 @@ becameLaw → vetoed → signed → toPresident → passedBoth → passedOne →
 | 90 | To President |
 | 95 | Signed by President |
 | 100 | Became Law |
+
+**Resolutions are stored on the same scale but drawn on their own road.** A simple resolution
+(H.Res., S.Res.) agreed to by its chamber is stored at 60, a concurrent resolution (H.Con.Res.,
+S.Con.Res.) agreed to by both at 80, because the calculator reads the same "Passed/agreed to"
+record for every measure. Neither ever goes to the President, so no surface draws them on the
+seven-step road to law: `stagePath()` in
+`lib/utils/bill-stages.ts` (from `convex/catalog/measureType.ts`) gives a simple resolution
+three steps and a concurrent one four, both ending at "Agreed to", and `measureStageLabel()`
+names the stage "Agreed to by the House", "…by one chamber" or "…by both chambers". The stored
+value and every chart that counts it are unchanged. See `Documentation/brand.md`, "The road a
+measure travels".
+
+Every surface that draws a stage passes the measure's type and so takes the same road: the bill
+page, its title and share card, the bill rows in every list (`components/bills/bill-card.tsx`,
+from `bill_type`), the compact in-answer card (`compactStageLabel()`, with the type read off
+the card's printed number by `billTypeOfLabel()`, since the answer's display projection carries
+no `bill_type`), the search suggestions on the home page, the account page's saved and followed
+rows (from the printed `billTypeLabel`, which `measureClass()` reads as well as a type code),
+and the alert email (`stageTrack()` and `stageColours()` in `convex/emailStyle.ts`, labels from
+`measureStageLabel()` in `convex/alertDigest.ts`). The email imports
+`lib/utils/bill-stages.ts` by relative path, so it cannot draw a different road from the site;
+that file imports `measureType.ts` relatively for the same reason (the Convex bundler does not
+know the `@/` alias).
 
 > **The E30000 trap.** The Library of Congress attaches action code `E30000` to **both**
 > "Signed by President" and "Vetoed by President". An earlier implementation returned early
@@ -372,12 +436,44 @@ Computed only from Congresses strictly earlier than the current one, bucketed by
 spent in committee (`[0,90)`, `[90,180)`, `[180,365)`, `[365+)`), and a bucket is hidden
 entirely unless backed by at least 100 past bills.
 
+### The bill journey and its peers
+
+The bill page's status panel draws the bill's journey, and below the body sits the
+"Among its peers" dot field. Both come from one public query, `bills.getJourney`, which
+the page fetches beside `bills.getById`. It never fails the page: on any error (including
+the window where the site is deployed before Convex has the query) the page draws the plain
+seven-step track and no dot field.
+
+- **The journey** is `buildJourney` in `convex/billJourney.ts`, a pure module. It runs
+  `calculateBillStage` over every prefix of the bill's actions in date order and records the
+  day each stage changed, so there is no second definition of "passed a chamber" to drift from
+  the stored stage. It also picks out the moments a reader cares about (the referral, a
+  committee's recorded vote, each chamber's passage with its tally or "by unanimous
+  consent", presentation, signature, the public law number) from the action text. A bill
+  with more than 1,000 stored actions gets no journey rather than one read from part of the
+  record. The page draws the journey only when its last stage equals the bill's stored
+  stage; a difference means the two disagree and the page does not pick a side.
+- **The chapters, the axis and the Congress clock** are computed in the browser by
+  `lib/bill-journey.ts` from the server's date in Washington (`today`, passed down from
+  `app/bills/[id]/page.tsx`). A bill is finished once signed (the public law number follows
+  later) or vetoed; a simple resolution once its own chamber adopts it, a concurrent
+  resolution once both have. A resolution's passage reads "Agreed to in the House". A bill still pending when its Congress ends
+  (Jan 3 of the year after its second) is shown as expired, except one left on the
+  President's desk, which says just that: the record shows no signature or veto.
+- **The peer counts** are `congressPolicyAreas.stageCounts`: the nightly
+  `recomputeCongressPolicyAreas` counts every bill of the Congress by topic and by stage in
+  the same pass, so the parts always sum to the topic's `count`. `getJourney` returns them
+  only when they do. `countedAt` is taken before the scan starts; the page rings "this
+  bill" only when the bill's `updatedAt` is no later than that, so a bill that moved since
+  the count is never ringed in a group it may have left. A bill with no topic yet (Congress
+  assigns them some weeks after introduction) has no dot field.
+
 ### Query limits, and how truncation is surfaced
 
 | Constant | Value | Effect |
 | --- | ---: | --- |
 | `MAX_LIST_LIMIT` | 50 | Page size ceiling |
-| `MAX_LIST_OFFSET` | 500 | `/bills` stops at page 51; hubs at page 10 |
+| `MAX_LIST_OFFSET` | 500 | `/bills` stops at page 51; hubs at page 10 (hubs read index ranges through `listSorted`, never the capped scan below) |
 | `MAX_LIST_SCAN` | 1,200 | The browse loop gives up after scanning 1,200 index rows |
 | `SEARCH_LIMIT` | 1,024 | Full-text search caps at 1,024 matching documents |
 
@@ -435,6 +531,15 @@ Two design decisions worth knowing:
   cross-table intersection it replaced *silently returned 0 of 2,070 real "Health" matches*
   for a Congress, because it matched the oldest 2,000 subject rows against the newest 1,200
   bills. `upsertBillSubject` writes both, or they drift.
+- **`bills.stageDate` is the day a bill reached its current stage** — became law, was
+  vetoed, passed its first chamber, was sent to committee — or, for a bill still at
+  "Introduced", its introduction date. A later stage with no dated action stays undated
+  rather than borrowing the introduction date. It is
+  derived by the same `calculateBillStage` call as `progressStage` and written with it (by the
+  sync's `upsertBill` and by `rederiveBillFieldsFromActions`), so the two never disagree. It is
+  not `latestActionDate`: committees act on bills after they are signed, and 5 of 758 laws in
+  the production copy had a later latest action (H.R. 1043, 119th: signed 29 Dec 2025, report
+  filed 11 Feb 2026). It orders the stage hubs.
 - **Only the primary sponsor is stored.** There are no co-sponsors anywhere in the database,
   and the answer engine is explicitly instructed never to imply otherwise.
 
@@ -451,7 +556,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 
 | Table | Purpose |
 | --- | --- |
-| `users` | Name, email, image, verification time, plan, and the Stripe mirror: `stripeCustomerId`, `stripeSubscriptionId`, `stripeSubscriptionStatus`, `stripePriceId`, `stripeCurrentPeriodEnd`, `cancelAtPeriodEnd`. `plan` is written **only** by the Stripe webhook (`billing.applySubscription`) and gates the Pro question allowance and bill alerts |
+| `users` | Name, email, image (the Google picture, rewritten by the auth library at every Google sign-in), verification time, the profile photo (`avatarStorageId`, a Convex storage id, and `avatarHidden`, "show initials even if Google gives a picture"; see "Profile photos"), plan, and the Stripe mirror: `stripeCustomerId`, `stripeSubscriptionId`, `stripeSubscriptionStatus`, `stripePriceId`, `stripeCurrentPeriodEnd`, `cancelAtPeriodEnd`. `plan` is written **only** by the Stripe webhook (`billing.applySubscription`) and gates the Pro question allowance and bill alerts |
 | `savedBills` | One row per (user, bill) bookmark. Free, silent |
 | `billAlerts` | One row per (user, bill) a Pro reader follows by email, with the watermark the digest advances: `lastSeenActionDate`, `lastSeenActionFingerprints` (actions on that date), `lastSeenStage`, `lastEmailedAt` |
 | `stripeEvents` | Webhook idempotency: one row per Stripe event id, `received` → `processed` / `failed` |
@@ -459,6 +564,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 | `billChats` / `billChatMessages` | The old per-bill chat. Still written by the dead route |
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
+| `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days, and (index `by_storageId`) so `avatars.sweepOrphans` does not take them for orphaned photos |
 | `usageEvents` | **Dead** — zero references outside `schema.ts` |
 
 > **`chats.userId` is required, not optional, and that is the point.** An anonymous
@@ -485,26 +591,28 @@ wrong import is how an aggregate silently drifts from the table.
 
 ## Convex functions
 
-133 hand-written functions — 26 public queries, 6 public mutations, 3 public actions, 2 HTTP
-actions, 96 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
+146 hand-written functions — 27 public queries, 9 public mutations, 4 public actions, 4 HTTP
+actions, 102 internal — plus four more generated by `convexAuth()` in `auth.ts`: `signIn` and
 `signOut` (public actions), `isAuthenticated` (public query) and `store` (internal mutation).
-137 registered in total.
+150 registered in total.
 
 | File | Role |
 | --- | --- |
-| `bills.ts` | The public read surface (18 functions: 14 public queries plus 4 internal) |
+| `bills.ts` | The public read surface (19 functions: 15 public queries plus 4 internal) |
 | `mutations.ts` | Every sync write and rollup writer (30: 19 internal mutations, all trigger-wrapped, plus 6 internal queries and 5 internal actions) |
 | `congressApi.ts` | Sync, reconcile, repair, backfill (19) — **every one an `internalAction`** |
 | `answer.ts`, `catalog/` | The grounded answer engine |
 | `chats.ts`, `savedBills.ts`, `users.ts`, `auth.ts` | Accounts |
+| `avatars.ts` | Profile photos: `generateUploadUrl`, `removeAvatar`, `restoreGooglePicture` (public mutations), `setAvatar` (public action: checks the file's bytes), and the internal `uploadSize`, `attach`, `discardUpload` and daily `sweepOrphans` |
 | `billing.ts` | Pro: `startCheckout` and `openBillingPortal` (public actions), `status` (public query), the Stripe webhook HTTP action and the internal mutations it calls |
 | `alerts.ts`, `email.ts` | Bill alerts: follow/unfollow, the account list, token unsubscribe, the daily digest run; `email.deliver` hands each digest and plan-change email to PostHog |
 | `llm.ts` | The old per-bill chat back end. Holds `sendChatMessage`, a public action reached solely by the dead `/api/bill-chat/send` route |
 | `indexNow.ts` | Search-engine notification (10, all internal) |
+| `feedback.ts` | Feedback pictures: `uploadPicture` and `pictureOptions` (the two HTTP actions behind `/feedback/picture`), `recordPicture` and `purgeOldPictures` (internal mutations) |
 | `rateLimits.ts` | The limiter config, `getChatUsage` (the public query behind the account page's quota meter) and `limitChatQuestion`, the one helper that picks the anonymous, free or Pro bucket |
 | `sync.ts`, `aggregateBackfill.ts`, `policyAreaBackfill.ts`, `chatAnalytics.ts` | Operational backfills and diagnostics, almost all internal |
 | `crons.ts`, `http.ts`, `convex.config.ts`, `functions.ts` | Schedule, HTTP router, installed components, trigger-wrapped constructors |
-| `billStage.ts`, `chamber.ts`, `baseRates.ts`, `searchQuery.ts`, `syncStatus.ts`, `plan.ts`, `alertDigest.ts` | Pure modules, no Convex imports, unit-tested |
+| `billStage.ts`, `billJourney.ts`, `chamber.ts`, `baseRates.ts`, `searchQuery.ts`, `syncStatus.ts`, `plan.ts`, `alertDigest.ts`, `feedbackPicture.ts` | Pure modules, no Convex imports, unit-tested |
 
 ### The visibility rule
 
@@ -540,9 +648,11 @@ Replaces the per-bill chat panel, which was removed on 26 August 2026.
 
 ```
 components/answers/answer-provider.tsx      one provider, mounted in app/layout.tsx
-  └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId
+  └─ fetch POST /api/answer            body carries `context` — route enum, congress, billId;
+       │                                 headers carry the PostHog session + distinct id
        └─ app/api/answer/route.ts           attaches the httpOnly auth cookie and the
-            │                                anonymous session cookie, and injects an SSE
+            │                                anonymous session cookie, forwards the two PostHog
+            │                                ids in the body, and injects an SSE
             │                                keep-alive comment while the loop runs silent
             │                                so an idle timeout cannot reap a long answer
             └─ POST {CONVEX_SITE_URL}/answer/stream     (convex/http.ts → answer.stream)
@@ -553,17 +663,36 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │    ├─ describe_dataset
                  │    ├─ fetch_dataset   → convex/catalog/fetch.ts
                  │    ├─ search_web      → OpenRouter web plugin, engine "exa"
-                 │    └─ ask_reader      → ends the turn with a question, not an answer
+                 │    ├─ ask_reader      → ends the turn with a question, not an answer
+                 │    └─ no answer, no call → one nudge, then the no-tools round early;
+                 │                           still empty → `error` frame (empty_model_output)
                  ├─ deliberation stripped → convex/catalog/answerSanitize.ts
                  ├─ citation resolution → convex/catalog/cite.ts
-                 └─ SSE frames back: work · delta · done · rate_limited · error
-                      (the proxy adds `: keep-alive` comments between them)
+                 ├─ SSE frames back: work · delta · done · rate_limited · error
+                 │    (the proxy adds `: keep-alive` comments between them)
+                 └─ one log line to PostHog Logs, scheduled, never awaited
+                      (convex/posthogLogs.ts — "answer served" or "answer failed")
 ```
+
+The log line is how a failed or degraded answer is found and watched: it carries the
+reader's PostHog session id, so PostHog opens their session replay at that second, and the
+answer's `trace_id`, which opens its AI trace (see **Record** below). It never carries the
+question; the trace does. Every attribute on it is listed under "PostHog Logs" in
+`Documentation/ANALYTICS.md`. We send it from our own code because Convex's built-in log
+streaming needs its Professional plan, and we are on pay-as-you-go.
 
 The panel is mounted in the root layout as a **sibling** of the page content, never inside
 it, so a conversation survives client-side navigation. Prose is emitted only *after* citations
 are resolved, in 60-character chunks — never token by token, because a fabricated citation
 must not be visible even briefly.
+
+So the answer reaches the browser all at once, and the panel paces it back out: the thread
+reveals it word by word (`lib/answer-reveal.ts`, `components/answers/use-answer-reveal.ts`),
+at 40 words a second or faster so no answer takes more than five seconds. This is presentation
+only — every word shown is a prefix of the final, already-checked text, and the reveal never
+stops inside an entity directive, a link or a list marker, where a half-written form would
+render as something else. The source list appears once the last word is on screen. A resumed
+conversation, or a reader with `prefers-reduced-motion`, gets the whole answer at once.
 
 ### The panel
 
@@ -701,6 +830,62 @@ review workflow forfeits that review. Until then the gate is local and the skip 
 fix it.** That file is the institutional memory of every way this system has stated something
 untrue.
 
+### Recording and the wrong-answer loop
+
+The loop this exists for: **record every answer → flag the bad ones → save them → turn each into
+a truth case → fix → re-run.**
+
+**Record.** `convex/aiTrace.ts` records each question as a PostHog AI Observability trace:
+one `$ai_generation` per model call (the full messages sent, system prompt and tool results
+included, the reply, tokens, cost, latency, the model that actually served it), one `$ai_span`
+per lookup (arguments and result), and one `$ai_trace` with the question and the answer as
+shown. The events are gathered in memory and posted in one request to PostHog's batch API
+after the `done` frame and before the stream closes, because the action ends with the stream.
+The flush has a 3-second timeout and never throws, so PostHog being down cannot cost a reader
+an answer. The browser's PostHog ids travel `answer-provider.tsx` → `app/api/answer/route.ts`
+(headers) → Convex (body, re-validated) so a trace joins the reader's person and replay; the
+trace id comes back on `done` and `error`, and `answer_received`, `answer_failed` and
+`answer_rated` carry it as `$ai_trace_id`. Registry: "AI traces" in `ANALYTICS.md`.
+
+It needs `POSTHOG_KEY` in the Convex environment and a Convex deploy; until then it records
+nothing. Cost: about 7 events a question (up to five model calls plus lookups plus the trace),
+so roughly 10,000 a month at current volume, inside PostHog's 100,000 free AI events; the AI
+Observability billing cap is $0, so overflow is dropped, not billed. PostHog drops the text of
+every trace after 30 days and keeps the metadata.
+
+Tested end to end in `convex/aiTrace.spec.ts`, which drives the real `/answer/stream`
+httpAction with a scripted model and asserts the exact request PostHog would receive.
+
+**Flag.** Two ways, and the one to watch is where they disagree:
+
+- The reader's **"No"**, below.
+- **Graders** (PostHog → AI Observability → Evaluations), configured in the UI once there is a
+  week of traces. Hog code evals are free — start with `dropped > 0` on the trace, a leaked
+  `[[` marker in the answer, and an empty answer. One LLM-as-judge "states something not in
+  the tool results" eval, sampled at 10–20%, needs an OpenRouter key added in PostHog's
+  settings and is billed by OpenRouter. A reader's "No" on an answer the grader passed is the
+  most valuable signal there is.
+
+**Save.** From a bad trace, "Add to dataset" (datasets are in beta; they cannot run
+experiments yet). Export to JSONL.
+
+**Test and fix.** Each saved answer becomes a case in `scripts/truth/questions.ts` (or
+`scripts/check-grounding.ts`), red first, then fixed — the rule above.
+
+Not used, on purpose: PostHog **prompt management** (a prompt edited in PostHog's UI would
+bypass the git-reviewed system prompt and the truth tests) and **clusters** (they need about
+1,000 traces a week; we have about 300).
+
+**Readers report them too.** Under every finished answer the panel asks "Was this answer
+right?" (`components/answers/answer-check.tsx`). A tap sends `answer_rated` to PostHog; a "No"
+carries the question, the question before it when the answer was a follow-up, the answer text
+as the reader saw it (up to 8,000 characters) and its cited handles, which is enough to write
+the `questions.ts` case without having to reproduce the conversation. A "Yes" carries none of
+that. What each tap sends is built and tested in `lib/answer-rating.ts`. Nothing is written to
+Convex, so it works for signed-out readers too and needs no deploy. To review them, filter
+`answer_rated` on `verdict = wrong` in PostHog; a signed-in reader's report also carries
+`chat_id`, the saved thread.
+
 ### The completeness contract
 
 This is the load-bearing idea of the whole answer engine, and it exists because of what happened
@@ -766,7 +951,8 @@ bill says it was vetoed instead, since most died when the override failed. A bil
 chambers is not told it died: it can be signed after adjournment, ended Congresses are never
 re-pulled, and its stored actions stop where its stage does, so nothing we hold rules that out. Its
 note says only that our record shows no signing. Simple and concurrent
-resolutions get none: an adopted one is finished, not dead, and the stage does not show adoption.
+resolutions get none: an adopted one is finished, not dead (since the 30 Sep 2026 calculator fix
+its stage shows adoption as 60 or 80, which the bill page draws as "Agreed to").
 Stages 90 and 95 get none, because the stored stage can lag an enactment. `stats` carries
 `dataLastSynced` so "how current is this?" has a real answer instead of an invented one.
 
@@ -817,6 +1003,10 @@ recoverable: the model rephrases and retries.
 | --- | --- |
 | Nothing is written server-side. The transcript lives in `sessionStorage` under `bic_answer_transcript`, capped at 10 turns / 8,000 characters, and dies with the tab. | Saved to `chats` / `chatMessages` with citations, allowed handles, entities, web reason, web sources and the work log, so reopening re-renders exactly as given even after the bill's status changes. |
 
+Separately from both, **every answer is recorded in PostHog** as an AI trace — see
+"Recording and the wrong-answer loop" below. That is PostHog's copy, not ours: signed out,
+nothing is still written to Convex.
+
 Signing in mid-conversation offers **once** to keep the transcript (capped at the last 20
 turns). It is never applied silently. Saved conversations are readable only by their owner;
 "not yours" and "does not exist" both return `null` so ids cannot be enumerated into a map of
@@ -863,6 +1053,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | --- | --- | --- |
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
+| `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for the primary **and every fallback** |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web plugin still returns the `url_citation` annotations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
@@ -895,6 +1086,41 @@ A free account gets you three things: bookmarking bills (the account page lists 
 recent 200), saved conversation history, and the higher daily question allowance. Pro, the
 one paid plan, adds bill alerts and a higher allowance still — see the next section.
 
+### Profile photos
+
+A reader's avatar (header, account page, Welcome to Pro) shows, in order: the photo they
+uploaded, else their Google picture, else their initials. `users.currentUser` resolves it into
+`avatarUrl` and `avatarSource` (`convex/avatars.ts`, `avatarFor`).
+
+- **Where they live:** Convex file storage, on the same deployment as everything else. No
+  separate bucket. A photo is about 20–60 KB, so storage cost is negligible.
+- **Made small in the browser** (`lib/avatar-image.ts`): the picked file is decoded once (EXIF
+  orientation honoured), shrunk to a working copy no longer than 2,048px, framed in the crop
+  dialog (`components/account/avatar-editor.tsx`: drag, pinch, wheel, slider, arrow keys), then
+  cut to a 512px square and encoded as WebP at quality 0.82 (JPEG on browsers that cannot
+  encode WebP). The original never leaves the device. Files over 50 MB are refused unread.
+- **Upload:** `generateUploadUrl` (signed in, 20 an hour per reader, `avatarUploadPerUser`)
+  returns a one-time URL; the browser POSTs the file there, then calls `setAvatar`, an action
+  that refuses anything over 512 KB from the storage metadata (`uploadSize`, before reading a
+  byte: an upload URL takes a file of any size), then reads the first bytes and refuses anything
+  that is not really a WebP, JPEG or PNG — the upload's Content-Type is whatever the client claimed, so it is not trusted.
+  A refused file is deleted. `attach` then swaps it in and deletes the previous upload, and
+  refuses a storage id another account already uses.
+- **Who can see a photo:** the URL is only ever returned to its owner. It is an unguessable
+  capability link — anyone holding the exact URL can load the image, as with a Google or Slack
+  avatar URL, but nothing lists or indexes them.
+- **Remove / Use Google photo:** Remove deletes the upload and sets `avatarHidden`, which is
+  what keeps a removed Google picture from coming back: the auth library rewrites `image` at
+  every Google sign-in, so the choice has to live in a field it does not touch.
+- **Orphans:** an upload that is never attached (tab closed mid-save) is deleted by the daily
+  `daily-avatar-orphan-sweep` once it is an hour old. The sweep deletes **any** stored file
+  that neither a `users.avatarStorageId` nor a `feedbackPictures` row points at — photos and
+  feedback pictures (see [Reader feedback](#reader-feedback)) are the only things in storage
+  today. A feature that stores other files must teach `sweepOrphans` about them first.
+- Tested in `convex/avatars.spec.ts` (ownership, replacement, removal surviving a Google
+  sign-in, byte check, an oversized upload refused unread, rate limit, sweep, a feedback
+  picture surviving the sweep) and `lib/avatar-image.test.ts` (crop geometry).
+
 Deliberate hardening worth preserving:
 
 - Sign-in failures are vague — wrong email and wrong password produce the identical message,
@@ -905,11 +1131,31 @@ Deliberate hardening worth preserving:
   same-origin paths, plus `localhost:3000` / `127.0.0.1:3000` for local development).
 - No public function takes a `userId` — enforced by a guard on every test run.
 
-**Not built (UI only):** the password-reset *back end* is wired — `convex/auth.ts` passes
-`reset: PasswordResetCode` (`convex/emailCodes.ts`), which emails a 6-digit reset code on the same rate-limit
-bucket — but no page ever starts the flow, so `/forgot-password` is a static "coming soon"
-page asking people to email. Self-serve account deletion does not exist at all; deletion is
-handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly.
+**Password reset** is self-serve on `/forgot-password` (`components/auth/reset-password-form.tsx`).
+The reader enters an email; the page runs the Password provider's `reset` flow, which emails a
+6-digit code (`PasswordResetCode` in `convex/emailCodes.ts`, on the same `otpRequestPerEmail`
+bucket as sign-up codes: five an hour per address). The reader then enters the code and a new
+password (`reset-verification`); the library checks the code, stores the new hash, signs the
+reader in and signs out every other session on the account, then sends them to `?redirect=`
+(carried over from `/sign-in`) or `/account`.
+
+A signed-in reader changes their password from **"Change password"** on `/account`
+(`components/account/change-password-button.tsx`): the same form in a dialog, fixed to their own
+address, so the emailed code stands in for the old password and a reader who has forgotten it
+can still change it. The button shows only when `api.users.currentUser` reports `hasPassword`
+(an `authAccounts` row with provider `password`); a Google-only account has no password to
+change. Unlike `/forgot-password`, the dialog says when a code could not be sent (the
+five-an-hour limit, or a failed request): the address is the reader's own, so there is nothing
+to hide. Like sign-up, the request step
+advances even when the server refuses — an address with no password account (a Google-only
+account included) throws and one with an account does not — and every failed code gets the
+same message. The "Forgot password?" link no longer carries the typed email in its URL, so
+the address does not reach analytics through `$current_url`.
+
+**Not built:** self-serve account deletion does not exist; deletion is
+handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly. Deleting
+an account by hand must also delete its profile photo (`ctx.storage.delete` on
+`avatarStorageId`), or the daily sweep will once the user row is gone.
 
 ---
 
@@ -917,8 +1163,7 @@ handled by emailing `hi@billsincongress.com`. The Privacy Policy says so plainly
 
 Every email goes out through **PostHog Workflows** from `no-reply@mail.billsincongress.com`.
 Three workflows, one per kind of email, all sharing that sender and one webhook secret: **sign-in
-codes** (sign-up codes today; the password-reset code is wired and rendered the same way, but
-nothing sends it until a page starts the reset flow — see "Not built" above), **bill alerts** (Pro digests; see "How alerts
+codes** (sign-up and password-reset codes), **bill alerts** (Pro digests; see "How alerts
 work") and **billing** (Pro plan changes; see "What the reader sees, state by state"). The
 bullets below describe the sign-in codes; alerts and billing work the same way except where
 those sections say otherwise.
@@ -1175,6 +1420,11 @@ Every day at 11:00 UTC `alerts.runDigests` pages through `billAlerts` and schedu
   unreachable or answers 429/5xx. A timeout after PostHog accepted could in principle send one
   digest twice; that is preferred over dropping it.
 
+**A stage move reads in the measure's own words.** An adopted House resolution is emailed as
+"H.Res. 77 agreed to by the House", with a three-step track filled to the end; a concurrent
+resolution "agreed to by both chambers" on four steps. A stage off the measure's road, or an
+unrecognised code, reads "Status updated" with neutral ink and an empty track.
+
 **A heavy day stays one readable email.** Bills are listed status changes first, then by number
 of new actions. Up to 12 are shown in full (up to 8 actions each); every other changed bill gets
 one line (title shortened to 110 characters) with its link under "Also moved". If the HTML would pass 80 KB, fewer are shown in full.
@@ -1234,6 +1484,69 @@ Stripe automatically.
 
 ---
 
+## Reader feedback
+
+Two ways for a reader to tell us something, both drawn by the site and both answered into
+PostHog's **Surveys** tab. Each is a PostHog survey of type `api`: PostHog stores the questions
+and the answers, the site draws the form. The ids live in `lib/feedback/surveys.ts`; the events
+are PostHog's own `survey shown` / `survey dismissed` / `survey sent`, sent through
+`lib/analytics.ts` (see ANALYTICS.md, "Feedback and surveys").
+
+**The Feedback box** (`components/feedback/`). "Feedback" in the header from `lg` up opens a
+popover under the button; below `lg` the header has no room, so phones open it from the menu
+sheet ("Send feedback") and every width below `lg` from the footer's link row, both as a dialog.
+Inside: Issue or Idea, then the message, an optional picture (button, or paste a screenshot
+into the box), Send, and "Thanks — we read every one.", which closes itself after 2.5 seconds.
+The answer is one `survey sent` for the "Feedback" survey: the kind, the message, and the
+picture's link. PostHog adds the page URL and ties it to the session replay, which usually
+shows the problem better than the words do. If PostHog is not loaded (no key, or the SDK
+blocked) the box says so and offers the email address instead of pretending to send.
+
+**Pictures** are the one part that needs Convex. `lib/feedback/picture.ts` redraws the picture
+on a canvas in the browser, at most 1,600px on the long side, as WebP (JPEG where WebP cannot
+be encoded), stepping down the quality and then the size until it is under 900 KB. That
+shrinks it and drops everything that is not pixels, a photo's location included. It is then POSTed straight from the browser to `POST /feedback/picture` on the
+deployment's `.convex.site` (`convex/feedback.ts`), which:
+
+- accepts only this site's origins, plus `localhost` / `127.0.0.1` on any port (CORS, with an
+  `OPTIONS` preflight route);
+- refuses anything over 1 MB, and anything whose first bytes are not JPEG, PNG, GIF or WebP,
+  storing the type it read rather than the type claimed, so the link can never serve a page
+  or a script;
+- refuses new pictures (503) while 500 are already kept (`MAX_STORED_PICTURES` in
+  `convex/feedbackPicture.ts`). This is the real bound on storage, at most 500 MB: the
+  origin check stops other websites' pages, not a script;
+- shares one site-wide cap of 20 pictures a day (`feedbackPicturesPerDay` in
+  `rateLimits.ts`): the endpoint is anonymous, so there is no reader to key it by. A script
+  can spend it and block real pictures until the next day; the message still sends;
+- stores the file, writes a `feedbackPictures` row, and returns `ctx.storage.getUrl()`.
+
+That URL is unguessable but public, which is what lets PostHog show it. The daily
+`daily-feedback-picture-purge` cron deletes each picture 180 days after it arrived. The row
+matters beyond the purge: `avatars.sweepOrphans` deletes every stored file no user and no
+`feedbackPictures` row points at, so a picture stored without its row would vanish within a
+day. Until
+`convex/` is deployed, pictures fail with "The picture didn't upload" and the message can
+still be sent without one.
+
+**"Did you find what you were looking for?"** (`components/feedback/found-it-prompt.tsx`,
+mounted once in `app/layout.tsx`). A card in the bottom-right corner, stacked above the Ask
+launcher (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
+Yes sends and thanks; No asks "What was missing?" (optional) and sends. It stays away on
+sign-in, sign-up, account, Pro and alert pages, while the ask panel is open, and for anyone who
+opened the Feedback box this visit (`lib/feedback/visit.ts`). It shows once per browser
+(`localStorage.bic_found_it_seen`, set when it appears) and only while PostHog has the survey
+open; the survey's response limit of **1,000** ends it, which is the cap on free-plan usage.
+
+> The prompt reads the survey with `posthog.getSurveys`, not `getActiveMatchingSurveys`. The
+> latter also requires each survey's internal targeting flag, and this project's flags response
+> does not carry survey flags (surveys are off in its remote config, since no PostHog-drawn
+> survey exists), so it reports nothing as active. Checked on 29 Sep 2026.
+
+Free-plan budget: PostHog's free tier is 1,500 survey responses a month across all surveys.
+The site had about 5,000 visitors a month in September 2026, so the prompt should draw a few
+hundred answers and the Feedback box a few dozen.
+
 ## Sharing and the installed app
 
 ### The Share button
@@ -1271,7 +1584,7 @@ including why a card never repeats the title or number the app already prints un
 
 | Page | Card | Route | Drawn from |
 |---|---|---|---|
-| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
+| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track) | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
 | A status hub | "113 became law", out of all introduced, the track filled to that stage | `app/share-image/[...path]/route.tsx` | `lib/og/hub-share-card.tsx` |
 | A chamber hub | The chamber's count, how many became law, its share against the other chamber | same | same |
 | A topic hub | The topic's count and rank, beside the six largest topics as bars | same | same |
@@ -1373,7 +1686,8 @@ The site installs to a phone's Home Screen or a computer's dock and opens full s
   (Chromium only; Safari sends no install signal).
 
 Not done: push notifications (bill alerts stay email), offline reading of bills, and store
-screenshots in the manifest.
+screenshots in the manifest. When they are added, they go in `public/manifest-screenshots/` (the one place the
+screenshot guard allows them, and only while `app/manifest.ts` references each file).
 
 ## Environment variables
 
@@ -1397,7 +1711,7 @@ only in an untracked local `.env` and is deliberately **not** a GitHub secret.
 ### Convex deployment side
 
 Set with `npx convex env set --prod`. Ten are configured in production; the Pro rows below
-are new and not yet set anywhere.
+and `POSTHOG_KEY` are new and not yet set anywhere.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -1419,6 +1733,8 @@ are new and not yet set anywhere.
 | `POSTHOG_EMAIL_BILLING_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: billing" workflow | Plan-change emails fail and are logged; the plan itself is still recorded |
 | `ALERTS_UNSUBSCRIBE_SECRET` | Signs unsubscribe tokens | Digest sends fail rather than mail without a working unsubscribe link |
 | `ALERT_EMAILS_LIVE` | `true` lets alert email reach real addresses | Every alert send is logged and skipped |
+| `POSTHOG_KEY` | The PostHog **project** token (`phc_…`, the same public value as `NEXT_PUBLIC_POSTHOG_KEY`), used to record each answer as an AI trace (`convex/aiTrace.ts`) and as one PostHog Logs line (`convex/posthogLogs.ts`) | Nothing is recorded; answers are unaffected |
+| `POSTHOG_HOST` | PostHog ingestion host, `https://` only | `https://us.i.posthog.com` |
 
 > `CONGRESS_API_KEY` and the `OPENROUTER_*` variables are read by **Convex server code**.
 > Putting them in `.env.local` does nothing — this project never runs `convex dev`.
@@ -1462,18 +1778,19 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 25` is a floor, not a count (55 files match today): if discovery ever finds
+`MIN_TEST_FILES = 25` is a floor, not a count (67 files match today): if discovery ever finds
 fewer, the run fails, and deleting tests below it means lowering the constant in the same
 commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified
 nothing, and "a green result that proved nothing is worse than a red one, because it is
 trusted." The run ends by printing how many files and guards actually ran.
 
-Then the two guards run (not counted toward the floor, but counted toward failure).
+Then the three guards run (not counted toward the floor, but counted toward failure).
 `check-metered-model-calls.ts` exists because of a real incident: `answer.ts`'s `ask` once
 shipped as a public action with no auth and no limiter, beside a properly metered `stream`.
 `check-no-userid-args.ts` enforces the identity rule statically — no public Convex function
-may accept a `userId` argument.
+may accept a `userId` argument. `check-no-committed-screenshots.ts` keeps review
+screenshots out of the tree: #138 committed eight of them and #145 took them back out.
 
 Last, `vitest run` executes the **Convex function specs**, `convex/**/*.spec.ts` (config in
 `vitest.config.mts`). These run real queries, mutations and HTTP actions against an in-memory
@@ -1484,8 +1801,11 @@ not yet confirmed, unpaid, two open tabs), the digest (new, late same-day, statu
 stage-only move on a long bill, lapsed reader and their catch-up email on return, no double
 send, PostHog retries), the unsubscribe token, and the Stripe webhook with a signed payload
 (`fetch` is stubbed with a real sandbox subscription reply; a forged signature is rejected).
-Nothing in it reaches Stripe, PostHog or any deployment. `convex deploy` skips these files,
-like every file name with more than one dot.
+Nothing in it reaches Stripe, PostHog or any deployment. `convex/feedback.spec.ts` covers the
+feedback-picture endpoint: a real picture stored, the sniffed type kept rather than the claimed
+one, an HTML page or an oversized file refused, another site's page refused (and its preflight),
+the site-wide 20-a-day cap, the 500-picture storage bound, and the 180-day purge. `convex deploy` skips these files, like every
+file name with more than one dot.
 
 ### CI
 
@@ -1597,6 +1917,34 @@ per-type `typeCounts` on `congressStats`; until it runs, a chamber-scoped stats 
 it holds no stage ladder instead of quoting the whole-Congress one, and the whole-Congress row
 says it cannot split measures into bills and resolutions rather than letting the measure total be
 read as a bill count.
+
+**Changes that need a backfill.** A new field on `bills` is empty on existing rows until the
+backfill writes it. `bills.stageDate` (30 Sep 2026) is one: after deploying, run
+
+```bash
+npx convex run congressApi:backfillBillFieldsFromActions '{"congress":119}'
+npx convex run congressApi:backfillBillFieldsFromActions '{}'
+```
+
+The first fills the current Congress (the one the hub pages show) in minutes; the second the
+rest. Until it finishes, stage hubs still list every bill, but only the bills the sync has
+re-dated since the deploy are in date order, at the top of "Newest first"; the rest follow in
+the order their rows were stored, with no date shown. Deploy Convex before the site: a site that asks for `bills.listSorted` before
+it exists falls back to the unsorted list.
+
+**Changes to `convex/billStage.ts` need the same backfill.** The sync re-derives a bill's stage
+only when it re-fetches that bill, so a calculator fix reaches old bills only through
+`backfillBillFieldsFromActions` (both commands above; it re-dates as well as re-stages, then
+refreshes the stats rows). The 30 Sep 2026 fix — the calculator now reads the Library of
+Congress's "Passed/agreed to in House/Senate" record (codes 8000 / 17000) and no longer counts a
+rule passing the House as the bill passing — moved 3,776 stored stages in the production copy:
+3,766 up, and 10 down (11 bills had only a rule pass the House; the eleventh had passed the
+Senate, so it stays at Passed One Chamber).
+Afterwards run `npx convex run mutations:recomputeCommitteeBaseRates '{}'` rather than wait for
+Friday's cron: the bill-page base rates count which past bills advanced. A reader following a
+re-staged bill gets the corrected stage in their next alert digest as a status change.
+`scripts/truth/handlers.test.ts` ("no stored stage sits below a chamber passage on record")
+stays red until a re-dump shows the backfill finished.
 
 ---
 

@@ -31,7 +31,7 @@ Right under the chamber is a box for asking a question. As you type, bills whose
 Below that, it shows:
 
 - **Four headline counts** — bills introduced, House bills, Senate bills, and how many became law.
-- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 98% of everything introduced has not made it out of committee.
+- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 90% of everything introduced has not made it out of committee.
 - **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
 - **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
 - **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
@@ -52,13 +52,16 @@ Between the front page and roughly 55,600 individual bill pages sit 40 browse pa
 
 Each one is written as a document, not just a filtered list with a new heading. Every one carries a plain-language explanation of what that grouping actually means — what "in committee" really implies, why most bills stop there, what a concurrent resolution is for.
 
+Each list is in date order, newest first, and one click turns it around to oldest first. The date is the one that page is about: on "Bills that became law" it is the day each bill became law, on "Vetoed bills" the day of the veto, on "Passed one chamber" the day it passed. The House, Senate and topic pages go by each bill's most recent action. Every row shows its date with a label saying which date it is, so the order you see is the order the page claims.
+
 ### A page for every bill
 
 Each bill page shows the bill number and Congress, its policy area, the official title, when it was introduced, who sponsored it (with party and state), and a link to the official PDF where one exists.
 
 Below that:
 
-- **A status panel** naming the bill's current stage and showing, on a seven-step track, how far it has travelled from introduced to law. A vetoed bill's track stops at the President and says so.
+- **A status panel** naming the bill's current stage and how it got there. Its journey is drawn to scale: one bar segment per stage, as long as the bill stayed in it, and under each one the number of days and what happened then — the committee vote, each chamber's passage with its yes and no tally, the signature and the public law number. All of it is read from the bill's official actions on Congress.gov. A bill that has spent time in only one stage shows the seven-step track instead. Resolutions that cannot become law get a shorter track that ends where they are finished: a simple resolution (H.Res., S.Res.) has three steps and ends at "Agreed to by the House" or "by the Senate"; a concurrent resolution (H.Con.Res., S.Con.Res.) has four and ends at "Agreed to by both chambers". A sentence under the track says why: neither ever goes to the President, and neither is a law. The same shorter track and the same words appear wherever the site shows a stage: the bill lists, the bill cards in answers, your account page and the alert emails. A bill still on its way also shows how many days are left in the two-year Congress, because a bill that has not become law when the Congress ends dies with it.
+- **Among its peers** — every bill and resolution on the same topic in the same Congress, one dot each, coloured by stage, with this one ringed: "Of 2,181 Health bills and resolutions this Congress, this is the only one that became law." The counts are recounted in full every night, and the page says when; the ring only appears when the bill has not changed since that count.
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
 - **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever advanced. It is labelled as a description of that group of past bills, not a prediction about this one.
@@ -67,7 +70,7 @@ Below that:
 
 Every bill page has a **Share** button. On a phone it opens your phone's own share sheet — Messages, WhatsApp, Mail, AirDrop, whatever you have — and on a computer one click copies the link. The link is always the bill's plain address, `billsincongress.com/bills/<bill>`, with nothing added to track who shared it or who opened it.
 
-Paste that link into iMessage, WhatsApp, Slack, an email or a post, and it unfurls into a picture of where the bill stands: its current stage in large type and the same seven-step track as the page. The bill's number and title appear as the preview's own text underneath, so the picture does not repeat them. It is drawn from the record at the moment the preview is made, so it states the stage the bill is at then. A preview already sitting in a conversation is a picture and does not change when the bill moves later.
+Paste that link into iMessage, WhatsApp, Slack, an email or a post, and it unfurls into a picture of where the bill stands: its current stage in large type and the same track as the page (seven steps for a bill, three or four for a resolution). The bill's number and title appear as the preview's own text underneath, so the picture does not repeat them. It is drawn from the record at the moment the preview is made, so it states the stage the bill is at then. A preview already sitting in a conversation is a picture and does not change when the bill moves later.
 
 The home page and the status, chamber and topic pages unfurl the same way, into their headline figure for the current Congress — how many bills and resolutions were introduced and where they all stand, how many became law, how many a chamber introduced, how a topic ranks against the others. Every number on those pictures is a complete count; one the site could not count in full is left off rather than estimated.
 
@@ -78,6 +81,8 @@ A question panel is available from every page — including the topic and status
 It adapts to the room it has. On a wide screen it docks to the right and you can drag it wider or narrower; the page and the navigation bar reflow beside it rather than being covered, and your chosen width is remembered. On a narrower window it sits alongside the page as a rail. On a phone it is a sheet that rises from the bottom, below the navigation, so you can still move around the site while it is open.
 
 It also knows what you are looking at. Ask "what does this do?" on a bill page and it knows which bill; ask on a filtered list and it answers about those bills rather than all of them. If you tap a bill inside an answer, the panel steps aside so you can read it, and a bar offers to bring the conversation back exactly as you left it — including anything you had half typed.
+
+Under every answer it asks "Was this answer right?". A "No" tells us which answer to check against the records; it is how wrong answers get found and fixed.
 
 It is not a general-purpose chatbot. It answers from this site's own database of Congressional records, and every source it cites is checked against the specific records it was actually shown. See [About the AI](#about-the-ai) below, which is the most important disclosure on this page.
 
@@ -140,7 +145,7 @@ A snapshot of what that holds, taken 29 August 2026:
 
 ### How it stays current
 
-Nine scheduled jobs keep the database in step with Congress, and a tenth sends bill-alert emails:
+Nine scheduled jobs keep the database in step with Congress, a tenth sends bill-alert emails, an eleventh deletes profile-photo uploads that were never attached to an account, and a twelfth deletes old feedback pictures:
 
 | When | What it does |
 | --- | --- |
@@ -153,6 +158,8 @@ Nine scheduled jobs keep the database in step with Congress, and a tenth sends b
 | 1st of the month, 05:00 UTC | Re-fetch the current Congress from scratch |
 | Twice daily, 01:30 and 13:30 UTC | Tell search engines which bill pages changed |
 | Daily, 11:00 UTC | Email Pro readers whose followed bills moved since their last alert |
+| Daily, 08:00 UTC | Delete profile-photo uploads that no account uses |
+| Daily, 09:15 UTC | Delete pictures sent with feedback once they are 180 days old |
 
 The sync throttles itself deliberately — three quarters of a second between calls, backing off on rate limits and pausing when Congress.gov's remaining quota runs low. It also skips the bill-record update when nothing a reader would see has changed, so a routine re-pull does not stamp a fake "updated" date on 18,000 bills or announce fake updates to search engines.
 
@@ -186,7 +193,7 @@ A bill's position in Congress is **not** a field the government hands out. It is
 | 95 | Signed by President |
 | 100 | Became Law |
 
-That derivation is a judgement, and it is the one place where this site could be wrong in a way Congress.gov is not. It is written down in the open, in [`convex/billStage.ts`](convex/billStage.ts), and it has tests. One example of what it has to handle: the Library of Congress attaches the same action code to both "Signed by President" and "Vetoed by President", which at one point caused real vetoes here to be displayed as bills signed into law.
+That derivation is a judgement, and it is the one place where this site could be wrong in a way Congress.gov is not. It is written down in the open, in [`convex/billStage.ts`](convex/billStage.ts), and it has tests. One example of what it has to handle: the Library of Congress attaches the same action code to both "Signed by President" and "Vetoed by President", which at one point caused real vetoes here to be displayed as bills signed into law. Another: the House's own floor log never says a bill "passed the House" — it says "On passage Passed by the Yeas and Nays" — and until 30 September 2026 this site missed that wording, so 3,766 bills and resolutions that had passed a chamber were shown as still in committee or just introduced, and 11 bills whose *rule* for debate had passed the House were shown as passed themselves.
 
 ### The summaries are Congress's own
 
@@ -200,7 +207,7 @@ The question panel is the only place in the interface where a machine writes pro
 
 **It reads this site's data, not the open internet** — with one labelled exception described below. The model cannot query the database freely. It picks from six curated datasets — bills, actions, official summaries, topics, sponsors and precomputed statistics — and passes filters to lookups written by hand on the server. It never writes a query of its own.
 
-**Invented citations cannot reach you.** Every record handed to the model carries a reference handle. When the answer comes back, every handle it cited is checked against the exact records it was actually given that turn. Anything it made up is deleted from the text before the answer is displayed, and a bill card for a bill that does not exist simply does not render. The number of fabricated citations caught this way is tracked as a health metric. This filters the *citations*, not the sentences around them — the prose can still get something wrong.
+**Invented citations cannot reach you.** Every record handed to the model carries a reference handle. When the answer comes back, every handle it cited is checked against the exact records it was actually given that turn. Anything it made up is deleted from the text before the answer is displayed, and a bill card for a bill that does not exist simply does not render. The number of fabricated citations caught this way is tracked as a health metric. This filters the *citations*, not the sentences around them — the prose can still get something wrong. Because of this check, the answer is finished and checked before any of it reaches you; the word-by-word writing you see in the panel is the page pacing out that finished text, not the model thinking live.
 
 **It is told to admit what is missing.** When a lookup returns nothing, the model is instructed to say the site does not hold it, or to run the labelled web search, rather than fall back on general knowledge. It is specifically told never to state co-sponsor counts, vote tallies or hearing schedules. These are prompt instructions, not hard blocks — unlike the citation check, nothing inspects the finished answer for them.
 
@@ -210,11 +217,13 @@ The question panel is the only place in the interface where a machine writes pro
 
 **You can see its work.** When an answer involved lookups, it shows a log of them.
 
+**Every answer is recorded so wrong ones can be found.** Each question is recorded in PostHog as a trace: what the model was sent (the instructions, the conversation so far, the records it looked up), what it replied, and the tokens, cost and time each step took. A reader's "No" under an answer points at its trace. The text of a trace is deleted after 30 days; the counts stay. The point is the loop in `Documentation/overview.md`: a wrong answer found this way becomes a case in the accuracy tests before it is fixed.
+
 **The model itself:** DeepSeek V4 Flash, reached through OpenRouter. Requests carry zero-retention and no-training flags, a maximum price per million tokens so a repriced provider is skipped rather than silently billed, and an automatic failover chain if the primary is unavailable. Routing is pinned to a short allowlist of providers chosen for US data processing — OpenRouter's true region-locking is an enterprise feature, so this is an allowlist, not a hard geographic guarantee.
 
 **Limits:** five questions a day without an account, 100 with a free one, 500 on Pro. Questions are capped at 2,000 characters.
 
-**And the honest part:** AI answers can still be incomplete, outdated, or plainly wrong. The grounding machinery makes fabricated *sources* very hard, but it does not make the prose correct. Treat any answer as a starting point and click through to the record. For anything official, use Congress.gov.
+**And the honest part:** AI answers can still be incomplete, outdated, or plainly wrong. The grounding machinery makes fabricated *sources* very hard, but it does not make the prose correct. Treat any answer as a starting point and click through to the record. For anything official, use Congress.gov. If an answer is wrong, tap **No** under it.
 
 ---
 
@@ -224,13 +233,19 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 
 - **Product analytics run on every page** (PostHog, US cloud) — pages visited, clicks, performance, errors, and session replay. There is currently no cookie banner and no opt-out control on the site.
 - **The full text of every question you ask the assistant is sent to PostHog** as part of that analytics data (the `answer_question_submitted` event), whether or not you are signed in. If you ask about a bills list narrowed by a title search, the words you searched for go with it.
+- **Every answer is recorded in PostHog, with the conversation it came from** — the question, the earlier turns, the public records the assistant looked up and the answer — whether or not you are signed in. PostHog deletes that text after 30 days and keeps the counts (tokens, cost, time). A wrong answer may be kept longer as a test case.
+- **If you tap "No" under an answer, the answer goes to PostHog too** (the `answer_rated` event): your question, the one before it if it was a follow-up, the answer as you saw it, and the sources it cited — so it can be checked. Tapping "Yes" records only that you did.
+- **Each answer also leaves one server log line in PostHog**, saying whether it was answered or failed, how long it took, and which bill page it was asked on. It carries the same analytics ID and session ID as the rest of your visit, so we can open the session replay of an answer that went wrong. The line itself does not carry the question or the answer (the record above does). PostHog keeps these lines for 14 days.
 - **Searches and filters on the bills list reach PostHog through the page address.** The search words and every filter, sponsor names included, are written into the URL (`/bills?title=farm`), and analytics records the full URL of every page viewed. The suggestions under the home page's question box, and the search boxes inside the filter pickers (typing to find a sponsor, say), are recorded as a length rather than the text: the suggestions until you ask the question or open "See all matching bills", the pickers until you choose an option, which then goes into the URL.
 - **Pressing Share is recorded** — which bill, and whether the link was shared, copied or cancelled. Not where it went or to whom: your phone's share sheet does not tell the site which app you picked, and the shared link carries no tracking code. Analytics also note whether you are using the site in a browser or as the installed app, and when the browser reports an install.
-- **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database (the question text still reaches PostHog, as above). The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
+- **If you are not signed in, your conversation in the Ask panel is never stored.** It lives in the page and disappears when you leave. To be precise: each question is sent to the server along with the conversation so far, so the assistant can follow the thread — that part is unavoidable — but none of it is written to the database (it still reaches PostHog, as above). The table that holds saved conversations requires an account, so an anonymous one cannot be recorded even by mistake. You are also issued a 60-day cookie holding a random ID, which is how the five-a-day limit is counted.
 - **If you sign in, conversations are saved to your account**, visible only to you, and you can delete them one at a time or all at once. Signing in also links your analytics activity to your account, including your email address.
-- **Account emails are sent through PostHog**: today that means the sign-up verification code, and the password-reset code once the reset page is built (see below). PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
+- **Account emails are sent through PostHog**: the sign-up verification code and the password-reset code. PostHog is the same company that runs the analytics. To deliver one, PostHog receives your email address and the message, keeps a record of the send (including the code, which expires after 15 minutes), and records whether it was delivered or bounced. These emails carry no tracking pixels and no rewritten links.
 - **If you subscribe to Pro, Stripe handles the payment.** Your card details go to Stripe and never reach this site. What this site stores is your Stripe customer and subscription IDs, the plan's status and price, and when it renews or ends.
 - **If you follow bills on Pro, the list of bills you follow is stored with your account**, along with when each was last emailed. Alert emails are sent through PostHog like the account emails, and PostHog keeps a record of each send. Alert emails carry no tracking pixels and no rewritten links.
+- **If you add a profile photo, a small copy of it is stored with your account.** It is cropped and shrunk in your browser to a 512-pixel square (tens of kilobytes) before it is sent; the original file never leaves your device. It is kept in the site's database file storage (Convex), and its address is only ever given to you — though, like a Google or Slack profile picture, anyone who had that exact address could open it. Replacing or removing it deletes the stored copy. If you signed in with Google, your Google profile picture is shown until you upload your own or remove it; it is loaded from Google, not copied here.
+- **Feedback you send is kept in the analytics too.** The Feedback button (top bar on wider screens; the menu or the footer on phones and tablets) sends your message, whether it is an issue or an idea, and the page you were on to PostHog, linked to that visit's session replay. A picture you attach is first shrunk and stripped of its hidden details (a photo's location, the camera) in your browser, then stored in this site's database under a long random link and deleted after 180 days. The link is unlisted but not private: anyone who has it can open the picture. Nothing asks for your name or email.
+- **One quick question, once.** On your third page of a visit, a small card in the corner asks "Did you find what you were looking for?", with an optional "What was missing?" if you say no. It never comes back on that browser, never appears on sign-in, account or billing pages, and stops for everyone after 1,000 answers. Your answer goes to PostHog. The site remembers that it asked with one local-storage flag (`bic_found_it_seen`) and counts pages with two session-storage entries; none of them leaves the browser.
 - **No IP addresses are stored in this site's own database.**
 - **Nothing is sold, and there are no ads or advertising trackers.**
 
@@ -260,7 +275,6 @@ Stated plainly, because they affect what you can trust:
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.
 - **Bill alerts trail Congress.gov.** They go out once a day, after the overnight sync, and Congress.gov itself can post an action a day or more after it happens. An alert says what the record shows, not what happened on the floor an hour ago.
 - **Alerts cover actions and status only** — not new cosponsors, amendments, text versions or hearings, which this site does not store.
-- **Password reset is not self-serve yet.** The back end can already email a reset code, but no page on the site starts that flow, so no reset email is ever sent today. Email hi@billsincongress.com and it gets done by hand.
 - **Bill alerts are paid; saving a bill is not.** Saving bookmarks a bill for free; it does not email you.
 
 If you spot something wrong, that is the most useful thing you can send. See below.
@@ -283,11 +297,11 @@ Not because you need to run it — nobody is expected to host their own copy —
 | Hosting | Cloudflare Workers via OpenNext, with Convex Cloud for the backend |
 | Link previews | Share cards for the home page, bills and the status, chamber and topic pages, drawn on request with `next/og` from `lib/og/`, in the brand fonts, which are embedded |
 | Installed app | A web app manifest (`app/manifest.ts`) and a service worker (`public/sw.js`) whose only job is the offline page |
-| Analytics | PostHog |
+| Analytics | PostHog — product analytics and session replay in the browser; one PostHog Logs line per answer from Convex (`convex/posthogLogs.ts`) |
 
 ```
 Congress.gov API
-      ↓   ten scheduled jobs (convex/crons.ts): nine sync, one alert email
+      ↓   twelve scheduled jobs (convex/crons.ts): nine sync, one alert email, one photo cleanup, one feedback-picture purge
 Sync and repair (convex/congressApi.ts, convex/sync.ts)
       ↓
 Convex database (convex/schema.ts) + precomputed statistics
@@ -319,7 +333,7 @@ More detail lives in [`Documentation/`](Documentation) — an architecture overv
 
 ## Corrections and contributions
 
-If something on the site is wrong — a bill's status, a summary, a label, a broken page — **please [open an issue](https://github.com/shreyashguptas/billsincongress/issues)**. You do not need to know how to code. What you saw and what you expected is enough, and a correction is worth more here than a feature.
+If an answer from the assistant is wrong, tapping **No** under it is enough. If anything else on the site is wrong — a bill's status, a summary, a label, a broken page — **please [open an issue](https://github.com/shreyashguptas/billsincongress/issues)**. You do not need to know how to code. What you saw and what you expected is enough, and a correction is worth more here than a feature.
 
 Code contributions are welcome too. Branch from `main`, run `pnpm test` and `pnpm cf:build`, and open a pull request describing what changed and why.
 

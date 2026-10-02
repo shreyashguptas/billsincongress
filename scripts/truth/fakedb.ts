@@ -290,6 +290,10 @@ class FakeQuery {
   async take(n: number): Promise<Row[]> {
     return this.materialise().slice(0, n);
   }
+  /** `for await (const row of query)`, which Convex queries support. */
+  async *[Symbol.asyncIterator](): AsyncGenerator<Row> {
+    yield* this.materialise();
+  }
   async collect(): Promise<Row[]> {
     return this.materialise();
   }

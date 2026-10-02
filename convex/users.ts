@@ -8,17 +8,32 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { avatarFor, googlePicture } from "./avatars";
 
 /**
- * Returns the current user's row, scoped to the caller. Never accepts a
- * userId arg — identity always comes from `getAuthUserId(ctx)`.
+ * Returns the current user's row, scoped to the caller, plus the photo their
+ * avatar shows (convex/avatars.ts) and whether they sign in with a password
+ * (the account page offers "Change password" only then; a Google-only
+ * account has none). Never accepts a userId arg — identity always comes from
+ * `getAuthUserId(ctx)`.
  */
 export const currentUser = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
-    return await ctx.db.get(userId);
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+    return {
+      ...user,
+      ...(await avatarFor(ctx, user)),
+      hasGooglePicture: googlePicture(user) !== null,
+      hasPassword:
+        (await ctx.db
+          .query("authAccounts")
+          .withIndex("userIdAndProvider", (q) => q.eq("userId", userId).eq("provider", "password"))
+          .first()) !== null,
+    };
   },
 });
 

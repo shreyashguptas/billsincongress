@@ -7,9 +7,9 @@
  * file is excluded from Convex bundling because its name ends in `.test.ts`.
  */
 import assert from "node:assert/strict";
-import { calculateBillStage, BillStages } from "./billStage";
+import { calculateBillStage, stageDateFor, BillStages } from "./billStage";
 
-type Action = { text: string; type?: string; actionCode?: string };
+type Action = { text: string; type?: string; actionCode?: string; actionDate?: string };
 
 const a = (text: string, extra: Partial<Action> = {}): Action => ({
   text,
@@ -148,6 +148,165 @@ it("prefers Became Law (100) over a veto (override case)", () => {
     ]),
     BillStages.BECAME_LAW,
   );
+});
+
+// ─── stageDate: the day the bill reached its stage ───────────────────────────
+
+const on = (actionDate: string, text: string, extra: Partial<Action> = {}): Action => ({
+  text,
+  actionDate,
+  ...extra,
+});
+
+it("dates a law by the day it became law, not by a later committee action", () => {
+  // H.R. 1043 (119th): signed 29 Dec 2025, then a Senate committee filed its
+  // report on 11 Feb 2026. Sorting by latest action put it six weeks late.
+  const result = calculateBillStage([
+    on("2025-02-06", "Referred to the Committee on Natural Resources."),
+    on("2025-12-29", "Signed by President."),
+    on("2025-12-29", "Became Public Law No: 119-60."),
+    on("2026-02-11", "By Senator Lee from Committee on Energy and Natural Resources filed written report."),
+  ]);
+  assert.equal(result.stage, BillStages.BECAME_LAW);
+  assert.equal(result.stageDate, "2025-12-29");
+});
+
+it("dates a veto by the veto, not the later message to the other chamber", () => {
+  const result = calculateBillStage([
+    on("2024-05-01", "Passed House", { type: "PassedHouse" }),
+    on("2024-06-10", "Vetoed by President."),
+    on("2024-06-12", "Veto message received in House."),
+  ]);
+  assert.equal(result.stage, BillStages.VETOED);
+  assert.equal(result.stageDate, "2024-06-10");
+});
+
+it("dates an overridden veto by the day it became law", () => {
+  const result = calculateBillStage([
+    on("2024-06-10", "Vetoed by President."),
+    on("2024-07-01", "Passed House over veto."),
+    on("2024-07-02", "Became Public Law No: 118-99."),
+  ]);
+  assert.equal(result.stage, BillStages.BECAME_LAW);
+  assert.equal(result.stageDate, "2024-07-02");
+});
+
+it("dates passing one chamber by the first passage", () => {
+  const result = calculateBillStage([
+    on("2025-03-01", "Referred to the Committee on Finance."),
+    on("2025-04-10", "Passed House", { type: "PassedHouse" }),
+    on("2025-04-20", "Passed House", { type: "PassedHouse" }),
+  ]);
+  assert.equal(result.stage, BillStages.PASSED_ONE_CHAMBER);
+  assert.equal(result.stageDate, "2025-04-10");
+});
+
+it("dates passing both chambers by the later chamber's first passage", () => {
+  const result = calculateBillStage([
+    on("2025-04-10", "Passed House", { type: "PassedHouse" }),
+    on("2025-06-02", "Passed Senate", { type: "PassedSenate" }),
+  ]);
+  assert.equal(result.stage, BillStages.PASSED_BOTH_CHAMBERS);
+  assert.equal(result.stageDate, "2025-06-02");
+});
+
+it("dates committee by the first referral, whatever order the actions arrive in", () => {
+  const result = calculateBillStage([
+    on("2025-05-01", "Committee on the Judiciary. Hearings held."),
+    on("2025-01-09", "Referred to the Committee on the Judiciary."),
+  ]);
+  assert.equal(result.stage, BillStages.IN_COMMITTEE);
+  assert.equal(result.stageDate, "2025-01-09");
+});
+
+it("ignores actions with no date", () => {
+  const result = calculateBillStage([
+    on("", "Became Public Law No: 119-1."),
+    on("2025-01-29", "Became Public Law No: 119-1."),
+  ]);
+  assert.equal(result.stageDate, "2025-01-29");
+});
+
+it("leaves an introduced bill undated, and stageDateFor falls back to introduction", () => {
+  const result = calculateBillStage([on("2025-01-03", "Introduced in House")]);
+  assert.equal(result.stage, BillStages.INTRODUCED);
+  assert.equal(result.stageDate, null);
+  assert.equal(stageDateFor(result, "2025-01-03"), "2025-01-03");
+  assert.equal(stageDateFor(calculateBillStage([]), ""), undefined);
+});
+
+it("never dates a later stage by the introduction date", () => {
+  // The sync stores a missing actionDate as "". A law whose only "Became Public
+  // Law" action is undated must not read "Became law · <introduction date>".
+  const law = calculateBillStage([
+    on("2025-01-09", "Referred to the Committee on the Judiciary."),
+    on("", "Became Public Law No: 119-5."),
+  ]);
+  assert.equal(law.stage, BillStages.BECAME_LAW);
+  assert.equal(law.stageDate, null);
+  assert.equal(stageDateFor(law, "2025-01-03"), undefined);
+
+  // Passed both chambers, one passage undated: no date, not a guess.
+  const both = calculateBillStage([
+    on("2025-04-10", "Passed House", { type: "PassedHouse" }),
+    on("", "Passed Senate", { type: "PassedSenate" }),
+  ]);
+  assert.equal(both.stage, BillStages.PASSED_BOTH_CHAMBERS);
+  assert.equal(stageDateFor(both, "2025-01-03"), undefined);
+});
+
+// ─── Chamber passage as the Library of Congress actually records it ─────────
+// Real rows from production. Until 2026-09-30 none of them counted as passage,
+// and 3,766 bills that had passed a chamber read "In Committee" or "Introduced".
+
+it("H.R. 10326 (119th) passed the House on 16 Sep 2026; it is not in committee", () => {
+  const result = calculateBillStage([
+    on("2026-09-10", "Introduced in House", { actionCode: "1000", type: "IntroReferral" }),
+    on("2026-09-10", "Referred to the House Committee on the Judiciary.", { actionCode: "H11100", type: "IntroReferral" }),
+    on("2026-09-16", "On passage Passed by the Yeas and Nays: 217 - 207 (Roll no. 310). (text: CR H5947)", { actionCode: "H37100", type: "Floor" }),
+    on("2026-09-16", "Passed/agreed to in House: On passage Passed by the Yeas and Nays: 217 - 207 (Roll no. 310).", { actionCode: "8000", type: "Floor" }),
+    on("2026-09-17", "Received in the Senate and Read twice and referred to the Committee on the Judiciary.", { type: "IntroReferral" }),
+  ]);
+  assert.equal(result.stage, BillStages.PASSED_ONE_CHAMBER);
+  assert.equal(result.stageDate, "2026-09-16");
+});
+
+it("recognises House passage by its text when the code is missing", () => {
+  assert.equal(
+    stageOf([a("Passed/agreed to in House: On motion to suspend the rules and pass the bill Agreed to by voice vote.")]),
+    BillStages.PASSED_ONE_CHAMBER,
+  );
+});
+
+it("H.R. 952 (119th) passed both chambers, dated by the Senate on 22 Sep 2026", () => {
+  const result = calculateBillStage([
+    on("2025-02-04", "Referred to the House Committee on Natural Resources.", { actionCode: "H11100" }),
+    on("2025-05-13", "Passed/agreed to in House: On motion to suspend the rules and pass the bill Agreed to by voice vote. (text: CR H1982)", { actionCode: "8000" }),
+    on("2026-07-23", "Committee on Energy and Natural Resources. Reported by Senator Lee without amendment. Without written report.", { actionCode: "14000" }),
+    on("2026-09-22", "Passed/agreed to in Senate: Passed Senate without amendment by Unanimous Consent. (consideration: CR S4882-4883)", { actionCode: "17000" }),
+  ]);
+  assert.equal(result.stage, BillStages.PASSED_BOTH_CHAMBERS);
+  assert.equal(result.stageDate, "2026-09-22");
+});
+
+it("a Senate resolution agreed to in the Senate has passed its chamber", () => {
+  assert.equal(
+    stageOf([
+      a("Passed/agreed to in Senate: Submitted in the Senate, considered, and agreed to without amendment and with a preamble by Unanimous Consent.", { actionCode: "17000" }),
+    ]),
+    BillStages.PASSED_ONE_CHAMBER,
+  );
+});
+
+it("H.R. 5894 (118th): the rule passing the House is not the bill passing it", () => {
+  // The House adopted H. Res. 864, the terms of debate, then never passed the bill.
+  const result = calculateBillStage([
+    on("2023-10-25", "Referred to the House Committee on Appropriations.", { actionCode: "H11100" }),
+    on("2023-11-14", "Rule H. Res. 864 passed House.", { actionCode: "H1L220", type: "Floor" }),
+    on("2023-11-15", "Considered as unfinished business. (consideration: CR H5869-5880)", { actionCode: "H30000", type: "Floor" }),
+  ]);
+  assert.equal(result.stage, BillStages.IN_COMMITTEE);
+  assert.equal(result.stageDate, "2023-10-25");
 });
 
 if (failures.length > 0) {

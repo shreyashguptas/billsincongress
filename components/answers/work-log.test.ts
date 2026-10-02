@@ -11,7 +11,7 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { workLine } from "./work-log";
+import { lookupSummary, workLine } from "./work-log";
 import {
   completeReport,
   reportFor,
@@ -64,6 +64,25 @@ it("never puts a number on a partial search", () => {
   // 29 was the row count that survived an in-memory filter over a capped
   // window. It exists in the handler; it must never reach the reader.
   assert.ok(!line.text.includes("29"));
+});
+
+it("does not call a retry a search", () => {
+  const line = workLine({ tool: "retry", detail: "checking again" });
+  assert.equal(line.text, "No answer yet · checking again");
+});
+
+it("does not count a retry as a lookup", () => {
+  const fetch = { tool: "fetch", detail: "the bill on screen · 1s119" };
+  const retry = { tool: "retry", detail: "checking again" };
+  assert.equal(lookupSummary([fetch, retry, retry]), "1 lookup");
+  assert.equal(lookupSummary([fetch, fetch, retry]), "2 lookups");
+  assert.equal(lookupSummary([retry]), "no lookups");
+});
+
+it("does not count a question to the reader as a lookup", () => {
+  const fetch = { tool: "fetch", detail: "the bill on screen · 1s119" };
+  const ask = { tool: "ask", detail: "Which Congress do you mean?" };
+  assert.equal(lookupSummary([fetch, ask]), "1 lookup");
 });
 
 it("says a partial search was partial, in plain words", () => {

@@ -16,10 +16,12 @@ import {
   congressOrdinal,
   congressGovUrl,
   legislationTypeLabel,
+  lowerFirst,
   truncateAtWord,
 } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/json-ld';
-import { getBill } from './get-bill';
+import { BILL_ID_PATTERN, getBill } from './get-bill';
+import { billsService } from '@/lib/services/bills-service';
 
 // schema.org Legislation + BreadcrumbList nodes for a bill page. Stage
 // thresholds mirror convex/billStage.ts (80 = passed both chambers,
@@ -90,9 +92,6 @@ function billJsonLd(bill: Bill, id: string): object {
   };
 }
 
-/** "Became law" → "became law", keeping "the President" capitalised. */
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -143,11 +142,19 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BillPage({ params }: PageProps): Promise<ReactElement> {
   const { id } = await params;
-  const bill = await getBill(id);
+  const [bill, extras] = await Promise.all([
+    getBill(id),
+    BILL_ID_PATTERN.test(id) ? billsService.fetchBillJourney(id) : Promise.resolve(null),
+  ]);
 
   if (!bill) {
     notFound();
   }
+
+  // Today in Washington, where Congress keeps its calendar: the journey's "days
+  // so far" and the Congress clock count to it. Computed once here and passed
+  // down, so the server render and the browser draw the same numbers.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 
   // No Suspense boundary here, deliberately. `bill` is already awaited above,
   // and nothing inside BillDetails suspends, so a boundary could never do the
@@ -167,7 +174,7 @@ export default async function BillPage({ params }: PageProps): Promise<ReactElem
   return (
     <>
       <JsonLd data={billJsonLd(bill, id)} />
-      <BillDetails bill={bill} />
+      <BillDetails bill={bill} extras={extras} today={today} />
     </>
   );
 }

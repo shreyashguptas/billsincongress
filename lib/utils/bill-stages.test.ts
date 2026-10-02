@@ -13,10 +13,17 @@
  */
 import assert from "node:assert/strict";
 import {
+  billTypeOfLabel,
   BillStages,
+  compactStageLabel,
   getStageStep,
   MAIN_PATH_LABELS,
+  measureStageLabel,
+  PATH_LABELS,
   stageLabel,
+  stageNote,
+  stagePath,
+  stagePathNote,
   TOTAL_STAGE_STEPS,
 } from "./bill-stages";
 
@@ -106,6 +113,115 @@ it("every stage has a sentence-case label", () => {
     assert.equal(label.slice(1), label.slice(1).replace(/\b(Committee|Chamber|Chambers|Law)\b/g, (w) => w.toLowerCase()), `"${label}" is not sentence case`);
   }
   assert.equal(stageLabel(-1), "Unknown");
+});
+
+// Resolutions travel a shorter road (Documentation/brand.md, "The road a
+// measure travels"). After the 8000/17000 stage fix, ~600 adopted simple
+// resolutions a Congress sit at stage 60 and adopted concurrent resolutions at
+// 80, and the seven-step track drew them as half-way to law.
+
+it("an adopted simple resolution is finished, not a third of the way to law", () => {
+  // S.Res. 482 (119th), agreed to in the Senate: stored stage 60.
+  assert.deepEqual(getStageStep(BillStages.PASSED_ONE_CHAMBER, "sres"), { step: 3, total: 3, isVetoed: false });
+  assert.equal(measureStageLabel(BillStages.PASSED_ONE_CHAMBER, "sres"), "Agreed to by the Senate");
+  assert.equal(measureStageLabel(BillStages.PASSED_ONE_CHAMBER, "hres"), "Agreed to by the House");
+  assert.equal(stageNote(BillStages.PASSED_ONE_CHAMBER, "hres"), "Stage 3 of 3");
+  assert.deepEqual(PATH_LABELS.simple_resolution, ["Introduced", "Committee", "Agreed to"]);
+});
+
+it("an adopted concurrent resolution is finished once both chambers agree", () => {
+  assert.deepEqual(getStageStep(BillStages.PASSED_BOTH_CHAMBERS, "hconres"), { step: 4, total: 4, isVetoed: false });
+  assert.equal(measureStageLabel(BillStages.PASSED_BOTH_CHAMBERS, "sconres"), "Agreed to by both chambers");
+  assert.deepEqual(getStageStep(BillStages.PASSED_ONE_CHAMBER, "hconres"), { step: 3, total: 4, isVetoed: false });
+  assert.equal(measureStageLabel(BillStages.PASSED_ONE_CHAMBER, "hconres"), "Agreed to by one chamber");
+  assert.deepEqual(PATH_LABELS.concurrent_resolution, ["Introduced", "Committee", "One chamber", "Agreed to"]);
+});
+
+it("no resolution's road mentions the President or law", () => {
+  for (const path of ["simple_resolution", "concurrent_resolution"] as const) {
+    for (const label of PATH_LABELS[path]) assert.doesNotMatch(label, /President|Law|Signed/, `${path}: ${label}`);
+  }
+});
+
+it("a resolution in committee is still in committee", () => {
+  assert.equal(measureStageLabel(BillStages.IN_COMMITTEE, "hres"), "In committee");
+  assert.equal(stageNote(BillStages.IN_COMMITTEE, "hres"), "Stage 2 of 3");
+  assert.equal(stageNote(BillStages.INTRODUCED, "sconres"), "Stage 1 of 4");
+});
+
+it("a resolution at a stage off its road is unknown, not a step it cannot reach", () => {
+  for (const stage of [BillStages.VETOED, BillStages.TO_PRESIDENT, BillStages.SIGNED_BY_PRESIDENT, BillStages.BECAME_LAW]) {
+    assert.equal(getStageStep(stage, "hres").step, 0, `hres at ${stage}`);
+    assert.equal(getStageStep(stage, "sconres").step, 0, `sconres at ${stage}`);
+    assert.equal(measureStageLabel(stage, "hres"), "Unknown");
+    assert.equal(stageNote(stage, "hres"), "Stage unknown");
+  }
+  assert.equal(getStageStep(BillStages.PASSED_BOTH_CHAMBERS, "sres").step, 0, "a simple resolution has no second chamber");
+});
+
+it("bills, joint resolutions and unrecognised types keep the road to law", () => {
+  for (const type of ["hr", "s", "hjres", "S.J.Res.", "", null, undefined, "xyz", "constructor"]) {
+    assert.equal(stagePath(type), "law", String(type));
+    assert.deepEqual(getStageStep(BillStages.PASSED_ONE_CHAMBER, type), getStageStep(BillStages.PASSED_ONE_CHAMBER));
+    assert.equal(measureStageLabel(BillStages.PASSED_ONE_CHAMBER, type), "Passed one chamber");
+    assert.equal(stagePathNote(type), null);
+  }
+});
+
+it("printed resolution types pick the same road as stored ones", () => {
+  assert.equal(stagePath("H.Res."), "simple_resolution");
+  assert.equal(stagePath("S.Con.Res."), "concurrent_resolution");
+  assert.equal(measureStageLabel(BillStages.PASSED_ONE_CHAMBER, "S.Res."), "Agreed to by the Senate");
+});
+
+it("says which chamber a simple resolution binds", () => {
+  assert.match(stagePathNote("hres")!, /House’s business alone.*never goes to the Senate or the President/);
+  assert.match(stagePathNote("sres")!, /Senate’s business alone.*never goes to the House or the President/);
+  assert.match(stagePathNote("hconres")!, /both agree to it\. It never goes to the President/);
+});
+
+// Every other surface that draws a stage: bill cards, the in-answer card,
+// the account page's rows (all through StatusPill/StageTrack or
+// compactStageLabel) and the alert email (convex/emailStyle.ts).
+
+it("a compact card says an adopted resolution was agreed to, not passed", () => {
+  assert.equal(compactStageLabel(BillStages.PASSED_ONE_CHAMBER, "hres"), "Agreed to by the House");
+  assert.equal(compactStageLabel(BillStages.PASSED_ONE_CHAMBER, "S.Res."), "Agreed to by the Senate");
+  assert.equal(compactStageLabel(BillStages.PASSED_BOTH_CHAMBERS, "sconres"), "Agreed to by both chambers");
+  assert.equal(compactStageLabel(BillStages.IN_COMMITTEE, "hres"), "In committee");
+});
+
+it("a compact card keeps a bill's short labels, and with no type", () => {
+  assert.equal(compactStageLabel(BillStages.PASSED_BOTH_CHAMBERS, "hr"), "Passed both");
+  assert.equal(compactStageLabel(BillStages.PASSED_ONE_CHAMBER), "Passed one chamber");
+  assert.equal(compactStageLabel(BillStages.TO_PRESIDENT, "hjres"), "To president");
+});
+
+it("a compact card calls a resolution's off-road stage unknown, and an unrecognised code by number", () => {
+  assert.equal(compactStageLabel(BillStages.TO_PRESIDENT, "hres"), "Unknown");
+  assert.equal(compactStageLabel(55, "hres"), "Stage 55");
+});
+
+it("the account page's printed type picks the same road as the stored code", () => {
+  // Saved and followed rows carry billTypeLabel ("H.Res."), not bill_type.
+  assert.deepEqual(getStageStep(BillStages.PASSED_ONE_CHAMBER, "H.Res."), { step: 3, total: 3, isVetoed: false });
+  assert.deepEqual(getStageStep(BillStages.PASSED_BOTH_CHAMBERS, "S.Con.Res."), { step: 4, total: 4, isVetoed: false });
+  assert.deepEqual(getStageStep(BillStages.PASSED_ONE_CHAMBER, "H.R."), { step: 3, total: 7, isVetoed: false });
+});
+
+it("reads the type off an in-answer card's printed number", () => {
+  assert.equal(billTypeOfLabel("H.Res. 77"), "H.Res.");
+  assert.equal(billTypeOfLabel("H.Con.Res. 14"), "H.Con.Res.");
+  assert.equal(billTypeOfLabel("S. 56"), "S.");
+  assert.equal(stagePath(billTypeOfLabel("S.Res. 8")), "simple_resolution");
+});
+
+it("a label that is not a printed number gives no type, so the road to law", () => {
+  assert.equal(billTypeOfLabel(undefined), null);
+  assert.equal(billTypeOfLabel("119-hres-77"), null);
+  assert.equal(billTypeOfLabel("Resolution 77"), null);
+  assert.equal(billTypeOfLabel("H.Res."), null);
+  assert.equal(stagePath(billTypeOfLabel("Resolution 77")), "law");
 });
 
 if (failures.length) {

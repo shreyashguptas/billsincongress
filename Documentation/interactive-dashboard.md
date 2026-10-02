@@ -18,7 +18,7 @@ illustrative of magnitude, not as live values.
 | Dashboard queries | `convex/bills.ts` — `getAllCongressOverview`, `getCongressDashboard`, `getChamberDeepBreakdown` |
 | Recompute jobs | `convex/mutations.ts`, orchestrated from `convex/congressApi.ts` |
 | Precomputed tables | `convex/schema.ts` |
-| Design language | [`brand.md`](brand.md); tokens in `app/globals.css`, `tailwind.config.ts`; fonts in `app/layout.tsx` |
+| Design language | [`brand.md`](brand.md); tokens in `app/globals.css`, `tailwind.config.ts`; fonts in `app/fonts/index.ts` |
 
 **There is no charting library** — every chart is hand-built from `div`s or inline SVG with
 computed sizes. Every section in `home/` takes the same `HomeProps` object, built once in
@@ -186,7 +186,7 @@ the read. See [Known gaps](#known-gaps).
 | Table | Written by | Rows today |
 | --- | --- | --- |
 | `congressStats` | `writeCongressStats` (patch-or-insert) | 3 |
-| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th) |
+| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th). Each row also carries `stageCounts` (the same bills by stage, counted in the same pass, so they sum to `count`) and `countedAt`, which the bill page's "Among its peers" dot field reads through `bills.getJourney` |
 | `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress (550 / 595 / 552 for 119 / 118 / 117) |
 | `congressChamberBreakdowns` | `writeCongressChamberBreakdown` (patch-or-insert) | 6 (3 Congresses × 2 chambers) |
 
@@ -203,6 +203,12 @@ Live `congressStats`, 29 August 2026:
 | 117 | 17,828 | 11,472 | 6,356 | 564 | 16,721 | 176 | 2 | 0 | 365 |
 | 118 | 19,315 | 12,556 | 6,759 | 575 | 18,229 | 224 | 0 | 13 | 274 |
 | 119 | 18,472 | 12,005 | 6,467 | 479 | 17,693 | 194 | 0 | 2 | 104 |
+
+These figures predate the 30 Sep 2026 stage-calculator fix. The calculator did not recognise
+the Library of Congress's "Passed/agreed to in House/Senate" record, so roughly 1,200 measures
+per Congress sat in "Introduced" or "In committee" after passing a chamber. Re-derived from the
+30 Sep production copy, the 119th reads 52 introduced, 17,668 in committee, 1,452 passed one
+chamber, 43 passed both — the live row matches once the backfill below has run.
 
 Stages 90 and 95 are zero in all three Congresses — the pipeline records those transitions
 as "Became Law", which is why no hub page exists for them either.
