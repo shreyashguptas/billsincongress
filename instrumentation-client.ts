@@ -2,6 +2,12 @@ import posthog from 'posthog-js';
 
 import { shouldDropException } from '@/lib/error-filter';
 import { redactEvent } from '@/lib/redact-secrets';
+import { shimBlockedStorage } from '@/lib/safe-storage';
+
+// Before anything else, and before React hydrates: Convex Auth reads
+// `window.localStorage` while rendering, and a browser that blocks storage
+// throws on that read, which took every page down. See lib/safe-storage.ts.
+shimBlockedStorage();
 
 // IMPORTANT: this is the only place posthog.init() may be called. Never add a
 // PostHogProvider or a second init elsewhere.
@@ -15,7 +21,7 @@ if (POSTHOG_KEY) {
     // Ingestion goes through PostHog's managed reverse proxy on our own domain
     // (`t.billsincongress.com`) so ad-blockers don't drop events. Do NOT switch
     // this to a Next.js rewrite proxy: external rewrites have known bugs on
-    // OpenNext/Cloudflare (see ANALYTICS.md).
+    // OpenNext/Cloudflare (see analytics.md).
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
     ui_host: 'https://us.posthog.com',
     defaults: '2026-01-30',
@@ -24,7 +30,7 @@ if (POSTHOG_KEY) {
 
     // Drop exceptions raised by software that is not this site — Outlook's link
     // scanner, browser extensions, opaque cross-origin reports. Only exceptions
-    // are filtered; no product event in ANALYTICS.md is affected.
+    // are filtered; no product event in analytics.md is affected.
     //
     // The whole payload goes to the filter rather than fields picked out here,
     // so reading the event is part of what `lib/error-filter.test.ts` exercises.

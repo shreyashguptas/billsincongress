@@ -11,7 +11,7 @@ import {
 } from '@/lib/utils/bill-stages';
 
 /**
- * A bill's stage, drawn the same way everywhere (Documentation/brand.md,
+ * A bill's stage, drawn the same way everywhere (documentation/brand.md,
  * "StatusPill" and "StageTrack"). Colour is never the only signal: the pill
  * always carries the word, the track always carries "Stage n of N".
  *

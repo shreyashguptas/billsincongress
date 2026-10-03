@@ -9,11 +9,6 @@ export const BILL_TYPES = {
   'sconres': 'Senate Concurrent Resolution'
 } as const;
 
-export const BILL_TYPE_OPTIONS = Object.entries(BILL_TYPES).map(([value, label]) => ({
-  value,
-  label
-}));
-
 export const POLICY_AREAS = [
   'Agriculture and Food', 'Animals', 'Armed Forces and National Security',
   'Arts, Culture, Religion', 'Civil Rights and Liberties, Minority Issues',

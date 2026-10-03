@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Builds lib/og/fonts.ts: the three brand faces (Documentation/brand.md,
+// Builds lib/og/fonts.ts: the three brand faces (documentation/brand.md,
 // "Type") as base64, for the per-bill share image drawn by
 // app/bills/[id]/share-image/route.tsx.
 //

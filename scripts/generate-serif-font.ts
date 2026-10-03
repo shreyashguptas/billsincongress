@@ -4,14 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // Builds app/fonts/newsreader-*.woff2: Newsreader, the serif of
-// Documentation/brand.md, with its vertical metrics moved so its capitals sit
+// documentation/brand.md, with its vertical metrics moved so its capitals sit
 // in the middle of the line box.
 //
 // Why: as Google ships it, Newsreader reserves 0.735em above the baseline and
 // 0.265em below, but its capitals are only ~0.675em tall. A browser centres
 // the whole box, so the letters ride ~0.12em high — 3px at a 26px panel
 // title. Every icon, pill or circle centred beside serif text looked low (see
-// "Icons beside text" in Documentation/brand.md). Geist needs no fix: its box
+// "Icons beside text" in documentation/brand.md). Geist needs no fix: its box
 // is already centred on its capitals.
 //
 // The fix keeps the box the same height (1em) and only moves the baseline in
@@ -72,6 +72,11 @@ else:
     # above only with this bit set (Google's files have it; keep it so).
     # usWinAscent/usWinDescent stay as shipped: they are clipping bounds, and
     # shrinking them would clip accented capitals.
+    # The bit only means USE_TYPO_METRICS from OS/2 version 4 on; below that it
+    # is reserved and Windows would keep using the win metrics, so stop rather
+    # than ship a font whose fix silently does nothing there.
+    if os2.version < 4:
+        sys.exit(f'OS/2 table is version {os2.version}; USE_TYPO_METRICS needs 4 or later')
     os2.fsSelection |= 1 << 7
     font.flavor = 'woff2'
     font.save(sys.argv[3])

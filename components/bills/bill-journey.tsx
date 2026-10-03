@@ -20,7 +20,7 @@ import { BillStages } from '@/lib/utils/bill-stages';
 
 /**
  * The lower half of the bill page's status panel: how the bill got where it is
- * (Documentation/brand.md, "Journey"). A bar drawn to scale, one segment per
+ * (documentation/brand.md, "Journey"). A bar drawn to scale, one segment per
  * stage as long as the bill stayed there; under it, each stage's length in
  * days and what happened in it, votes included. A bill still on its way also
  * gets the Congress clock: how long is left before it expires.
@@ -48,7 +48,7 @@ export function BillJourneyPanel({
   const drawn = view.chapters.length >= 2;
   const showClock = !view.finish;
   // Without a bar, the track is drawn on the measure's own road: a resolution
-  // ends at "Agreed to" (Documentation/brand.md, "The road a measure travels").
+  // ends at "Agreed to" (documentation/brand.md, "The road a measure travels").
   const { step, total } = getStageStep(journey.finalStage, billType);
   const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
   const roadNote = stagePathNote(billType);

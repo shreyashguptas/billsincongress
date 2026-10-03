@@ -52,7 +52,10 @@ export function TwoRooms() {
         </label>
         <div className="w-full sm:w-64">
           <Select
-            value={state ?? undefined}
+            // Controlled from the first render: "" is Radix's "nothing picked",
+            // which shows the placeholder. `undefined` made it uncontrolled
+            // until the first pick, and React warned about the switch.
+            value={state ?? ''}
             onValueChange={(value) => {
               setState(value);
               analytics.learnStateSelected(value, HOUSE_SEATS[value]);

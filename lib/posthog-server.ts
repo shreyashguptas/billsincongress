@@ -27,26 +27,6 @@ function createClient(): PostHog | null {
 }
 
 /**
- * Capture a single server-side event and flush it before returning.
- * No-ops when PostHog isn't configured. Never throws — analytics must not
- * break the request path.
- */
-export async function captureServerEvent(
-  distinctId: string,
-  event: string,
-  properties?: Record<string, unknown>,
-): Promise<void> {
-  const client = createClient();
-  if (!client) return;
-  try {
-    client.capture({ distinctId, event, properties });
-    await client.shutdown();
-  } catch (error) {
-    console.warn('[posthog] server capture failed:', error);
-  }
-}
-
-/**
  * Report a server-side exception to PostHog Error Tracking.
  * No-ops when PostHog isn't configured. Never throws.
  */

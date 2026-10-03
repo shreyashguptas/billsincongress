@@ -34,12 +34,15 @@ type QueuedRow = { id: Id<"indexNowQueue">; billId: string };
  */
 
 /**
- * The key, mirrored from `lib/indexnow.ts` — Convex bundles its own directory,
- * so nothing here can import it. `lib/indexnow.test.ts` reads this file from
- * disk and fails if this literal, the one in `lib/indexnow.ts`, and the served
- * `public/<key>.txt` disagree.
+ * The IndexNow key, and the only copy of it in code. `public/<key>.txt` serves
+ * it; `lib/indexnow.test.ts` reads this file from disk and fails if the literal
+ * and the served file disagree. The symptom of drift is every submission
+ * returning 403 with nothing on our side saying why.
  *
- * Not a credential: the protocol requires it to be published at a public URL.
+ * Not a credential: the protocol requires it to be published in plain text at a
+ * public URL on this domain — that publication *is* the proof of domain
+ * control, the way a DNS TXT record is. It looks exactly like a secret to a
+ * scanner, which is the point of this paragraph.
  */
 export const INDEXNOW_KEY = "0e777a2e9680e516333e5d77dd7c37b9";
 

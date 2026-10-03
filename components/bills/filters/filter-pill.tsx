@@ -36,7 +36,7 @@ export interface FilterPillProps
  * used: seven identical all-caps labels is the wall this redesign is undoing,
  * and uppercase tracking makes the same words about 1.8x wider.
  *
- * A set filter turns the chip ink (Documentation/brand.md: the chrome is ink,
+ * A set filter turns the chip ink (documentation/brand.md: the chrome is ink,
  * never a hue), so what is narrowing the list reads at a glance.
  */
 export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(

@@ -61,6 +61,11 @@ export default async function sitemap(props: {
       })),
       { url: `${SITE_URL}/learn`, changeFrequency: 'monthly', priority: 0.6 },
       { url: `${SITE_URL}/about`, changeFrequency: 'monthly', priority: 0.5 },
+      { url: `${SITE_URL}/pro`, changeFrequency: 'monthly', priority: 0.5 },
+      // Indexable and linked from every footer, so listed — but last, and
+      // rarely re-crawled: nobody arrives from search looking for them.
+      { url: `${SITE_URL}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
+      { url: `${SITE_URL}/terms`, changeFrequency: 'yearly', priority: 0.2 },
     ];
   }
 

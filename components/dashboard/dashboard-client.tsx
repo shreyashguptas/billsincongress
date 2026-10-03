@@ -76,7 +76,7 @@ function ConvexNotConfigured() {
           environment variable and restart the dev server.
         </p>
         <p className="text-sm text-ink-3">
-          See the project README for setup instructions.
+          See documentation/overview.md for setup instructions.
         </p>
       </div>
     </div>

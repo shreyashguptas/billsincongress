@@ -41,7 +41,7 @@ export const metadata: Metadata = {
 // The plan page: the plans first, as Free and Pro cards a reader can compare
 // at a glance, then what Pro adds and the questions in pictures, like /learn.
 // Server-rendered; the only client JavaScript is the subscribe panel. The one
-// bold thing is the Pro card (Documentation/brand.md, "Principles").
+// bold thing is the Pro card (documentation/brand.md, "Principles").
 
 function Section({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: ReactNode }) {
   return (
