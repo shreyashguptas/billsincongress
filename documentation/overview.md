@@ -157,6 +157,7 @@ lib/                       Pure client/shared modules — 36 modules + 33 test f
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
   answer-reveal.ts         The ask panel's word-by-word reveal of a finished answer
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
+  sponsor-match.ts         A member's name typed into the /bills title search, for the empty state
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
@@ -551,6 +552,16 @@ exact bill-number lookup path. A query longer than the index allows is trimmed t
 (degrading into a looser search) rather than throwing. When a search hits the 1,024 ceiling
 the count is returned as a floor so the UI can say "at least N" instead of a confident wrong
 total.
+
+Because titles never name their sponsors, a member's name typed into the title search always
+comes back empty. When a title search is empty, `/bills` checks the text against the sponsor
+list (`lib/sponsor-match.ts`: the full name, first and last name, or a last name only one
+member has) and the empty state offers "Show bills sponsored by …", which moves the text from
+the title search to the sponsor filter. Congress.gov records some members under two spellings
+("ADAM SCHIFF" and "Adam Schiff", 45 of them in October 2026); spellings that differ only in
+case and accents, with the same party and state, count as one member, and the filter gets all of
+them. The match runs in the browser against the same
+`listAllSponsors` list as the sponsor picker; the server search is unchanged.
 
 ---
 

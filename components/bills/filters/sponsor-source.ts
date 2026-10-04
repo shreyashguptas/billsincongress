@@ -4,7 +4,8 @@ import { billsService, type SponsorOption } from '@/lib/services/bills-service';
 
 /**
  * The sponsor list, fetched once per page session and only when someone opens
- * the sponsor picker.
+ * the sponsor picker, or a title search comes back empty and the empty state
+ * checks whether the text was a member's name (`lib/sponsor-match.ts`).
  *
  * It used to load on every /bills visit, because the combobox that needed it
  * was always mounted — roughly 780 rows of network and parse for a control most
