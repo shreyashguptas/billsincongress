@@ -16,9 +16,9 @@
  *
  * Mirrors `MAX_TEXT_FILTER_LENGTH` in `convex/bills.ts`, which throws on
  * anything longer — and applies the same cap to every other text filter, so
- * `clampFilterText` uses it for all of them. The browser only sees a rejection
- * as a bare "Server Error", so the search inputs also cap themselves at this
- * length and the home-page suggestions stop searching past it.
+ * `clampFilterText` uses it for all of them. Clamping cuts text without telling
+ * the reader, so the search inputs also cap themselves at this length and the
+ * home-page suggestions stop searching past it.
  * `lib/bills/filter-registry.test.ts` fails if the two drift.
  */
 export const MAX_SEARCH_TEXT_LENGTH = 120;
