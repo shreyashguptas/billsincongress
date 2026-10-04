@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 /**
- * The chamber mark (Documentation/brand.md, "Logo"): the House floor seen from
+ * The chamber mark (documentation/brand.md, "Logo"): the House floor seen from
  * the gallery — six seats on the outer row, four on the inner, the well and the
  * floor. It is the home page's hemicycle reduced to eleven dots.
  *

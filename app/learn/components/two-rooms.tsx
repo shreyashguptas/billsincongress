@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { analytics } from '@/lib/analytics';
-import { buildHemicycle, type Seat } from './hemicycle';
+import { buildHemicycle, seatsPath, type Seat } from './hemicycle';
 
 // The Learn page's one interaction: the House (435) and the Senate (100) drawn
 // seat by seat, and a state picker that fills in that state's seats in ink.
@@ -28,14 +28,24 @@ const STATES = Object.keys(HOUSE_SEATS).sort();
 const HOUSE = buildHemicycle(435, 12, 62, 178, 190, 192);
 const SENATE = buildHemicycle(100, 5, 52, 122, 130, 134);
 
-function Seats({ seats, lit, r, viewBox, label }: { seats: Seat[]; lit: number; r: number; viewBox: string; label: string }) {
+function Seats({
+  seats,
+  lit,
+  r,
+  viewBox,
+  label,
+}: {
+  seats: Seat[];
+  lit: number;
+  r: number;
+  viewBox: string;
+  label: string;
+}) {
+  // Two paths, not 535 circles: see seatsPath. Unlit seats take the svg's fill.
   return (
-    // Unlit seats take the svg's fill; only lit seats carry a class. That keeps
-    // 535 circles' worth of markup small.
-    <svg viewBox={viewBox} role="img" aria-label={label} className="h-auto w-full fill-ink/20 [&_circle]:transition-[fill] [&_circle]:duration-300">
-      {seats.map((s, i) => (
-        <circle key={i} cx={s.x} cy={s.y} r={r} className={i < lit ? 'fill-ink' : undefined} />
-      ))}
+    <svg viewBox={viewBox} role="img" aria-label={label} className="h-auto w-full fill-ink/20">
+      <path d={seatsPath(seats.slice(lit), r)} />
+      {lit > 0 && <path d={seatsPath(seats.slice(0, lit), r)} className="fill-ink" />}
     </svg>
   );
 }
@@ -52,7 +62,10 @@ export function TwoRooms() {
         </label>
         <div className="w-full sm:w-64">
           <Select
-            value={state ?? undefined}
+            // Controlled from the first render: "" is Radix's "nothing picked",
+            // which shows the placeholder. `undefined` made it uncontrolled
+            // until the first pick, and React warned about the switch.
+            value={state ?? ''}
             onValueChange={(value) => {
               setState(value);
               analytics.learnStateSelected(value, HOUSE_SEATS[value]);

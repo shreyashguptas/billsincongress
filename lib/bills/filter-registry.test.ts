@@ -15,6 +15,9 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   FILTERS,
   FILTER_BY_FIELD,
@@ -32,6 +35,7 @@ import {
 } from "../../app/bills/filter-signature";
 import { ALL_HUBS, policyAreaFromSlug, topicSlug } from "../hubs";
 import { POLICY_AREAS, STATE_NAMES, STATE_OPTIONS } from "../constants/filters";
+import { MAX_SEARCH_TEXT_LENGTH, MAX_SPONSOR_FILTERS } from "../bill-query";
 
 let passed = 0;
 const failures: string[] = [];
@@ -161,6 +165,46 @@ it("ignores empty parameter values rather than treating them as set", () => {
   const back = filtersFromQuery("?policyArea=&title=&sponsor=");
   assert.deepEqual(back, DEFAULT_FILTER_VALUES);
   assert.equal(activeFilterCount(back), 0);
+});
+
+// /bills?introducedDate=garbage reached bills.list, whose cutoffDateForFilter
+// ignores a window it does not know — but the page still counted it as set:
+// "Showing 10 bills · filtered", a "Clear all" strip, and no total.
+it("drops a date window the backend does not understand", () => {
+  for (const junk of ["garbage", "<junk>", "2024-01-01", "Month", "30days"]) {
+    for (const param of ["introducedDate", "lastActionDate"] as const) {
+      const back = filtersFromQuery(`?${new URLSearchParams({ [param]: junk })}`);
+      assert.deepEqual(back, DEFAULT_FILTER_VALUES, `${param}=${junk} was kept`);
+      assert.equal(activeFilterCount(back), 0, `${param}=${junk} counted as a filter`);
+    }
+  }
+  // Junk in one filter leaves the others alone.
+  const mixed = filtersFromQuery("?introducedDate=garbage&policyArea=Health");
+  assert.equal(mixed.introducedDate, DEFAULT_FILTER_VALUES.introducedDate);
+  assert.equal(mixed.policyArea, "Health");
+});
+
+it("keeps every date window the picker offers, and only those reach the backend", () => {
+  const server = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "convex", "bills.ts"),
+    "utf8",
+  );
+  const table = server.match(/const daysByFilter: Record<string, number> = \{([^}]*)\}/);
+  assert.ok(table, "daysByFilter not found in convex/bills.ts");
+  const understood = new Set(
+    [...table[1].matchAll(/"?([\w]+)"?\s*:/g)].map((m) => m[1]).concat("all"),
+  );
+  for (const definition of [FILTER_BY_FIELD.introducedDate, FILTER_BY_FIELD.lastActionDate]) {
+    const offered = definition.options(ctx()).map((o) => o.value);
+    assert.deepEqual(new Set(offered), understood, `${definition.field} offers what Convex does not know`);
+    for (const value of offered) {
+      assert.equal(
+        filtersFromQuery(`?${definition.param}=${value}`)[definition.field],
+        value,
+        `${definition.param}=${value} was dropped`,
+      );
+    }
+  }
 });
 
 // --- 3. active-filter accounting -----------------------------------------
@@ -340,6 +384,46 @@ it("reports which active filters are scan-limited", () => {
   };
   assert.deepEqual(scanLimitedActive(values).sort(), ["chamber", "state"]);
   assert.deepEqual(scanLimitedActive(DEFAULT_FILTER_VALUES), []);
+});
+
+// A pasted /bills?title= past 120 characters reached bills.list, which throws
+// on it, and the page showed "Server Error". Typing was capped; a URL was not.
+it("cuts URL filter values to what bills.list accepts", () => {
+  const longTitle =
+    "How many bills about school lunch programs and nutrition standards were introduced by senators from Georgia in the last two years?";
+  assert.ok(longTitle.length > MAX_SEARCH_TEXT_LENGTH);
+  const sponsors = Array.from({ length: MAX_SPONSOR_FILTERS + 3 }, (_, i) => `Sponsor ${i}`);
+  const query = new URLSearchParams({ title: longTitle, billNumber: "1".repeat(500) });
+  for (const name of sponsors) query.append("sponsor", name);
+
+  const parsed = filtersFromQuery(`?${query}`);
+  assert.equal(parsed.title, longTitle.slice(0, MAX_SEARCH_TEXT_LENGTH));
+  assert.equal(parsed.billNumber.length, MAX_SEARCH_TEXT_LENGTH);
+  assert.deepEqual(parsed.sponsor, sponsors.slice(0, MAX_SPONSOR_FILTERS));
+
+  // A value already within the limit is untouched.
+  const exact = "a".repeat(MAX_SEARCH_TEXT_LENGTH);
+  assert.equal(filtersFromQuery(`?title=${exact}`).title, exact);
+});
+
+it("never splits a character when cutting a long value", () => {
+  // An emoji is two UTF-16 code units; one straddling the limit is dropped whole.
+  const title = `${"a".repeat(MAX_SEARCH_TEXT_LENGTH - 1)}\u{1F5F3}tail`;
+  const parsed = filtersFromQuery(`?${new URLSearchParams({ title })}`);
+  assert.equal(parsed.title, "a".repeat(MAX_SEARCH_TEXT_LENGTH - 1));
+});
+
+it("uses the same limits as the server", () => {
+  const server = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "convex", "bills.ts"),
+    "utf8",
+  );
+  const text = server.match(/const MAX_TEXT_FILTER_LENGTH = (\d+);/);
+  const sponsors = server.match(/const MAX_SPONSOR_FILTERS = (\d+);/);
+  assert.ok(text, "MAX_TEXT_FILTER_LENGTH not found in convex/bills.ts");
+  assert.ok(sponsors, "MAX_SPONSOR_FILTERS not found in convex/bills.ts");
+  assert.equal(Number(text[1]), MAX_SEARCH_TEXT_LENGTH);
+  assert.equal(Number(sponsors[1]), MAX_SPONSOR_FILTERS);
 });
 
 if (failures.length > 0) {

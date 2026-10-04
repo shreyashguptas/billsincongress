@@ -61,7 +61,7 @@ const PARTY_NAMES: Record<string, string> = {
   '': 'No Party Affiliation',
 };
 
-/** Each stage's fixed glyph (Documentation/brand.md, "Iconography"). */
+/** Each stage's fixed glyph (documentation/brand.md, "Iconography"). */
 const STAGE_GLYPH: Record<BillStage, LucideIcon> = {
   [BillStages.INTRODUCED]: FilePlus,
   [BillStages.IN_COMMITTEE]: Users,
@@ -147,7 +147,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   // does not hold. Only the glyph needs a stand-in.
   //
   // Everything below is drawn on the measure's own road: a resolution ends at
-  // "Agreed to", not at law (Documentation/brand.md, "The road a measure
+  // "Agreed to", not at law (documentation/brand.md, "The road a measure
   // travels"), so a stage off that road is unknown too.
   const stage = progressStage;
   const billType = bill.bill_type;

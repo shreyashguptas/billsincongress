@@ -1,4 +1,4 @@
-// Bills in Congress service worker (Documentation/overview.md, "Installed app").
+// Bills in Congress service worker (documentation/overview.md, "Installed app").
 //
 // It has ONE job: when a page is opened with no connection, show
 // /offline.html instead of the browser's own error screen. That is what makes

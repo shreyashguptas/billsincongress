@@ -3,7 +3,8 @@
  *
  * Most recorded exceptions do not come from this codebase — they come from
  * software running inside the visitor's browser: Outlook's link scanner,
- * browser extensions, WebKit's opaque cross-origin reporting, and benign
+ * browser extensions, wallet scripts a browser injects, in-app browsers,
+ * WebKit's opaque cross-origin reporting, and benign
  * notices the browser engine raises about its own scheduling. The problem is
  * legibility: a genuine regression has to be spotted inside a column of noise
  * many times its size.
@@ -86,7 +87,53 @@ const RULES: readonly DropRule[] = [
     source: 'browser ResizeObserver notice (benign)',
     matches: (m, hasStack) => m.trim().startsWith('ResizeObserver loop') && !hasStack,
   },
+  {
+    // A crypto-wallet provider script the browser injects into every page.
+    // Seen: 9 events, 1 visitor, one session on 2026-09-30, all Brave on iOS
+    // (user agent ends in "Brave"), one on every page they opened. WebKit
+    // reports the injected script as the page itself ("global code", line 1),
+    // so it arrives WITH a frame and there is no stack condition here.
+    //
+    // Safe because the message quotes the expression that failed, and this
+    // codebase never touches `window.ethereum`: no source file, no client
+    // dependency (posthog-js, convex, next, react-dom) and no built chunk
+    // mentions `ethereum`. If a wallet feature is ever added, delete this rule
+    // in the same change.
+    source: 'browser crypto-wallet provider (window.ethereum; seen from Brave on iOS)',
+    matches: (m) => m.includes('window.ethereum'),
+  },
+  {
+    // Facebook's Android in-app browser injects a performance logger that
+    // talks to the app through a Java bridge; when the app tears the WebView
+    // down first, the bridge call throws this. Seen: 1 event, 2026-09-26, user
+    // agent `[FB_IAB/FB4A;…]`, every frame in
+    // `iabjs://navigation_performance_logger_android`. "Java object is gone" is
+    // Android WebView's own wording for a dead `addJavascriptInterface` object,
+    // which this site never creates — it ships no Android app or bridge.
+    source: 'Facebook Android in-app browser (Java bridge)',
+    matches: (m) => m.includes('Java object is gone'),
+  },
 ];
+
+// Deliberately NOT dropped — look like someone else's software, but fail the
+// rule above. Recorded here so the next reader does not re-add them.
+//
+// `NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be
+// removed is not a child of this node.` — 9 events, 3 visitors, 28–30 Sep 2026.
+// The textbook cause is Google Translate or a page-rewriting extension moving
+// text nodes under React, and one visitor was on Edge with a zh-CN browser
+// language (Edge auto-translates). The other two were en-US on ChromeOS, which
+// translation does not explain. Nothing on the event tells the cases apart:
+// every frame is React DOM's own commit code inside our bundle, the same frames
+// a real bug in this codebase would produce, and PostHog does not record whether
+// the page was translated. Worse, all 9 were `handled: true` — reported by
+// `app/error.tsx` / `app/global-error.tsx` — so each one is a reader who was
+// shown the error screen. Dropping them would hide a visible failure.
+//
+// `Can't find variable: _G` — 1 event, Microsoft's Bing app on iOS
+// (`BingSapphire` in the user agent). Probably Bing's injected script, but a
+// ReferenceError on a short global name is not a signature only a third party
+// can produce. Kept until it recurs with more evidence.
 
 /** The `$exception_list` array, or [] when the payload is not one. */
 export function exceptionList(properties: unknown): CapturedException[] {

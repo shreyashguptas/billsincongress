@@ -122,7 +122,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
-      // The chamber mark (public/brand/, Documentation/brand.md). The SVG stays
+      // The chamber mark (public/brand/, documentation/brand.md). The SVG stays
       // sharp at any tab size; the PNGs are generated from it for everything else.
       { url: '/brand/favicon.svg', type: 'image/svg+xml' },
       { url: '/favicon.png', sizes: '32x32', type: 'image/png' },

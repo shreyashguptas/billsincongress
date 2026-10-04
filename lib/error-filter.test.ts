@@ -8,8 +8,9 @@
  * does not exist on a browser-side event, so it would have dropped nothing in
  * production while every test passed. Testing the extraction is the point.
  *
- * Every "drops" case is a verbatim message from production in the ten weeks to
- * 26 Aug 2026, with its recorded volume in the comment. Every "keeps" case is
+ * Every "drops" case is a verbatim message from production — the ten weeks to
+ * 26 Aug 2026, plus the 30 days to 1 Oct 2026 for the wallet and in-app-browser
+ * rules — with its recorded volume in the comment. Every "keeps" case is
  * a message from the same window that must survive because this codebase could
  * produce it — that group is the one that earns the filter its keep.
  *
@@ -123,7 +124,65 @@ it("drops the ResizeObserver notice regardless of surrounding whitespace", () =>
   );
 });
 
+it("drops the crypto-wallet script a browser injects, even though it carries a frame", () => {
+  // 9 events, 1 visitor, one session on 2026-09-30, Brave on iOS. WebKit
+  // attributes the injected script to the page ("global code", line 1), so the
+  // event has one frame — the rule must not depend on a missing stack.
+  const message = "undefined is not an object (evaluating 'window.ethereum.selectedAddress = undefined')";
+  assert.equal(shouldDropException(event(message, { type: "TypeError", frames: 1 })), true);
+  assert.match(thirdPartySource(event(message, { type: "TypeError", frames: 1 })) ?? "", /wallet/);
+});
+
+it("drops Facebook's Android in-app browser losing its Java bridge", () => {
+  // 1 event on 2026-09-26, FB_IAB user agent, every frame in
+  // iabjs://navigation_performance_logger_android.
+  assert.equal(
+    shouldDropException(event("Error invoking postMessage: Java object is gone", { frames: 3 })),
+    true,
+  );
+});
+
 // Keeps: the group that matters
+
+it("keeps a failed property write that does not name window.ethereum", () => {
+  // The wallet rule matches the quoted expression, not the shape of the error.
+  // The same mistake in this app's own code reads like these and must survive.
+  const ours = [
+    "undefined is not an object (evaluating 'e.selectedAddress = undefined')",
+    "Cannot set properties of undefined (setting 'selectedAddress')",
+    "undefined is not an object (evaluating 'window.posthog.capture')",
+  ];
+  for (const message of ours) {
+    assert.equal(shouldDropException(event(message, { type: "TypeError" })), false, message);
+  }
+});
+
+it("keeps postMessage failures that are not the Android Java bridge", () => {
+  assert.equal(
+    shouldDropException(
+      event("Failed to execute 'postMessage' on 'Window': The target origin provided ('null') does not match the recipient window's origin ('https://billsincongress.com')."),
+    ),
+    false,
+  );
+});
+
+it("keeps React's removeChild failure, even with the frames a translator would leave", () => {
+  // 9 events, 3 visitors, 28-30 Sep 2026 — one Edge/zh-CN (likely
+  // auto-translate), two en-US on ChromeOS. Every frame is React DOM inside our
+  // bundle and all 9 came through the error boundaries, so each was a reader
+  // looking at the error screen. Nothing on the event separates a translator
+  // from a bug of ours, so it stays. See the note under RULES in error-filter.ts.
+  const message =
+    "NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.";
+  assert.equal(shouldDropException(event(message, { type: "DOMException", frames: 10 })), false);
+  assert.equal(shouldDropException(event(message, { type: "DOMException", frames: 0 })), false);
+});
+
+it("keeps a ReferenceError on a short global, even from the Bing app", () => {
+  // 1 event, 2026-09-18, BingSapphire user agent. Probably Bing's script, but
+  // not a signature only a third party can produce.
+  assert.equal(shouldDropException(event("Can't find variable: _G", { type: "ReferenceError", frames: 1 })), false);
+});
 
 it("keeps a 'Script error.' that came with frames", () => {
   // Without the stack condition this rule would swallow a real error that

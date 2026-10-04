@@ -26,17 +26,6 @@ function resolveDeploymentId() {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   deploymentId: resolveDeploymentId(),
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'avatars.githubusercontent.com',
-      },
-    ],
-  },
-  typescript: {
-    ignoreBuildErrors: false,
-  },
   // Baseline security response headers. CSP is intentionally NOT set here —
   // a real CSP for a Convex + Next app needs to allowlist the Convex
   // deployment URL, Google OAuth endpoints, and any analytics origin, and

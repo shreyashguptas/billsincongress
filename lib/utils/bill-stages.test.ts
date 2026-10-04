@@ -115,7 +115,7 @@ it("every stage has a sentence-case label", () => {
   assert.equal(stageLabel(-1), "Unknown");
 });
 
-// Resolutions travel a shorter road (Documentation/brand.md, "The road a
+// Resolutions travel a shorter road (documentation/brand.md, "The road a
 // measure travels"). After the 8000/17000 stage fix, ~600 adopted simple
 // resolutions a Congress sit at stage 60 and adopted concurrent resolutions at
 // 80, and the seven-step track drew them as half-way to law.

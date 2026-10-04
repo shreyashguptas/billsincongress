@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 // An editorial reading page: one 680px column, sections divided by hairlines
-// (Documentation/brand.md, "Layout and shape").
+// (documentation/brand.md, "Layout and shape").
 export default function AboutPage() {
   return (
     <article className="animate-fade-in">

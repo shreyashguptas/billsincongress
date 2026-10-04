@@ -5,7 +5,7 @@ import { SHARE_CARD_SIZE, SITE_NAME, homeShareImagePath } from '@/lib/seo';
 import { HOME_CONGRESS } from '@/lib/congress';
 import DashboardClient, {
   type InitialDashboardData,
-} from '@/components/dashboard/DashboardClient';
+} from '@/components/dashboard/dashboard-client';
 
 const HOME_TITLE = 'Bills in Congress — Track Every Bill in the U.S. Congress';
 const HOME_DESCRIPTION =
