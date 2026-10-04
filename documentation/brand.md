@@ -618,6 +618,12 @@ writing, an arrow, the alert email as an envelope, a seven-step track.
   `sunken` circles joined by `ink-3` arrows; the step that matters is filled ink.
 - Every picture has a text alternative (`role="img"` and an `aria-label`) that
   says what it shows, figures included.
+- A chamber's seats are drawn as one `<path>` per colour (`seatsPath` in
+  `app/learn/components/hemicycle.ts`), never one `<circle>` per seat. The Learn
+  page holds 1,070 seats, and as separate elements they made every open of the
+  state picker restyle the whole page; on school Chromebooks it lagged by about a
+  third of a second. For the same reason the picker's seats light up at once,
+  with no fade.
 
 ## Pro
 
