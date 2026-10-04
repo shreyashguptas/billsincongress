@@ -575,7 +575,9 @@ is a mixed-case spelling when one is stored; a name only ever stored in capitals
 MALONEY", 18 members) is shown that way rather than re-cased. A member listed under a different
 first name ("Chuck" and "Charles" Grassley, "Bernie" and "Bernard" Sanders, about five) is still
 two entries: names alone cannot tell those from two people (Sherrod and Shontel Brown are both
-Ohio Democrats), and the bills table does not store Congress.gov's member id.
+Ohio Democrats), and the bills table does not store Congress.gov's member id. The picker then
+keeps one entry per name, because the sponsor filter matches on the name alone: two members who
+shared a name (none do today) would be one entry, with no party or state, returning both.
 
 ---
 

@@ -1209,14 +1209,35 @@ export const listAllSponsors = query({
     // One entry per member across every Congress, not per stored spelling: the
     // picker used to offer "ADAM SCHIFF" and "Adam Schiff" as two people, each
     // with part of his bills.
-    return mergeSponsorRows(rows)
-      .map((m) => ({
-        name: m.sponsorName,
-        party: m.sponsorParty,
-        state: m.sponsorState,
-        billCount: m.billCount,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+    //
+    // Then one entry per NAME. The filter matches on the name alone, so two
+    // members who share one (for different states; none do in the 2026-10-04
+    // data) cannot be told apart by it: picking either returns both. One entry,
+    // with both members' bills and no party or state, says what the filter does
+    // and keeps every option's value unique.
+    const byName = new Map<
+      string,
+      { name: string; party?: string; state?: string; billCount: number }
+    >();
+    for (const m of mergeSponsorRows(rows)) {
+      const key = nameKey(m.sponsorName);
+      const held = byName.get(key);
+      if (!held) {
+        byName.set(key, {
+          name: m.sponsorName,
+          party: m.sponsorParty,
+          state: m.sponsorState,
+          billCount: m.billCount,
+        });
+        continue;
+      }
+      held.billCount += m.billCount;
+      held.party = undefined;
+      held.state = undefined;
+    }
+    return [...byName.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
+    );
   },
 });
 

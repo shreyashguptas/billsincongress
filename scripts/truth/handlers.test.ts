@@ -1040,9 +1040,11 @@ async function main() {
 
   await it("the /bills sponsor picker lists each member once, with all their bills", async () => {
     const list = await runQuery(billsQueries.listAllSponsors, {});
+    // Unique on the name alone: it is the option's value, and the filter matches
+    // on nothing else, so two entries with one name could not be told apart.
     const seen = new Map<string, any>();
     for (const s of list) {
-      const key = `${accentFold(s.name)}|${s.state}`;
+      const key = accentFold(s.name);
       assert.ok(!seen.has(key), `listed twice: "${seen.get(key)?.name}" and "${s.name}"`);
       seen.set(key, s);
     }
