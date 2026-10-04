@@ -334,6 +334,36 @@ async function main() {
     assert.equal(r.rows[0].totalMeasures, statsRow.totalCount);
   });
 
+  // --- A lookup written as text, and the number invented after it -----------
+  // A reader was shown a literal fetch_dataset(dataset="bills", filters=
+  // {"congress": 119}, limit=0) line and then "the total number of bills
+  // introduced in the 119th Congress so far is 1,557". The model never made that
+  // call. Had it made it, the handler would not have given it ANY number to
+  // quote, and the stats dataset would have given it the real one. Both halves
+  // are asserted, so the fix (discard a text-form call, ask again) can only lead
+  // to a defensible count.
+
+  await it("1,557 bills introduced in the 119th: the call the model wrote yields no count", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119 }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, false, "a whole-Congress bills read cannot be complete");
+    assert.equal(r.report.total, undefined, "an incomplete read must not carry a number to quote");
+  });
+
+  await it("1,557 bills introduced in the 119th: the stats row has the real count", async () => {
+    // Against the stored stats row, not a recount of the bills table: the
+    // precomputed row can lag a sync, and this case is about what the model
+    // would have been handed, not about that lag.
+    const statsRow = ctx.db.rowsOf("congressStats").find((s: any) => s.congress === 119);
+    assert.ok(statsRow, "no congressStats row for the 119th in the local copy");
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119 });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.rows[0].totalMeasures, statsRow.totalCount);
+    assert.equal(r.rows[0].houseMeasures + r.rows[0].senateMeasures, statsRow.totalCount);
+    assert.notEqual(r.rows[0].totalMeasures, 1557, "the invented number");
+  });
+
   // --- The home page's "party not recorded" seats ---------------------------
   // A reader asked "what are these 11 bills with party not recorded?" about the
   // 117th and was told the figure could not be verified. There was no party
