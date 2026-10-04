@@ -394,6 +394,8 @@ export function loadFakeCtx(
     "bills",
     "billActions",
     "billSummaries",
+    // bills.list reads a bill's subjects; handlers.test.ts drives it for /bills.
+    "billSubjects",
     "congressSponsors",
     "congressStats",
     "congressPolicyAreas",

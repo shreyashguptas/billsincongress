@@ -157,6 +157,7 @@ lib/                       Pure client/shared modules — 36 modules + 33 test f
   answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
   answer-reveal.ts         The ask panel's word-by-word reveal of a finished answer
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
+  sponsor-match.ts         A member's name typed into the /bills title search, for the empty state
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
@@ -535,7 +536,9 @@ iterated index can run out before the page is filled. Two things keep that hones
   same rule as the answer engine, see `convex/catalog/sponsorName.ts`), then matches the full
   name in memory. It used to walk the whole Congress, so a drilldown to Rick Scott showed 6 of
   his 185 bills. The index is case-sensitive, so the stored spelling of each name is looked up
-  in `congressSponsors` first ("michael mccaul" in a hand-typed URL still reaches "McCaul").
+  in `congressSponsors` first ("michael mccaul" in a hand-typed URL still reaches "McCaul"), and
+  names are compared without case or accents, so "Nydia Velázquez" also reaches the 118th's
+  "NYDIA VELAZQUEZ" rows.
   These reads share the `MAX_LIST_SCAN` budget and run newest first, so only surnames that
   together hold more than 1,200 bills in one Congress can still truncate, and a truncated list
   shows the newest of them.
@@ -551,6 +554,30 @@ exact bill-number lookup path. A query longer than the index allows is trimmed t
 (degrading into a looser search) rather than throwing. When a search hits the 1,024 ceiling
 the count is returned as a floor so the UI can say "at least N" instead of a confident wrong
 total.
+
+Because titles never name their sponsors, a member's name typed into the title search always
+comes back empty. When a title search is empty, `/bills` checks the text against the sponsor
+list (`lib/sponsor-match.ts`: the full name, first and last name, or a last name only one
+member has) and the empty state offers "Show bills sponsored by …", which moves the text from
+the title search to the sponsor filter. The match runs in the browser against the same
+`listAllSponsors` list as the sponsor picker; the server search is unchanged.
+
+**One member, several spellings.** Congress.gov records 45 members under two spellings ("ADAM
+SCHIFF" and "Adam Schiff", "NYDIA VELAZQUEZ" and "Nydia Velázquez"; October 2026), and in the
+118th, 44 of them are split inside the one Congress. Bills keep the spelling Congress.gov sent,
+and so does `congressSponsors`, one row per spelling, because the case-sensitive surname index
+needs each one exactly. Every reader merges them with `mergeSponsorRows`
+(`convex/catalog/sponsorName.ts`): the sponsor picker, the sponsor count on `/bills`, the home
+page's leading sponsors and the answer engine's `sponsors` dataset. Same member means the same
+name ignoring case and accents, and the same state; party is ignored, because the only
+same-name pairs with different parties are party switches (Joe Manchin, D then I). The name shown
+is a mixed-case spelling when one is stored; a name only ever stored in capitals ("CAROLYN
+MALONEY", 18 members) is shown that way rather than re-cased. A member listed under a different
+first name ("Chuck" and "Charles" Grassley, "Bernie" and "Bernard" Sanders, about five) is still
+two entries: names alone cannot tell those from two people (Sherrod and Shontel Brown are both
+Ohio Democrats), and the bills table does not store Congress.gov's member id. The picker then
+keeps one entry per name, because the sponsor filter matches on the name alone: two members who
+shared a name (none do today) would be one entry, with no party or state, returning both.
 
 ---
 
@@ -719,8 +746,12 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │    ├─ search_web      → OpenRouter web plugin, engine "exa"
                  │    ├─ ask_reader      → ends the turn with a question, not an answer
                  │    └─ no answer, no call → one nudge, then the no-tools round early;
-                 │                           still empty → `error` frame (empty_model_output)
-                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts
+                 │                           still empty → `error` frame (empty_model_output).
+                 │                           A reply that is only narration, or that writes a
+                 │                           lookup out as text (`fetch_dataset(…)`, `query:` +
+                 │                           `reason:` lines, `{"name":…}` JSON), counts as none
+                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts (also a first
+                 │                          line that only repeats the end of the question)
                  ├─ citation resolution → convex/catalog/cite.ts
                  ├─ SSE frames back: work · delta · done · rate_limited · error
                  │    (the proxy adds `: keep-alive` comments between them)

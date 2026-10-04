@@ -269,12 +269,6 @@ function splitBlocks(input: string): Block[] {
 }
 
 /**
- * Strip leading deliberation and any paragraph that leaks internal vocabulary.
- * Never removes the whole answer: if every paragraph would be dropped, the input
- * is returned unchanged with removed: [] — a mangled answer is worse than a
- * leaky one.
- */
-/**
  * True when the whole text is the model's working-out and nothing else.
  *
  * `sanitizeAnswer` deliberately returns such a text unchanged rather than
@@ -296,7 +290,104 @@ export function isAllDeliberation(text: string): boolean {
   return blocks.every((b) => isDeliberation(b.text));
 }
 
-export function sanitizeAnswer(text: string): SanitizeResult {
+/**
+ * A lookup written out as prose instead of made.
+ *
+ * Traced answers on 2026-10-01 showed readers a literal
+ * `fetch_dataset(dataset="bills", filters={"congress": 119}, limit=0)` followed
+ * by "the total is 1,557" — a number the model never fetched (the real count was
+ * 19,441). Others were nothing but `search_web`'s arguments as `query:` and
+ * `reason:` lines, or a run of `describe_dataset` JSON. The model meant to call a
+ * tool, wrote the call as text, and then either stopped or invented the result.
+ *
+ * The paragraph rules above cannot remove these: the call sits on its own LINE
+ * inside the same paragraph as the prose around it, and dropping the whole
+ * paragraph empties the answer, which `sanitizeAnswer` refuses to do. Stripping
+ * the line would not help either — the prose next to it is unverified, which is
+ * how 1,557 reached a reader. So the caller treats such a reply as no answer at
+ * all and asks again, exactly as for narration.
+ *
+ * Each shape is specific to a call. Ordinary prose never opens a line with
+ * `{"name":` or writes a tool name followed by a bracket; a `query:` line alone
+ * could be a heading, so it only counts with the `reason:` line search_web takes
+ * alongside it. Lowercase on purpose: "Reason:" in a sentence is English.
+ */
+const TEXT_TOOL_CALL: RegExp[] = [
+  /\b(?:fetch_dataset|describe_dataset|search_web|ask_reader)\s*\(/,
+  /^\s*\{\s*"name"\s*:.*"(?:filters|short_description)"\s*:/m,
+];
+const ARGUMENT_LINE = (key: string) => new RegExp(`^\\s*["']?${key}["']?\\s*:`, "m");
+const QUERY_LINE = ARGUMENT_LINE("query");
+const REASON_LINE = ARGUMENT_LINE("reason");
+
+export function containsTextToolCall(text: string): boolean {
+  if (TEXT_TOOL_CALL.some((re) => re.test(text))) return true;
+  return QUERY_LINE.test(text) && REASON_LINE.test(text);
+}
+
+/** Lowercase, straight quotes, single spaces, no closing punctuation. */
+function normalizeEcho(text: string): string {
+  return text
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/g, " ")
+    .replace(/[\s?.!…]+$/, "")
+    .trim()
+    .toLowerCase();
+}
+
+/** Fewer words than this is too little to call an echo: "the 119th" is not one. */
+const MIN_ECHO_WORDS = 3;
+
+/**
+ * Drop a first line that is only the tail end of the reader's own question.
+ *
+ * A traced answer on 2026-10-01 opened with the last few words of what the
+ * reader had typed, on a line of its own, before the answer proper. Only the
+ * FIRST line, only when it is a whole-word suffix of the question that does not
+ * end a sentence of its own, and only when something follows it: an answer that is nothing but the echo is left for the
+ * caller's empty-answer handling rather than blanked here.
+ */
+export function dropQuestionEcho(text: string, question: string): SanitizeResult {
+  const newline = text.indexOf("\n");
+  if (newline === -1) return { text, removed: [] };
+  const firstLine = text.slice(0, newline);
+  const rest = text.slice(newline + 1);
+  if (rest.trim() === "") return { text, removed: [] };
+
+  // A line that ends a sentence is a statement, not a fragment of a question:
+  // asked "Can you confirm S. 629 became law?", the answer "S. 629 became law."
+  // ends the question too, and is the answer.
+  if (/[.!]\s*$/.test(firstLine)) return { text, removed: [] };
+  const line = normalizeEcho(firstLine);
+  const asked = normalizeEcho(question);
+  if (line === "" || line.split(" ").length < MIN_ECHO_WORDS) return { text, removed: [] };
+  if (!asked.endsWith(line)) return { text, removed: [] };
+  // Whole words only: "law" must not match the end of "outlaw".
+  const before = asked.charAt(asked.length - line.length - 1);
+  if (before !== "" && /\w/.test(before)) return { text, removed: [] };
+
+  return { text: rest.replace(/^\s+/, ""), removed: [firstLine.trim()] };
+}
+
+/**
+ * Strip leading deliberation and any paragraph that leaks internal vocabulary.
+ * Never removes the whole answer: if every paragraph would be dropped, the input
+ * is returned unchanged with removed: [] — a mangled answer is worse than a
+ * leaky one. When `question` is given, a first line that only repeats its end
+ * goes first (see dropQuestionEcho).
+ */
+export function sanitizeAnswer(text: string, question?: string): SanitizeResult {
+  if (question !== undefined) {
+    const echo = dropQuestionEcho(text, question);
+    if (echo.removed.length > 0) {
+      const rest = sanitizeAnswer(echo.text);
+      return {
+        text: rest.text,
+        removed: [...echo.removed, ...rest.removed],
+      };
+    }
+  }
   const blocks = splitBlocks(text);
   const dropped = new Set<number>();
   /** Blocks whose opening narration was trimmed but whose answer survives. */
