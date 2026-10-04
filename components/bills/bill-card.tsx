@@ -8,13 +8,10 @@ import { Bill } from '@/lib/types/bill';
 import { analytics } from '@/lib/analytics';
 import { compactStageLabel, getStageStep } from '@/lib/utils/bill-stages';
 import { formatCongressProse } from '@/lib/congress';
-import { billNoun } from '@/lib/seo';
 import Link from 'next/link';
 
 interface BillCardProps {
   bill: Bill;
-  /** `compact` is the in-answer density: fits a 400px panel. */
-  variant?: 'full' | 'compact';
   /** Leave out the topic tag — on a topic hub every row would repeat it. */
   hideTopic?: boolean;
   /**
@@ -30,9 +27,7 @@ interface BillCardProps {
  * The compact card body, taking primitives rather than a `Bill`.
  *
  * Answers name bills by id and carry only a small display projection, never a
- * full row — so this takes what an answer actually has. `BillCard`'s compact
- * variant and the in-answer entity cards both render through here, which is
- * what stops the two densities drifting apart.
+ * full row — so this takes what an answer actually has.
  */
 export function CompactBillCard({
   href,
@@ -88,13 +83,13 @@ export function CompactBillCard({
 }
 
 /**
- * One bill as a row of the register (Documentation/brand.md, "Lists are
+ * One bill as a row of the register (documentation/brand.md, "Lists are
  * rows"): number and date, then the title and sponsor, then the stage. The
  * whole row is the link. On phones the three columns stack in that order.
  * The stage is drawn on the measure's own road ("The road a measure travels"):
  * an adopted resolution fills a three- or four-step track, not 3 of 7.
  */
-export default function BillCard({ bill, variant = 'full', hideTopic = false, date }: BillCardProps) {
+export default function BillCard({ bill, hideTopic = false, date }: BillCardProps) {
   const stage =
     typeof bill.progress_stage === 'string'
       ? parseInt(bill.progress_stage, 10)
@@ -109,22 +104,6 @@ export default function BillCard({ bill, variant = 'full', hideTopic = false, da
       policy_area: bill.bill_subjects?.policy_area_name ?? '',
       progress_stage: stage,
     });
-
-  if (variant === 'compact') {
-    return (
-      <CompactBillCard
-        href={`/bills/${bill.id}`}
-        label={`${bill.bill_type_label || bill.bill_type?.toUpperCase()} ${bill.bill_number}`}
-        title={bill.title}
-        sponsorLastName={bill.sponsor_last_name}
-        sponsorParty={bill.sponsor_party}
-        stage={stage}
-        billType={bill.bill_type}
-        onClick={track}
-        noun={billNoun(bill.bill_type)}
-      />
-    );
-  }
 
   const { step, total, isVetoed } = getStageStep(stage, bill.bill_type);
   const sponsorName = [bill.sponsor_first_name, bill.sponsor_last_name].filter(Boolean).join(' ');

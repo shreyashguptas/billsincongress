@@ -4,7 +4,7 @@
  * Convex can stream every log to PostHog by itself, but only on its
  * Professional plan. We are on pay-as-you-go, so the few lines worth keeping
  * are sent from here instead, as OpenTelemetry (OTLP/HTTP JSON) — the only
- * format PostHog Logs accepts. See "PostHog Logs" in Documentation/ANALYTICS.md
+ * format PostHog Logs accepts. See "PostHog Logs" in documentation/analytics.md
  * for every line we send and what is on it.
  *
  * A line that carries the reader's `sessionId` and `posthogDistinctId` (the

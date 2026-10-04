@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 // One reading column, like the other short pages: the head, a hairline, then
-// the one action (Documentation/brand.md, "Layout and shape").
+// the one action (documentation/brand.md, "Layout and shape").
 export default function UnsubscribePage() {
   return (
     <article className="container-prose">

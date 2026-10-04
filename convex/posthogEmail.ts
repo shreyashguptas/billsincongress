@@ -40,9 +40,11 @@ export interface OutgoingEmail {
 
 /**
  * Every send uses this one PostHog distinct id, so PostHog does not build a
- * profile per recipient from the email-delivery events it records. The
- * recipient's address is still in those events (`$email_to`); that is how
- * PostHog reports bounces.
+ * profile per recipient from any email-delivery events it records. Those events
+ * (`$workflows_email_*`, with the address in `$email_to`) are only ingested
+ * while the project's "Capture email engagement events" setting is on; it is
+ * off, so delivery and bounces show only in each workflow's Metrics and
+ * Invocations tabs.
  */
 export const EMAIL_DISTINCT_ID = "bills-congress-mailer";
 
@@ -55,7 +57,7 @@ export const EMAIL_DISTINCT_ID = "bills-congress-mailer";
  * What PostHog does keep: each run's trigger payload, this whole request, in
  * the workflow's Invocations tab. For the codes stream that includes the live
  * code, readable by anyone with access to the PostHog project until it expires
- * (15 minutes, one use). See "Email" in Documentation/overview.md.
+ * (15 minutes, one use). See "Email" in documentation/overview.md.
  */
 export const EMAIL_EVENT = "bic_email_requested";
 
@@ -111,7 +113,8 @@ export function emailRequest(stream: EmailStream, email: OutgoingEmail) {
 /**
  * Hands one email to PostHog. Resolves once PostHog has accepted it, which is
  * not the same as delivered: PostHog queues sends above the project's daily
- * allowance, and reports bounces as `$workflows_email_bounced` events.
+ * allowance, and records bounces in the workflow's metrics (see
+ * EMAIL_DISTINCT_ID for why they are not events).
  */
 export async function sendEmail(stream: EmailStream, email: OutgoingEmail): Promise<void> {
   const { url, init } = emailRequest(stream, email);

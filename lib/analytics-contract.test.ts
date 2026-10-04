@@ -1,6 +1,6 @@
 /**
  * Every event we send is named in two places: `lib/analytics.ts`, which sends
- * it, and `Documentation/ANALYTICS.md`, which AGENTS.md makes the registry of
+ * it, and `documentation/analytics.md`, which AGENTS.md makes the registry of
  * record. This asserts the two lists are the same list.
  *
  * `lib/analytics-registry.test.ts` already guards that file's TABLE STRUCTURE —
@@ -36,26 +36,22 @@ function it(name: string, fn: () => void) {
 }
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const registry = readFileSync(join(root, 'Documentation/ANALYTICS.md'), 'utf8');
+const registry = readFileSync(join(root, 'documentation/analytics.md'), 'utf8');
 const code = readFileSync(join(root, 'lib/analytics.ts'), 'utf8');
 
 /**
  * Registered events with no `capture('name')` literal in `lib/analytics.ts` to
  * match against.
  *
- * `bill_chat_message_processed` is fired from the server, which never passes
- * through this file — API routes and Convex use `lib/posthog-server.ts`.
- *
- * `$exception` is exempt for a different reason, and the distinction matters
- * to anyone changing this list: it IS sent from the client, both by PostHog's
- * own `capture_exceptions` autocapture and, since 13 Sep 2026, explicitly by
+ * `$exception` is exempt, and the reason matters to anyone changing this
+ * list: it IS sent from the client, both by PostHog's own
+ * `capture_exceptions` autocapture and, since 13 Sep 2026, explicitly by
  * `analytics.captureException()` in the error boundaries. It is listed here
  * because that helper calls `posthog.captureException(error)`, which carries no
  * event-name literal for `capturedEvents()` to find — not because nothing
  * client-side sends it.
  */
 const SERVER_SIDE = new Set([
-  'bill_chat_message_processed',
   '$exception',
   // AI Observability events, sent from Convex by convex/aiTrace.ts.
   '$ai_generation',
@@ -73,10 +69,13 @@ const AUTOCAPTURED = new Set(['$pageview', '$pageleave', '$autocapture', '$ragec
  */
 function eventRegistrySection(markdown: string): string {
   const start = markdown.indexOf('## Custom event registry');
-  assert.ok(start !== -1, 'ANALYTICS.md no longer has a "## Custom event registry" heading');
+  assert.ok(start !== -1, 'analytics.md no longer has a "## Custom event registry" heading');
   const end = markdown.indexOf('\n## Person identification', start);
-  assert.ok(end !== -1, 'ANALYTICS.md no longer has a "## Person identification" heading');
-  return markdown.slice(start, end);
+  assert.ok(end !== -1, 'analytics.md no longer has a "## Person identification" heading');
+  // PostHog Logs sit inside the registry section but are log lines, not events:
+  // their first column is a log body ("answer served"), never a capture name.
+  const logs = markdown.indexOf('\n### PostHog Logs', start);
+  return markdown.slice(start, logs !== -1 && logs < end ? logs : end);
 }
 
 /** Retired rows live below this section entirely, so they are already excluded. */
@@ -86,7 +85,8 @@ const live = eventRegistrySection(registry);
 function registeredEvents(markdown: string): Set<string> {
   const names = new Set<string>();
   for (const line of markdown.split('\n')) {
-    const m = /^\|\s*`([a-z$][a-z0-9_$]*)`/i.exec(line.trim());
+    // A space is allowed: PostHog's own survey events are named `survey shown` etc.
+    const m = /^\|\s*`([a-z$][a-z0-9_$ ]*)`/i.exec(line.trim());
     if (m) names.add(m[1]);
   }
   return names;
@@ -95,7 +95,7 @@ function registeredEvents(markdown: string): Set<string> {
 /** Every literal passed to `capture('…')`. */
 function capturedEvents(source: string): Set<string> {
   const names = new Set<string>();
-  for (const m of source.matchAll(/\bcapture\(\s*'([a-z0-9_$]+)'/gi)) names.add(m[1]);
+  for (const m of source.matchAll(/\bcapture\(\s*'([a-z0-9_$ ]+)'/gi)) names.add(m[1]);
   return names;
 }
 
@@ -114,7 +114,7 @@ it('registers every event the code actually sends', () => {
     missing,
     [],
     'These events are sent by lib/analytics.ts but have no row in the live tables of ' +
-      'Documentation/ANALYTICS.md. Add a row, or move the helper to the retired section.',
+      'documentation/analytics.md. Add a row, or move the helper to the retired section.',
   );
 });
 
@@ -126,7 +126,7 @@ it('sends every event the registry claims we send', () => {
   assert.deepEqual(
     orphaned,
     [],
-    'These events have a row in Documentation/ANALYTICS.md but nothing in lib/analytics.ts ' +
+    'These events have a row in documentation/analytics.md but nothing in lib/analytics.ts ' +
       'sends them. Move them to the "Retired events" section, or add the helper.',
   );
 });

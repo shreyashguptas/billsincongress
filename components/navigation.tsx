@@ -19,6 +19,13 @@ import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/fee
  * slot. One row, h-14 / sm:h-16 plus its border — lib/ask-panel.ts mirrors
  * those heights (HEADER_H_PX) because the ask sheet sits directly beneath it,
  * and lib/ask-css-contract.test.ts reads the classes back off this file.
+ *
+ * Its md / lg / xl are the header's own width, not the window's: `header-md:`,
+ * `header-lg:` and `header-xl:` (tailwind.config.ts) are container queries on
+ * this element. The docked ask panel takes up to 640px off the right, so on a
+ * 1440px screen the header can be 1024px wide while `xl:` still sees 1440 —
+ * which laid out the 288px search field and pushed "Sign up" under the panel.
+ * Heights stay on `sm:` because `--header-h` in globals.css is a media query.
  */
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
@@ -27,13 +34,13 @@ export function Navigation() {
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-line bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
+    <header className="sticky top-0 z-40 w-full border-b border-line bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75 [container-name:site-header] [container-type:inline-size]">
       <div className="container-editorial grid h-14 sm:h-16 grid-cols-[1fr_auto_1fr] items-center gap-4">
         <div className="flex items-center gap-1">
           {/* Mobile menu */}
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="-ml-2 md:hidden" aria-label="Open menu">
+              <Button variant="ghost" size="icon" className="-ml-2 header-md:hidden" aria-label="Open menu">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -77,15 +84,15 @@ export function Navigation() {
             </SheetContent>
           </Sheet>
           <FeedbackDialog box={feedback} />
-          <Logo className="hidden md:inline-flex" />
+          <Logo className="hidden header-md:inline-flex" />
         </div>
 
         {/* Centre: the logo on phones, the sections from md up. */}
-        <Logo className="md:hidden" />
+        <Logo className="header-md:hidden" />
         <SectionTabs isActive={isActive} />
 
         <div className="flex items-center justify-end gap-1 sm:gap-2">
-          <HeaderFeedback className="hidden lg:inline-flex" />
+          <HeaderFeedback className="hidden header-lg:inline-flex" />
           <HeaderSearch />
           <UserMenu />
         </div>
@@ -180,7 +187,7 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
       ref={navRef}
       aria-label="Main"
       onMouseLeave={() => setHovered(null)}
-      className="relative hidden items-center gap-2 md:flex"
+      className="relative hidden items-center gap-2 header-md:flex"
     >
       {routes.map((route) => {
         const current = route.href === active;
@@ -233,8 +240,8 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
 }
 
 /**
- * Search from anywhere. A full field from lg up; an icon that opens /bills
- * below that, where the search box is the first thing on the page. Submitting
+ * Search from anywhere. A full field from a header-lg width up; an icon that
+ * opens /bills below that, where the search box is the first thing on the page. Submitting
  * lands on /bills?title=…, the same URL the bills page's own search writes.
  */
 function HeaderSearch() {
@@ -251,7 +258,7 @@ function HeaderSearch() {
 
   return (
     <>
-      <form role="search" onSubmit={onSubmit} className="relative hidden lg:block">
+      <form role="search" onSubmit={onSubmit} className="relative hidden header-lg:block">
         <label htmlFor="header-search" className="sr-only">
           Search bills
         </label>
@@ -262,10 +269,10 @@ function HeaderSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search bills, or S. 2878"
-          className="w-52 pl-9 text-sm xl:w-72"
+          className="w-52 pl-9 text-sm header-xl:w-72"
         />
       </form>
-      <Button asChild variant="ghost" size="icon" className="lg:hidden">
+      <Button asChild variant="ghost" size="icon" className="header-lg:hidden">
         <Link href="/bills" aria-label="Search bills">
           <Search className="h-5 w-5" />
         </Link>

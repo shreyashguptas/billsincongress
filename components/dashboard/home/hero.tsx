@@ -4,7 +4,7 @@
  * The home page hero: the chamber, on the Night stage.
  *
  * The section carries `stage dark`, so every token inside takes its Night
- * value in both themes (Documentation/brand.md, "The stage") — the one dark
+ * value in both themes (documentation/brand.md, "The stage") — the one dark
  * band on the page. Centred. The chart (hemicycle.tsx) is the hero; its hollow
  * holds one big number — laws passed — that swaps to a party's own number on
  * hover. One legend row under the arc carries every party, and the ask box

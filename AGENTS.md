@@ -14,37 +14,35 @@ Convex agent skills for common tasks can be installed by running
 
 # Product analytics (PostHog) — mandatory for every feature change
 
-This site tracks user behavior with PostHog. **`Documentation/ANALYTICS.md` is the registry of
+This site tracks user behavior with PostHog. **`documentation/analytics.md` is the registry of
 every event we send** and `lib/analytics.ts` is its code counterpart (typed helpers).
 
 These rules apply to EVERY change that adds, removes, or modifies a user-facing feature:
 
 1. **Adding a feature?** In the same commit you must:
-   - register its event(s) in the table in `Documentation/ANALYTICS.md`,
+   - register its event(s) in the table in `documentation/analytics.md`,
    - add typed helper(s) to `lib/analytics.ts`,
    - call the helper(s) from the new feature code.
 2. **Removing a feature?** In the same commit you must:
    - delete its helpers from `lib/analytics.ts` and all call sites,
-   - move its rows in `Documentation/ANALYTICS.md` to the "Retired events" section (with date).
+   - move its rows in `documentation/analytics.md` to the "Retired events" section (with date).
 3. **Changing a feature's UX/flow?** Re-check that its events still describe reality;
-   update `Documentation/ANALYTICS.md` + helpers if not.
+   update `documentation/analytics.md` + helpers if not.
 4. Never call `posthog.capture()` with raw event-name strings in components — always go
    through `lib/analytics.ts`. Never rename existing events casually (it breaks saved
    insights/funnels in PostHog).
 5. Server-side events (API routes) use `lib/posthog-server.ts` and must pass the
    browser's distinct-id headers (`x-posthog-distinct-id`, `x-posthog-session-id`, both
    exported from that file) via `analytics.requestHeaders()` on the client fetch.
-   Note there is currently **no live server-side event**: the one example in the registry,
-   `bill_chat_message_processed`, fires from `app/api/bill-chat/send/route.ts`, which no
-   part of the UI calls any more. Read it as a reference implementation, not as something
-   that runs. The live answer path is the exception to "API routes": it forwards the
-   headers from `app/api/answer/route.ts` to Convex, and `convex/aiTrace.ts` records each
-   answer as PostHog AI trace events (`$ai_generation`, `$ai_span`, `$ai_trace`) with
-   `fetch`, not `posthog-node`. They send nothing until `POSTHOG_KEY` is set in the Convex
-   environment and Convex is deployed. See "AI traces" in `Documentation/ANALYTICS.md`.
+   Today the only server-side capture from an API route is `$exception`, through
+   `captureServerException`; there is no server-side custom event. The live answer path is
+   the exception to "API routes": it forwards the headers from `app/api/answer/route.ts`
+   to Convex, and `convex/aiTrace.ts` records each answer as PostHog AI trace events
+   (`$ai_generation`, `$ai_span`, `$ai_trace`) with `fetch`, not `posthog-node`, using
+   `POSTHOG_KEY` from the Convex environment. See "AI traces" in `documentation/analytics.md`.
    The same key sends one PostHog **log line** per answer (`convex/posthogLogs.ts`).
 6. **PostHog Logs** (server log lines, not events) are registered in the "PostHog Logs"
-   section of `Documentation/ANALYTICS.md` and sent only through `scheduleLog` in
+   section of `documentation/analytics.md` and sent only through `scheduleLog` in
    `convex/posthogLogs.ts`. Never put question text, email addresses or other reader
    content on a line.
 
@@ -54,16 +52,19 @@ the work done, and do not say it's done, until both halves are in place.
 # Documentation — mandatory for every feature change
 
 The same rule applies to prose. **Any time a feature is built, and any time anything is
-deleted**, re-read `README.md` and every file in `Documentation/` and update whatever no
+deleted**, re-read `README.md` and every file in `documentation/` and update whatever no
 longer matches — not only the section you touched.
 
-- `README.md` is written for the public: what the site does, where the data comes from, and
-  the disclosures (AI use, tracking, accounts, accuracy limits, independence).
-- `Documentation/overview.md` is the architecture and operations reference.
-- `Documentation/interactive-dashboard.md` covers the home-page dashboard and the
+- `README.md` is the short public front door: what the site does, a demo GIF, and one line
+  each for the disclosures (data source, AI use, tracking, accounts, independence). Keep it
+  short; detail goes in `documentation/reader-guide.md`.
+- `documentation/reader-guide.md` is the full public explanation: every feature, where the
+  data comes from, what the AI does, what is collected, and the known limits.
+- `documentation/overview.md` is the architecture and operations reference.
+- `documentation/interactive-dashboard.md` covers the home-page dashboard and the
   precomputed-analytics pattern.
-- `Documentation/ANALYTICS.md` is the event registry described above.
-- `Documentation/brand.md` is the design language — see the next section.
+- `documentation/analytics.md` is the event registry described above.
+- `documentation/brand.md` is the design language — see the next section.
 
 This repository is public, and its value rests on a reader being able to verify how it
 works. Documentation describing a version of the site that no longer exists is worse than
@@ -77,7 +78,7 @@ needed updating.
 
 # Design — mandatory for anything a reader sees
 
-**`Documentation/brand.md` is the source of truth for how the site looks and reads**: the
+**`documentation/brand.md` is the source of truth for how the site looks and reads**: the
 principles, voice, colour tokens, type scale, layout, components, charts, logo and icons.
 Everything visual is downstream of it:
 
@@ -98,7 +99,7 @@ Rules:
 2. **Colour belongs to the data.** The chrome is ink on paper; a hue only ever encodes a
    topic, a party or a stage. There is no accent colour — do not add one. Party colours
    appear only where the data is about party.
-3. Changing the design means changing `Documentation/brand.md` first, then the code, in the
+3. Changing the design means changing `documentation/brand.md` first, then the code, in the
    same commit.
 4. Check every visual change in both themes (Day and Night) and at phone (390px) and desktop
    (1440px) widths before calling it done.
@@ -107,7 +108,7 @@ Rules:
 
 Screenshots and recordings that show a change go **in the pull request**: drag them into the
 PR description or a comment on github.com, where GitHub hosts them. They are **never
-committed** — not in `.github/`, not in `Documentation/`, not on another branch. Only images
+committed** — not in `.github/`, not in `documentation/`, not on another branch. Only images
 the site itself serves belong in the tree, under `public/`.
 
 `scripts/check-no-committed-screenshots.ts` runs in `pnpm test` and fails on any image or video
@@ -159,7 +160,7 @@ When a wrong answer is found in the wild, add it to `scripts/truth/questions.ts`
 go red, then fix it.
 
 **Deploying `convex/` is manual and merging does not do it.** See "Deploying Convex" in
-`Documentation/overview.md`. In a checkout not linked to the project, target production
+`documentation/overview.md`. In a checkout not linked to the project, target production
 explicitly: `CONVEX_DEPLOYMENT=prod:industrious-llama-331 npx convex deploy` (dry-run it first
 with `--dry-run`). Production once ran three days behind `main` here and answered
 bill-page questions about the wrong bill for the duration.
@@ -179,7 +180,7 @@ Self-driving watches production signals and opens GitHub PRs. Nothing merges aut
 
 - **Setup:** `posthog-cli login` then `pnpm posthog:self-driving` (project id `451900`).
 - **Billing:** Inbox product billing limit is **$0** — first 3 PRs/month free, no paid PRs.
-- **Integration report:** `posthog-setup-report.md` describes what is instrumented.
+- **Integration report:** `documentation/posthog-setup-report.md` describes what is instrumented.
 - **Session replay** reaches the inbox via Replay Vision scanners, not scouts.
 
 **Rules for any Self-driving PR that touches analytics** (human or agent):

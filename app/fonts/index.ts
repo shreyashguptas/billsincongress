@@ -1,7 +1,7 @@
 import { Geist, Geist_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
 
-// The three faces of Documentation/brand.md, in one place for app/layout.tsx
+// The three faces of documentation/brand.md, in one place for app/layout.tsx
 // and app/global-error.tsx (which replaces the root layout and inherits none of
 // it). Both pages must load the same files: two sets of "Newsreader" faces in
 // one stylesheet would fight, and the last one defined wins. Newsreader carries

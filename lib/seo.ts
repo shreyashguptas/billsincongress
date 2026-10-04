@@ -129,7 +129,7 @@ export function billStatusPhrase(bill: Bill): string {
       : bill.progress_stage;
   // A resolution is "agreed to", and finished there; "passed one chamber" in
   // the title and the share preview read as half-way to law. Same words as
-  // its status panel (Documentation/brand.md, "The road a measure travels").
+  // its status panel (documentation/brand.md, "The road a measure travels").
   if (stagePath(bill.bill_type) !== 'law') {
     if (isStageOnPath(stage, bill.bill_type)) return measureStageLabel(stage, bill.bill_type);
     // A code we do not know yet falls back to the backend's own words, as a

@@ -1,5 +1,5 @@
 /**
- * Structural tests for Documentation/ANALYTICS.md.
+ * Structural tests for documentation/analytics.md.
  *
  * CLAUDE.md makes that file the registry of every event we send and requires it
  * to change in the same commit as any feature change, so it is edited often, by
@@ -116,13 +116,13 @@ it("accepts consecutive tables, each with its own header", () => {
 
 // The real file
 
-it("every table row in ANALYTICS.md renders as part of a table", () => {
-  const path = join(dirname(fileURLToPath(import.meta.url)), "..", "Documentation", "ANALYTICS.md");
+it("every table row in analytics.md renders as part of a table", () => {
+  const path = join(dirname(fileURLToPath(import.meta.url)), "..", "documentation", "analytics.md");
   const orphans = orphanedTableRows(readFileSync(path, "utf8"));
   assert.deepEqual(
     orphans,
     [],
-    `ANALYTICS.md has rows that will not render as a table:\n${orphans
+    `analytics.md has rows that will not render as a table:\n${orphans
       .map((o) => `      line ${o.line}: ${o.text.slice(0, 80)}`)
       .join("\n")}\n    A blank line, blockquote or paragraph between a table's header and its\n    rows closes the table. Move the interrupting block below the table.`,
   );

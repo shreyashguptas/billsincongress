@@ -8,7 +8,7 @@ import { GenericShareCard } from '@/lib/og/generic-share-card';
 
 // Generates the site's generic Open Graph / social-share image (1200×630),
 // public/images/og-default.png, from lib/og/generic-share-card.tsx — the same
-// frame and embedded fonts as every live share card (Documentation/brand.md,
+// frame and embedded fonts as every live share card (documentation/brand.md,
 // "Share card"). Run manually after changing that card, and commit the PNG:
 //
 //   pnpm exec tsx scripts/generate-og-image.ts

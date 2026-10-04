@@ -19,8 +19,8 @@
  * ARITHMETIC. A Congress runs two years, convening 3 January of an odd year and
  * adjourning sine die on 3 January two years later — since the 20th Amendment;
  * see FIRST_JANUARY_CONGRESS below for the 4 March terms before it. The Nth
- * began in 1789 + 2*(N-1), the same convention as `congressStartYear` in lib/congress.ts
- * and `getCongressInfo` in convex/bills.ts. Duplicated rather than imported
+ * began in 1789 + 2*(N-1), the same convention as `congressStartYear` in lib/congress.ts.
+ * Duplicated rather than imported
  * because Convex bundles from convex/ and nothing here reaches into app code.
  *
  * DATES ARE COMPARED AS STRINGS, never through `new Date`. Zero-padded ISO

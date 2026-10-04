@@ -300,39 +300,6 @@ export const debugBillEnrichment = internalQuery({
   },
 });
 
-// The sync paginates actions up to 2,000 per bill (see fetchBillActions in
-// congressApi.ts), so this bound must cover a full history — otherwise the
-// "most recent" sort below runs over an arbitrary prefix of it.
-const MAX_BILL_ACTIONS = 2000;
-const RECENT_ACTIONS_LIMIT = 20;
-
-/**
- * A bill's most-recent actions (internal query, feeds the AI chatbot).
- *
- * Rows are stored in Library-of-Congress API order, so `_creationTime` is NOT
- * chronological — `.order("desc")` here returns the OLDEST actions. Read the
- * bounded set and sort by `actionDate` descending; the sort is stable, so
- * same-day actions keep the API's own newest-first order.
- */
-export const getBillActions = internalQuery({
-  args: { billId: v.string() },
-  handler: async (ctx, args) => {
-    const actions = await ctx.db
-      .query("billActions")
-      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-      .take(MAX_BILL_ACTIONS);
-
-    const sorted = [...actions].sort((a, b) =>
-      a.actionDate < b.actionDate ? 1 : a.actionDate > b.actionDate ? -1 : 0,
-    );
-
-    return sorted.slice(0, RECENT_ACTIONS_LIMIT).map((a) => ({
-      date: a.actionDate,
-      description: a.text,
-    }));
-  },
-});
-
 /** Shared filter args for the bills list + count queries. */
 const BILLS_FILTER_ARGS = {
   congress: v.optional(v.number()),
@@ -1226,26 +1193,6 @@ export const listCount = query({
   },
 });
 
-export const getCongressInfo = query({
-  handler: async (ctx) => {
-    const latestBill = await ctx.db
-      .query("bills")
-      .withIndex("by_congress")
-      .order("desc")
-      .first();
-
-    if (!latestBill) {
-      return { congress: 119, startYear: 2025, endYear: 2027 };
-    }
-
-    const congress = latestBill.congress;
-    const startYear = 2023 + (congress - 118) * 2;
-    const endYear = startYear + 2;
-
-    return { congress, startYear, endYear };
-  },
-});
-
 /**
  * Every unique sponsor across every congress, deduped by full name. Powers the
  * sponsor dropdown on /bills.
@@ -1312,63 +1259,6 @@ export const listForSitemap = query({
       isDone: result.isDone,
       continueCursor: result.continueCursor,
     };
-  },
-});
-
-/**
- * Homepage analytics: bill counts for all congresses (last 5).
- * Reads from precomputed congressStats table — ~5 tiny document reads total.
- */
-export const billCountsByCongress = query({
-  handler: async (ctx) => {
-    const stats = await ctx.db.query("congressStats").collect();
-    return stats
-      .sort((a, b) => a.congress - b.congress)
-      .slice(-5)
-      .map((s) => ({
-        congress: s.congress,
-        bill_count: s.totalCount,
-        house_bill_count: s.houseCount,
-        senate_bill_count: s.senateCount,
-      }));
-  },
-});
-
-/**
- * Homepage analytics: status breakdown for the latest congress.
- * Reads a single precomputed congressStats row.
- */
-export const latestCongressStatus = query({
-  handler: async (ctx) => {
-    const stats = await ctx.db.query("congressStats").collect();
-    if (stats.length === 0) return { congress: 119, stages: [] };
-
-    const latest = stats.reduce((a, b) =>
-      a.congress > b.congress ? a : b
-    );
-
-    return {
-      congress: latest.congress,
-      stages: latest.stageCounts
-        .map((s) => ({
-          progress_stage: s.stage,
-          progress_description: s.description,
-          bill_count: s.count,
-        }))
-        .sort((a, b) => a.progress_stage - b.progress_stage),
-    };
-  },
-});
-
-export const getPolicyAreas = query({
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("congressPolicyAreas").take(1000);
-    const areas = [
-      ...new Set(
-        rows.map((s) => s.policyAreaName).filter((a): a is string => !!a)
-      ),
-    ];
-    return areas.sort();
   },
 });
 
