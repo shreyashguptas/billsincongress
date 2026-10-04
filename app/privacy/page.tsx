@@ -181,6 +181,12 @@ export default function PrivacyPage() {
           conversation is still never written to our own database.
         </p>
         <p>
+          Each answer also leaves one short log entry in PostHog: whether it
+          was answered or failed, how long it took, and which bill page it
+          was asked on, linked to your visit&rsquo;s session replay. It holds
+          no question or answer text, and PostHog deletes it after 14 days.
+        </p>
+        <p>
           Under each answer we ask whether it was right. If you tap
           &ldquo;No&rdquo;, we send PostHog your question (and the one
           before it, if it was a follow-up) together with the answer you
@@ -224,8 +230,8 @@ export default function PrivacyPage() {
           you are signed in, our analytics link your activity to your
           account (including your email address) so we can understand the
           journey from first visit to sign-up. We send email for three
-          reasons only: account emails (today, sign-up verification
-          codes; password-reset codes once self-serve reset is built),
+          reasons only: account emails (sign-up verification and
+          password-reset codes),
           notices when your Pro plan starts, changes or ends,
           and bill alerts you have turned on yourself. All of them go
           through PostHog, the same provider that runs our analytics.
@@ -347,9 +353,10 @@ export default function PrivacyPage() {
         <p>
           You can read everything on this site without an account. You
           can block or clear cookies at any time — the site keeps working
-          (you would be signed out, and analytics simply stops). Self-serve
-          password reset is not built yet — no reset email is sent today —
-          so email us and we will reset it for you.
+          (you would be signed out, and analytics simply stops). To change
+          or reset your password, use &ldquo;Change password&rdquo; on your
+          account page or &ldquo;Forgot password?&rdquo; on the sign-in page;
+          either emails you a code to set a new one.
         </p>
         <p>
           To delete your account — along with your profile photo, saved
@@ -462,7 +469,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification codes, password-reset codes once that flow is built, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

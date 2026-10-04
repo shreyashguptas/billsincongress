@@ -4,9 +4,13 @@ import Link from 'next/link';
 import type { Bill } from '@/lib/types/bill';
 import { useEffect } from 'react';
 import {
-  stageLabel,
   getStageStep,
-  isValidStage,
+  isStageOnPath,
+  measureStageLabel,
+  PATH_LABELS,
+  stageNote,
+  stagePath,
+  stagePathNote,
   BillStages,
   type BillStage,
 } from '@/lib/utils/bill-stages';
@@ -22,6 +26,10 @@ import SaveBillButton from './save-bill-button';
 import BillAlertButton from './bill-alert-button';
 import ShareBillButton from './share-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
+import { BillJourneyPanel } from './bill-journey';
+import { BillPeersSection } from './bill-peers';
+import { journeyView } from '@/lib/bill-journey';
+import type { billsService } from '@/lib/services/bills-service';
 import {
   ArrowLeft,
   Ban,
@@ -53,7 +61,7 @@ const PARTY_NAMES: Record<string, string> = {
   '': 'No Party Affiliation',
 };
 
-/** Each stage's fixed glyph (Documentation/brand.md, "Iconography"). */
+/** Each stage's fixed glyph (documentation/brand.md, "Iconography"). */
 const STAGE_GLYPH: Record<BillStage, LucideIcon> = {
   [BillStages.INTRODUCED]: FilePlus,
   [BillStages.IN_COMMITTEE]: Users,
@@ -73,9 +81,13 @@ const LONG_TITLE_CHARS = 90;
 
 interface BillDetailsProps {
   bill: Bill;
+  /** The journey and peer counts; null when Convex could not supply them. */
+  extras?: Awaited<ReturnType<typeof billsService.fetchBillJourney>>;
+  /** Today in Washington, YYYY-MM-DD, from the server. */
+  today: string;
 }
 
-export default function BillDetails({ bill }: BillDetailsProps) {
+export default function BillDetails({ bill, extras = null, today }: BillDetailsProps) {
   // Derived, not state: stripping the CRS markup used to happen in an effect via
   // document.createElement, which meant the server-rendered HTML shipped the raw
   // "&lt;p&gt;&lt;strong&gt;…" tag soup and only became readable once JS ran.
@@ -133,9 +145,16 @@ export default function BillDetails({ bill }: BillDetailsProps) {
   // An unrecognised stage code is shown as unknown — heading "Unknown", no
   // step, an empty track — never as Introduced: that is a status the record
   // does not hold. Only the glyph needs a stand-in.
+  //
+  // Everything below is drawn on the measure's own road: a resolution ends at
+  // "Agreed to", not at law (documentation/brand.md, "The road a measure
+  // travels"), so a stage off that road is unknown too.
   const stage = progressStage;
-  const { step, total, isVetoed } = getStageStep(stage);
-  const StageGlyph = isValidStage(stage) ? STAGE_GLYPH[stage] : CircleHelp;
+  const billType = bill.bill_type;
+  const { step, total } = getStageStep(stage, billType);
+  const StageGlyph = isStageOnPath(stage, billType) ? STAGE_GLYPH[stage as BillStage] : CircleHelp;
+  const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
+  const roadNote = stagePathNote(billType);
 
   const stateName = STATE_NAMES[bill.sponsor_state] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party] || bill.sponsor_party;
@@ -162,6 +181,30 @@ export default function BillDetails({ bill }: BillDetailsProps) {
     policy_area: bill.bill_subjects?.policy_area_name ?? '',
     progress_stage: progressStage,
   };
+
+  // The journey is drawn only when its last stage is the stage this page
+  // states: both come from the same calculator, so a difference means the
+  // stored stage and the actions disagree, and the page does not pick a side.
+  const journey =
+    extras?.journey && extras.journey.finalStage === stage && bill.introduced_date
+      ? extras.journey
+      : null;
+  const view = journey
+    ? journeyView({ journey, billType: bill.bill_type, congress: bill.congress, today })
+    : null;
+  const figureCaption = !view
+    ? null
+    : view.finish === 'law'
+      ? 'from introduction to law'
+      : view.finish === 'signed'
+        ? 'from introduction to the signature'
+        : view.finish === 'vetoed'
+        ? 'from introduction to the veto'
+        : view.finish === 'adopted'
+          ? 'from introduction to adoption'
+          : view.expired
+            ? `from introduction to the end of the ${formatCongressOrdinal(bill.congress)} Congress`
+            : 'since it was introduced';
 
   const hasBaseRate =
     bill.base_rate_percent !== undefined &&
@@ -269,7 +312,14 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           aria-labelledby="bill-status-label"
           className="rounded-lg border border-line bg-raised p-6 sm:px-8 sm:py-7"
         >
-          <div className="grid gap-6 sm:grid-cols-[280px_minmax(0,1fr)] sm:items-center sm:gap-12">
+          <div
+            className={cn(
+              'grid gap-6 sm:items-center sm:gap-12',
+              view
+                ? 'sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'
+                : 'sm:grid-cols-[280px_minmax(0,1fr)]',
+            )}
+          >
             <div>
               <p id="bill-status-label" className="label-eyebrow">
                 Current status
@@ -284,40 +334,69 @@ export default function BillDetails({ bill }: BillDetailsProps) {
                   <span
                     className={cn(
                       'flex h-9 w-9 items-center justify-center rounded-full text-on-ink',
-                      stageFill(stage),
+                      stageFill(stage, billType),
                     )}
                   >
                     <StageGlyph className="h-[18px] w-[18px]" strokeWidth={1.75} />
                   </span>
                 </span>
                 <p className="font-serif text-display-sm font-medium text-ink sm:text-display-md">
-                  {stageLabel(stage)}
+                  {measureStageLabel(stage, billType)}
                 </p>
               </div>
               <p className="mt-2 font-mono text-sm text-ink-3 tabular">
                 {/* A vetoed bill is not "stage 5 of 7": it reached the President
                     and stopped there, off the path to law. */}
-                {isVetoed
-                  ? 'Stopped at the President'
-                  : step > 0
-                    ? `Stage ${step} of ${total}`
-                    : 'Stage unknown'}
+                {stageNote(stage, billType)}
               </p>
             </div>
 
-            <div>
-              <StageTrack stage={stage} labels size="lg" />
-              {/* StageTrack drops its seven step names below `sm`; the two ends
-                  still say which way the track runs. */}
-              <div
-                className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden"
-                aria-hidden="true"
-              >
-                <span className="text-ink">Introduced</span>
-                <span className={step === total ? 'text-ink' : 'text-ink-3'}>Law</span>
+            {view ? (
+              // How long the road has been, beside where it stands.
+              view.totalDays > 0 && (
+                <div className="sm:text-right">
+                  <p className="flex items-baseline gap-2.5 sm:justify-end">
+                    <span className="font-serif text-[56px] font-normal leading-none text-ink tabular sm:text-[72px]">
+                      {formatCount(view.totalDays)}
+                    </span>
+                    <span className="text-title text-ink-2">{view.totalDays === 1 ? 'day' : 'days'}</span>
+                  </p>
+                  <p className="mt-1.5 text-sm text-ink-2">{figureCaption}</p>
+                </div>
+              )
+            ) : (
+              <div>
+                <StageTrack stage={stage} billType={billType} labels size="lg" />
+                {/* StageTrack drops its step names below `sm`; the two ends
+                    still say which way the track runs. */}
+                <div
+                  className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden"
+                  aria-hidden="true"
+                >
+                  <span className="text-ink">Introduced</span>
+                  <span className={step === total ? 'text-ink' : 'text-ink-3'}>{roadEnd}</span>
+                </div>
+                {/* Why a resolution's road is short: it ends where it is finished. */}
+                {roadNote && (
+                  <p className="mt-4 max-w-measure text-sm leading-relaxed text-ink-2">{roadNote}</p>
+                )}
               </div>
-            </div>
+            )}
           </div>
+
+          {journey && (
+            <div className="mt-8 sm:mt-9">
+              <BillJourneyPanel
+                billId={String(bill.id)}
+                billType={bill.bill_type}
+                congress={bill.congress}
+                introducedDate={bill.introduced_date}
+                journey={journey}
+                today={today}
+                noun={noun}
+              />
+            </div>
+          )}
 
           {hasBaseRate && (
             <div className="mt-6 max-w-measure space-y-1.5 border-t border-line pt-5">
@@ -404,6 +483,18 @@ export default function BillDetails({ bill }: BillDetailsProps) {
           </aside>
         </div>
       </div>
+
+      {extras?.peers && (
+        <BillPeersSection
+          billId={String(bill.id)}
+          billLabel={billLabel}
+          billStage={stage}
+          billUpdatedAt={extras.billUpdatedAt}
+          congress={bill.congress}
+          peers={extras.peers}
+          today={today}
+        />
+      )}
 
       {/* Ask the record — the page's quiet closing band */}
       <section aria-labelledby="bill-ask-title" className="bg-sunken py-16 sm:py-[72px]">

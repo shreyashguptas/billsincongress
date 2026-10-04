@@ -2,14 +2,15 @@ import posthog from 'posthog-js';
 
 import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
+import type { SponsorMatchKind } from '@/lib/sponsor-match';
 
-// Typed PostHog event helpers — the code counterpart of Documentation/ANALYTICS.md.
+// Typed PostHog event helpers — the code counterpart of documentation/analytics.md.
 //
-// RULES (see Documentation/ANALYTICS.md "The contract"):
+// RULES (see documentation/analytics.md "The contract"):
 //  - Every custom event the app sends lives here as a named helper.
 //  - Components never call posthog.capture() with raw strings.
 //  - Adding/removing a feature means adding/removing its helpers here AND
-//    updating the registry table in Documentation/ANALYTICS.md, in the same commit.
+//    updating the registry table in documentation/analytics.md, in the same commit.
 //
 // Every helper is safe to call anywhere: it no-ops during SSR and when
 // PostHog isn't configured (missing env vars).
@@ -42,6 +43,8 @@ export type ShareOutcome = 'shared' | 'cancelled' | 'copied' | 'failed';
 export type DisplayMode = 'browser' | 'standalone';
 
 export type AuthIntent = 'sign_in' | 'sign_up';
+/** Where a password reset ran: the signed-out page, or "Change password" on /account. */
+export type PasswordResetSurface = 'forgot_password' | 'account';
 export type LimitKind = 'anonymous' | 'authed';
 
 export const analytics = {
@@ -89,7 +92,8 @@ export const analytics = {
 
   /**
    * Headers that let server-side captures attach to the same person/session.
-   * Spread into fetch() headers for API calls whose routes capture events.
+   * Spread into fetch() headers for API calls whose routes capture events or
+   * write PostHog log lines (`/api/answer` → convex/posthogLogs.ts).
    */
   requestHeaders(): Record<string, string> {
     if (!ready()) return {};
@@ -111,6 +115,22 @@ export const analytics = {
   signinSubmitted: () => capture('signin_submitted', { method: 'password' }),
   signinCompleted: (method: 'password' | 'google') => capture('signin_completed', { method }),
   signinFailed: (reason: 'invalid_credentials' | 'other') => capture('signin_failed', { reason }),
+
+  /**
+   * Password reset: on /forgot-password (signed out) or from "Change
+   * password" on /account (`surface`). On /forgot-password the request step
+   * advances whatever the server says (so the form never reveals which emails
+   * have accounts), which means `requested` counts attempts, not emails sent.
+   */
+  passwordResetRequested: (surface: PasswordResetSurface) => capture('password_reset_requested', { surface }),
+  passwordResetCodeResent: (surface: PasswordResetSurface) => capture('password_reset_code_resent', { surface }),
+  passwordResetSubmitted: (surface: PasswordResetSurface) => capture('password_reset_submitted', { surface }),
+  passwordResetCompleted: (surface: PasswordResetSurface) => capture('password_reset_completed', { surface }),
+  passwordResetFailed: (
+    surface: PasswordResetSurface,
+    reason: 'password_requirements' | 'invalid_code' | 'code_not_sent',
+  ) =>
+    capture('password_reset_failed', { surface, reason }),
 
   authGoogleClicked: (intent: AuthIntent) => capture('auth_google_clicked', { intent }),
 
@@ -239,9 +259,28 @@ export const analytics = {
     }),
 
   /**
+   * An empty title search named exactly one member of Congress ("jamie
+   * raskin", "warner"), so the empty state offered their sponsor filter. Once
+   * per empty result. `match_kind` says how the name matched; the text itself
+   * is not sent, like every other free-text field here.
+   */
+  billsNoResultsSponsorSuggested: (matchKind: SponsorMatchKind, queryLength: number) =>
+    capture('bills_no_results_sponsor_suggested', {
+      match_kind: matchKind,
+      query_length: queryLength,
+    }),
+
+  /** The reader took that offer: the text left the title search for the sponsor filter. */
+  billsNoResultsSponsorAccepted: (matchKind: SponsorMatchKind, queryLength: number) =>
+    capture('bills_no_results_sponsor_accepted', {
+      match_kind: matchKind,
+      query_length: queryLength,
+    }),
+
+  /**
    * A filter moved off its default or changed value.
    *
-   * This closes the gap Documentation/ANALYTICS.md has flagged since the Apply
+   * This closes the gap documentation/analytics.md has flagged since the Apply
    * button was removed: there has been no way to see WHICH filters people use,
    * only that they hit zero results. Fired from one chokepoint in
    * bills-client.tsx, so it cannot drift per control.
@@ -432,6 +471,33 @@ export const analytics = {
     base_rate_percent: number;
     base_rate_sample: number;
   }) => capture('bill_base_rate_viewed', props),
+
+  /**
+   * The journey (the to-scale stage bar, its chapters and the Congress clock)
+   * was drawn on a bill page. Passive, once per bill view. `bar_drawn` is false
+   * when the bill has spent time in only one stage and the panel shows the plain
+   * track instead.
+   */
+  billJourneyViewed: (props: {
+    bill_id: string;
+    progress_stage: number;
+    chapters: number;
+    total_days: number;
+    outcome: 'law' | 'signed' | 'vetoed' | 'adopted' | 'expired' | 'open';
+    bar_drawn: boolean;
+  }) => capture('bill_journey_viewed', props),
+
+  /**
+   * The reader scrolled to the "Among its peers" dot field on a bill page
+   * (30% of it on screen). Once per bill view.
+   */
+  billPeersViewed: (props: {
+    bill_id: string;
+    policy_area: string;
+    peer_total: number;
+    law_count: number;
+    ring_shown: boolean;
+  }) => capture('bill_peers_viewed', props),
 
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
 

@@ -1,6 +1,6 @@
 /**
  * Finds icons that do not line up with the text beside them — the three faults
- * described under "Icons beside text" in Documentation/brand.md.
+ * described under "Icons beside text" in documentation/brand.md.
  *
  * - `off-centre`: the icon's middle is not level with the middle of the
  *   label's capitals — of its only line in a centred row, of its first line in
@@ -35,6 +35,26 @@ const MAX_ICON_PX = 48;
 
 const isFlex = (display: string) => display.includes('flex') || display.includes('grid');
 const shown = (r: DOMRect) => r.width > 0 && r.height > 0;
+
+/**
+ * Text a reader cannot see: inside a screen-reader-only box (Tailwind's
+ * `sr-only` — a 1px box with its overflow clipped, absolutely placed, so its
+ * text sits wherever its static position falls, here 1px above the line).
+ * "Not included: " before a plan row's label (components/pro/plan-compare.tsx)
+ * is read aloud, not looked at, so it is not the label the icon has to line up
+ * with; the visible words after it are.
+ */
+function visuallyHidden(node: Text, row: Element, style: (el: Element) => CSSStyleDeclaration): boolean {
+  for (let el = node.parentElement; el && el !== row; el = el.parentElement) {
+    const cs = style(el);
+    if (cs.clip !== 'auto' && cs.clip !== '' && cs.position === 'absolute') return true;
+    if (cs.overflow !== 'visible') {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 1 || r.height <= 1) return true;
+    }
+  }
+  return false;
+}
 
 function firstContent(el: Element): ChildNode | null {
   for (const node of el.childNodes) {
@@ -96,7 +116,7 @@ export function findIconMisalignments(doc: Document = document): IconMisalignmen
     const texts: { node: Text; lines: DOMRect[] }[] = [];
     while (walker.nextNode()) {
       const node = walker.currentNode as Text;
-      if (!node.textContent?.trim() || icon.contains(node)) continue;
+      if (!node.textContent?.trim() || icon.contains(node) || visuallyHidden(node, row, style)) continue;
       const range = doc.createRange();
       range.selectNodeContents(node);
       const lines = [...range.getClientRects()].filter(shown);

@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 
 import { ChamberMark } from "@/components/brand/logo";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 
 /**
  * The frame every auth page shares: a narrow raised card centred on the page,
  * the chamber mark over a panel-size title, then the form. Ink on paper, no
- * hue (Documentation/brand.md, "The chrome").
+ * hue (documentation/brand.md, "The chrome").
  */
 export function AuthCard({
   title,
@@ -39,5 +40,17 @@ export function AuthDivider({ children }: { children: ReactNode }) {
       {children}
       <Separator className="w-auto flex-1" />
     </div>
+  );
+}
+
+/**
+ * The one line of error text under a form's fields. Alert brings role="alert";
+ * border and padding off so it reads as text, not a box.
+ */
+export function FormError({ children }: { children: ReactNode }) {
+  return (
+    <Alert variant="destructive" className="border-0 p-0">
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   );
 }

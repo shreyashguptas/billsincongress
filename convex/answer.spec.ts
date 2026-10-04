@@ -103,3 +103,37 @@ test("empty output on every attempt is reported as a failure, not an answer", as
   // One nudge and one final round. Not all five rounds.
   expect(requests).toHaveLength(3);
 });
+
+test("a lookup written as text is not published, and its invented number never reaches the reader", async () => {
+  replyWith([
+    "fetch_dataset(dataset=\"bills\", filters={\"congress\": 119}, limit=0)\n" +
+      "So far 1,557 bills have been introduced in the 119th Congress.",
+    "No bill in the 119th Congress matches that.",
+  ]);
+  const result = await ask("How many bills have been introduced?");
+  expect(result.error).toBeUndefined();
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+  expect(requests).toHaveLength(2);
+  expect(requests[1].tools).toBeDefined();
+  expect(requests[1].messages.at(-1)?.content).toMatch(/was not run/);
+  // The rejected reply is not fed back as something the model "retrieved".
+  expect(JSON.stringify(requests[1].messages)).not.toContain("1,557");
+  expect(JSON.stringify(requests[1].messages)).not.toContain("fetch_dataset(");
+});
+
+test("text-form lookups on every attempt end as a failure, not as an answer", async () => {
+  const fake = "query: \"farm bill status\"\nreason: \"We do not hold news coverage.\"";
+  replyWith([fake, fake, fake]);
+  const result = await ask("What happened to the farm bill?");
+  expect(result.error).toBe(EMPTY_MODEL_OUTPUT);
+  expect(result.text).toBe("");
+  expect(requests).toHaveLength(3);
+  // Not even the final, tool-less round sees the fake call.
+  expect(JSON.stringify(requests[2].messages)).not.toContain("farm bill status");
+});
+
+test("a first line repeating the end of the question is dropped", async () => {
+  replyWith(["introduced this year about lighthouses\nNo bill in the 119th Congress matches that."]);
+  const result = await ask("Was a bill introduced this year about lighthouses?");
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+});

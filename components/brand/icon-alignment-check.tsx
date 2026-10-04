@@ -14,7 +14,7 @@ declare global {
 /**
  * Development only: after each page settles, warns in the console about any
  * icon that does not line up with the text beside it (lib/icon-alignment.ts,
- * Documentation/brand.md "Icons beside text"). Menus and dialogs open after
+ * documentation/brand.md "Icons beside text"). Menus and dialogs open after
  * the check runs; call window.findIconMisalignments() in the console to check
  * them. Renders nothing; the root layout mounts it only in development.
  */
@@ -34,7 +34,7 @@ function Check() {
       if (cancelled) return;
       for (const hit of findIconMisalignments()) {
         const offset = hit.offsetPx === undefined ? '' : ` (${hit.offsetPx}px)`;
-        console.warn(`[icon-alignment] ${pathname} ${hit.kind}${offset}: "${hit.label}" — see Documentation/brand.md, "Icons beside text"`, hit.element);
+        console.warn(`[icon-alignment] ${pathname} ${hit.kind}${offset}: "${hit.label}" — see documentation/brand.md, "Icons beside text"`, hit.element);
       }
     };
     void run();

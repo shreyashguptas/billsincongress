@@ -1,6 +1,7 @@
 /**
  * The letterhead every email shares: palette, type, escaping and the document
- * shell. PURE — no Convex imports.
+ * shell. PURE — no Convex imports (the stage road comes from
+ * lib/utils/bill-stages.ts, itself pure).
  *
  * Every email is built to read the same when a mail client blocks remote
  * content (Apple Mail Privacy Protection, "Block All Remote Content"): no
@@ -8,9 +9,11 @@
  * only. The tests for each email check this.
  */
 
+import { getStageStep, isStageOnPath } from "../lib/utils/bill-stages";
+
 export const BRAND = "Bills in Congress";
 
-// The site's Day palette (Documentation/brand.md): paper, raised, ink, ink-3
+// The site's Day palette (documentation/brand.md): paper, raised, ink, ink-3
 // and line. Mail clients ignore CSS variables and most ignore dark-mode media
 // queries, so it is literal. Like the site, the chrome has no accent: colour
 // comes from the data palette below.
@@ -28,7 +31,7 @@ export const SANS = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 export const MONO = "'SFMono-Regular',Menlo,Consolas,monospace";
 
 /**
- * The data palette, for email (Documentation/brand.md, "Email"). The same Day
+ * The data palette, for email (documentation/brand.md, "Email"). The same Day
  * values as app/globals.css: the six topic colours, which together are the
  * brand's spectrum, and the stage ramp. As on the site, a colour means
  * something — the spectrum signs the email, a stage colour is a stage.
@@ -48,7 +51,17 @@ export const STAGE: Record<number, { fill: string; tint: string; text: string }>
   95: { fill: "#a02226", tint: "#f5e1e1", text: "#7c1a1d" },
   100: { fill: "#31724c", tint: "#e2efe7", text: "#245a3a" },
 };
-const STAGE_STEP: Record<number, number> = { 20: 1, 40: 2, 60: 3, 80: 4, 85: 5, 90: 5, 95: 6, 100: 7 };
+/**
+ * A stage that proves nothing — an unrecognised code, or one off the measure's
+ * road — takes neutral ink, never a stage's hue: on the site it is `bg-ink-3`.
+ * #666d77 on the ground is 4.9:1.
+ */
+const NEUTRAL_STAGE = { fill: C.muted, tint: C.ground, text: C.muted };
+
+/** The pill colours for `stage` on this measure's road (lib/utils/bill-stages.ts, `isStageOnPath`). */
+export function stageColours(stage: number, billType?: string | null): { fill: string; tint: string; text: string } {
+  return isStageOnPath(stage, billType) ? (STAGE[stage] ?? NEUTRAL_STAGE) : NEUTRAL_STAGE;
+}
 
 /** The spectrum as a strip: six equal bands. Across the top of every card. */
 export function spectrumBar(height = 5): string {
@@ -70,14 +83,20 @@ export function pill(label: string, colours: { fill: string; tint: string; text:
   return `<span style="display:inline-block;padding:4px 10px 4px 8px;border-radius:999px;background:${colours.tint};font:600 13px/1.3 ${SANS};color:${colours.text};"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colours.fill};margin-right:6px;vertical-align:1px;"></span>${escapeHtml(label)}</span>`;
 }
 
-/** The site's seven-step stage track, filled to `stage` in its colour. */
-export function stageTrack(stage: number): string {
-  const s = STAGE[stage] ?? STAGE[20];
-  const step = STAGE_STEP[stage] ?? 1;
+/**
+ * The site's stage track, filled to `stage` in its colour, on the measure's own
+ * road (documentation/brand.md, "The road a measure travels"): seven steps to
+ * law for a bill, three for a simple resolution, four for a concurrent one.
+ * The step count comes from the same `getStageStep` the site draws with, so the
+ * email and the bill page cannot disagree. An unrecognised stage fills nothing.
+ */
+export function stageTrack(stage: number, billType?: string | null): string {
+  const { step, total } = getStageStep(stage, billType);
+  const fill = stageColours(stage, billType).fill;
   const cells = Array.from(
-    { length: 7 },
+    { length: total },
     (_, i) =>
-      `<td height="6" style="height:6px;line-height:6px;font-size:0;background:${i < step ? s.fill : "#edece6"};border-radius:2px;">&nbsp;</td>${i < 6 ? '<td width="4" style="width:4px;font-size:0;">&nbsp;</td>' : ""}`,
+      `<td height="6" style="height:6px;line-height:6px;font-size:0;background:${i < step ? fill : "#edece6"};border-radius:2px;">&nbsp;</td>${i < total - 1 ? '<td width="4" style="width:4px;font-size:0;">&nbsp;</td>' : ""}`,
   ).join("");
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:320px;"><tr>${cells}</tr></table>`;
 }

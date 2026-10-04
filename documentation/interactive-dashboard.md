@@ -13,7 +13,7 @@ illustrative of magnitude, not as live values.
 | Concern | Path |
 | --- | --- |
 | Home-page route (server component) | `app/page.tsx` |
-| Dashboard shell (client component): data loading, Congress switching, drill-down, the two older charts | `components/dashboard/DashboardClient.tsx` |
+| Dashboard shell (client component): data loading, Congress switching, drill-down, the two older charts | `components/dashboard/dashboard-client.tsx` |
 | Hero and chart sections | `components/dashboard/home/` — `hero.tsx` + `hemicycle.tsx`, `stat-strip.tsx`, `stage-zoom.tsx`, `topic-wheel.tsx`, `sponsors-chart.tsx`, `state-map.tsx`, shared props and ask pieces in `shared.tsx` |
 | Dashboard queries | `convex/bills.ts` — `getAllCongressOverview`, `getCongressDashboard`, `getChamberDeepBreakdown` |
 | Recompute jobs | `convex/mutations.ts`, orchestrated from `convex/congressApi.ts` |
@@ -104,7 +104,7 @@ page are progress stage 100 only, the same definition `statusBreakdown.becameLaw
 Sections 3 through 8 each carry an "Ask about this" question that interpolates the
 current Congress (for example *"Why do most bills never leave committee in the 119th
 Congress?"*) and renders an `AskAbout` button (it takes optional `className` and `children`, which the
-topic wheel uses for its inline "Ask what they're about"). The comment in `DashboardClient.tsx` states
+topic wheel uses for its inline "Ask what they're about"). The comment in `dashboard-client.tsx` states
 the rule: this sits **alongside** the drill-down and never replaces it, because browsing and
 asking are different intents.
 
@@ -131,7 +131,7 @@ change" + Enter asks. "See all matching bills" opens `/bills` with the same text
 Measured against production on 2026-09-24, a bill-number lookup returns in about 40 ms. A common
 topic word takes 0.3–1.4 s, because the title search reads up to 1,024 matches before returning a
 page. Events: `bill_suggestions_shown`, `bill_suggestion_clicked`,
-`bill_suggestions_see_all_clicked` (see `ANALYTICS.md`).
+`bill_suggestions_see_all_clicked` (see `analytics.md`).
 
 ### The starters under the ask box
 
@@ -182,8 +182,8 @@ the read. See [Known gaps](#known-gaps).
 | Table | Written by | Rows today |
 | --- | --- | --- |
 | `congressStats` | `writeCongressStats` (patch-or-insert) | 3 |
-| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th) |
-| `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress (550 / 595 / 552 for 119 / 118 / 117) |
+| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th). Each row also carries `stageCounts` (the same bills by stage, counted in the same pass, so they sum to `count`) and `countedAt`, which the bill page's "Among its peers" dot field reads through `bills.getJourney` |
+| `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress (550 / 595 / 552 for 119 / 118 / 117). One row per stored *spelling*: the 118th's 595 are 551 members, 44 of them under two spellings. Readers merge them with `mergeSponsorRows`; see "One member, several spellings" in `overview.md` |
 | `congressChamberBreakdowns` | `writeCongressChamberBreakdown` (patch-or-insert) | 6 (3 Congresses × 2 chambers) |
 
 `stateCounts` is stored as an **array rather than a record**, because Convex object keys must
@@ -200,8 +200,18 @@ Live `congressStats`, 29 August 2026:
 | 118 | 19,315 | 12,556 | 6,759 | 575 | 18,229 | 224 | 0 | 13 | 274 |
 | 119 | 18,472 | 12,005 | 6,467 | 479 | 17,693 | 194 | 0 | 2 | 104 |
 
-Stages 90 and 95 are zero in all three Congresses — the pipeline records those transitions
-as "Became Law", which is why no hub page exists for them either.
+These figures predate the 30 Sep 2026 stage-calculator fix. The calculator did not recognise
+the Library of Congress's "Passed/agreed to in House/Senate" record, so roughly 1,200 measures
+per Congress sat in "Introduced" or "In committee" after passing a chamber. Re-derived from the
+30 Sep production copy, the 119th reads 52 introduced, 17,668 in committee, 1,452 passed one
+chamber, 43 passed both — the live row matches once the backfill below has run. By the 1 Oct
+2026 copy the 119th had grown to 19,418 (12,567 House, 6,851 Senate), 119 of them law.
+
+Stages 90 and 95 were zero in all three Congresses when last measured (29 Aug 2026) — the
+pipeline records those transitions as "Became Law", which is why no hub page exists for them
+either. Stage 80 is no longer near-empty: since the 30 Sep 2026 fix a concurrent resolution
+agreed to by both chambers is stored there, and the bill page draws it as "Agreed to" on the
+resolution's own road (see [brand.md](brand.md#the-road-a-measure-travels)).
 
 Documents read per home-page load:
 
@@ -245,9 +255,8 @@ below, not performance.
 | `reconcileMissingBills` completing a Congress | Stats, policy areas, sponsors, both chamber breakdowns |
 | `npx convex run --prod congressApi:triggerRecomputeStats '{}'` | Wraps `recomputeAllStats` |
 
-> `convex/congressApi.ts` still contains a legacy `dailySync` entry point whose comment points
-> at this file. It is wired to no cron and simply delegates to `incrementalSync`; the real
-> nightly entry point is `incrementalSync`.
+The nightly entry point is `incrementalSync`. (A legacy `dailySync` wrapper around it, wired
+to no cron, was deleted on 1 Oct 2026.)
 
 `recomputeAllStats` discovers which Congresses have data by probing
 `bills.hasBillsForCongress` for c = 93 … `max(120, currentCongress)` — 28 tiny indexed
@@ -395,8 +404,8 @@ return a zero-filled shape rather than `null`** when the row is missing, so a fr
 renders an empty chart instead of crashing. Copy `getChamberDeepBreakdown`.
 
 **7. Update the docs and analytics.** A new dashboard section needs its events registered in
-[`ANALYTICS.md`](ANALYTICS.md) and helpers in `lib/analytics.ts` in the same commit, and this
-file and the README updated if what a reader sees has changed.
+[`analytics.md`](analytics.md) and helpers in `lib/analytics.ts` in the same commit, and this
+file and the [reader guide](reader-guide.md) updated if what a reader sees has changed.
 
 ---
 

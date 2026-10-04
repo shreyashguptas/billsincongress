@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage, BillStages } from "./billStage";
+import { buildJourney } from "./billJourney";
 import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
 import {
@@ -19,7 +20,7 @@ import {
   takeFirst,
   type HubOrder,
 } from "./hubOrder";
-import { candidateSurnames } from "./catalog/sponsorName";
+import { candidateSurnames, mergeSponsorRows, nameKey } from "./catalog/sponsorName";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -162,6 +163,70 @@ export const getById = query({
   },
 });
 
+// Past this many stored actions the journey is not drawn, rather than drawn
+// from part of the record. The longest bills of the 119th have ~115.
+const MAX_JOURNEY_ACTIONS = 1000;
+
+/**
+ * What the bill page draws beyond the bill itself: its journey (the day it
+ * reached each stage, and its votes) and the stage counts of every bill on its
+ * topic in its Congress (the dot field).
+ *
+ * Each part is null when it cannot be drawn honestly: no topic, a topic row
+ * counted before stage counts existed, parts that do not sum to the topic's
+ * total, or more actions than the cap (a journey from part of the record would
+ * misdate a stage).
+ */
+export const getJourney = query({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (!bill) return null;
+
+    const actions = await ctx.db
+      .query("billActions")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(MAX_JOURNEY_ACTIONS + 1);
+    const journey =
+      actions.length > MAX_JOURNEY_ACTIONS
+        ? null
+        : buildJourney(actions, bill.introducedDate, bill.billType);
+
+    let peers: {
+      policyArea: string;
+      total: number;
+      stageCounts: Array<{ stage: number; count: number }>;
+      countedAt: string;
+    } | null = null;
+    if (bill.policyAreaName) {
+      const rows = await ctx.db
+        .query("congressPolicyAreas")
+        .withIndex("by_congress", (q) => q.eq("congress", bill.congress))
+        .take(MAX_POLICY_AREAS_PER_CONGRESS);
+      const row = rows.find((r) => r.policyAreaName === bill.policyAreaName);
+      const parts = row?.stageCounts;
+      if (
+        row &&
+        parts &&
+        row.countedAt &&
+        parts.reduce((sum, p) => sum + p.count, 0) === row.count
+      ) {
+        peers = {
+          policyArea: row.policyAreaName,
+          total: row.count,
+          stageCounts: parts,
+          countedAt: row.countedAt,
+        };
+      }
+    }
+
+    return { journey, peers, billUpdatedAt: bill.updatedAt };
+  },
+});
+
 /**
  * Read-only diagnostic: a bill's stored actions, plus stored vs freshly
  * computed stage.
@@ -235,39 +300,6 @@ export const debugBillEnrichment = internalQuery({
   },
 });
 
-// The sync paginates actions up to 2,000 per bill (see fetchBillActions in
-// congressApi.ts), so this bound must cover a full history — otherwise the
-// "most recent" sort below runs over an arbitrary prefix of it.
-const MAX_BILL_ACTIONS = 2000;
-const RECENT_ACTIONS_LIMIT = 20;
-
-/**
- * A bill's most-recent actions (internal query, feeds the AI chatbot).
- *
- * Rows are stored in Library-of-Congress API order, so `_creationTime` is NOT
- * chronological — `.order("desc")` here returns the OLDEST actions. Read the
- * bounded set and sort by `actionDate` descending; the sort is stable, so
- * same-day actions keep the API's own newest-first order.
- */
-export const getBillActions = internalQuery({
-  args: { billId: v.string() },
-  handler: async (ctx, args) => {
-    const actions = await ctx.db
-      .query("billActions")
-      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-      .take(MAX_BILL_ACTIONS);
-
-    const sorted = [...actions].sort((a, b) =>
-      a.actionDate < b.actionDate ? 1 : a.actionDate > b.actionDate ? -1 : 0,
-    );
-
-    return sorted.slice(0, RECENT_ACTIONS_LIMIT).map((a) => ({
-      date: a.actionDate,
-      description: a.text,
-    }));
-  },
-});
-
 /** Shared filter args for the bills list + count queries. */
 const BILLS_FILTER_ARGS = {
   congress: v.optional(v.number()),
@@ -308,8 +340,13 @@ type BillsCountResult = {
 
 const unknownCount = (): BillsCountResult => ({ count: null, exact: false });
 
-const normaliseName = (s: string) =>
-  s.trim().toLowerCase().replace(/\s+/g, " ");
+/**
+ * How a sponsor name is compared: case, spacing and accents ignored, the same
+ * rule as the answer engine. Stored rows spell some members two ways ("ADAM
+ * SCHIFF" / "Adam Schiff", "NYDIA VELAZQUEZ" / "Nydia Velázquez"), so a filter
+ * for one spelling must reach both.
+ */
+const normaliseName = nameKey;
 
 const MAX_LIST_LIMIT = 50;
 const MAX_LIST_OFFSET = 500;
@@ -1161,56 +1198,45 @@ export const listCount = query({
   },
 });
 
-export const getCongressInfo = query({
-  handler: async (ctx) => {
-    const latestBill = await ctx.db
-      .query("bills")
-      .withIndex("by_congress")
-      .order("desc")
-      .first();
-
-    if (!latestBill) {
-      return { congress: 119, startYear: 2025, endYear: 2027 };
-    }
-
-    const congress = latestBill.congress;
-    const startYear = 2023 + (congress - 118) * 2;
-    const endYear = startYear + 2;
-
-    return { congress, startYear, endYear };
-  },
-});
-
 /**
- * Every unique sponsor across every congress, deduped by full name. Powers the
- * sponsor dropdown on /bills.
+ * Every member who sponsored a bill in any congress we hold, one entry each
+ * (see mergeSponsorRows). Powers the sponsor dropdown on /bills.
  */
 export const listAllSponsors = query({
   handler: async (ctx) => {
     const rows = await ctx.db.query("congressSponsors").collect();
 
+    // One entry per member across every Congress, not per stored spelling: the
+    // picker used to offer "ADAM SCHIFF" and "Adam Schiff" as two people, each
+    // with part of his bills.
+    //
+    // Then one entry per NAME. The filter matches on the name alone, so two
+    // members who share one (for different states; none do in the 2026-10-04
+    // data) cannot be told apart by it: picking either returns both. One entry,
+    // with both members' bills and no party or state, says what the filter does
+    // and keeps every option's value unique.
     const byName = new Map<
       string,
       { name: string; party?: string; state?: string; billCount: number }
     >();
-    for (const r of rows) {
-      const existing = byName.get(r.sponsorName);
-      if (!existing) {
-        byName.set(r.sponsorName, {
-          name: r.sponsorName,
-          party: r.sponsorParty,
-          state: r.sponsorState,
-          billCount: r.billCount,
+    for (const m of mergeSponsorRows(rows)) {
+      const key = nameKey(m.sponsorName);
+      const held = byName.get(key);
+      if (!held) {
+        byName.set(key, {
+          name: m.sponsorName,
+          party: m.sponsorParty,
+          state: m.sponsorState,
+          billCount: m.billCount,
         });
         continue;
       }
-      existing.billCount += r.billCount;
-      if (!existing.party && r.sponsorParty) existing.party = r.sponsorParty;
-      if (!existing.state && r.sponsorState) existing.state = r.sponsorState;
+      held.billCount += m.billCount;
+      held.party = undefined;
+      held.state = undefined;
     }
-
     return [...byName.values()].sort((a, b) =>
-      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
     );
   },
 });
@@ -1247,63 +1273,6 @@ export const listForSitemap = query({
       isDone: result.isDone,
       continueCursor: result.continueCursor,
     };
-  },
-});
-
-/**
- * Homepage analytics: bill counts for all congresses (last 5).
- * Reads from precomputed congressStats table — ~5 tiny document reads total.
- */
-export const billCountsByCongress = query({
-  handler: async (ctx) => {
-    const stats = await ctx.db.query("congressStats").collect();
-    return stats
-      .sort((a, b) => a.congress - b.congress)
-      .slice(-5)
-      .map((s) => ({
-        congress: s.congress,
-        bill_count: s.totalCount,
-        house_bill_count: s.houseCount,
-        senate_bill_count: s.senateCount,
-      }));
-  },
-});
-
-/**
- * Homepage analytics: status breakdown for the latest congress.
- * Reads a single precomputed congressStats row.
- */
-export const latestCongressStatus = query({
-  handler: async (ctx) => {
-    const stats = await ctx.db.query("congressStats").collect();
-    if (stats.length === 0) return { congress: 119, stages: [] };
-
-    const latest = stats.reduce((a, b) =>
-      a.congress > b.congress ? a : b
-    );
-
-    return {
-      congress: latest.congress,
-      stages: latest.stageCounts
-        .map((s) => ({
-          progress_stage: s.stage,
-          progress_description: s.description,
-          bill_count: s.count,
-        }))
-        .sort((a, b) => a.progress_stage - b.progress_stage),
-    };
-  },
-});
-
-export const getPolicyAreas = query({
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("congressPolicyAreas").take(1000);
-    const areas = [
-      ...new Set(
-        rows.map((s) => s.policyAreaName).filter((a): a is string => !!a)
-      ),
-    ];
-    return areas.sort();
   },
 });
 
@@ -1357,7 +1326,12 @@ export const getCongressDashboard = query({
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
       .collect();
 
-    const topSponsors = sponsors.slice(0, 10).map(s => ({
+    // Merged before ranking, so a member stored under two spellings is ranked
+    // on all their bills, not on whichever spelling holds more.
+    const topSponsors = mergeSponsorRows(sponsors)
+      .sort((a, b) => b.billCount - a.billCount)
+      .slice(0, 10)
+      .map(s => ({
       name: s.sponsorName,
       count: s.billCount,
       party: s.sponsorParty,

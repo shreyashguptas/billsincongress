@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-// The installed app (Documentation/overview.md, "Installed app"). Chrome, Edge
+// The installed app (documentation/overview.md, "Installed app"). Chrome, Edge
 // and Android install from this; iOS reads the name and icons when a reader
 // adds the site to their Home Screen, alongside the apple-touch-icon and
 // `appleWebApp` in app/layout.tsx.
@@ -18,7 +18,7 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'en-US',
     dir: 'ltr',
     categories: ['news', 'politics', 'education'],
-    // Paper and ink — Documentation/brand.md.
+    // Paper and ink — documentation/brand.md.
     background_color: '#f6f5f1',
     theme_color: '#101418',
     // The app icon (public/brand/app-icon.svg) keeps the chamber inside the

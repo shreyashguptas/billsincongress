@@ -96,7 +96,7 @@ jobs:
           # report success, and leave production untouched.
           case "$CONVEX_DEPLOY_KEY" in
             prod:*) ;;
-            "") echo "::error::CONVEX_DEPLOY_KEY is empty. It must be a secret of the Production environment, and this job must be running on main. See 'Deploying Convex' in Documentation/overview.md."; exit 1 ;;
+            "") echo "::error::CONVEX_DEPLOY_KEY is empty. It must be a secret of the Production environment, and this job must be running on main. See 'Deploying Convex' in documentation/overview.md."; exit 1 ;;
             *) echo "::error::CONVEX_DEPLOY_KEY is not a production deploy key (it must start with 'prod:')."; exit 1 ;;
           esac
           pnpm exec convex deploy --yes

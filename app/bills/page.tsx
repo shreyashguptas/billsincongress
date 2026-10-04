@@ -6,6 +6,9 @@ import BillsClient, { type UrlFilters } from './bills-client';
 import { HubDirectory } from './_hub/hub-directory';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { pagesForCount } from '@/lib/pagination';
+import { clampFilterList, clampFilterText } from '@/lib/bill-query';
+import { FILTER_BY_FIELD } from '@/lib/bills/filter-registry';
+import { acceptedFilterValue } from '@/lib/bills/filter-url';
 import {
   DEFAULT_FILTER_VALUES,
   filterSignature,
@@ -40,9 +43,26 @@ interface PageProps {
   searchParams: Promise<SearchParams>;
 }
 
+/**
+ * One URL value, cut to what `bills.list` accepts. A pasted `?title=` past 120
+ * characters otherwise reached Convex, which throws on it.
+ */
 function firstValue(v: string | string[] | undefined): string | undefined {
   const value = Array.isArray(v) ? v[0] : v;
-  return value === '' ? undefined : value;
+  return value === undefined || value === '' ? undefined : clampFilterText(value);
+}
+
+/**
+ * One filter's URL value, through the same check as the client's parser
+ * (`acceptedFilterValue`): cut to the server's limits, and dropped when the
+ * filter has a closed vocabulary that does not include it.
+ */
+function filterValue(
+  params: SearchParams,
+  field: Exclude<keyof UrlFilters, 'sponsor'>,
+): string | undefined {
+  const v = params[FILTER_BY_FIELD[field].param];
+  return acceptedFilterValue(FILTER_BY_FIELD[field], Array.isArray(v) ? v[0] : v);
 }
 
 /**
@@ -68,7 +88,7 @@ function hrefForPage(params: SearchParams, page: number): string {
 function allValues(v: string | string[] | undefined): string[] {
   if (v === undefined) return [];
   const values = Array.isArray(v) ? v : [v];
-  return Array.from(new Set(values.filter((s) => s !== '')));
+  return clampFilterList(Array.from(new Set(values.filter((s) => s !== ''))));
 }
 
 function parseRequest(params: SearchParams): {
@@ -77,16 +97,16 @@ function parseRequest(params: SearchParams): {
   page: number;
 } {
   const urlFilters: UrlFilters = {
-    status: firstValue(params.status),
-    introducedDate: firstValue(params.introducedDate),
-    lastActionDate: firstValue(params.lastActionDate),
-    title: firstValue(params.title),
-    state: firstValue(params.state),
-    policyArea: firstValue(params.policyArea),
-    billType: firstValue(params.billType),
-    billNumber: firstValue(params.billNumber),
-    congress: firstValue(params.congress),
-    chamber: firstValue(params.chamber),
+    status: filterValue(params, 'status'),
+    introducedDate: filterValue(params, 'introducedDate'),
+    lastActionDate: filterValue(params, 'lastActionDate'),
+    title: filterValue(params, 'title'),
+    state: filterValue(params, 'state'),
+    policyArea: filterValue(params, 'policyArea'),
+    billType: filterValue(params, 'billType'),
+    billNumber: filterValue(params, 'billNumber'),
+    congress: filterValue(params, 'congress'),
+    chamber: filterValue(params, 'chamber'),
   };
   const sponsor = allValues(params.sponsor);
   if (sponsor.length > 0) urlFilters.sponsor = sponsor;

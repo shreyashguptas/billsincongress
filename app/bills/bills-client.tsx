@@ -34,6 +34,8 @@ import {
   scanLimitedActive,
 } from '@/lib/bills/filter-registry';
 import { buildFilterQuery, filtersFromQuery } from '@/lib/bills/filter-url';
+import { loadSponsors } from '@/components/bills/filters/sponsor-source';
+import { matchSponsorName, type SponsorMatchKind } from '@/lib/sponsor-match';
 
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
@@ -124,6 +126,14 @@ export default function BillsClient({
   const [isLoading, setIsLoading] = useState(initialBills === null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The filter signature whose fetch came back with zero bills — set only once
+   * a result is known, never inferred from render-time `bills`/`isLoading`,
+   * which still describe the previous filters on the render where they change.
+   */
+  const [confirmedEmpty, setConfirmedEmpty] = useState<string | null>(
+    initialBills !== null && initialBills.length === 0 ? serverFilterSignature : null,
+  );
 
   const currentSignature = filterSignature(filters);
   const chips = activeFilters(filters);
@@ -136,7 +146,7 @@ export default function BillsClient({
 
   /**
    * The one place a filter changes. Fires the analytics that
-   * Documentation/ANALYTICS.md has recorded as missing since the Apply button
+   * documentation/analytics.md has recorded as missing since the Apply button
    * was removed, and resets pagination so page 4 of one filter set never
    * becomes page 4 of another.
    */
@@ -311,6 +321,7 @@ export default function BillsClient({
         setHasMore(response.hasMore);
         setTruncated(response.truncated ?? false);
         setCurrentPage(1);
+        setConfirmedEmpty(response.data.length === 0 ? currentSignature : null);
         // UX friction signal: an active filter combination matched nothing.
         if (response.data.length === 0 && activeFilterCount(filters) > 0) {
           analytics.billsNoResults(activeFilterCount(filters), filters.title.length);
@@ -325,6 +336,7 @@ export default function BillsClient({
         setBills([]);
         setHasMore(false);
         setTruncated(false);
+        setConfirmedEmpty(null);
         setError(LOAD_FAILED_MESSAGE);
       })
       .finally(() => {
@@ -374,6 +386,49 @@ export default function BillsClient({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [truncated, currentSignature]);
+
+  /*
+   * A member's name typed into the title search. Titles never contain one, so
+   * "jamie raskin" is always empty while his sponsor filter is not. When a
+   * title search comes back empty, check the text against the sponsor list and
+   * offer that filter instead. The list is only fetched here, on an empty
+   * title search, and shared with the sponsor picker.
+   */
+  const [sponsorSuggestion, setSponsorSuggestion] = useState<{
+    forSignature: string;
+    name: string;
+    kind: SponsorMatchKind;
+  } | null>(null);
+  const suggestionReported = useRef('');
+  const emptyTitleSearch =
+    confirmedEmpty === currentSignature && !error && filters.title !== '';
+
+  useEffect(() => {
+    if (!emptyTitleSearch) return;
+    const signature = currentSignature;
+    const title = filters.title;
+    let cancelled = false;
+    loadSponsors()
+      .then((sponsors) => {
+        if (cancelled) return;
+        const match = matchSponsorName(title, sponsors);
+        if (!match) return;
+        setSponsorSuggestion({ forSignature: signature, name: match.sponsor.name, kind: match.kind });
+        if (suggestionReported.current === signature) return;
+        suggestionReported.current = signature;
+        analytics.billsNoResultsSponsorSuggested(match.kind, title.length);
+      })
+      // Optional help on an empty page: without the list there is simply no
+      // suggestion.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emptyTitleSearch, currentSignature]);
+
+  const suggestedSponsor =
+    sponsorSuggestion?.forSignature === currentSignature ? sponsorSuggestion : null;
 
   // Re-keying the results list on the filter signature makes new rows
   // cross-fade/stagger in when filters change, while a "load more" (same
@@ -532,6 +587,39 @@ export default function BillsClient({
               ) : error ? null : (
                 <div className="border-b border-line px-4 py-14 text-center sm:py-20">
                   <p className="font-serif text-display-sm text-ink">No bills found</p>
+                  {suggestedSponsor && (
+                    <div className="mx-auto mt-3 max-w-measure">
+                      <p className="text-[15px] text-ink-2">
+                        Bill titles don&apos;t name their sponsors. To see what a member
+                        introduced, filter by sponsor.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          analytics.billsNoResultsSponsorAccepted(
+                            suggestedSponsor.kind,
+                            filters.title.length,
+                          );
+                          // Already filtered by this sponsor (readers did both):
+                          // the title text is all that stands in the way. One
+                          // name reaches every stored spelling of the member;
+                          // the server compares names without case or accents.
+                          setFilter(
+                            filters.sponsor.includes(suggestedSponsor.name)
+                              ? { title: '' }
+                              : {
+                                  title: '',
+                                  sponsor: [...filters.sponsor, suggestedSponsor.name],
+                                },
+                            'empty_state',
+                          );
+                        }}
+                        className="mt-5 h-auto min-h-10 max-w-full whitespace-normal"
+                      >
+                        Show bills sponsored by {suggestedSponsor.name}
+                      </Button>
+                    </div>
+                  )}
                   {filtersActive ? (
                     <>
                       <p className="mx-auto mt-3 max-w-measure text-[15px] text-ink-2">

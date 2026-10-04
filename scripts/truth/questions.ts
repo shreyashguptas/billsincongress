@@ -84,6 +84,7 @@ export interface ActionRow {
   billId: string;
   actionDate: string;
   text: string;
+  actionCode?: string;
   sourceSystemName?: string;
 }
 
@@ -287,12 +288,14 @@ export const QUESTIONS: TruthQuestion[] = [
     expect: (db) => {
       const senateBills = billsIn(db, CURRENT_CONGRESS).filter((b) => b.billType === "s");
       const milestone = count(senateBills, (b) => (b.progressStage ?? 0) >= PASSED_A_CHAMBER);
-      // Our own progressStage misses 10 S. bills that were introduced, read
-      // three times and passed the same day: their actions say "Passed Senate"
-      // while their stage still says Introduced. Both 176 and 186 are defensible
-      // readings of OUR data, so the band spans them and nothing else. It does
-      // not reach 194 (the all-chamber terminal bucket) or 142 (the Senate
-      // terminal bucket), which are the two wrong answers.
+      // Our own progressStage missed 10 S. bills that were introduced, read
+      // three times and passed the same day: their actions say "Passed/agreed
+      // to in Senate" while their stage said Introduced. The calculator reads
+      // that record since 2026-09-30; until production is backfilled, both 176
+      // and 186 are defensible readings of OUR data, so the band spans them and
+      // nothing else. It does not reach 194 (the all-chamber terminal bucket)
+      // or 142 (the Senate terminal bucket), which are the two wrong answers.
+      // Drop the tolerance once a re-dump shows the backfill has run.
       return {
         kind: "number",
         value: milestone,
@@ -320,6 +323,27 @@ export const QUESTIONS: TruthQuestion[] = [
         note:
           `hr + s only, out of ${measures.length} measures of all eight types. Must ` +
           `reject ${measures.length}.`,
+      };
+    },
+  },
+
+  {
+    id: "measures-introduced",
+    question:
+      `How many measures, bills and resolutions together, have been introduced in ` +
+      `the ${CURRENT_CONGRESS}th Congress?` + ONE_NUMBER,
+    defect:
+      "Wrote a fetch_dataset(...) call out as text instead of making it, then " +
+      "told the reader 1,557 bills had been introduced in the 119th. It was " +
+      "19,441 measures on 2026-10-02; 1,557 appears in no row.",
+    expect: (db) => {
+      const measures = billsIn(db, CURRENT_CONGRESS);
+      return {
+        kind: "number",
+        value: measures.length,
+        note:
+          `Every row in the ${CURRENT_CONGRESS}th, all eight types. Must reject ` +
+          `1,557, which no lookup returned.`,
       };
     },
   },
@@ -388,6 +412,29 @@ export const QUESTIONS: TruthQuestion[] = [
           `is pending. Its ${stranded.toLocaleString("en-US")} committee-stage rows are ` +
           `bills that died there — an answer that offers that number as a live backlog ` +
           `is the defect.`,
+      };
+    },
+  },
+
+  {
+    id: "house-passed-not-in-committee",
+    question: "Has this bill passed the House?" + YES_OR_NO,
+    focusBillId: "10326hr119",
+    defect:
+      "Said H.R. 10326 was in committee. It passed the House 217-207 on 16 Sep 2026; " +
+      "the stage calculator did not recognise the Library of Congress's " +
+      "\"Passed/agreed to in House\" record, so 3,766 measures that had passed a " +
+      "chamber read \"In Committee\" or \"Introduced\".",
+    expect: (db) => {
+      const passage = db.billActions.find(
+        (a) => a.billId === "10326hr119" && a.actionCode === "8000",
+      );
+      return {
+        kind: "boolean",
+        value: passage !== undefined,
+        note: passage
+          ? `Code 8000 on ${passage.actionDate}: "${passage.text.slice(0, 80)}". "In committee" is the defect.`
+          : "No House passage on record for H.R. 10326 in this copy.",
       };
     },
   },

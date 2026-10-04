@@ -3,7 +3,7 @@
  *
  * The server sends an answer only once its citations are resolved (see
  * "Prose is emitted only after citations are resolved" in
- * Documentation/overview.md), so it arrives all at once. Printing a wall of
+ * documentation/overview.md), so it arrives all at once. Printing a wall of
  * prose in a single frame reads as abrupt; this module paces it back out word
  * by word on the page. Nothing here changes WHAT is shown — only how quickly
  * the already-checked text appears — so the citation guarantee is untouched:

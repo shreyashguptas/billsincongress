@@ -19,19 +19,49 @@ import {
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
-import { isAllDeliberation, sanitizeAnswer } from "./catalog/answerSanitize";
+import {
+  containsTextToolCall,
+  isAllDeliberation,
+  sanitizeAnswer,
+} from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
+import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-/** Kept in step with convex/llm.ts — both are overridden by the same env vars. */
+/**
+ * Baked-in model; override per-deployment with OPENROUTER_MODEL. Pinned to a
+ * dated release rather than a floating alias: an alias can resolve to a version
+ * no US-datacenter provider carries yet, which the allowlist below turns into
+ * an outage.
+ */
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
+/**
+ * Provider allowlist, so questions are only served from providers that process
+ * data in the US; override with OPENROUTER_PROVIDERS. Every slug here must ALSO
+ * be permitted by the OpenRouter account's own allowed-providers setting: if
+ * the two lists do not overlap, OpenRouter rejects every request with a 404
+ * rather than falling back — which is how this default once took chat down.
+ */
 const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
-/** Failover chain. Rules live on DEFAULT_FALLBACK_MODELS in convex/llm.ts. */
+/**
+ * Automatic failover chain, tried in order when the primary errors. Every entry
+ * must meet the primary's constraints — US provider, zero retention, no
+ * training on our readers, inside MAX_PRICE — so re-verify with
+ * scripts/check-provider-retention.ts before adding one: an entry that fails
+ * the retention filters is silently unreachable, not loudly broken. The first
+ * entry is a FLOATING alias on purpose, so the family tier outlives the dated
+ * primary.
+ */
 const DEFAULT_FALLBACK_MODELS =
   "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
+/**
+ * Runaway-cost guard, USD per million tokens — not the target price. A provider
+ * repricing or a careless OPENROUTER_MODEL change fails loudly instead of
+ * multiplying the bill.
+ */
 const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
 const SITE_URL = "https://billsincongress.com";
 /** Cap on client-supplied history (spec §4.7). */
@@ -58,6 +88,16 @@ const FINAL_ROUND_INSTRUCTION =
 const NO_ANSWER_NUDGE =
   "That was not an answer and not a lookup. If you need data, call a tool now. Otherwise answer " +
   "the question from what you already retrieved.";
+/**
+ * Sent instead of NO_ANSWER_NUDGE when the model wrote a lookup out as text.
+ * That reply is NOT put back in the transcript: it once carried "1,557 bills",
+ * a figure no lookup returned, and NO_ANSWER_NUDGE's "answer from what you
+ * already retrieved" would have invited the model to repeat it.
+ */
+const TEXT_TOOL_CALL_NUDGE =
+  "Your last reply wrote a lookup out as text instead of calling the tool. It was not run, so " +
+  "nothing in that reply is data and it has been discarded. If you need data, call a tool now. " +
+  "Otherwise answer only from tool results you have actually received.";
 /**
  * The `answer_failed` reason when every attempt came back empty. Sent as an
  * error, not as an answer, so completion metrics count it.
@@ -343,6 +383,21 @@ async function searchWeb(
 }
 
 /**
+ * What kind of failure, as a fixed label — never the message. OpenRouter's
+ * error bodies can quote the prompt (its moderation 403 returns
+ * `flagged_input`), and the prompt is the reader's question, which must never
+ * reach a log line. The full message still goes to console.error.
+ */
+export function errorKind(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  const status = /^OpenRouter (\d{3})\b/.exec(message);
+  if (status) return `openrouter_${status[1]}`;
+  if (message.startsWith("OpenRouter error:")) return "openrouter_error_payload";
+  if (error instanceof Error && /^\w{1,40}$/.test(error.name)) return error.name;
+  return "unknown";
+}
+
+/**
  * Read what the reader has open, from whichever field carries it.
  *
  * `focusBillId` is the older channel and is still honoured. Convex deploys are
@@ -519,7 +574,7 @@ async function runLoop(
     // dangling source. Enforced in code because the prompt asking for it did not
     // hold: readers were shown "The result says truncated: false" as reassurance,
     // and once a false claim that our own data was incomplete.
-    const cleaned = sanitizeAnswer(raw);
+    const cleaned = sanitizeAnswer(raw, opts.question);
     const resolved = resolveAnswer(cleaned.text, allowed);
     return {
       ...resolved,
@@ -582,7 +637,20 @@ async function runLoop(
       // than streaming the reader a blank panel. Neither is the model thinking
       // out loud: a reader was shown "Let me fetch the remaining policy areas I
       // haven't gotten yet." as the answer to a question about laws by category.
-      if (text.trim().length > 0 && !isAllDeliberation(text)) return finish(text);
+      // Nor is a lookup written out as text: one reader got a literal
+      // fetch_dataset(...) line and then "1,557 bills" — a count the model never
+      // fetched (it was 19,441). The prose around such a call is unverified, so
+      // the whole reply is discarded, not trimmed — and kept out of the
+      // transcript below, where the model would read its own invented figure
+      // back as something it had "already retrieved".
+      const wroteCallAsText = containsTextToolCall(text);
+      if (
+        text.trim().length > 0 &&
+        !isAllDeliberation(text) &&
+        !wroteCallAsText
+      ) {
+        return finish(text);
+      }
       if (isFinalRound) break;
       console.error(`no answer and no tool call in round ${round}; ${nudged ? "final round now" : "nudging"}`);
       // A visible step, so the client's stall watchdog restarts for the extra call.
@@ -591,8 +659,12 @@ async function runLoop(
         finalNow = true;
       } else {
         nudged = true;
-        if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
-        messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+        if (wroteCallAsText) {
+          messages.push({ role: "user", content: TEXT_TOOL_CALL_NUDGE });
+        } else {
+          if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
+          messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+        }
       }
       continue;
     }
@@ -813,10 +885,36 @@ export const stream = httpAction(async (ctx, request) => {
   const userId = await getAuthUserId(ctx);
   const anonymousSessionId =
     typeof body.anonymousSessionId === "string" ? body.anonymousSessionId : null;
+  const pageContext = readContext(body.context, body.focusBillId);
+
   // One trace per question, sent to PostHog before the stream closes. The id
   // also goes to the browser on `done`, so the reader's "Was this answer
   // right?" joins the trace it rates.
-  const trace = new AnswerTrace({ identity: readTraceIdentity(body.posthog) });
+  const identity = readTraceIdentity(body.posthog);
+  const trace = new AnswerTrace({ identity });
+
+  // One line per answer to PostHog Logs (convex/posthogLogs.ts), on the same
+  // ids as the trace: `sessionId` opens the reader's replay, `trace_id` opens
+  // the trace. The question text is never on it. Written once per question.
+  let logged = false;
+  const logAnswer = async (level: LogLevel, message: string, attributes: LogAttributes) => {
+    if (logged) return;
+    logged = true;
+    await scheduleLog(ctx, {
+      level,
+      message,
+      timestampMs: Date.now(),
+      attributes: {
+        ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
+        ...(identity.distinctId ? { posthogDistinctId: identity.distinctId } : {}),
+        trace_id: trace.traceId,
+        signed_in: userId !== null,
+        page: pageContext?.route ?? "unknown",
+        ...(pageContext?.billId ? { bill_id: pageContext.billId } : {}),
+        ...attributes,
+      },
+    });
+  };
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -841,7 +939,7 @@ export const stream = httpAction(async (ctx, request) => {
       }
 
       // Consume the daily token BEFORE calling the model (spec §9): this is the
-      // only spend cap on this path, which bypasses the one in convex/llm.ts.
+      // only spend cap on this path.
       // Which allowance applies (anonymous, free or Pro) is decided in one
       // place, convex/rateLimits.ts, from the stored plan.
       const limitStatus = await limitChatQuestion(
@@ -860,10 +958,11 @@ export const stream = httpAction(async (ctx, request) => {
         return;
       }
 
+      const startedAt = Date.now();
       try {
         const result = await runLoop(ctx, {
           question,
-          pageContext: readContext(body.context, body.focusBillId),
+          pageContext,
           scope:
             body.scope && typeof body.scope.dataset === "string"
               ? (body.scope as AnswerScope)
@@ -892,10 +991,31 @@ export const stream = httpAction(async (ctx, request) => {
           const message =
             result.error === EMPTY_MODEL_OUTPUT ? EMPTY_MODEL_OUTPUT_MESSAGE : result.error;
           send("error", { message, reason: result.error, traceId: trace.traceId });
+          await logAnswer("error", "answer failed", {
+            duration_ms: Date.now() - startedAt,
+            lookups: result.workLog.length,
+            reason: result.error,
+          });
           await trace.flush();
           controller.close();
           return;
         }
+        // Logged as soon as the answer exists, like the trace: a write to the
+        // reader that fails after this is not a second outcome for it.
+        // WARN is every way an answer reached the reader worse than it should
+        // have: cut short, cut off, or with citations deleted because the model
+        // cited rows it was never given.
+        const degraded =
+          result.partial || (result.truncatedByLength ?? false) || result.dropped > 0;
+        await logAnswer(degraded ? "warn" : "info", "answer served", {
+          duration_ms: Date.now() - startedAt,
+          lookups: result.workLog.length,
+          partial: result.partial,
+          truncated: result.truncatedByLength ?? false,
+          dropped_citations: result.dropped,
+          used_web: result.webSources.length > 0,
+          asked_reader: result.askedReader ?? false,
+        });
         // Citations resolve only once the whole answer exists, so text is
         // emitted after resolution, chunked — never token-by-token.
         for (const chunk of result.text.match(/[\s\S]{1,60}/g) ?? []) {
@@ -943,12 +1063,17 @@ export const stream = httpAction(async (ctx, request) => {
           chatId: savedChatId ?? null,
           traceId: trace.traceId,
         });
+
       } catch (error) {
         console.error("answer stream failed:", error);
         // A no-op when the turn was already recorded: a write that fails after
         // the answer exists (the reader closed the panel mid-stream) is not a
-        // second outcome for it.
+        // second outcome for it. The same holds for the log line (`logged`).
         trace.finish({ question, error: String(error), outcome: "failed" });
+        await logAnswer("error", "answer failed", {
+          duration_ms: Date.now() - startedAt,
+          error_kind: errorKind(error),
+        });
         try {
           send("error", { message: "Failed to get a response.", traceId: trace.traceId });
         } catch {

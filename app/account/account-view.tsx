@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { StageTrack, StatusPill } from "@/components/brand/status";
 import { AvatarMark, initialsFor, ProPill, SpectrumStrip } from "@/components/brand/pro-mark";
 import { AvatarButton, type AvatarActions, type AvatarSource } from "@/components/account/avatar-button";
+import { ChangePasswordButton } from "@/components/account/change-password-button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,11 +41,13 @@ export interface AccountUser {
   avatarUrl?: string | null;
   avatarSource?: AvatarSource;
   hasGooglePicture?: boolean;
+  /** Signs in with a password (not Google only), so "Change password" applies. */
+  hasPassword?: boolean;
 }
 
 /**
  * `listSaved` and `listMine` return a bill's stage as its description ("In
- * Committee"), the same string `getStageDescription` produces. Map it back to
+ * Committee"), as `BillStageDescriptions` spells it. Map it back to
  * the stage code so the row can carry a StatusPill; anything unrecognised
  * stays plain text.
  */
@@ -189,10 +192,13 @@ export function AccountView({
               </p>
             )}
           </div>
-          <Button variant="outline" onClick={onSignOut} className="self-start sm:self-center">
-            <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            Sign out
-          </Button>
+          <div className="flex flex-wrap gap-2 self-start sm:flex-col sm:items-stretch sm:self-center">
+            {user.hasPassword && user.email && <ChangePasswordButton email={user.email} />}
+            <Button variant="outline" onClick={onSignOut}>
+              <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              Sign out
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -236,7 +242,7 @@ export function AccountView({
                     >
                       <BillHeading bill={row.bill} />
                       <div className="flex shrink-0 flex-col gap-2 sm:w-48 sm:items-end">
-                        <BillStage description={row.bill.progressDescription} />
+                        <BillStage description={row.bill.progressDescription} billType={row.bill.billTypeLabel} />
                         <span className="font-mono text-xs text-ink-3 tabular">Saved {formatShortDate(row.savedAt)}</span>
                       </div>
                     </Link>
@@ -304,16 +310,26 @@ function BillHeading({
 }
 
 /**
- * The stage as a pill over its seven-step track when the stage is one we
- * know, else the description as text.
+ * The stage as a pill over its track when the stage is one we know, else the
+ * description as text. `billType` is the row's printed type ("H.Res."), which
+ * picks the measure's road: an adopted resolution reads "Agreed to by the
+ * House" on a three-step track, not "Passed one chamber" on seven.
  */
-function BillStage({ description, fallback }: { description: string | null; fallback?: string }) {
+function BillStage({
+  description,
+  billType,
+  fallback,
+}: {
+  description: string | null;
+  billType: string;
+  fallback?: string;
+}) {
   const stage = stageFromDescription(description);
   if (stage !== null) {
     return (
       <div className="flex w-full flex-col items-start gap-2 sm:items-end">
-        <StatusPill stage={stage} />
-        <StageTrack stage={stage} className="w-full max-w-[12rem]" />
+        <StatusPill stage={stage} billType={billType} />
+        <StageTrack stage={stage} billType={billType} className="w-full max-w-[12rem]" />
       </div>
     );
   }
@@ -323,7 +339,7 @@ function BillStage({ description, fallback }: { description: string | null; fall
 
 /**
  * The plan's dot, in the tones the plan-change emails use (convex/billingEmail.ts,
- * Documentation/brand.md "Email"): Pro indigo, a heads-up amber, a problem the
+ * documentation/brand.md "Email"): Pro indigo, a heads-up amber, a problem the
  * error red, the free plan grey. The word beside it always says the plan.
  */
 function planDotFill(billing: BillingStatus, warning: boolean): string {
@@ -607,7 +623,13 @@ function AlertsSection({
                   )}
                 </Link>
                 <div className="flex shrink-0 flex-col gap-2 sm:w-48 sm:items-end">
-                  {row.bill && <BillStage description={row.bill.progressDescription} fallback="Status unknown" />}
+                  {row.bill && (
+                    <BillStage
+                      description={row.bill.progressDescription}
+                      billType={row.bill.billTypeLabel}
+                      fallback="Status unknown"
+                    />
+                  )}
                   <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:gap-2">
                     {row.lastEmailedAt ? (
                       <span className="font-mono text-xs text-ink-3 tabular">

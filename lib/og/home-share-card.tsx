@@ -5,7 +5,7 @@ import { BillStages, stageLabel } from '@/lib/utils/bill-stages';
 import { BigFigure, C, CardFrame, INK_2, STAGE, SUNKEN } from './card-parts';
 
 /**
- * The picture the home page's link unfurls into (Documentation/brand.md,
+ * The picture the home page's link unfurls into (documentation/brand.md,
  * "Share card"): the Congress in one figure, and where its bills stand, one
  * row per stage in the stage colours. The finding the rows draw is the one the
  * home page makes: nearly everything is still in committee.

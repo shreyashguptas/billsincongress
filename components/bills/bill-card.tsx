@@ -8,13 +8,10 @@ import { Bill } from '@/lib/types/bill';
 import { analytics } from '@/lib/analytics';
 import { compactStageLabel, getStageStep } from '@/lib/utils/bill-stages';
 import { formatCongressProse } from '@/lib/congress';
-import { billNoun } from '@/lib/seo';
 import Link from 'next/link';
 
 interface BillCardProps {
   bill: Bill;
-  /** `compact` is the in-answer density: fits a 400px panel. */
-  variant?: 'full' | 'compact';
   /** Leave out the topic tag — on a topic hub every row would repeat it. */
   hideTopic?: boolean;
   /**
@@ -30,9 +27,7 @@ interface BillCardProps {
  * The compact card body, taking primitives rather than a `Bill`.
  *
  * Answers name bills by id and carry only a small display projection, never a
- * full row — so this takes what an answer actually has. `BillCard`'s compact
- * variant and the in-answer entity cards both render through here, which is
- * what stops the two densities drifting apart.
+ * full row — so this takes what an answer actually has.
  */
 export function CompactBillCard({
   href,
@@ -41,6 +36,7 @@ export function CompactBillCard({
   sponsorLastName,
   sponsorParty,
   stage,
+  billType,
   onClick,
   noun = 'bill',
 }: {
@@ -50,11 +46,16 @@ export function CompactBillCard({
   sponsorLastName?: string;
   sponsorParty?: string;
   stage?: number;
+  /**
+   * "hres", "H.Con.Res." … — puts a resolution's stage in its own words
+   * ("Agreed to by the House"). Omitted, the stage reads as a bill's.
+   */
+  billType?: string | null;
   onClick?: () => void;
   /**
-   * What to call this in the no-title fallback below. Defaults to "bill"
-   * because the in-answer entity cards carry a display projection that has no
-   * bill_type to derive it from; BillCard passes the real noun.
+   * What to call this in the no-title fallback below. Defaults to "bill" when
+   * the type is unknown. BillCard passes the noun for its bill_type; the
+   * in-answer card passes the one for the type read off its printed number.
    */
   noun?: string;
 }) {
@@ -73,7 +74,7 @@ export function CompactBillCard({
           {sponsorLastName && <PartyDot party={sponsorParty} className="h-1.5 w-1.5" />}
           <span className="truncate">
             {sponsorLastName ? `${sponsorLastName} · ` : ''}
-            {stage !== undefined ? compactStageLabel(stage) : ''}
+            {stage !== undefined ? compactStageLabel(stage, billType) : ''}
           </span>
         </p>
       )}
@@ -82,11 +83,13 @@ export function CompactBillCard({
 }
 
 /**
- * One bill as a row of the register (Documentation/brand.md, "Lists are
+ * One bill as a row of the register (documentation/brand.md, "Lists are
  * rows"): number and date, then the title and sponsor, then the stage. The
  * whole row is the link. On phones the three columns stack in that order.
+ * The stage is drawn on the measure's own road ("The road a measure travels"):
+ * an adopted resolution fills a three- or four-step track, not 3 of 7.
  */
-export default function BillCard({ bill, variant = 'full', hideTopic = false, date }: BillCardProps) {
+export default function BillCard({ bill, hideTopic = false, date }: BillCardProps) {
   const stage =
     typeof bill.progress_stage === 'string'
       ? parseInt(bill.progress_stage, 10)
@@ -102,22 +105,7 @@ export default function BillCard({ bill, variant = 'full', hideTopic = false, da
       progress_stage: stage,
     });
 
-  if (variant === 'compact') {
-    return (
-      <CompactBillCard
-        href={`/bills/${bill.id}`}
-        label={`${bill.bill_type_label || bill.bill_type?.toUpperCase()} ${bill.bill_number}`}
-        title={bill.title}
-        sponsorLastName={bill.sponsor_last_name}
-        sponsorParty={bill.sponsor_party}
-        stage={stage}
-        onClick={track}
-        noun={billNoun(bill.bill_type)}
-      />
-    );
-  }
-
-  const { step, total, isVetoed } = getStageStep(stage);
+  const { step, total, isVetoed } = getStageStep(stage, bill.bill_type);
   const sponsorName = [bill.sponsor_first_name, bill.sponsor_last_name].filter(Boolean).join(' ');
   const policyArea = hideTopic ? undefined : bill.bill_subjects?.policy_area_name;
 
@@ -171,18 +159,20 @@ export default function BillCard({ bill, variant = 'full', hideTopic = false, da
 
       {/* Stage */}
       <div className="flex flex-col gap-2.5 md:pt-0.5">
-        <div className="flex items-center justify-between gap-3">
-          <StatusPill stage={stage} />
+        {/* Wraps rather than squeezes: "Agreed to by both chambers" leaves no room
+            in the 220px column, so the counter drops under the pill, still right. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <StatusPill stage={stage} billType={bill.bill_type} />
           {!isVetoed && step > 0 && (
             // The track below carries the same fact as its accessible name.
             // An unrecognised stage (step 0) shows no counter: "Unknown · 1 of 7"
-            // would contradict itself.
-            <span className="font-mono text-xs text-ink-3 tabular" aria-hidden="true">
+            // would contradict itself. A resolution counts on its own road: "3 of 3".
+            <span className="ml-auto whitespace-nowrap font-mono text-xs text-ink-3 tabular" aria-hidden="true">
               {step} of {total}
             </span>
           )}
         </div>
-        <StageTrack stage={stage} />
+        <StageTrack stage={stage} billType={bill.bill_type} />
       </div>
     </Link>
   );
