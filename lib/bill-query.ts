@@ -19,8 +19,7 @@
  * `clampFilterText` uses it for all of them. The browser only sees a rejection
  * as a bare "Server Error", so the search inputs also cap themselves at this
  * length and the home-page suggestions stop searching past it.
- * `lib/bills/filter-registry.test.ts` and `lib/bill-suggest.test.ts` fail if
- * the two drift.
+ * `lib/bills/filter-registry.test.ts` fails if the two drift.
  */
 export const MAX_SEARCH_TEXT_LENGTH = 120;
 

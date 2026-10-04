@@ -34,8 +34,10 @@ export function suggestKind(raw: string): SuggestKind | null {
     return parseBillReference(q) ? 'number' : null;
   }
   // The ask box takes 2,000 characters, the bills search 120. A longer entry
-  // is a question, not a title, and searching it only fails on the server —
-  // once per keystroke (206 console errors in 3 sessions on 29 Sep 2026).
+  // is a question, not a title: cut to 120 characters it matches nothing, so
+  // searching it would only cost a request per keystroke. Before 30 Sep 2026
+  // those requests also failed on the server (206 console errors in 3 sessions
+  // on 29 Sep); the bills service now clamps them, but they still find nothing.
   if (q.length > MAX_SEARCH_TEXT_LENGTH) return null;
   if (parseBillReference(q)) return 'number';
   if (expandSearchAcronym(q)) return 'acronym';

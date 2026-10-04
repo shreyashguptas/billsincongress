@@ -269,7 +269,7 @@ function HeaderSearch() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          // The server rejects a longer title search outright.
+          // Longer text would be cut before it is searched; cap it where it is typed.
           maxLength={MAX_SEARCH_TEXT_LENGTH}
           placeholder="Search bills, or S. 2878"
           className="w-52 pl-9 text-sm header-xl:w-72"

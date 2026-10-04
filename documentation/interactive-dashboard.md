@@ -124,9 +124,11 @@ appear under the field (`components/answers/use-bill-suggestions.ts`). They come
 references ("HR 979", "s.1426") become an exact number lookup and the curated acronyms
 ("KOSA", "NDAA") expand exactly as they do there. The search is scoped to the Congress on screen.
 Nothing is searched past 120 characters (`MAX_SEARCH_TEXT_LENGTH` in `lib/bill-query.ts`, which
-mirrors the cap `bills.list` enforces). Anything that long is a question, and before 2026-09-30 it
-sent one request per keystroke that the server rejected (206 console errors in 3 sessions on
-29 Sep). The `/bills` search box and the header search are capped at the same length.
+mirrors the cap `bills.list` enforces). Anything that long is a question: cut to 120 characters it
+matches no title, so searching it would only cost a request per keystroke. Before 2026-09-30 those
+requests also failed on the server (206 console errors in 3 sessions on 29 Sep); the bills service
+now clamps every text filter first. The `/bills` search box and the header search are capped at
+the same length, so the text a reader can type is the text that is searched.
 
 The rules live in `lib/bill-suggest.ts` and its tests. The key one is that **Enter still asks
 the question** unless a row is highlighted, and the only row highlighted by default is a bill

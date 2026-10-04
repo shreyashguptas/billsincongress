@@ -98,7 +98,7 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
           }
         }}
         onBlur={() => commit(draft)}
-        // The server rejects a longer title search outright.
+        // Longer text would be cut before it is searched; cap it where it is typed.
         maxLength={MAX_SEARCH_TEXT_LENGTH}
         placeholder="Search bills, or type a bill number"
         // text-base on touch: anything smaller makes iOS Safari zoom in on
