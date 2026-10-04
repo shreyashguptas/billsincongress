@@ -2054,10 +2054,21 @@ site step does not run.
 
 **Merging deploys it.** The "Deploy the Convex backend" step in `deploy.yml` runs
 `convex deploy` against production on every push to `main`, using the `CONVEX_DEPLOY_KEY`
-secret of the `Production` environment, before the site is built. It runs whether or not `convex/` changed: deploying an
-unchanged folder is harmless, and it corrects any drift on the next merge. The step refuses to
-run without the secret, or with a key that does not start with `prod:`, because a preview key
-would deploy to a preview copy and still report success.
+secret of the `Production` environment, before the site is built. It runs whether or not
+`convex/` changed: deploying an unchanged folder is harmless, and it corrects any drift on the
+next merge. The step refuses to run without the secret, or with a key that does not start with
+`prod:`, because a preview key would deploy to a preview copy and still report success.
+
+**Setting up or replacing the key** (once, or whenever it is rotated):
+
+1. The `Production` environment (Settings → Environments) must allow deployments from the
+   `main` branch only. That rule is what keeps the key away from every other branch.
+2. `npx convex deployment token create github-actions-production --deployment industrious-llama-331`
+   prints a new production key.
+3. `gh secret set CONVEX_DEPLOY_KEY --env Production` and paste it.
+4. Delete the old key with `npx convex deployment token delete <name> --deployment industrious-llama-331`.
+
+Never store it as a repo-level secret (see the environment-variable notes above).
 
 This replaced a manual step. Production once ran three days behind `main` on the answer engine,
 and for the whole of that time readers on a bill page were told about a different bill,

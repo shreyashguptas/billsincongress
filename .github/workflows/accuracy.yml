@@ -16,8 +16,9 @@ name: Accuracy check
 # earlier feedback, and the `Production` environment below refuses to hand
 # the key to any job not running on `main` anyway. `main` has already been
 # reviewed. So the local gate in AGENTS.md still applies before merging
-# anything under convex/catalog/ or convex/answer.ts. This job catches what slips past it, and it also catches
-# answers that drift as the data changes underneath code nobody touched.
+# anything under convex/catalog/ or convex/answer.ts. This job catches what
+# slips past it, and it also catches answers that drift as the data changes
+# underneath code nobody touched.
 on:
   schedule:
     # 10:17 UTC is about 6 a.m. Eastern. Off the hour, because scheduled runs
