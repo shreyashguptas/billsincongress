@@ -212,6 +212,7 @@ existing brand edits:
 | `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 70% with a slight blur, not black (a dark scrim lightens nothing in Night); `shadow-float` |
 | `Sheet`, `Popover` | Their own enter/exit keyframes, tuned before `tailwindcss-animate` was installed |
 | `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
+| `Select` | Item text and the placeholder are wrapped in a `<span>`, so a reader who translates the page (Chrome's "Translate this page") does not crash it when the value changes; `components/ui/select.test.ts` guards this against a re-run of `shadcn add` |
 | `Textarea` | On `card` like `Input`; 15px from `sm` up, 16px on phones, where anything smaller makes iOS zoom the page on focus |
 
 ### Brand pieces built on top
@@ -226,7 +227,7 @@ These live in `components/brand/` and compose the primitives above.
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
-| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials |
+| `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials (`AvatarPhoto`, `components/brand/avatar-photo.tsx`) |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
 
 Patterns that appear on more than one page:
@@ -301,6 +302,11 @@ Patterns that appear on more than one page:
   the nav. It first appears by growing out from the label's centre, and
   shrinks into its centre on a page with no section. Still under
   `prefers-reduced-motion`.
+- **Header widths**: the header's md, lg and xl (sections, Feedback, the search
+  field and its 288px xl size) are the header's own width, not the window's —
+  `header-md:`, `header-lg:`, `header-xl:`. With the ask panel docked the header
+  is the window minus the panel, and it takes the layout a window that narrow
+  would get, so nothing in it ever sits under the panel.
 - **Ask panel title bar**: from `lg` up, exactly the header's height
   (`--header-h`), so docked beside it the two bottom rules are one line.
 - **Profile photo** (account page, `components/account/`): the avatar is the
@@ -404,7 +410,8 @@ and followed rows, and the alert email.
 - Label directly or in an adjacent legend. Colour is never the only key.
 - Hovering a legend row links it to its marks. Everything else drops to 35%.
 - Motion explains, it does not decorate: seats fade in once, bars grow once.
-  Nothing loops except the law glow on the odds chart. Everything stops under
+  Nothing loops except the glow on the "became law" squares of the home page's
+  "Where bills stand" chart (`.odds-law`). Everything stops under
   `prefers-reduced-motion`.
 
 ## Iconography
@@ -443,13 +450,14 @@ break that, and each is fixed at the root, not per component:
   label's text size so `1lh` is one line of the label, and put the icon in a
   box that tall (`flex h-[1lh] items-center`). A badge taller than the line
   overhangs that box, so pad the row by the overhang:
-  `py-[max(0px,calc((<badge>-1lh)/2))]` (the Learn steps and the bill stage
-  do this).
+  `py-[max(0px,calc((<badge>-1lh)/2))]` (the Learn page's part headings and
+  the bill page's stage do this).
 
 In development, `components/brand/icon-alignment-check.tsx` measures every page
 after it settles and warns in the console (`[icon-alignment]`) about any of
-these. Menus and dialogs open later: run `window.findIconMisalignments()` in
-the console with one open.
+these. It measures against the words a reader sees: `sr-only` text in front of
+a label ("Not included:" on the Pro plan rows) is skipped. Menus and dialogs
+open later: run `window.findIconMisalignments()` in the console with one open.
 
 ## Logo
 

@@ -11,8 +11,8 @@
  * OPENROUTER_FALLBACK_MODELS changes — a model swap can silently change which
  * providers qualify.
  *
- * Defaults here MUST track the shipped defaults in convex/llm.ts and
- * convex/answer.ts. Both files tell maintainers to re-run this probe, so a
+ * Defaults here MUST track the shipped defaults in convex/answer.ts, which
+ * tells maintainers to re-run this probe, so a
  * stale default here would validate a narrower config than we actually ship
  * and quietly bless something that was never tested.
  *

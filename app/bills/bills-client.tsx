@@ -136,7 +136,7 @@ export default function BillsClient({
 
   /**
    * The one place a filter changes. Fires the analytics that
-   * Documentation/ANALYTICS.md has recorded as missing since the Apply button
+   * documentation/analytics.md has recorded as missing since the Apply button
    * was removed, and resets pagination so page 4 of one filter set never
    * becomes page 4 of another.
    */

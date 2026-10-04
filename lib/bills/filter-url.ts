@@ -21,7 +21,8 @@ import {
   DEFAULT_FILTER_VALUES,
   type BillsFilterValues,
 } from '@/app/bills/filter-signature';
-import { FILTERS } from './filter-registry';
+import { clampFilterList, clampFilterText } from '@/lib/bill-query';
+import { FILTERS, type FilterDefinition } from './filter-registry';
 
 /**
  * Serialise a filter set into a query string, omitting anything still at its
@@ -41,7 +42,27 @@ export function buildFilterQuery(f: BillsFilterValues): string {
   return qs ? `?${qs}` : '';
 }
 
-/** Inverse of `buildFilterQuery` — used on back/forward navigation. */
+/**
+ * One single-value filter as a URL carries it, or undefined when it should not
+ * apply: empty, or outside the filter's vocabulary (`accepts` in the registry —
+ * `?introducedDate=junk` is no filter, not a filter Convex silently ignores).
+ * Shared by this parser and the server's in `app/bills/page.tsx`.
+ */
+export function acceptedFilterValue(
+  definition: FilterDefinition,
+  raw: string | null | undefined,
+): string | undefined {
+  if (raw === null || raw === undefined || raw === '') return undefined;
+  const value = clampFilterText(raw);
+  return definition.accepts && !definition.accepts(value) ? undefined : value;
+}
+
+/**
+ * Inverse of `buildFilterQuery` — used on back/forward navigation.
+ *
+ * Values are cut to what `bills.list` accepts (`clampFilterText`): a URL is not
+ * typed, so nothing else bounds it.
+ */
 export function filtersFromQuery(search: string): BillsFilterValues {
   const p = new URLSearchParams(search);
   const out = { ...DEFAULT_FILTER_VALUES };
@@ -49,15 +70,13 @@ export function filtersFromQuery(search: string): BillsFilterValues {
     if (definition.multi) {
       // De-duplicated: ?sponsor=A&sponsor=A must not filter on A twice, which
       // would show as "2 sponsors" on the pill.
-      const values = Array.from(
-        new Set(p.getAll(definition.param).filter((s) => s !== '')),
+      const values = clampFilterList(
+        Array.from(new Set(p.getAll(definition.param).filter((s) => s !== ''))),
       );
       (out[definition.field] as string[]) = values;
     } else {
-      const raw = p.get(definition.param);
-      if (raw !== null && raw !== '') {
-        (out[definition.field] as string) = raw;
-      }
+      const value = acceptedFilterValue(definition, p.get(definition.param));
+      if (value !== undefined) (out[definition.field] as string) = value;
     }
   }
   return out;

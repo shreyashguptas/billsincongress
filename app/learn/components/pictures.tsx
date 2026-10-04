@@ -4,7 +4,7 @@ import { buildHemicycle, seatsPath } from './hemicycle';
 
 // The Learn page's pictures: small flat scenes drawn in SVG on the server, so
 // they cost no client JavaScript. Everything is ink except the one stage colour
-// each step of a bill's path is shown in (Documentation/brand.md, "The data").
+// each step of a bill's path is shown in (documentation/brand.md, "The data").
 // Every scene is 240 x 150 and carries its own text alternative. The shared
 // primitives (Scene, Person, Paper…) live in components/brand/pictures.tsx.
 

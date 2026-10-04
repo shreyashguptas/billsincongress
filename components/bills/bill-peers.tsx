@@ -17,7 +17,7 @@ export type BillPeers = {
 
 /**
  * Every bill on this bill's topic in its Congress, one dot each, coloured by
- * stage, with this bill ringed (Documentation/brand.md, "Peer dots").
+ * stage, with this bill ringed (documentation/brand.md, "Peer dots").
  *
  * The counts come from the nightly topic recount, which reads the whole
  * Congress. The ring is a claim that this bill is one of the dots in its

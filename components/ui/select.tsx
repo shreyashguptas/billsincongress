@@ -10,7 +10,33 @@ const Select = SelectPrimitive.Root;
 
 const SelectGroup = SelectPrimitive.Group;
 
-const SelectValue = SelectPrimitive.Value;
+/*
+ * Translation-safe Select text.
+ *
+ * Radix copies the chosen item's text into the trigger through a React portal,
+ * and shows the placeholder as bare text in the same span. A page translator
+ * (Chrome's "Translate this page", which readers use here) swaps every bare
+ * text node for its own <font> elements. When the value then changes, or the
+ * page navigates away, React tries to remove the original text node from a
+ * parent it is no longer in, and the page falls over with
+ * "NotFoundError: Failed to execute 'removeChild' on 'Node'" (seen in PostHog,
+ * 28-30 Sep 2026, on /learn and on every navigation away from the home page).
+ *
+ * Wrapping that text in an element makes React remove the element instead, and
+ * a translator never moves an element. The spans carry no class, so nothing
+ * changes on screen.
+ */
+const SelectValue = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Value>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Value>
+>(({ placeholder, ...props }, ref) => (
+  <SelectPrimitive.Value
+    ref={ref}
+    placeholder={placeholder == null ? placeholder : <span>{placeholder}</span>}
+    {...props}
+  />
+));
+SelectValue.displayName = SelectPrimitive.Value.displayName;
 
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
@@ -129,7 +155,10 @@ const SelectItem = React.forwardRef<
       </SelectPrimitive.ItemIndicator>
     </span>
 
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    {/* The span is what Radix copies into the trigger; see SelectValue. */}
+    <SelectPrimitive.ItemText>
+      <span>{children}</span>
+    </SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;

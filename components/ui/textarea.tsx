@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-// Brand edit (Documentation/brand.md, "Adding a component"): on `card` like
+// Brand edit (documentation/brand.md, "Adding a component"): on `card` like
 // `Input`, sans at 15px from sm up. Phones keep shadcn's 16px, below which iOS
 // zooms the page on focus.
 const Textarea = React.forwardRef<

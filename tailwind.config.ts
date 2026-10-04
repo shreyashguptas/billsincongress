@@ -22,7 +22,7 @@ module.exports = {
       },
     },
     extend: {
-      // Documentation/brand.md is the source of truth for every value below.
+      // documentation/brand.md is the source of truth for every value below.
       fontFamily: {
         // Newsreader: headlines, bill titles, summaries, the big figures.
         serif: ['var(--font-serif)', 'Iowan Old Style', 'Georgia', 'serif'],
@@ -57,7 +57,7 @@ module.exports = {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
 
-        // The brand (Documentation/brand.md).
+        // The brand (documentation/brand.md).
         paper: 'hsl(var(--paper))',
         raised: 'hsl(var(--raised))',
         sunken: 'hsl(var(--sunken))',
@@ -171,6 +171,17 @@ module.exports = {
     plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
       addVariant('touchable', '@media (any-pointer: coarse)');
       addVariant('fine', '@media (hover: hover) and (pointer: fine)');
+    }),
+    // The site header's own md / lg / xl, measured on the header rather than on
+    // the window (components/navigation.tsx). With the ask panel docked the
+    // header is the window minus the panel — as little as 1024px on a 1440px
+    // screen — while `lg:` and `xl:` still see 1440 and lay out a header that
+    // does not fit. Same widths as the screens, so with the panel closed nothing
+    // changes.
+    plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
+      addVariant('header-md', '@container site-header (min-width: 768px)');
+      addVariant('header-lg', '@container site-header (min-width: 1024px)');
+      addVariant('header-xl', '@container site-header (min-width: 1280px)');
     }),
   ],
 };

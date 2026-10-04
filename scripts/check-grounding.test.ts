@@ -18,7 +18,12 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
+  DEFAULT_FALLBACK_MODELS,
+  DEFAULT_MODEL,
+  DEFAULT_PROVIDERS,
+  MAX_PRICE,
   claimsAbsence,
   leaksVocabulary,
   namesOneAsNewest,
@@ -258,6 +263,42 @@ it("leaves ordinary English that reuses a field name alone", () => {
     "2,121 measures in the 119th Congress have Health as their policy area.",
   ];
   for (const text of honest) assert.equal(leaksVocabulary(text), null, `over-fired on: ${text}`);
+});
+
+// ---------------------------------------------------------------------------
+// THE CONFIGURATION. A gate run against a narrower setup than production passes
+// on behalf of providers it never called: the live probes defaulted to
+// "deepinfra" alone while production also routes to amazon-bedrock.
+// ---------------------------------------------------------------------------
+
+function shipped(name: string): string {
+  const source = readFileSync(new URL("../convex/answer.ts", import.meta.url), "utf8");
+  const match = source.match(new RegExp(`const ${name} =\\s*([^;]+);`));
+  assert.ok(match, `${name} not found in convex/answer.ts`);
+  return match[1].trim();
+}
+
+it("runs the model configuration production ships", () => {
+  assert.equal(JSON.stringify(DEFAULT_MODEL), shipped("DEFAULT_MODEL"));
+  assert.equal(JSON.stringify(DEFAULT_PROVIDERS), shipped("DEFAULT_PROVIDERS"));
+  assert.equal(JSON.stringify(DEFAULT_FALLBACK_MODELS), shipped("DEFAULT_FALLBACK_MODELS"));
+  assert.equal(
+    JSON.stringify(MAX_PRICE),
+    JSON.stringify(JSON.parse(shipped("MAX_PRICE").replace(/(\w+):/g, '"$1":'))),
+  );
+});
+
+it("the other live probes default to the same configuration", () => {
+  const probes: Array<[string, string[]]> = [
+    ["check-web-citations.ts", [DEFAULT_MODEL, DEFAULT_PROVIDERS]],
+    ["check-provider-retention.ts", [DEFAULT_MODEL, DEFAULT_PROVIDERS, DEFAULT_FALLBACK_MODELS]],
+  ];
+  for (const [file, values] of probes) {
+    const source = readFileSync(new URL(`./${file}`, import.meta.url), "utf8");
+    for (const value of values) {
+      assert.ok(source.includes(JSON.stringify(value)), `${file} does not default to ${value}`);
+    }
+  }
 });
 
 console.log(`check-grounding.test.ts — ${passed} passed, ${failures.length} failed`);

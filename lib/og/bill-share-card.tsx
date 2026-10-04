@@ -6,7 +6,7 @@ export { shareCardFonts, stageNote as shareCardStageNote } from './card-parts';
 
 /**
  * The picture a bill's link unfurls into — in iMessage, WhatsApp, Slack, email
- * clients, X and anywhere else that reads Open Graph (Documentation/brand.md,
+ * clients, X and anywhere else that reads Open Graph (documentation/brand.md,
  * "Share card").
  *
  * It shows one thing: where the bill stands. Every app that shows the picture
@@ -15,7 +15,7 @@ export { shareCardFonts, stageNote as shareCardStageNote } from './card-parts';
  * title, the sponsor or the address. What text cannot do at a glance is the
  * stage, drawn: its glyph, its name in display type, "Stage n of 7", and the
  * track with every step named. A resolution's card is drawn on its own road,
- * which ends at "Agreed to" (Documentation/brand.md, "The road a measure
+ * which ends at "Agreed to" (documentation/brand.md, "The road a measure
  * travels"): an adopted resolution is finished, not part-way to law.
  */
 export function BillShareCard({ bill }: { bill: Bill }): ReactElement {

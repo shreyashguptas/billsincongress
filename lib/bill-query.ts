@@ -12,6 +12,42 @@
  */
 
 /**
+ * Longest text the public bills queries accept as a title search.
+ *
+ * Mirrors `MAX_TEXT_FILTER_LENGTH` in `convex/bills.ts`, which throws on
+ * anything longer — and applies the same cap to every other text filter, so
+ * `clampFilterText` uses it for all of them. `lib/bills/filter-registry.test.ts`
+ * fails if the two drift.
+ */
+export const MAX_SEARCH_TEXT_LENGTH = 120;
+
+/**
+ * Most sponsors one bills query accepts. Mirrors `MAX_SPONSOR_FILTERS` in
+ * `convex/bills.ts`, which throws past it.
+ */
+export const MAX_SPONSOR_FILTERS = 10;
+
+/**
+ * Cut a filter value to what `bills.list` accepts.
+ *
+ * The search inputs cap what can be typed, but a URL is not typed: a pasted or
+ * hand-edited `/bills?title=…` past 120 characters reached Convex, which
+ * rejects it, and the page showed a bare "Server Error". A cut search simply
+ * matches what its first 120 characters match. Never splits a surrogate pair.
+ */
+export function clampFilterText(value: string): string {
+  if (value.length <= MAX_SEARCH_TEXT_LENGTH) return value;
+  const end = MAX_SEARCH_TEXT_LENGTH;
+  const last = value.charCodeAt(end - 1);
+  return value.slice(0, last >= 0xd800 && last <= 0xdbff ? end - 1 : end);
+}
+
+/** `clampFilterText` for a multi-value filter, also capped in count. */
+export function clampFilterList(values: string[]): string[] {
+  return values.slice(0, MAX_SPONSOR_FILTERS).map(clampFilterText);
+}
+
+/**
  * Acronyms readers search for that appear in no bill title. "NDAA" is the
  * clearest case: the bill is titled "National Defense Authorization Act for
  * Fiscal Year 2027" and those letters occur nowhere in it. Expansion happens at

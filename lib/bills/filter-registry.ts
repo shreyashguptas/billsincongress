@@ -84,6 +84,14 @@ export interface FilterDefinition {
   /** True when Convex applies this in memory over a capped scan (see below). */
   scanLimited: boolean;
   options: (ctx: FilterOptionContext) => FilterOption[];
+  /**
+   * For a filter with a closed vocabulary the backend matches exactly: true
+   * when it understands `value`. The URL parsers drop anything else, so a
+   * hand-edited or truncated link applies no filter rather than one that
+   * Convex ignores while the page still says "filtered". Absent means any
+   * value is passed through (free text, or a bookmarked value worth keeping).
+   */
+  accepts?: (value: string) => boolean;
   /** The single human label for a set value — pill, chip and empty state. */
   describe: (value: string | string[]) => string;
   /** The hub page that covers this value, when one exists. */
@@ -108,6 +116,9 @@ function withCurrent(
   // Dropping it would make opening the picker silently wipe the filter.
   return [...options, { value: currentValue, label: label(currentValue) }];
 }
+
+/** A date window `bills.list` understands: one of the picker's values. */
+const isDateWindow = (value: string) => DATE_OPTIONS.some((o) => o.value === value);
 
 /** The clearing row every single-select picker opens with. */
 const ANY = (label: string): FilterOption => ({ value: 'all', label });
@@ -262,6 +273,8 @@ export const FILTERS: FilterDefinition[] = [
     multi: false,
     tier: 'panel',
     scanLimited: true,
+    // convex/bills.ts cutoffDateForFilter knows exactly these windows.
+    accepts: isDateWindow,
     options: (ctx) =>
       withCurrent(DATE_OPTIONS.slice(), ctx.currentValue, (v) => v),
     describe: (v) => labelFor(DATE_OPTIONS, String(v)),
@@ -276,6 +289,8 @@ export const FILTERS: FilterDefinition[] = [
     multi: false,
     tier: 'panel',
     scanLimited: true,
+    // convex/bills.ts cutoffDateForFilter knows exactly these windows.
+    accepts: isDateWindow,
     options: (ctx) =>
       withCurrent(DATE_OPTIONS.slice(), ctx.currentValue, (v) => v),
     describe: (v) => labelFor(DATE_OPTIONS, String(v)),
