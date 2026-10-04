@@ -36,6 +36,8 @@ import {
 import { buildFilterQuery, filtersFromQuery } from '@/lib/bills/filter-url';
 import { loadSponsors } from '@/components/bills/filters/sponsor-source';
 import { matchSponsorName, type SponsorMatchKind } from '@/lib/sponsor-match';
+import { readsAsQuestion } from '@/lib/bill-suggest';
+import { useAnswers } from '@/components/answers/answer-provider';
 
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
@@ -430,6 +432,24 @@ export default function BillsClient({
   const suggestedSponsor =
     sponsorSuggestion?.forSignature === currentSignature ? sponsorSuggestion : null;
 
+  /*
+   * A question typed into the title search ("how many bills about school
+   * lunch…"). It matches no title, so the reader lands on "No bills found":
+   * about half the /bills searches over 40 characters in Sep 2026 were
+   * questions. Offer to ask it instead. A member's name wins over this; the two
+   * rarely overlap.
+   */
+  const { ask, busy: askBusy } = useAnswers();
+  const offerAsk =
+    emptyTitleSearch && !suggestedSponsor && readsAsQuestion(filters.title);
+  const askOfferReported = useRef('');
+  useEffect(() => {
+    if (!offerAsk || askOfferReported.current === currentSignature) return;
+    askOfferReported.current = currentSignature;
+    analytics.billsNoResultsAskOffered(filters.title.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offerAsk, currentSignature]);
+
   // Re-keying the results list on the filter signature makes new rows
   // cross-fade/stagger in when filters change, while a "load more" (same
   // signature) leaves the existing rows untouched.
@@ -587,6 +607,31 @@ export default function BillsClient({
               ) : error ? null : (
                 <div className="border-b border-line px-4 py-14 text-center sm:py-20">
                   <p className="font-serif text-display-sm text-ink">No bills found</p>
+                  {offerAsk && (
+                    <div className="mx-auto mt-3 max-w-measure">
+                      <p className="text-[15px] text-ink-2">
+                        This search matches words in bill titles, so a question finds
+                        nothing here. The assistant can answer it from the same data.
+                      </p>
+                      <Button
+                        type="button"
+                        disabled={askBusy}
+                        onClick={() => {
+                          analytics.billsNoResultsAskAccepted(filters.title.length);
+                          // The list's other filters still apply; the question
+                          // itself must not, or the answer is about the bills
+                          // whose titles contain it, which is none.
+                          void ask(filters.title, {
+                            source: 'typed',
+                            scope: scopeFromFilters({ ...filters, title: '' }),
+                          });
+                        }}
+                        className="mt-5 h-auto min-h-10 max-w-full whitespace-normal"
+                      >
+                        Ask this question
+                      </Button>
+                    </div>
+                  )}
                   {suggestedSponsor && (
                     <div className="mx-auto mt-3 max-w-measure">
                       <p className="text-[15px] text-ink-2">

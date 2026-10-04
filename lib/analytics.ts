@@ -4,6 +4,15 @@ import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 import type { SponsorMatchKind } from '@/lib/sponsor-match';
 
+/** Every text box with a length limit, for `text_limit_reached`. */
+export type TextLimitSurface =
+  | 'ask_home'
+  | 'ask_panel'
+  | 'bills_search'
+  | 'header_search'
+  | 'feedback'
+  | 'found_it';
+
 // Typed PostHog event helpers — the code counterpart of documentation/analytics.md.
 //
 // RULES (see documentation/analytics.md "The contract"):
@@ -276,6 +285,29 @@ export const analytics = {
       match_kind: matchKind,
       query_length: queryLength,
     }),
+
+  /**
+   * An empty `/bills` title search read as a question ("how many bills…"), so
+   * the empty state offered to ask it instead. Once per empty result. The text
+   * is not sent.
+   */
+  billsNoResultsAskOffered: (queryLength: number) =>
+    capture('bills_no_results_ask_offered', { query_length: queryLength }),
+
+  /**
+   * The reader took that offer: the question went to the assistant. Also fires
+   * `answer_question_submitted` with `source: "typed"`, since the reader typed it.
+   */
+  billsNoResultsAskAccepted: (queryLength: number) =>
+    capture('bills_no_results_ask_accepted', { query_length: queryLength }),
+
+  /**
+   * A text box refused an edit that went past its length limit, and said so
+   * (`components/brand/length-limit.tsx`). Once per box per page load. Mostly a
+   * check that the limits sit where readers never reach them.
+   */
+  textLimitReached: (surface: TextLimitSurface, limit: number) =>
+    capture('text_limit_reached', { surface, limit }),
 
   /**
    * A filter moved off its default or changed value.

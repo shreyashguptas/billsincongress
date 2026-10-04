@@ -2,7 +2,7 @@ import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 import type { ConvexHttpClient } from "convex/browser";
 import { cookies } from "next/headers";
 
-export const MAX_QUESTION_LENGTH = 2000;
+export { MAX_QUESTION_LENGTH } from "@/lib/text-limit";
 
 const ANONYMOUS_CHAT_SESSION_COOKIE = "bic_bill_chat_session";
 const ANONYMOUS_CHAT_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 60; // 60 days

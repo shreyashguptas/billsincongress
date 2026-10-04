@@ -13,6 +13,7 @@ import { routes } from '@/lib/constants/routes';
 import { MAX_SEARCH_TEXT_LENGTH } from '@/lib/bill-query';
 import { UserMenu } from '@/components/auth/user-menu';
 import { Logo } from '@/components/brand/logo';
+import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/feedback/feedback-box';
 
 /**
@@ -248,6 +249,8 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
 function HeaderSearch() {
   const router = useRouter();
   const [query, setQuery] = React.useState('');
+  const noteId = React.useId();
+  const { limit, hit, nudging, onNudgeEnd } = useLengthLimit(MAX_SEARCH_TEXT_LENGTH, 'header_search');
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -259,7 +262,12 @@ function HeaderSearch() {
 
   return (
     <>
-      <form role="search" onSubmit={onSubmit} className="relative hidden header-lg:block">
+      <form
+        role="search"
+        onSubmit={onSubmit}
+        onAnimationEnd={onNudgeEnd}
+        className={cn('relative hidden header-lg:block', nudging && 'animate-nudge')}
+      >
         <label htmlFor="header-search" className="sr-only">
           Search bills
         </label>
@@ -268,11 +276,19 @@ function HeaderSearch() {
           id="header-search"
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          // Longer text would be cut before it is searched; cap it where it is typed.
-          maxLength={MAX_SEARCH_TEXT_LENGTH}
+          onChange={(e) => setQuery(limit(e.target.value))}
+          aria-describedby={noteId}
           placeholder="Search bills, or S. 2878"
           className="w-52 pl-9 text-sm header-xl:w-72"
+        />
+        {/* Floats under the box: the header has no room below it. */}
+        <LengthLimitNote
+          id={noteId}
+          length={query.length}
+          max={MAX_SEARCH_TEXT_LENGTH}
+          hit={hit}
+          className="absolute right-0 top-full z-40 whitespace-nowrap"
+          shownClassName="rounded-sm border border-line bg-raised px-2 py-1 shadow-float"
         />
       </form>
       <Button asChild variant="ghost" size="icon" className="header-lg:hidden">

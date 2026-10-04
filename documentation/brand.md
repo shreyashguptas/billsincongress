@@ -229,6 +229,7 @@ These live in `components/brand/` and compose the primitives above.
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
 | `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials (`AvatarPhoto`, `components/brand/avatar-photo.tsx`) |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
+| `useLengthLimit`, `LengthLimitNote` | `components/brand/length-limit.tsx` | Every text box with a length limit. See "Length limits", below |
 
 Patterns that appear on more than one page:
 
@@ -248,6 +249,20 @@ Patterns that appear on more than one page:
   It waits for the last word, like the sources. After a tap the buttons go and
   the line thanks the reader in place; an answer is rated once. A clarifying
   question from the assistant is not an answer and gets no check.
+- **Length limits**: every text box with a limit says so the same way
+  (`useLengthLimit` and `LengthLimitNote`, `components/brand/length-limit.tsx`).
+  Nothing shows until the text is 90% of the way. From there a 13px `ink-3`
+  count sits under the box in mono ("1,850 / 2,000"). An edit that would pass
+  the limit, typed or pasted, is cut to the limit; the box nudges once
+  (`animate-nudge`, 0.32s, a few pixels side to side) and the line turns to the
+  limit in words in `error`: "Keep it to 2,000 characters. 2,000 / 2,000". The
+  nudge explains a refused keystroke, so it plays once per refusal, not while a
+  key is held, and not at all under `prefers-reduced-motion`; the words carry
+  the message either way. Never `maxLength` alone: it drops the extra text with
+  no word of why. Where there is no room under the box (the header search), the
+  line floats below it on a `raised` surface. The limits: 2,000 characters for
+  a question or feedback, 120 for a bill search. Fixed-length codes (the
+  six-digit sign-in code) are not length limits and keep `maxLength`.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
 - **Hub order** (`HubOrderSwitch`, the hub pages): "Newest first" and "Oldest
@@ -409,7 +424,8 @@ and followed rows, and the alert email.
   put the unit on the chart: "each dot ≈ 17 bills", "outer seat ≈ 44 bills".
 - Label directly or in an adjacent legend. Colour is never the only key.
 - Hovering a legend row links it to its marks. Everything else drops to 35%.
-- Motion explains, it does not decorate: seats fade in once, bars grow once.
+- Motion explains, it does not decorate: seats fade in once, bars grow once,
+  a text box nudges once when it refuses a keystroke (see "Length limits").
   Nothing loops except the glow on the "became law" squares of the home page's
   "Where bills stand" chart (`.odds-law`). Everything stops under
   `prefers-reduced-motion`.

@@ -544,7 +544,18 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   to   { transform: none; }
 }
 .animate-bar-grow { animation: bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+/* A text box at its length limit nudges once (components/brand/length-limit.tsx).
+   It explains: the keystroke was refused. The words under the box say why. */
+@keyframes nudge {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+.animate-nudge { animation: nudge 0.32s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
 @media (prefers-reduced-motion: reduce) {
   .animate-odds-in, .odds-law, .animate-seat-in, .animate-bar-grow { animation-delay: 0s !important; }
   .animate-word-in { animation: none; }
+  .animate-nudge { animation: none; }
 }
