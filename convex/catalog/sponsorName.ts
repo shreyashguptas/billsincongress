@@ -27,16 +27,89 @@ const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
 
 /**
  * Comparison key: collapse whitespace, drop the punctuation that only ever
- * trails a name ("Cruz," / "Jr."), lowercase. Hyphens are left alone —
- * "Ocasio-Cortez" is one token and must stay one token.
+ * trails a name ("Cruz," / "Jr."), lowercase, and drop accents. Hyphens are
+ * left alone — "Ocasio-Cortez" is one token and must stay one token.
+ *
+ * Accents go because Congress.gov drops them on some rows and not others: the
+ * 118th holds "Nydia Velázquez" (22 bills) and "NYDIA VELAZQUEZ" (28), and the
+ * same for Barragán, García and González-Colón. Compared with their accents,
+ * each was two people, and "how many bills did Nydia Velázquez introduce"
+ * answered 22 against a real 50.
  */
-function nameKey(value: string): string {
+export function nameKey(value: string): string {
   return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
     .trim()
     .split(/\s+/)
     .map((word) => word.replace(/[.,;:]+$/, "").toLowerCase())
     .filter((word) => word.length > 0)
     .join(" ");
+}
+
+/** A name in one case throughout: "ADAM SCHIFF", the way some rows store it. */
+function uniformCase(name: string): boolean {
+  return name === name.toUpperCase() || name === name.toLowerCase();
+}
+
+export interface SponsorRow {
+  sponsorName: string;
+  sponsorParty?: string;
+  sponsorState?: string;
+  billCount: number;
+  congress?: number;
+}
+
+/**
+ * `congressSponsors` rows merged into one per member. A row is one SPELLING:
+ * Congress.gov records 45 members under two ("ADAM SCHIFF" and "Adam Schiff",
+ * "NYDIA VELAZQUEZ" and "Nydia Velázquez"), and in the 118th, 44 of them are
+ * split inside the one Congress. Every reader of the table goes through this, so
+ * the picker, the counts, the home page and the answer engine agree on who is
+ * one person.
+ *
+ * Same member = same `nameKey` and same state. Not party: the only same-name,
+ * different-party pairs in the data are party switches (Joe Manchin D→I in the
+ * 118th), the same person. Not name alone: two members who share a name always
+ * sit for different states.
+ *
+ * The name shown is a mixed-case spelling when there is one, then the spelling
+ * on more bills. It is never re-cased: title-casing "MCCARTHY" misspells it, and
+ * a wrong name is worse than a loud one. The party is the latest Congress's.
+ * The rows are left as stored, because the case-sensitive surname index needs
+ * each spelling exactly.
+ */
+export function mergeSponsorRows(rows: Iterable<SponsorRow>): Omit<SponsorRow, "congress">[] {
+  const byMember = new Map<string, SponsorRow & { shownCount: number; partyCongress: number }>();
+  for (const row of rows) {
+    const key = `${nameKey(row.sponsorName)}|${row.sponsorState ?? ""}`;
+    const held = byMember.get(key);
+    if (!held) {
+      byMember.set(key, {
+        sponsorName: row.sponsorName,
+        sponsorParty: row.sponsorParty,
+        sponsorState: row.sponsorState,
+        billCount: row.billCount,
+        shownCount: row.billCount,
+        partyCongress: row.congress ?? 0,
+      });
+      continue;
+    }
+    held.billCount += row.billCount;
+    const better =
+      uniformCase(held.sponsorName) !== uniformCase(row.sponsorName)
+        ? uniformCase(held.sponsorName)
+        : row.billCount > held.shownCount;
+    if (better) {
+      held.sponsorName = row.sponsorName;
+      held.shownCount = row.billCount;
+    }
+    if (row.sponsorParty && (!held.sponsorParty || (row.congress ?? 0) > held.partyCongress)) {
+      held.sponsorParty = row.sponsorParty;
+      held.partyCongress = row.congress ?? 0;
+    }
+  }
+  return [...byMember.values()].map(({ shownCount: _s, partyCongress: _p, ...row }) => row);
 }
 
 function tokenise(value: string): string[] {

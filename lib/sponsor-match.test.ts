@@ -84,36 +84,26 @@ it('does not guess from a first name alone, or from a surname under three letter
   assert.equal(matchSponsorName('li', [{ name: 'Ted Li' }]), null);
 });
 
-// The production list (2026-10-04) holds 45 members under two spellings, as
-// separate rows. Each was read as two people, so "velazquez" or "adam schiff"
-// looked ambiguous and got no suggestion.
-const TWO_SPELLINGS = [
-  { name: 'NYDIA VELAZQUEZ', party: 'D', state: 'NY' },
-  { name: 'Nydia Velázquez', party: 'D', state: 'NY' },
-  { name: 'ADAM SCHIFF', party: 'D', state: 'CA' },
-  { name: 'Adam Schiff', party: 'D', state: 'CA' },
-  { name: 'Adam Smith', party: 'D', state: 'WA' },
-  { name: 'Jason Smith', party: 'R', state: 'MO' },
+// `listAllSponsors` lists each member once (convex/catalog/sponsorName.ts
+// mergeSponsorRows), shown under a mixed-case spelling when one is stored.
+// Before that, "ADAM SCHIFF" and "Adam Schiff" were two entries, so "adam schiff"
+// and "velazquez" looked ambiguous and got no suggestion.
+const MERGED = [
+  { name: 'Nydia Velázquez' },
+  { name: 'Adam Schiff' },
+  { name: 'Adam Smith' },
+  { name: 'Jason Smith' },
 ];
 
-it('treats two spellings of one member as one member, and filters by both', () => {
-  const v = matchSponsorName('velazquez', TWO_SPELLINGS);
-  assert.equal(v?.sponsor.name, 'Nydia Velázquez');
-  assert.deepEqual(v?.names, ['NYDIA VELAZQUEZ', 'Nydia Velázquez']);
-  assert.equal(v?.kind, 'last_name');
-  const s = matchSponsorName('adam schiff', TWO_SPELLINGS);
-  assert.equal(s?.sponsor.name, 'Adam Schiff');
-  assert.deepEqual(s?.names, ['ADAM SCHIFF', 'Adam Schiff']);
-  assert.deepEqual(matchSponsorName('jamie raskin', SPONSORS)?.names, ['Jamie Raskin']);
+it('finds members Congress.gov stores under two spellings', () => {
+  assert.equal(matchSponsorName('velazquez', MERGED)?.sponsor.name, 'Nydia Velázquez');
+  assert.equal(matchSponsorName('adam schiff', MERGED)?.sponsor.name, 'Adam Schiff');
 });
 
-it('keeps two different people with the same name apart', () => {
-  const rogers = [
-    { name: 'Mike Rogers', party: 'R', state: 'AL' },
-    { name: 'MIKE ROGERS', party: 'R', state: 'MI' },
-  ];
-  assert.equal(matchSponsorName('mike rogers', rogers), null);
-  assert.equal(matchSponsorName('smith', TWO_SPELLINGS), null);
+it('suggests nobody when two different people share the name', () => {
+  // Two members named Mike Rogers, for different states, stay two entries.
+  assert.equal(matchSponsorName('mike rogers', [{ name: 'Mike Rogers' }, { name: 'MIKE ROGERS' }]), null);
+  assert.equal(matchSponsorName('smith', MERGED), null);
 });
 
 it('drops name suffixes readers leave off', () => {

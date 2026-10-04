@@ -42,7 +42,7 @@ import {
 import { milestoneStages } from "./stageSemantics";
 import { congressWindow, isCongressClosed } from "./congressCalendar";
 import { canBecomeLaw, measureNoun } from "./measureType";
-import { candidateSurnames, matchesFullName } from "./sponsorName";
+import { candidateSurnames, matchesFullName, mergeSponsorRows, nameKey } from "./sponsorName";
 
 /** Default rows per fetch. Small on purpose — context is the scarce resource. */
 const DEFAULT_LIMIT = 20;
@@ -519,28 +519,45 @@ async function fetchBills(
       const productive = new Map<string, boolean>();
       const collected: Doc<"bills">[] = [];
 
+      // The surnames this Congress actually stores for each requested member.
+      // Re-casing the request reaches "LEE" from "Lee", but nothing reaches
+      // "VELAZQUEZ" from "Velázquez" or back: an accent cannot be guessed. The
+      // member table holds every stored spelling, so take them from there.
+      const storedSpellings = new Map<string, string[]>();
+      for (const row of await ctx.db
+        .query("congressSponsors")
+        .withIndex("by_congress", (q) => q.eq("congress", congress))
+        .take(SPONSOR_SCAN_LIMIT)) {
+        const key = nameKey(row.sponsorName);
+        storedSpellings.set(key, [...(storedSpellings.get(key) ?? []), row.sponsorName]);
+      }
+
       for (const requested of sponsorNames ?? []) {
         if (!productive.has(requested)) productive.set(requested, false);
+        const surnames = new Set<string>();
         for (const candidate of candidateSurnames(requested)) {
-          for (const spelling of surnameSpellings(candidate)) {
-            // One shared budget across every read, so a name with many candidate
-            // spellings cannot multiply the cost of the request.
-            if (docsRead >= ceiling) {
-              exhausted = true;
-              break;
-            }
-            const rows = await ctx.db
-              .query("bills")
-              .withIndex("by_congress_and_sponsor_last", (q) =>
-                q.eq("congress", congress).eq("sponsorLastName", spelling),
-              )
-              .order("desc")
-              .take(ceiling - docsRead);
-            docsRead += rows.length;
-            if (rows.length > 0) productive.set(requested, true);
-            collected.push(...rows);
+          for (const spelling of surnameSpellings(candidate)) surnames.add(spelling);
+        }
+        for (const stored of storedSpellings.get(nameKey(requested)) ?? []) {
+          for (const candidate of candidateSurnames(stored)) surnames.add(candidate);
+        }
+        for (const spelling of surnames) {
+          // One shared budget across every read, so a name with many candidate
+          // spellings cannot multiply the cost of the request.
+          if (docsRead >= ceiling) {
+            exhausted = true;
+            break;
           }
-          if (exhausted) break;
+          const rows = await ctx.db
+            .query("bills")
+            .withIndex("by_congress_and_sponsor_last", (q) =>
+              q.eq("congress", congress).eq("sponsorLastName", spelling),
+            )
+            .order("desc")
+            .take(ceiling - docsRead);
+          docsRead += rows.length;
+          if (rows.length > 0) productive.set(requested, true);
+          collected.push(...rows);
         }
         if (exhausted) break;
       }
@@ -1047,32 +1064,9 @@ async function fetchSponsors(
   // with 67 "members" against 54 seats, and the split fragments corrupted the
   // ranking: Anna Eshoo appeared with 4 bills when her real total is 30. Summing
   // is the correct merge; 12 + 47 = 59 is exactly her count in the bills table.
-  const byPerson = new Map<string, { sponsorName: string; billCount: number; sponsorParty?: string; sponsorState?: string }>();
-  for (const row of all) {
-    const key = row.sponsorName.trim().toLowerCase().replace(/\s+/g, " ");
-    const held = byPerson.get(key);
-    if (!held) {
-      byPerson.set(key, {
-        sponsorName: row.sponsorName,
-        billCount: row.billCount,
-        sponsorParty: row.sponsorParty,
-        sponsorState: row.sponsorState,
-      });
-      continue;
-    }
-    held.billCount += row.billCount;
-    // Prefer a mixed-case spelling for display: SHOUTING a member's name at the
-    // reader is a tell that we are showing them a raw row. Never invent a casing
-    // — title-casing a surname would misspell McCarthy, and a wrong name is worse
-    // than a loud one — so this only ever picks between spellings we hold.
-    const uniform = (n: string) => n === n.toUpperCase() || n === n.toLowerCase();
-    if (uniform(held.sponsorName) && !uniform(row.sponsorName)) {
-      held.sponsorName = row.sponsorName;
-    }
-    held.sponsorParty = held.sponsorParty ?? row.sponsorParty;
-    held.sponsorState = held.sponsorState ?? row.sponsorState;
-  }
-  const merged = [...byPerson.values()];
+  // The same holds for accents ("NYDIA VELAZQUEZ" / "Nydia Velázquez"); see
+  // mergeSponsorRows for who counts as one member and which spelling is shown.
+  const merged = mergeSponsorRows(all);
   // `fewest_bills` is not a convenience. Without it "who introduced the fewest
   // bills in California" could not be answered at all: the read is complete and
   // the total exact, but the page is 50 of 54 ordered most-first, so the true

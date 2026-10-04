@@ -536,7 +536,9 @@ iterated index can run out before the page is filled. Two things keep that hones
   same rule as the answer engine, see `convex/catalog/sponsorName.ts`), then matches the full
   name in memory. It used to walk the whole Congress, so a drilldown to Rick Scott showed 6 of
   his 185 bills. The index is case-sensitive, so the stored spelling of each name is looked up
-  in `congressSponsors` first ("michael mccaul" in a hand-typed URL still reaches "McCaul").
+  in `congressSponsors` first ("michael mccaul" in a hand-typed URL still reaches "McCaul"), and
+  names are compared without case or accents, so "Nydia Velázquez" also reaches the 118th's
+  "NYDIA VELAZQUEZ" rows.
   These reads share the `MAX_LIST_SCAN` budget and run newest first, so only surnames that
   together hold more than 1,200 bills in one Congress can still truncate, and a truncated list
   shows the newest of them.
@@ -557,11 +559,23 @@ Because titles never name their sponsors, a member's name typed into the title s
 comes back empty. When a title search is empty, `/bills` checks the text against the sponsor
 list (`lib/sponsor-match.ts`: the full name, first and last name, or a last name only one
 member has) and the empty state offers "Show bills sponsored by …", which moves the text from
-the title search to the sponsor filter. Congress.gov records some members under two spellings
-("ADAM SCHIFF" and "Adam Schiff", 45 of them in October 2026); spellings that differ only in
-case and accents, with the same party and state, count as one member, and the filter gets all of
-them. The match runs in the browser against the same
+the title search to the sponsor filter. The match runs in the browser against the same
 `listAllSponsors` list as the sponsor picker; the server search is unchanged.
+
+**One member, several spellings.** Congress.gov records 45 members under two spellings ("ADAM
+SCHIFF" and "Adam Schiff", "NYDIA VELAZQUEZ" and "Nydia Velázquez"; October 2026), and in the
+118th, 44 of them are split inside the one Congress. Bills keep the spelling Congress.gov sent,
+and so does `congressSponsors`, one row per spelling, because the case-sensitive surname index
+needs each one exactly. Every reader merges them with `mergeSponsorRows`
+(`convex/catalog/sponsorName.ts`): the sponsor picker, the sponsor count on `/bills`, the home
+page's leading sponsors and the answer engine's `sponsors` dataset. Same member means the same
+name ignoring case and accents, and the same state; party is ignored, because the only
+same-name pairs with different parties are party switches (Joe Manchin, D then I). The name shown
+is a mixed-case spelling when one is stored; a name only ever stored in capitals ("CAROLYN
+MALONEY", 18 members) is shown that way rather than re-cased. A member listed under a different
+first name ("Chuck" and "Charles" Grassley, "Bernie" and "Bernard" Sanders, about five) is still
+two entries: names alone cannot tell those from two people (Sherrod and Shontel Brown are both
+Ohio Democrats), and the bills table does not store Congress.gov's member id.
 
 ---
 

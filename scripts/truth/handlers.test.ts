@@ -935,7 +935,10 @@ async function main() {
     // The 118th stores Barbara Lee as "Barbara Lee" (12) and "BARBARA LEE" (47),
     // so California reported 67 members against 54 seats, and the split halves
     // corrupted the ranking — Anna Eshoo showed 4 bills against a real 30.
-    const norm = (x: string) => x.trim().toLowerCase().replace(/\s+/g, " ");
+    // Accents are folded too: "Nanette Barragan" and "Nanette Barragán" both
+    // hold 118th bills, and she is one of California's members, not two.
+    const norm = (x: string) =>
+      x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
     for (const congress of [117, 118, 119]) {
       const r = await fetchViaHandlers(ctx, "sponsors", { congress, sponsorState: "CA" }, 50);
       assert.ok(r.ok);
@@ -960,6 +963,110 @@ async function main() {
         norm(`${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`) === "barbara lee",
     ).length;
     assert.equal(lee?.billCount, realLee, "a merged member's count must match the bills table");
+  });
+
+  // --- One member, two spellings that differ by more than case ---------------
+  //
+  // Congress.gov holds four members both with and without their accents, and in
+  // the 118th each one is split across the two: "Nydia Velázquez" 22 and "NYDIA
+  // VELAZQUEZ" 28. Case-folding alone (the fixes above) leaves them as two
+  // people, so "how many bills did Nydia Velázquez introduce in the 118th"
+  // answered 22 against a real 50, and the /bills sponsor filter showed her 22.
+  const accentFold = (x: string) =>
+    x.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
+  const billsNamed = (congress: number | null, name: string) =>
+    bills.filter(
+      (b: any) =>
+        (congress === null || b.congress === congress) &&
+        accentFold(`${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`) === accentFold(name),
+    ).length;
+  const ACCENTED = [
+    "Nydia Velázquez",
+    "Nydia Velazquez",
+    "Nanette Barragán",
+    "Jesús García",
+    "Jenniffer González-Colón",
+  ];
+
+  await it("a member stored with and without accents is counted in full, however the name is typed", async () => {
+    for (const name of ACCENTED) {
+      const r = await fetchViaHandlers(ctx, "bills", { congress: 118, sponsorFilter: [name] }, 0);
+      assert.ok(r.ok, `${name}: ${r.error}`);
+      const real = billsNamed(118, name);
+      assert.ok(real > 0, `sanity: ${name} really has 118th bills`);
+      assert.equal(r.report.total, real, `${name} (118th) missed a spelling`);
+    }
+  });
+
+  await it("a state's roster counts a member stored with and without accents once", async () => {
+    const r = await fetchViaHandlers(
+      ctx,
+      "sponsors",
+      { congress: 118, sponsorState: "NY", sort: "most_bills" },
+      100,
+    );
+    assert.ok(r.ok);
+    const people = new Set(
+      sponsorRows
+        .filter((s: any) => s.congress === 118 && s.sponsorState === "NY")
+        .map((s: any) => accentFold(s.sponsorName)),
+    );
+    assert.equal(r.report.total, people.size, "NY 118 counted spellings, not people");
+    const nydia = r.rows.filter((x: any) => accentFold(x.sponsorName) === "nydia velazquez");
+    assert.equal(nydia.length, 1, "Velázquez listed more than once");
+    assert.equal(nydia[0].billCount, billsNamed(118, "Nydia Velázquez"));
+  });
+
+  // The /bills page reads the same rows through bills.ts, not the catalog.
+  const billsQueries = await import("../../convex/bills");
+  const runQuery = (fn: any, args: Record<string, unknown>) => fn._handler(ctx, args);
+
+  await it("the /bills sponsor filter finds every spelling of a member", async () => {
+    for (const name of ACCENTED) {
+      const { count, exact } = await runQuery(billsQueries.listCount, {
+        congress: 118,
+        sponsorFilter: [name],
+      });
+      assert.equal(exact, true);
+      assert.equal(count, billsNamed(118, name), `${name}: /bills count`);
+      const page = await runQuery(billsQueries.list, {
+        congress: 118,
+        sponsorFilter: [name],
+        limit: 50,
+      });
+      assert.equal(page.data.length, Math.min(50, billsNamed(118, name)), `${name}: /bills list`);
+    }
+  });
+
+  await it("the /bills sponsor picker lists each member once, with all their bills", async () => {
+    const list = await runQuery(billsQueries.listAllSponsors, {});
+    const seen = new Map<string, any>();
+    for (const s of list) {
+      const key = `${accentFold(s.name)}|${s.state}`;
+      assert.ok(!seen.has(key), `listed twice: "${seen.get(key)?.name}" and "${s.name}"`);
+      seen.set(key, s);
+    }
+    for (const name of ["Nydia Velázquez", "Adam Schiff", "Barbara Lee", "Christopher Smith"]) {
+      const hit = list.filter((s: any) => accentFold(s.name) === accentFold(name));
+      assert.equal(hit.length, 1, `${name} not listed exactly once`);
+      assert.equal(hit[0].name, name, "a mixed-case spelling exists, so it is the one shown");
+      assert.equal(hit[0].billCount, billsNamed(null, name), `${name}: picker count`);
+    }
+  });
+
+  await it("the home page's leading sponsors are whole members, not one spelling", async () => {
+    for (const congress of [117, 118, 119]) {
+      const d = await runQuery(billsQueries.getCongressDashboard, { congress });
+      for (const s of d?.topSponsors ?? []) {
+        const real = bills.filter(
+          (b: any) =>
+            b.congress === congress &&
+            b.sponsorState === s.state &&
+            accentFold(`${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`) === accentFold(s.name),
+        ).length;
+        assert.equal(s.count, real, `${congress}: ${s.name}`);
+      }
+    }
   });
 
   await it("a filter value in the wrong case is normalised, not answered zero", async () => {
