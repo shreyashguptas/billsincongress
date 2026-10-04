@@ -557,7 +557,10 @@ Because titles never name their sponsors, a member's name typed into the title s
 comes back empty. When a title search is empty, `/bills` checks the text against the sponsor
 list (`lib/sponsor-match.ts`: the full name, first and last name, or a last name only one
 member has) and the empty state offers "Show bills sponsored by …", which moves the text from
-the title search to the sponsor filter. The match runs in the browser against the same
+the title search to the sponsor filter. Congress.gov records some members under two spellings
+("ADAM SCHIFF" and "Adam Schiff", 45 of them in October 2026); spellings that differ only in
+case and accents, with the same party and state, count as one member, and the filter gets all of
+them. The match runs in the browser against the same
 `listAllSponsors` list as the sponsor picker; the server search is unchanged.
 
 ---

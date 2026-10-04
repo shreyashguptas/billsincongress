@@ -84,6 +84,38 @@ it('does not guess from a first name alone, or from a surname under three letter
   assert.equal(matchSponsorName('li', [{ name: 'Ted Li' }]), null);
 });
 
+// The production list (2026-10-04) holds 45 members under two spellings, as
+// separate rows. Each was read as two people, so "velazquez" or "adam schiff"
+// looked ambiguous and got no suggestion.
+const TWO_SPELLINGS = [
+  { name: 'NYDIA VELAZQUEZ', party: 'D', state: 'NY' },
+  { name: 'Nydia Velázquez', party: 'D', state: 'NY' },
+  { name: 'ADAM SCHIFF', party: 'D', state: 'CA' },
+  { name: 'Adam Schiff', party: 'D', state: 'CA' },
+  { name: 'Adam Smith', party: 'D', state: 'WA' },
+  { name: 'Jason Smith', party: 'R', state: 'MO' },
+];
+
+it('treats two spellings of one member as one member, and filters by both', () => {
+  const v = matchSponsorName('velazquez', TWO_SPELLINGS);
+  assert.equal(v?.sponsor.name, 'Nydia Velázquez');
+  assert.deepEqual(v?.names, ['NYDIA VELAZQUEZ', 'Nydia Velázquez']);
+  assert.equal(v?.kind, 'last_name');
+  const s = matchSponsorName('adam schiff', TWO_SPELLINGS);
+  assert.equal(s?.sponsor.name, 'Adam Schiff');
+  assert.deepEqual(s?.names, ['ADAM SCHIFF', 'Adam Schiff']);
+  assert.deepEqual(matchSponsorName('jamie raskin', SPONSORS)?.names, ['Jamie Raskin']);
+});
+
+it('keeps two different people with the same name apart', () => {
+  const rogers = [
+    { name: 'Mike Rogers', party: 'R', state: 'AL' },
+    { name: 'MIKE ROGERS', party: 'R', state: 'MI' },
+  ];
+  assert.equal(matchSponsorName('mike rogers', rogers), null);
+  assert.equal(matchSponsorName('smith', TWO_SPELLINGS), null);
+});
+
 it('drops name suffixes readers leave off', () => {
   assert.deepEqual(nameTokens('Mike Collins Jr.'), ['mike', 'collins']);
   assert.equal(matchSponsorName('mike collins', [{ name: 'Mike Collins Jr.' }])?.sponsor.name, 'Mike Collins Jr.');

@@ -39,7 +39,7 @@ Nearly every number on the page is clickable. Click a stage, a sponsor or a stat
 
 ### Every bill, browsable
 
-`/bills` is the full browser. You can search by title or bill number, start typing a sponsor's name to pick them from a list, and filter by status, Congress, policy area (33 of them), state, date introduced, date last acted on, and bill type.
+`/bills` is the full browser. You can search by title or bill number, start typing a sponsor's name to pick them from a list, and filter by status, Congress, policy area (33 of them), state, date introduced, date last acted on, and bill type. Bill titles don't name their sponsors, so a member's name typed into the title search finds nothing; when that happens and the name belongs to exactly one member, the empty page offers to show that member's bills instead.
 
 Each filter's own control displays what it is currently set to, with a running "N filters applied · Clear all" line under the row, and every filter is written into the address bar — so a filtered view can be bookmarked, shared, or walked back through with the browser's Back button. Filters are deliberately *not* remembered between visits, because silently re-applying last week's filters is how people end up staring at an unexplained empty page.
 
