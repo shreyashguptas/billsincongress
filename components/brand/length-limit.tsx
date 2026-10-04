@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type ChangeEvent } from 'react';
 import { analytics, type TextLimitSurface } from '@/lib/analytics';
 import { limitCount, limitMessage, limitState, limitText } from '@/lib/text-limit';
 import { cn } from '@/lib/utils';
@@ -8,23 +8,26 @@ import { cn } from '@/lib/utils';
 /**
  * A text box's length limit, said out loud (see `lib/text-limit.ts`).
  *
- * Run every edit through `limit` instead of setting `maxLength`: a `maxLength`
- * box swallows the extra keystroke or paste without an event, so nothing could
- * tell the reader why their text stopped. Put `nudging` on the element that
- * draws the box's edge as `animate-nudge`, clear it with `onNudgeEnd`, and
- * render `LengthLimitNote` under the box.
+ * Run every edit through `limit(event, previousText)` instead of setting
+ * `maxLength`: a `maxLength` box swallows the extra keystroke or paste without
+ * an event, so nothing could tell the reader why their text stopped. Put
+ * `nudging` on the element that draws the box's edge as `animate-nudge`, clear
+ * it with `onNudgeEnd`, and render `LengthLimitNote` under the box.
  */
 export function useLengthLimit(max: number, surface: TextLimitSurface) {
-  /** The last edit tried to go past the limit. */
-  const [hit, setHit] = useState(false);
   const [nudging, setNudging] = useState(false);
   const reported = useRef(false);
 
   const limit = useCallback(
-    (next: string) => {
-      const { value, overflowed } = limitText(next, max);
-      setHit(overflowed);
+    (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, prev: string) => {
+      const field = e.target;
+      const { value, overflowed, caret } = limitText(prev, field.value, max);
       if (overflowed) {
+        // React writes back a value that differs from the one in the field,
+        // which sends the caret to the end. Put it back where the edit was.
+        requestAnimationFrame(() => {
+          if (document.activeElement === field) field.setSelectionRange(caret, caret);
+        });
         // A nudge already under way is not restarted, so a held-down key
         // shakes the box once, not for as long as it is held.
         setNudging(true);
@@ -40,12 +43,13 @@ export function useLengthLimit(max: number, surface: TextLimitSurface) {
 
   const onNudgeEnd = useCallback(() => setNudging(false), []);
 
-  return { limit, hit, nudging, onNudgeEnd };
+  return { limit, nudging, onNudgeEnd };
 }
 
 /**
  * The line under a limited box: nothing until 90% of the way, then a quiet
- * count, then at the limit the limit in words in the error colour. Always
+ * count, then at the limit the limit in words in the error colour. It follows
+ * the text's length alone, so it clears when the box is emptied. Always
  * mounted, so a screen reader hears it change (`aria-live`); point the box's
  * `aria-describedby` at `id`.
  *
@@ -56,18 +60,16 @@ export function LengthLimitNote({
   id,
   length,
   max,
-  hit,
   className,
   shownClassName,
 }: {
   id: string;
   length: number;
   max: number;
-  hit: boolean;
   className?: string;
   shownClassName?: string;
 }) {
-  const state = hit ? 'full' : limitState(length, max);
+  const state = limitState(length, max);
   return (
     <p
       id={id}
@@ -77,7 +79,7 @@ export function LengthLimitNote({
       {state === 'full' ? (
         <span className="text-error">
           {limitMessage(max)}{' '}
-          <span className="font-mono tabular-nums">{limitCount(Math.min(length, max), max)}</span>
+          <span className="font-mono tabular-nums">{limitCount(length, max)}</span>
         </span>
       ) : state === 'near' ? (
         <span className="font-mono tabular-nums text-ink-3">{limitCount(length, max)}</span>

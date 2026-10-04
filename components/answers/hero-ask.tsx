@@ -49,7 +49,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const congress = starters.congress;
   const listId = useId();
   const noteId = useId();
-  const { limit, hit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_home');
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_home');
 
   const suggestions = useBillSuggestions(input, congress);
   const settled = suggestions.kind !== null && isSettled(suggestions, input, congress);
@@ -127,7 +127,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             type="text"
             value={input}
             onChange={(e) => {
-              setInput(limit(e.target.value));
+              setInput(limit(e, input));
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
@@ -177,7 +177,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             <ArrowUp className="h-5 w-5" strokeWidth={1.75} />
           </Button>
         </form>
-        <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} hit={hit} className="px-1 text-left" />
+        <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} className="px-1 text-left" />
 
         {showList && (
           <div

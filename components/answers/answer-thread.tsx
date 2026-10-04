@@ -195,7 +195,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
   const { turns, busy, error, ask } = useAnswers();
   const [input, setInput] = useState('');
   const noteId = useId();
-  const { limit, hit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_panel');
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_panel');
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // Whether the reader was at the bottom before the content last grew. Tracked
@@ -347,7 +347,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             id="ask-composer"
             type="text"
             value={input}
-            onChange={(e) => setInput(limit(e.target.value))}
+            onChange={(e) => setInput(limit(e, input))}
             placeholder={
               awaitingReply
                 ? 'Answer the question…'
@@ -385,7 +385,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             )}
           </Button>
         </form>
-        <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} hit={hit} className="px-1" />
+        <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} className="px-1" />
       </div>
     </div>
   );

@@ -46,7 +46,7 @@ export function FoundItPrompt() {
   const [step, setStep] = React.useState<Step>('ask');
   const [missing, setMissing] = React.useState('');
   const limitId = React.useId();
-  const { limit, hit, nudging, onNudgeEnd } = useLengthLimit(FEEDBACK_MAX_LENGTH, 'found_it');
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(FEEDBACK_MAX_LENGTH, 'found_it');
   const finished = React.useRef(false);
 
   // Count every page; decide once, on the page that crosses the threshold.
@@ -167,13 +167,13 @@ export function FoundItPrompt() {
                 autoFocus
                 rows={3}
                 value={missing}
-                onChange={(e) => setMissing(limit(e.target.value))}
+                onChange={(e) => setMissing(limit(e, missing))}
                 placeholder="Optional"
                 onAnimationEnd={onNudgeEnd}
                 className={cn('resize-none', nudging && 'animate-nudge')}
                 aria-describedby={limitId}
               />
-              <LengthLimitNote id={limitId} length={missing.length} max={FEEDBACK_MAX_LENGTH} hit={hit} />
+              <LengthLimitNote id={limitId} length={missing.length} max={FEEDBACK_MAX_LENGTH} />
               <div className="mt-3 flex justify-end">
                 <Button type="submit" size="sm" className="touchable:h-11">
                   Send

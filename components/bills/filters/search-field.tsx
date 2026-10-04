@@ -42,7 +42,7 @@ export interface SearchFieldProps {
 export function SearchField({ value, onCommit }: SearchFieldProps) {
   const id = useId();
   const noteId = useId();
-  const { limit, hit, nudging, onNudgeEnd } = useLengthLimit(MAX_SEARCH_TEXT_LENGTH, 'bills_search');
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_SEARCH_TEXT_LENGTH, 'bills_search');
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCommitted = useRef(value);
@@ -95,7 +95,7 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
           id={id}
           type="search"
           value={draft}
-          onChange={(e) => handleChange(limit(e.target.value))}
+          onChange={(e) => handleChange(limit(e, draft))}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -125,7 +125,7 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
           </Button>
         )}
       </div>
-      <LengthLimitNote id={noteId} length={draft.length} max={MAX_SEARCH_TEXT_LENGTH} hit={hit} className="px-1" />
+      <LengthLimitNote id={noteId} length={draft.length} max={MAX_SEARCH_TEXT_LENGTH} className="px-1" />
     </div>
   );
 }

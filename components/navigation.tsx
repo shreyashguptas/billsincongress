@@ -250,7 +250,7 @@ function HeaderSearch() {
   const router = useRouter();
   const [query, setQuery] = React.useState('');
   const noteId = React.useId();
-  const { limit, hit, nudging, onNudgeEnd } = useLengthLimit(MAX_SEARCH_TEXT_LENGTH, 'header_search');
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_SEARCH_TEXT_LENGTH, 'header_search');
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -276,7 +276,7 @@ function HeaderSearch() {
           id="header-search"
           type="search"
           value={query}
-          onChange={(e) => setQuery(limit(e.target.value))}
+          onChange={(e) => setQuery(limit(e, query))}
           aria-describedby={noteId}
           placeholder="Search bills, or S. 2878"
           className="w-52 pl-9 text-sm header-xl:w-72"
@@ -286,7 +286,6 @@ function HeaderSearch() {
           id={noteId}
           length={query.length}
           max={MAX_SEARCH_TEXT_LENGTH}
-          hit={hit}
           className="absolute right-0 top-full z-40 whitespace-nowrap"
           shownClassName="rounded-sm border border-line bg-raised px-2 py-1 shadow-float"
         />

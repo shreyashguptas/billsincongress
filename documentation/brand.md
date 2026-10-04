@@ -253,7 +253,8 @@ Patterns that appear on more than one page:
   (`useLengthLimit` and `LengthLimitNote`, `components/brand/length-limit.tsx`).
   Nothing shows until the text is 90% of the way. From there a 13px `ink-3`
   count sits under the box in mono ("1,850 / 2,000"). An edit that would pass
-  the limit, typed or pasted, is cut to the limit; the box nudges once
+  the limit, typed or pasted, keeps only as much of what it added as fits (the
+  reader's existing text and caret stay put); the box nudges once
   (`animate-nudge`, 0.32s, a few pixels side to side) and the line turns to the
   limit in words in `error`: "Keep it to 2,000 characters. 2,000 / 2,000". The
   nudge explains a refused keystroke, so it plays once per refusal, not while a
