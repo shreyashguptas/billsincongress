@@ -3,7 +3,7 @@ import { mkdir } from 'fs/promises';
 import { join } from 'path';
 
 // Builds every favicon and app icon from the brand marks in public/brand/
-// (Documentation/brand.md, "Logo"). Below 64px the favicon cut is used — five
+// (documentation/brand.md, "Logo"). Below 64px the favicon cut is used — five
 // seats, the well and the floor — because the full mark's inner row turns to
 // mush at that size. Runs before every build (`pnpm build`).
 

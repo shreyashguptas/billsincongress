@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * An eyebrow naming the view, a headline that states the finding, and one
- * action on the right — usually "Ask about this →" (Documentation/brand.md,
+ * action on the right — usually "Ask about this →" (documentation/brand.md,
  * "SectionHeader"). Write the finding, not the chart type.
  */
 export function SectionHeader({

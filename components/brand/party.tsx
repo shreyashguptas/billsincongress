@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Party marks (Documentation/brand.md, "PartyTag"). The dot is the only place
+ * Party marks (documentation/brand.md, "PartyTag"). The dot is the only place
  * party colour appears outside a chart — never tint a name, card or row.
  */
 const PARTY_FILL: Record<string, string> = {

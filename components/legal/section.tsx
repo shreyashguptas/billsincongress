@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 // Shared building blocks for /privacy and /terms. Both pages render the same
 // layout — a reading column, the plain-English summary first, then numbered
 // sections divided by hairlines — and keeping one copy stops the two drifting
-// apart (Documentation/brand.md, "Layout and shape").
+// apart (documentation/brand.md, "Layout and shape").
 
 export function LegalPage({
   title,

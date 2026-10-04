@@ -4,13 +4,13 @@ import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 import type { SponsorMatchKind } from '@/lib/sponsor-match';
 
-// Typed PostHog event helpers — the code counterpart of Documentation/ANALYTICS.md.
+// Typed PostHog event helpers — the code counterpart of documentation/analytics.md.
 //
-// RULES (see Documentation/ANALYTICS.md "The contract"):
+// RULES (see documentation/analytics.md "The contract"):
 //  - Every custom event the app sends lives here as a named helper.
 //  - Components never call posthog.capture() with raw strings.
 //  - Adding/removing a feature means adding/removing its helpers here AND
-//    updating the registry table in Documentation/ANALYTICS.md, in the same commit.
+//    updating the registry table in documentation/analytics.md, in the same commit.
 //
 // Every helper is safe to call anywhere: it no-ops during SSR and when
 // PostHog isn't configured (missing env vars).
@@ -280,7 +280,7 @@ export const analytics = {
   /**
    * A filter moved off its default or changed value.
    *
-   * This closes the gap Documentation/ANALYTICS.md has flagged since the Apply
+   * This closes the gap documentation/analytics.md has flagged since the Apply
    * button was removed: there has been no way to see WHICH filters people use,
    * only that they hit zero results. Fired from one chokepoint in
    * bills-client.tsx, so it cannot drift per control.

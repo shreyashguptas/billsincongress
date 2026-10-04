@@ -13,7 +13,7 @@ import {
 import { geist500, geistMono500, newsreader500, newsreader600 } from './fonts';
 
 /**
- * The pieces every share card is built from (Documentation/brand.md, "Share
+ * The pieces every share card is built from (documentation/brand.md, "Share
  * card"): the frame with the lockup, the stage headline and the seven-step
  * track. Bill cards (bill-share-card.tsx) and page cards (hub-share-card.tsx)
  * both use them, so the two read as one family.

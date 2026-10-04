@@ -107,6 +107,30 @@ it('derives the header heights from the navigation the reader actually sees', ()
   assert.equal(byWidth.size, 2, 'one header row: a height per breakpoint where h-14 / sm:h-16 changes');
 });
 
+it("lays the header out by its own width, so the docked panel never covers it", () => {
+  // Docked, the header is the window minus the panel: 1024px on a 1440px
+  // screen. `xl:` still saw 1440, drew the 288px search field, and pushed
+  // "Sign up" under the panel. The header's md/lg/xl are container queries.
+  assert.ok(
+    /\[container-name:site-header\]/.test(nav) && /\[container-type:inline-size\]/.test(nav),
+    'the <header> in navigation.tsx is no longer the site-header container.',
+  );
+  const viewport = nav.match(/(?<![\w-])(md|lg|xl|2xl):[\w[-]/g);
+  assert.equal(
+    viewport,
+    null,
+    `navigation.tsx uses window breakpoints (${viewport?.join(', ')}); use header-md: / header-lg: / ` +
+      'header-xl:, or the docked panel covers whatever they lay out.',
+  );
+  const tw = readFileSync(join(root, 'tailwind.config.ts'), 'utf8');
+  for (const [name, px] of [['md', 768], ['lg', 1024], ['xl', 1280]] as const) {
+    assert.ok(
+      tw.includes(`addVariant('header-${name}', '@container site-header (min-width: ${px}px)')`),
+      `tailwind.config.ts does not define header-${name} at ${px}px, the width of Tailwind's ${name}.`,
+    );
+  }
+});
+
 it("makes the panel's title bar as tall as the site header from lg up", () => {
   // Docked, the panel runs full height beside the header, so the two bottom
   // rules must meet in one line. A bar sized by its own padding sat ~10px

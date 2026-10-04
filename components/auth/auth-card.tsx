@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 /**
  * The frame every auth page shares: a narrow raised card centred on the page,
  * the chamber mark over a panel-size title, then the form. Ink on paper, no
- * hue (Documentation/brand.md, "The chrome").
+ * hue (documentation/brand.md, "The chrome").
  */
 export function AuthCard({
   title,

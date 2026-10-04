@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { AvatarPhoto } from './avatar-photo';
 
 /**
- * The Pro mark (Documentation/brand.md, "Pro"): a reader on Pro wears the
+ * The Pro mark (documentation/brand.md, "Pro"): a reader on Pro wears the
  * spectrum — the six topic colours — as a ring around their initials, in the
  * header and on the account page. Free readers get the plain ink-edged circle.
  * Pro's own colour is the indigo dot on `ProPill`, as in the plan emails.

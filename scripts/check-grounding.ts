@@ -38,11 +38,36 @@ import {
 import type { DatasetName } from "../convex/catalog/types";
 
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
-const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || "deepinfra")
+/**
+ * The shipped model configuration, copied from convex/answer.ts (which cannot be
+ * imported here, for the reason given on FINAL_ROUND_INSTRUCTION below). The
+ * gate exists to test what readers get, so these are production's values and
+ * each is overridden by the same environment variable as production. The
+ * provider list here once said "deepinfra" alone while production also routed
+ * to amazon-bedrock, so a passing gate said nothing about half the pool.
+ * scripts/check-grounding.test.ts fails if these drift from convex/answer.ts.
+ */
+export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
+export const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
+export const DEFAULT_FALLBACK_MODELS =
+  "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
+export const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
+
+const MODEL = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+/** `??`, as in production: a blank value turns fallbacks off. */
+const FALLBACKS = (process.env.OPENROUTER_FALLBACK_MODELS ?? DEFAULT_FALLBACK_MODELS)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+/**
+ * Which models actually answered. With fallbacks on, a failover grades the
+ * fallback, not MODEL — printed at the end so a pass is never misattributed.
+ */
+const servedModels = new Set<string>();
 
 /**
  * Copied from convex/answer.ts, which cannot be imported here — it pulls in the
@@ -735,6 +760,7 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
     },
     body: JSON.stringify({
       model: MODEL,
+      ...(FALLBACKS.length > 0 && { models: FALLBACKS }),
       messages,
       // Withheld entirely on the final round, as answer.ts does. Sending the
       // schema and asking the model not to use it is advice; not sending it is a
@@ -743,13 +769,19 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
       max_tokens: 2048,
       temperature: 0.3,
       reasoning: { enabled: false },
-      provider: { only: PROVIDERS, data_collection: "deny", zdr: true },
+      provider: {
+        ...(PROVIDERS.length > 0 && { only: PROVIDERS }),
+        max_price: MAX_PRICE,
+        data_collection: "deny",
+        zdr: true,
+      },
     }),
   });
   const data = await res.json();
   if (!res.ok || data.error) {
     throw new Error(`OpenRouter: ${JSON.stringify(data.error ?? res.status).slice(0, 300)}`);
   }
+  servedModels.add(String(data.model ?? "unknown"));
   return data.choices?.[0]?.message;
 }
 
@@ -1077,7 +1109,10 @@ async function main() {
     console.error("Set OPENROUTER_API_KEY");
     process.exit(1);
   }
-  console.log(`model=${MODEL} providers=${PROVIDERS.join(",")} today=${TODAY}\n`);
+  console.log(
+    `model=${MODEL} fallbacks=${FALLBACKS.join(",") || "(none)"} ` +
+      `providers=${PROVIDERS.join(",")} today=${TODAY}\n`,
+  );
   const answers: Array<[string, Answer]> = [];
 
   // THE GATE
@@ -1162,6 +1197,7 @@ async function main() {
     check(`${title}: no internal vocabulary in the prose`, leak === null, `leaked ${leak}`);
   }
 
+  console.log(`\nanswered by: ${[...servedModels].join(", ")}`);
   console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
   if (failures > 0) process.exit(1);
 }

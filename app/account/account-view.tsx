@@ -47,7 +47,7 @@ export interface AccountUser {
 
 /**
  * `listSaved` and `listMine` return a bill's stage as its description ("In
- * Committee"), the same string `getStageDescription` produces. Map it back to
+ * Committee"), as `BillStageDescriptions` spells it. Map it back to
  * the stage code so the row can carry a StatusPill; anything unrecognised
  * stays plain text.
  */
@@ -339,7 +339,7 @@ function BillStage({
 
 /**
  * The plan's dot, in the tones the plan-change emails use (convex/billingEmail.ts,
- * Documentation/brand.md "Email"): Pro indigo, a heads-up amber, a problem the
+ * documentation/brand.md "Email"): Pro indigo, a heads-up amber, a problem the
  * error red, the free plan grey. The word beside it always says the plan.
  */
 function planDotFill(billing: BillingStatus, warning: boolean): string {

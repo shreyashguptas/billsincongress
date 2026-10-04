@@ -7,7 +7,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 // shadcn/ui's Button on the brand tokens. Ink is the only action colour
-// (Documentation/brand.md, "Components"): `default` is the ink primary, once per
+// (documentation/brand.md, "Components"): `default` is the ink primary, once per
 // view; everything else is outline, secondary, ghost or link. `destructive` is
 // the one hue, kept for irreversible deletes.
 const buttonVariants = cva(
