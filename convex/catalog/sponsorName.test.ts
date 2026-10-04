@@ -16,7 +16,13 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { candidateSurnames, fullNameKey, matchesFullName, resolveSurname } from "./sponsorName";
+import {
+  candidateSurnames,
+  fullNameKey,
+  matchesFullName,
+  mergeSponsorRows,
+  resolveSurname,
+} from "./sponsorName";
 
 /** Real sponsorLastName values, spelled exactly as stored. */
 const KNOWN = [
@@ -171,6 +177,55 @@ it("keys a stored row the same way whichever part is missing", () => {
   assert.equal(fullNameKey(undefined, "De La Cruz"), "de la cruz");
   assert.equal(fullNameKey("Monica", undefined), "monica");
   assert.equal(fullNameKey(undefined, undefined), "");
+});
+
+it("matches a name stored without its accents, either way round", () => {
+  // The 118th holds "Nydia Velázquez" and "NYDIA VELAZQUEZ" as separate rows.
+  assert.equal(matchesFullName("Nydia Velázquez", "NYDIA", "VELAZQUEZ"), true);
+  assert.equal(matchesFullName("Nydia Velazquez", "Nydia", "Velázquez"), true);
+  assert.equal(matchesFullName("Jenniffer González-Colón", "Jenniffer", "Gonzalez-Colon"), true);
+  assert.equal(fullNameKey("Jesús", "García"), "jesus garcia");
+});
+
+it("merges one member's spellings into one row with all their bills", () => {
+  const merged = mergeSponsorRows([
+    { sponsorName: "ADAM SCHIFF", sponsorParty: "D", sponsorState: "CA", billCount: 82, congress: 117 },
+    { sponsorName: "Adam Schiff", sponsorParty: "D", sponsorState: "CA", billCount: 121, congress: 118 },
+    { sponsorName: "NYDIA VELAZQUEZ", sponsorParty: "D", sponsorState: "NY", billCount: 28, congress: 118 },
+    { sponsorName: "Nydia Velázquez", sponsorParty: "D", sponsorState: "NY", billCount: 22, congress: 118 },
+  ]);
+  assert.deepEqual(
+    merged.map((m) => [m.sponsorName, m.billCount]),
+    [
+      ["Adam Schiff", 203],
+      ["Nydia Velázquez", 50],
+    ],
+  );
+});
+
+it("shows a mixed-case spelling, then the spelling on more bills, and never re-cases", () => {
+  const [shown] = mergeSponsorRows([
+    { sponsorName: "Nanette Barragan", sponsorState: "CA", billCount: 45 },
+    { sponsorName: "Nanette Barragán", sponsorState: "CA", billCount: 60 },
+    { sponsorName: "NANETTE BARRAGAN", sponsorState: "CA", billCount: 99 },
+  ]);
+  assert.equal(shown.sponsorName, "Nanette Barragán");
+  const [loud] = mergeSponsorRows([{ sponsorName: "CAROLYN MALONEY", sponsorState: "NY", billCount: 101 }]);
+  assert.equal(loud.sponsorName, "CAROLYN MALONEY", "no mixed-case spelling held: shown as stored");
+});
+
+it("keeps a party switcher as one member with the latest party, and same-name members apart", () => {
+  const [manchin] = mergeSponsorRows([
+    { sponsorName: "Joseph Manchin", sponsorParty: "I", sponsorState: "WV", billCount: 10, congress: 118 },
+    { sponsorName: "Joseph Manchin", sponsorParty: "D", sponsorState: "WV", billCount: 30, congress: 117 },
+  ]);
+  assert.equal(manchin.billCount, 40);
+  assert.equal(manchin.sponsorParty, "I");
+  const rogers = mergeSponsorRows([
+    { sponsorName: "Mike Rogers", sponsorParty: "R", sponsorState: "AL", billCount: 5 },
+    { sponsorName: "MIKE ROGERS", sponsorParty: "R", sponsorState: "MI", billCount: 7 },
+  ]);
+  assert.equal(rogers.length, 2);
 });
 
 if (failures.length > 0) {

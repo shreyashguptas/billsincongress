@@ -36,7 +36,6 @@ import {
 import { buildFilterQuery, filtersFromQuery } from '@/lib/bills/filter-url';
 import { loadSponsors } from '@/components/bills/filters/sponsor-source';
 import { matchSponsorName, type SponsorMatchKind } from '@/lib/sponsor-match';
-import { MAX_SPONSOR_FILTERS } from '@/lib/bill-query';
 
 const SyncStatus = dynamic(() => import('@/components/bills/sync-status'), { ssr: false });
 
@@ -398,8 +397,6 @@ export default function BillsClient({
   const [sponsorSuggestion, setSponsorSuggestion] = useState<{
     forSignature: string;
     name: string;
-    /** Every spelling of this member in the sponsor list ("ADAM SCHIFF", "Adam Schiff"). */
-    names: string[];
     kind: SponsorMatchKind;
   } | null>(null);
   const suggestionReported = useRef('');
@@ -416,12 +413,7 @@ export default function BillsClient({
         if (cancelled) return;
         const match = matchSponsorName(title, sponsors);
         if (!match) return;
-        setSponsorSuggestion({
-          forSignature: signature,
-          name: match.sponsor.name,
-          names: match.names,
-          kind: match.kind,
-        });
+        setSponsorSuggestion({ forSignature: signature, name: match.sponsor.name, kind: match.kind });
         if (suggestionReported.current === signature) return;
         suggestionReported.current = signature;
         analytics.billsNoResultsSponsorSuggested(match.kind, title.length);
@@ -608,22 +600,16 @@ export default function BillsClient({
                             suggestedSponsor.kind,
                             filters.title.length,
                           );
-                          // Every spelling of the member, so their bills filed under
-                          // "VELAZQUEZ" come too. Any already in the filter (readers
-                          // did both) stay once: then the title text is all that
-                          // stands in the way.
-                          const added = suggestedSponsor.names.filter(
-                            (name) => !filters.sponsor.includes(name),
-                          );
+                          // Already filtered by this sponsor (readers did both):
+                          // the title text is all that stands in the way. One
+                          // name reaches every stored spelling of the member;
+                          // the server compares names without case or accents.
                           setFilter(
-                            added.length === 0
+                            filters.sponsor.includes(suggestedSponsor.name)
                               ? { title: '' }
                               : {
                                   title: '',
-                                  sponsor: [...filters.sponsor, ...added].slice(
-                                    0,
-                                    MAX_SPONSOR_FILTERS,
-                                  ),
+                                  sponsor: [...filters.sponsor, suggestedSponsor.name],
                                 },
                             'empty_state',
                           );

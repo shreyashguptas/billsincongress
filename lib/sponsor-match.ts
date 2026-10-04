@@ -14,17 +14,12 @@
 
 export interface SponsorName {
   name: string;
-  party?: string;
-  state?: string;
 }
 
 export type SponsorMatchKind = 'full_name' | 'first_last' | 'last_name';
 
 export interface SponsorMatch<T extends SponsorName> {
-  /** The spelling to show: the first that is not all capitals. */
   sponsor: T;
-  /** Every spelling the sponsor list holds for this member, to filter by all of them. */
-  names: string[];
   kind: SponsorMatchKind;
 }
 
@@ -54,44 +49,8 @@ function only<T>(list: T[]): T | null {
   return list.length === 1 ? list[0] : null;
 }
 
-const allCaps = (name: string) => name === name.toUpperCase();
-
-interface Member<T> {
-  sponsor: T;
-  names: string[];
-  tokens: string[];
-}
-
 /**
- * The sponsor list grouped into members. Congress.gov records some members
- * under two spellings, "ADAM SCHIFF" and "Adam Schiff", or "NYDIA VELAZQUEZ"
- * and "Nydia Velázquez": 45 members in the 2026-10-04 list, each a separate
- * row. Read as two people, every name readers type for them looks ambiguous
- * and gets no suggestion. Spellings that differ only in case and accents, with
- * the same party and state, are one member.
- */
-function members<T extends SponsorName>(sponsors: readonly T[]): Member<T>[] {
-  const byKey = new Map<string, Member<T>>();
-  for (const sponsor of sponsors) {
-    const tokens = nameTokens(sponsor.name);
-    const key = [tokens.join(' '), sponsor.party ?? '', sponsor.state ?? ''].join('|');
-    const member = byKey.get(key);
-    if (!member) {
-      byKey.set(key, { sponsor, names: [sponsor.name], tokens });
-      continue;
-    }
-    member.names.push(sponsor.name);
-    if (allCaps(member.sponsor.name) && !allCaps(sponsor.name)) member.sponsor = sponsor;
-  }
-  return [...byKey.values()];
-}
-
-function found<T extends SponsorName>(m: Member<T>, kind: SponsorMatchKind): SponsorMatch<T> {
-  return { sponsor: m.sponsor, names: m.names, kind };
-}
-
-/**
- * The member the text names, or null when it names none or more than one.
+ * The sponsor the text names, or null when it names none or more than one.
  *
  * Tried from most to least specific, and each step must be unambiguous on its
  * own — a guess that picks one of two people is worse than no suggestion:
@@ -107,10 +66,12 @@ export function matchSponsorName<T extends SponsorName>(
   const q = nameTokens(query);
   if (q.length === 0) return null;
 
-  const named = members(sponsors);
+  // `listAllSponsors` lists each member once, under one spelling, so a name
+  // that matches two entries really is two people.
+  const named = sponsors.map((sponsor) => ({ sponsor, tokens: nameTokens(sponsor.name) }));
 
   const full = only(named.filter((s) => sameTokens(s.tokens, q)));
-  if (full) return found(full, 'full_name');
+  if (full) return { sponsor: full.sponsor, kind: 'full_name' };
 
   if (q.length >= 2) {
     const firstLast = only(
@@ -121,7 +82,7 @@ export function matchSponsorName<T extends SponsorName>(
           sameTokens(s.tokens.slice(s.tokens.length - (q.length - 1)), q.slice(1)),
       ),
     );
-    if (firstLast) return found(firstLast, 'first_last');
+    if (firstLast) return { sponsor: firstLast.sponsor, kind: 'first_last' };
   }
 
   if (q.join(' ').length < MIN_SURNAME_LENGTH) return null;
@@ -130,5 +91,5 @@ export function matchSponsorName<T extends SponsorName>(
       (s) => s.tokens.length > q.length && sameTokens(s.tokens.slice(s.tokens.length - q.length), q),
     ),
   );
-  return last ? found(last, 'last_name') : null;
+  return last ? { sponsor: last.sponsor, kind: 'last_name' } : null;
 }

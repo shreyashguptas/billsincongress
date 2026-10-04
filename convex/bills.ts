@@ -20,7 +20,7 @@ import {
   takeFirst,
   type HubOrder,
 } from "./hubOrder";
-import { candidateSurnames } from "./catalog/sponsorName";
+import { candidateSurnames, mergeSponsorRows, nameKey } from "./catalog/sponsorName";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -340,8 +340,13 @@ type BillsCountResult = {
 
 const unknownCount = (): BillsCountResult => ({ count: null, exact: false });
 
-const normaliseName = (s: string) =>
-  s.trim().toLowerCase().replace(/\s+/g, " ");
+/**
+ * How a sponsor name is compared: case, spacing and accents ignored, the same
+ * rule as the answer engine. Stored rows spell some members two ways ("ADAM
+ * SCHIFF" / "Adam Schiff", "NYDIA VELAZQUEZ" / "Nydia Velázquez"), so a filter
+ * for one spelling must reach both.
+ */
+const normaliseName = nameKey;
 
 const MAX_LIST_LIMIT = 50;
 const MAX_LIST_OFFSET = 500;
@@ -1194,35 +1199,44 @@ export const listCount = query({
 });
 
 /**
- * Every unique sponsor across every congress, deduped by full name. Powers the
- * sponsor dropdown on /bills.
+ * Every member who sponsored a bill in any congress we hold, one entry each
+ * (see mergeSponsorRows). Powers the sponsor dropdown on /bills.
  */
 export const listAllSponsors = query({
   handler: async (ctx) => {
     const rows = await ctx.db.query("congressSponsors").collect();
 
+    // One entry per member across every Congress, not per stored spelling: the
+    // picker used to offer "ADAM SCHIFF" and "Adam Schiff" as two people, each
+    // with part of his bills.
+    //
+    // Then one entry per NAME. The filter matches on the name alone, so two
+    // members who share one (for different states; none do in the 2026-10-04
+    // data) cannot be told apart by it: picking either returns both. One entry,
+    // with both members' bills and no party or state, says what the filter does
+    // and keeps every option's value unique.
     const byName = new Map<
       string,
       { name: string; party?: string; state?: string; billCount: number }
     >();
-    for (const r of rows) {
-      const existing = byName.get(r.sponsorName);
-      if (!existing) {
-        byName.set(r.sponsorName, {
-          name: r.sponsorName,
-          party: r.sponsorParty,
-          state: r.sponsorState,
-          billCount: r.billCount,
+    for (const m of mergeSponsorRows(rows)) {
+      const key = nameKey(m.sponsorName);
+      const held = byName.get(key);
+      if (!held) {
+        byName.set(key, {
+          name: m.sponsorName,
+          party: m.sponsorParty,
+          state: m.sponsorState,
+          billCount: m.billCount,
         });
         continue;
       }
-      existing.billCount += r.billCount;
-      if (!existing.party && r.sponsorParty) existing.party = r.sponsorParty;
-      if (!existing.state && r.sponsorState) existing.state = r.sponsorState;
+      held.billCount += m.billCount;
+      held.party = undefined;
+      held.state = undefined;
     }
-
     return [...byName.values()].sort((a, b) =>
-      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" }),
     );
   },
 });
@@ -1312,7 +1326,12 @@ export const getCongressDashboard = query({
       .withIndex("by_congress", (q) => q.eq("congress", args.congress))
       .collect();
 
-    const topSponsors = sponsors.slice(0, 10).map(s => ({
+    // Merged before ranking, so a member stored under two spellings is ranked
+    // on all their bills, not on whichever spelling holds more.
+    const topSponsors = mergeSponsorRows(sponsors)
+      .sort((a, b) => b.billCount - a.billCount)
+      .slice(0, 10)
+      .map(s => ({
       name: s.sponsorName,
       count: s.billCount,
       party: s.sponsorParty,
