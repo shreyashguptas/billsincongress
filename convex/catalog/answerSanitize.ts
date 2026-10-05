@@ -259,15 +259,14 @@ const THINKING_SENTENCES: RegExp[] = [
   // "That's a good answer." "That is the right figure."
   /^(?:that's|that is) (?:a |the |our )?(?:good|right|correct|reasonable|complete|full|final) (?:answer|proxy|approach|figure|number|count)\b/,
   // The model talking about the question, or about the reader, in the third person.
-  /^the question (?:asks|is asking|wants|is about|is)\b/,
+  // Not a bare "The question is…": "The question is whether the Senate will act
+  // before January" is an answer.
+  /^the question (?:asks|is asking|wants)\b/,
   // Only with a verb about intent: "The user fees fund inspections" is an answer.
   /\bthe (?:reader|user) (?:means|meant|wants|wanted|is asking|asks|asked|might mean|probably means|is looking for)\b/,
   // "The total is exact:" — describing the lookup instead of stating the fact.
   /^(?:the )?(?:total|count|result|results|number) (?:is|are) (?:exact|complete|final|correct)\b/,
 ];
-
-/** "Actually," with no figure after it reconsiders; it does not answer. */
-const BARE_ACTUALLY = /^actually,/;
 
 /** A closing offer, not working-out: removed as filler, but never a restart point. */
 const CLOSING_OFFER = /^let me know\b/;
@@ -276,7 +275,8 @@ function isThinkingSentence(sentence: string): boolean {
   const text = normalize(sentence).trim();
   if (text === "") return false;
   if (NAMES_LEGISLATION.test(sentence)) return false;
-  if (BARE_ACTUALLY.test(text) && !/\d/.test(text)) return true;
+  // "Actually," on its own is not thinking: "Actually, the Senate has not voted
+  // on it, so it is not law" is how a correction to the reader's premise reads.
   return THINKING_SENTENCES.some((re) => re.test(text));
 }
 
@@ -361,7 +361,17 @@ export function isAllDeliberation(text: string): boolean {
   // that would have cost the reader a correct answer to protect them from a
   // word. Vocabulary leaks are handled by dropping the paragraph when others
   // survive; when none do, a leaky true answer beats no answer.
-  return blocks.every((b) => isDeliberation(b.text));
+  return blocks.every((b) => isDeliberation(b.text) || isAllThinking(b.text));
+}
+
+/**
+ * Every sentence of the block is thinking (THINKING_SENTENCES): "The question
+ * asks about wildfire. That's a good answer." isDeliberation predates those
+ * shapes, so without this a reply made only of them was published as an answer.
+ */
+function isAllThinking(text: string): boolean {
+  const sentences = splitSentences(text).filter((x) => x.trim() !== "");
+  return sentences.length > 0 && sentences.every((x) => isThinkingSentence(x) || CLOSING_OFFER.test(normalize(x).trim()));
 }
 
 /**
@@ -451,9 +461,9 @@ export function dropQuestionEcho(text: string, question: string): SanitizeResult
  * other:
  *
  * - A RESTART: a draft, then thinking, then the answer written again (the
- *   wildfire reply). When at least two thinking sentences come before a
- *   substantive block, everything up to and including the last thinking block
- *   goes; the answer is what the model wrote after it finished deliberating.
+ *   wildfire reply). When a paragraph with at least two thinking sentences
+ *   comes before a substantive block, everything up to and including the last
+ *   thinking block goes; the answer is what the model wrote after it finished deliberating.
  *   Card directives in the cut part are kept, moved to the end, unless the
  *   final answer has its own.
  * - Stray sentences: thinking or a closing offer with no answer after it. Only
@@ -470,16 +480,18 @@ function dropMidAnswerThinking(blocks: Block[]): { blocks: Block[]; removed: str
   kept.forEach((b, i) => {
     if (showsThinking(b.text)) last = i;
   });
-  // A restart needs real deliberation, at least two thinking sentences, before
-  // the cut. One transitional line ("Let's look at what they have in common.")
-  // between two paragraphs of answer is not a draft being thrown away, and
-  // cutting at it would delete the headline fact above it.
-  const thinkingBeforeCut = kept
+  // A restart needs a PARAGRAPH of deliberation before the cut: one block with
+  // at least two thinking sentences. Transition lines ("Let's look at what they
+  // have in common.", "Let's look at who sponsored them.") each sit alone in
+  // their own block between paragraphs of answer; however many there are, they
+  // are not a draft being thrown away, and cutting at them would delete the
+  // headline fact above them.
+  const deliberates = kept
     .slice(0, last + 1)
-    .reduce((n, b) => n + splitSentences(b.text).filter((x) => isThinkingSentence(x)).length, 0);
+    .some((b) => splitSentences(b.text).filter((x) => isThinkingSentence(x)).length >= 2);
   if (
     last >= 0 &&
-    thinkingBeforeCut >= 2 &&
+    deliberates &&
     kept.slice(last + 1).some((b) => isSubstantive(withoutThinking(b.text)))
   ) {
     const cut = kept.slice(0, last + 1);

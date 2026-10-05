@@ -160,11 +160,20 @@ const WORKING_OUT: RegExp[] = [
   /(?:^|[.!?]\s+|\n\s*)(?:the )?(?:total|count|result) is (?:exact|complete)\b/i,
 ];
 
+/** A sentence naming legislation ("Let's Get to Work Act") is about Congress. */
+const NAMES_LEGISLATION = /\b(?:Act|Resolution|Amendment)\b/;
+
 /** The first piece of working-out in an answer, or null when there is none. */
 export function workingOut(text: string): string | null {
   for (const re of WORKING_OUT) {
-    const m = re.exec(text);
-    if (m) return text.slice(m.index, m.index + 80).trim();
+    const global = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+    for (const m of text.matchAll(global)) {
+      const from = m.index ?? 0;
+      const end = text.slice(from + 1).search(/[.!?\n]/);
+      const sentence = text.slice(from, end < 0 ? text.length : from + 1 + end);
+      if (NAMES_LEGISLATION.test(sentence)) continue;
+      return text.slice(from, from + 80).trim();
+    }
   }
   return null;
 }

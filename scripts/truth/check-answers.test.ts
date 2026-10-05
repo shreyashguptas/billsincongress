@@ -96,6 +96,7 @@ it("does not call ordinary answers working-out", () => {
   for (const text of [
     "104 bills have become law in the 119th Congress.",
     "The Let Me Travel America Act has not moved past committee.",
+    "Let's Get to Work Act of 2022 did not become law.",
     "Actually, only 5 of them became law.",
     "Let me know if you want the list.",
     "The user fees in the bill fund inspections.",

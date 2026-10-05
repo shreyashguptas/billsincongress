@@ -537,7 +537,7 @@ it("drops a closing offer to help further", () => {
 it("keeps the cards from a discarded draft when the final answer has none", () => {
   const answer =
     "Two wildfire bills became law.\n\n[[bills:1234hr119,5678s119]]\n\n" +
-    "Let me also check whether any passed the Senate. Actually, that is not what was asked.\n\n" +
+    "Let me also check whether any passed the Senate. The question asks only about laws. Let me state it.\n\n" +
     "Two wildfire bills became law in the 119th Congress.";
   const { text } = sanitizeAnswer(answer);
   assert.equal(text, "Two wildfire bills became law in the 119th Congress.\n\n[[bills:1234hr119,5678s119]]");
@@ -546,6 +546,9 @@ it("keeps the cards from a discarded draft when the final answer has none", () =
 it("never treats real answer sentences as thinking", () => {
   for (const answer of [
     "Actually, only 5 of those 76 became law.",
+    "H.R. 5 passed the House in May 2025.\n\nActually, the Senate has not voted on it, so it is not law.",
+    "Actually, none of them became law.",
+    "The question is whether the Senate will act before January.",
     "The Let Me Travel America Act was introduced in March. Let Me Travel America Act cosponsors are not tracked here.",
     "The user fees in the bill fund food-safety inspections.",
     "The Reader Privacy Act would limit what booksellers share.",
@@ -554,6 +557,28 @@ it("never treats real answer sentences as thinking", () => {
   ]) {
     assert.deepEqual(sanitizeAnswer(answer), { text: answer, removed: [] }, answer);
   }
+});
+
+// Review findings on #166.
+it("keeps the headline fact when an answer has several one-line transitions", () => {
+  const answer =
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+    "Let's look at what they have in common.\n\n" +
+    "Most rename post offices or extend existing programs.\n\n" +
+    "Let's look at who sponsored them.\n\n" +
+    "Most were sponsored by Republicans.";
+  assert.equal(
+    sanitizeAnswer(answer).text,
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+      "Most rename post offices or extend existing programs.\n\n" +
+      "Most were sponsored by Republicans.",
+  );
+});
+
+it("recognises a reply made only of the new thinking shapes as no answer", () => {
+  assert.equal(isAllDeliberation("The question asks about wildfire. That's a good answer."), true);
+  assert.equal(isAllDeliberation("Let me know if you want more."), true);
+  assert.equal(isAllDeliberation("76 measures have wildfire in their title. That's a good answer."), false);
 });
 
 it("never empties an answer that is all thinking", () => {
