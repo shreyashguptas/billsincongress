@@ -204,6 +204,10 @@ The question panel is the only place in the interface where a machine writes pro
 
 **Your question is never handed to the search engine verbatim.** A search phrase is rejected before it leaves the server if it contains first-person words or simply repeats your question, so the model has to rephrase into a neutral query. Your question text does still go to the AI provider that writes the answer — that is unavoidable — but not to the search engine as you typed it.
 
+**Answers are short on purpose.** The model is told to put the answer in the first sentence, keep most answers to one to three sentences plus bill cards, and stop: no closing summary or offer to help further.
+
+**Its thinking is kept out of the answer.** The model has no private scratchpad, so it sometimes thinks out loud ("Let me also check…", "Actually…"). Before an answer is displayed, code removes that thinking, including a draft it wrote and then reconsidered, and keeps the answer it settled on. It never removes so much that nothing is left.
+
 **You can see its work.** When an answer involved lookups, it shows a log of them.
 
 **Every answer is recorded so wrong ones can be found.** Each question is recorded in PostHog as a trace: what the model was sent (the instructions, the conversation so far, the records it looked up), what it replied, and the tokens, cost and time each step took. A reader's "No" under an answer points at its trace. The text of a trace is deleted after 30 days; the counts stay. The point is the loop in [`overview.md`](overview.md#recording-and-the-wrong-answer-loop): a wrong answer found this way becomes a case in the accuracy tests before it is fixed.

@@ -15,7 +15,7 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { parseAskOutput, scoreRun, worstOutcome } from "./check-answers";
+import { parseAskOutput, scoreRun, workingOut, worstOutcome } from "./check-answers";
 import type { RunResult } from "./check-answers";
 import { QUESTIONS } from "./questions";
 import type { Expected } from "./questions";
@@ -75,6 +75,33 @@ it("accepts inside the band and rejects the wrong buckets outside it", () => {
   assert.equal(scoreRun(senatePassed, { text: "186 Senate bills have passed." }).outcome, "CORRECT");
   assert.equal(scoreRun(senatePassed, { text: "194 bills have passed." }).outcome, "WRONG");
   assert.equal(scoreRun(senatePassed, { text: "142 bills have passed." }).outcome, "WRONG");
+});
+
+it("scores a right number WRONG when the reader also saw the model thinking", () => {
+  // Production, 2026-10-05: 76 was the true count, wrapped in two paragraphs of
+  // the model deliberating in front of the reader.
+  const wildfire: Expected = { kind: "number", value: 76, note: "" };
+  const live =
+    'The total is exact: 76 measures have "wildfire" in their title. Let me also consider whether ' +
+    "the reader means bills specifically about wildfire.\n\nActually, the title search is a " +
+    "reasonable proxy here. That's a good answer. Let me state it.\n\n" +
+    'In the 119th Congress, 76 measures have "wildfire" in their title.';
+  const r = scoreRun(wildfire, { text: live });
+  assert.equal(r.outcome, "WRONG");
+  assert.match(r.got, /working-out/);
+  assert.equal(scoreRun(wildfire, { text: '76 measures in the 119th Congress have "wildfire" in their title.' }).outcome, "CORRECT");
+});
+
+it("does not call ordinary answers working-out", () => {
+  for (const text of [
+    "104 bills have become law in the 119th Congress.",
+    "The Let Me Travel America Act has not moved past committee.",
+    "Actually, only 5 of them became law.",
+    "Let me know if you want the list.",
+    "The user fees in the bill fund inspections.",
+  ]) {
+    assert.equal(workingOut(text), null, text);
+  }
 });
 
 // --- booleans ---------------------------------------------------------------

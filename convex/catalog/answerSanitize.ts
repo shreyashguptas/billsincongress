@@ -243,6 +243,80 @@ export function trimLeadingNarration(paragraph: string): string {
   return sentences.slice(i).join("").replace(/^\s+/, "");
 }
 
+/**
+ * Working-out that can sit ANYWHERE in an answer, not only at its start.
+ *
+ * Production on 2026-10-05, asked "how many bills about wildfire were
+ * introduced": the reply opened with a fact, then thought out loud for two
+ * paragraphs ("Let me also consider whether the reader means bills specifically
+ * about wildfire… Actually, the title search is a reasonable proxy here. The
+ * question asks… That's a good answer. Let me state it."), then wrote the answer
+ * again. Every rule above looks only at the front of the reply, so all of it was
+ * published. These extend SENTENCE_NARRATION with the shapes that showed up there.
+ */
+const THINKING_SENTENCES: RegExp[] = [
+  ...SENTENCE_NARRATION,
+  // "That's a good answer." "That is the right figure."
+  /^(?:that's|that is) (?:a |the |our )?(?:good|right|correct|reasonable|complete|full|final) (?:answer|proxy|approach|figure|number|count)\b/,
+  // The model talking about the question, or about the reader, in the third person.
+  /^the question (?:asks|is asking|wants|is about|is)\b/,
+  // Only with a verb about intent: "The user fees fund inspections" is an answer.
+  /\bthe (?:reader|user) (?:means|meant|wants|wanted|is asking|asks|asked|might mean|probably means|is looking for)\b/,
+  // "The total is exact:" — describing the lookup instead of stating the fact.
+  /^(?:the )?(?:total|count|result|results|number) (?:is|are) (?:exact|complete|final|correct)\b/,
+];
+
+/** "Actually," with no figure after it reconsiders; it does not answer. */
+const BARE_ACTUALLY = /^actually,/;
+
+/** A closing offer, not working-out: removed as filler, but never a restart point. */
+const CLOSING_OFFER = /^let me know\b/;
+
+function isThinkingSentence(sentence: string): boolean {
+  const text = normalize(sentence).trim();
+  if (text === "") return false;
+  if (NAMES_LEGISLATION.test(sentence)) return false;
+  if (BARE_ACTUALLY.test(text) && !/\d/.test(text)) return true;
+  return THINKING_SENTENCES.some((re) => re.test(text));
+}
+
+/** A line that is only card directives ("[[bills:1234hr119]]"): never prose, never thinking. */
+function isDirectiveBlock(text: string): boolean {
+  const t = text.trim();
+  return t !== "" && /^(?:\[\[[^\]]+\]\]\s*)+$/.test(t);
+}
+
+/** The block with every thinking sentence (and closing offer) taken out. */
+function withoutThinking(text: string): string {
+  return splitSentences(text)
+    .filter((sentence) => {
+      const normalised = normalize(sentence).trim();
+      if (CLOSING_OFFER.test(normalised)) return false;
+      return !isThinkingSentence(sentence);
+    })
+    .join("")
+    .trim();
+}
+
+/**
+ * Whether a block shows the model thinking. A closing offer ("Let me know if…")
+ * alone does not count: it is filler at the end of an answer, not a sign that
+ * the answer starts again below it.
+ */
+function showsThinking(text: string): boolean {
+  if (isDirectiveBlock(text)) return false;
+  return splitSentences(text).some((sentence) => {
+    if (CLOSING_OFFER.test(normalize(sentence).trim())) return false;
+    return isThinkingSentence(sentence);
+  });
+}
+
+/** Enough left to be an answer: real words, not a fragment or a lone directive. */
+function isSubstantive(text: string): boolean {
+  const t = text.trim();
+  return t.length >= 15 && /[a-z]/i.test(t) && !isDirectiveBlock(t);
+}
+
 /** A paragraph plus the exact separator that followed it, so a rejoin is lossless. */
 interface Block {
   text: string;
@@ -371,7 +445,90 @@ export function dropQuestionEcho(text: string, question: string): SanitizeResult
 }
 
 /**
- * Strip leading deliberation and any paragraph that leaks internal vocabulary.
+ * Pass 3 of sanitizeAnswer: the model thinking out loud after the answer began.
+ *
+ * Two shapes, handled differently because one is far riskier to cut than the
+ * other:
+ *
+ * - A RESTART: a draft, then thinking, then the answer written again (the
+ *   wildfire reply). When at least two thinking sentences come before a
+ *   substantive block, everything up to and including the last thinking block
+ *   goes; the answer is what the model wrote after it finished deliberating.
+ *   Card directives in the cut part are kept, moved to the end, unless the
+ *   final answer has its own.
+ * - Stray sentences: thinking or a closing offer with no answer after it. Only
+ *   those SENTENCES go, never the facts sharing their paragraph.
+ *
+ * Never empties the answer: if nothing substantive would survive, nothing is
+ * removed, and the caller's isAllDeliberation check decides.
+ */
+function dropMidAnswerThinking(blocks: Block[]): { blocks: Block[]; removed: string[] } {
+  const removed: string[] = [];
+  let kept = blocks;
+
+  let last = -1;
+  kept.forEach((b, i) => {
+    if (showsThinking(b.text)) last = i;
+  });
+  // A restart needs real deliberation, at least two thinking sentences, before
+  // the cut. One transitional line ("Let's look at what they have in common.")
+  // between two paragraphs of answer is not a draft being thrown away, and
+  // cutting at it would delete the headline fact above it.
+  const thinkingBeforeCut = kept
+    .slice(0, last + 1)
+    .reduce((n, b) => n + splitSentences(b.text).filter((x) => isThinkingSentence(x)).length, 0);
+  if (
+    last >= 0 &&
+    thinkingBeforeCut >= 2 &&
+    kept.slice(last + 1).some((b) => isSubstantive(withoutThinking(b.text)))
+  ) {
+    const cut = kept.slice(0, last + 1);
+    const rest = kept.slice(last + 1);
+    const cards = cut.filter((b) => isDirectiveBlock(b.text));
+    const restHasCards = rest.some((b) => isDirectiveBlock(b.text));
+    for (const b of cut) {
+      if (b.text.trim() !== "" && !(isDirectiveBlock(b.text) && !restHasCards)) removed.push(b.text);
+    }
+    if (restHasCards || cards.length === 0) {
+      kept = rest;
+    } else {
+      // Cards follow the answer, a blank line below it.
+      const body = rest.map((b, i) => (i === rest.length - 1 ? { ...b, separator: "\n\n" } : b));
+      kept = [...body, ...cards.map((b) => ({ text: b.text, separator: "\n\n" }))];
+    }
+    // The new first block must not inherit leading blank lines.
+    while (kept.length > 0 && kept[0].text.trim() === "") kept = kept.slice(1);
+  }
+
+  const cleaned: Block[] = [];
+  for (const b of kept) {
+    if (b.text.trim() === "" || isDirectiveBlock(b.text)) {
+      cleaned.push(b);
+      continue;
+    }
+    const sentences = splitSentences(b.text);
+    const goes = sentences.filter((sentence) => {
+      const normalised = normalize(sentence).trim();
+      return CLOSING_OFFER.test(normalised) || isThinkingSentence(sentence);
+    });
+    if (goes.length === 0) {
+      cleaned.push(b);
+      continue;
+    }
+    const left = withoutThinking(b.text);
+    removed.push(...goes.map((g) => g.trim()));
+    if (left !== "") cleaned.push({ ...b, text: left });
+  }
+
+  if (!cleaned.some((b) => isSubstantive(b.text))) return { blocks, removed: [] };
+  // The last block carries no separator, so the rejoin ends cleanly.
+  if (cleaned.length > 0) cleaned[cleaned.length - 1] = { ...cleaned[cleaned.length - 1], separator: "" };
+  return { blocks: cleaned, removed };
+}
+
+/**
+ * Strip leading deliberation, any paragraph that leaks internal vocabulary, and
+ * thinking that appears after the answer began (dropMidAnswerThinking).
  * Never removes the whole answer: if every paragraph would be dropped, the input
  * is returned unchanged with removed: [] — a mangled answer is worse than a
  * leaky one. When `question` is given, a first line that only repeats its end
@@ -460,11 +617,19 @@ export function sanitizeAnswer(text: string, question?: string): SanitizeResult 
       .map((i) => blocks[i].text)
       .filter((body) => body.trim() !== ""),
   ];
-  if (removed.length === 0) return { text, removed: [] };
 
   for (const [i, trimmed] of trimmedLeading) blocks[i] = { ...blocks[i], text: trimmed };
 
-  const survivors = blocks.filter((_, i) => !dropped.has(i));
+  // Pass 3: working-out AFTER the answer has started (see THINKING_SENTENCES).
+  let survivors = blocks.filter((_, i) => !dropped.has(i));
+  const thinking = dropMidAnswerThinking(survivors);
+  if (thinking.removed.length > 0) {
+    survivors = thinking.blocks;
+    removed.push(...thinking.removed);
+  }
+
+  if (removed.length === 0) return { text, removed: [] };
+
   if (survivors.every((b) => b.text.trim() === "")) {
     // Everything was deliberation. Returning the text unchanged keeps this
     // function from mangling an answer, but the CALLER must not publish it —

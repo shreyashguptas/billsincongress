@@ -759,8 +759,12 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │                           A reply that is only narration, or that writes a
                  │                           lookup out as text (`fetch_dataset(…)`, `query:` +
                  │                           `reason:` lines, `{"name":…}` JSON), counts as none
-                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts (also a first
-                 │                          line that only repeats the end of the question)
+                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts: leading
+                 │                          narration, leaked field names, thinking mid-answer
+                 │                          (a draft + "Actually… Let me state it." + the answer
+                 │                          again keeps only the last; stray "Let me…" sentences
+                 │                          and "Let me know if…" closers go one by one), and a
+                 │                          first line that only repeats the end of the question
                  ├─ citation resolution → convex/catalog/cite.ts
                  ├─ SSE frames back: work · delta · done · rate_limited · error
                  │    (the proxy adds `: keep-alive` comments between them)
@@ -904,7 +908,7 @@ confident, cited, wrong sentence.
 | `dump.ts` | Copies the raw legislative tables out of production into `.truth-cache/` (gitignored). Read-only; keeps only public tables and deletes the rest of the export immediately |
 | `fakedb.ts` | A stand-in for `ctx.db` over that copy. Parses the index definitions straight out of `convex/schema.ts`, so it cannot drift, and throws on an index that does not exist |
 | `handlers.test.ts` | Runs the **real** fetch handlers against the **real** data, locally, with no deployment. This is where the accuracy fixes are actually proven |
-| `questions.ts` / `check-answers.ts` | Ask production a fixed set of factual questions and score each answer against truth computed from raw rows |
+| `questions.ts` / `check-answers.ts` | Ask production a fixed set of factual questions and score each answer against truth computed from raw rows. An answer that shows the model's working-out ("Let me…", "the reader means…") scores WRONG even when its number is right |
 | `extract.ts` | Pulls a checkable claim out of an answer's prose. Deliberately strict — it refuses rather than guesses, because a lenient extractor scores a wrong answer as a pass |
 
 Two rules make this worth having. **The oracle shares no code with the system under test** — a
