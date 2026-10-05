@@ -57,6 +57,7 @@ import type * as policyAreaBackfill from "../policyAreaBackfill.js";
 import type * as posthogEmail from "../posthogEmail.js";
 import type * as posthogLogs from "../posthogLogs.js";
 import type * as rateLimits from "../rateLimits.js";
+import type * as reasoning from "../reasoning.js";
 import type * as savedBills from "../savedBills.js";
 import type * as searchQuery from "../searchQuery.js";
 import type * as sync from "../sync.js";
@@ -119,6 +120,7 @@ declare const fullApi: ApiFromModules<{
   posthogEmail: typeof posthogEmail;
   posthogLogs: typeof posthogLogs;
   rateLimits: typeof rateLimits;
+  reasoning: typeof reasoning;
   savedBills: typeof savedBills;
   searchQuery: typeof searchQuery;
   sync: typeof sync;

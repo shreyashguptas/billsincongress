@@ -28,6 +28,7 @@ import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
+import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "./reasoning";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -162,6 +163,13 @@ type ChatMessage = {
   content: string | null;
   tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
+  /**
+   * The model's private reasoning from an earlier round, handed back unmodified.
+   * DeepSeek's own API refuses (400) a tool loop whose reasoning is not passed
+   * back; OpenRouter tolerated its absence when measured on 2026-10-05, but the
+   * documented contract is to return it, so the loop does.
+   */
+  reasoning_details?: unknown[];
 };
 
 /**
@@ -214,11 +222,16 @@ function providerConfig() {
 async function callModel(
   messages: ChatMessage[],
   apiKey: string,
-  opts: { withTools?: boolean; trace?: AnswerTrace } = {},
-) {
+  opts: { withTools?: boolean; trace?: AnswerTrace; withoutReasoning?: boolean } = {},
+): Promise<{ message: any; lengthCapped: boolean }> {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const fallbacks = fallbackModels();
   const withTools = opts.withTools ?? true;
+  const reasoning = opts.withoutReasoning
+    ? ({ enabled: false } as const)
+    : reasoningConfig(process.env.OPENROUTER_REASONING);
+  const reasoningOn = !("enabled" in reasoning);
+  const maxTokens = reasoningOn ? ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS : ANSWER_MAX_TOKENS;
   // Every call is recorded, failures included: a failover or an error is
   // exactly what a trace is for. See convex/aiTrace.ts.
   const started = Date.now();
@@ -230,7 +243,7 @@ async function callModel(
       latencyMs: Date.now() - started,
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
       temperature: 0.3,
-      maxTokens: 2048,
+      maxTokens,
       ...g,
     });
 
@@ -251,9 +264,9 @@ async function callModel(
       // was advice, a model that asked for one more lookup fell out of the loop
       // and the reader got a canned apology on top of 17 successful fetches.
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
-      max_tokens: 2048,
+      max_tokens: maxTokens,
       temperature: 0.3,
-      reasoning: { enabled: false },
+      reasoning,
       provider: providerConfig(),
     }),
   }).catch((error: unknown) => {
@@ -267,6 +280,16 @@ async function callModel(
       .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
     const message = `OpenRouter ${response.status} ${response.statusText}: ${body}`;
     record({ error: message, httpStatus: response.status });
+    // A request refused with reasoning on gets one retry with it off, so the
+    // worst this setting can do is give the reader today's answer, never none.
+    if (reasoningOn && response.status === 400) {
+      console.error(`reasoning request refused, retrying without it: ${message}`);
+      return callModel(
+        messages.map(({ reasoning_details: _dropped, ...rest }) => rest),
+        apiKey,
+        { ...opts, withoutReasoning: true },
+      );
+    }
     throw new Error(message);
   }
   const data = await response.json();
@@ -669,7 +692,13 @@ async function runLoop(
       continue;
     }
 
-    messages.push({ role: "assistant", content: message.content ?? null, tool_calls: toolCalls });
+    messages.push({
+      role: "assistant",
+      content: message.content ?? null,
+      tool_calls: toolCalls,
+      // Handed back unmodified for the next round (see ChatMessage).
+      ...(Array.isArray(message.reasoning_details) ? { reasoning_details: message.reasoning_details } : {}),
+    });
 
     // ask_reader ends the turn. Handled before the tool loop because there is
     // nothing to append to the transcript — the reader's reply is the next turn.

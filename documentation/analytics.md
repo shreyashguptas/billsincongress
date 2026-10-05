@@ -506,6 +506,11 @@ own id with `$process_person_profile: false`.
 | `$ai_span` | Each lookup the model made | `$ai_span_name` (the tool: `describe_dataset`, `fetch_dataset`, `search_web`, `ask_reader`), `$ai_input_state` — its arguments, `$ai_output_state` — what it was handed back, clipped at 20,000, `$ai_latency`, `$ai_is_error` (the call was invalid) | `convex/answer.ts` (tool loop) | Live (since 30 Sep 2026) |
 | `$ai_trace` | The turn ended, answered or failed | `$ai_input_state` — the reader's question, `$ai_output_state` — the answer as shown (after citation resolution), each as a one-message chat list (`[{role, content}]`), the shape PostHog's trace view renders, `$ai_latency`, `$ai_is_error`, `$ai_error`, and ours: `outcome: "answered" \| "asked_reader" \| "failed"`, `dropped`, `partial`, `truncated_by_length`, `db_source_count`, `web_source_count`, `signed_in` | `convex/answer.ts` (`stream`) | Live (since 30 Sep 2026) |
 
+Since 2026-10-05 the model reasons privately (`OPENROUTER_REASONING`, see "Model configuration"
+in overview.md), so each `$ai_generation`'s `$ai_output_choices` also carries the round's
+`reasoning` text: what the model thought, which the reader never sees. Its reasoning tokens
+are counted in `$ai_output_tokens` and the cost.
+
 PostHog keeps the large properties (`$ai_input`, `$ai_output_choices`, `$ai_input_state`,
 `$ai_output_state`, `$ai_tools`) for **30 days** only, in the `posthog.ai_events` table;
 the rest of each event stays in `events` like any other. So a wrong answer worth keeping

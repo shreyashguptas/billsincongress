@@ -206,7 +206,7 @@ The question panel is the only place in the interface where a machine writes pro
 
 **Answers are short on purpose.** The model is told to put the answer in the first sentence, keep most answers to one to three sentences plus bill cards, and stop: no closing summary or offer to help further.
 
-**Its thinking is kept out of the answer.** The model has no private scratchpad, so it sometimes thinks out loud ("Let me also check…", "That's a good answer"). Before an answer is displayed, code removes that thinking, including a draft it wrote and then reconsidered (but only when the final answer repeats the draft's figures), and keeps the answer it settled on. A sentence that carries a figure is never mistaken for thinking, and the whole answer is never removed.
+**Its thinking is kept out of the answer.** The model thinks privately, in a separate place that is recorded with the question for review and never shown to you. Before October 2026 it had no such space and sometimes thought out loud in the answer itself ("Let me also check…", "That's a good answer"), so as a safety net, before an answer is displayed, code removes that thinking, including a draft it wrote and then reconsidered (but only when the final answer repeats the draft's figures), and keeps the answer it settled on. A sentence that carries a figure is never mistaken for thinking, and the whole answer is never removed.
 
 **You can see its work.** When an answer involved lookups, it shows a log of them.
 

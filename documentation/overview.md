@@ -759,7 +759,9 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │                           A reply that is only narration, or that writes a
                  │                           lookup out as text (`fetch_dataset(…)`, `query:` +
                  │                           `reason:` lines, `{"name":…}` JSON), counts as none
-                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts: leading
+                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts: <thinking>…</thinking>
+                 │                          blocks and <response>/<answer> wrappers (the failover
+                 │                          model's habit), leading
                  │                          narration, leaked field names, thinking mid-answer
                  │                          (a draft + "Actually… Let me state it." + the answer
                  │                          again keeps only the last; stray "Let me…" sentences
@@ -885,7 +887,7 @@ is exactly those six.
 | Sponsor lookups per request | 10 distinct surnames |
 | Question length | 2,000 characters |
 | History sent back to the model | 10 turns / 8,000 characters, oldest dropped first |
-| Answer tokens | 2,048, temperature 0.3, model reasoning disabled |
+| Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), temperature 0.3, reasoning effort `low` (`OPENROUTER_REASONING`; `off` restores 2,048 and no reasoning) |
 
 **Provenance handles.** Every row handed to the model carries a `_cite` handle such as
 `bills:1234hr119`. The model is told to cite handles and forbidden from ever writing a URL.
@@ -1134,6 +1136,7 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 | Model | `deepseek/deepseek-v4-flash-0731` — a **dated release**, not a floating alias, because an alias can resolve to a version no allowlisted provider carries yet, turning a model release into an outage | `OPENROUTER_MODEL` |
 | Providers | `deepinfra,amazon-bedrock`, sent as `provider.only` | `OPENROUTER_PROVIDERS` (blank falls back to the default) |
 | Fallbacks | `deepseek/deepseek-v4-flash`, then `amazon/nova-lite-v1` | `OPENROUTER_FALLBACK_MODELS` — **blank DISABLES failover** (`??`, not `||`) |
+| Reasoning | `low` effort: the model reasons in a separate `reasoning` field that is recorded in the AI trace and never shown. Its `reasoning_details` are handed back on the round after a lookup (DeepSeek's documented contract), and a request refused with reasoning on is retried once without it. Off until 2026-10-05; with it off, the model's thinking landed in the answer. Measured on the real model that day, four grounding questions twice each: answers ~37 words instead of ~67, 16/16 grounding checks instead of 15/16, but about 18 s instead of 8 s per answer | `OPENROUTER_REASONING` — `off`, `minimal`, `low`, `medium`, `high`; no deploy needed (`convex/reasoning.ts`) |
 | Retention | `data_collection: "deny"` and `zdr: true` on every request | — |
 | Price ceiling | `$0.20 / $0.40` per million prompt/completion tokens | — |
 
@@ -1867,7 +1870,7 @@ Set with `npx convex env set --prod`. Checked 1 Oct 2026, production has ninetee
 `CONGRESS_API_KEY`, `JWKS`, `JWT_PRIVATE_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_PROVIDERS`, the
 three `POSTHOG_EMAIL_*_WEBHOOK_URL`s, `POSTHOG_EMAIL_WEBHOOK_SECRET`, `POSTHOG_KEY`, `SITE_URL`,
 both `STRIPE_PRICE_PRO_*`, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. The optional
-`OPENROUTER_MODEL`, `OPENROUTER_FALLBACK_MODELS`, `POSTHOG_HOST` and
+`OPENROUTER_MODEL`, `OPENROUTER_FALLBACK_MODELS`, `OPENROUTER_REASONING`, `POSTHOG_HOST` and
 `STRIPE_PORTAL_CONFIGURATION` are unset, so their defaults apply. `CONVEX_SITE_URL` is provided by
 Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 
@@ -1878,6 +1881,7 @@ Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 | `OPENROUTER_MODEL` | Model override | `deepseek/deepseek-v4-flash-0731` |
 | `OPENROUTER_PROVIDERS` | Provider pin | `deepinfra,amazon-bedrock` |
 | `OPENROUTER_FALLBACK_MODELS` | Failover chain | Default chain — **blank disables failover** |
+| `OPENROUTER_REASONING` | The answer model's private reasoning: `off`, or an effort | `low` |
 | `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |

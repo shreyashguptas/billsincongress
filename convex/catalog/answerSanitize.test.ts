@@ -14,6 +14,7 @@ import {
   dropQuestionEcho,
   isAllDeliberation,
   sanitizeAnswer,
+  stripThinkingTags,
 } from "./answerSanitize";
 
 let passed = 0;
@@ -600,6 +601,40 @@ it("recognises a reply made only of the new thinking shapes as no answer", () =>
   assert.equal(isAllDeliberation("The question asks about wildfire. That's a good answer."), true);
   assert.equal(isAllDeliberation("Let me know if you want more."), true);
   assert.equal(isAllDeliberation("76 measures have wildfire in their title. That's a good answer."), false);
+});
+
+// --- Tagged thinking from the failover model (2026-10-05) -------------------
+//
+// amazon/nova-lite-v1 serves about 15% of production rounds when DeepSeek is
+// unavailable, and writes its working in tags. Verbatim from that day:
+it("removes a <thinking> block and keeps the answer after it", () => {
+  const live =
+    "<thinking>The fetch was complete, and the data shows the top 8 senators by the number of bills introduced. Rick Scott introduced the most bills with 182.</thinking> \n\n" +
+    "The senator who introduced the most bills in the 119th Congress is Rick Scott from Florida, with 182.";
+  assert.equal(
+    sanitizeAnswer(live).text,
+    "The senator who introduced the most bills in the 119th Congress is Rick Scott from Florida, with 182.",
+  );
+});
+
+it("unwraps <response> and <answer> tags around an answer", () => {
+  assert.equal(
+    sanitizeAnswer("<response>Rick Scott introduced the most bills this Congress.</response>").text,
+    "Rick Scott introduced the most bills this Congress.",
+  );
+  assert.equal(stripThinkingTags("<answer>Two bills became law.</answer>").text, "Two bills became law.");
+});
+
+it("treats a reply that is only a thinking block as no answer, and never empties it", () => {
+  const only = "<thinking>I need to look up the sponsors first.</thinking>";
+  assert.equal(isAllDeliberation(only), true);
+  assert.deepEqual(stripThinkingTags(only), { text: only, removed: [] });
+});
+
+it("leaves text without tags alone, including a bill that mentions thinking", () => {
+  const answer = "The Critical Thinking in Schools Act was introduced in March.";
+  assert.deepEqual(sanitizeAnswer(answer), { text: answer, removed: [] });
+  assert.equal(isAllDeliberation(answer), false);
 });
 
 it("never empties an answer that is all thinking", () => {

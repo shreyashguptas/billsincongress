@@ -137,3 +137,108 @@ test("a first line repeating the end of the question is dropped", async () => {
   const result = await ask("Was a bill introduced this year about lighthouses?");
   expect(result.text).toBe("No bill in the 119th Congress matches that.");
 });
+
+// --- Private reasoning (2026-10-05) ------------------------------------------
+
+type Reply = { status?: number; message?: Record<string, unknown> };
+
+/** Like replyWith, but each reply can carry reasoning, tool calls or an HTTP status. */
+function replyWithMessages(replies: Reply[]) {
+  const queue = [...replies];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init: { body: string }) => {
+      requests.push(JSON.parse(init.body));
+      const next = queue.shift() ?? { message: { content: "" } };
+      if (next.status && next.status !== 200) {
+        return new Response("Bad Request: reasoning", { status: next.status });
+      }
+      return new Response(
+        JSON.stringify({ choices: [{ message: next.message, finish_reason: "stop" }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }),
+  );
+}
+
+type ReasoningRequest = {
+  tools?: unknown;
+  reasoning?: Record<string, unknown>;
+  max_tokens?: number;
+  messages: Array<{ role: string; content: string | null; reasoning_details?: unknown }>;
+};
+
+test("asks the model to reason privately, with room for the reasoning and the answer", async () => {
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as ReasoningRequest;
+  expect(sent.reasoning).toEqual({ effort: "low" });
+  expect(sent.max_tokens).toBe(4096);
+});
+
+test("OPENROUTER_REASONING=off restores the old request exactly", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "off");
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as ReasoningRequest;
+  expect(sent.reasoning).toEqual({ enabled: false });
+  expect(sent.max_tokens).toBe(2048);
+});
+
+test("the model's reasoning never reaches the reader", async () => {
+  // Shaped like the senator answer a reader saw on 2026-10-05, now arriving in
+  // the separate reasoning field where it belongs.
+  replyWithMessages([
+    {
+      message: {
+        content: "Rick Scott introduced the most bills of any senator this Congress: 189.",
+        reasoning:
+          "Since the list is ordered most-bills-first and the top is Rick Scott, a senator, with 189. " +
+          "But the question is about senators specifically.",
+      },
+    },
+  ]);
+  const result = await ask("Which senator introduced the most bills this Congress?");
+  expect(result.text).toBe("Rick Scott introduced the most bills of any senator this Congress: 189.");
+  expect(result.text).not.toMatch(/ordered most-bills-first|question is about/);
+});
+
+test("hands the reasoning back to the model on the round after a lookup", async () => {
+  const details = [{ type: "reasoning.text", text: "Check the sponsors dataset first." }];
+  replyWithMessages([
+    {
+      message: {
+        content: null,
+        reasoning_details: details,
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "describe_dataset", arguments: JSON.stringify({ dataset: "sponsors" }) },
+          },
+        ],
+      },
+    },
+    { message: { content: "We list every member who sponsored a bill this Congress." } },
+  ]);
+  const result = await ask("Who sponsors bills?");
+  expect(result.error).toBeUndefined();
+  const second = requests[1] as unknown as ReasoningRequest;
+  const assistant = second.messages.filter((m) => m.role === "assistant").at(-1);
+  expect(assistant?.reasoning_details).toEqual(details);
+});
+
+test("a request refused with reasoning on is retried once without it", async () => {
+  replyWithMessages([
+    { status: 400 },
+    { message: { content: "No bill in the 119th Congress matches that." } },
+  ]);
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.error).toBeUndefined();
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+  expect(requests).toHaveLength(2);
+  expect((requests[0] as unknown as ReasoningRequest).reasoning).toEqual({ effort: "low" });
+  expect((requests[1] as unknown as ReasoningRequest).reasoning).toEqual({ enabled: false });
+  expect((requests[1] as unknown as ReasoningRequest).max_tokens).toBe(2048);
+  expect((requests[1] as unknown as ReasoningRequest).messages.some((m) => "reasoning_details" in m)).toBe(false);
+});

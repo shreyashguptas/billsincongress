@@ -25,6 +25,7 @@
  * Run: OPENROUTER_API_KEY=sk-or-... ./node_modules/.bin/tsx scripts/check-grounding.ts
  */
 import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "../convex/catalog/tools";
+import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "../convex/reasoning";
 import { describeDataset, isDatasetName } from "../convex/catalog/datasets";
 import { mintHandle, resolveAnswer } from "../convex/catalog/cite";
 import { validateFilters } from "../convex/catalog/filters";
@@ -751,6 +752,9 @@ type ChatMessage = {
   tool_call_id?: string;
 };
 
+const reasoning = reasoningConfig(process.env.OPENROUTER_REASONING);
+const reasoningOn = !("enabled" in reasoning);
+
 async function callModel(messages: ChatMessage[], withTools: boolean) {
   const res = await fetch(API_URL, {
     method: "POST",
@@ -766,9 +770,12 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
       // schema and asking the model not to use it is advice; not sending it is a
       // guarantee. Testing the advice version tests a loop we no longer run.
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
-      max_tokens: 2048,
+      // The same reasoning setting and budget as convex/answer.ts, so this gate
+      // tests the loop production runs. OPENROUTER_REASONING=off reproduces the
+      // pre-2026-10-05 behaviour for a before/after comparison.
+      max_tokens: reasoningOn ? ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS : ANSWER_MAX_TOKENS,
       temperature: 0.3,
-      reasoning: { enabled: false },
+      reasoning,
       provider: {
         ...(PROVIDERS.length > 0 && { only: PROVIDERS }),
         max_price: MAX_PRICE,
