@@ -284,7 +284,9 @@ test("a version that is not copied is fetched once, not on every question, and m
   // Review on #171: a broken experiment arm or a forged version number turned
   // every question into a PostHog API call.
   const t = convexTest(schema, modules);
-  replyWith(Array(6).fill("No bill matches."));
+  const words = (w: string) => `${`${w} `.repeat(30)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  replyWith(Array(7).fill("No bill matches."));
   const fetches = async () =>
     (await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).filter((f) =>
       f.name.includes("fetchVersion"),
@@ -298,10 +300,30 @@ test("a version that is not copied is fetched once, not on every question, and m
     await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: version });
   }
   expect(await fetches()).toBe(3);
-  // Every one of those answers still used the in-code default.
-  for (const r of requests) {
-    expect((r.messages[0].content ?? "").startsWith("You answer questions about the United States Congress")).toBe(true);
-  }
+  // A number far above production is made up: refused, not fetched.
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 99_991 });
+  expect(await fetches()).toBe(3);
+  // Every one of those answers used production.
+  for (const r of requests) expect((r.messages[0].content ?? "").startsWith("Three.")).toBe(true);
+});
+
+test("empty fetch placeholders never push a real experiment copy out", async () => {
+  const t = convexTest(schema, modules);
+  const words = (w: string) => `${`${w} `.repeat(30)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  await t.mutation(internal.answerPrompts.store, { version: 5, template: words("Five."), isProduction: false });
+  // Twelve tried-and-failed versions above it, as claimFetch leaves them.
+  await t.run(async (ctx) => {
+    for (let v = 6; v < 18; v++) {
+      await ctx.db.insert("answerPrompts", {
+        name: "answer-system", version: v, template: "", isProduction: false, fetchedAt: 0, attemptedAt: Date.now(),
+      });
+    }
+  });
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  const five = await t.query(internal.answerPrompts.forAnswer, { version: 5 });
+  expect(five.version).toBe(5);
+  expect(five.template?.startsWith("Five.")).toBe(true);
 });
 
 test("the model's reasoning never reaches the reader", async () => {

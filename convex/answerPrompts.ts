@@ -31,6 +31,12 @@ const KEEP_VERSIONS = 10;
 const RETRY_AFTER_MS = 60 * 60 * 1000;
 /** At most this many version fetches start per minute, whatever clients send. */
 const FETCHES_PER_MINUTE = 3;
+/**
+ * An experiment compares versions near the one in production; a number far
+ * above it is made up, so it is refused outright instead of using up the
+ * per-minute budget a real arm needs (review on #171).
+ */
+const MAX_VERSIONS_AHEAD = 20;
 
 export interface ServedPrompt {
   name: string;
@@ -109,9 +115,15 @@ export const store = internalMutation({
         }
       }
     }
-    // Keep the newest versions; production is always kept.
+    // Keep the newest copies; production is always kept, and an empty
+    // claimFetch placeholder never counts, so it cannot push a real copy out.
     const others = rows
-      .filter((r) => r.version !== args.version && !(r.isProduction && !args.isProduction))
+      .filter(
+        (r) =>
+          r.version !== args.version &&
+          r.template !== "" &&
+          !(r.isProduction && !args.isProduction),
+      )
       .sort((a, b) => b.version - a.version);
     for (const r of others.slice(KEEP_VERSIONS)) await ctx.db.delete(r._id);
     return null;
@@ -136,6 +148,9 @@ export const claimFetch = internalMutation({
     const now = Date.now();
     const existing = rows.find((r) => r.version === args.version);
     if (existing && existing.template !== "") return false;
+    // No production copy means no key or no PostHog yet: nothing to fetch with.
+    const production = rows.find((r) => r.isProduction && r.template !== "");
+    if (!production || args.version > production.version + MAX_VERSIONS_AHEAD) return false;
     if (existing?.attemptedAt !== undefined && now - existing.attemptedAt < RETRY_AFTER_MS) {
       return false;
     }
@@ -185,8 +200,8 @@ async function fetchFromPostHog(
     const data = (await res.json()) as { prompt?: unknown; version?: unknown };
     if (typeof data.version !== "number" || !validTemplate(data.prompt)) {
       console.error(
-        `answer prompt version ${String(data.version)} rejected: it must be text with ` +
-          `{{datasets}} and no slot other than {{datasets}}, {{calendar}} and {{context}}`,
+        `answer prompt version ${String(data.version)} rejected: it must be text using ` +
+          `{{datasets}}, {{calendar}} and {{context}}, and no other slot`,
       );
       return null;
     }

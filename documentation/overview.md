@@ -1043,8 +1043,9 @@ reads it through `getFeatureFlagResult` so PostHog records the exposure, and sen
 `{ name, version }` with the question. Convex accepts only `answer-system` and a whole
 version number (`readPromptVersion`). A version not copied yet is fetched in the background
 (`answerPrompts.fetchVersion`), and that one answer gets production. A version is tried at
-most once an hour, and at most three fetches start a minute (`claimFetch`), so a broken arm
-or a made-up version number cannot turn questions into PostHog API calls. Choosing the version in
+most once an hour, at most three fetches start a minute, and a version more than 20 above
+production is refused (`claimFetch`), so a broken arm or a made-up version number cannot turn
+questions into PostHog API calls. Failed attempts never count toward the ten copies kept. Choosing the version in
 the browser, where PostHog's flags are already loaded, adds no wait to the answer.
 
 Versions: **1** is the prompt live through 2026-10-05; **2** is the 2026-10-05 rewrite (same
