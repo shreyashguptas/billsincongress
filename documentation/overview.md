@@ -1901,8 +1901,11 @@ Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 
 ## Build, test and deploy
 
-The package manager is **pnpm**, pinned to 10.33.0. There is no `engines` field; Node 24 is
-pinned only inside the workflows.
+The package manager is **pnpm**, pinned by `packageManager` in `package.json` (10.33.0). That
+field is the only place the version is written: every workflow's `pnpm/action-setup` step reads
+it, and any pnpm 11 or later on a laptop hands off to it automatically. Node's version lives in
+`.node-version` (24), which every workflow reads through `node-version-file` and local version
+managers (fnm, nvm, mise) pick up too. There is no `engines` field.
 
 | Script | What it does |
 | --- | --- |
