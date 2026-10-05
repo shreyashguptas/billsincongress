@@ -2071,9 +2071,16 @@ next merge. The step refuses to run without the secret, or with a key that does 
 
 1. The `Production` environment (Settings → Environments) must allow deployments from the
    `main` branch only. That rule is what keeps the key away from every other branch.
-2. `npx convex deployment token create github-actions-production --deployment industrious-llama-331`
-   prints a new production key.
-3. `gh secret set CONVEX_DEPLOY_KEY --env Production` and paste it.
+2. Create a new production key and store it in one command, so it is never pasted by hand
+   or shown on screen (`<name>` is any new label, such as `github-actions-ci`):
+
+   ```bash
+   npx convex deployment token create <name> --deployment industrious-llama-331 2>&1 | grep -o 'prod:[^[:space:]]*' | tr -d '\n' | gh secret set CONVEX_DEPLOY_KEY --env Production --repo shreyashguptas/billsincongress
+   ```
+
+3. Re-run the latest Deploy run from the Actions tab, and check that the "Deploy the Convex
+   backend" step passes. Pasting the key into `gh secret set` by hand is what broke the first
+   live run: the stored value did not begin with `prod:`.
 4. Revoke the old key with `npx convex deployment token delete <name> --deployment industrious-llama-331`,
    once nothing still uses it (a local `.env` for the accuracy gate, say). If a repo-level
    `CONVEX_DEPLOY_KEY` exists, delete it too: `gh secret delete CONVEX_DEPLOY_KEY`.

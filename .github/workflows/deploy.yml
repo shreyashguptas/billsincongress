@@ -97,7 +97,11 @@ jobs:
           case "$CONVEX_DEPLOY_KEY" in
             prod:*) ;;
             "") echo "::error::CONVEX_DEPLOY_KEY is empty. It must be a secret of the Production environment, and this job must be running on main. See 'Deploying Convex' in documentation/overview.md."; exit 1 ;;
-            *) echo "::error::CONVEX_DEPLOY_KEY is not a production deploy key (it must start with 'prod:')."; exit 1 ;;
+            # The first live run failed here: the key had been pasted into
+            # `gh secret set` by hand and did not begin with `prod:`. The
+            # hints below never print the key itself, only its shape.
+            [[:space:]]*|\"*|\'*) echo "::error::CONVEX_DEPLOY_KEY starts with a space or a quote mark, so it was pasted with extra characters. Set it again with the one-line command in 'Deploying Convex' in documentation/overview.md."; exit 1 ;;
+            *) echo "::error::CONVEX_DEPLOY_KEY is not a production deploy key (it must start with 'prod:'). Set it again with the one-line command in 'Deploying Convex' in documentation/overview.md."; exit 1 ;;
           esac
           pnpm exec convex deploy --yes
 
