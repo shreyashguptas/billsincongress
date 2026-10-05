@@ -18,6 +18,7 @@ import {
 } from "./catalog/tools";
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
+import { filtersFromCall } from "./catalog/filters";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
 import {
   containsTextToolCall,
@@ -189,6 +190,17 @@ type ChatMessage = {
    */
   reasoning_details?: unknown[];
 };
+
+/** See runLoop: what the model said last, so it can own a correction. */
+export function followUpNote(lastAnswer: string): string {
+  const said = lastAnswer.length > 400 ? `${lastAnswer.slice(0, 400)}…` : lastAnswer;
+  return (
+    `Your previous answer in this conversation was: "${said}". Compare it with what you ` +
+    `find now. Only if a name or number in it differs, your FIRST sentence must say that ` +
+    `answer was wrong and name what it got wrong, then give the corrected one. If they ` +
+    `match, say it stands, even if the reader suggests it changed.`
+  );
+}
 
 /**
  * Trim client-supplied history: it arrives from the browser (spec §4.7), so an
@@ -618,6 +630,15 @@ async function runLoop(
     );
   }
 
+  // A follow-up after an answer: the model is reminded what it said last, so a
+  // corrected answer opens by saying the earlier one was wrong. Live on
+  // 2026-10-05 it named the wrong "latest law", was asked "are you sure?" and
+  // "why did you change your answer?", and gave the right law both times with
+  // no word that the first answer had been wrong. The rule in the system prompt
+  // alone did not do it.
+  const lastAnswer = [...capHistory(opts.history)].reverse().find((m) => m.role === "assistant");
+  if (lastAnswer) messages.push({ role: "system", content: followUpNote(lastAnswer.content) });
+
   messages.push({ role: "user", content: opts.question });
 
   let partial = false;
@@ -788,7 +809,9 @@ async function runLoop(
       } else if (call.function.name === "fetch_dataset") {
         const fetched = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
           name: String(args.name ?? ""),
-          filters: args.filters ?? {},
+          // A filter put beside `filters` is moved into it: a stray `sort` named
+          // the wrong "latest law" live on 2026-10-05 (see filtersFromCall).
+          filters: filtersFromCall(String(args.name ?? ""), args),
           ...(typeof args.limit === "number" ? { limit: args.limit } : {}),
           today,
         });

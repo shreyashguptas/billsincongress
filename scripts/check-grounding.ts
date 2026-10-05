@@ -28,7 +28,7 @@ import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS, primedDescriptions } 
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "../convex/reasoning";
 import { describeDataset, isDatasetName } from "../convex/catalog/datasets";
 import { mintHandle, resolveAnswer } from "../convex/catalog/cite";
-import { validateFilters } from "../convex/catalog/filters";
+import { filtersFromCall, validateFilters } from "../convex/catalog/filters";
 import {
   completeReport,
   payloadFor,
@@ -904,7 +904,8 @@ async function ask(question: string): Promise<Answer> {
           result = `ERROR: Unknown dataset '${name}'.`;
           work.push(`fetch ${name} · unknown dataset`);
         } else {
-          const validated = validateFilters(name as DatasetName, args.filters ?? {});
+          // Same as convex/answer.ts: a filter put beside `filters` is moved into it.
+          const validated = validateFilters(name as DatasetName, filtersFromCall(name, args));
           if (!validated.ok) {
             result = `ERROR (your call was invalid — this says nothing about what we hold): ${validated.error}`;
             work.push(`fetch ${name} · invalid request, retrying`);

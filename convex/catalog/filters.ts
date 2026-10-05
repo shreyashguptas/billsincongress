@@ -10,7 +10,7 @@
  * Pure module (no Convex imports) so it carries unit tests.
  */
 import { NO_PARTY } from "./billsIndex";
-import { DATASETS } from "./datasets";
+import { DATASETS, isDatasetName } from "./datasets";
 import type { DatasetName } from "./types";
 
 /**
@@ -78,6 +78,32 @@ const REQUIRED: Partial<Record<DatasetName, string[]>> = {
 export type ValidationResult =
   | { ok: true; filters: Record<string, unknown> }
   | { ok: false; error: string };
+
+/**
+ * The filters a fetch_dataset call meant, including any the model put BESIDE
+ * `filters` instead of inside it.
+ *
+ * Live on 2026-10-05, asked for the latest law, gpt-oss sent
+ * `{"name":"bills","filters":{"congress":119,"progressStage":100},"sort":"newest_action","limit":1}`.
+ * The sort sat next to `filters`, was ignored, and the result came back in
+ * arbitrary order; the model named its one row as the newest anyway, and the
+ * reader was told the wrong law. A top-level key that is a filter of that
+ * dataset is moved into `filters` (a value already inside wins); anything else
+ * is left to validateFilters exactly as before.
+ */
+const CALL_KEYS = new Set(["name", "filters", "limit"]);
+
+export function filtersFromCall(name: string, args: Record<string, unknown>): unknown {
+  const inside = args.filters ?? {};
+  if (!isDatasetName(name) || inside === null || typeof inside !== "object" || Array.isArray(inside)) {
+    return inside;
+  }
+  const declared = new Set(DATASETS[name].filters.map((f) => f.name));
+  const stray = Object.fromEntries(
+    Object.entries(args).filter(([key]) => !CALL_KEYS.has(key) && declared.has(key)),
+  );
+  return { ...stray, ...(inside as Record<string, unknown>) };
+}
 
 export function validateFilters(name: DatasetName, raw: unknown): ValidationResult {
   const doc = DATASETS[name];

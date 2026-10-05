@@ -1457,6 +1457,27 @@ async function main() {
     assert.equal(named.rows[0].billCount, fewest);
   });
 
+  // "whats the latest bill that passed as law" got the Secure America Act (S. 2,
+  // last action June 2026) live on 2026-10-05. The model put `sort` beside
+  // `filters`, the handler never saw it, and one arbitrary row came back.
+  await it("the live latest-law call, sort beside filters, returns the newest law", async () => {
+    const { filtersFromCall } = await import("../../convex/catalog/filters");
+    const args = {
+      name: "bills",
+      filters: { congress: 119, progressStage: 100 },
+      sort: "newest_action",
+      limit: 1,
+    };
+    const r = await fetchViaHandlers(ctx, "bills", filtersFromCall("bills", args) as any, 1);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.notEqual(r.report.order, "arbitrary", "the sort was dropped again");
+    const newest = truth.laws119.reduce((a: any, b: any) =>
+      (b.latestActionDate ?? "") > (a.latestActionDate ?? "") ? b : a,
+    );
+    assert.equal(r.rows[0].latestActionDate, newest.latestActionDate);
+    assert.notEqual(r.rows[0].billId, "2s119");
+  });
+
   await it("no result ever carries a total without claiming completeness", async () => {
     const shapes: Array<[string, Record<string, unknown>, number | undefined]> = [
       ["bills", { congress: 119 }, 50],

@@ -204,6 +204,8 @@ The question panel is the only place in the interface where a machine writes pro
 
 **Your question is never handed to the search engine verbatim.** A search phrase is rejected before it leaves the server if it contains first-person words or simply repeats your question, so the model has to rephrase into a neutral query. Your question text does still go to the AI provider that writes the answer — that is unavoidable — but not to the search engine as you typed it.
 
+**It owns its mistakes.** If you question an answer ("are you sure?"), it looks again, and if its earlier answer was wrong it says so in its first sentence before giving the corrected one. If the earlier answer holds, it says so.
+
 **Answers are short on purpose.** The model is told to put the answer in the first sentence, keep most answers to one to three sentences plus bill cards, and stop: no closing summary or offer to help further.
 
 **Its thinking is kept out of the answer.** The model thinks privately, in a separate place that is recorded with the question for review and never shown to you; the model in use always works this way. Before October 2026 the model had no such space and sometimes thought out loud in the answer itself ("Let me also check…", "That's a good answer"), so as a safety net, before an answer is displayed, code removes that thinking, including a draft it wrote and then reconsidered (but only when the final answer repeats the draft's figures), and keeps the answer it settled on. A sentence that carries a figure is never mistaken for thinking, and the whole answer is never removed.
