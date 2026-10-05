@@ -2074,7 +2074,9 @@ next merge. The step refuses to run without the secret, or with a key that does 
 2. `npx convex deployment token create github-actions-production --deployment industrious-llama-331`
    prints a new production key.
 3. `gh secret set CONVEX_DEPLOY_KEY --env Production` and paste it.
-4. Delete the old key with `npx convex deployment token delete <name> --deployment industrious-llama-331`.
+4. Revoke the old key with `npx convex deployment token delete <name> --deployment industrious-llama-331`,
+   once nothing still uses it (a local `.env` for the accuracy gate, say). If a repo-level
+   `CONVEX_DEPLOY_KEY` exists, delete it too: `gh secret delete CONVEX_DEPLOY_KEY`.
 
 Never store it as a repo-level secret (see the environment-variable notes above).
 
