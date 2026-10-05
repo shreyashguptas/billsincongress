@@ -235,7 +235,12 @@ test("a follow-up reminds the model of its last answer, so it can say that answe
   const note = sent.at(-2);
   expect(note?.role).toBe("system");
   expect(note?.content).toContain("Secure America Act");
-  expect(note?.content).toMatch(/FIRST sentence must say that answer was wrong/);
+  expect(note?.content).toMatch(/FIRST sentence must say that reply was wrong/);
+  // Limited to a doubted or re-asked question: a new question must not be told
+  // its different number means the last reply was wrong (review on #170).
+  expect(note?.content).toMatch(/asking something new, answer only the new question/);
+  // The earlier reply is quoted as data, not spliced in as instructions.
+  expect(note?.content).toContain(JSON.stringify("The most recent measure that became law is the Secure America Act [1]"));
   expect(sent.at(-1)).toEqual({ role: "user", content: "are you sure" });
 });
 
