@@ -186,8 +186,10 @@ test("OPENROUTER_REASONING=off restores the old request exactly", async () => {
 });
 
 test("the model's reasoning never reaches the reader", async () => {
-  // Shaped like the senator answer a reader saw on 2026-10-05, now arriving in
-  // the separate reasoning field where it belongs.
+  // A REGRESSION GUARD, not evidence for the change: runLoop has only ever read
+  // message.content, so this passed before reasoning was turned on too. It pins
+  // that the separate field stays separate. Shaped like the senator answer a
+  // reader saw on 2026-10-05.
   replyWithMessages([
     {
       message: {
@@ -203,12 +205,16 @@ test("the model's reasoning never reaches the reader", async () => {
   expect(result.text).not.toMatch(/ordered most-bills-first|question is about/);
 });
 
-test("hands the reasoning back to the model on the round after a lookup", async () => {
+test("does not hand the reasoning back on the round after a lookup", async () => {
+  // Measured 2026-10-05: with it handed back, a failover to amazon/nova-lite-v1
+  // on Amazon Bedrock refused the request ("User messages cannot contain
+  // reasoning content"). DeepSeek through OpenRouter answers without it.
   const details = [{ type: "reasoning.text", text: "Check the sponsors dataset first." }];
   replyWithMessages([
     {
       message: {
         content: null,
+        reasoning: "Check the sponsors dataset first.",
         reasoning_details: details,
         tool_calls: [
           {
@@ -224,8 +230,7 @@ test("hands the reasoning back to the model on the round after a lookup", async 
   const result = await ask("Who sponsors bills?");
   expect(result.error).toBeUndefined();
   const second = requests[1] as unknown as ReasoningRequest;
-  const assistant = second.messages.filter((m) => m.role === "assistant").at(-1);
-  expect(assistant?.reasoning_details).toEqual(details);
+  expect(second.messages.some((m) => "reasoning_details" in m || "reasoning" in m)).toBe(false);
 });
 
 test("a request refused with reasoning on is retried once without it", async () => {
@@ -241,4 +246,49 @@ test("a request refused with reasoning on is retried once without it", async () 
   expect((requests[1] as unknown as ReasoningRequest).reasoning).toEqual({ enabled: false });
   expect((requests[1] as unknown as ReasoningRequest).max_tokens).toBe(2048);
   expect((requests[1] as unknown as ReasoningRequest).messages.some((m) => "reasoning_details" in m)).toBe(false);
+});
+
+test("once a request with reasoning is refused, the rest of the turn runs without it", async () => {
+  // Review finding on #169: the downgrade used to last one call, so a refusal
+  // that kept happening cost a failed request on every round.
+  replyWithMessages([
+    {
+      message: {
+        content: null,
+        reasoning_details: [{ type: "reasoning.text", text: "Look up the sponsors." }],
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "describe_dataset", arguments: JSON.stringify({ dataset: "sponsors" }) },
+          },
+        ],
+      },
+    },
+    { status: 400 },
+    {
+      message: {
+        content: null,
+        tool_calls: [
+          {
+            id: "call_2",
+            type: "function",
+            function: { name: "describe_dataset", arguments: JSON.stringify({ dataset: "topics" }) },
+          },
+        ],
+      },
+    },
+    { message: { content: "We list every member who sponsored a bill this Congress." } },
+  ]);
+  const result = await ask("Who sponsors bills?");
+  expect(result.error).toBeUndefined();
+  const sent = requests as unknown as ReasoningRequest[];
+  expect(sent.map((r) => r.reasoning)).toEqual([
+    { effort: "low" },
+    { effort: "low" },
+    { enabled: false },
+    { enabled: false },
+  ]);
+  // No refused request after the first one.
+  expect(sent).toHaveLength(4);
 });

@@ -16,15 +16,24 @@
  * comes back in `message.reasoning`, recorded in the AI trace and never sent to
  * the reader. answerSanitize.ts stays as the safety net.
  *
- * OPENROUTER_REASONING switches it without a deploy: "off" turns it off, any
- * other value is the effort ("minimal", "low", "medium", "high"). Default low.
+ * OPENROUTER_REASONING switches it without a deploy: "off" (or "false", "none",
+ * "no", "0", "disabled") turns it off; "minimal", "low", "medium" or "high" sets
+ * the effort. Default low, and anything else falls back to low with a log line.
  */
+const OFF = new Set(["off", "false", "none", "no", "0", "disabled"]);
+const EFFORTS = new Set(["minimal", "low", "medium", "high"]);
+
 export function reasoningConfig(
   setting: string | undefined,
 ): { enabled: false } | { effort: string } {
   const value = (setting ?? "").trim().toLowerCase();
-  if (value === "off" || value === "false" || value === "none") return { enabled: false };
-  return { effort: value === "" ? "low" : value };
+  if (OFF.has(value)) return { enabled: false };
+  if (value === "") return { effort: "low" };
+  if (EFFORTS.has(value)) return { effort: value };
+  // A typo in the incident off switch ("lo", "disbled") must not become an
+  // effort OpenRouter refuses on every request. Say so, and use the default.
+  console.error(`OPENROUTER_REASONING="${setting}" is not off or an effort (minimal, low, medium, high); using low`);
+  return { effort: "low" };
 }
 
 /**

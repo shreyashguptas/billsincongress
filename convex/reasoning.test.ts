@@ -21,13 +21,26 @@ it("reasons at low effort when nothing is set", () => {
   assert.deepEqual(reasoningConfig("  "), { effort: "low" });
 });
 
-it("turns off with off, false or none, in any case", () => {
-  for (const v of ["off", "OFF", "false", "none", " Off "]) assert.deepEqual(reasoningConfig(v), { enabled: false }, v);
+it("turns off with any of the off words, in any case", () => {
+  for (const v of ["off", "OFF", "false", "none", " Off ", "no", "0", "disabled"]) {
+    assert.deepEqual(reasoningConfig(v), { enabled: false }, v);
+  }
 });
 
-it("passes any other value through as the effort", () => {
+it("accepts the four documented efforts", () => {
   assert.deepEqual(reasoningConfig("minimal"), { effort: "minimal" });
   assert.deepEqual(reasoningConfig("Medium"), { effort: "medium" });
+  assert.deepEqual(reasoningConfig("high"), { effort: "high" });
+});
+
+it("falls back to low on a typo instead of sending an effort OpenRouter refuses", () => {
+  const original = console.error;
+  console.error = () => {};
+  try {
+    for (const v of ["lo", "disbled", "max", "yes"]) assert.deepEqual(reasoningConfig(v), { effort: "low" }, v);
+  } finally {
+    console.error = original;
+  }
 });
 
 it("leaves the answer its full budget on top of the reasoning", () => {

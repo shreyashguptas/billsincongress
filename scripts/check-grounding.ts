@@ -826,6 +826,8 @@ async function ask(question: string): Promise<Answer> {
       if (text.trim().length === 0) break;
       return { ...resolveAnswer(text, allowed), work, allowed, askedReader: false };
     }
+    // Content and tool calls only, exactly as convex/answer.ts: the reasoning is
+    // not handed back (see ChatMessage there for why).
     messages.push({ role: "assistant", content: message.content ?? null, tool_calls: calls });
 
     // ask_reader ENDS the turn — the reader's reply would be the next turn. Handled

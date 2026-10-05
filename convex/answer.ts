@@ -164,10 +164,13 @@ type ChatMessage = {
   tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
   /**
-   * The model's private reasoning from an earlier round, handed back unmodified.
-   * DeepSeek's own API refuses (400) a tool loop whose reasoning is not passed
-   * back; OpenRouter tolerated its absence when measured on 2026-10-05, but the
-   * documented contract is to return it, so the loop does.
+   * Never set by the loop. The model's reasoning is NOT handed back on later
+   * rounds: measured on 2026-10-05, DeepSeek through OpenRouter answers fine
+   * without it, and when DeepSeek is rate-limited (429) and OpenRouter fails
+   * over to amazon/nova-lite-v1 on Amazon Bedrock, Bedrock refuses the whole
+   * request: "User messages cannot contain reasoning content." DeepSeek's own
+   * API does require it, but we never call that API directly. Kept in the type
+   * so the refusal path can strip it from anything that carries it.
    */
   reasoning_details?: unknown[];
 };
@@ -223,7 +226,7 @@ async function callModel(
   messages: ChatMessage[],
   apiKey: string,
   opts: { withTools?: boolean; trace?: AnswerTrace; withoutReasoning?: boolean } = {},
-): Promise<{ message: any; lengthCapped: boolean }> {
+): Promise<{ message: any; lengthCapped: boolean; reasoningRefused?: boolean }> {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const fallbacks = fallbackModels();
   const withTools = opts.withTools ?? true;
@@ -284,11 +287,14 @@ async function callModel(
     // worst this setting can do is give the reader today's answer, never none.
     if (reasoningOn && response.status === 400) {
       console.error(`reasoning request refused, retrying without it: ${message}`);
-      return callModel(
+      const retried = await callModel(
         messages.map(({ reasoning_details: _dropped, ...rest }) => rest),
         apiKey,
         { ...opts, withoutReasoning: true },
       );
+      // Reported so the loop keeps reasoning off for the rest of the turn,
+      // instead of paying for a refused request again on every round.
+      return { ...retried, reasoningRefused: true };
     }
     throw new Error(message);
   }
@@ -617,6 +623,10 @@ async function runLoop(
   let nudged = false;
   let finalNow = false;
 
+  // Set once a request with reasoning is refused: the rest of the turn runs
+  // without it, so a persistent refusal costs one extra request, not one a round.
+  let reasoningOff = false;
+
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     // On the final round the tools are WITHHELD, not discouraged. Asking the
     // model to "answer now" while still handing it the tool schema left it free
@@ -631,10 +641,12 @@ async function runLoop(
 
     let message;
     let lengthCapped = false;
+    let reasoningRefused: boolean | undefined;
     try {
-      ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
+      ({ message, lengthCapped, reasoningRefused } = await callModel(finalMessages, opts.apiKey, {
         withTools: !isFinalRound,
         trace: opts.trace,
+        withoutReasoning: reasoningOff,
       }));
     } catch (error) {
       // The final round omits the tool schema while the transcript still contains
@@ -644,12 +656,14 @@ async function runLoop(
       // plain instruction not to use it: weaker, but far better than an error.
       if (!isFinalRound) throw error;
       console.error("final round without tools failed, retrying with them:", error);
-      ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
+      ({ message, lengthCapped, reasoningRefused } = await callModel(finalMessages, opts.apiKey, {
         withTools: true,
         trace: opts.trace,
+        withoutReasoning: reasoningOff,
       }));
     }
     if (lengthCapped) truncatedByLength = true;
+    if (reasoningRefused) reasoningOff = true;
 
     // On the final round any tool call is ignored: it can only come from the
     // retry above, and there is no round left to serve it.
@@ -692,13 +706,8 @@ async function runLoop(
       continue;
     }
 
-    messages.push({
-      role: "assistant",
-      content: message.content ?? null,
-      tool_calls: toolCalls,
-      // Handed back unmodified for the next round (see ChatMessage).
-      ...(Array.isArray(message.reasoning_details) ? { reasoning_details: message.reasoning_details } : {}),
-    });
+    // Content and tool calls only: the reasoning is not handed back (see ChatMessage).
+    messages.push({ role: "assistant", content: message.content ?? null, tool_calls: toolCalls });
 
     // ask_reader ends the turn. Handled before the tool loop because there is
     // nothing to append to the transcript — the reader's reply is the next turn.
