@@ -286,7 +286,9 @@ async function callModel(
     // A request refused with reasoning on gets one retry with it off, so the
     // worst this setting can do is give the reader today's answer, never none.
     if (reasoningOn && response.status === 400) {
-      console.error(`reasoning request refused, retrying without it: ${message}`);
+      // Any 400, not necessarily caused by reasoning (a context-length or
+      // tools-schema 400 looks the same), so the log says what happened, not why.
+      console.error(`400 with reasoning on, retrying without it: ${message}`);
       const retried = await callModel(
         messages.map(({ reasoning_details: _dropped, ...rest }) => rest),
         apiKey,
@@ -656,6 +658,10 @@ async function runLoop(
       // plain instruction not to use it: weaker, but far better than an error.
       if (!isFinalRound) throw error;
       console.error("final round without tools failed, retrying with them:", error);
+      // If that failure was a 400 the reasoning retry inside callModel already
+      // saw, the retry without reasoning failed too: keep reasoning off for this
+      // last attempt instead of paying for it again (review on #169).
+      if (/OpenRouter 400\b/.test(String(error))) reasoningOff = true;
       ({ message, lengthCapped, reasoningRefused } = await callModel(finalMessages, opts.apiKey, {
         withTools: true,
         trace: opts.trace,

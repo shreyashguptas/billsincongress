@@ -292,3 +292,27 @@ test("once a request with reasoning is refused, the rest of the turn runs withou
   // No refused request after the first one.
   expect(sent).toHaveLength(4);
 });
+
+test("a final round refused with and without reasoning does not turn reasoning back on", async () => {
+  // Review finding on #169: the turn-wide flag was set only when the retry
+  // succeeded, so this path went with, without, then WITH reasoning again.
+  vi.stubEnv("OPENROUTER_REASONING", "low");
+  replyWithMessages([
+    { message: { content: "" } },
+    { message: { content: "" } },
+    { status: 400 },
+    { status: 400 },
+    { message: { content: "No bill in the 119th Congress matches that." } },
+  ]);
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+  const sent = requests as unknown as ReasoningRequest[];
+  // Two empty rounds, then the final round: refused with reasoning, refused
+  // without it, then retried with the tools and still without it.
+  expect(sent.slice(2).map((r) => r.reasoning)).toEqual([
+    { effort: "low" },
+    { enabled: false },
+    { enabled: false },
+  ]);
+  expect(sent).toHaveLength(5);
+});
