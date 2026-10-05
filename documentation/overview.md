@@ -2032,7 +2032,7 @@ asks it to, and a nightly accuracy check on `main`:
 
 | Workflow | Job | Trigger | Steps |
 | --- | --- | --- | --- |
-| `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `pnpm cf:build` |
+| `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `tsc --noEmit -p convex` (the check `convex deploy` runs, with `convex/`'s own older-lib tsconfig; added after #170 passed CI and failed at deploy) → `pnpm cf:build` |
 | `claude-code-review.yml` | `review` | every PR push | install → capture `pnpm test` and `tsc --noEmit` output → automated code review |
 | `claude.yml` | `claude` | an `@claude` comment | install → answer the comment in the thread |
 | `accuracy.yml` | `truth` | nightly at 10:17 UTC, or by hand on `main` | install → `scripts/truth/dump.ts` → `REQUIRE_TRUTH_CACHE=1 pnpm test` |
