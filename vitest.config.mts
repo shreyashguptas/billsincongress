@@ -8,5 +8,11 @@ export default defineConfig({
     environment: "edge-runtime",
     include: ["convex/**/*.spec.ts"],
     server: { deps: { inline: ["convex-test"] } },
+    // Node 25+ ships Web Storage, and the edge-runtime environment touches the
+    // global `localStorage` while building its sandbox, so every worker printed
+    // "ExperimentalWarning: localStorage is not available". Convex functions
+    // never use Web Storage; turning it off makes Node 26 behave like Node 24
+    // here and keeps real warnings visible.
+    execArgv: ["--no-experimental-webstorage"],
   },
 });

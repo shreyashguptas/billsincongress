@@ -28,7 +28,7 @@
  *   export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)
  *   ./node_modules/.bin/tsx scripts/truth/dump.ts
  *
- * Or, with no deploy key, as a user logged in with `npx convex login`:
+ * Or, with no deploy key, as a user logged in with `pnpm exec convex login`:
  *   ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment prod
  * `prod` needs a checkout linked to the project (CONVEX_DEPLOYMENT set). Without
  * one, pass the production deployment's name instead; anything else is refused.
@@ -74,7 +74,7 @@ const KEY_HELP =
   "CONVEX_DEPLOY_KEY is not set, so there is no deployment to export from.\n\n" +
   "  export $(grep -E '^CONVEX_DEPLOY_KEY=' <main-checkout>/.env | xargs)\n" +
   "  ./node_modules/.bin/tsx scripts/truth/dump.ts\n\n" +
-  "Or, logged in with `npx convex login` and no key:\n" +
+  "Or, logged in with `pnpm exec convex login` and no key:\n" +
   "  ./node_modules/.bin/tsx scripts/truth/dump.ts --deployment prod\n" +
   "  (or the production deployment's name, if this checkout is not linked to the project)\n\n" +
   "The key selects the deployment on its own — do NOT also pass --prod, and do\n" +
@@ -241,7 +241,7 @@ function main(): void {
     console.log(`Exporting production tables to ${ZIP_PATH} ...`);
     // No --include-file-storage: that flag only ADDS stored files, and we want
     // strictly less than the default, not more.
-    execFileSync("npx", ["convex", "export", "--path", ZIP_PATH, ...deployment], {
+    execFileSync("pnpm", ["exec", "convex", "export", "--path", ZIP_PATH, ...deployment], {
       stdio: "inherit",
     });
 

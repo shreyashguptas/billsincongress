@@ -126,7 +126,7 @@ const COMPLETENESS_SCAN_CAP = 4000; // safety bound on incomplete rows read
  * table (no bills scan); complete = total - incomplete. `truncated` is true if
  * the incomplete set exceeded the safety cap (signals something is badly wrong).
  *
- * Internal-only; CLI:  npx convex run sync:getSyncCompleteness '{}'
+ * Internal-only; CLI:  pnpm exec convex run sync:getSyncCompleteness '{}'
  */
 export const getSyncCompleteness = internalQuery({
   args: {

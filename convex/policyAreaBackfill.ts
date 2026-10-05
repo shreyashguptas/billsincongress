@@ -12,9 +12,9 @@ import {
  * reads (see the note in convex/schema.ts). Reads only data already in Convex —
  * no Congress.gov API calls.
  *
- *     npx convex run --prod policyAreaBackfill:run '{}'
+ *     pnpm exec convex run --prod policyAreaBackfill:run '{}'
  *     # smaller batches if the logs show transaction-limit errors:
- *     npx convex run --prod policyAreaBackfill:run '{"batchSize": 100}'
+ *     pnpm exec convex run --prod policyAreaBackfill:run '{"batchSize": 100}'
  *
  * Idempotent: a bill whose stored value already matches is skipped. Check
  * progress with `policyAreaBackfill:status`.
@@ -99,7 +99,7 @@ export const backfillBatch = internalMutation({
  * disagree — the count comes from `congressPolicyAreas` (derived from
  * `billSubjects`), the list filters on `bills.policyAreaName`.
  *
- *     npx convex run --prod policyAreaBackfill:status '{}'
+ *     pnpm exec convex run --prod policyAreaBackfill:status '{}'
  *
  * `drifted` counts probed bills with a policy area in `billSubjects` but not on
  * the bill — counted but not listable, so it MUST be 0; if it isn't, re-run

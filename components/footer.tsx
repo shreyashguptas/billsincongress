@@ -1,5 +1,5 @@
 import { ModeToggle } from '@/components/theme/mode-toggle';
-import { Github } from 'lucide-react';
+import { CodeXml } from 'lucide-react';
 import Link from 'next/link';
 import { Logo } from '@/components/brand/logo';
 import { InstallAppButton } from '@/components/pwa/install-app-button';
@@ -95,7 +95,7 @@ export function Footer() {
                   rel="noopener noreferrer"
                   className={linkClass}
                 >
-                  <Github className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+                  <CodeXml className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
                   Source
                 </a>
               </li>

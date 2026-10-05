@@ -189,7 +189,7 @@ export const queueDepthPage = internalQuery({
  * scans: Convex caps a transaction at 32,000 documents and the queue can hold
  * 55,000.
  *
- *   npx convex run --prod internal.indexNow.queueDepth '{}'
+ *   pnpm exec convex run --prod internal.indexNow.queueDepth '{}'
  */
 export const queueDepth = internalAction({
   args: {},
@@ -322,7 +322,7 @@ export const seedEnqueuePage = internalMutation({
  * drains ~4,000 URLs a day. Progress lives in the queue table rather than in a
  * scheduled chain, so a failure part-way resumes rather than restarts.
  *
- *   npx convex run --prod internal.indexNow.seedBacklog
+ *   pnpm exec convex run --prod internal.indexNow.seedBacklog
  */
 export const seedBacklog = internalAction({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
@@ -381,7 +381,7 @@ export const clearSeedQueueBatch = internalMutation({
  * Abandon the backlog seed, leaving real changes queued — an escape hatch that
  * stops the 55,000-page seed without stopping real change announcements.
  *
- *   npx convex run --prod internal.indexNow.clearSeedQueue '{}'
+ *   pnpm exec convex run --prod internal.indexNow.clearSeedQueue '{}'
  */
 export const clearSeedQueue = internalAction({
   args: {},

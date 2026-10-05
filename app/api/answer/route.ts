@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     );
     const message =
       upstream.status === 404
-        ? 'The answer service is not deployed yet. Run `npx convex deploy`.'
+        ? 'The answer service is not deployed yet. Run `pnpm exec convex deploy`.'
         : 'Failed to get a response.';
     return new Response(
       `event: error\ndata: ${JSON.stringify({ message })}\n\n`,
