@@ -240,10 +240,15 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
       // Asked "which California member introduced the fewest bills?", gpt-oss
       // passed limit 0 with the right sort, got "shown 0 of 54", and told the
       // reader the name "cannot be determined" with lookups to spare (2026-10-05).
+      // The ranking is named only when this result's order supports it: the hint
+      // must not promise "the fewest" from a fetch that comes back unsorted.
       payload.count_only =
         `This was a count only, so no rows came back. The total is exact. To NAME one or more ` +
-        `of them — the first, the most, the fewest — fetch again with the same filters and a ` +
-        `limit of 1 or more.`;
+        `of them, fetch again with a limit of 1 or more` +
+        (report.order === "arbitrary"
+          ? `. To name the first, the most or the fewest, also pass the sort that orders them; ` +
+            `without one the rows are in no meaningful order.`
+          : ` and the same filters, sort included.`);
     } else if ((report.total ?? 0) > report.shown) {
       payload.rows_are_a_sample_of_a_known_total =
         `You were shown ${report.shown} of ${report.total}. The TOTAL is exact and you may state ` +

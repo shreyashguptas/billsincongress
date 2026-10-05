@@ -170,8 +170,14 @@ it("a count-only result says how to name one, instead of 'shown 0 of 54'", () =>
   // be determined".
   const payload = parse([], completeReport({ set: "s", total: 54, shown: 0, order: "fewest_bills_first" }));
   assert.equal(payload.total, 54);
-  assert.match(payload.count_only, /fetch again .* limit of 1 or more/);
+  assert.match(payload.count_only, /fetch again with a limit of 1 or more and the same filters, sort included/);
   assert.equal(payload.rows_are_a_sample_of_a_known_total, undefined);
+});
+
+it("a count-only hint never promises a ranking the count was not sorted for", () => {
+  const payload = parse([], completeReport({ set: "s", total: 54, shown: 0, order: "arbitrary" }));
+  assert.match(payload.count_only, /also pass the sort that orders them/);
+  assert.ok(!/same filters/.test(payload.count_only), payload.count_only);
 });
 
 it("an empty complete result is not called a count-only one", () => {
