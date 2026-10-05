@@ -1963,8 +1963,9 @@ under TS 7, and editors need the native TypeScript 7 extension. The Convex code'
 **There is no linter or formatter in this repository** — no ESLint, Prettier or Biome
 dependency and no config file. The static gates are TypeScript (`next build` type-checks and
 fails on an error; `next.config.mjs` has no `typescript` block to turn that off), the explicit
-`tsc --noEmit` in the review workflow, and the three repository-invariant guards described
-below. Any claim that "the build includes lint" is
+`tsc --noEmit` in the review workflow, `tsc --noEmit -p convex` in `ci.yml` (the check `convex
+deploy` runs, with `convex/`'s own ES2021 tsconfig, and the only gate on it before a merge), and
+the three repository-invariant guards described below. Any claim that "the build includes lint" is
 false.
 
 ### The test system
