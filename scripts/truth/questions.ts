@@ -348,6 +348,32 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
 
+  {
+    id: "wildfire-titles",
+    question:
+      `How many measures in the ${CURRENT_CONGRESS}th Congress have "wildfire" or ` +
+      `"wildfires" in their title?` + ONE_NUMBER,
+    defect:
+      "Asked from /bills on 2026-10-05, the count was right (76) but the reader saw " +
+      "the model thinking out loud around it: a draft, then \"Let me also consider " +
+      "whether the reader means… Actually, the title search is a reasonable proxy " +
+      "here. The question asks… That's a good answer. Let me state it.\", then the " +
+      "answer again. Any visible working-out scores WRONG (check-answers.ts).",
+    expect: (db) => {
+      const n = count(billsIn(db, CURRENT_CONGRESS), (b) =>
+        (b.title ?? "").toLowerCase().includes("wildfire"),
+      );
+      return {
+        kind: "number",
+        value: n,
+        note:
+          `Measures (bills and resolutions) in the ${CURRENT_CONGRESS}th whose title ` +
+          `contains "wildfire", which includes "wildfires". 76 on 2026-10-05; 68 ` +
+          `would mean "wildfires" was missed, 65 that resolutions were dropped.`,
+      };
+    },
+  },
+
   // --- Confident zeroes over a capped, in-memory-filtered window ------------
   {
     id: "health-laws",

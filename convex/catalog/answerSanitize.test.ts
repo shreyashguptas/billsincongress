@@ -174,13 +174,28 @@ it("drops a whole leading run of deliberation", () => {
   assert.equal(result.removed.length, 3);
 });
 
-it("keeps deliberation-shaped narration once the answer has started", () => {
-  // Rule 1 is leading-only on purpose: dropping mid-answer paragraphs risks
-  // deleting prose that merely opens with a stray "Let's".
-  const answer =
+it("drops a dangling 'Let's look at…' after the answer, but never the facts around it", () => {
+  // Until 2026-10-05 a mid-answer "Let's" sentence was always kept, for fear of
+  // deleting prose. Removing only the SENTENCE keeps that promise: the fact
+  // stays, and a reader is not left with a promise nothing below keeps.
+  const dangling =
     "Sixty-four House bills became law in the 119th Congress.\n\n" +
     "Let's look at what they have in common.";
-  assert.deepEqual(sanitizeAnswer(answer), { text: answer, removed: [] });
+  assert.deepEqual(sanitizeAnswer(dangling), {
+    text: "Sixty-four House bills became law in the 119th Congress.",
+    removed: ["Let's look at what they have in common."],
+  });
+  // One transitional line between two paragraphs of answer is not a restart:
+  // the headline fact above it must survive.
+  const between =
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+    "Let's look at what they have in common.\n\n" +
+    "Most rename post offices or extend existing programs.";
+  assert.equal(
+    sanitizeAnswer(between).text,
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+      "Most rename post offices or extend existing programs.",
+  );
 });
 
 it("does not read ordinary legislative prose as a process marker", () => {
@@ -481,6 +496,115 @@ it("keeps first lines that are not an echo", () => {
   ]) {
     assert.equal(dropQuestionEcho(answer, question).text, answer, answer);
   }
+});
+
+// --- Thinking out loud AFTER the answer started (2026-10-05) ---------------
+//
+// Verbatim from production, asked "how many bills about wildfire were
+// introduced" from /bills. Every rule above looks only at the front of a reply,
+// so all of it reached the reader. 76 is right: 76 measures in the 119th have
+// "wildfire" in their title.
+const WILDFIRE_LIVE =
+  'The total is exact: 76 measures in the 119th Congress have "wildfire" in their title. But "wildfire" could appear in titles of bills that are about other things too. Let me also consider whether the reader means bills specifically about wildfire, not just mentioning it. The title search matches any bill whose title contains the word. Let me also check the Emergency Management policy area, which is where wildfire bills would most likely be categorized.\n\n' +
+  'Actually, the title search is a reasonable proxy here. The question asks "how many bills about wildfire were introduced." The title search found 76 measures with "wildfire" in the title. That\'s a good answer. Let me state it.\n\n' +
+  'In the 119th Congress, 76 measures introduced so far have "wildfire" in their title. That\'s a snapshot taken today (October 5, 2026), and the Congress is still in session until January 2027, so that number will grow as more bills are filed.\n\n' +
+  'Note that this counts measures (bills plus resolutions), and it\'s a title search — so it captures bills whose titles mention wildfire, which is a good proxy for "about wildfire."';
+
+it("publishes only the answer the model wrote after it finished thinking out loud", () => {
+  const { text, removed } = sanitizeAnswer(WILDFIRE_LIVE, "how many bills about wildfire were introduced");
+  assert.ok(text.startsWith("In the 119th Congress, 76 measures introduced so far"), text);
+  for (const leak of ["Let me", "Actually,", "The question asks", "That's a good answer", "the reader means"]) {
+    assert.ok(!text.includes(leak), `still shows: ${leak}`);
+  }
+  assert.ok(text.includes("76 measures"));
+  assert.equal(removed.length >= 2, true);
+});
+
+it("drops 'The total is exact:' but keeps the fact it introduces", () => {
+  assert.equal(
+    sanitizeAnswer('The total is exact: 76 measures in the 119th Congress have "wildfire" in their title.').text,
+    '76 measures in the 119th Congress have "wildfire" in their title.',
+  );
+});
+
+it("drops a closing offer to help further", () => {
+  assert.equal(
+    sanitizeAnswer("Thirty-one health bills became law in the 118th Congress.\n\nLet me know if you want the full list.").text,
+    "Thirty-one health bills became law in the 118th Congress.",
+  );
+});
+
+it("keeps the cards from a discarded draft when the final answer has none", () => {
+  const answer =
+    "Two wildfire bills became law.\n\n[[bills:1234hr119,5678s119]]\n\n" +
+    "Let me also check whether any passed the Senate. The question asks only about laws. Let me state it.\n\n" +
+    "Two wildfire bills became law in the 119th Congress.";
+  const { text } = sanitizeAnswer(answer);
+  assert.equal(text, "Two wildfire bills became law in the 119th Congress.\n\n[[bills:1234hr119,5678s119]]");
+});
+
+it("never treats real answer sentences as thinking", () => {
+  for (const answer of [
+    "Actually, only 5 of those 76 became law.",
+    "H.R. 5 passed the House in May 2025.\n\nActually, the Senate has not voted on it, so it is not law.",
+    "Actually, none of them became law.",
+    "The question is whether the Senate will act before January.",
+    "H.R. 5 passed the House in May 2025.\n\nI should note that the Senate has not voted on it, so it is not law.",
+    "The results show that 5 of them became law.",
+    "Based on the data, 76 measures mention wildfire in their title.",
+    "Let me note that five of them became law.",
+    "Five wildfire bills passed the House.\n\nI will be brief: none of them became law.",
+    "76 measures in the 119th Congress mention wildfire in their title.\n\nLet's start with the House, where 40 were introduced. Let's look at the Senate next, where 36 were.",
+    "Let's look at the Senate, where forty were introduced.",
+    "The Let Me Travel America Act was introduced in March. Let Me Travel America Act cosponsors are not tracked here.",
+    "The user fees in the bill fund food-safety inspections.",
+    "The Reader Privacy Act would limit what booksellers share.",
+    "That's a snapshot taken today, and the count will grow while Congress is in session.",
+    "I could not find any bill about that in the 119th Congress.",
+  ]) {
+    assert.deepEqual(sanitizeAnswer(answer), { text: answer, removed: [] }, answer);
+  }
+});
+
+// Review findings on #166.
+it("keeps the headline fact when an answer has several one-line transitions", () => {
+  const answer =
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+    "Let's look at what they have in common.\n\n" +
+    "Most rename post offices or extend existing programs.\n\n" +
+    "Let's look at who sponsored them.\n\n" +
+    "Most were sponsored by Republicans.";
+  assert.equal(
+    sanitizeAnswer(answer).text,
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+      "Most rename post offices or extend existing programs.\n\n" +
+      "Most were sponsored by Republicans.",
+  );
+});
+
+it("keeps the headline when the model continues after thinking instead of restarting", () => {
+  // Review finding on 82b7a53: nothing checked that the text after the thinking
+  // repeated the draft. Here it adds a new fact, so the first one must stay.
+  const answer =
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+    "Let me check the Senate side as well. Let me look at vetoes too.\n\n" +
+    "Two bills were vetoed by the President.";
+  assert.equal(
+    sanitizeAnswer(answer).text,
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+      "Two bills were vetoed by the President.",
+  );
+});
+
+it("recognises a reply made only of the new thinking shapes as no answer", () => {
+  assert.equal(isAllDeliberation("The question asks about wildfire. That's a good answer."), true);
+  assert.equal(isAllDeliberation("Let me know if you want more."), true);
+  assert.equal(isAllDeliberation("76 measures have wildfire in their title. That's a good answer."), false);
+});
+
+it("never empties an answer that is all thinking", () => {
+  const all = "Let me check the topics. Actually, let me look at the stages instead.";
+  assert.deepEqual(sanitizeAnswer(all), { text: all, removed: [] });
 });
 
 if (failures.length > 0) {

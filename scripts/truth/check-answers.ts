@@ -142,6 +142,42 @@ function scoreExtraction(expected: Expected, extraction: Extraction): RunResult 
   return { outcome: ok ? "CORRECT" : "WRONG", got: String(extraction.value) };
 }
 
+/**
+ * The model thinking out loud where the reader can see it.
+ *
+ * Written here rather than imported from convex/catalog/answerSanitize.ts for
+ * the same reason the oracle is (questions.ts): a check built on the code it
+ * checks agrees with every bug in it. Production showed a reader "Let me also
+ * consider whether the reader means… Let me state it." on 2026-10-05, around a
+ * correct number; a scorer that read only the number called that a pass.
+ */
+const WORKING_OUT: RegExp[] = [
+  /(?:^|[.!?]\s+|\n\s*)(?:now )?let(?:'s| me| us) (?!know\b)/i,
+  /(?:^|[.!?]\s+|\n\s*)actually, let\b/i,
+  /\bthe (?:reader|user) (?:means|meant|wants|is asking|asked|might mean)\b/i,
+  /(?:^|[.!?]\s+|\n\s*)the question (?:asks|is asking|wants)\b/i,
+  /(?:^|[.!?]\s+|\n\s*)that's (?:a |the )?(?:good|right|correct|reasonable) (?:answer|proxy|approach)\b/i,
+  /(?:^|[.!?]\s+|\n\s*)(?:the )?(?:total|count|result) is (?:exact|complete)\b/i,
+];
+
+/** A sentence naming legislation ("Let's Get to Work Act") is about Congress. */
+const NAMES_LEGISLATION = /\b(?:Act|Resolution|Amendment)\b/;
+
+/** The first piece of working-out in an answer, or null when there is none. */
+export function workingOut(text: string): string | null {
+  for (const re of WORKING_OUT) {
+    const global = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
+    for (const m of text.matchAll(global)) {
+      const from = m.index ?? 0;
+      const end = text.slice(from + 1).search(/[.!?\n]/);
+      const sentence = text.slice(from, end < 0 ? text.length : from + 1 + end);
+      if (NAMES_LEGISLATION.test(sentence)) continue;
+      return text.slice(from, from + 80).trim();
+    }
+  }
+  return null;
+}
+
 export function scoreRun(expected: Expected, result: AskResult): RunResult {
   if (result.error) return { outcome: "UNCHECKABLE", got: result.error };
   if (result.askedReader) {
@@ -153,6 +189,10 @@ export function scoreRun(expected: Expected, result: AskResult): RunResult {
   }
   const text = (result.text ?? "").trim();
   if (text.length === 0) return { outcome: "UNCHECKABLE", got: "empty answer" };
+  // Right number or not, a reader who watched the model deliberate got a broken
+  // answer. Scored before the claim, so a correct figure cannot hide it.
+  const leak = workingOut(text);
+  if (leak) return { outcome: "WRONG", got: `showed its working-out: "${leak}…"`, said: flatten(text) };
 
   const scored = scoreText(expected, text);
   return scored.outcome === "CORRECT" ? scored : { ...scored, said: flatten(text) };

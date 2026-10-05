@@ -122,6 +122,26 @@ it("survives being built without a date, rather than throwing", () => {
   assert.ok(!bare.includes(TODAY));
 });
 
+it("asks for short answers that lead with the answer and stop", () => {
+  // The owner's rule, 2026-10-05: answer exactly what was asked, short and
+  // linked. The old "two to four short paragraphs" invited a closing paragraph
+  // of caveats every time.
+  assert.match(prompt, /answer in the first sentence/i);
+  assert.match(prompt, /one to three sentences/i);
+  assert.match(prompt, /no closing paragraph/i);
+  assert.ok(!/two to four short paragraphs/i.test(prompt), "the old length rule is back");
+});
+
+it("tells the model to write the answer once, not a draft it then reconsiders", () => {
+  // Production, 2026-10-05: a draft, two paragraphs of "Actually… the question
+  // asks… Let me state it.", then the answer again. The sanitiser now cuts that;
+  // this is the request not to write it at all.
+  assert.match(prompt, /write the answer once/i);
+  for (const tell of ["Actually…", "The question asks…", "the reader means…"]) {
+    assert.ok(prompt.includes(tell), `the prompt no longer names ${tell}`);
+  }
+});
+
 if (failures.length > 0) {
   console.error(`catalog/tools — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));
