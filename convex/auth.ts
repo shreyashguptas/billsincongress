@@ -9,7 +9,7 @@ import { EmailVerificationCode, PasswordResetCode } from "./emailCodes";
 // with no requests (inactiveDurationMs) or 60 days since sign-in
 // (totalDurationMs), whichever fires first.
 //
-// MUST stay in sync with `cookieConfig.maxAge` in `proxy.ts`: cookie expiry has
+// MUST stay in sync with `SESSION_COOKIE_MAX_AGE_SECONDS` in `middleware.ts`: cookie expiry has
 // to be >= refresh-token expiry, or users get signed out on cookie expiry even
 // though the server-side session is still valid.
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 60; // 60 days

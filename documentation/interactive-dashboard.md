@@ -262,7 +262,7 @@ below, not performance.
 | Cron `daily-recompute-stats`, 04:00 UTC | `congressStats` for every Congress with bills, then both chamber breakdowns. **Not** policy areas or sponsors. |
 | A sync batch finishing the last page of a (Congress, bill type) | Stats, policy areas, sponsors, and that chamber's breakdown. In practice this fires nightly, off `daily-incremental-sync` (01:00 UTC), and weekly off `weekly-full-sync` (Sun 02:00 UTC) — both of which only touch the **current** Congress |
 | `reconcileMissingBills` completing a Congress | Stats, policy areas, sponsors, both chamber breakdowns |
-| `npx convex run --prod congressApi:triggerRecomputeStats '{}'` | Wraps `recomputeAllStats` |
+| `pnpm exec convex run --prod congressApi:triggerRecomputeStats '{}'` | Wraps `recomputeAllStats` |
 
 The nightly entry point is `incrementalSync`. (A legacy `dailySync` wrapper around it, wired
 to no cron, was deleted on 1 Oct 2026.)

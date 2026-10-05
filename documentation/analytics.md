@@ -754,12 +754,12 @@ Notes:
 
 ### PostHog CLI
 
-`@posthog/cli` is installed as a dev dependency (`npx posthog-cli --help`).
-Authenticate once with `npx posthog-cli login`. It is used for ad-hoc queries and by one
+`@posthog/cli` is installed as a dev dependency (`pnpm exec posthog-cli --help`).
+Authenticate once with `pnpm exec posthog-cli login`. It is used for ad-hoc queries and by one
 script, `pnpm posthog:self-driving` (`scripts/posthog-self-driving-setup.ts`, see "PostHog
-Self-driving" above), which calls its `api` commands to configure the Inbox. `posthog-cli`
-0.7.34 does not expose the `vision-scanners-*` tools, so the script currently skips the scanner
-step; the two monitors were created by PostHog's wizard on 13 Sep 2026. Nothing in the
+Self-driving" above), which calls its `api` commands to configure the Inbox. The script
+skips the scanner step when the CLI does not expose the `vision-scanners-*` tools, which 0.7.34
+did not (the CLI is now 0.18.9 and this has not been re-checked); the two monitors were created by PostHog's wizard on 13 Sep 2026. Nothing in the
 build or any GitHub workflow invokes it, so despite what an earlier version of this file said,
 **sourcemaps are not uploaded**. Stack traces in Error Tracking are therefore against minified
 production bundles. Wiring sourcemap upload into `cf:build` is an open improvement, not

@@ -1,6 +1,13 @@
+# Which dependencies may run install scripts. Since pnpm 11, a dependency with
+# an install script that is not listed here FAILS the install (strictDepBuilds),
+# so every entry is a decision: true runs the script, false skips it quietly.
 allowBuilds:
+  # Downloads the prebuilt posthog-cli binary that
+  # scripts/posthog-self-driving-setup.ts runs.
   '@posthog/cli': true
-  core-js: true
+  # Its postinstall only prints a funding message; core-js works without it.
+  # Pulled in by posthog-js.
+  core-js: false
+  # Fetch their platform binaries (the bundler, and Cloudflare's local runtime).
   esbuild: true
-  sharp: true
   workerd: true

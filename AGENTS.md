@@ -89,7 +89,7 @@ Everything visual is downstream of it:
 - **shadcn/ui is the component library**: `components/ui/` is shadcn/ui, themed through its
   CSS variables (mapped to the brand in `app/globals.css`). Use its components for every
   control — Button, Dialog, ToggleGroup, Select, Skeleton, Alert — and add a missing one
-  with `npx shadcn@2.3.0 add <component>` (the Tailwind 3 CLI). Files in `components/ui/`
+  with `pnpm dlx shadcn@2.3.0 add <component>` (the Tailwind 3 CLI). Files in `components/ui/`
   keep shadcn's class names; app code uses the brand names.
 
 Rules:
@@ -151,7 +151,7 @@ Three rules, in order of importance:
    REQUIRE_TRUTH_CACHE=1 pnpm test                 # turns the skips into failures
    ```
 
-   No deploy key? After `npx convex login`, run `dump.ts --deployment prod` instead (or the
+   No deploy key? After `pnpm exec convex login`, run `dump.ts --deployment prod` instead (or the
    production deployment's name in a checkout not linked to the project; `dump.ts` refuses any
    deployment that is not production).
 

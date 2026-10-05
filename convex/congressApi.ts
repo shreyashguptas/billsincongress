@@ -637,7 +637,7 @@ export const syncBillBatch = internalAction({
 
 /**
  * Sync a single bill for targeted remediation:
- *   npx convex run congressApi:syncOneBill '{"congress":118,"billType":"hr","billNumber":"5193"}'
+ *   pnpm exec convex run congressApi:syncOneBill '{"congress":118,"billType":"hr","billNumber":"5193"}'
  *
  * Does NOT refresh the congressStats rollups; bill aggregates still update
  * transactionally via the trigger-wrapped upsertBill. Run recomputeAllStats
@@ -769,7 +769,7 @@ const RECONCILE_CONGRESS_STAGGER_MS = 20 * 60 * 1000; // gap between congresses
  * time-budget stop it reschedules the SAME type, because the re-diff skips bills
  * inserted in the interrupted run. Refreshes the rollups after the last type.
  *
- *   npx convex run congressApi:reconcileMissingBills '{"congress":118}'
+ *   pnpm exec convex run congressApi:reconcileMissingBills '{"congress":118}'
  */
 export const reconcileMissingBills = internalAction({
   args: {
@@ -1251,8 +1251,8 @@ const STAGE_BACKFILL_BILLS_PER_RUN = 5000; // bills per invocation before self-s
  *
  * Pass `congress` to scope the sweep to the by_congress index instead of the
  * whole table — much faster, since the current congress otherwise sorts last:
- *   npx convex run congressApi:backfillBillFieldsFromActions '{}'
- *   npx convex run congressApi:backfillBillFieldsFromActions '{"congress":119}'
+ *   pnpm exec convex run congressApi:backfillBillFieldsFromActions '{}'
+ *   pnpm exec convex run congressApi:backfillBillFieldsFromActions '{"congress":119}'
  */
 export const backfillBillFieldsFromActions = internalAction({
   args: {
@@ -1360,7 +1360,7 @@ const ENRICHMENT_RESCHEDULE_MS = 2000; // gap between self-scheduled continuatio
  * later pass; a pass that enriched anything starts another, and the loop ends
  * once a full pass enriches nothing.
  *
- *   npx convex run congressApi:backfillBillEnrichment '{}'
+ *   pnpm exec convex run congressApi:backfillBillEnrichment '{}'
  */
 export const backfillBillEnrichment = internalAction({
   args: {
@@ -1508,7 +1508,7 @@ export const backfillBillEnrichment = internalAction({
  * still missing legislative subjects / text versions, plus the global total
  * remaining. Watch `remaining` trend to 0.
  *
- * Run from the CLI: `npx convex run congressApi:backfillEnrichmentStatus '{}'`.
+ * Run from the CLI: `pnpm exec convex run congressApi:backfillEnrichmentStatus '{}'`.
  */
 export const backfillEnrichmentStatus = internalAction({
   args: {},
@@ -1613,7 +1613,7 @@ export const recomputeAllStats = internalAction({
 
 /**
  * Trigger a recompute of all congress stats. Internal-only — call from the
- * CLI (`npx convex run congressApi:triggerRecomputeStats`) or from server
+ * CLI (`pnpm exec convex run congressApi:triggerRecomputeStats`) or from server
  * code via `ctx.runAction`. Not exposed to the client because the cascade
  * paginates every bill in every congress and would let any visitor amplify
  * Convex function-quota cost on demand.
@@ -1661,7 +1661,7 @@ export const recomputeAllSponsors = internalAction({
 
 /**
  * Kick off the sponsor backfill from the CLI:
- *   npx convex run congressApi:triggerRecomputeAllSponsors
+ *   pnpm exec convex run congressApi:triggerRecomputeAllSponsors
  *
  * Internal-only — the cascade paginates every bill in every congress.
  */
@@ -1676,7 +1676,7 @@ export const triggerRecomputeAllSponsors = internalAction({
  * Delete all bills for a specific congress. Internal-only — destructive
  * and irreversible (the next incremental sync only re-pulls the last 26
  * hours of activity, so historical congresses do NOT auto-recover). Run
- * from the CLI: `npx convex run congressApi:deleteCongress '{"congress": 108}'`.
+ * from the CLI: `pnpm exec convex run congressApi:deleteCongress '{"congress": 108}'`.
  */
 export const deleteCongress = internalAction({
   args: { congress: v.number() },

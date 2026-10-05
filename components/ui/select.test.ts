@@ -11,7 +11,7 @@
  * navigation away from the home page, which carries the Congress picker).
  *
  * The fix is one wrapping element in each place (components/ui/select.tsx).
- * Re-adding the file with `npx shadcn add select` would silently drop it, and
+ * Re-adding the file with `pnpm dlx shadcn@2.3.0 add select` would silently drop it, and
  * nothing else in the suite would notice, so this reads the file as text: the
  * component pulls in React and Radix, which do not load under `tsx`.
  *
