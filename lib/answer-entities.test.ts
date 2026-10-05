@@ -105,6 +105,17 @@ it('leaves a malformed directive as plain text rather than throwing', () => {
   assert.ok(blocks.every((b) => b.type === 'prose'));
 });
 
+// Live, 2026-10-05: "…with six measures introduced. [[sponsors:119:James Gallagher]]"
+it('never shows a card tag it cannot render', () => {
+  const blocks = splitAnswer(
+    'James Gallagher introduced the fewest. [[sponsors:119:James Gallagher]] Done [[party:R]].',
+    allow('sponsors:119:James Gallagher'),
+  );
+  const prose = blocks.filter((b) => b.type === 'prose').map((b) => (b as { text: string }).text).join('');
+  assert.ok(!prose.includes('[['), prose);
+  assert.ok(prose.includes('James Gallagher introduced the fewest.'));
+});
+
 it('does not mistake a citation marker for an entity directive', () => {
   const blocks = splitAnswer('Fact.[[cite:bills:1hr119]]', allow('bills:1hr119'));
   assert.ok(

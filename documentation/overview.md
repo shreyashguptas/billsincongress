@@ -895,7 +895,10 @@ is exactly those six.
 `bills:1234hr119`. The model is told to cite handles and forbidden from ever writing a URL.
 After the answer is written, every cited handle is checked against the exact set of rows it
 was given *that turn*; anything else is deleted from the text. Invented bill cards likewise
-do not render. The count of deletions is the `dropped` metric — the grounding-health number.
+do not render. A card written as a row handle (`[[sponsors:119:Name]]`, `[[topics:119:Health]]`)
+is rewritten to the card syntax (`[[sponsor:Name]]`, `[[topic:Health]]`) on the server, and any
+other `[[word:…]]` the page cannot render is removed rather than shown as raw text
+(`lib/answer-entities.ts`). The count of deletions is the `dropped` metric — the grounding-health number.
 
 This filters **citations and entity directives, not prose**. The sentences around them are
 never verified. A rising `dropped` means the catalog's `gotchas` need strengthening; that is

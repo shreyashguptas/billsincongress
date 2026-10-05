@@ -634,7 +634,12 @@ const LOOKALIKES: Array<[RegExp, string]> = [
   // gpt-oss's own citation bracket. It wrote "…Authorization Act (S. 2393)
   // 【cite:bills:2393s119]]" on 2026-10-05; left alone, the citation is not
   // recognised and the reader sees the raw marker.
-  [/【((?:cite|bills|topic|sponsor|state):[^\]】\n]*)(?:】|\]\])/g, "[[$1]]"],
+  [/【((?:cite|bills|topics?|sponsors?|state):[^\]】\n]*)(?:】|\]\])/g, "[[$1]]"],
+  // A card written as the row's own handle: "[[sponsors:119:James Gallagher]]"
+  // reached a reader as raw text on billsincongress.com on 2026-10-05, because
+  // the card syntax is [[sponsor:<name>]] and [[topic:<name>]].
+  [/\[\[sponsors:\d+:([^\]\n]+)\]\]/g, "[[sponsor:$1]]"],
+  [/\[\[topics:\d+:([^\]\n]+)\]\]/g, "[[topic:$1]]"],
 ];
 
 export function plainCharacters(text: string): string {

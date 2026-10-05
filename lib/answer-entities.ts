@@ -27,6 +27,17 @@ export type AnswerBlock =
  */
 export const ENTITY_PATTERN = /\[\[(?!cite:)(bills|topic|sponsor|state):([^\]]+?)\]\]/g;
 
+/**
+ * Any other `[[word:…]]`: a card in a form we do not render. Removed from the
+ * prose rather than shown, the way an invented entity is dropped. Live on
+ * 2026-10-05 a reader saw "[[sponsors:119:James Gallagher]]" as raw text.
+ */
+const UNKNOWN_DIRECTIVE = /\[\[(?!cite:)[a-z_]+:[^\]]*\]\]/g;
+
+function withoutUnknownDirectives(text: string): string {
+  return text.replace(UNKNOWN_DIRECTIVE, '');
+}
+
 function slugify(s: string): string {
   return s
     .toLowerCase()
@@ -87,7 +98,7 @@ export function splitAnswer(text: string, allowed: Set<string>): AnswerBlock[] {
       .filter((r): r is EntityRef => r !== null);
 
     // Emit the prose before this directive regardless of whether it resolved.
-    const before = text.slice(cursor, start);
+    const before = withoutUnknownDirectives(text.slice(cursor, start));
     if (before !== '') blocks.push({ type: 'prose', text: before });
     cursor = start + full.length;
 
@@ -96,8 +107,8 @@ export function splitAnswer(text: string, allowed: Set<string>): AnswerBlock[] {
     }
   }
 
-  const rest = text.slice(cursor);
+  const rest = withoutUnknownDirectives(text.slice(cursor));
   if (rest !== '') blocks.push({ type: 'prose', text: rest });
 
-  return blocks.length > 0 ? blocks : [{ type: 'prose', text }];
+  return blocks.length > 0 ? blocks : [{ type: 'prose', text: withoutUnknownDirectives(text) }];
 }
