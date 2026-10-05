@@ -2064,8 +2064,10 @@ site step does not run.
 `convex deploy` against production on every push to `main`, using the `CONVEX_DEPLOY_KEY`
 secret of the `Production` environment, before the site is built. It runs whether or not
 `convex/` changed: deploying an unchanged folder is harmless, and it corrects any drift on the
-next merge. The step refuses to run without the secret, or with a key that does not start with
-`prod:`, because a preview key would deploy to a preview copy and still report success.
+next merge. The step refuses to run without the secret, with a key that does not start with `prod:`
+(a preview key would deploy to a preview copy and still report success), or with one that
+starts or ends with a space, line break or quote mark (a sign it was pasted with extra
+characters). None of its error messages print the key.
 
 **Setting up or replacing the key** (once, or whenever it is rotated):
 
