@@ -230,7 +230,7 @@ export const getJourney = query({
 /**
  * Read-only diagnostic: a bill's stored actions, plus stored vs freshly
  * computed stage.
- *   npx convex run bills:debugBillStage '{"billId":"4199s118"}'
+ *   pnpm exec convex run bills:debugBillStage '{"billId":"4199s118"}'
  */
 export const debugBillStage = internalQuery({
   args: { billId: v.string() },
@@ -272,7 +272,7 @@ export const debugBillStage = internalQuery({
  * Read-only spot-check for the enrichment backfill. Compare the subject count
  * against the live `/subjects` `pagination.count` (1hr119 ≈ 239) to confirm
  * fidelity.
- *   npx convex run bills:debugBillEnrichment '{"billId":"1hr119"}'
+ *   pnpm exec convex run bills:debugBillEnrichment '{"billId":"1hr119"}'
  */
 export const debugBillEnrichment = internalQuery({
   args: { billId: v.string() },

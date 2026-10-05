@@ -196,7 +196,7 @@ this document does. Both resolve to the same values.
 ### Adding a component
 
 ```bash
-npx shadcn@2.3.0 add <component>
+pnpm dlx shadcn@2.3.0 add <component>
 ```
 
 Version 2.3.0 is the last CLI for Tailwind 3, which this site uses. The CLI

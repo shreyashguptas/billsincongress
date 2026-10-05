@@ -106,7 +106,7 @@ function ask(question: TruthQuestion): AskResult {
 
   let stdout: string;
   try {
-    stdout = execFileSync("npx", ["convex", "run", "answer:ask", JSON.stringify(args)], {
+    stdout = execFileSync("pnpm", ["exec", "convex", "run", "answer:ask", JSON.stringify(args)], {
       encoding: "utf8",
       timeout: ASK_TIMEOUT_MS,
       maxBuffer: 32 * 1024 * 1024,

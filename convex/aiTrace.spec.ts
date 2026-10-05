@@ -180,7 +180,7 @@ describe("recording an answer as a PostHog trace", () => {
     const [first, , second] = batches()[0];
     const input = first.properties.$ai_input as Array<{ role: string; content: string | null }>;
     expect(input[0].role).toBe("system");
-    expect(input.at(-1)).toEqual({ role: "user", content: "Which bills about llamas became law?" });
+    expect(input[input.length - 1]).toEqual({ role: "user", content: "Which bills about llamas became law?" });
     expect(first.properties.$ai_model).toBe("openai/gpt-oss-120b");
     // The failover is the same model on another host, so the host is what shows it.
     expect(first.properties.openrouter_host).toBe("Cerebras");
@@ -206,7 +206,8 @@ describe("recording an answer as a PostHog trace", () => {
   test("the trace holds the reader's question and the answer they were shown", async () => {
     const t = setup();
     await ask(t);
-    const trace = batches()[0].at(-1)!;
+    const batch = batches()[0];
+    const trace = batch[batch.length - 1]!;
     // Chat messages, not bare strings: PostHog's trace view shows nothing for a string.
     expect(trace.properties.$ai_input_state).toEqual([
       { role: "user", content: "Which bills about llamas became law?" },

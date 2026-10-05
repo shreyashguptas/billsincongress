@@ -72,8 +72,8 @@ test("narration with no tool call gets a nudge, not the canned apology", async (
   expect(requests).toHaveLength(2);
   // The retry still offers the tools, so the model can make the lookup it described.
   expect(requests[1].tools).toBeDefined();
-  expect(requests[1].messages.at(-1)?.role).toBe("user");
-  expect(requests[1].messages.at(-1)?.content).toMatch(/call a tool now/);
+  expect(requests[1].messages[requests[1].messages.length - 1]?.role).toBe("user");
+  expect(requests[1].messages[requests[1].messages.length - 1]?.content).toMatch(/call a tool now/);
   // A work entry per retry, so the client's stall watchdog restarts.
   expect(result.workLog.filter((e) => e.tool === "retry")).toEqual([
     { tool: "retry", detail: "checking again" },
@@ -115,7 +115,7 @@ test("a lookup written as text is not published, and its invented number never r
   expect(result.text).toBe("No bill in the 119th Congress matches that.");
   expect(requests).toHaveLength(2);
   expect(requests[1].tools).toBeDefined();
-  expect(requests[1].messages.at(-1)?.content).toMatch(/was not run/);
+  expect(requests[1].messages[requests[1].messages.length - 1]?.content).toMatch(/was not run/);
   // The rejected reply is not fed back as something the model "retrieved".
   expect(JSON.stringify(requests[1].messages)).not.toContain("1,557");
   expect(JSON.stringify(requests[1].messages)).not.toContain("fetch_dataset(");
