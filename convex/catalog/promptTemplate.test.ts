@@ -50,6 +50,13 @@ it("buildSystemPrompt ignores an invalid template for the default", () => {
   assert.ok(out.includes("2026-10-05"), "the calendar slot was filled");
 });
 
+// Both found by comparing versions on real data, 2026-10-05.
+it("sends 'summarize' to the official summary, and reads a count's total, not its empty rows", () => {
+  assert.match(DEFAULT_TEMPLATE, /"summarize".*official summary in `bill_summaries`/);
+  assert.match(DEFAULT_TEMPLATE, /Empty rows there are not "none"; read the total/);
+  assert.match(DEFAULT_TEMPLATE, /a count has no rows, so it gets no cards/);
+});
+
 it("the browser looks for the same prompt name the server serves", () => {
   const source = readFileSync(new URL("../../lib/analytics.ts", import.meta.url), "utf8");
   assert.ok(source.includes(`const ANSWER_PROMPT_NAME = '${ANSWER_PROMPT_NAME}'`));

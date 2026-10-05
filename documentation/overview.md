@@ -1045,9 +1045,11 @@ version number (`readPromptVersion`). A version not copied yet is fetched in the
 the browser, where PostHog's flags are already loaded, adds no wait to the answer.
 
 Versions: **1** is the prompt live through 2026-10-05; **2** is the 2026-10-05 rewrite (same
-rules, grouped, 30% shorter), labelled `production` and identical to `DEFAULT_TEMPLATE`.
-Measured on the production data copy, 3 runs each: both 20 of 21, version 2 with slightly
-shorter answers and fewer instruction tokens per call.
+rules, grouped, 30% fewer instruction tokens); **3**, labelled `production` and identical to
+`DEFAULT_TEMPLATE`, adds the two rules version 2 was found to need: "summarize" means the
+official summary (version 2 described the bill's row instead, 3 runs of 3), and cards only
+for fetched ids. Measured on the production data copy, 3 runs each: version 1 got 20 of 21
+every run, version 3 got 21, 20 and 21, and the grounding gate passed 16 of 16 in 3 runs.
 
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
 `POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional
