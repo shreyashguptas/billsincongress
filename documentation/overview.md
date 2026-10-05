@@ -759,8 +759,12 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │                           A reply that is only narration, or that writes a
                  │                           lookup out as text (`fetch_dataset(…)`, `query:` +
                  │                           `reason:` lines, `{"name":…}` JSON), counts as none
-                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts (also a first
-                 │                          line that only repeats the end of the question)
+                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts: leading
+                 │                          narration, leaked field names, thinking mid-answer
+                 │                          (a draft + "Actually… Let me state it." + the answer
+                 │                          again keeps only the last; stray "Let me…" sentences
+                 │                          and "Let me know if…" closers go one by one), and a
+                 │                          first line that only repeats the end of the question
                  ├─ citation resolution → convex/catalog/cite.ts
                  ├─ SSE frames back: work · delta · done · rate_limited · error
                  │    (the proxy adds `: keep-alive` comments between them)
@@ -904,7 +908,7 @@ confident, cited, wrong sentence.
 | `dump.ts` | Copies the raw legislative tables out of production into `.truth-cache/` (gitignored). Read-only; keeps only public tables and deletes the rest of the export immediately |
 | `fakedb.ts` | A stand-in for `ctx.db` over that copy. Parses the index definitions straight out of `convex/schema.ts`, so it cannot drift, and throws on an index that does not exist |
 | `handlers.test.ts` | Runs the **real** fetch handlers against the **real** data, locally, with no deployment. This is where the accuracy fixes are actually proven |
-| `questions.ts` / `check-answers.ts` | Ask production a fixed set of factual questions and score each answer against truth computed from raw rows |
+| `questions.ts` / `check-answers.ts` | Ask production a fixed set of factual questions and score each answer against truth computed from raw rows. An answer that shows the model's working-out ("Let me…", "the reader means…") scores WRONG even when its number is right |
 | `extract.ts` | Pulls a checkable claim out of an answer's prose. Deliberately strict — it refuses rather than guesses, because a lenient extractor scores a wrong answer as a pass |
 
 Two rules make this worth having. **The oracle shares no code with the system under test** — a
@@ -2088,17 +2092,36 @@ site step does not run.
 `convex deploy` against production on every push to `main`, using the `CONVEX_DEPLOY_KEY`
 secret of the `Production` environment, before the site is built. It runs whether or not
 `convex/` changed: deploying an unchanged folder is harmless, and it corrects any drift on the
-next merge. The step refuses to run without the secret, or with a key that does not start with
-`prod:`, because a preview key would deploy to a preview copy and still report success.
+next merge. The step refuses to run without the secret, with a key that does not start with `prod:`
+(a preview key would deploy to a preview copy and still report success), or with one that
+starts or ends with a space, line break or quote mark (a sign it was pasted with extra
+characters). None of its error messages print the key.
 
 **Setting up or replacing the key** (once, or whenever it is rotated):
 
 1. The `Production` environment (Settings → Environments) must allow deployments from the
    `main` branch only. That rule is what keeps the key away from every other branch.
-2. `pnpm exec convex deployment token create github-actions-production --deployment industrious-llama-331`
-   prints a new production key.
-3. `gh secret set CONVEX_DEPLOY_KEY --env Production` and paste it.
-4. Delete the old key with `pnpm exec convex deployment token delete <name> --deployment industrious-llama-331`.
+2. Create a new production key and store it in one command, so it is never pasted by hand
+   or shown on screen (`<name>` is any new label, such as `github-actions-ci`):
+
+   ```bash
+   key=$(pnpm exec convex deployment token create <name> --deployment industrious-llama-331 | grep -o 'prod:[^[:space:]]*') && [ -n "$key" ] && printf %s "$key" | gh secret set CONVEX_DEPLOY_KEY --env Production --repo shreyashguptas/billsincongress || echo "No key was stored; the secret is unchanged."; unset key
+   ```
+
+   The key goes only to stdout, so the CLI's own status and errors still show without exposing
+   it. If creating the key fails (not logged in, a name already taken), nothing is stored and
+   the last line says so. **Carry on only if `gh` printed "✓ Set Actions secret
+   CONVEX_DEPLOY_KEY"**; otherwise the old key is still the one in use, and step 4 would revoke
+   it.
+
+3. Re-run the latest Deploy run from the Actions tab, and check that the "Deploy the Convex
+   backend" step passes. Pasting the key into `gh secret set` by hand is what broke the first
+   live run: the stored value did not begin with `prod:`.
+4. Revoke the old key with
+   `pnpm exec convex deployment token delete <old-name> --deployment industrious-llama-331`
+   (the label the old key was created with, **not** the new one from step 2), once nothing
+   still uses it (a local `.env` for the accuracy gate, say). If a repo-level
+   `CONVEX_DEPLOY_KEY` exists, delete it too: `gh secret delete CONVEX_DEPLOY_KEY`.
 
 Never store it as a repo-level secret (see the environment-variable notes above).
 
