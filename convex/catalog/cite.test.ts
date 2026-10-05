@@ -91,10 +91,15 @@ it("resolves web handles the same way as database handles", () => {
   assert.equal(out.dropped, 0);
 });
 
-it("leaves a malformed marker as plain text rather than throwing", () => {
-  const out = resolveAnswer("Broken [[cite:]] and [[cite]] here.", new Set(["bills:1hr119"]));
-  assert.equal(out.dropped, 0);
-  assert.ok(out.text.includes("Broken"));
+it("deletes a malformed cite marker like an invented one, without throwing", () => {
+  // gpt-oss, 2026-10-05: "There are 2,121 health measures in the 119th Congress. [[cite:bills:]]"
+  const out = resolveAnswer(
+    "There are 2,121 health measures. [[cite:bills:]] Broken [[cite:]] and [[cite]] here.",
+    new Set(["bills:1hr119"]),
+  );
+  assert.equal(out.dropped, 2);
+  assert.ok(!out.text.includes("[[cite:"), out.text);
+  assert.ok(out.text.includes("2,121 health measures"));
 });
 
 console.log(`\ncatalog/cite: ${passed} passed, ${failures.length} failed`);

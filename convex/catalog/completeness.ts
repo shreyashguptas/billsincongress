@@ -115,6 +115,15 @@ export interface CompletenessReport {
   subsets?: Subset[];
   /** Present only when incomplete: what was and was not read. */
   note?: string;
+  /**
+   * Set when the set is drawn from a Congress that has adjourned: what that
+   * means for every unfinished bill in it. Carried on the RESULT, not only on
+   * rows, because a count-only lookup has no rows. Asked "are any 118th-Congress
+   * bills still sitting in committee?", the model fetched the stage-40 count,
+   * got thousands with no row to carry the per-bill note, and answered yes. The
+   * 118th ended on 2025-01-03; the answer is no.
+   */
+  congressOver?: string;
 }
 
 /** One part of an exact partition: what it is, how many, and which. */
@@ -227,6 +236,19 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
         `These ${report.shown} rows are one per group and account for the whole total: their ` +
         `counts sum to ${report.total}. This IS the whole set, not a page of it. State every ` +
         `group, and compare or rank them freely.`;
+    } else if (report.shown === 0 && (report.total ?? 0) > 0) {
+      // Asked "which California member introduced the fewest bills?", gpt-oss
+      // passed limit 0 with the right sort, got "shown 0 of 54", and told the
+      // reader the name "cannot be determined" with lookups to spare (2026-10-05).
+      // The ranking is named only when this result's order supports it: the hint
+      // must not promise "the fewest" from a fetch that comes back unsorted.
+      payload.count_only =
+        `This was a count only, so no rows came back. The total is exact. To NAME one or more ` +
+        `of them, fetch again with a limit of 1 or more` +
+        (report.order === "arbitrary"
+          ? `. To name the first, the most or the fewest, also pass the sort that orders them; ` +
+            `without one the rows are in no meaningful order.`
+          : ` and the same filters, sort included.`);
     } else if ((report.total ?? 0) > report.shown) {
       payload.rows_are_a_sample_of_a_known_total =
         `You were shown ${report.shown} of ${report.total}. The TOTAL is exact and you may state ` +
@@ -243,6 +265,7 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
   } else {
     payload.note = report.note;
   }
+  if (report.congressOver) payload.congress_is_over = report.congressOver;
   if (report.orderFromIndex && report.shown > 0) {
     payload.rows_are_the_true_first_rows =
       `The database returned these rows IN THIS ORDER, so they really are the first of the whole ` +

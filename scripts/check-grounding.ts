@@ -24,7 +24,8 @@
  *
  * Run: OPENROUTER_API_KEY=sk-or-... ./node_modules/.bin/tsx scripts/check-grounding.ts
  */
-import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "../convex/catalog/tools";
+import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS, primedDescriptions } from "../convex/catalog/tools";
+import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "../convex/reasoning";
 import { describeDataset, isDatasetName } from "../convex/catalog/datasets";
 import { mintHandle, resolveAnswer } from "../convex/catalog/cite";
 import { validateFilters } from "../convex/catalog/filters";
@@ -47,11 +48,10 @@ const API_URL = "https://openrouter.ai/api/v1/chat/completions";
  * to amazon-bedrock, so a passing gate said nothing about half the pool.
  * scripts/check-grounding.test.ts fails if these drift from convex/answer.ts.
  */
-export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
-export const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
-export const DEFAULT_FALLBACK_MODELS =
-  "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
-export const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
+export const DEFAULT_MODEL = "openai/gpt-oss-120b";
+export const DEFAULT_PROVIDERS = "cerebras,groq,amazon-bedrock";
+export const DEFAULT_FALLBACK_MODELS = "";
+export const MAX_PRICE = { prompt: 0.5, completion: 1.0 };
 
 const MODEL = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
@@ -747,9 +747,12 @@ export function serveFetch(
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;
-  tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+  tool_calls?: Array<{ id: string; type?: string; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
 };
+
+const reasoning = reasoningConfig(process.env.OPENROUTER_REASONING);
+const reasoningOn = !("enabled" in reasoning);
 
 async function callModel(messages: ChatMessage[], withTools: boolean) {
   const res = await fetch(API_URL, {
@@ -766,11 +769,14 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
       // schema and asking the model not to use it is advice; not sending it is a
       // guarantee. Testing the advice version tests a loop we no longer run.
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
-      max_tokens: 2048,
+      // The same reasoning setting and budget as convex/answer.ts, so this gate
+      // tests the loop production runs. OPENROUTER_REASONING=off reproduces the
+      // pre-2026-10-05 behaviour for a before/after comparison.
+      max_tokens: reasoningOn ? ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS : ANSWER_MAX_TOKENS,
       temperature: 0.3,
-      reasoning: { enabled: false },
+      reasoning,
       provider: {
-        ...(PROVIDERS.length > 0 && { only: PROVIDERS }),
+        ...(PROVIDERS.length > 0 && { only: PROVIDERS, order: PROVIDERS }),
         max_price: MAX_PRICE,
         data_collection: "deny",
         zdr: true,
@@ -802,8 +808,33 @@ async function ask(question: string): Promise<Answer> {
     // `today` is passed the way answer.ts passes it: without it the model dates
     // "recent" and "this week" from its own training cutoff.
     { role: "system", content: buildSystemPrompt({ today: TODAY }) },
-    { role: "user", content: question },
   ];
+  // The opening production gives every question off a bill page (runLoop in
+  // convex/answer.ts): bills and topics already described, and the policy-area
+  // list already fetched. The prompt tells the model it has these; without them
+  // this gate tested a loop no reader gets, and on 2026-10-05 gpt-oss, told the
+  // topic list was in front of it, cited a handle that did not exist.
+  const primed = primedDescriptions();
+  messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
+  for (const r of primed.results) messages.push({ role: "tool", ...r });
+  const topics = serveFetch("topics", { congress: 119 }, 20);
+  if (!("ok" in topics)) {
+    for (const r of topics.rows) allowed.add(r._cite as string);
+    work.push(`fetch topics · ${workLogLabel(topics.report)}`);
+    messages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "topics_0",
+          type: "function",
+          function: { name: "fetch_dataset", arguments: JSON.stringify({ name: "topics", filters: { congress: 119 } }) },
+        },
+      ],
+    });
+    messages.push({ role: "tool", tool_call_id: "topics_0", content: payloadFor(topics.rows, topics.report) });
+  }
+  messages.push({ role: "user", content: question });
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const isFinalRound = round === MAX_TOOL_ROUNDS;
@@ -819,6 +850,8 @@ async function ask(question: string): Promise<Answer> {
       if (text.trim().length === 0) break;
       return { ...resolveAnswer(text, allowed), work, allowed, askedReader: false };
     }
+    // Content and tool calls only, exactly as convex/answer.ts: the reasoning is
+    // not handed back (see ChatMessage there for why).
     messages.push({ role: "assistant", content: message.content ?? null, tool_calls: calls });
 
     // ask_reader ENDS the turn — the reader's reply would be the next turn. Handled
@@ -1122,21 +1155,25 @@ async function main() {
   const cosponsors = await ask("How many co-sponsors does H.R. 1 have in the 119th Congress?");
   answers.push(["co-sponsors", cosponsors]);
   report("co-sponsor question", cosponsors);
+  // Curly apostrophes and non-breaking hyphens are how gpt-oss writes "don’t"
+  // and "co‑sponsor"; a correct admission failed this gate on 2026-10-05 for the
+  // apostrophe alone. Read the plain form.
+  const said = cosponsors.text.replace(/[\u2018\u2019]/g, "'").replace(/[\u2010\u2011]/g, "-");
   // "doesn't track" is as good an admission as "don't track", and the narrower
   // pattern failed a correct answer for saying it the other way round.
   const admits =
     /\b(?:do(?:es)?(?: not|n't)|did(?: not|n't))\s+(?:\w+\s+){0,2}(?:have|hold|track|store|carry|record)/i.test(
-      cosponsors.text,
+      said,
     ) ||
     // The passive says the same thing: "co-sponsors are not tracked anywhere in
     // what we hold" is the admission this gate is for.
     /\bn(?:ot|ever)\s+(?:\w+\s+){0,2}(?:tracked|held|stored|recorded|carried|captured|included)\b/i.test(
-      cosponsors.text,
+      said,
     ) ||
     /not (?:in our|something we|part of what we|information we)|isn't in our|is not in our|no co-?sponsor/i.test(
-      cosponsors.text,
+      said,
     );
-  const inventedNumber = /\b\d+\s+co-?sponsors?\b/i.test(cosponsors.text);
+  const inventedNumber = /\b\d+\s+co-?sponsors?\b/i.test(said);
   check("admits we do not hold co-sponsors", admits, cosponsors.text.slice(0, 300));
   check("does NOT state a co-sponsor count", !inventedNumber, cosponsors.text.slice(0, 300));
   check("dropped no invented citations", cosponsors.dropped === 0, `dropped=${cosponsors.dropped}`);

@@ -137,3 +137,217 @@ test("a first line repeating the end of the question is dropped", async () => {
   const result = await ask("Was a bill introduced this year about lighthouses?");
   expect(result.text).toBe("No bill in the 119th Congress matches that.");
 });
+
+// --- Private reasoning (2026-10-05) ------------------------------------------
+
+type Reply = { status?: number; message?: Record<string, unknown> };
+
+/** Like replyWith, but each reply can carry reasoning, tool calls or an HTTP status. */
+function replyWithMessages(replies: Reply[]) {
+  const queue = [...replies];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init: { body: string }) => {
+      requests.push(JSON.parse(init.body));
+      const next = queue.shift() ?? { message: { content: "" } };
+      if (next.status && next.status !== 200) {
+        return new Response("Bad Request: reasoning", { status: next.status });
+      }
+      return new Response(
+        JSON.stringify({ choices: [{ message: next.message, finish_reason: "stop" }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }),
+  );
+}
+
+type ReasoningRequest = {
+  tools?: unknown;
+  reasoning?: Record<string, unknown>;
+  max_tokens?: number;
+  messages: Array<{ role: string; content: string | null; reasoning_details?: unknown }>;
+};
+
+test("by default the model reasons privately at low effort, with room for it and the answer", async () => {
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as ReasoningRequest;
+  expect(sent.reasoning).toEqual({ effort: "low" });
+  expect(sent.max_tokens).toBe(4096);
+});
+
+test("OPENROUTER_REASONING=off asks for none and gives the answer its own budget", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "off");
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as ReasoningRequest;
+  expect(sent.reasoning).toEqual({ enabled: false });
+  expect(sent.max_tokens).toBe(2048);
+});
+
+test("a model that cannot switch reasoning off still answers when it is set off", async () => {
+  // gpt-oss, 2026-10-05: "Reasoning is mandatory for this endpoint and cannot be
+  // disabled." The retry leaves the setting out, so the model uses its default.
+  vi.stubEnv("OPENROUTER_REASONING", "off");
+  replyWithMessages([
+    { status: 400 },
+    { message: { content: "No bill in the 119th Congress matches that." } },
+  ]);
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+  const sent = requests as unknown as ReasoningRequest[];
+  expect(sent.map((r) => r.reasoning)).toEqual([{ enabled: false }, undefined]);
+  expect(sent[1].max_tokens).toBe(4096);
+});
+
+test("the hosts are tried in the listed order, fastest first, not by price", async () => {
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as { model: string; models?: string[]; provider: Record<string, unknown> };
+  expect(sent.model).toBe("openai/gpt-oss-120b");
+  expect(sent.provider.only).toEqual(["cerebras", "groq", "amazon-bedrock"]);
+  expect(sent.provider.order).toEqual(sent.provider.only);
+  // The failover is the same model on the next host, never a weaker model.
+  expect(sent.models).toBeUndefined();
+  expect(sent.provider).toMatchObject({ zdr: true, data_collection: "deny" });
+});
+
+test("an overridden host list is tried in its own order", async () => {
+  vi.stubEnv("OPENROUTER_PROVIDERS", "groq, cerebras");
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as { provider: Record<string, unknown> };
+  expect(sent.provider.order).toEqual(["groq", "cerebras"]);
+});
+
+test("the model's reasoning never reaches the reader", async () => {
+  // A REGRESSION GUARD, not evidence for the change: runLoop has only ever read
+  // message.content, so this passed before reasoning was turned on too. It pins
+  // that the separate field stays separate. Shaped like the senator answer a
+  // reader saw on 2026-10-05.
+  replyWithMessages([
+    {
+      message: {
+        content: "Rick Scott introduced the most bills of any senator this Congress: 189.",
+        reasoning:
+          "Since the list is ordered most-bills-first and the top is Rick Scott, a senator, with 189. " +
+          "But the question is about senators specifically.",
+      },
+    },
+  ]);
+  const result = await ask("Which senator introduced the most bills this Congress?");
+  expect(result.text).toBe("Rick Scott introduced the most bills of any senator this Congress: 189.");
+  expect(result.text).not.toMatch(/ordered most-bills-first|question is about/);
+});
+
+test("does not hand the reasoning back on the round after a lookup", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "low");
+  // Measured 2026-10-05: with it handed back, a failover to amazon/nova-lite-v1
+  // on Amazon Bedrock refused the request ("User messages cannot contain
+  // reasoning content"). DeepSeek through OpenRouter answers without it.
+  const details = [{ type: "reasoning.text", text: "Check the sponsors dataset first." }];
+  replyWithMessages([
+    {
+      message: {
+        content: null,
+        reasoning: "Check the sponsors dataset first.",
+        reasoning_details: details,
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "describe_dataset", arguments: JSON.stringify({ dataset: "sponsors" }) },
+          },
+        ],
+      },
+    },
+    { message: { content: "We list every member who sponsored a bill this Congress." } },
+  ]);
+  const result = await ask("Who sponsors bills?");
+  expect(result.error).toBeUndefined();
+  const second = requests[1] as unknown as ReasoningRequest;
+  expect(second.messages.some((m) => "reasoning_details" in m || "reasoning" in m)).toBe(false);
+});
+
+test("a request refused with a reasoning setting is retried once without it", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "low");
+  replyWithMessages([
+    { status: 400 },
+    { message: { content: "No bill in the 119th Congress matches that." } },
+  ]);
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.error).toBeUndefined();
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+  expect(requests).toHaveLength(2);
+  expect((requests[0] as unknown as ReasoningRequest).reasoning).toEqual({ effort: "low" });
+  // Left out, not { enabled: false }: a model that always reasons refuses that too.
+  expect((requests[1] as unknown as ReasoningRequest).reasoning).toBeUndefined();
+  expect((requests[1] as unknown as ReasoningRequest).max_tokens).toBe(4096);
+  expect((requests[1] as unknown as ReasoningRequest).messages.some((m) => "reasoning_details" in m)).toBe(false);
+});
+
+test("once a request with a reasoning setting is refused, the rest of the turn leaves it out", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "low");
+  // Review finding on #169: the downgrade used to last one call, so a refusal
+  // that kept happening cost a failed request on every round.
+  replyWithMessages([
+    {
+      message: {
+        content: null,
+        reasoning_details: [{ type: "reasoning.text", text: "Look up the sponsors." }],
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "describe_dataset", arguments: JSON.stringify({ dataset: "sponsors" }) },
+          },
+        ],
+      },
+    },
+    { status: 400 },
+    {
+      message: {
+        content: null,
+        tool_calls: [
+          {
+            id: "call_2",
+            type: "function",
+            function: { name: "describe_dataset", arguments: JSON.stringify({ dataset: "topics" }) },
+          },
+        ],
+      },
+    },
+    { message: { content: "We list every member who sponsored a bill this Congress." } },
+  ]);
+  const result = await ask("Who sponsors bills?");
+  expect(result.error).toBeUndefined();
+  const sent = requests as unknown as ReasoningRequest[];
+  expect(sent.map((r) => r.reasoning)).toEqual([
+    { effort: "low" },
+    { effort: "low" },
+    undefined,
+    undefined,
+  ]);
+  // No refused request after the first one.
+  expect(sent).toHaveLength(4);
+});
+
+test("a final round refused with and without the setting does not put it back", async () => {
+  // Review finding on #169: the turn-wide flag was set only when the retry
+  // succeeded, so this path went with, without, then WITH reasoning again.
+  vi.stubEnv("OPENROUTER_REASONING", "low");
+  replyWithMessages([
+    { message: { content: "" } },
+    { message: { content: "" } },
+    { status: 400 },
+    { status: 400 },
+    { message: { content: "No bill in the 119th Congress matches that." } },
+  ]);
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+  const sent = requests as unknown as ReasoningRequest[];
+  // Two empty rounds, then the final round: refused with the setting, refused
+  // without it, then retried with the tools and still without it.
+  expect(sent.slice(2).map((r) => r.reasoning)).toEqual([{ effort: "low" }, undefined, undefined]);
+  expect(sent).toHaveLength(5);
+});

@@ -13,8 +13,14 @@
  */
 import type { DatasetName } from "./types";
 
-/** `[[cite:<dataset>:<id>]]` where id may itself contain colons. */
-export const MARKER_PATTERN = /\[\[cite:([a-z_]+:[^\]]+?)\]\]/g;
+/**
+ * `[[cite:<dataset>:<id>]]` where id may itself contain colons — and any other
+ * `[[cite:…]]`, so a malformed one is deleted like an invented one rather than
+ * shown: gpt-oss wrote "[[cite:bills:]]", with no id, on 2026-10-05, and the
+ * narrower pattern (dataset, colon, at least one character) let it through to
+ * the reader as raw text.
+ */
+export const MARKER_PATTERN = /\[\[cite:([^\]]*?)\]\]/g;
 
 export function mintHandle(dataset: DatasetName | "web", id: string): string {
   return `${dataset}:${id}`;

@@ -14,6 +14,7 @@ import {
   dropQuestionEcho,
   isAllDeliberation,
   sanitizeAnswer,
+  stripThinkingTags,
 } from "./answerSanitize";
 
 let passed = 0;
@@ -602,9 +603,71 @@ it("recognises a reply made only of the new thinking shapes as no answer", () =>
   assert.equal(isAllDeliberation("76 measures have wildfire in their title. That's a good answer."), false);
 });
 
+// --- Tagged thinking from the failover model (2026-10-05) -------------------
+//
+// amazon/nova-lite-v1 serves about 15% of production rounds when DeepSeek is
+// unavailable, and writes its working in tags. Verbatim from that day:
+it("removes a <thinking> block and keeps the answer after it", () => {
+  const live =
+    "<thinking>The fetch was complete, and the data shows the top 8 senators by the number of bills introduced. Rick Scott introduced the most bills with 182.</thinking> \n\n" +
+    "The senator who introduced the most bills in the 119th Congress is Rick Scott from Florida, with 182.";
+  assert.equal(
+    sanitizeAnswer(live).text,
+    "The senator who introduced the most bills in the 119th Congress is Rick Scott from Florida, with 182.",
+  );
+});
+
+it("unwraps <response> and <answer> tags around an answer", () => {
+  assert.equal(
+    sanitizeAnswer("<response>Rick Scott introduced the most bills this Congress.</response>").text,
+    "Rick Scott introduced the most bills this Congress.",
+  );
+  assert.equal(stripThinkingTags("<answer>Two bills became law.</answer>").text, "Two bills became law.");
+});
+
+it("treats a reply that is only a thinking block as no answer, and never empties it", () => {
+  const only = "<thinking>I need to look up the sponsors first.</thinking>";
+  assert.equal(isAllDeliberation(only), true);
+  assert.deepEqual(stripThinkingTags(only), { text: only, removed: [] });
+});
+
+it("leaves text without tags alone, including a bill that mentions thinking", () => {
+  const answer = "The Critical Thinking in Schools Act was introduced in March.";
+  assert.deepEqual(sanitizeAnswer(answer), { text: answer, removed: [] });
+  assert.equal(isAllDeliberation(answer), false);
+});
+
 it("never empties an answer that is all thinking", () => {
   const all = "Let me check the topics. Actually, let me look at the stages instead.";
   assert.deepEqual(sanitizeAnswer(all), { text: all, removed: [] });
+});
+
+// gpt-oss, 2026-10-05: "We don’t track co‑sponsor counts" and "became law on
+// 2026‑09‑30", both with U+2011, which a reader's search box does not match.
+it("turns look-alike hyphens and spaces into plain ones", () => {
+  const raw = "We don\u2019t track co\u2011sponsor counts. It became law on 2026\u201109\u201130.\u202f[[cite:bills:1hr119]]";
+  assert.deepEqual(sanitizeAnswer(raw), {
+    text: "We don\u2019t track co-sponsor counts. It became law on 2026-09-30. [[cite:bills:1hr119]]",
+    removed: [],
+  });
+});
+
+it("turns gpt-oss's own citation bracket into ours", () => {
+  assert.equal(
+    sanitizeAnswer("It became law (S. 2393)\u3010cite:bills:2393s119]].").text,
+    "It became law (S. 2393)[[cite:bills:2393s119]].",
+  );
+  assert.equal(
+    sanitizeAnswer("See \u3010bills:2393s119\u3011").text,
+    "See [[bills:2393s119]]",
+  );
+  // Not a marker: left as written.
+  assert.equal(sanitizeAnswer("A \u3010note\u3011 here.").text, "A \u3010note\u3011 here.");
+});
+
+it("still finds thinking written with look-alike characters", () => {
+  const raw = "Let me check the stage\u201140 count.\n\n72 laws started in the House.";
+  assert.equal(sanitizeAnswer(raw).text, "72 laws started in the House.");
 });
 
 if (failures.length > 0) {

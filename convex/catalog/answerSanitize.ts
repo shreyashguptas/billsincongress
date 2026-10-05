@@ -1,10 +1,12 @@
 /**
  * Strip the model's working-out out of the answer (defect D21).
  *
- * `convex/answer.ts` sends `reasoning: { enabled: false }`, so the model has no
- * scratchpad and its deliberation has nowhere to land but the answer body. The
- * system prompt in `tools.ts` already says "Never narrate your own process" and
- * it does not hold. Three paragraphs that reached readers:
+ * Until 2026-10-05 `convex/answer.ts` sent `reasoning: { enabled: false }`, so
+ * the model had no scratchpad and its deliberation had nowhere to land but the
+ * answer body. It now reasons privately (`convex/reasoning.ts`), which is the
+ * real fix; this file is the safety net for whatever still leaks, and for
+ * OPENROUTER_REASONING=off. The system prompt in `tools.ts` says "Never narrate
+ * your own process" and on its own it does not hold. Three paragraphs that reached readers:
  *
  *   "The dataset returned all 29 California members (total_matching: 29,
  *    truncated: false). The member with the fewest bills is Tom McClintock with
@@ -384,6 +386,8 @@ function splitBlocks(input: string): Block[] {
  * instead of publishing the model thinking out loud.
  */
 export function isAllDeliberation(text: string): boolean {
+  // A reply that is only a tagged thinking block has no answer in it.
+  if (text.trim() !== "" && text.replace(THINKING_BLOCK, "").replace(ANSWER_WRAPPER, "").trim() === "") return true;
   const blocks = splitBlocks(text).filter((b) => b.text.trim() !== "");
   if (blocks.length === 0) return false;
   // Process narration ONLY. A leaked field name is not grounds to throw the
@@ -579,6 +583,37 @@ function dropMidAnswerThinking(blocks: Block[]): { blocks: Block[]; removed: str
 }
 
 /**
+ * Thinking the model wrapped in tags, and wrappers around the answer itself.
+ *
+ * The failover model (amazon/nova-lite-v1, about 15% of production rounds in the
+ * week to 2026-10-05) writes its working in "<thinking>…</thinking>" and wraps
+ * the answer in "<response>" or "<answer>". Measured that day: "<thinking>The
+ * fetch was complete, and the data shows the top 8 senators…</thinking> The
+ * senator who introduced the most bills…". Markup like this is never part of a
+ * real answer, so a whole thinking block goes and a wrapper tag is unwrapped.
+ * An unclosed "<thinking>" with nothing after it is left alone: the answer may
+ * be inside it, and the caller's isAllDeliberation decides.
+ */
+const THINKING_BLOCK = /<(thinking|think|reasoning|scratchpad)>[\s\S]*?<\/\1>\s*/gi;
+const ANSWER_WRAPPER = /<\/?(?:response|answer|final_answer|output)>/gi;
+
+export function stripThinkingTags(text: string): SanitizeResult {
+  const removed: string[] = [];
+  let out = text.replace(THINKING_BLOCK, (block) => {
+    removed.push(block.trim());
+    return "";
+  });
+  out = out.replace(ANSWER_WRAPPER, (tag) => {
+    removed.push(tag);
+    return "";
+  });
+  if (removed.length === 0) return { text, removed: [] };
+  out = out.trim();
+  if (out === "") return { text, removed: [] };
+  return { text: out, removed };
+}
+
+/**
  * Strip leading deliberation, any paragraph that leaks internal vocabulary, and
  * thinking that appears after the answer began (dropMidAnswerThinking).
  * Never removes the whole answer: if every paragraph would be dropped, the input
@@ -586,7 +621,34 @@ function dropMidAnswerThinking(blocks: Block[]): { blocks: Block[]; removed: str
  * leaky one. When `question` is given, a first line that only repeats its end
  * goes first (see dropQuestionEcho).
  */
+/**
+ * Typographic look-alikes gpt-oss writes in place of plain characters: a
+ * non-breaking hyphen (U+2011) in "co‑sponsor" and in every ISO date it writes,
+ * and narrow or ordinary no-break spaces. They render the same, but a reader who
+ * copies "co‑sponsor" or a bill title into a search box gets a different string,
+ * and our own checks that look for "co-sponsor" miss it. Measured 2026-10-05.
+ */
+const LOOKALIKES: Array<[RegExp, string]> = [
+  [/[\u2010\u2011]/g, "-"],
+  [/[\u00a0\u202f\u2007]/g, " "],
+  // gpt-oss's own citation bracket. It wrote "…Authorization Act (S. 2393)
+  // 【cite:bills:2393s119]]" on 2026-10-05; left alone, the citation is not
+  // recognised and the reader sees the raw marker.
+  [/【((?:cite|bills|topic|sponsor|state):[^\]】\n]*)(?:】|\]\])/g, "[[$1]]"],
+];
+
+export function plainCharacters(text: string): string {
+  return LOOKALIKES.reduce((out, [pattern, plain]) => out.replace(pattern, plain), text);
+}
+
 export function sanitizeAnswer(text: string, question?: string): SanitizeResult {
+  const plain = plainCharacters(text);
+  if (plain !== text) return sanitizeAnswer(plain, question);
+  const tags = stripThinkingTags(text);
+  if (tags.removed.length > 0) {
+    const rest = sanitizeAnswer(tags.text, question);
+    return { text: rest.text, removed: [...tags.removed, ...rest.removed] };
+  }
   if (question !== undefined) {
     const echo = dropQuestionEcho(text, question);
     if (echo.removed.length > 0) {

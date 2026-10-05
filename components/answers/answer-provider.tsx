@@ -620,7 +620,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 analytics.answerCitationUnresolved({
                   surface,
                   marker_count: data.dropped,
-                  model: 'deepseek-v4-flash',
+                  model: 'gpt-oss-120b',
                 });
               }
               if (webSources.length > 0) {

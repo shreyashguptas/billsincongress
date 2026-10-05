@@ -28,41 +28,55 @@ import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
+import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "./reasoning";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
- * Baked-in model; override per-deployment with OPENROUTER_MODEL. Pinned to a
- * dated release rather than a floating alias: an alias can resolve to a version
- * no US-datacenter provider carries yet, which the allowlist below turns into
- * an outage.
+ * Baked-in model; override per-deployment with OPENROUTER_MODEL.
+ *
+ * gpt-oss-120b, chosen on 2026-10-05 by running the real answer loop over the
+ * production data copy against 28 questions with known answers (21 scored),
+ * twice per setup. On Cerebras it answered 18-19 of 21 correctly with a median
+ * of about 1 s and nothing over 4 s. The model before it, DeepSeek V4 Flash on
+ * DeepInfra, scored 5-6 of 21: DeepInfra rate-limited it so often that its
+ * failover, Nova Lite, served 24 of 27 answers, and readers waited a median of
+ * 8-10 s (answer_received.response_ms, late September). gpt-oss also always
+ * reasons in a separate field, so its thinking cannot land in the answer.
  */
-const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
+const DEFAULT_MODEL = "openai/gpt-oss-120b";
 /**
  * Provider allowlist, so questions are only served from providers that process
  * data in the US; override with OPENROUTER_PROVIDERS. Every slug here must ALSO
  * be permitted by the OpenRouter account's own allowed-providers setting: if
  * the two lists do not overlap, OpenRouter rejects every request with a 404
  * rather than falling back — which is how this default once took chat down.
+ *
+ * Tried IN THIS ORDER (see providerConfig), fastest first. The same model on
+ * three hosts is the failover: when one is busy the next serves the same
+ * model, instead of a weaker one. Measured 2026-10-05 after the tool-schema
+ * fix in convex/catalog/tools.ts: Cerebras median about 0.7 s, Groq about
+ * 1.6 s, Amazon Bedrock about 1.1 s. DeepInfra was left out: up to 42 s.
  */
-const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
+const DEFAULT_PROVIDERS = "cerebras,groq,amazon-bedrock";
 /**
- * Automatic failover chain, tried in order when the primary errors. Every entry
- * must meet the primary's constraints — US provider, zero retention, no
- * training on our readers, inside MAX_PRICE — so re-verify with
- * scripts/check-provider-retention.ts before adding one: an entry that fails
- * the retention filters is silently unreachable, not loudly broken. The first
- * entry is a FLOATING alias on purpose, so the family tier outlives the dated
- * primary.
+ * Other models to fail over to, tried in order when every provider above has
+ * failed for the primary. Empty by default: the failover is the same model on
+ * another host (DEFAULT_PROVIDERS). The previous chain ended in Nova Lite, which
+ * answered 24 of 27 test questions when DeepInfra rate-limited the primary and
+ * got 5 right. Every entry added here must meet the primary's constraints — US
+ * provider, zero retention, no training on our readers, inside MAX_PRICE — so
+ * re-verify with scripts/check-provider-retention.ts first: an entry that fails
+ * the retention filters is silently unreachable, not loudly broken.
  */
-const DEFAULT_FALLBACK_MODELS =
-  "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
+const DEFAULT_FALLBACK_MODELS = "";
 /**
  * Runaway-cost guard, USD per million tokens — not the target price. A provider
  * repricing or a careless OPENROUTER_MODEL change fails loudly instead of
- * multiplying the bill.
+ * multiplying the bill. Cerebras charges 0.35 / 0.75 for gpt-oss-120b, the most
+ * of the three hosts; a typical answer costs about half a cent.
  */
-const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
+const MAX_PRICE = { prompt: 0.5, completion: 1.0 };
 const SITE_URL = "https://billsincongress.com";
 /** Cap on client-supplied history (spec §4.7). */
 const MAX_HISTORY_TURNS = 10;
@@ -162,6 +176,18 @@ type ChatMessage = {
   content: string | null;
   tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
+  /**
+   * Never set by the loop. The model's reasoning is NOT handed back on later
+   * rounds: measured on 2026-10-05, DeepSeek through OpenRouter answers fine
+   * without it, and when DeepSeek is rate-limited (429) and OpenRouter fails
+   * over to amazon/nova-lite-v1 on Amazon Bedrock, Bedrock refuses the whole
+   * request: "User messages cannot contain reasoning content." DeepSeek's own
+   * API does require it, but we never call that API directly. gpt-oss, the
+   * model since then, scored 18-19 of 21 on the truth questions without it
+   * (2026-10-05), and its failover hosts include Bedrock. Kept in the type so
+   * the refusal path can strip it from anything that carries it.
+   */
+  reasoning_details?: unknown[];
 };
 
 /**
@@ -202,7 +228,9 @@ function providerConfig() {
     .map((s) => s.trim())
     .filter(Boolean);
   return {
-    ...(providers.length > 0 && { only: providers }),
+    // `order` makes the list a priority: without it OpenRouter routes by price,
+    // and the cheapest host for gpt-oss-120b is among the slowest.
+    ...(providers.length > 0 && { only: providers, order: providers }),
     max_price: MAX_PRICE,
     // These flags are FILTERS and can empty the provider pool; re-run
     // scripts/check-provider-retention.ts on any model or provider change.
@@ -214,11 +242,20 @@ function providerConfig() {
 async function callModel(
   messages: ChatMessage[],
   apiKey: string,
-  opts: { withTools?: boolean; trace?: AnswerTrace } = {},
-) {
+  opts: { withTools?: boolean; trace?: AnswerTrace; omitReasoning?: boolean } = {},
+): Promise<{ message: any; lengthCapped: boolean; reasoningRefused?: boolean }> {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const fallbacks = fallbackModels();
   const withTools = opts.withTools ?? true;
+  // After a refusal the parameter is left out, so the request carries the
+  // model's own default. Retrying with { enabled: false } instead was itself
+  // refused by a model that always reasons: gpt-oss answers "Reasoning is
+  // mandatory for this endpoint and cannot be disabled" (measured 2026-10-05).
+  const reasoning = opts.omitReasoning ? undefined : reasoningConfig(process.env.OPENROUTER_REASONING);
+  // Room for thinking unless thinking was asked to be off: with the parameter
+  // left out, a model that always reasons still spends part of the budget on it.
+  const maxTokens =
+    reasoning && "enabled" in reasoning ? ANSWER_MAX_TOKENS : ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS;
   // Every call is recorded, failures included: a failover or an error is
   // exactly what a trace is for. See convex/aiTrace.ts.
   const started = Date.now();
@@ -230,7 +267,7 @@ async function callModel(
       latencyMs: Date.now() - started,
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
       temperature: 0.3,
-      maxTokens: 2048,
+      maxTokens,
       ...g,
     });
 
@@ -251,9 +288,9 @@ async function callModel(
       // was advice, a model that asked for one more lookup fell out of the loop
       // and the reader got a canned apology on top of 17 successful fetches.
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
-      max_tokens: 2048,
+      max_tokens: maxTokens,
       temperature: 0.3,
-      reasoning: { enabled: false },
+      ...(reasoning && { reasoning }),
       provider: providerConfig(),
     }),
   }).catch((error: unknown) => {
@@ -267,6 +304,22 @@ async function callModel(
       .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
     const message = `OpenRouter ${response.status} ${response.statusText}: ${body}`;
     record({ error: message, httpStatus: response.status });
+    // A request refused while it carried a reasoning setting gets one retry
+    // without it, so the worst this setting can do is give the reader the
+    // model's default, never no answer.
+    if (reasoning && response.status === 400) {
+      // Any 400, not necessarily caused by reasoning (a context-length or
+      // tools-schema 400 looks the same), so the log says what happened, not why.
+      console.error(`400 with a reasoning setting, retrying without it: ${message}`);
+      const retried = await callModel(
+        messages.map(({ reasoning_details: _dropped, ...rest }) => rest),
+        apiKey,
+        { ...opts, omitReasoning: true },
+      );
+      // Reported so the loop leaves the setting out for the rest of the turn,
+      // instead of paying for a refused request again on every round.
+      return { ...retried, reasoningRefused: true };
+    }
     throw new Error(message);
   }
   const data = await response.json();
@@ -287,6 +340,7 @@ async function callModel(
   const choice = data.choices?.[0];
   record({
     model: servedModel,
+    ...(typeof data.provider === "string" && { host: data.provider }),
     output: choice?.message ? [choice.message] : [],
     inputTokens: data.usage?.prompt_tokens,
     outputTokens: data.usage?.completion_tokens,
@@ -357,6 +411,7 @@ async function searchWeb(
   const annotations = data.choices?.[0]?.message?.annotations ?? [];
   record({
     model: typeof data.model === "string" ? data.model : model,
+    ...(typeof data.provider === "string" && { host: data.provider }),
     output: data.choices?.[0]?.message ? [data.choices[0].message] : [],
     inputTokens: data.usage?.prompt_tokens,
     outputTokens: data.usage?.completion_tokens,
@@ -594,6 +649,10 @@ async function runLoop(
   let nudged = false;
   let finalNow = false;
 
+  // Set once a request with a reasoning setting is refused: the rest of the turn
+  // leaves it out, so a persistent refusal costs one extra request, not one a round.
+  let omitReasoning = false;
+
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     // On the final round the tools are WITHHELD, not discouraged. Asking the
     // model to "answer now" while still handing it the tool schema left it free
@@ -608,10 +667,12 @@ async function runLoop(
 
     let message;
     let lengthCapped = false;
+    let reasoningRefused: boolean | undefined;
     try {
-      ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
+      ({ message, lengthCapped, reasoningRefused } = await callModel(finalMessages, opts.apiKey, {
         withTools: !isFinalRound,
         trace: opts.trace,
+        omitReasoning,
       }));
     } catch (error) {
       // The final round omits the tool schema while the transcript still contains
@@ -621,12 +682,18 @@ async function runLoop(
       // plain instruction not to use it: weaker, but far better than an error.
       if (!isFinalRound) throw error;
       console.error("final round without tools failed, retrying with them:", error);
-      ({ message, lengthCapped } = await callModel(finalMessages, opts.apiKey, {
+      // If that failure was a 400 the reasoning retry inside callModel already
+      // saw, the retry without the setting failed too: leave it out for this
+      // last attempt instead of paying for it again (review on #169).
+      if (/OpenRouter 400\b/.test(String(error))) omitReasoning = true;
+      ({ message, lengthCapped, reasoningRefused } = await callModel(finalMessages, opts.apiKey, {
         withTools: true,
         trace: opts.trace,
+        omitReasoning,
       }));
     }
     if (lengthCapped) truncatedByLength = true;
+    if (reasoningRefused) omitReasoning = true;
 
     // On the final round any tool call is ignored: it can only come from the
     // retry above, and there is no round left to serve it.
@@ -669,6 +736,7 @@ async function runLoop(
       continue;
     }
 
+    // Content and tool calls only: the reasoning is not handed back (see ChatMessage).
     messages.push({ role: "assistant", content: message.content ?? null, tool_calls: toolCalls });
 
     // ask_reader ends the turn. Handled before the tool loop because there is
