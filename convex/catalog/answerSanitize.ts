@@ -252,10 +252,20 @@ export function trimLeadingNarration(paragraph: string): string {
  * about wildfire… Actually, the title search is a reasonable proxy here. The
  * question asks… That's a good answer. Let me state it."), then wrote the answer
  * again. Every rule above looks only at the front of the reply, so all of it was
- * published. These extend SENTENCE_NARRATION with the shapes that showed up there.
+ * published.
+ *
+ * Deliberately NOT SENTENCE_NARRATION: those only ever trim the front of the
+ * first paragraph, and several match whole sentences that carry facts ("I should
+ * note that the Senate has not voted on it", "The results show that…", "Based
+ * on the data, …"). Deleting those mid-answer would remove true statements. This
+ * list is only sentences that say what the model is DOING, never what is true.
  */
 const THINKING_SENTENCES: RegExp[] = [
-  ...SENTENCE_NARRATION,
+  // "Let me also check…", "Let's look at…", "Let me state it." A process verb is
+  // required: "Let me note that five became law" carries a fact and stays.
+  /^(?:now )?let(?:'s| me| us) (?:also |now |first |quickly )?(?:check|look|see|consider|fetch|find|verify|confirm|state|write|give|answer|re-?check|think|start|try|search|count|pull|get|break|double-check)\b/,
+  /^actually,\s*let\b/,
+  /^i(?:'ll| will) (?:check|look|fetch|verify|confirm|state|write|give|answer|search)\b/,
   // "That's a good answer." "That is the right figure."
   /^(?:that's|that is) (?:a |the |our )?(?:good|right|correct|reasonable|complete|full|final) (?:answer|proxy|approach|figure|number|count)\b/,
   // The model talking about the question, or about the reader, in the third person.
