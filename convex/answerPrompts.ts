@@ -27,6 +27,10 @@ const DEFAULT_APP_HOST = "https://us.posthog.com";
 const DEFAULT_PROJECT_ID = "451900";
 /** Versions kept besides production; older experiment versions are dropped. */
 const KEEP_VERSIONS = 10;
+/** A version that failed to copy is not tried again for this long. */
+const RETRY_AFTER_MS = 60 * 60 * 1000;
+/** At most this many version fetches start per minute, whatever clients send. */
+const FETCHES_PER_MINUTE = 3;
 
 export interface ServedPrompt {
   name: string;
@@ -54,9 +58,11 @@ export const forAnswer = internalQuery({
       .query("answerPrompts")
       .withIndex("by_name_version", (q) => q.eq("name", ANSWER_PROMPT_NAME))
       .collect();
+    // A row with an empty template is a fetch attempt, not a copy.
+    const usable = rows.filter((r) => r.template !== "");
     const assigned =
-      args.version === undefined ? undefined : rows.find((r) => r.version === args.version);
-    const row = assigned ?? rows.find((r) => r.isProduction);
+      args.version === undefined ? undefined : usable.find((r) => r.version === args.version);
+    const row = assigned ?? usable.find((r) => r.isProduction);
     return {
       name: ANSWER_PROMPT_NAME,
       version: row?.version ?? null,
@@ -109,6 +115,51 @@ export const store = internalMutation({
       .sort((a, b) => b.version - a.version);
     for (const r of others.slice(KEEP_VERSIONS)) await ctx.db.delete(r._id);
     return null;
+  },
+});
+
+/**
+ * Whether to start fetching an experiment version nobody has copied yet, and
+ * if so, record the attempt. No for a version tried within the hour (it failed
+ * or is in flight) and when three fetches already started this minute, so
+ * neither a broken experiment arm nor a client sending made-up version numbers
+ * turns question traffic into PostHog API calls (review on #171).
+ */
+export const claimFetch = internalMutation({
+  args: { version: v.number() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("answerPrompts")
+      .withIndex("by_name_version", (q) => q.eq("name", ANSWER_PROMPT_NAME))
+      .collect();
+    const now = Date.now();
+    const existing = rows.find((r) => r.version === args.version);
+    if (existing && existing.template !== "") return false;
+    if (existing?.attemptedAt !== undefined && now - existing.attemptedAt < RETRY_AFTER_MS) {
+      return false;
+    }
+    const recent = rows.filter((r) => r.attemptedAt !== undefined && now - r.attemptedAt < 60_000);
+    if (recent.length >= FETCHES_PER_MINUTE) return false;
+    // Attempts that never became a copy are kept a day, then dropped.
+    for (const r of rows) {
+      if (r.template === "" && r.attemptedAt !== undefined && now - r.attemptedAt > 24 * RETRY_AFTER_MS) {
+        await ctx.db.delete(r._id);
+      }
+    }
+    if (existing) {
+      await ctx.db.patch(existing._id, { attemptedAt: now });
+    } else {
+      await ctx.db.insert("answerPrompts", {
+        name: ANSWER_PROMPT_NAME,
+        version: args.version,
+        template: "",
+        isProduction: false,
+        fetchedAt: 0,
+        attemptedAt: now,
+      });
+    }
+    return true;
   },
 });
 

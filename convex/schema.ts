@@ -618,5 +618,10 @@ export default defineSchema({
     template: v.string(),
     isProduction: v.boolean(),
     fetchedAt: v.number(),
+    // When a fetch of this version was last tried. A row with an empty
+    // template is a version tried and not (yet) copied: an experiment arm
+    // PostHog rejected, or a version number a client made up. It stops that
+    // version being re-fetched on every question (review on #171).
+    attemptedAt: v.optional(v.number()),
   }).index("by_name_version", ["name", "version"]),
 });

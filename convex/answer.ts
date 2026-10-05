@@ -202,7 +202,12 @@ async function loadAnswerPrompt(ctx: ActionCtx, version: number | undefined): Pr
   try {
     const served = await ctx.runQuery(internal.answerPrompts.forAnswer, { version });
     if (served.missing !== null) {
-      await ctx.scheduler.runAfter(0, internal.answerPrompts.fetchVersion, { version: served.missing });
+      const claimed = await ctx.runMutation(internal.answerPrompts.claimFetch, {
+        version: served.missing,
+      });
+      if (claimed) {
+        await ctx.scheduler.runAfter(0, internal.answerPrompts.fetchVersion, { version: served.missing });
+      }
     }
     return { name: served.name, version: served.version, template: served.template };
   } catch (error) {

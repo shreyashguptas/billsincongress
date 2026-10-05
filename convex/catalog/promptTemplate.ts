@@ -20,7 +20,12 @@
 /** The prompt's name in PostHog prompt management. Names are immutable there. */
 export const ANSWER_PROMPT_NAME = "answer-system";
 
-/** Every slot a template may use. `datasets` is required; the rest may be omitted. */
+/**
+ * Every slot a template must use, each exactly as computed in code. All three
+ * are required: a version without {{calendar}} would date "recent" from the
+ * model's training cutoff and call bills in ended Congresses pending, and one
+ * without {{context}} would lose the bill the reader has open (review on #171).
+ */
 export const PROMPT_SLOTS = ["datasets", "calendar", "context"] as const;
 export type PromptSlot = (typeof PROMPT_SLOTS)[number];
 
@@ -53,7 +58,7 @@ Every result says which SET it drew from, whether it is \`complete\`, and its \`
 FACTS ABOUT OUR DATA
 - Totals count MEASURES: bills (hr, s), joint resolutions (hjres, sjres), and simple and concurrent resolutions. Only bills and joint resolutions become law, so "how many bills became law" is the whole became-law total; call them laws. For other "how many bills" questions, say "measures", or add billType 'hr' and billType 's' as two counts (a billType filter takes one type).
 - "Started in the Senate" or "in the House" is the chamber filter, not billType.
-- We do not hold co-sponsors, votes or hearing schedules. Never state them.
+- We do not hold co-sponsors, vote records or hearing schedules. Never state them, except a tally written in an action's own text ("Passed Senate 51-50"), quoted and attributed to that action.
 - Answer about exactly what the reader named: education bills are not student-loan bills. Search titles for the specific thing, or say what you could not narrow down.
 
 WHEN WE DON'T HOLD IT
@@ -77,14 +82,15 @@ Look it up again. If your earlier answer was wrong, your first sentence says so 
 const SLOT = /\{\{\s*([a-zA-Z_]+)\s*\}\}/g;
 
 /**
- * Whether a template can be served: it names the dataset slot (without it the
- * model would not know what it can read) and no slot we do not fill (which
- * would reach the model as a literal "{{...}}").
+ * Whether a template can be served: it uses every slot (the dataset list,
+ * today's calendar and the reader's page are what must stay correct, so the
+ * editable wording cannot drop them) and no slot we do not fill (which would
+ * reach the model as a literal "{{...}}").
  */
 export function validTemplate(template: unknown): template is string {
   if (typeof template !== "string" || template.trim().length < 200) return false;
   const used = [...template.matchAll(SLOT)].map((m) => m[1]);
-  if (!used.includes("datasets")) return false;
+  if (!PROMPT_SLOTS.every((slot) => used.includes(slot))) return false;
   return used.every((name) => (PROMPT_SLOTS as readonly string[]).includes(name));
 }
 

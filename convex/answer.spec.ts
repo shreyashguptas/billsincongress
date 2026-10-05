@@ -280,6 +280,30 @@ test("an experiment's version is used when copied; otherwise production, and it 
   expect(scheduled.some((f) => f.name.includes("fetchVersion") && f.args[0]?.version === 9)).toBe(true);
 });
 
+test("a version that is not copied is fetched once, not on every question, and made-up ones are capped", async () => {
+  // Review on #171: a broken experiment arm or a forged version number turned
+  // every question into a PostHog API call.
+  const t = convexTest(schema, modules);
+  replyWith(Array(6).fill("No bill matches."));
+  const fetches = async () =>
+    (await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).filter((f) =>
+      f.name.includes("fetchVersion"),
+    ).length;
+
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 9 });
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 9 });
+  expect(await fetches()).toBe(1);
+
+  for (const version of [11, 12, 13]) {
+    await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: version });
+  }
+  expect(await fetches()).toBe(3);
+  // Every one of those answers still used the in-code default.
+  for (const r of requests) {
+    expect((r.messages[0].content ?? "").startsWith("You answer questions about the United States Congress")).toBe(true);
+  }
+});
+
 test("the model's reasoning never reaches the reader", async () => {
   // A REGRESSION GUARD, not evidence for the change: runLoop has only ever read
   // message.content, so this passed before reasoning was turned on too. It pins

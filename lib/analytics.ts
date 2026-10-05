@@ -100,11 +100,6 @@ export const analytics = {
   },
 
   /**
-   * Headers that let server-side captures attach to the same person/session.
-   * Spread into fetch() headers for API calls whose routes capture events or
-   * write PostHog log lines (`/api/answer` → convex/posthogLogs.ts).
-   */
-  /**
    * The answer-prompt version a running PostHog prompt experiment assigned this
    * reader, sent with each question so the server answers with that version
    * (convex/answerPrompts.ts). A prompt experiment's flag carries
@@ -122,7 +117,15 @@ export const analytics = {
     try {
       const payloads = posthog.featureFlags.getFlagPayloads();
       for (const [key, raw] of Object.entries(payloads)) {
-        const payload = typeof raw === 'string' ? (JSON.parse(raw) as unknown) : raw;
+        let payload: unknown = raw;
+        if (typeof raw === 'string') {
+          // Another flag's plain-string payload must not end the search.
+          try {
+            payload = JSON.parse(raw);
+          } catch {
+            continue;
+          }
+        }
         if (!payload || typeof payload !== 'object') continue;
         const { prompt_name: name, prompt_version: version } = payload as Record<string, unknown>;
         if (name !== ANSWER_PROMPT_NAME || typeof version !== 'number') continue;
@@ -135,6 +138,11 @@ export const analytics = {
     return null;
   },
 
+  /**
+   * Headers that let server-side captures attach to the same person/session.
+   * Spread into fetch() headers for API calls whose routes capture events or
+   * write PostHog log lines (`/api/answer` → convex/posthogLogs.ts).
+   */
   requestHeaders(): Record<string, string> {
     if (!ready()) return {};
     return {

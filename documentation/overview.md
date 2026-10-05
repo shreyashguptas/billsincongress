@@ -1018,9 +1018,10 @@ against that risk:
 - **The template is wording only.** What must stay correct is computed in code and filled
   into named slots: `{{datasets}}` (the dataset index, from `convex/catalog/datasets.ts`),
   `{{calendar}}` (today, and which Congresses have ended) and `{{context}}` (what the reader
-  has on screen). A version that is not text with `{{datasets}}`, or that uses any other
-  slot, is never copied (`validTemplate`, `convex/catalog/promptTemplate.ts`), and the answer
-  uses the in-code `DEFAULT_TEMPLATE` instead. A bad edit costs wording, never an outage.
+  has on screen). A version that does not use all three slots, or uses any other, is never
+  copied (`validTemplate`, `convex/catalog/promptTemplate.ts`), and the answer uses the
+  in-code `DEFAULT_TEMPLATE` instead. A bad edit costs wording, never an outage, and never
+  the date or the reader's page.
 - **No wait on PostHog.** `refresh-answer-prompt` copies the `production` version into the
   `answerPrompts` table every 5 minutes (`convex/answerPrompts.ts`); an answer reads that row.
   With no `POSTHOG_PERSONAL_API_KEY`, PostHog unreachable, or nothing copied, the in-code
@@ -1041,15 +1042,19 @@ that payload, not by its key (`analytics.answerPromptAssignment()` in `lib/analy
 reads it through `getFeatureFlagResult` so PostHog records the exposure, and sends
 `{ name, version }` with the question. Convex accepts only `answer-system` and a whole
 version number (`readPromptVersion`). A version not copied yet is fetched in the background
-(`answerPrompts.fetchVersion`), and that one answer gets production. Choosing the version in
+(`answerPrompts.fetchVersion`), and that one answer gets production. A version is tried at
+most once an hour, and at most three fetches start a minute (`claimFetch`), so a broken arm
+or a made-up version number cannot turn questions into PostHog API calls. Choosing the version in
 the browser, where PostHog's flags are already loaded, adds no wait to the answer.
 
 Versions: **1** is the prompt live through 2026-10-05; **2** is the 2026-10-05 rewrite (same
-rules, grouped, 30% fewer instruction tokens); **3**, labelled `production` and identical to
-`DEFAULT_TEMPLATE`, adds the two rules version 2 was found to need: "summarize" means the
-official summary (version 2 described the bill's row instead, 3 runs of 3), and cards only
-for fetched ids. Measured on the production data copy, 3 runs each: version 1 got 20 of 21
-every run, version 3 got 21, 20 and 21, and the grounding gate passed 16 of 16 in 3 runs.
+rules, grouped, 30% fewer instruction tokens); **3** adds the two rules version 2 was found
+to need: "summarize" means the official summary (version 2 described the bill's row instead,
+3 runs of 3), and cards only for fetched ids; **4**, labelled `production` and identical to
+`DEFAULT_TEMPLATE`, lets a vote tally written in an action's own text be quoted, as
+`datasets.ts` allows. Measured on the production data copy: version 1 got 20 of 21 in 3 runs;
+version 3 got 21, 20 and 21; version 4 got 20 and 20, its one miss the Senate question every
+version misses; the grounding gate passed 16 of 16 in every run of versions 3 and 4.
 
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
 `POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional

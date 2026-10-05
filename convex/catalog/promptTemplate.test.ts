@@ -36,8 +36,11 @@ it("rejects a template that would break answers", () => {
   assert.equal(validTemplate("short {{datasets}}"), false, "too short to be a real prompt");
   const long = "x".repeat(300);
   assert.equal(validTemplate(long), false, "no dataset slot: the model would not know what it can read");
-  assert.equal(validTemplate(`${long} {{datasets}} {{reader_name}}`), false, "a slot nothing fills");
-  assert.equal(validTemplate(`${long} {{ datasets }}`), true, "spaces inside the braces are fine");
+  const all = "{{datasets}}{{calendar}}{{context}}";
+  assert.equal(validTemplate(`${long} {{datasets}}{{context}}`), false, "no calendar: no date, ended Congresses called pending");
+  assert.equal(validTemplate(`${long} {{datasets}}{{calendar}}`), false, "no context: the reader's bill is lost");
+  assert.equal(validTemplate(`${long} ${all} {{reader_name}}`), false, "a slot nothing fills");
+  assert.equal(validTemplate(`${long} {{ datasets }}{{calendar}}{{context}}`), true, "spaces inside the braces are fine");
 });
 
 // A bad edit in PostHog must never take answers down: it falls back to code.
