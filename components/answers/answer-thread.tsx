@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import ReactMarkdown, { type Options as MarkdownOptions } from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
+import { MAX_QUESTION_LENGTH } from '@/lib/text-limit';
 import { splitAnswer } from '@/lib/answer-entities';
 import { rehypeWordSpans } from '@/lib/answer-reveal';
 import { useAnswers, type Turn } from './answer-provider';
@@ -192,6 +194,8 @@ function AssistantTurn({
 export default function AnswerThread({ surface = 'panel' }: { surface?: string }) {
   const { turns, busy, error, ask } = useAnswers();
   const [input, setInput] = useState('');
+  const noteId = useId();
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_panel');
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // Whether the reader was at the bottom before the content last grew. Tracked
@@ -332,16 +336,18 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             setInput('');
             void ask(q, { source: 'typed' });
           }}
+          onAnimationEnd={onNudgeEnd}
           className={cn(
             'flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pl-4 pr-2.5',
             'transition-shadow focus-within:ring-2 focus-within:ring-ink focus-within:ring-offset-2 focus-within:ring-offset-paper',
+            nudging && 'animate-nudge',
           )}
         >
           <Input
             id="ask-composer"
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => setInput(limit(e, input))}
             placeholder={
               awaitingReply
                 ? 'Answer the question…'
@@ -363,7 +369,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
               'focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 lg:text-[15px]',
             )}
             disabled={busy}
-            maxLength={2000}
+            aria-describedby={noteId}
           />
           <Button
             type="submit"
@@ -379,6 +385,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             )}
           </Button>
         </form>
+        <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} className="px-1" />
       </div>
     </div>
   );

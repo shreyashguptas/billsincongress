@@ -127,7 +127,8 @@ components/                Shared React components
                            hero-ask.tsx + use-bill-suggestions.ts (home box and its bill suggestions)
   brand/                   The design language in code (documentation/brand.md): logo and
                            chamber mark, stage pill and track, party tag, section header,
-                           the picture primitives (pictures.tsx) and the Pro mark (pro-mark.tsx);
+                           the picture primitives (pictures.tsx), the Pro mark (pro-mark.tsx) and
+                           the length-limit count and message every limited text box uses (length-limit.tsx);
                            icon-alignment-check.tsx warns in dev about icons off their label
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
@@ -149,7 +150,7 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 36 modules + 33 test files at the top level, then the folders below
+lib/                       Pure client/shared modules — 38 modules + 36 test files at the top level, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server-side exceptions go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
@@ -158,6 +159,7 @@ lib/                       Pure client/shared modules — 36 modules + 33 test f
   answer-reveal.ts         The ask panel's word-by-word reveal of a finished answer
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
   sponsor-match.ts         A member's name typed into the /bills title search, for the empty state
+  text-limit.ts            Text boxes with a length limit: the cut, the count, the message, the 2,000 question cap
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
   chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
@@ -561,6 +563,12 @@ list (`lib/sponsor-match.ts`: the full name, first and last name, or a last name
 member has) and the empty state offers "Show bills sponsored by …", which moves the text from
 the title search to the sponsor filter. The match runs in the browser against the same
 `listAllSponsors` list as the sponsor picker; the server search is unchanged.
+
+A question typed into the title search fails the same way. When an empty title search reads as
+a question (`readsAsQuestion`, `lib/bill-suggest.ts`), the empty state offers "Ask this
+question" instead, which asks the assistant with the list's other filters as the scope but not
+the title search (`ask(…, { scope })`; a `null` scope means none, where leaving it out would
+pick up the page's published scope, title included, and answer about an empty set).
 
 **One member, several spellings.** Congress.gov records 45 members under two spellings ("ADAM
 SCHIFF" and "Adam Schiff", "NYDIA VELAZQUEZ" and "Nydia Velázquez"; October 2026), and in the

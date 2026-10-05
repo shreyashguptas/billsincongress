@@ -39,7 +39,7 @@ Nearly every number on the page is clickable. Click a stage, a sponsor or a stat
 
 ### Every bill, browsable
 
-`/bills` is the full browser. You can search by title or bill number, start typing a sponsor's name to pick them from a list, and filter by status, Congress, policy area (33 of them), state, date introduced, date last acted on, and bill type. Bill titles don't name their sponsors, so a member's name typed into the title search finds nothing; when that happens and the name belongs to exactly one member, the empty page offers to show that member's bills instead.
+`/bills` is the full browser. You can search by title or bill number, start typing a sponsor's name to pick them from a list, and filter by status, Congress, policy area (33 of them), state, date introduced, date last acted on, and bill type. Bill titles don't name their sponsors, so a member's name typed into the title search finds nothing; when that happens and the name belongs to exactly one member, the empty page offers to show that member's bills instead. A question typed there ("how many bills about school lunch…") finds nothing for the same reason, so the empty page offers to ask it, and the assistant answers it with the list's other filters but not the search words.
 
 Each filter's own control displays what it is currently set to, with a running "N filters applied · Clear all" line under the row, and every filter is written into the address bar — so a filtered view can be bookmarked, shared, or walked back through with the browser's Back button. Filters are deliberately *not* remembered between visits, because silently re-applying last week's filters is how people end up staring at an unexplained empty page.
 
@@ -210,7 +210,7 @@ The question panel is the only place in the interface where a machine writes pro
 
 **The model itself:** DeepSeek V4 Flash, reached through OpenRouter. Requests carry zero-retention and no-training flags, a maximum price per million tokens so a repriced provider is skipped rather than silently billed, and an automatic failover chain if the primary is unavailable. Routing is pinned to a short allowlist of providers chosen for US data processing — OpenRouter's true region-locking is an enterprise feature, so this is an allowlist, not a hard geographic guarantee.
 
-**Limits:** five questions a day without an account, 100 with a free one, 500 on Pro. Questions are capped at 2,000 characters.
+**Limits:** five questions a day without an account, 100 with a free one, 500 on Pro. Questions are capped at 2,000 characters, and bill searches at 120; a box shows a count as you get close and says the limit in words when you reach it.
 
 **And the honest part:** AI answers can still be incomplete, outdated, or plainly wrong. The grounding machinery makes fabricated *sources* very hard, but it does not make the prose correct. Treat any answer as a starting point and click through to the record. For anything official, use Congress.gov. If an answer is wrong, tap **No** under it.
 

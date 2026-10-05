@@ -15,6 +15,9 @@ import { formatCongressOrdinal } from '@/lib/congress';
 import { compactStageLabel } from '@/lib/utils/bill-stages';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
+import { cn } from '@/lib/utils';
+import { MAX_QUESTION_LENGTH } from '@/lib/text-limit';
 
 // Starter questions: rounded-full outline pills (brand.md, "Ask composer"),
 // on the page rather than raised. Inline-block and wrapping, so a long starter
@@ -45,6 +48,8 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const starterItems = buildStarters(starters);
   const congress = starters.congress;
   const listId = useId();
+  const noteId = useId();
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_home');
 
   const suggestions = useBillSuggestions(input, congress);
   const settled = suggestions.kind !== null && isSettled(suggestions, input, congress);
@@ -112,13 +117,17 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             }
             askTyped();
           }}
-          className="flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pr-2.5 transition-colors focus-within:border-ink focus-within:ring-1 focus-within:ring-ink"
+          onAnimationEnd={onNudgeEnd}
+          className={cn(
+            'flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pr-2.5 transition-colors focus-within:border-ink focus-within:ring-1 focus-within:ring-ink',
+            nudging && 'animate-nudge',
+          )}
         >
           <Input
             type="text"
             value={input}
             onChange={(e) => {
-              setInput(e.target.value);
+              setInput(limit(e, input));
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
@@ -144,7 +153,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               showList && active >= 0 ? `${listId}-${active}` : undefined
             }
             autoComplete="off"
-            maxLength={2000}
+            aria-describedby={noteId}
             disabled={busy}
             // Bare: the form draws the edge and the focus treatment.
             className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-5 text-[17px] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 touchable:h-full"
@@ -168,6 +177,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             <ArrowUp className="h-5 w-5" strokeWidth={1.75} />
           </Button>
         </form>
+        <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} className="px-1 text-left" />
 
         {showList && (
           <div

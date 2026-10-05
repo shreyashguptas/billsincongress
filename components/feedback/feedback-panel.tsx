@@ -6,6 +6,7 @@ import { analytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { FEEDBACK_MAX_LENGTH, FEEDBACK_SURVEY, type FeedbackKind } from '@/lib/feedback/surveys';
 import { MAX_INPUT_BYTES, preparePicture, uploadPicture } from '@/lib/feedback/picture';
 
@@ -40,6 +41,8 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
   const [step, setStep] = React.useState<Step>('pick');
   const [kind, setKind] = React.useState<FeedbackKind>('Issue');
   const [message, setMessage] = React.useState('');
+  const limitId = React.useId();
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(FEEDBACK_MAX_LENGTH, 'feedback');
   const [picture, setPicture] = React.useState<Picture | null>(null);
   const [preparing, setPreparing] = React.useState(false);
   const [sending, setSending] = React.useState(false);
@@ -186,9 +189,8 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
           ref={textRef}
           id="feedback-message"
           value={message}
-          maxLength={FEEDBACK_MAX_LENGTH}
           onChange={(e) => {
-            setMessage(e.target.value);
+            setMessage(limit(e, message));
             if (error) setError('');
           }}
           onPaste={onPaste}
@@ -200,10 +202,12 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
           }}
           placeholder={current.placeholder}
           rows={5}
-          className="mt-2 resize-none"
+          onAnimationEnd={onNudgeEnd}
+          className={cn('mt-2 resize-none', nudging && 'animate-nudge')}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? 'feedback-error' : undefined}
+          aria-describedby={error ? `feedback-error ${limitId}` : limitId}
         />
+        <LengthLimitNote id={limitId} length={message.length} max={FEEDBACK_MAX_LENGTH} />
 
         {(picture || preparing) && (
           <div className="mt-2 flex items-center gap-2 rounded-md border border-line bg-raised p-1.5 pr-1">

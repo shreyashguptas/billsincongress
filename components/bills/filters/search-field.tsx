@@ -4,6 +4,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
+import { cn } from '@/lib/utils';
+import { MAX_SEARCH_TEXT_LENGTH } from '@/lib/bill-query';
 
 /** Long enough to absorb a word, short enough not to feel laggy. */
 const DEBOUNCE_MS = 250;
@@ -38,6 +41,8 @@ export interface SearchFieldProps {
  */
 export function SearchField({ value, onCommit }: SearchFieldProps) {
   const id = useId();
+  const noteId = useId();
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_SEARCH_TEXT_LENGTH, 'bills_search');
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCommitted = useRef(value);
@@ -76,47 +81,51 @@ export function SearchField({ value, onCommit }: SearchFieldProps) {
   }, []);
 
   return (
-    <div className="relative">
-      <label htmlFor={id} className="sr-only">
-        Search bills
-      </label>
-      <Search
-        className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3"
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-      <Input
-        id={id}
-        type="search"
-        value={draft}
-        onChange={(e) => handleChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit(draft);
-          }
-        }}
-        onBlur={() => commit(draft)}
-        placeholder="Search bills, or type a bill number"
-        // text-base on touch: anything smaller makes iOS Safari zoom in on
-        // focus and never zoom back out.
-        className="h-[52px] pl-11 pr-12 focus:border-ink touchable:h-[52px] touchable:text-base [&::-webkit-search-cancel-button]:hidden"
-      />
-      {draft !== '' && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            setDraft('');
-            commit('');
+    <div>
+      <div className={cn('relative', nudging && 'animate-nudge')} onAnimationEnd={onNudgeEnd}>
+        <label htmlFor={id} className="sr-only">
+          Search bills
+        </label>
+        <Search
+          className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3"
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+        <Input
+          id={id}
+          type="search"
+          value={draft}
+          onChange={(e) => handleChange(limit(e, draft))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit(draft);
+            }
           }}
-          aria-label="Clear search"
-          className="absolute right-1 top-1/2 h-11 w-11 -translate-y-1/2 text-ink-3 hover:text-ink"
-        >
-          <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-        </Button>
-      )}
+          onBlur={() => commit(draft)}
+          aria-describedby={noteId}
+          placeholder="Search bills, or type a bill number"
+          // text-base on touch: anything smaller makes iOS Safari zoom in on
+          // focus and never zoom back out.
+          className="h-[52px] pl-11 pr-12 focus:border-ink touchable:h-[52px] touchable:text-base [&::-webkit-search-cancel-button]:hidden"
+        />
+        {draft !== '' && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setDraft('');
+              commit('');
+            }}
+            aria-label="Clear search"
+            className="absolute right-1 top-1/2 h-11 w-11 -translate-y-1/2 text-ink-3 hover:text-ink"
+          >
+            <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+          </Button>
+        )}
+      </div>
+      <LengthLimitNote id={noteId} length={draft.length} max={MAX_SEARCH_TEXT_LENGTH} className="px-1" />
     </div>
   );
 }

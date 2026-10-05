@@ -210,8 +210,10 @@ picker) and fires one custom event — see "Learn page" below.
 | `bills_no_results_filter_removed` | User drops one filter via a chip in the empty-result state — measures whether the dead-end escape hatch works, and which filter people blame first | `filter_kind`, `active_filter_count` | `app/bills/bills-client.tsx` |
 | `bills_no_results_sponsor_suggested` | An empty `/bills` title search named exactly one member of Congress ("jamie raskin", "warner"), so the empty state offered "Show bills sponsored by …" (passive, once per empty result). Added 2026-09-30 | `match_kind` (`full_name` \| `first_last` \| `last_name`), `query_length` | `app/bills/bills-client.tsx` |
 | `bills_no_results_sponsor_accepted` | Reader clicks that offer: the text leaves the title search and the member is added to the sponsor filter. Also fires `bills_filter_applied`/`bills_filter_removed` with `surface: "empty_state"`. Added 2026-09-30 | `match_kind`, `query_length` | `app/bills/bills-client.tsx` |
+| `bills_no_results_ask_offered` | An empty `/bills` title search read as a question ("how many bills about…": it ends in "?", or opens with how/what/which/who/why/when/where and runs to three words or more), so the empty state offered "Ask this question" (passive, once per empty result; a member's name gets the sponsor offer instead). Added 2026-10-04 | `query_length` | `app/bills/bills-client.tsx` |
+| `bills_no_results_ask_accepted` | Reader clicks that offer: the question goes to the assistant with the list's other filters but not the title search. Also fires `answer_question_submitted` with `source: "typed"`. Added 2026-10-04 | `query_length` | `app/bills/bills-client.tsx` |
 | `bill_card_clicked` | User clicks a bill row in a bill list (`/bills` or a hub page). Named for the card the row replaced in the 2026-09-25 redesign; the name is kept so saved insights keep working | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage` | `components/bills/bill-card.tsx` |
-| `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set while the list is open (passive, 150ms debounce, once per settled query and Congress, including zero results) | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
+| `bill_suggestions_shown` | Instant bill suggestions under the home ask box settle on a result set while the list is open (passive, 150ms debounce, once per settled query and Congress, including zero results; never fires for text over 120 characters (since 2026-09-30) or text that reads as a question (since 2026-10-04), neither of which is searched | `match_kind` (`number` \| `acronym` \| `title`), `query_length`, `result_count`, `congress` | `components/answers/hero-ask.tsx` |
 | `bill_suggestion_clicked` | Reader opens a suggested bill from the home ask box | `bill_id`, `position` (1-based), `method` (`click` \| `enter`), `match_kind`, `query_length` | `components/answers/hero-ask.tsx` |
 | `bill_suggestions_see_all_clicked` | Reader clicks "See all matching bills" under the suggestions, which opens `/bills` filtered by the typed text and the Congress on screen | `match_kind`, `query_length`, `result_count` | `components/answers/hero-ask.tsx` |
 | `hub_viewed` | A topic / chamber / status hub page was rendered (passive, once per view+order+page) | `hub_kind`, `hub_path`, `bill_count`, `page`, `order` (`newest` \| `oldest`; added 2026-09-30, absent on earlier events) | `app/bills/_hub/hub-view-tracker.tsx` |
@@ -452,6 +454,17 @@ send") in the same commit.
 **Free-plan budget.** Every `survey sent` counts toward PostHog's 1,500 free survey responses a
 month, across both surveys. The prompt's 1,000-response limit is what keeps it inside that: the
 site shows the prompt only while PostHog has the survey open (`analytics.whenSurveyActive`).
+
+### Text boxes with a length limit
+
+Every text box with a limit says so in the same way (`components/brand/length-limit.tsx`,
+`documentation/brand.md` "Length limits"): a count from 90% of the limit, then a nudge and the
+limit in words. The limits are 2,000 characters for a question and for feedback, and 120 for a
+bill search.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `text_limit_reached` | A box refused an edit (typed or pasted) that went past its limit. Once per box per page load. Expect it to be rare: in Sep 2026 no bill search went past 80 characters. Added 2026-10-04 | `surface` (`ask_home` \| `ask_panel` \| `bills_search` \| `header_search` \| `feedback` \| `found_it`), `limit` | `components/brand/length-limit.tsx` |
 
 ### Server-side events
 

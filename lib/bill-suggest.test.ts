@@ -4,8 +4,10 @@
  * Run with: `pnpm test`.
  */
 import assert from 'node:assert/strict';
+import { MAX_SEARCH_TEXT_LENGTH } from './bill-query';
 import {
   initialHighlight,
+  readsAsQuestion,
   isSettled,
   moveHighlight,
   suggestKey,
@@ -49,6 +51,41 @@ it('does not search on one letter, but does on a one-digit bill number', () => {
   assert.equal(suggestKind('  '), null);
   assert.equal(suggestKind('a'), null);
   assert.equal(suggestKind('5'), 'number');
+});
+
+// 29 Sep 2026: questions past 120 characters sent every keystroke to bills.list,
+// which rejected them — 206 "Server Error" console errors in 3 sessions. The
+// service now clamps them, but a cut question still matches nothing.
+it('does not search a question longer than the bills search accepts', () => {
+  const question =
+    'How many bills about school lunch programs and nutrition standards were introduced by senators from Georgia in the last two years?';
+  assert.ok(question.length > MAX_SEARCH_TEXT_LENGTH);
+  assert.equal(suggestKind(question), null);
+  assert.equal(suggestKind('a'.repeat(MAX_SEARCH_TEXT_LENGTH)), 'title');
+  assert.equal(suggestKind(`  ${'a'.repeat(MAX_SEARCH_TEXT_LENGTH)}  `), 'title');
+  assert.equal(suggestKind('a'.repeat(MAX_SEARCH_TEXT_LENGTH + 1)), null);
+});
+
+
+// 4 Sep–4 Oct 2026: past 20 characters, 596 suggestion searches found nothing
+// and none was clicked. A question is not a title; stop searching it.
+it('does not search titles for a question', () => {
+  for (const q of [
+    'how many bills about school lunch',
+    'What bills did Congress pass on farms',
+    'which senators sponsored the most bills',
+    'is the farm bill law yet?',
+  ]) {
+    assert.equal(readsAsQuestion(q), true, q);
+    assert.equal(suggestKind(q), null, q);
+  }
+});
+
+it('still searches bill names, including ones a question could start with', () => {
+  for (const q of ['Do No Harm Act', 'Sunshine act', 'broadband', 'HR 979', 'how act', 'Can Act']) {
+    assert.equal(readsAsQuestion(q), false, q);
+    assert.notEqual(suggestKind(q), null, q);
+  }
 });
 
 it('keys spacing and case variants together', () => {

@@ -102,6 +102,12 @@ export interface RateLimitInfo {
 
 interface AskOptions {
   source?: 'typed' | 'starter';
+  /**
+   * The set the question is about. Left out, a question asked on a filtered
+   * list carries that list's published scope. `null` asks with no scope, for a
+   * question the page's own filters would answer wrongly (an empty title search
+   * that was really a question, `app/bills/bills-client.tsx`).
+   */
   scope?: AnswerScope | null;
 }
 
@@ -439,7 +445,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
       // A question typed into the panel on a filtered list carries that list's
       // scope, not only the "Ask about these" button — the reader is looking at
       // the same rows either way.
-      const scope = opts.scope ?? published?.scope ?? undefined;
+      const scope =
+        opts.scope === null ? undefined : (opts.scope ?? published?.scope ?? undefined);
       const context = pageContextFor(pathname, published);
       const surface = scope ? 'filtered' : surfaceFor(pathname);
       const askedAt = Date.now();

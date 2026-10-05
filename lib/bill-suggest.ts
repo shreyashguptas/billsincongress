@@ -10,7 +10,7 @@
  *
  * Pure module (imports only other pure modules) so it carries unit tests.
  */
-import { expandSearchAcronym, parseBillReference } from './bill-query';
+import { MAX_SEARCH_TEXT_LENGTH, expandSearchAcronym, parseBillReference } from './bill-query';
 
 /** Below this many characters a title search matches too much to be useful. */
 export const MIN_SUGGEST_LENGTH = 2;
@@ -33,9 +33,40 @@ export function suggestKind(raw: string): SuggestKind | null {
     // A single digit is still a complete bill reference ("S 5").
     return parseBillReference(q) ? 'number' : null;
   }
+  // The ask box takes 2,000 characters, the bills search 120. A longer entry
+  // is a question, not a title: cut to 120 characters it matches nothing, so
+  // searching it would only cost a request per keystroke. Before 30 Sep 2026
+  // those requests also failed on the server (206 console errors in 3 sessions
+  // on 29 Sep); the bills service now clamps them, but they still find nothing.
+  if (q.length > MAX_SEARCH_TEXT_LENGTH) return null;
+  // A question is not a title. From 4 Sep to 4 Oct 2026, suggestions found a
+  // bill only for text of 20 characters or fewer: the 596 searches past that,
+  // from about 55 people, found nothing and were never clicked. Stop as soon as
+  // the text reads as a question rather than at the length cap.
+  if (readsAsQuestion(q)) return null;
   if (parseBillReference(q)) return 'number';
   if (expandSearchAcronym(q)) return 'acronym';
   return 'title';
+}
+
+/** Words a question starts with and a bill title does not. */
+const QUESTION_WORDS = new Set(['how', 'what', 'which', 'who', 'whom', 'whose', 'why', 'when', 'where']);
+
+/**
+ * Whether text is a question for the assistant rather than words from a bill
+ * title: it ends in "?", or it opens with a question word and runs to at least
+ * three words. Opening words like "is", "do" or "can" are left out, because
+ * titles start with them too ("Do No Harm Act"); those questions still count
+ * when they end in "?".
+ *
+ * Used by the home-page suggestions (stop searching titles) and by the `/bills`
+ * empty state (offer to ask the question instead).
+ */
+export function readsAsQuestion(raw: string): boolean {
+  const q = raw.trim().toLowerCase();
+  if (q.endsWith('?')) return true;
+  const words = q.split(/\s+/).filter(Boolean);
+  return words.length >= 3 && QUESTION_WORDS.has(words[0].replace(/[^a-z]/g, ''));
 }
 
 /** Normalised key so "HR 979" and "hr  979 " share one request and cache entry. */

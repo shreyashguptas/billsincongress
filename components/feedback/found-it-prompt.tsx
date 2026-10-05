@@ -16,6 +16,8 @@ import {
 import { useAnswers } from '@/components/answers/answer-provider';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
+import { cn } from '@/lib/utils';
 
 const SURVEY = { id: FOUND_IT_SURVEY.id, name: FOUND_IT_SURVEY.name, once: true };
 const Q = FOUND_IT_SURVEY.questions;
@@ -43,6 +45,8 @@ export function FoundItPrompt() {
   const [visible, setVisible] = React.useState(false);
   const [step, setStep] = React.useState<Step>('ask');
   const [missing, setMissing] = React.useState('');
+  const limitId = React.useId();
+  const { limit, nudging, onNudgeEnd } = useLengthLimit(FEEDBACK_MAX_LENGTH, 'found_it');
   const finished = React.useRef(false);
 
   // Count every page; decide once, on the page that crosses the threshold.
@@ -162,12 +166,14 @@ export function FoundItPrompt() {
                 id="found-it-missing"
                 autoFocus
                 rows={3}
-                maxLength={FEEDBACK_MAX_LENGTH}
                 value={missing}
-                onChange={(e) => setMissing(e.target.value)}
+                onChange={(e) => setMissing(limit(e, missing))}
                 placeholder="Optional"
-                className="resize-none"
+                onAnimationEnd={onNudgeEnd}
+                className={cn('resize-none', nudging && 'animate-nudge')}
+                aria-describedby={limitId}
               />
+              <LengthLimitNote id={limitId} length={missing.length} max={FEEDBACK_MAX_LENGTH} />
               <div className="mt-3 flex justify-end">
                 <Button type="submit" size="sm" className="touchable:h-11">
                   Send
