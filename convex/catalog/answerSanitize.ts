@@ -329,6 +329,19 @@ function showsThinking(text: string): boolean {
   });
 }
 
+/**
+ * The figures a text states, in digits or words, outside card and citation
+ * directives: "76", "119", "1557", "two".
+ */
+function figuresIn(text: string): Set<string> {
+  const prose = text.replace(/\[\[[^\]]*\]\]/g, " ").toLowerCase();
+  const words = new RegExp(CARRIES_A_FIGURE.source.replace("\\d|", ""), "g");
+  return new Set([
+    ...[...prose.matchAll(/\d[\d,]*/g)].map((m) => m[0].replace(/,/g, "")),
+    ...[...prose.matchAll(words)].map((m) => m[0]),
+  ]);
+}
+
 /** Enough left to be an answer: real words, not a fragment or a lone directive. */
 function isSubstantive(text: string): boolean {
   const t = text.trim();
@@ -480,8 +493,8 @@ export function dropQuestionEcho(text: string, question: string): SanitizeResult
  *
  * - A RESTART: a draft, then thinking, then the answer written again (the
  *   wildfire reply). When a paragraph with at least two thinking sentences
- *   comes before a substantive block, everything up to and including the last
- *   thinking block goes; the answer is what the model wrote after it finished deliberating.
+ *   comes before a substantive block that states every figure the draft did,
+ *   everything up to and including the last thinking block goes; the answer is what the model wrote after it finished deliberating.
  *   Card directives in the cut part are kept, moved to the end, unless the
  *   final answer has its own.
  * - Stray sentences: thinking or a closing offer with no answer after it. Only
@@ -507,9 +520,18 @@ function dropMidAnswerThinking(blocks: Block[]): { blocks: Block[]; removed: str
   const deliberates = kept
     .slice(0, last + 1)
     .some((b) => splitSentences(b.text).filter((x) => isThinkingSentence(x)).length >= 2);
+  // And the answer after the thinking must REPEAT the draft: every figure the
+  // cut part states appears again below it (76 … 76 in the wildfire reply).
+  // Without that check a reply that CONTINUES ("Sixty-four bills became law.
+  // Let me check the Senate side as well… Two were vetoed.") lost its headline.
+  // A draft with no figures cannot be shown to be repeated, so it is not cut.
+  const cutFigures = figuresIn(kept.slice(0, last + 1).map((b) => b.text).join("\n"));
+  const restFigures = figuresIn(kept.slice(last + 1).map((b) => b.text).join("\n"));
+  const repeated = cutFigures.size > 0 && [...cutFigures].every((f) => restFigures.has(f));
   if (
     last >= 0 &&
     deliberates &&
+    repeated &&
     kept.slice(last + 1).some((b) => isSubstantive(withoutThinking(b.text)))
   ) {
     const cut = kept.slice(0, last + 1);

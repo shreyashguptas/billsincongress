@@ -582,6 +582,20 @@ it("keeps the headline fact when an answer has several one-line transitions", ()
   );
 });
 
+it("keeps the headline when the model continues after thinking instead of restarting", () => {
+  // Review finding on 82b7a53: nothing checked that the text after the thinking
+  // repeated the draft. Here it adds a new fact, so the first one must stay.
+  const answer =
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+    "Let me check the Senate side as well. Let me look at vetoes too.\n\n" +
+    "Two bills were vetoed by the President.";
+  assert.equal(
+    sanitizeAnswer(answer).text,
+    "Sixty-four House bills became law in the 119th Congress.\n\n" +
+      "Two bills were vetoed by the President.",
+  );
+});
+
 it("recognises a reply made only of the new thinking shapes as no answer", () => {
   assert.equal(isAllDeliberation("The question asks about wildfire. That's a good answer."), true);
   assert.equal(isAllDeliberation("Let me know if you want more."), true);
