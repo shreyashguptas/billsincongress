@@ -204,6 +204,8 @@ The question panel is the only place in the interface where a machine writes pro
 
 **Your question is never handed to the search engine verbatim.** A search phrase is rejected before it leaves the server if it contains first-person words or simply repeats your question, so the model has to rephrase into a neutral query. Your question text does still go to the AI provider that writes the answer — that is unavoidable — but not to the search engine as you typed it.
 
+**Its instructions are versioned and tested.** The wording that tells the model how to answer lives in PostHog's prompt management, where every change is a numbered version. Every answer is recorded with the version that wrote it, so a wrong answer can be traced to the exact instructions behind it, and two versions can be compared on real questions before one replaces the other. What has to be right (the list of data the model can read, today's date, which Congresses have ended) is filled in by the site's code, not by the editable wording, and a version that breaks the expected format is ignored in favour of the copy built into the site. Each answer is also checked automatically afterwards for internal jargon, leftover formatting and visible "thinking out loud".
+
 **It owns its mistakes.** If you question an answer ("are you sure?"), it looks again, and if its earlier answer was wrong it says so in its first sentence before giving the corrected one. If the earlier answer holds, it says so.
 
 **Answers are short on purpose.** The model is told to put the answer in the first sentence, keep most answers to one to three sentences plus bill cards, and stop: no closing summary or offer to help further.

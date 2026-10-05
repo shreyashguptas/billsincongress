@@ -506,6 +506,24 @@ own id with `$process_person_profile: false`.
 | `$ai_span` | Each lookup the model made | `$ai_span_name` (the tool: `describe_dataset`, `fetch_dataset`, `search_web`, `ask_reader`), `$ai_input_state` — its arguments, `$ai_output_state` — what it was handed back, clipped at 20,000, `$ai_latency`, `$ai_is_error` (the call was invalid) | `convex/answer.ts` (tool loop) | Live (since 30 Sep 2026) |
 | `$ai_trace` | The turn ended, answered or failed | `$ai_input_state` — the reader's question, `$ai_output_state` — the answer as shown (after citation resolution), each as a one-message chat list (`[{role, content}]`), the shape PostHog's trace view renders, `$ai_latency`, `$ai_is_error`, `$ai_error`, and ours: `outcome: "answered" \| "asked_reader" \| "failed"`, `dropped`, `partial`, `truncated_by_length`, `db_source_count`, `web_source_count`, `signed_in` | `convex/answer.ts` (`stream`) | Live (since 30 Sep 2026) |
 
+Every one of the three AI events also carries, since 5 Oct 2026, `$ai_prompt_name`
+(`answer-system`), `$ai_prompt_version` (the PostHog prompt version that wrote the answer;
+absent when the in-code default served) and ours, `answer_prompt_source` (`posthog` or
+`code`). These are the properties PostHog prompt management joins generations to versions
+on, and a prompt experiment's cost, latency and evaluation metrics are scoped by them. See
+"Answer prompt" in overview.md.
+
+**Prompt experiments.** No event of ours: while a PostHog prompt experiment is running,
+`analytics.answerPromptAssignment()` reads its flag with `getFeatureFlagResult`, which
+records PostHog's own `$feature_flag_called` exposure event, and the question request carries
+`prompt: { name, version }` to the server. With no experiment running nothing is read or sent.
+
+**Evaluations.** PostHog writes one `$ai_evaluation` event per trace each evaluation scores
+(its own event, not ours): "Answer uses internal jargon", "Answer shows raw tags" and "Answer
+shows its thinking" (Hog, live since 5 Oct 2026) and "Answer states only what the lookups
+support" (LLM judge, off until a provider key is added). Listed in overview.md under
+"Recording and the wrong-answer loop".
+
 Since 2026-10-05 the model (gpt-oss-120b) reasons privately at low effort (`OPENROUTER_REASONING`,
 see "Model configuration" in overview.md), so each `$ai_generation`'s `$ai_output_choices` also
 carries the round's `reasoning` text: what the model thought, which the reader never sees. Its

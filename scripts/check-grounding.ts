@@ -37,6 +37,8 @@ import {
   type CompletenessReport,
 } from "../convex/catalog/completeness";
 import type { DatasetName } from "../convex/catalog/types";
+import { validTemplate } from "../convex/catalog/promptTemplate";
+import { readFileSync } from "node:fs";
 
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
@@ -81,6 +83,23 @@ const FINAL_ROUND_INSTRUCTION =
 
 /** Mirrors convex/answer.ts, which dates "recent" and "this week" from today. */
 const TODAY = new Date().toISOString().slice(0, 10);
+/**
+ * A candidate answer-prompt version to gate before it is labelled `production`
+ * in PostHog: export its text to a file and pass ANSWER_PROMPT_FILE. Without
+ * it the gate tests DEFAULT_TEMPLATE, the in-code wording. An invalid template
+ * is refused here rather than silently replaced, so a gate run cannot pass on
+ * behalf of a version production would reject.
+ */
+const PROMPT_TEMPLATE = (() => {
+  const file = process.env.ANSWER_PROMPT_FILE;
+  if (!file) return undefined;
+  const text = readFileSync(file, "utf8");
+  if (!validTemplate(text)) {
+    console.error(`ANSWER_PROMPT_FILE is not a valid template (see convex/catalog/promptTemplate.ts)`);
+    process.exit(1);
+  }
+  return text;
+})();
 
 /**
  * Mirrors the ceilings in convex/catalog/fetch.ts. They decide completeness, so
@@ -807,7 +826,7 @@ async function ask(question: string): Promise<Answer> {
   const messages: ChatMessage[] = [
     // `today` is passed the way answer.ts passes it: without it the model dates
     // "recent" and "this week" from its own training cutoff.
-    { role: "system", content: buildSystemPrompt({ today: TODAY }) },
+    { role: "system", content: buildSystemPrompt({ today: TODAY, template: PROMPT_TEMPLATE }) },
   ];
   // The opening production gives every question off a bill page (runLoop in
   // convex/answer.ts): bills and topics already described, and the policy-area

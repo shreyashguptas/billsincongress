@@ -17,6 +17,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import rateLimiterTest from "@convex-dev/rate-limiter/test";
 import schema from "./schema";
+import { internal } from "./_generated/api";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -171,6 +172,26 @@ describe("recording an answer as a PostHog trace", () => {
       expect(e.properties.$session_id).toBe("019a-session-id");
       expect(e.properties.$ai_session_id).toBe("conv-1234");
       expect(e.properties.$process_person_profile).toBeUndefined();
+    }
+  });
+
+  test("every event names the prompt version that wrote the answer", async () => {
+    // PostHog prompt management joins generations to versions on these, and a
+    // prompt experiment's cost, latency and eval metrics are scoped by them.
+    const t = setup();
+    await ask(t);
+    for (const e of batches()[0]) {
+      expect(e.properties.$ai_prompt_name).toBe("answer-system");
+      expect(e.properties.$ai_prompt_version).toBeUndefined();
+      expect(e.properties.answer_prompt_source).toBe("code");
+    }
+    sent.length = 0;
+    const words = `${"Version seven. ".repeat(20)}\n{{datasets}}{{calendar}}{{context}}`;
+    await t.mutation(internal.answerPrompts.store, { version: 7, template: words, isProduction: true });
+    await ask(t);
+    for (const e of batches()[0]) {
+      expect(e.properties.$ai_prompt_version).toBe(7);
+      expect(e.properties.answer_prompt_source).toBe("posthog");
     }
   });
 

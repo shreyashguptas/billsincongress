@@ -250,6 +250,36 @@ test("a first question carries no follow-up reminder", async () => {
   expect(requests[0].messages.some((m) => m.role === "system" && /previous answer/.test(m.content ?? ""))).toBe(false);
 });
 
+test("answers use the PostHog prompt copy marked production, and the default with none", async () => {
+  const t = convexTest(schema, modules);
+  replyWith(["No bill matches.", "No bill matches."]);
+  await t.action(internal.answer.ask, { question: "Is there a bill about lighthouses?" });
+  const first = requests[0].messages[0].content ?? "";
+  expect(first.startsWith("You answer questions about the United States Congress")).toBe(true);
+
+  const wording = `${"Version three wording. ".repeat(12)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: wording, isProduction: true });
+  await t.action(internal.answer.ask, { question: "Is there a bill about lighthouses?" });
+  expect((requests[1].messages[0].content ?? "").startsWith("Version three wording.")).toBe(true);
+});
+
+test("an experiment's version is used when copied; otherwise production, and it is fetched for next time", async () => {
+  const t = convexTest(schema, modules);
+  const words = (w: string) => `${`${w} `.repeat(30)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  await t.mutation(internal.answerPrompts.store, { version: 4, template: words("Four."), isProduction: false });
+  replyWith(["No bill matches.", "No bill matches."]);
+
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 4 });
+  expect((requests[0].messages[0].content ?? "").startsWith("Four.")).toBe(true);
+
+  // Version 9 is not copied: the reader gets production, never a wait.
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 9 });
+  expect((requests[1].messages[0].content ?? "").startsWith("Three.")).toBe(true);
+  const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+  expect(scheduled.some((f) => f.name.includes("fetchVersion") && f.args[0]?.version === 9)).toBe(true);
+});
+
 test("the model's reasoning never reaches the reader", async () => {
   // A REGRESSION GUARD, not evidence for the change: runLoop has only ever read
   // message.content, so this passed before reasoning was turned on too. It pins

@@ -32,6 +32,14 @@ Generated for Self-driving / scout context. Project **BillsInCongress** (id `451
 - Live answer path (`/api/answer`) forwards the PostHog identity headers to Convex, which records each answer as PostHog AI trace events (`convex/aiTrace.ts`; "AI traces" in [`analytics.md`](analytics.md#ai-traces-every-answer-from-convex)) and sends one PostHog Logs line per answer (`convex/posthogLogs.ts`; ["PostHog Logs"](analytics.md#posthog-logs) in the same file). Both have been live since 30 Sep 2026. It has no `posthog-node` event.
 - No API route sends a product event. The old per-bill chat route (`/api/bill-chat/send`, the only source of `bill_chat_message_processed`) was deleted on 1 Oct 2026.
 
+## AI observability
+
+| Item | Status |
+|------|--------|
+| Prompt management | `answer-system` (v1 = prompt live through 2026-10-05, v2 = rewrite, label `production` → v2). Served by `convex/answerPrompts.ts` once `POSTHOG_PERSONAL_API_KEY` is set; see "Answer prompt" in [`overview.md`](overview.md) |
+| Evaluations | Hog, live: "Answer uses internal jargon", "Answer shows raw tags", "Answer shows its thinking". LLM judge, off until a provider key is added: "Answer states only what the lookups support" |
+| Clusters | Default trace, generation and evaluation jobs enabled; no runs yet at ~140 traces a week |
+
 ## Self-driving configuration (target state)
 
 | Setting | Value |

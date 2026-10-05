@@ -129,6 +129,7 @@ export class AnswerTrace {
   private readonly events: CapturedEvent[] = [];
   private readonly clock: () => number;
   private finished = false;
+  private prompt: { name: string; version: number | null } | null = null;
 
   constructor(opts: {
     traceId?: string;
@@ -153,7 +154,22 @@ export class AnswerTrace {
       ...(this.identity.sessionId ? { $session_id: this.identity.sessionId } : {}),
       $ai_trace_id: this.traceId,
       $ai_session_id: this.identity.conversationId ?? null,
+      // PostHog prompt management joins generations to prompt versions on these
+      // two, and a prompt experiment's metrics are scoped by them. A null
+      // version is the in-code default, which is not a PostHog version.
+      ...(this.prompt
+        ? {
+            $ai_prompt_name: this.prompt.name,
+            ...(this.prompt.version !== null ? { $ai_prompt_version: this.prompt.version } : {}),
+            answer_prompt_source: this.prompt.version !== null ? "posthog" : "code",
+          }
+        : {}),
     };
+  }
+
+  /** Which answer-prompt version this turn used (convex/answerPrompts.ts). */
+  setPrompt(name: string, version: number | null) {
+    this.prompt = { name, version };
   }
 
   private push(event: string, properties: Record<string, unknown>) {

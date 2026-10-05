@@ -607,4 +607,16 @@ export default defineSchema({
     contentType: v.string(),
     size: v.number(),
   }).index("by_storageId", ["storageId"]),
+
+  // Copies of the answer model's instructions from PostHog prompt management
+  // (convex/answerPrompts.ts), one row per version. A cron refreshes the one
+  // labelled `production` every five minutes and answers read from here, so a
+  // reader never waits on PostHog. Empty table = the in-code DEFAULT_TEMPLATE.
+  answerPrompts: defineTable({
+    name: v.string(),
+    version: v.number(),
+    template: v.string(),
+    isProduction: v.boolean(),
+    fetchedAt: v.number(),
+  }).index("by_name_version", ["name", "version"]),
 });

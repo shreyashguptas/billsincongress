@@ -19,6 +19,8 @@ import {
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
 import { filtersFromCall } from "./catalog/filters";
+import { ANSWER_PROMPT_NAME } from "./catalog/promptTemplate";
+import type { ServedPrompt } from "./answerPrompts";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
 import {
   containsTextToolCall,
@@ -190,6 +192,39 @@ type ChatMessage = {
    */
   reasoning_details?: unknown[];
 };
+
+/**
+ * The prompt for one answer, from the copy in `answerPrompts`. Never throws and
+ * never waits on PostHog: a failure here means the in-code default, and an
+ * assigned version not copied yet is fetched in the background for next time.
+ */
+async function loadAnswerPrompt(ctx: ActionCtx, version: number | undefined): Promise<ServedPrompt> {
+  try {
+    const served = await ctx.runQuery(internal.answerPrompts.forAnswer, { version });
+    if (served.missing !== null) {
+      await ctx.scheduler.runAfter(0, internal.answerPrompts.fetchVersion, { version: served.missing });
+    }
+    return { name: served.name, version: served.version, template: served.template };
+  } catch (error) {
+    console.error("answer prompt lookup failed, using the in-code default:", String(error));
+    return { name: ANSWER_PROMPT_NAME, version: null, template: null };
+  }
+}
+
+/**
+ * The version a PostHog prompt experiment assigned, as the browser reports it:
+ * `{ name: "answer-system", version: 3 }`. Anything else is ignored. The worst a
+ * forged value can do is pick another version of our own prompt.
+ */
+export function readPromptVersion(raw: unknown): number | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const { name, version } = raw as { name?: unknown; version?: unknown };
+  if (name !== ANSWER_PROMPT_NAME) return undefined;
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1 || version > 100_000) {
+    return undefined;
+  }
+  return version;
+}
 
 /** See runLoop: what the model said last, so it can own a correction. */
 export function followUpNote(lastAnswer: string): string {
@@ -499,11 +534,18 @@ async function runLoop(
     onWork?: (entry: WorkLogEntry) => void;
     /** Records this turn for PostHog AI Observability. Absent on the CLI path. */
     trace?: AnswerTrace;
+    /** The answer-prompt version a PostHog experiment assigned this reader, if any. */
+    promptVersion?: number;
   },
 ): Promise<AnswerResult> {
   // One date for the whole turn: the prompt's calendar note and the rows'
   // `finalStatus` must agree on which Congresses are over.
   const today = new Date().toISOString().slice(0, 10);
+  // The instructions' wording: a copy of a PostHog prompt version, or the
+  // in-code default (convex/answerPrompts.ts). Tagged on every generation so
+  // PostHog can compare versions.
+  const prompt = await loadAnswerPrompt(ctx, opts.promptVersion);
+  opts.trace?.setPrompt(prompt.name, prompt.version);
   const allowed = new Set<string>();
   const display = new Map<string, Record<string, unknown>>();
   const workLog: WorkLogEntry[] = [];
@@ -526,6 +568,7 @@ async function runLoop(
         // from its own training cutoff, and had no way to know that two of the
         // three Congresses we hold have already adjourned.
         today,
+        template: prompt.template ?? undefined,
       }),
     },
     ...capHistory(opts.history).map((m) => ({ role: m.role, content: m.content })),
@@ -922,6 +965,8 @@ export const ask = internalAction({
     /** Kept for `convex run` ergonomics; `context.billId` is the real channel. */
     focusBillId: v.optional(v.string()),
     context: v.optional(v.any()),
+    /** Pin an answer-prompt version (scripts and tests); readers get it via `stream`. */
+    promptVersion: v.optional(v.number()),
     scope: v.optional(
       v.object({ dataset: v.string(), filters: v.any(), label: v.string() }),
     ),
@@ -958,6 +1003,7 @@ export const ask = internalAction({
         scope: args.scope as AnswerScope | undefined,
         history: args.history ?? [],
         apiKey,
+        promptVersion: args.promptVersion,
       });
     } catch (error) {
       console.error("answer.ask failed:", error);
@@ -1067,6 +1113,7 @@ export const stream = httpAction(async (ctx, request) => {
           apiKey,
           onWork: (entry) => send("work", entry),
           trace,
+          promptVersion: readPromptVersion(body.prompt),
         });
         trace.finish({
           question,

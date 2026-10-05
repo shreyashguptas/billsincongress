@@ -103,4 +103,15 @@ crons.cron(
   {},
 );
 
+// The answer prompt's `production` version from PostHog prompt management
+// (convex/answerPrompts.ts). Five minutes is how long a release there takes to
+// reach readers; answers never wait on PostHog themselves. A no-op until
+// POSTHOG_PERSONAL_API_KEY is set.
+crons.interval(
+  "refresh-answer-prompt",
+  { minutes: 5 },
+  internal.answerPrompts.refresh,
+  {},
+);
+
 export default crons;
