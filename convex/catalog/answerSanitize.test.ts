@@ -680,6 +680,12 @@ it("turns every handle in a list into a card, not only the first", () => {
     sanitizeAnswer("The two fewest. [[sponsors:119:James Gallagher,sponsors:119:Kevin Kiley]]").text,
     "The two fewest. [[sponsor:James Gallagher,Kevin Kiley]]",
   );
+  assert.equal(
+    sanitizeAnswer("Mixed. [[sponsor:James Gallagher,sponsors:119:Kevin Kiley]]").text,
+    "Mixed. [[sponsor:James Gallagher,Kevin Kiley]]",
+  );
+  // A proper card is left exactly as written.
+  assert.equal(sanitizeAnswer("Fine. [[sponsor:James Gallagher]]").text, "Fine. [[sponsor:James Gallagher]]");
 });
 
 it("still finds thinking written with look-alike characters", () => {

@@ -641,16 +641,21 @@ const LOOKALIKES: Array<[RegExp, string]> = [
  * A card written as the row's own handle: "[[sponsors:119:James Gallagher]]"
  * reached a reader as raw text on billsincongress.com on 2026-10-05, because
  * the card syntax is [[sponsor:<name>]] and [[topic:<name>]]. Every item of a
- * list loses its prefix, not only the first, or the rest are dropped as
- * unknown handles on the page (review on #170).
+ * list loses its prefix, not only the first, including a list that mixes
+ * the two forms, or the rest are dropped as unknown handles on the page
+ * (review on #170).
  */
-const HANDLE_CARD = /\[\[(sponsors|topics):\d+:([^\]\n]+)\]\]/g;
+const HANDLE_CARD = /\[\[(sponsors?|topics?):([^\]\n]+)\]\]/g;
 const HANDLE_PREFIX = /^\s*(?:sponsors|topics):\d+:/;
 
 function handleCardsAsCards(text: string): string {
-  return text.replace(HANDLE_CARD, (_full, dataset: string, list: string) => {
-    const names = list.split(",").map((item) => item.replace(HANDLE_PREFIX, "").trim());
-    return `[[${dataset === "sponsors" ? "sponsor" : "topic"}:${names.join(",")}]]`;
+  return text.replace(HANDLE_CARD, (full, kind: string, rest: string) => {
+    // "[[sponsors:119:A]]": the opening word is itself part of the first handle.
+    const list = kind.endsWith("s") ? `${kind}:${rest}` : rest;
+    const items = list.split(",");
+    if (!items.some((item) => HANDLE_PREFIX.test(item))) return full;
+    const names = items.map((item) => item.replace(HANDLE_PREFIX, "").trim());
+    return `[[${kind.startsWith("sponsor") ? "sponsor" : "topic"}:${names.join(",")}]]`;
   });
 }
 
