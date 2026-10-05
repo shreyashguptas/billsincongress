@@ -56,7 +56,7 @@ const DEFAULT_MODEL = "openai/gpt-oss-120b";
  * three hosts is the failover: when one is busy the next serves the same
  * model, instead of a weaker one. Measured 2026-10-05 after the tool-schema
  * fix in convex/catalog/tools.ts: Cerebras median about 0.7 s, Groq about
- * 1.6 s, Amazon Bedrock about 1.1 s. DeepInfra was left out for a 13 s tail.
+ * 1.6 s, Amazon Bedrock about 1.1 s. DeepInfra was left out: up to 42 s.
  */
 const DEFAULT_PROVIDERS = "cerebras,groq,amazon-bedrock";
 /**
