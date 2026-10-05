@@ -15,7 +15,7 @@ function it(name: string, fn: () => void) {
   }
 }
 
-it("reasons at low effort when nothing is set", () => {
+it("reasons at low effort when nothing is set (gpt-oss cannot switch it off)", () => {
   assert.deepEqual(reasoningConfig(undefined), { effort: "low" });
   assert.deepEqual(reasoningConfig(""), { effort: "low" });
   assert.deepEqual(reasoningConfig("  "), { effort: "low" });
@@ -33,7 +33,7 @@ it("accepts the four documented efforts", () => {
   assert.deepEqual(reasoningConfig("high"), { effort: "high" });
 });
 
-it("falls back to low on a typo instead of sending an effort OpenRouter refuses", () => {
+it("uses the default effort on a typo instead of sending one OpenRouter refuses", () => {
   const original = console.error;
   console.error = () => {};
   try {

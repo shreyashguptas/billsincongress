@@ -86,6 +86,13 @@ export interface GenerationRecord {
   /** "answer" for the loop's own calls, "web_search" for the search call. */
   name: string;
   model: string;
+  /**
+   * The host OpenRouter routed to ("Cerebras", "Groq", "Amazon Bedrock"). Since
+   * 2026-10-05 the failover is the same model on another host, so $ai_model no
+   * longer shows a failover and this does. The hosts differ in speed by a factor
+   * of two or more.
+   */
+  host?: string;
   input: Array<{ role: string; content: string | null }>;
   output?: unknown;
   inputTokens?: number;
@@ -165,6 +172,7 @@ export class AnswerTrace {
       $ai_model: g.model,
       $ai_provider: "openrouter",
       $ai_base_url: "https://openrouter.ai/api/v1",
+      ...(g.host !== undefined ? { openrouter_host: g.host } : {}),
       $ai_input: clipMessages(g.input),
       ...(g.output !== undefined ? { $ai_output_choices: g.output } : {}),
       ...(g.inputTokens !== undefined ? { $ai_input_tokens: g.inputTokens } : {}),

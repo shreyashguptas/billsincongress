@@ -115,6 +115,15 @@ export interface CompletenessReport {
   subsets?: Subset[];
   /** Present only when incomplete: what was and was not read. */
   note?: string;
+  /**
+   * Set when the set is drawn from a Congress that has adjourned: what that
+   * means for every unfinished bill in it. Carried on the RESULT, not only on
+   * rows, because a count-only lookup has no rows. Asked "are any 118th-Congress
+   * bills still sitting in committee?", the model fetched the stage-40 count,
+   * got thousands with no row to carry the per-bill note, and answered yes. The
+   * 118th ended on 2025-01-03; the answer is no.
+   */
+  congressOver?: string;
 }
 
 /** One part of an exact partition: what it is, how many, and which. */
@@ -243,6 +252,7 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
   } else {
     payload.note = report.note;
   }
+  if (report.congressOver) payload.congress_is_over = report.congressOver;
   if (report.orderFromIndex && report.shown > 0) {
     payload.rows_are_the_true_first_rows =
       `The database returned these rows IN THIS ORDER, so they really are the first of the whole ` +

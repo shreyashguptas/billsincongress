@@ -14,12 +14,12 @@
  * none, because it parses provider-specific citation annotations.
  * scripts/check-grounding.test.ts fails if these drift from convex/answer.ts.
  */
-const MODEL = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
-const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || "deepinfra,amazon-bedrock")
+const MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b";
+const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || "cerebras,groq,amazon-bedrock")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
+const MAX_PRICE = { prompt: 0.5, completion: 1.0 };
 
 async function main() {
   if (!process.env.OPENROUTER_API_KEY) {
@@ -41,7 +41,7 @@ async function main() {
       max_tokens: 512,
       plugins: [{ id: "web", engine: "exa", max_results: 5 }],
       provider: {
-        ...(PROVIDERS.length > 0 && { only: PROVIDERS }),
+        ...(PROVIDERS.length > 0 && { only: PROVIDERS, order: PROVIDERS }),
         max_price: MAX_PRICE,
         data_collection: "deny",
         zdr: true,

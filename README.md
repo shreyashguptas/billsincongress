@@ -18,7 +18,7 @@ It is free to read, has no ads, and needs no account.
 ## Good to know
 
 - **Data:** every bill record comes from the official [Congress.gov API](https://api.congress.gov/) (Library of Congress), refreshed nightly. Bill summaries are written by the Congressional Research Service, not by AI.
-- **AI:** the question panel uses an AI model (DeepSeek V4 Flash through OpenRouter). Its citations are checked against real records, but its wording can still be wrong. Check anything important on Congress.gov.
+- **AI:** the question panel uses an AI model (OpenAI's open-weight gpt-oss-120b through OpenRouter). Its citations are checked against real records, but its wording can still be wrong. Check anything important on Congress.gov.
 - **Tracking:** the site uses PostHog for analytics and session replay, and the text of questions you ask is recorded there. There is no cookie banner and no opt-out. Nothing is sold. Details in the [privacy policy](https://billsincongress.com/privacy).
 - **Accounts:** optional (Google, or email and password). Signing in saves bills and conversations and raises the daily question limit.
 - **Independent:** run by OffGrid LLC. Not affiliated with the U.S. government, and not legal advice.

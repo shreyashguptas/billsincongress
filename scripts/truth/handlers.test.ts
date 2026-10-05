@@ -1379,6 +1379,67 @@ async function main() {
 
   // --- the invariant, checked across many shapes ----------------------------
 
+  // "Summarize H.R. 1 in two sentences." came back BLANK on 2026-10-05: its
+  // summary versions are about 150,000 tokens together, more than the model's
+  // whole context window, so the request was refused and the reader got nothing.
+  await it("H.R. 1's summaries fit in one request, and say they are only the opening", async () => {
+    const { SUMMARY_MAX_CHARS } = await import("../../convex/catalog/fetch");
+    const raw = ctx.db.rowsOf("billSummaries").filter((s: any) => s.billId === "1hr119");
+    assert.ok(raw.some((s: any) => s.text.length > 100_000), "sanity: H.R. 1 has a huge summary");
+    const r = await fetchViaHandlers(ctx, "bill_summaries", { billId: "1hr119" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.ok(r.rows.length > 0);
+    const chars = JSON.stringify(r.rows).length;
+    assert.ok(chars < 60_000, `H.R. 1's summaries still hand the model ${chars} characters`);
+    for (const row of r.rows) {
+      assert.ok(row.text.length <= SUMMARY_MAX_CHARS, `${row.describes}: ${row.text.length} characters`);
+      if (row.textIsOpeningOnly) assert.ok(row.fullTextLength > SUMMARY_MAX_CHARS);
+    }
+    assert.ok(r.rows.some((row: any) => row.textIsOpeningOnly === true), "no row says it was cut");
+  });
+
+  await it("an ordinary summary reaches the model whole and unmarked", async () => {
+    const raw = ctx.db
+      .rowsOf("billSummaries")
+      .find((s: any) => s.text.length > 400 && s.text.length < 2000);
+    const r = await fetchViaHandlers(ctx, "bill_summaries", { billId: raw.billId });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const same = r.rows.find((row: any) => row.text === raw.text);
+    assert.ok(same, "the short summary was altered");
+    assert.equal(same.textIsOpeningOnly, undefined);
+  });
+
+  // "Are any 118th-Congress bills still sitting in committee?" was answered YES
+  // on 2026-10-05: the model fetched the stage-40 COUNT, which has no rows to
+  // carry the per-bill "died in committee" note, and read the number as alive.
+  await it("a count from an ended Congress says it is over; a live one does not", async () => {
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const ended = await fetchViaHandlers(ctx, "bills", { congress: 118, progressStage: 40 }, 0, "2026-10-05");
+    assert.ok(ended.ok, `fetch failed: ${ended.error}`);
+    assert.equal(ended.rows.length, 0, "a count-only lookup has no rows to carry the note");
+    const said = JSON.parse(payloadFor(ended.rows, ended.report));
+    assert.match(said.congress_is_over ?? "", /118th Congress ended on 2025-01-03.*answer no/s);
+    const live = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 40 }, 0, "2026-10-05");
+    assert.ok(live.ok);
+    assert.equal(JSON.parse(payloadFor(live.rows, live.report)).congress_is_over, undefined);
+  });
+
+  // "Of the laws enacted in the 119th, how many started in the Senate?" got 42
+  // on 2026-10-05 from billType 's', which drops the Senate joint resolutions
+  // that also became law. The chamber filter counts both.
+  await it("the Senate's laws are every Senate type, which the chamber filter counts", async () => {
+    const senateLaws = bills.filter(
+      (b: any) => b.congress === 119 && b.progressStage === 100 && /^s/.test(b.billType),
+    ).length;
+    const sOnly = bills.filter(
+      (b: any) => b.congress === 119 && b.progressStage === 100 && b.billType === "s",
+    ).length;
+    assert.ok(senateLaws > sOnly, "sanity: some Senate joint resolutions became law");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 100, chamber: "senate" }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.total, senateLaws);
+  });
+
   await it("no result ever carries a total without claiming completeness", async () => {
     const shapes: Array<[string, Record<string, unknown>, number | undefined]> = [
       ["bills", { congress: 119 }, 50],

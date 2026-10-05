@@ -48,11 +48,10 @@ const API_URL = "https://openrouter.ai/api/v1/chat/completions";
  * to amazon-bedrock, so a passing gate said nothing about half the pool.
  * scripts/check-grounding.test.ts fails if these drift from convex/answer.ts.
  */
-export const DEFAULT_MODEL = "deepseek/deepseek-v4-flash-0731";
-export const DEFAULT_PROVIDERS = "deepinfra,amazon-bedrock";
-export const DEFAULT_FALLBACK_MODELS =
-  "deepseek/deepseek-v4-flash,amazon/nova-lite-v1";
-export const MAX_PRICE = { prompt: 0.2, completion: 0.4 };
+export const DEFAULT_MODEL = "openai/gpt-oss-120b";
+export const DEFAULT_PROVIDERS = "cerebras,groq,amazon-bedrock";
+export const DEFAULT_FALLBACK_MODELS = "";
+export const MAX_PRICE = { prompt: 0.5, completion: 1.0 };
 
 const MODEL = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
@@ -777,7 +776,7 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
       temperature: 0.3,
       reasoning,
       provider: {
-        ...(PROVIDERS.length > 0 && { only: PROVIDERS }),
+        ...(PROVIDERS.length > 0 && { only: PROVIDERS, order: PROVIDERS }),
         max_price: MAX_PRICE,
         data_collection: "deny",
         zdr: true,
@@ -1131,21 +1130,25 @@ async function main() {
   const cosponsors = await ask("How many co-sponsors does H.R. 1 have in the 119th Congress?");
   answers.push(["co-sponsors", cosponsors]);
   report("co-sponsor question", cosponsors);
+  // Curly apostrophes and non-breaking hyphens are how gpt-oss writes "don’t"
+  // and "co‑sponsor"; a correct admission failed this gate on 2026-10-05 for the
+  // apostrophe alone. Read the plain form.
+  const said = cosponsors.text.replace(/[\u2018\u2019]/g, "'").replace(/[\u2010\u2011]/g, "-");
   // "doesn't track" is as good an admission as "don't track", and the narrower
   // pattern failed a correct answer for saying it the other way round.
   const admits =
     /\b(?:do(?:es)?(?: not|n't)|did(?: not|n't))\s+(?:\w+\s+){0,2}(?:have|hold|track|store|carry|record)/i.test(
-      cosponsors.text,
+      said,
     ) ||
     // The passive says the same thing: "co-sponsors are not tracked anywhere in
     // what we hold" is the admission this gate is for.
     /\bn(?:ot|ever)\s+(?:\w+\s+){0,2}(?:tracked|held|stored|recorded|carried|captured|included)\b/i.test(
-      cosponsors.text,
+      said,
     ) ||
     /not (?:in our|something we|part of what we|information we)|isn't in our|is not in our|no co-?sponsor/i.test(
-      cosponsors.text,
+      said,
     );
-  const inventedNumber = /\b\d+\s+co-?sponsors?\b/i.test(cosponsors.text);
+  const inventedNumber = /\b\d+\s+co-?sponsors?\b/i.test(said);
   check("admits we do not hold co-sponsors", admits, cosponsors.text.slice(0, 300));
   check("does NOT state a co-sponsor count", !inventedNumber, cosponsors.text.slice(0, 300));
   check("dropped no invented citations", cosponsors.dropped === 0, `dropped=${cosponsors.dropped}`);

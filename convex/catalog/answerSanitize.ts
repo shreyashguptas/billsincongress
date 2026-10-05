@@ -621,7 +621,29 @@ export function stripThinkingTags(text: string): SanitizeResult {
  * leaky one. When `question` is given, a first line that only repeats its end
  * goes first (see dropQuestionEcho).
  */
+/**
+ * Typographic look-alikes gpt-oss writes in place of plain characters: a
+ * non-breaking hyphen (U+2011) in "co‑sponsor" and in every ISO date it writes,
+ * and narrow or ordinary no-break spaces. They render the same, but a reader who
+ * copies "co‑sponsor" or a bill title into a search box gets a different string,
+ * and our own checks that look for "co-sponsor" miss it. Measured 2026-10-05.
+ */
+const LOOKALIKES: Array<[RegExp, string]> = [
+  [/[\u2010\u2011]/g, "-"],
+  [/[\u00a0\u202f\u2007]/g, " "],
+  // gpt-oss's own citation bracket. It wrote "…Authorization Act (S. 2393)
+  // 【cite:bills:2393s119]]" on 2026-10-05; left alone, the citation is not
+  // recognised and the reader sees the raw marker.
+  [/【((?:cite|bills|topic|sponsor|state):[^\]】\n]*)(?:】|\]\])/g, "[[$1]]"],
+];
+
+export function plainCharacters(text: string): string {
+  return LOOKALIKES.reduce((out, [pattern, plain]) => out.replace(pattern, plain), text);
+}
+
 export function sanitizeAnswer(text: string, question?: string): SanitizeResult {
+  const plain = plainCharacters(text);
+  if (plain !== text) return sanitizeAnswer(plain, question);
   const tags = stripThinkingTags(text);
   if (tags.removed.length > 0) {
     const rest = sanitizeAnswer(tags.text, question);

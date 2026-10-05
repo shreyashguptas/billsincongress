@@ -642,6 +642,34 @@ it("never empties an answer that is all thinking", () => {
   assert.deepEqual(sanitizeAnswer(all), { text: all, removed: [] });
 });
 
+// gpt-oss, 2026-10-05: "We don’t track co‑sponsor counts" and "became law on
+// 2026‑09‑30", both with U+2011, which a reader's search box does not match.
+it("turns look-alike hyphens and spaces into plain ones", () => {
+  const raw = "We don\u2019t track co\u2011sponsor counts. It became law on 2026\u201109\u201130.\u202f[[cite:bills:1hr119]]";
+  assert.deepEqual(sanitizeAnswer(raw), {
+    text: "We don\u2019t track co-sponsor counts. It became law on 2026-09-30. [[cite:bills:1hr119]]",
+    removed: [],
+  });
+});
+
+it("turns gpt-oss's own citation bracket into ours", () => {
+  assert.equal(
+    sanitizeAnswer("It became law (S. 2393)\u3010cite:bills:2393s119]].").text,
+    "It became law (S. 2393)[[cite:bills:2393s119]].",
+  );
+  assert.equal(
+    sanitizeAnswer("See \u3010bills:2393s119\u3011").text,
+    "See [[bills:2393s119]]",
+  );
+  // Not a marker: left as written.
+  assert.equal(sanitizeAnswer("A \u3010note\u3011 here.").text, "A \u3010note\u3011 here.");
+});
+
+it("still finds thinking written with look-alike characters", () => {
+  const raw = "Let me check the stage\u201140 count.\n\n72 laws started in the House.";
+  assert.equal(sanitizeAnswer(raw).text, "72 laws started in the House.");
+});
+
 if (failures.length > 0) {
   console.error(`convex/catalog/answerSanitize.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));

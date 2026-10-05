@@ -112,7 +112,7 @@ export async function runFetch(
 
     switch (args.name as DatasetName) {
       case "bills":
-        return await fetchBills(ctx, f, limit, countOnly, args.today);
+        return withCongressOver(await fetchBills(ctx, f, limit, countOnly, args.today), f, args.today);
       case "bill_actions":
         return await fetchActions(ctx, f, limit || MAX_LIMIT);
       case "bill_summaries":
@@ -376,6 +376,21 @@ function describeBillSet(f: Row): string {
   const congress = (f.congress as number) ?? 119;
   const where = parts.length > 0 ? ` ${parts.join(", ")}` : "";
   return `every measure in the ${congressOrdinal(congress)} Congress${where}`;
+}
+
+/** See CompletenessReport.congressOver. */
+function withCongressOver(result: FetchResult, f: Row, today: string | undefined): FetchResult {
+  const congress = f.congress as number | undefined;
+  if (!result.ok || !today || congress === undefined || !isCongressClosed(congress, today)) {
+    return result;
+  }
+  const { endDate } = congressWindow(congress);
+  const congressOver =
+    `The ${congressOrdinal(congress)} Congress ended on ${endDate}. Nothing in it is still in ` +
+    `committee, waiting or able to move: a bill or joint resolution not enacted by then died at ` +
+    `the stage shown. Use the past tense, and answer no if asked whether any of it is still ` +
+    `pending. Bills enacted before then remain law.`;
+  return { ...result, report: { ...result.report, congressOver } };
 }
 
 async function fetchBills(
@@ -963,6 +978,38 @@ function sameDateOrdinal(sorted: Array<{ actionDate: string }>, index: number): 
   return n;
 }
 
+/**
+ * The longest summary text one row hands the model, in characters.
+ *
+ * Nearly every CRS summary is short (median 531 characters, 99th percentile
+ * about 2,600, in the production copy on 2026-10-04), but omnibus bills run to
+ * hundreds of thousands: H.R. 1 of the 119th has several versions of about
+ * 150,000 tokens between them. Handed over whole, that question overflowed the
+ * model's context window (131,072 tokens on Cerebras) and the reader got a blank
+ * answer; on a model with a larger window it was slow and costly instead. 86 of
+ * 41,681 summaries are longer than this.
+ */
+export const SUMMARY_MAX_CHARS = 6000;
+
+/**
+ * A summary cut to SUMMARY_MAX_CHARS at the last paragraph or sentence end, and
+ * how long the whole one was, so the model can say it read the opening of a
+ * longer summary rather than present the opening as all of it.
+ */
+export function clipSummary(text: string): { text: string; fullLength?: number } {
+  if (text.length <= SUMMARY_MAX_CHARS) return { text };
+  const head = text.slice(0, SUMMARY_MAX_CHARS);
+  const paragraph = head.lastIndexOf("</p>");
+  const sentence = head.lastIndexOf(". ");
+  const end =
+    paragraph > SUMMARY_MAX_CHARS / 2
+      ? paragraph + "</p>".length
+      : sentence > SUMMARY_MAX_CHARS / 2
+        ? sentence + 1
+        : SUMMARY_MAX_CHARS;
+  return { text: head.slice(0, end), fullLength: text.length };
+}
+
 async function fetchSummaries(ctx: QueryCtx, f: Row, limit: number): Promise<FetchResult> {
   const billId = f.billId as string;
   const all = await ctx.db
@@ -984,13 +1031,20 @@ async function fetchSummaries(ctx: QueryCtx, f: Row, limit: number): Promise<Fet
     b.updateDate.localeCompare(a.updateDate),
   );
 
-  const rows = sorted.slice(0, limit).map((s) => ({
-    _cite: mintHandle("bill_summaries", `${s.billId}:${s.actionDesc ?? ""}`),
-    billId: s.billId,
-    text: s.text,
-    describes: s.actionDesc ?? "",
-    updateDate: s.updateDate,
-  }));
+  const rows = sorted.slice(0, limit).map((s) => {
+    const clipped = clipSummary(s.text);
+    return {
+      _cite: mintHandle("bill_summaries", `${s.billId}:${s.actionDesc ?? ""}`),
+      billId: s.billId,
+      text: clipped.text,
+      ...(clipped.fullLength !== undefined && {
+        textIsOpeningOnly: true,
+        fullTextLength: clipped.fullLength,
+      }),
+      describes: s.actionDesc ?? "",
+      updateDate: s.updateDate,
+    };
+  });
   return {
     ok: true,
     rows,

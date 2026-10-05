@@ -50,7 +50,8 @@ function modelReply() {
   }
   if (modelCalls === 1) {
     return {
-      model: "deepseek/deepseek-v4-flash-0731",
+      model: "openai/gpt-oss-120b",
+      provider: "Cerebras",
       choices: [
         {
           finish_reason: "tool_calls",
@@ -180,7 +181,9 @@ describe("recording an answer as a PostHog trace", () => {
     const input = first.properties.$ai_input as Array<{ role: string; content: string | null }>;
     expect(input[0].role).toBe("system");
     expect(input.at(-1)).toEqual({ role: "user", content: "Which bills about llamas became law?" });
-    expect(first.properties.$ai_model).toBe("deepseek/deepseek-v4-flash-0731");
+    expect(first.properties.$ai_model).toBe("openai/gpt-oss-120b");
+    // The failover is the same model on another host, so the host is what shows it.
+    expect(first.properties.openrouter_host).toBe("Cerebras");
     expect(first.properties.$ai_input_tokens).toBe(1200);
     expect(first.properties.$ai_output_tokens).toBe(20);
     expect(first.properties.$ai_total_cost_usd).toBe(0.0003);

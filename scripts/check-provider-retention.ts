@@ -23,15 +23,15 @@
  * Run: OPENROUTER_API_KEY=sk-or-... pnpm tsx scripts/check-provider-retention.ts
  */
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
-const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || "deepinfra,amazon-bedrock")
+const MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b";
+const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || "cerebras,groq,amazon-bedrock")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 /** Blank disables fallbacks, matching the runtime's `??` semantics. */
 const FALLBACKS = (
   process.env.OPENROUTER_FALLBACK_MODELS ??
-  "deepseek/deepseek-v4-flash,amazon/nova-lite-v1"
+  ""
 )
   .split(",")
   .map((s) => s.trim())

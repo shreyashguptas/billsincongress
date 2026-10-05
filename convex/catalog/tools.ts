@@ -16,7 +16,7 @@
  * confidently wrong answer that audit found was a set-level claim made from a
  * page. See convex/catalog/completeness.ts.
  */
-import { datasetIndex, DATASET_NAMES, describeDataset } from "./datasets";
+import { datasetIndex, DATASET_NAMES, DATASETS, describeDataset } from "./datasets";
 import type { DatasetName } from "./types";
 import { renderContextBlock, type PageContext } from "./context";
 import { calendarNote } from "./congressCalendar";
@@ -67,6 +67,38 @@ export function primedDescriptions(): {
   return { toolCalls, results };
 }
 
+/**
+ * Every filter any dataset accepts, named and typed in the tool schema.
+ *
+ * `filters` used to be an object with no declared properties. Hosts that
+ * constrain the model's output to the schema (Groq, measured 2026-10-05) then
+ * emitted `filters: {}` on every call: gpt-oss's own reasoning said "progressStage
+ * 100, chamber house, limit 0", the call carried no filters, and after five
+ * identical unfiltered lookups the reader was told we do not have the number.
+ * The same model on a host that does not constrain output got it right. Naming
+ * the fields lets a constrained host fill them; validateFilters still decides
+ * which ones a given dataset accepts.
+ */
+function filterProperties(): Record<string, Record<string, unknown>> {
+  const used = new Map<string, { type: string; datasets: string[] }>();
+  for (const dataset of Object.values(DATASETS)) {
+    for (const filter of dataset.filters) {
+      const entry = used.get(filter.name) ?? { type: filter.type, datasets: [] };
+      entry.datasets.push(dataset.name);
+      used.set(filter.name, entry);
+    }
+  }
+  return Object.fromEntries(
+    [...used].map(([name, { type, datasets }]) => [
+      name,
+      {
+        ...(type === "string[]" ? { type: "array", items: { type: "string" } } : { type }),
+        description: `For ${datasets.join(", ")}.`,
+      },
+    ]),
+  );
+}
+
 export const ANSWER_TOOLS = [
   {
     type: "function",
@@ -98,7 +130,10 @@ export const ANSWER_TOOLS = [
           name: { type: "string", enum: DATASET_NAMES, description: "Which dataset to read." },
           filters: {
             type: "object",
-            description: "Filters for this dataset. Call describe_dataset first to learn them.",
+            description:
+              "Filters for this dataset; each one applies only to the datasets it names. " +
+              "describe_dataset gives their allowed values.",
+            properties: filterProperties(),
             additionalProperties: true,
           },
           limit: {
@@ -236,6 +271,9 @@ HONESTY
 - Never state co-sponsor counts. We do not hold them.
 - Our totals count MEASURES — bills plus resolutions. Resolutions are not bills and never become
   law. If the reader said "bills", say "measures", or filter to billType 'hr' and 's'.
+- Answer about the thing the reader named. A broader topic's figures are not an answer about a
+  narrower one: education bills are not student-loan bills. Search titles for the specific thing
+  (titleFilter), or say what you could not narrow down.
 - Never explain your own mistake by inventing a cause. If you were wrong, say what the corrected
   answer is; do not narrate a reason you cannot know.
 
@@ -269,6 +307,8 @@ same bills — say what they have in common, then show the cards.
 
 VOICE
 Plain language for a curious adult who does not follow procedure. Explain jargon in passing.
+Write dates in words ("September 30, 2026"), never as 2026-09-30. Never write a stage number
+("stage 40"): say where the bill is, e.g. "in committee", "passed the House", "became law".
 
 LENGTH — SHORT, AND ONLY WHAT WAS ASKED
 Put the answer in the first sentence: the number, the name, the bill, or yes/no. Most answers are
@@ -285,6 +325,10 @@ Write ONLY the answer. Your working-out is not part of it: never write "Let me c
 "complete", "total", "order", "dataset", "rows" and "fetch" are your plumbing, not the reader's
 vocabulary. Say "we don't track co-sponsors" — never "the dataset states that co-sponsors are
 not included". Say it once and move on; do not apologise twice.
+Never name a dataset, a field or a filter (bill_actions, billId, progressStage, titleFilter), and
+never write the word "dataset". When you cannot do something, say it as the reader would: "We
+can't search every bill's actions by date", not "the bill_actions dataset requires a billId".
+(The [[cite:…]] handles and [[bills:…]] cards are not prose. Keep writing them exactly as above.)
 NEVER open by describing the RESULT. The reader asked about Congress, not about a lookup. These
 are all real openings you have written, and every one of them is wrong:
   "The result is complete with a total of 54 California members, and it's sorted fewest-first."

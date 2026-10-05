@@ -759,9 +759,10 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │                           A reply that is only narration, or that writes a
                  │                           lookup out as text (`fetch_dataset(…)`, `query:` +
                  │                           `reason:` lines, `{"name":…}` JSON), counts as none
-                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts: <thinking>…</thinking>
-                 │                          blocks and <response>/<answer> wrappers (the failover
-                 │                          model's habit), leading
+                 ├─ deliberation stripped → convex/catalog/answerSanitize.ts: look-alike hyphens,
+                 │                          spaces and 【cite:…】 brackets (gpt-oss's habit) made
+                 │                          plain, <thinking>…</thinking> blocks and
+                 │                          <response>/<answer> wrappers (Nova Lite's), leading
                  │                          narration, leaked field names, thinking mid-answer
                  │                          (a draft + "Actually… Let me state it." + the answer
                  │                          again keeps only the last; stray "Let me…" sentences
@@ -887,7 +888,8 @@ is exactly those six.
 | Sponsor lookups per request | 10 distinct surnames |
 | Question length | 2,000 characters |
 | History sent back to the model | 10 turns / 8,000 characters, oldest dropped first |
-| Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), temperature 0.3, reasoning effort `low` (`OPENROUTER_REASONING`; `off` restores 2,048 and no reasoning) |
+| Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), temperature 0.3, reasoning effort `low` (`OPENROUTER_REASONING`; `off` asks for 2,048 and no reasoning, which gpt-oss refuses, so the retry uses its default) |
+| Summary text per row | 6,000 characters (`SUMMARY_MAX_CHARS`). 86 of 41,681 CRS summaries are longer; those rows carry `textIsOpeningOnly` and `fullTextLength`, and the model says it read the opening. Uncut, H.R. 1's summaries were bigger than the model's context window and the answer came back blank |
 
 **Provenance handles.** Every row handed to the model carries a `_cite` handle such as
 `bills:1234hr119`. The model is told to cite handles and forbidden from ever writing a URL.
@@ -1133,12 +1135,12 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 
 | Setting | Default | Override |
 | --- | --- | --- |
-| Model | `deepseek/deepseek-v4-flash-0731` — a **dated release**, not a floating alias, because an alias can resolve to a version no allowlisted provider carries yet, turning a model release into an outage | `OPENROUTER_MODEL` |
-| Providers | `deepinfra,amazon-bedrock`, sent as `provider.only` | `OPENROUTER_PROVIDERS` (blank falls back to the default) |
-| Fallbacks | `deepseek/deepseek-v4-flash`, then `amazon/nova-lite-v1` | `OPENROUTER_FALLBACK_MODELS` — **blank DISABLES failover** (`??`, not `||`) |
-| Reasoning | `low` effort: the model reasons in a separate `reasoning` field that is recorded in the AI trace and never shown. Its reasoning is **not** handed back on later rounds: DeepSeek through OpenRouter answers without it, and Amazon Bedrock (where the failover model runs) refuses any request carrying another model's reasoning. A request refused with reasoning on is retried once without it, and the rest of that answer runs without it. A value of `OPENROUTER_REASONING` that is not `off` or an effort falls back to `low` with a log line. Off until 2026-10-05; with it off, the model's thinking landed in the answer. Measured on the real model that day, four grounding questions twice each: answers ~37 words instead of ~67, 16/16 grounding checks instead of 15/16, but about 18 s instead of 8 s per answer | `OPENROUTER_REASONING` — `off`, `minimal`, `low`, `medium`, `high`; no deploy needed (`convex/reasoning.ts`) |
+| Model | `openai/gpt-oss-120b`. Chosen on 2026-10-05 by running the real answer loop over the production data copy (`.truth-cache`) against the 21 scored questions in `scripts/truth/questions.ts` plus 6 open ones, twice per setup: 18–19 of 21 right on Cerebras, median about 1 s, nothing over 4 s. The previous default (DeepSeek V4 Flash on DeepInfra) scored 5–6 of 21 in the same run, because DeepInfra rate-limited it and its failover, Nova Lite, served 24 of 27 answers; readers waited a median of 8–10 s for it. Also tried: Gemini 2.5 Flash (14–15, ~1.5 s), Gemini 3.1 Flash Lite (18–19, tail to 40 s), Gemini 2.5 Flash Lite (11), gpt-oss-20b (6–7), Nemotron 3.5 Lightning (5–6) | `OPENROUTER_MODEL` |
+| Providers | `cerebras,groq,amazon-bedrock`, sent as `provider.only` **and** `provider.order`, so they are tried fastest first. Without `order` OpenRouter routes by price, and the cheapest host for this model is among the slowest. The failover is the same model on the next host, not a weaker model. DeepInfra is left out: a 13 s tail in the same test | `OPENROUTER_PROVIDERS` (blank falls back to the default; the order you write is the order tried) |
+| Fallbacks | none: the failover is the next host above | `OPENROUTER_FALLBACK_MODELS` — a comma list of other models to try after every host has failed; each must pass `pnpm check:retention` first |
+| Reasoning | `low` effort: the model reasons in a separate `reasoning` field that is recorded in the AI trace and never shown. gpt-oss always reasons; at `low` a round thinks for 10–80 tokens, a few hundredths of a second on Cerebras. Its reasoning is **not** handed back on later rounds: the model answers without it, and Amazon Bedrock refused a request carrying another model's reasoning. A request refused while carrying a reasoning setting is retried once with the setting **left out** (the model's default), and the rest of that answer leaves it out: `{ enabled: false }` is itself refused by gpt-oss ("Reasoning is mandatory"). A value of `OPENROUTER_REASONING` that is not `off` or an effort falls back to `low` with a log line. On the previous host the same setting doubled the wait (about 8 s to 18 s), so watch the host's speed, not the setting | `OPENROUTER_REASONING` — `off`, `minimal`, `low`, `medium`, `high`; no deploy needed (`convex/reasoning.ts`) |
 | Retention | `data_collection: "deny"` and `zdr: true` on every request | — |
-| Price ceiling | `$0.20 / $0.40` per million prompt/completion tokens | — |
+| Price ceiling | `$0.50 / $1.00` per million prompt/completion tokens. Cerebras charges $0.35 / $0.75 for gpt-oss-120b, the most of the three hosts; a typical answer costs about half a cent | — |
 
 > **The 404 trap.** Two allowlists must overlap: the per-request `provider.only` above, and
 > the allowed-providers setting on the **OpenRouter account itself**. If they do not overlap,
@@ -1178,7 +1180,7 @@ user that question. The rate limiter is the only spend cap on this path.
 
 Re-run the three manual probes whenever the model or provider pin changes. Their defaults
 cannot drift from production: `scripts/check-grounding.ts` exports `DEFAULT_MODEL`,
-`DEFAULT_PROVIDERS` (`deepinfra,amazon-bedrock`), `DEFAULT_FALLBACK_MODELS` and `MAX_PRICE`
+`DEFAULT_PROVIDERS` (`cerebras,groq,amazon-bedrock`), `DEFAULT_FALLBACK_MODELS` and `MAX_PRICE`
 copied from `convex/answer.ts` and sends the full production provider settings, and
 `scripts/check-grounding.test.ts` (part of `pnpm test`) fails if those, or the defaults in
 `check-web-citations.ts` and `check-provider-retention.ts`, differ from `convex/answer.ts`.
@@ -1865,22 +1867,25 @@ secret.
 
 ### Convex deployment side
 
-Set with `npx convex env set --prod`. Checked 1 Oct 2026, production has nineteen set:
+Set with `npx convex env set --prod`. Checked 5 Oct 2026, production has eighteen set:
 `ALERTS_UNSUBSCRIBE_SECRET`, `ALERT_EMAILS_LIVE`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`,
-`CONGRESS_API_KEY`, `JWKS`, `JWT_PRIVATE_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_PROVIDERS`, the
+`CONGRESS_API_KEY`, `JWKS`, `JWT_PRIVATE_KEY`, `OPENROUTER_API_KEY`, the
 three `POSTHOG_EMAIL_*_WEBHOOK_URL`s, `POSTHOG_EMAIL_WEBHOOK_SECRET`, `POSTHOG_KEY`, `SITE_URL`,
 both `STRIPE_PRICE_PRO_*`, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. The optional
-`OPENROUTER_MODEL`, `OPENROUTER_FALLBACK_MODELS`, `OPENROUTER_REASONING`, `POSTHOG_HOST` and
-`STRIPE_PORTAL_CONFIGURATION` are unset, so their defaults apply. `CONVEX_SITE_URL` is provided by
+`OPENROUTER_MODEL`, `OPENROUTER_PROVIDERS`, `OPENROUTER_FALLBACK_MODELS`, `OPENROUTER_REASONING`,
+`POSTHOG_HOST` and `STRIPE_PORTAL_CONFIGURATION` are unset, so their defaults apply.
+`OPENROUTER_PROVIDERS` held `deepinfra,amazon-bedrock` until 5 Oct 2026; left in place it would
+have overridden the new default and kept answers on the slow host. An `OPENROUTER_*` variable
+set in production silently wins over the code, so check this list after any model change. `CONVEX_SITE_URL` is provided by
 Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
 | `CONGRESS_API_KEY` | Congress.gov v3 | Throws `"CONGRESS_API_KEY not configured"` |
 | `OPENROUTER_API_KEY` | OpenRouter bearer token | AI returns "not configured" |
-| `OPENROUTER_MODEL` | Model override | `deepseek/deepseek-v4-flash-0731` |
-| `OPENROUTER_PROVIDERS` | Provider pin | `deepinfra,amazon-bedrock` |
-| `OPENROUTER_FALLBACK_MODELS` | Failover chain | Default chain — **blank disables failover** |
+| `OPENROUTER_MODEL` | Model override | `openai/gpt-oss-120b` |
+| `OPENROUTER_PROVIDERS` | Provider pin, tried in the order written | `cerebras,groq,amazon-bedrock` |
+| `OPENROUTER_FALLBACK_MODELS` | Other models to try after every host has failed | None |
 | `OPENROUTER_REASONING` | The answer model's private reasoning: `off`, or an effort | `low` |
 | `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |

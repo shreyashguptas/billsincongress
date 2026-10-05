@@ -168,7 +168,7 @@ type ReasoningRequest = {
   messages: Array<{ role: string; content: string | null; reasoning_details?: unknown }>;
 };
 
-test("asks the model to reason privately, with room for the reasoning and the answer", async () => {
+test("by default the model reasons privately at low effort, with room for it and the answer", async () => {
   replyWith(["No bill in the 119th Congress matches that."]);
   await ask("Is there a bill about lighthouses?");
   const sent = requests[0] as unknown as ReasoningRequest;
@@ -176,13 +176,48 @@ test("asks the model to reason privately, with room for the reasoning and the an
   expect(sent.max_tokens).toBe(4096);
 });
 
-test("OPENROUTER_REASONING=off restores the old request exactly", async () => {
+test("OPENROUTER_REASONING=off asks for none and gives the answer its own budget", async () => {
   vi.stubEnv("OPENROUTER_REASONING", "off");
   replyWith(["No bill in the 119th Congress matches that."]);
   await ask("Is there a bill about lighthouses?");
   const sent = requests[0] as unknown as ReasoningRequest;
   expect(sent.reasoning).toEqual({ enabled: false });
   expect(sent.max_tokens).toBe(2048);
+});
+
+test("a model that cannot switch reasoning off still answers when it is set off", async () => {
+  // gpt-oss, 2026-10-05: "Reasoning is mandatory for this endpoint and cannot be
+  // disabled." The retry leaves the setting out, so the model uses its default.
+  vi.stubEnv("OPENROUTER_REASONING", "off");
+  replyWithMessages([
+    { status: 400 },
+    { message: { content: "No bill in the 119th Congress matches that." } },
+  ]);
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.text).toBe("No bill in the 119th Congress matches that.");
+  const sent = requests as unknown as ReasoningRequest[];
+  expect(sent.map((r) => r.reasoning)).toEqual([{ enabled: false }, undefined]);
+  expect(sent[1].max_tokens).toBe(4096);
+});
+
+test("the hosts are tried in the listed order, fastest first, not by price", async () => {
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as { model: string; models?: string[]; provider: Record<string, unknown> };
+  expect(sent.model).toBe("openai/gpt-oss-120b");
+  expect(sent.provider.only).toEqual(["cerebras", "groq", "amazon-bedrock"]);
+  expect(sent.provider.order).toEqual(sent.provider.only);
+  // The failover is the same model on the next host, never a weaker model.
+  expect(sent.models).toBeUndefined();
+  expect(sent.provider).toMatchObject({ zdr: true, data_collection: "deny" });
+});
+
+test("an overridden host list is tried in its own order", async () => {
+  vi.stubEnv("OPENROUTER_PROVIDERS", "groq, cerebras");
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  const sent = requests[0] as unknown as { provider: Record<string, unknown> };
+  expect(sent.provider.order).toEqual(["groq", "cerebras"]);
 });
 
 test("the model's reasoning never reaches the reader", async () => {
@@ -206,6 +241,7 @@ test("the model's reasoning never reaches the reader", async () => {
 });
 
 test("does not hand the reasoning back on the round after a lookup", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "low");
   // Measured 2026-10-05: with it handed back, a failover to amazon/nova-lite-v1
   // on Amazon Bedrock refused the request ("User messages cannot contain
   // reasoning content"). DeepSeek through OpenRouter answers without it.
@@ -233,7 +269,8 @@ test("does not hand the reasoning back on the round after a lookup", async () =>
   expect(second.messages.some((m) => "reasoning_details" in m || "reasoning" in m)).toBe(false);
 });
 
-test("a request refused with reasoning on is retried once without it", async () => {
+test("a request refused with a reasoning setting is retried once without it", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "low");
   replyWithMessages([
     { status: 400 },
     { message: { content: "No bill in the 119th Congress matches that." } },
@@ -243,12 +280,14 @@ test("a request refused with reasoning on is retried once without it", async () 
   expect(result.text).toBe("No bill in the 119th Congress matches that.");
   expect(requests).toHaveLength(2);
   expect((requests[0] as unknown as ReasoningRequest).reasoning).toEqual({ effort: "low" });
-  expect((requests[1] as unknown as ReasoningRequest).reasoning).toEqual({ enabled: false });
-  expect((requests[1] as unknown as ReasoningRequest).max_tokens).toBe(2048);
+  // Left out, not { enabled: false }: a model that always reasons refuses that too.
+  expect((requests[1] as unknown as ReasoningRequest).reasoning).toBeUndefined();
+  expect((requests[1] as unknown as ReasoningRequest).max_tokens).toBe(4096);
   expect((requests[1] as unknown as ReasoningRequest).messages.some((m) => "reasoning_details" in m)).toBe(false);
 });
 
-test("once a request with reasoning is refused, the rest of the turn runs without it", async () => {
+test("once a request with a reasoning setting is refused, the rest of the turn leaves it out", async () => {
+  vi.stubEnv("OPENROUTER_REASONING", "low");
   // Review finding on #169: the downgrade used to last one call, so a refusal
   // that kept happening cost a failed request on every round.
   replyWithMessages([
@@ -286,14 +325,14 @@ test("once a request with reasoning is refused, the rest of the turn runs withou
   expect(sent.map((r) => r.reasoning)).toEqual([
     { effort: "low" },
     { effort: "low" },
-    { enabled: false },
-    { enabled: false },
+    undefined,
+    undefined,
   ]);
   // No refused request after the first one.
   expect(sent).toHaveLength(4);
 });
 
-test("a final round refused with and without reasoning does not turn reasoning back on", async () => {
+test("a final round refused with and without the setting does not put it back", async () => {
   // Review finding on #169: the turn-wide flag was set only when the retry
   // succeeded, so this path went with, without, then WITH reasoning again.
   vi.stubEnv("OPENROUTER_REASONING", "low");
@@ -307,12 +346,8 @@ test("a final round refused with and without reasoning does not turn reasoning b
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe("No bill in the 119th Congress matches that.");
   const sent = requests as unknown as ReasoningRequest[];
-  // Two empty rounds, then the final round: refused with reasoning, refused
+  // Two empty rounds, then the final round: refused with the setting, refused
   // without it, then retried with the tools and still without it.
-  expect(sent.slice(2).map((r) => r.reasoning)).toEqual([
-    { effort: "low" },
-    { enabled: false },
-    { enabled: false },
-  ]);
+  expect(sent.slice(2).map((r) => r.reasoning)).toEqual([{ effort: "low" }, undefined, undefined]);
   expect(sent).toHaveLength(5);
 });
