@@ -569,7 +569,9 @@ export const QUESTIONS: TruthQuestion[] = [
     id: "control-total-laws",
     question:
       `How many bills have become law in the ${CURRENT_CONGRESS}th Congress?` + ONE_NUMBER,
-    defect: "CONTROL — answered correctly in the audit. Not a known defect.",
+    defect:
+      "CONTROL in the 2026-08-30 audit. Answered 53 live on 2026-10-05: told to filter " +
+      "'bills' to billType hr and s, gpt-oss passed hr alone and counted House bills only.",
     expect: (db) => {
       const fromRows = count(billsIn(db, CURRENT_CONGRESS), (b) => b.progressStage === BECAME_LAW);
       const stats = db.congressStats.find((s) => s.congress === CURRENT_CONGRESS);
