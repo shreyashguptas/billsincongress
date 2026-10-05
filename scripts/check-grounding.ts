@@ -24,7 +24,7 @@
  *
  * Run: OPENROUTER_API_KEY=sk-or-... ./node_modules/.bin/tsx scripts/check-grounding.ts
  */
-import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS } from "../convex/catalog/tools";
+import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS, primedDescriptions } from "../convex/catalog/tools";
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "../convex/reasoning";
 import { describeDataset, isDatasetName } from "../convex/catalog/datasets";
 import { mintHandle, resolveAnswer } from "../convex/catalog/cite";
@@ -747,7 +747,7 @@ export function serveFetch(
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;
-  tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+  tool_calls?: Array<{ id: string; type?: string; function: { name: string; arguments: string } }>;
   tool_call_id?: string;
 };
 
@@ -808,8 +808,33 @@ async function ask(question: string): Promise<Answer> {
     // `today` is passed the way answer.ts passes it: without it the model dates
     // "recent" and "this week" from its own training cutoff.
     { role: "system", content: buildSystemPrompt({ today: TODAY }) },
-    { role: "user", content: question },
   ];
+  // The opening production gives every question off a bill page (runLoop in
+  // convex/answer.ts): bills and topics already described, and the policy-area
+  // list already fetched. The prompt tells the model it has these; without them
+  // this gate tested a loop no reader gets, and on 2026-10-05 gpt-oss, told the
+  // topic list was in front of it, cited a handle that did not exist.
+  const primed = primedDescriptions();
+  messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
+  for (const r of primed.results) messages.push({ role: "tool", ...r });
+  const topics = serveFetch("topics", { congress: 119 }, 20);
+  if (!("ok" in topics)) {
+    for (const r of topics.rows) allowed.add(r._cite as string);
+    work.push(`fetch topics · ${workLogLabel(topics.report)}`);
+    messages.push({
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "topics_0",
+          type: "function",
+          function: { name: "fetch_dataset", arguments: JSON.stringify({ name: "topics", filters: { congress: 119 } }) },
+        },
+      ],
+    });
+    messages.push({ role: "tool", tool_call_id: "topics_0", content: payloadFor(topics.rows, topics.report) });
+  }
+  messages.push({ role: "user", content: question });
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const isFinalRound = round === MAX_TOOL_ROUNDS;

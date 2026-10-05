@@ -140,7 +140,8 @@ export const ANSWER_TOOLS = [
             type: "number",
             description:
               "Rows to return, 1-50. Default 20. Pass 0 for a COUNT ONLY: no rows, an exact " +
-              "total, and a much deeper scan. Use 0 whenever you want a number rather than a list.",
+              "total, and a much deeper scan. Use 0 whenever you want a number rather than a list. " +
+              "To NAME the top or bottom one, pass a sort and a limit of 1 or more, not 0.",
           },
         },
         required: ["name", "filters"],

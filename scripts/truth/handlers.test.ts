@@ -1402,6 +1402,7 @@ async function main() {
     const raw = ctx.db
       .rowsOf("billSummaries")
       .find((s: any) => s.text.length > 400 && s.text.length < 2000);
+    assert.ok(raw, "sanity: there are ordinary summaries");
     const r = await fetchViaHandlers(ctx, "bill_summaries", { billId: raw.billId });
     assert.ok(r.ok, `fetch failed: ${r.error}`);
     const same = r.rows.find((row: any) => row.text === raw.text);
@@ -1418,7 +1419,7 @@ async function main() {
     assert.ok(ended.ok, `fetch failed: ${ended.error}`);
     assert.equal(ended.rows.length, 0, "a count-only lookup has no rows to carry the note");
     const said = JSON.parse(payloadFor(ended.rows, ended.report));
-    assert.match(said.congress_is_over ?? "", /118th Congress ended on 2025-01-03.*answer no/s);
+    assert.match(said.congress_is_over ?? "", /118th Congress ended on 2025-01-03[\s\S]*answer no/);
     const live = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 40 }, 0, "2026-10-05");
     assert.ok(live.ok);
     assert.equal(JSON.parse(payloadFor(live.rows, live.report)).congress_is_over, undefined);
@@ -1438,6 +1439,22 @@ async function main() {
     const r = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 100, chamber: "senate" }, 0);
     assert.ok(r.ok, `fetch failed: ${r.error}`);
     assert.equal(r.report.total, senateLaws);
+  });
+
+  // "Which California member has introduced the fewest bills?" got "the exact
+  // name cannot be determined" on 2026-10-05: the model asked for a count only
+  // and stopped. The count-only result must say how to get the name, and the
+  // fetch it points to must return the true minimum first.
+  await it("a count-only lookup points at the fetch that names the fewest", async () => {
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const filters = { congress: 119, sponsorState: "CA", sort: "fewest_bills" };
+    const counted = await fetchViaHandlers(ctx, "sponsors", filters, 0);
+    assert.ok(counted.ok, `fetch failed: ${counted.error}`);
+    assert.match(JSON.parse(payloadFor(counted.rows, counted.report)).count_only ?? "", /limit of 1/);
+    const named = await fetchViaHandlers(ctx, "sponsors", filters, 1);
+    assert.ok(named.ok);
+    const fewest = Math.min(...truth.caSponsors.map((s: any) => s.billCount));
+    assert.equal(named.rows[0].billCount, fewest);
   });
 
   await it("no result ever carries a total without claiming completeness", async () => {

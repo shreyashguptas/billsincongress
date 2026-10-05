@@ -164,6 +164,21 @@ it("warns when the rows are a page of a complete set", () => {
   assert.match(payload.rows_are_a_sample_of_a_known_total, /do not rank or compare/i);
 });
 
+it("a count-only result says how to name one, instead of 'shown 0 of 54'", () => {
+  // gpt-oss, 2026-10-05: asked for the California member with the fewest bills,
+  // it passed limit 0, read "You were shown 0 of 54", and said the name "cannot
+  // be determined".
+  const payload = parse([], completeReport({ set: "s", total: 54, shown: 0, order: "fewest_bills_first" }));
+  assert.equal(payload.total, 54);
+  assert.match(payload.count_only, /fetch again .* limit of 1 or more/);
+  assert.equal(payload.rows_are_a_sample_of_a_known_total, undefined);
+});
+
+it("an empty complete result is not called a count-only one", () => {
+  const payload = parse([], completeReport({ set: "s", total: 0, shown: 0, order: "arbitrary" }));
+  assert.equal(payload.count_only, undefined);
+});
+
 it("does not warn when the page IS the whole set", () => {
   const payload = parse([{}, {}], completeReport({ set: "s", total: 2, shown: 2, order: "arbitrary" }));
   assert.equal(payload.rows_are_a_sample_of_a_known_total, undefined);

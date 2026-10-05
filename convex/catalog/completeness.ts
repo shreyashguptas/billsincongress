@@ -236,6 +236,14 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
         `These ${report.shown} rows are one per group and account for the whole total: their ` +
         `counts sum to ${report.total}. This IS the whole set, not a page of it. State every ` +
         `group, and compare or rank them freely.`;
+    } else if (report.shown === 0 && (report.total ?? 0) > 0) {
+      // Asked "which California member introduced the fewest bills?", gpt-oss
+      // passed limit 0 with the right sort, got "shown 0 of 54", and told the
+      // reader the name "cannot be determined" with lookups to spare (2026-10-05).
+      payload.count_only =
+        `This was a count only, so no rows came back. The total is exact. To NAME one or more ` +
+        `of them — the first, the most, the fewest — fetch again with the same filters and a ` +
+        `limit of 1 or more.`;
     } else if ((report.total ?? 0) > report.shown) {
       payload.rows_are_a_sample_of_a_known_total =
         `You were shown ${report.shown} of ${report.total}. The TOTAL is exact and you may state ` +

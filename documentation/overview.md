@@ -1018,6 +1018,8 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `total` | The size of that set. **Present only when `complete` is true** |
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
 | `exact_subsets` | A partition of the whole set that the server counted, with each part's members. **Present only when `complete` is true.** Today it splits a set made up entirely of reserved bill numbers ("Reserved for the Speaker.") by whom they were held for; a set that mixes them with real bills, like a leader's own bills from the 118th on, gets no split |
+| `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): how to fetch the rows to **name** one. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
+| `congress_is_over` | On a `bills` result from an adjourned Congress: that nothing in it is still in committee or pending. On the result, not only on rows, because a count has no rows; a bare count of the 118th's stage-40 bills was answered "yes, still in committee" |
 
 The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
 "fewest", "newest", "the only", "none", an average, any ranking — may be made ONLY from a result
@@ -1176,7 +1178,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for the primary **and every fallback** |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web plugin still returns the `url_citation` annotations the code parses |
-| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
+| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
 
 Re-run the three manual probes whenever the model or provider pin changes. Their defaults
 cannot drift from production: `scripts/check-grounding.ts` exports `DEFAULT_MODEL`,
