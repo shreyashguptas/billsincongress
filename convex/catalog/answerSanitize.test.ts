@@ -554,6 +554,8 @@ it("never treats real answer sentences as thinking", () => {
     "Based on the data, 76 measures mention wildfire in their title.",
     "Let me note that five of them became law.",
     "Five wildfire bills passed the House.\n\nI will be brief: none of them became law.",
+    "76 measures in the 119th Congress mention wildfire in their title.\n\nLet's start with the House, where 40 were introduced. Let's look at the Senate next, where 36 were.",
+    "Let's look at the Senate, where forty were introduced.",
     "The Let Me Travel America Act was introduced in March. Let Me Travel America Act cosponsors are not tracked here.",
     "The user fees in the bill fund food-safety inspections.",
     "The Reader Privacy Act would limit what booksellers share.",

@@ -281,10 +281,18 @@ const THINKING_SENTENCES: RegExp[] = [
 /** A closing offer, not working-out: removed as filler, but never a restart point. */
 const CLOSING_OFFER = /^let me know\b/;
 
+/**
+ * A figure, in digits or words. A sentence that carries one is stating a fact,
+ * however it opens: "Let's start with the House, where 40 were introduced."
+ */
+const CARRIES_A_FIGURE =
+  /\d|\b(?:none|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|half|dozen)\b/;
+
 function isThinkingSentence(sentence: string): boolean {
   const text = normalize(sentence).trim();
   if (text === "") return false;
   if (NAMES_LEGISLATION.test(sentence)) return false;
+  if (CARRIES_A_FIGURE.test(text)) return false;
   // "Actually," on its own is not thinking: "Actually, the Senate has not voted
   // on it, so it is not law" is how a correction to the reader's premise reads.
   return THINKING_SENTENCES.some((re) => re.test(text));
