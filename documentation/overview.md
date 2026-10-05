@@ -887,7 +887,8 @@ is exactly those six.
 | Scan window | 1,000 rows (5,000, `COUNT_SCAN_LIMIT` in `convex/catalog/fetch.ts`, for a count-only or grouped read). When it fills, the result is `complete: false` and carries **no total at all** |
 | Sponsor lookups per request | 10 distinct surnames |
 | Question length | 2,000 characters |
-| History sent back to the model | 10 turns / 8,000 characters, oldest dropped first |
+| History sent back to the model | 10 turns / 8,000 characters, oldest dropped first. On a follow-up, a system note just before the question repeats the model's last answer (first 400 characters) and quotes it as data and, only when the reader doubts or re-asks that question, tells it to open by saying that answer was wrong if the name or number no longer holds, and to say it stands otherwise; a new question is answered without mentioning the earlier reply (`followUpNote`, `convex/answer.ts`). Added 2026-10-05 after a reader got the wrong "latest law", asked "are you sure?", and was given the right one with no word that the first had been wrong |
+| Filters put beside `filters` | Moved into it (`filtersFromCall`, `convex/catalog/filters.ts`) when they are filters of that dataset. gpt-oss sent `"sort"` next to `filters` on 2026-10-05; it was ignored, the result came back unsorted, and the model named an arbitrary law as the newest |
 | Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), temperature 0.3, reasoning effort `low` (`OPENROUTER_REASONING`; `off` asks for 2,048 and no reasoning, which gpt-oss refuses, so the retry uses its default) |
 | Summary text per row | 6,000 characters (`SUMMARY_MAX_CHARS`). 86 of 41,681 CRS summaries are longer; those rows carry `textIsOpeningOnly` and `fullTextLength`, and the model says it read the opening. Uncut, H.R. 1's summaries were bigger than the model's context window and the answer came back blank |
 
@@ -895,7 +896,10 @@ is exactly those six.
 `bills:1234hr119`. The model is told to cite handles and forbidden from ever writing a URL.
 After the answer is written, every cited handle is checked against the exact set of rows it
 was given *that turn*; anything else is deleted from the text. Invented bill cards likewise
-do not render. The count of deletions is the `dropped` metric — the grounding-health number.
+do not render. A card written as a row handle (`[[sponsors:119:Name]]`, `[[topics:119:Health]]`)
+is rewritten to the card syntax (`[[sponsor:Name]]`, `[[topic:Health]]`) on the server, and any
+other `[[word:…]]` the page cannot render is removed rather than shown as raw text
+(`lib/answer-entities.ts`). The count of deletions is the `dropped` metric — the grounding-health number.
 
 This filters **citations and entity directives, not prose**. The sentences around them are
 never verified. A rising `dropped` means the catalog's `gotchas` need strengthening; that is

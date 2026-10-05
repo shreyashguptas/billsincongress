@@ -220,6 +220,36 @@ test("an overridden host list is tried in its own order", async () => {
   expect(sent.provider.order).toEqual(["groq", "cerebras"]);
 });
 
+test("a follow-up reminds the model of its last answer, so it can say that answer was wrong", async () => {
+  // Live, 2026-10-05: wrong "latest law", then "are you sure?" got the right law
+  // with no word that the first answer had been wrong.
+  replyWith(["My earlier answer was wrong: the latest law is the Kay Hagan Tick Reauthorization Act."]);
+  await convexTest(schema, modules).action(internal.answer.ask, {
+    question: "are you sure",
+    history: [
+      { role: "user", content: "whats the latest bill that passed as law" },
+      { role: "assistant", content: "The most recent measure that became law is the Secure America Act [1]" },
+    ],
+  });
+  const sent = requests[0].messages;
+  const note = sent.at(-2);
+  expect(note?.role).toBe("system");
+  expect(note?.content).toContain("Secure America Act");
+  expect(note?.content).toMatch(/FIRST sentence must say that reply was wrong/);
+  // Limited to a doubted or re-asked question: a new question must not be told
+  // its different number means the last reply was wrong (review on #170).
+  expect(note?.content).toMatch(/asking something new, answer only the new question/);
+  // The earlier reply is quoted as data, not spliced in as instructions.
+  expect(note?.content).toContain(JSON.stringify("The most recent measure that became law is the Secure America Act [1]"));
+  expect(sent.at(-1)).toEqual({ role: "user", content: "are you sure" });
+});
+
+test("a first question carries no follow-up reminder", async () => {
+  replyWith(["No bill in the 119th Congress matches that."]);
+  await ask("Is there a bill about lighthouses?");
+  expect(requests[0].messages.some((m) => m.role === "system" && /previous answer/.test(m.content ?? ""))).toBe(false);
+});
+
 test("the model's reasoning never reaches the reader", async () => {
   // A REGRESSION GUARD, not evidence for the change: runLoop has only ever read
   // message.content, so this passed before reasoning was turned on too. It pins

@@ -8,7 +8,7 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { validateFilters, VALID_SORTS, VALID_STAGES } from "./filters";
+import { filtersFromCall, validateFilters, VALID_SORTS, VALID_STAGES } from "./filters";
 
 let passed = 0;
 const failures: string[] = [];
@@ -234,6 +234,34 @@ it("rejects a bills filter passed to a dataset that does not have it", () => {
   }
   const sorted = validateFilters("sponsors", { sort: "newest_action" });
   assert.equal(sorted.ok, false, "sort is a bills-only filter");
+});
+
+// The live call, 2026-10-05: the sort beside `filters` was ignored and the
+// reader got the wrong "latest law".
+it("moves a filter put beside `filters` into it", () => {
+  const args = {
+    name: "bills",
+    filters: { congress: 119, progressStage: 100 },
+    sort: "newest_action",
+    limit: 1,
+  };
+  assert.deepEqual(filtersFromCall("bills", args), {
+    sort: "newest_action",
+    congress: 119,
+    progressStage: 100,
+  });
+});
+
+it("lets a value inside `filters` win, and moves only that dataset's filters", () => {
+  const args = { name: "bills", filters: { sort: "oldest_action" }, sort: "newest_action", query: "x" };
+  assert.deepEqual(filtersFromCall("bills", args), { sort: "oldest_action" });
+  // `sort` is not a topics filter, so it is not moved and validation sees what was sent.
+  assert.deepEqual(filtersFromCall("topics", { name: "topics", congress: 119, sort: "x" }), { congress: 119 });
+});
+
+it("leaves a malformed `filters` for validation to reject", () => {
+  assert.equal(filtersFromCall("bills", { name: "bills", filters: "congress=119" }), "congress=119");
+  assert.deepEqual(filtersFromCall("nope", { name: "nope", sort: "x" }), {});
 });
 
 console.log(`\ncatalog/filters: ${passed} passed, ${failures.length} failed`);
