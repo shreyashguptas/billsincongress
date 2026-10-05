@@ -635,15 +635,29 @@ const LOOKALIKES: Array<[RegExp, string]> = [
   // 【cite:bills:2393s119]]" on 2026-10-05; left alone, the citation is not
   // recognised and the reader sees the raw marker.
   [/【((?:cite|bills|topics?|sponsors?|state):[^\]】\n]*)(?:】|\]\])/g, "[[$1]]"],
-  // A card written as the row's own handle: "[[sponsors:119:James Gallagher]]"
-  // reached a reader as raw text on billsincongress.com on 2026-10-05, because
-  // the card syntax is [[sponsor:<name>]] and [[topic:<name>]].
-  [/\[\[sponsors:\d+:([^\]\n]+)\]\]/g, "[[sponsor:$1]]"],
-  [/\[\[topics:\d+:([^\]\n]+)\]\]/g, "[[topic:$1]]"],
 ];
 
+/**
+ * A card written as the row's own handle: "[[sponsors:119:James Gallagher]]"
+ * reached a reader as raw text on billsincongress.com on 2026-10-05, because
+ * the card syntax is [[sponsor:<name>]] and [[topic:<name>]]. Every item of a
+ * list loses its prefix, not only the first, or the rest are dropped as
+ * unknown handles on the page (review on #170).
+ */
+const HANDLE_CARD = /\[\[(sponsors|topics):\d+:([^\]\n]+)\]\]/g;
+const HANDLE_PREFIX = /^\s*(?:sponsors|topics):\d+:/;
+
+function handleCardsAsCards(text: string): string {
+  return text.replace(HANDLE_CARD, (_full, dataset: string, list: string) => {
+    const names = list.split(",").map((item) => item.replace(HANDLE_PREFIX, "").trim());
+    return `[[${dataset === "sponsors" ? "sponsor" : "topic"}:${names.join(",")}]]`;
+  });
+}
+
 export function plainCharacters(text: string): string {
-  return LOOKALIKES.reduce((out, [pattern, plain]) => out.replace(pattern, plain), text);
+  return handleCardsAsCards(
+    LOOKALIKES.reduce((out, [pattern, plain]) => out.replace(pattern, plain), text),
+  );
 }
 
 export function sanitizeAnswer(text: string, question?: string): SanitizeResult {

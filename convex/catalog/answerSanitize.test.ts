@@ -675,6 +675,13 @@ it("turns a card written as a row handle into the card syntax", () => {
   assert.equal(sanitizeAnswer("Health leads. [[topics:119:Health]]").text, "Health leads. [[topic:Health]]");
 });
 
+it("turns every handle in a list into a card, not only the first", () => {
+  assert.equal(
+    sanitizeAnswer("The two fewest. [[sponsors:119:James Gallagher,sponsors:119:Kevin Kiley]]").text,
+    "The two fewest. [[sponsor:James Gallagher,Kevin Kiley]]",
+  );
+});
+
 it("still finds thinking written with look-alike characters", () => {
   const raw = "Let me check the stage\u201140 count.\n\n72 laws started in the House.";
   assert.equal(sanitizeAnswer(raw).text, "72 laws started in the House.");
