@@ -2075,14 +2075,17 @@ next merge. The step refuses to run without the secret, or with a key that does 
    or shown on screen (`<name>` is any new label, such as `github-actions-ci`):
 
    ```bash
-   npx convex deployment token create <name> --deployment industrious-llama-331 2>&1 | grep -o 'prod:[^[:space:]]*' | tr -d '\n' | gh secret set CONVEX_DEPLOY_KEY --env Production --repo shreyashguptas/billsincongress
+   key=$(npx convex deployment token create <name> --deployment industrious-llama-331 2>/dev/null | grep -o 'prod:[^[:space:]]*') && [ -n "$key" ] && printf %s "$key" | gh secret set CONVEX_DEPLOY_KEY --env Production --repo shreyashguptas/billsincongress; unset key
    ```
+
+   If creating the key fails (not logged in, a name already taken), the `[ -n "$key" ]` test
+   stops it before an empty value can overwrite the stored secret.
 
 3. Re-run the latest Deploy run from the Actions tab, and check that the "Deploy the Convex
    backend" step passes. Pasting the key into `gh secret set` by hand is what broke the first
    live run: the stored value did not begin with `prod:`.
-4. Revoke the old key with `npx convex deployment token delete <name> --deployment industrious-llama-331`,
-   once nothing still uses it (a local `.env` for the accuracy gate, say). If a repo-level
+4. Revoke the old key with `npx convex deployment token delete <old-name> --deployment industrious-llama-331`
+   (the label the old key was created with, **not** the new one from step 2), once nothing still uses it (a local `.env` for the accuracy gate, say). If a repo-level
    `CONVEX_DEPLOY_KEY` exists, delete it too: `gh secret delete CONVEX_DEPLOY_KEY`.
 
 Never store it as a repo-level secret (see the environment-variable notes above).

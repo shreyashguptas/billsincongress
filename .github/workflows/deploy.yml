@@ -95,6 +95,9 @@ jobs:
           # preview key is worse: the CLI would deploy to a preview copy,
           # report success, and leave production untouched.
           case "$CONVEX_DEPLOY_KEY" in
+            # Checked before `prod:*`, which would otherwise accept a key
+            # with a space or newline left on the end.
+            *[[:space:]]) echo "::error::CONVEX_DEPLOY_KEY ends with a space or a line break, so it was pasted with extra characters. Set it again with the one-line command in 'Deploying Convex' in documentation/overview.md."; exit 1 ;;
             prod:*) ;;
             "") echo "::error::CONVEX_DEPLOY_KEY is empty. It must be a secret of the Production environment, and this job must be running on main. See 'Deploying Convex' in documentation/overview.md."; exit 1 ;;
             # The first live run failed here: the key had been pasted into
