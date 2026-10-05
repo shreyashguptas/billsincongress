@@ -11,9 +11,9 @@ const BACKFILL_BATCH_SIZE = 50;
  * after deploying the aggregate components, or the aggregate-backed public
  * bill filters have no data. Idempotent (`insertIfDoesNotExist`).
  *
- *     npx convex run --prod aggregateBackfill:run '{}'
+ *     pnpm exec convex run --prod aggregateBackfill:run '{}'
  *     # lower the batch size if you see transaction-limit errors in the logs:
- *     npx convex run --prod aggregateBackfill:run '{"batchSize": 25}'
+ *     pnpm exec convex run --prod aggregateBackfill:run '{"batchSize": 25}'
  *
  * Each batch self-schedules the next so no single mutation exceeds Convex's
  * per-transaction document limits; the final batch recomputes every
@@ -118,7 +118,7 @@ export const distinctCongresses = internalQuery({
  * Wipes both bill aggregates. Use only if you intend to immediately re-run
  * the backfill so aggregate-backed filter counts stay available.
  *
- *     npx convex run --prod aggregateBackfill:clear '{}'
+ *     pnpm exec convex run --prod aggregateBackfill:clear '{}'
  */
 export const clear = internalAction({
   args: {},
@@ -141,14 +141,14 @@ export const clearAggregates = internalMutation({
  * when chamber totals don't match Congress.gov); `status` below compares the
  * aggregate counts against a direct bills-table probe.
  *
- *     npx convex run --prod aggregateBackfill:countsByType '{"congress": 119}'
- *     npx convex run --prod aggregateBackfill:status '{}'
+ *     pnpm exec convex run --prod aggregateBackfill:countsByType '{"congress": 119}'
+ *     pnpm exec convex run --prod aggregateBackfill:status '{}'
  *
  * Both are internalQuery on purpose. They are operator tools with no caller in
  * the app, and `status` alone reads several thousand documents per call — as
  * public queries they were an unauthenticated read-burn door for anyone holding
  * the deployment URL, which is exactly why `policyAreaBackfill.status` is
- * internal. `npx convex run` calls internal functions as admin, so the CLI
+ * internal. `pnpm exec convex run` calls internal functions as admin, so the CLI
  * usage above is unaffected.
  */
 export const countsByType = internalQuery({

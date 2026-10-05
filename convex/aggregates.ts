@@ -7,7 +7,7 @@ export { BILL_STAGES } from "./billStage";
 
 // Component handles. We resolve them via `componentsGeneric()` rather than the
 // `_generated/api.ts` re-export so this file typechecks locally without
-// requiring `npx convex codegen` to run with credentials. After
+// requiring `pnpm exec convex codegen` to run with credentials. After
 // `convex deploy` runs codegen, both forms refer to the same object.
 const components = componentsGeneric() as unknown as {
   billsByChamber: any;

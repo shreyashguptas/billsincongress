@@ -1174,7 +1174,7 @@ export const deleteCongressBills = internalMutation({
  * Deletes the precomputed stats rows for a congress. Does NOT touch the bills
  * table — run `deleteCongressBills` first if it still has bill rows.
  *
- *     npx convex run --prod mutations:deleteCongressStats '{"congress": 108}'
+ *     pnpm exec convex run --prod mutations:deleteCongressStats '{"congress": 108}'
  */
 export const deleteCongressStats = internalMutation({
   args: { congress: v.number() },
@@ -1242,7 +1242,7 @@ export const getBillActionsForBaseRate = internalQuery({
 /**
  * Recompute the committeeBaseRates table from every finished Congress's bills.
  * Run weekly by cron, and on demand for the initial backfill:
- *   npx convex run --prod mutations:recomputeCommitteeBaseRates
+ *   pnpm exec convex run --prod mutations:recomputeCommitteeBaseRates
  */
 export const recomputeCommitteeBaseRates = internalAction({
   args: {},

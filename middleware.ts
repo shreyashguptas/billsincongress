@@ -6,11 +6,16 @@ import {
 } from "@convex-dev/auth/nextjs/server";
 import { isPubliclyCacheable, setsOwnCacheControl } from "./lib/cacheable-routes";
 
-// Kept as "middleware.ts" (not Next.js 16's "proxy.ts") on purpose: proxy.ts is
-// locked to the Node.js runtime, which the Cloudflare/OpenNext adapter doesn't
-// support — it requires Edge middleware. The middleware.ts convention still
-// runs on the Edge runtime, and all logic here (cookies, redirects, route
-// matching via @convex-dev/auth) is Edge-compatible.
+// Kept as "middleware.ts" (not Next.js 16's "proxy.ts") on purpose, although
+// every build prints Next's deprecation warning for it. proxy.ts is locked to
+// the Node.js runtime. @opennextjs/cloudflare runs that only experimentally
+// (since 1.20.3), and its build says so: "not officially maintained by OpenNext
+// maintainers. Use at your own risk." This file runs on every request and
+// carries sign-in, so it stays on the Edge runtime, which is OpenNext's
+// maintained path. middleware.ts is still fully supported in Next 16. Revisit
+// when OpenNext supports proxy.ts without the experimental warning; the move is
+// a rename (see node_modules/next/dist/docs/.../proxy.md). All logic here
+// (cookies, redirects, route matching via @convex-dev/auth) works on both.
 //
 // We use @convex-dev/auth's middleware wrapper since it's the only way it can
 // proxy /api/auth/* to Convex AND refresh session tokens. The wrapper accepts

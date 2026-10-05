@@ -59,7 +59,7 @@ it('never emits a starter containing an undefined or NaN', () => {
   for (const s of starters(input)) {
     assert.ok(!s.text.includes('undefined'), s.text);
     assert.ok(!s.text.includes('NaN'), s.text);
-    assert.ok(!(s.href ?? '').includes('undefined'), s.href);
+    assert.ok(!(s.href ?? '').includes('undefined'), s.href ?? '(no href)');
   }
 });
 
@@ -123,13 +123,13 @@ it('promises an explanation only when the destination has one', () => {
   const older = starters({ ...input, congress: 117, latestCongress: 119 }).find(
     (s) => s.kind === 'in_committee',
   );
-  assert.ok(latest?.text.startsWith('Why'), latest?.text);
-  assert.ok(!older?.text.startsWith('Why'), older?.text);
+  assert.ok(latest?.text.startsWith('Why'), latest?.text ?? '(no starter)');
+  assert.ok(!older?.text.startsWith('Why'), older?.text ?? '(no starter)');
 });
 
 it('falls back to /bills when the newest Congress is unknown', () => {
   for (const s of starters({ ...input, latestCongress: null })) {
-    assert.ok(s.href?.startsWith('/bills?congress=119'), s.href);
+    assert.ok(s.href?.startsWith('/bills?congress=119'), s.href ?? '(no href)');
   }
 });
 
