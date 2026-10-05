@@ -26,8 +26,8 @@ jobs:
     steps:
       # Pinned to a commit rather than a tag. A tag is mutable, and whoever
       # controls it controls what runs in this repository with a token in
-      # scope. This is `actions/checkout` v4.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      # scope.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Full history rather than a shallow clone, so `git log` and
           # `git blame` work. The review is markedly better when it can see why
@@ -39,18 +39,19 @@ jobs:
       # only way to settle a question, and it said so in its own review. These
       # three steps exist to fix that. Pinned to commits for the same reason the
       # others are.
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        with:
-          # MUST equal `packageManager` in package.json. The action does not
-          # take the newer of the two — it throws "Multiple versions of pnpm
-          # specified" and every review fails at this step, with the cause
-          # sitting in a different file from the one that changed. Stated
-          # explicitly here to match ci.yml and deploy.yml, which do the same.
-          version: 10.33.0
+      # No `version:` here. The action reads pnpm's version from
+      # `packageManager` in package.json, so that field is the only place the
+      # version is written down. Setting it here as well used to make the job
+      # fail with "Multiple versions of pnpm specified" the moment the two
+      # disagreed, with the cause in a different file from the one changed.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          # The Node version lives in .node-version, the one file every
+          # workflow and local version manager reads, so changing it never
+          # means editing five workflows.
+          node-version-file: .node-version
           cache: pnpm
 
       # Tolerated on purpose. An out-of-sync lockfile is the most common CI
@@ -84,10 +85,10 @@ jobs:
           echo "typecheck exit: ${PIPESTATUS[0]}" >> /tmp/typecheck-output.txt
           exit 0
 
-      # Likewise. This is `anthropics/claude-code-action` v1 as of 23 Sep 2026
-      # (Claude Code 2.1.281). Re-resolve the tag and update this line, and the
+      # Likewise. This is `anthropics/claude-code-action` v1.0.241 as of 3 Oct 2026
+      # (Claude Code 2.1.289). Re-resolve the tag and update this line, and the
       # same pin in claude.yml, deliberately when picking up a new version.
-      - uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c
+      - uses: anthropics/claude-code-action@cab360f6565aa35a51d6ce9e43f1f4287c0a32ea # v1.0.241
         # Runs even if a step above failed, so a broken install or a red test
         # run still gets reviewed. Deliberately NOT `always()`: that would also
         # run this paid review for jobs the concurrency group cancelled, undoing
@@ -254,7 +255,7 @@ jobs:
           # Model and effort are pinned here rather than left to the action's
           # default, so a review is not silently run by a different model when
           # that default moves. Opus 5.5 at medium effort. `--effort` was checked
-          # against Claude Code 2.1.281, the version the action pin above
+          # against Claude Code 2.1.289, the version the action pin above
           # installs; re-check it when moving that pin.
           claude_args: |
             --model claude-opus-5-5
