@@ -42,6 +42,15 @@ type BillBackfillPage = {
 
 const BASE_URL = "https://api.congress.gov/v3";
 
+/**
+ * A title on one line. Congress.gov sends a few with a line break inside
+ * ("…chapter 8 of title 5, \nUnited States Code…", S.J.Res. 47 and S.Res. 726
+ * in the 119th), which the official bulk files do not have.
+ */
+function oneLine(title: string | undefined): string {
+  return (title ?? "").replace(/\s+/g, " ").trim();
+}
+
 /** Fail fast with one message when the sync key is absent. */
 function requireApiKey(): string {
   const apiKey = process.env.CONGRESS_API_KEY;
@@ -317,7 +326,7 @@ async function syncSingleBill(
   const { stage, description } = computed;
 
   const titleWithoutNumber =
-    billDetail.title?.replace(
+    oneLine(billDetail.title).replace(
       /^(H\.R\.|S\.|H\.J\.Res\.|S\.J\.Res\.|H\.Con\.Res\.|S\.Con\.Res\.|H\.Res\.|S\.Res\.)\s*\d+\s*[-–]\s*/,
       ""
     ) || "";
@@ -328,7 +337,7 @@ async function syncSingleBill(
     billType,
     billNumber: billNumber.toString(),
     billTypeLabel: getBillTypeLabel(billType),
-    title: billDetail.title || "",
+    title: oneLine(billDetail.title),
     titleWithoutNumber,
     introducedDate: billDetail.introducedDate || "",
     // Names re-cased from the official full name, and the member's id.
@@ -1063,7 +1072,7 @@ export const repairIncompleteBills = internalAction({
           const data = await resp.json();
           const billDetail = data.bill;
           const titleWithoutNumber =
-            billDetail.title?.replace(
+            oneLine(billDetail.title).replace(
               /^(H\.R\.|S\.|H\.J\.Res\.|S\.J\.Res\.|H\.Con\.Res\.|S\.Con\.Res\.|H\.Res\.|S\.Res\.)\s*\d+\s*[-–]\s*/,
               ""
             ) || "";
@@ -1073,7 +1082,7 @@ export const repairIncompleteBills = internalAction({
             billType: bill.billType,
             billNumber: bill.billNumber,
             billTypeLabel: getBillTypeLabel(bill.billType),
-            title: billDetail.title || "",
+            title: oneLine(billDetail.title),
             titleWithoutNumber,
             introducedDate: billDetail.introducedDate || "",
             // Names re-cased from the official full name, and the member's id.

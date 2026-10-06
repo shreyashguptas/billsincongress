@@ -533,6 +533,10 @@ export const setBillSponsorIdentity = internalMutation({
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined && (existing as Record<string, unknown>)[key] !== value) patch[key] = value;
     }
+    // While here: a title stored with a line break inside it (two in the 119th)
+    // is put on one line, as the sync now stores every title.
+    const oneLine = existing.title.replace(/\s+/g, " ").trim();
+    if (oneLine !== existing.title) patch.title = oneLine;
     await ctx.db.patch(existing._id, patch);
   },
 });

@@ -70,6 +70,17 @@ describe("sponsor identity backfill", () => {
     expect(after?.updatedAt).toBe(before?.updatedAt);
   });
 
+  test("a title stored with a line break inside it is put on one line", async () => {
+    const t = setup();
+    await addBill(t, 3, "s", "Jacky", "Rosen", "NV");
+    await t.run(async (ctx) => {
+      const b = await ctx.db.query("bills").withIndex("by_billId", (q) => q.eq("billId", "3s118")).unique();
+      await ctx.db.patch(b!._id, { title: "A joint resolution under chapter 8 of title 5, \nUnited States Code" });
+    });
+    await t.mutation(internal.mutations.setBillSponsorIdentity, { billId: "3s118", sponsorBioguideId: "R000608" });
+    expect((await row(t, "3s118"))?.title).toBe("A joint resolution under chapter 8 of title 5, United States Code");
+  });
+
   test("a bill with no sponsor is marked done and nothing else changes", async () => {
     const t = setup();
     await addBill(t, 2, "hr", "", "", "");
