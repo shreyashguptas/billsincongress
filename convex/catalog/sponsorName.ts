@@ -377,31 +377,61 @@ export function matchesFullName(
  * matched by it, which is the only way to tell "Robert Menendez (Senate)" from
  * "Robert Menendez (House)"; a bill stored before ids were matches by `nameKeys`.
  */
-export interface SponsorRequest {
+export interface SponsorRequest<R = unknown> {
   nameKeys: Set<string>;
   bioguides: Set<string>;
   /** Every spelling of the matched members, for reading the surname index. */
   spellings: string[];
+  /** This Congress's member rows the request matched. */
+  rows: R[];
 }
 
-export function resolveSponsorRequest(
-  rows: Iterable<Pick<SponsorRow, "sponsorName" | "sponsorBioguideId" | "spellings">>,
+type ResolvableRow = Pick<SponsorRow, "sponsorName" | "sponsorBioguideId" | "spellings">;
+
+/**
+ * `otherCongresses` covers a name this Congress never uses. The /bills picker
+ * lists each member once across every Congress, under one name: Jacky Rosen is
+ * "Jacky Rosen" there, but her 117th-Congress bills all say "Jacklyn". A name
+ * that matches no row here is looked up by member id in the other Congresses
+ * and then found here by that id, rather than answered with an exact zero.
+ */
+export function resolveSponsorRequest<R extends ResolvableRow>(
+  rows: Iterable<R>,
   names: string[],
-): SponsorRequest {
+  otherCongresses: Iterable<ResolvableRow> = [],
+): SponsorRequest<R> {
+  const here = [...rows];
+  const namesOf = (row: ResolvableRow) => [row.sponsorName, ...(row.spellings ?? [])];
   const wanted = new Set(names.map(nameKey));
+  const matchedHere = new Set(
+    here.filter((row) => namesOf(row).some((n) => wanted.has(nameKey(n)))),
+  );
+  const unmatched = [...wanted].filter(
+    (key) => ![...matchedHere].some((row) => namesOf(row).some((n) => nameKey(n) === key)),
+  );
+  if (unmatched.length > 0) {
+    const ids = new Set<string>();
+    for (const row of otherCongresses) {
+      if (row.sponsorBioguideId && namesOf(row).some((n) => unmatched.includes(nameKey(n)))) {
+        ids.add(row.sponsorBioguideId);
+      }
+    }
+    for (const row of here) {
+      if (row.sponsorBioguideId && ids.has(row.sponsorBioguideId)) matchedHere.add(row);
+    }
+  }
+
   const nameKeys = new Set(wanted);
   const bioguides = new Set<string>();
   const spellings = new Set<string>();
-  for (const row of rows) {
-    const all = [row.sponsorName, ...(row.spellings ?? [])];
-    if (!all.some((n) => wanted.has(nameKey(n)))) continue;
-    for (const n of all) {
+  for (const row of matchedHere) {
+    for (const n of namesOf(row)) {
       nameKeys.add(nameKey(n));
       spellings.add(n);
     }
     if (row.sponsorBioguideId) bioguides.add(row.sponsorBioguideId);
   }
-  return { nameKeys, bioguides, spellings: [...spellings] };
+  return { nameKeys, bioguides, spellings: [...spellings], rows: [...matchedHere] };
 }
 
 /** Whether a bill belongs to the members a resolved filter names. */

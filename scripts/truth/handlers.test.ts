@@ -1531,6 +1531,23 @@ async function main() {
     );
   });
 
+  await it("the picker's one name for a member finds their bills in every Congress", async () => {
+    // Review on #173: the picker lists Jacky Rosen once, as "Jacky Rosen"; all
+    // 74 of her 117th-Congress bills say "Jacklyn". The 117th filtered by the
+    // picker's name must not come back as an exact zero.
+    const list = await runQuery(billsQueries.listAllSponsors, {});
+    const rosen = list.find((s: any) => /Rosen$/.test(s.name) && s.state === "NV");
+    assert.ok(rosen, "sanity: Rosen is in the picker");
+    for (const congress of [117, 118, 119]) {
+      const truth = (bills as any[]).filter(
+        (b) => b.congress === congress && b.sponsorLastName === "Rosen" && b.sponsorState === "NV",
+      ).length;
+      const { count, exact } = await runQuery(billsQueries.listCount, { congress, sponsorFilter: [rosen.name] });
+      assert.equal(exact, true);
+      assert.equal(count, truth, `${congress}th: "${rosen.name}"`);
+    }
+  });
+
   await it("no member of the 117th is shown in capitals", async () => {
     const r = await fetchViaHandlers(ctx, "sponsors", { congress: 117 }, 600);
     assert.ok(r.ok, `fetch failed: ${r.error}`);

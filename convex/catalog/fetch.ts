@@ -444,8 +444,23 @@ async function fetchBills(
         .withIndex("by_congress", (q) => q.eq("congress", congress))
         .take(SPONSOR_SCAN_LIMIT)
     : [];
+  // A name this Congress never uses (one member's name from another Congress,
+  // "Jacky Rosen" for her 117th bills spelled "Jacklyn") is found through the
+  // member's id in the other Congresses rather than answered as zero.
+  const covered = (names: string[], rows: typeof sponsorRows) =>
+    names.every((name) =>
+      rows.some((row) =>
+        [row.sponsorName, ...(row.spellings ?? [])].some((n) => nameKey(n) === nameKey(name)),
+      ),
+    );
+  const otherCongresses =
+    sponsorNames && !covered(sponsorNames, sponsorRows)
+      ? (await ctx.db.query("congressSponsors").take(SPONSOR_SCAN_LIMIT * 4)).filter(
+          (row) => row.congress !== congress,
+        )
+      : [];
   const sponsorRequest: SponsorRequest | null = sponsorNames
-    ? resolveSponsorRequest(sponsorRows, sponsorNames)
+    ? resolveSponsorRequest(sponsorRows, sponsorNames, otherCongresses)
     : null;
 
   let candidates;
@@ -560,7 +575,10 @@ async function fetchBills(
       // member table holds every stored spelling, so take them from there.
       const storedSpellings = new Map<string, string[]>();
       for (const requested of sponsorNames ?? []) {
-        storedSpellings.set(nameKey(requested), resolveSponsorRequest(sponsorRows, [requested]).spellings);
+        storedSpellings.set(
+          nameKey(requested),
+          resolveSponsorRequest(sponsorRows, [requested], otherCongresses).spellings,
+        );
       }
 
       for (const requested of sponsorNames ?? []) {

@@ -355,6 +355,20 @@ it("rows without ids resolve exactly as names did before", () => {
   assert.equal(billMatchesRequest(bill("Adam", "Smith"), req), false);
 });
 
+it("a name only another Congress uses reaches the member here through their id", () => {
+  // Review on #173: the picker lists Jacky Rosen once, as "Jacky Rosen", but
+  // every one of her 117th-Congress bills says "Jacklyn". Filtering the 117th by
+  // the picker's name returned an exact zero.
+  const here = [{ sponsorName: "Jacklyn Rosen", sponsorBioguideId: "R000608", spellings: ["Jacklyn Rosen"], billCount: 74 }];
+  const elsewhere = [{ sponsorName: "Jacky Rosen", sponsorBioguideId: "R000608", spellings: ["Jacklyn Rosen", "Jacky Rosen"] }];
+  const alone = resolveSponsorRequest(here, ["Jacky Rosen"]);
+  assert.equal(alone.rows.length, 0, "this Congress alone does not know the name");
+  const req = resolveSponsorRequest(here, ["Jacky Rosen"], elsewhere);
+  assert.equal(req.rows.length, 1);
+  assert.equal(billMatchesRequest(bill("Jacklyn", "Rosen", { sponsorBioguideId: "R000608" }), req), true);
+  assert.equal(billMatchesRequest(bill("Jacklyn", "Rosen"), req), true, "no id: matched by the spelling found");
+});
+
 it("merges rows across Congresses by id even when they are spelled differently", () => {
   const merged = mergeSponsorRows([
     { sponsorName: "Jacklyn Rosen", sponsorState: "NV", billCount: 74, sponsorBioguideId: "R000608", congress: 117 },
