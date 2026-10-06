@@ -314,7 +314,7 @@ it("H.R. 5894 (118th): the rule passing the House is not the bill passing it", (
 // S. 2431 (119th), the 2026 Interior appropriations bill: reported by the
 // Appropriations Committee and placed on the Senate calendar on 24 Jul 2025,
 // and shown as "in committee for 439 days" because the reported codes counted
-// as being in committee. 1,956 measures across the three Congresses read that way.
+// as being in committee. 2,142 measures across the three Congresses read that way.
 
 const at = (date: string, text: string, extra: Partial<Action> = {}): Action => ({ text, actionDate: date, ...extra });
 
@@ -327,6 +327,18 @@ it("S. 2431 (119th): reported and calendared in the Senate is out of committee",
   ]);
   assert.equal(result.stage, BillStages.OUT_OF_COMMITTEE);
   assert.equal(result.stageDate, "2025-07-24");
+});
+
+it("a Rule XIV bill, read twice and calendared mid-sentence, is out of committee", () => {
+  // Review on #174: the Senate records this as one sentence, and 133 such bills
+  // were left at Introduced by a match on the start of the text.
+  assert.equal(
+    stageOf([
+      at("2025-02-03", "Introduced in the Senate. Read the first time. Placed on Senate Legislative Calendar under Read the First Time."),
+      at("2025-02-04", "Read the second time. Placed on Senate Legislative Calendar under General Orders. Calendar No. 12."),
+    ]),
+    BillStages.OUT_OF_COMMITTEE,
+  );
 });
 
 it("a House bill on the Union Calendar is out of committee", () => {

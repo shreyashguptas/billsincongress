@@ -1393,10 +1393,10 @@ async function main() {
           x.actionCode === "H12410" ||
           x.actionCode === "H12420" ||
           x.actionCode === "14000" ||
-          t.startsWith("placed on the union calendar") ||
-          t.startsWith("placed on the house calendar") ||
-          t.startsWith("placed on the private calendar") ||
-          t.startsWith("placed on senate legislative calendar under general orders")
+          t.includes("placed on the union calendar") ||
+          t.includes("placed on the house calendar") ||
+          t.includes("placed on the private calendar") ||
+          t.includes("placed on senate legislative calendar under general orders")
         );
       })
     ) {

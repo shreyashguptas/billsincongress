@@ -28,7 +28,7 @@ import ShareBillButton from './share-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
 import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
-import { daysBetween, journeyView } from '@/lib/bill-journey';
+import { journeyView } from '@/lib/bill-journey';
 import type { billsService } from '@/lib/services/bills-service';
 import {
   ArrowLeft,
@@ -405,13 +405,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               <p className="text-sm leading-relaxed text-ink-2">
                 In committee for{' '}
                 <span className="font-medium text-ink tabular">
-                  {/* Counted the way the journey's "days since it was introduced"
-                      is, from the same `today`: the server's count is in UTC and
-                      read 439 beside the journey's 438 on S. 2431. */}
-                  {formatCount(
-                    bill.introduced_date ? daysBetween(bill.introduced_date, today) : bill.days_in_committee!,
-                  )}{' '}
-                  days
+                  {formatCount(bill.days_in_committee!)} days
                 </span>
                 . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'} bills and
                 resolutions from past Congresses still in committee this long, about{' '}

@@ -8,6 +8,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  isRelabelOnly,
   digestSubject,
   fingerprintAction,
   formatActionDate,
@@ -309,6 +310,22 @@ it("caps actions per bill and says how many more there are", () => {
 it("formats action dates without a timezone shift", () => {
   assert.equal(formatActionDate("2026-01-01"), "Jan 1, 2026");
   assert.equal(formatActionDate("2026-09-23T00:00:00Z"), "Sep 23, 2026");
+});
+
+// Review on #174: a bill calendared months ago is stored at 40 until its stage
+// is re-derived; a sync that re-derives it because some other action arrived
+// must not email "moved out of committee".
+it("a re-labelled 40 to 50 is not news, a new floor calendar is", () => {
+  const other = [{ actionDate: "2026-10-07", text: "Committee on Rules. Hearings held." }];
+  assert.equal(isRelabelOnly(40, 50, []), true);
+  assert.equal(isRelabelOnly(40, 50, other), true);
+  assert.equal(isRelabelOnly(40, 50, [{ actionDate: "2026-10-07", text: "Placed on the Union Calendar, Calendar No. 701." }]), false);
+  assert.equal(
+    isRelabelOnly(40, 50, [{ actionDate: "2026-10-07", text: "Read the second time. Placed on Senate Legislative Calendar under General Orders. Calendar No. 530." }]),
+    false,
+  );
+  assert.equal(isRelabelOnly(40, 50, [{ actionDate: "2026-10-07", text: "Committee on Finance. Reported by Senator Crapo without amendment." }]), false);
+  assert.equal(isRelabelOnly(40, 60, other), false, "any other move is news");
 });
 
 if (failures.length > 0) {

@@ -27,7 +27,7 @@ const STUCK = [
 
 // Out of committee leads the moved rows: the committee is done with these and
 // they wait for a floor vote. They were counted as stuck "in committee" until
-// 2026-10-06 (1,956 across the three Congresses).
+// 2026-10-06 (2,142 across the three Congresses).
 const MOVED = [
   { key: 'outOfCommittee', label: 'Out of committee', stage: 50 },
   { key: 'passedOneChamber', label: 'Passed one chamber', stage: 60 },

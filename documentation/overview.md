@@ -404,7 +404,7 @@ becameLaw → vetoed → signed → toPresident → passedBoth → passedOne →
 | 95 | Signed by President |
 | 100 | Became Law |
 
-**Out of committee (50)** was added on 2026-10-06. Before it, 1,956 measures across the three
+**Out of committee (50)** was added on 2026-10-06. Before it, 2,142 measures across the three
 Congresses that a committee had reported and placed on a floor calendar read "In committee",
 counted in "haven't made it out of committee" and were shown the odds for bills stuck there.
 `leftCommittee()` decides it from the **floor calendar**, not the report: placed on the Union,

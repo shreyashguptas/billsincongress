@@ -55,9 +55,9 @@ const FLOOR_CALENDARS = [
  * Whether an action shows the measure has left committee and waits for the
  * floor. Shared by calculateBillStage and the committee base-rate job.
  *
- * 1,956 measures across the 117th–119th had been reported by their committee
- * and placed on a floor calendar while the site still called them "in
- * committee", counted them in "haven't made it out of committee", and showed
+ * 2,142 measures across the 117th–119th had been reported by their committee
+ * or placed on a floor calendar while the site still called them "in
+ * committee" (or, for 40 Rule XIV bills in the 119th, "introduced"), counted them in "haven't made it out of committee", and showed
  * them the odds for bills stuck there (S. 2431, the 2026 Interior appropriations
  * bill, was "in committee for 439 days" months after the Senate calendared it).
  *
@@ -69,7 +69,10 @@ const FLOOR_CALENDARS = [
  * report (code 14000) does count, because the Senate places a reported measure
  * on its calendar the same day and does not always record that separately.
  * Rule XIV bills skip committee and are placed on the Senate calendar directly,
- * so they count too.
+ * so they count too. The Senate records that mid-sentence ("Read the second
+ * time. Placed on Senate Legislative Calendar under General Orders.", 351
+ * actions), so the calendar is matched anywhere in the text, not only at the
+ * start (review on #174).
  */
 export function leftCommittee(action: { text?: string; actionCode?: string }): boolean {
   const text = (action.text || "").toLowerCase();
@@ -78,7 +81,7 @@ export function leftCommittee(action: { text?: string; actionCode?: string }): b
     code === "H12410" ||
     code === "H12420" ||
     code === "14000" ||
-    FLOOR_CALENDARS.some((c) => text.startsWith(c))
+    FLOOR_CALENDARS.some((c) => text.includes(c))
   );
 }
 

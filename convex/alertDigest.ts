@@ -9,6 +9,7 @@
  * Congress.gov, quoted as stored; nothing is summarised or predicted.
  */
 import { formatCongressOrdinal } from "../lib/congress";
+import { BillStages, leftCommittee } from "./billStage";
 import { measureStageLabel } from "../lib/utils/bill-stages";
 import {
   BRAND,
@@ -123,6 +124,24 @@ export interface BillChange {
   /** Set only when the stage actually changed since the last email. */
   stageChange?: { from?: number; to: number };
   newActions: ActionRow[];
+}
+
+/**
+ * True when a stage change from In committee (40) to Out of committee (50) is
+ * only the stored record being re-labelled, not news. Stage 50 exists from
+ * 2026-10-06; a bill calendared months before was stored at 40 until its stage
+ * was re-derived. Re-derived by the sync because some other action arrived, it
+ * must not be told to a reader as "moved out of committee" (review on #174). It
+ * is news only when one of the new actions is what took the bill out of
+ * committee: a floor calendar, or a Senate report.
+ */
+export function isRelabelOnly(
+  from: number | undefined,
+  to: number,
+  fresh: readonly ActionRow[],
+): boolean {
+  if (from !== BillStages.IN_COMMITTEE || to !== BillStages.OUT_OF_COMMITTEE) return false;
+  return !fresh.some((a) => leftCommittee({ text: a.text }) || /reported (by senator|to senate)/i.test(a.text));
 }
 
 /** A change worth an email: a new action, or a status change with none. */
