@@ -405,12 +405,16 @@ becameLaw → vetoed → signed → toPresident → passedBoth → passedOne →
 | 100 | Became Law |
 
 **Out of committee (50)** was added on 2026-10-06. Before it, 2,145 measures across the three
-Congresses that a committee had reported and placed on a floor calendar read "In committee",
-counted in "haven't made it out of committee" and were shown the odds for bills stuck there.
-`leftCommittee()` decides it from the **floor calendar**, not the report: placed on the Union,
-House or Private Calendar (codes H12410, H12420), placed on the Senate calendar under General
-Orders (which also covers Rule XIV bills that skip committee), or reported in the Senate (code
-14000, because the Senate calendars a reported measure the same day). A House report marked
+Congresses that a committee had reported or that sat on a floor calendar read "In committee"
+(or "Introduced", for Rule XIV bills), counted in "haven't made it out of committee" and were
+shown the odds for bills stuck there. `leftCommittee()` decides it from the **floor calendar**,
+not the report, matched anywhere in the action's text: placed on the Union, House or Private
+Calendar (codes H12410, H12420); placed on the Senate calendar under General Orders, which the
+Senate often writes mid-sentence ("Read the second time. Placed on…") and which also covers
+Rule XIV bills that skip committee; placed on the Senate's executive calendar, or on its
+legislative calendar "over, under the rule" (a resolution held a day with no committee, such
+as S.Res. 520 in the 119th); or reported in the Senate (code 14000, because the Senate
+calendars a reported measure the same day). A House report marked
 "Part 1" leaves the bill with its other committees, "Ordered to be reported" is a committee
 vote before the report, and a subcommittee being discharged returns the bill to its full
 committee; none of them count. It fills the track's Committee step like 40, in its own colour
@@ -418,7 +422,9 @@ and with its own label. A stage date is never earlier than the bill's introducti
 held "on the subject prior to introduction" had dated 26 bills into committee before they
 existed. After the deploy, `backfillBillFieldsFromActions` re-derives every stored stage from
 stored actions (no API calls) and recounts; it advances the watermark of every alert whose
-bill moves only from 40 to 50, so no digest reports a months-old committee report as news.
+bill moves from below 50 to 50, and the digest's `isRelabelOnly` drops such a move unless a new
+action is what took the bill out of committee, so no digest reports a months-old calendar
+placement as news.
 
 **Resolutions are stored on the same scale but drawn on their own road.** A simple resolution
 (H.Res., S.Res.) agreed to by its chamber is stored at 60, a concurrent resolution (H.Con.Res.,

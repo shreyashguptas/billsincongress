@@ -63,8 +63,9 @@ const FLOOR_CALENDARS = [
  *
  * 2,145 measures across the 117th–119th had been reported by their committee
  * or placed on a floor calendar while the site still called them "in
- * committee" (or, for 40 Rule XIV bills in the 119th, "introduced"), counted them in "haven't made it out of committee", and showed
- * them the odds for bills stuck there (S. 2431, the 2026 Interior appropriations
+ * committee" (or, for 40 Rule XIV bills in the 119th, "introduced"), counted
+ * them in "haven't made it out of committee", and showed them the odds for
+ * bills stuck there (S. 2431, the 2026 Interior appropriations
  * bill, was "in committee for 439 days" months after the Senate calendared it).
  *
  * The signal is the floor calendar, not the report. A House bill referred to
