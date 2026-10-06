@@ -95,7 +95,7 @@ are ink with an underline (the `.link` class).
 |---|---|---|
 | Topics | `--topic-1` … `--topic-6` (`bg-topic-1`) | The six largest policy areas in rank order. Everything past six folds into one `ink-3` "Other" slice that says what it holds. Fills only, never text, and always with a legend: four slots are under 3:1 on paper |
 | Parties | `--party-d`, `--party-r`, `--party-i`, `--party-u` | Muted, and only where the data is about party: seats, sponsor dots, party splits. Never for emphasis, alerts or errors. Independents are ochre so they never read as a blend of the other two |
-| Stages | `--status-introduced` … `--status-law`, `--status-vetoed` | A cool-to-warm ramp from introduced to signed, ending in the site's only green, "became law". Vetoed is a desaturated slate, because it is a dead end rather than a step forward |
+| Stages | `--status-introduced` … `--status-law`, `--status-vetoed` | A cool-to-warm ramp from introduced to signed, ending in the site's only green, "became law". Out of committee (`--status-out-of-committee`, a clearer blue) sits one step warmer than the committee slate: done with committee, not yet past a chamber. Vetoed is a desaturated slate, because it is a dead end rather than a step forward |
 | State map | `--heat` | One amber, stepped by opacity in five bins, so it is never mistaken for a party or for "became law" |
 
 ### The stage
@@ -388,6 +388,10 @@ and followed rows, and the alert email.
 | Measure | Steps | Last step |
 |---|---|---|
 | Bill, joint resolution (H.R., S., H.J.Res., S.J.Res.) and anything unrecognised | Introduced · Committee · One chamber · Both chambers · To President · Signed · Law | "Became law" |
+
+A measure out of committee (stage 50) fills the Committee step, as one in committee does: the
+step is done, and the next is the floor. The pill, the colour and the label ("Out of
+committee") tell the two apart, on every road.
 | Concurrent resolution (H.Con.Res., S.Con.Res.) | Introduced · Committee · One chamber · Agreed to | "Agreed to by both chambers" |
 | Simple resolution (H.Res., S.Res.) | Introduced · Committee · Agreed to | "Agreed to by the House" or "by the Senate" |
 
@@ -437,7 +441,8 @@ and followed rows, and the alert email.
 - [Lucide](https://lucide.dev) (`lucide-react`) at a 1.75 stroke: 16px in
   buttons, 20px in the header, always beside a word. The only icon-only
   buttons are menu, close, search and send, and each has an `aria-label`.
-- Stages have fixed glyphs: Introduced `FilePlus`, Committee `Users`, Passed a
+- Stages have fixed glyphs: Introduced `FilePlus`, Committee `Users`, Out of committee
+  `CalendarCheck` (it is on the floor calendar), Passed a
   chamber or agreed to (a resolution) `Landmark`, President `PenLine`, Became law `ScrollText`, Vetoed
   `Ban`.
 - No emoji. No eagles, flags or Capitol photographs. Civic clichés read as

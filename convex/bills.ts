@@ -1341,6 +1341,7 @@ export const getCongressDashboard = query({
     const statusBreakdown = {
       introduced: 0,
       inCommittee: 0,
+      outOfCommittee: 0,
       passedOneChamber: 0,
       passedBothChambers: 0,
       vetoed: 0,
@@ -1353,6 +1354,7 @@ export const getCongressDashboard = query({
       switch (stage.stage) {
         case 20: statusBreakdown.introduced = stage.count; break;
         case 40: statusBreakdown.inCommittee = stage.count; break;
+        case 50: statusBreakdown.outOfCommittee = stage.count; break;
         case 60: statusBreakdown.passedOneChamber = stage.count; break;
         case 80: statusBreakdown.passedBothChambers = stage.count; break;
         case 85: statusBreakdown.vetoed = stage.count; break;

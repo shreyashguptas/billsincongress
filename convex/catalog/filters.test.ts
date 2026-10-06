@@ -145,7 +145,7 @@ it("accepts every real stage code on reachedStage", () => {
 });
 
 it("rejects a reachedStage that is not a stage code and explains 'at least'", () => {
-  for (const bad of [0, 55, 101, 50]) {
+  for (const bad of [0, 55, 101, 45]) {
     const r = validateFilters("bills", { reachedStage: bad });
     assert.equal(r.ok, false, `reachedStage ${bad} should be rejected`);
     if (!r.ok) {

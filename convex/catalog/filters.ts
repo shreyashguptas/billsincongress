@@ -25,7 +25,7 @@ import type { DatasetName } from "./types";
  * silent: "Ask about these" on a vetoed list still produced an answer, about
  * every bill in the Congress, under a heading promising otherwise.
  */
-export const VALID_STAGES = [20, 40, 60, 80, 85, 90, 95, 100];
+export const VALID_STAGES = [20, 40, 50, 60, 80, 85, 90, 95, 100];
 const VALID_CHAMBERS = ["house", "senate"];
 /** Stored sponsor parties. A measure with none is asked for as NO_PARTY. */
 const VALID_PARTIES = ["D", "R", "I"];

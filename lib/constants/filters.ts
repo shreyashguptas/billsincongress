@@ -58,6 +58,7 @@ export const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
   { value: '20',  label: 'Introduced' },
   { value: '40',  label: 'In committee' },
+  { value: '50',  label: 'Out of committee' },
   { value: '60',  label: 'Passed one chamber' },
   { value: '80',  label: 'Passed both chambers' },
   { value: '85',  label: 'Vetoed' },
@@ -100,6 +101,7 @@ export const LIVE_STATUS_OPTIONS = [
   { value: '100', label: 'Became law' },
   { value: '85', label: 'Vetoed' },
   { value: '60', label: 'Passed one chamber' },
+  { value: '50', label: 'Out of committee, awaiting a vote' },
   { value: '40', label: 'Still in committee' },
   { value: '20', label: 'Just introduced' },
 ];

@@ -106,7 +106,11 @@ export default defineSchema({
     lastEmailedAt: v.optional(v.number()), // epoch ms of the last digest naming it
   })
     .index("by_user", ["userId"])
-    .index("by_user_and_bill", ["userId", "billId"]),
+    .index("by_user_and_bill", ["userId", "billId"])
+    // Every reader following one bill: the stage re-derivation advances their
+    // watermark when a stage is only re-labelled (In committee to Out of
+    // committee), so no digest calls a months-old committee report news.
+    .index("by_billId", ["billId"]),
 
   bills: defineTable({
     billId: v.string(), // Composite key: "{number}{type}{congress}" e.g. "1234hr119"

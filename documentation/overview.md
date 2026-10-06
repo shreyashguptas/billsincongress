@@ -389,19 +389,36 @@ without a database. It scans a bill's action text, type and Library-of-Congress 
 into flags, then resolves precedence *after* the whole scan:
 
 ```
-becameLaw → vetoed → signed → toPresident → passedBoth → passedOne → inCommittee → Introduced
+becameLaw → vetoed → signed → toPresident → passedBoth → passedOne → outOfCommittee → inCommittee → Introduced
 ```
 
 | Stage | Label |
 | ---: | --- |
 | 20 | Introduced |
 | 40 | In Committee |
+| 50 | Out of Committee |
 | 60 | Passed One Chamber |
 | 80 | Passed Both Chambers |
 | 85 | Vetoed |
 | 90 | To President |
 | 95 | Signed by President |
 | 100 | Became Law |
+
+**Out of committee (50)** was added on 2026-10-06. Before it, 1,956 measures across the three
+Congresses that a committee had reported and placed on a floor calendar read "In committee",
+counted in "haven't made it out of committee" and were shown the odds for bills stuck there.
+`leftCommittee()` decides it from the **floor calendar**, not the report: placed on the Union,
+House or Private Calendar (codes H12410, H12420), placed on the Senate calendar under General
+Orders (which also covers Rule XIV bills that skip committee), or reported in the Senate (code
+14000, because the Senate calendars a reported measure the same day). A House report marked
+"Part 1" leaves the bill with its other committees, "Ordered to be reported" is a committee
+vote before the report, and a subcommittee being discharged returns the bill to its full
+committee; none of them count. It fills the track's Committee step like 40, in its own colour
+and with its own label. A stage date is never earlier than the bill's introduction: hearings
+held "on the subject prior to introduction" had dated 26 bills into committee before they
+existed. After the deploy, `backfillBillFieldsFromActions` re-derives every stored stage from
+stored actions (no API calls) and recounts; it advances the watermark of every alert whose
+bill moves only from 40 to 50, so no digest reports a months-old committee report as news.
 
 **Resolutions are stored on the same scale but drawn on their own road.** A simple resolution
 (H.Res., S.Res.) agreed to by its chamber is stored at 60, a concurrent resolution (H.Con.Res.,
@@ -482,7 +499,11 @@ fails if they disagree.
 
 *"Among bills from finished Congresses that were also still in committee this long, what
 share ever advanced past committee?"* — a fact about a group of past bills, **never a
-prediction about a single bill**, and the bill page says so in those words.
+prediction about a single bill**, and the bill page says so in those words. "Advanced" means
+left committee: out of committee (50) or any stage beyond, timed from the first floor calendar,
+Senate report or chamber passage. Until 2026-10-06 only a chamber passage counted, which
+understated the share. Only a bill at 40 shows the figure; one out of committee no longer
+does.
 
 Computed only from Congresses strictly earlier than the current one, bucketed by days already
 spent in committee (`[0,90)`, `[90,180)`, `[180,365)`, `[365+)`), and a bucket is hidden

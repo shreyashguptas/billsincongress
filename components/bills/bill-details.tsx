@@ -28,7 +28,7 @@ import ShareBillButton from './share-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
 import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
-import { journeyView } from '@/lib/bill-journey';
+import { daysBetween, journeyView } from '@/lib/bill-journey';
 import type { billsService } from '@/lib/services/bills-service';
 import {
   ArrowLeft,
@@ -40,6 +40,7 @@ import {
   PenLine,
   ScrollText,
   Users,
+  CalendarCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
@@ -65,6 +66,7 @@ const PARTY_NAMES: Record<string, string> = {
 const STAGE_GLYPH: Record<BillStage, LucideIcon> = {
   [BillStages.INTRODUCED]: FilePlus,
   [BillStages.IN_COMMITTEE]: Users,
+  [BillStages.OUT_OF_COMMITTEE]: CalendarCheck,
   [BillStages.PASSED_ONE_CHAMBER]: Landmark,
   [BillStages.PASSED_BOTH_CHAMBERS]: Landmark,
   [BillStages.VETOED]: Ban,
@@ -403,7 +405,13 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               <p className="text-sm leading-relaxed text-ink-2">
                 In committee for{' '}
                 <span className="font-medium text-ink tabular">
-                  {formatCount(bill.days_in_committee!)} days
+                  {/* Counted the way the journey's "days since it was introduced"
+                      is, from the same `today`: the server's count is in UTC and
+                      read 439 beside the journey's 438 on S. 2431. */}
+                  {formatCount(
+                    bill.introduced_date ? daysBetween(bill.introduced_date, today) : bill.days_in_committee!,
+                  )}{' '}
+                  days
                 </span>
                 . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'} bills and
                 resolutions from past Congresses still in committee this long, about{' '}
