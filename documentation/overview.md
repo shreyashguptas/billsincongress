@@ -597,7 +597,9 @@ name and state for rows counted before ids): the sponsor picker, the sponsor cou
 the home page's leading sponsors and the answer engine's `sponsors` dataset. A sponsor filter is
 resolved against the member rows (`resolveSponsorRequest`): any spelling reaches the member, so
 "Jacky Rosen" finds all 80 of her 119th-Congress bills where it found the 73 spelled "Jacky", and a
-bill that carries an id is matched by it. The picker keeps one entry per shown name.
+bill that carries an id is matched by it. The picker keeps one entry per shown name, across
+every Congress, so a name one Congress never uses (Jacky Rosen's 117th-Congress bills all say
+"Jacklyn") is found there through the member's id in the other Congresses.
 
 **The backfill.** After the deploy, run once:
 
