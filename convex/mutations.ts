@@ -633,17 +633,19 @@ export const rederiveBillFieldsFromActions = internalMutation({
         await ctx.db.patch(bill._id, patch);
         changed++;
       }
-      // In committee (40) to Out of committee (50) here is a re-label of the
-      // stored record, not a move: the calendar action is already old, and the
-      // stage existed only from 2026-10-06. Advance every follower's watermark
-      // with it, or the next digest would report each such bill as news.
-      if (bill.progressStage === BillStages.IN_COMMITTEE && stage === BillStages.OUT_OF_COMMITTEE) {
+      // Into Out of committee (50) from below it — In committee (40), or
+      // Introduced (20) for a Rule XIV bill — here is a re-label of the stored
+      // record, not a move: the calendar action is already old, and the stage
+      // existed only from 2026-10-06. Advance every follower's watermark with
+      // it, or the next digest would report each such bill as news.
+      const before = bill.progressStage ?? BillStages.INTRODUCED;
+      if (before < BillStages.OUT_OF_COMMITTEE && stage === BillStages.OUT_OF_COMMITTEE) {
         const followers = await ctx.db
           .query("billAlerts")
           .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
           .take(1000);
         for (const alert of followers) {
-          if (alert.lastSeenStage === BillStages.IN_COMMITTEE) {
+          if (alert.lastSeenStage !== undefined && alert.lastSeenStage < BillStages.OUT_OF_COMMITTEE) {
             await ctx.db.patch(alert._id, { lastSeenStage: BillStages.OUT_OF_COMMITTEE });
           }
         }

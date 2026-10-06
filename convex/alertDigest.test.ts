@@ -326,6 +326,9 @@ it("a re-labelled 40 to 50 is not news, a new floor calendar is", () => {
   );
   assert.equal(isRelabelOnly(40, 50, [{ actionDate: "2026-10-07", text: "Committee on Finance. Reported by Senator Crapo without amendment." }]), false);
   assert.equal(isRelabelOnly(40, 60, other), false, "any other move is news");
+  // Review on #174: Rule XIV bills move from Introduced, not In committee.
+  assert.equal(isRelabelOnly(20, 50, other), true);
+  assert.equal(isRelabelOnly(undefined, 50, other), false, "a new alert has nothing to compare");
 });
 
 if (failures.length > 0) {

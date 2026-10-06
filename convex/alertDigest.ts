@@ -127,8 +127,9 @@ export interface BillChange {
 }
 
 /**
- * True when a stage change from In committee (40) to Out of committee (50) is
- * only the stored record being re-labelled, not news. Stage 50 exists from
+ * True when a stage change into Out of committee (50), from In committee (40) or
+ * Introduced (20, a Rule XIV bill placed on the Senate calendar), is only the
+ * stored record being re-labelled, not news. Stage 50 exists from
  * 2026-10-06; a bill calendared months before was stored at 40 until its stage
  * was re-derived. Re-derived by the sync because some other action arrived, it
  * must not be told to a reader as "moved out of committee" (review on #174). It
@@ -140,7 +141,9 @@ export function isRelabelOnly(
   to: number,
   fresh: readonly ActionRow[],
 ): boolean {
-  if (from !== BillStages.IN_COMMITTEE || to !== BillStages.OUT_OF_COMMITTEE) return false;
+  if (from === undefined || from >= BillStages.OUT_OF_COMMITTEE || to !== BillStages.OUT_OF_COMMITTEE) {
+    return false;
+  }
   return !fresh.some((a) => leftCommittee({ text: a.text }) || /reported (by senator|to senate)/i.test(a.text));
 }
 

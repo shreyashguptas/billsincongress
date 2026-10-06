@@ -49,13 +49,19 @@ const FLOOR_CALENDARS = [
   "placed on the house calendar",
   "placed on the private calendar",
   "placed on senate legislative calendar under general orders",
+  // A Senate resolution held a day "over, under the rule" goes straight onto a
+  // calendar without a committee, legislative or executive (S.Res. 520, 119th,
+  // an executive resolution debated on the floor; found by the calendar-number
+  // oracle in scripts/truth/handlers.test.ts).
+  "placed on senate legislative calendar under over, under the rule",
+  "placed on senate executive calendar",
 ];
 
 /**
  * Whether an action shows the measure has left committee and waits for the
  * floor. Shared by calculateBillStage and the committee base-rate job.
  *
- * 2,142 measures across the 117th–119th had been reported by their committee
+ * 2,145 measures across the 117th–119th had been reported by their committee
  * or placed on a floor calendar while the site still called them "in
  * committee" (or, for 40 Rule XIV bills in the 119th, "introduced"), counted them in "haven't made it out of committee", and showed
  * them the odds for bills stuck there (S. 2431, the 2026 Interior appropriations

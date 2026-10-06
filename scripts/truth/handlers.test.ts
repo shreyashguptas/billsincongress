@@ -1384,20 +1384,20 @@ async function main() {
   // bills that "haven't made it out of committee", and showed it the odds for
   // bills stuck there. The oracle is the floor calendar on record, read by hand.
 
+  // Independent of leftCommittee's wording on purpose (review on #174): a floor
+  // calendar placement carries its calendar number, so the oracle reads "Calendar
+  // No. N" off the action, minus the calendars that are not the floor (the
+  // discharge and consensus calendars, and the Senate's "Read the First Time",
+  // the step before a Rule XIV bill reaches General Orders), plus the House and
+  // Senate report codes.
   const calendared = new Set<string>();
   for (const [billId, list] of actionsByBill) {
     if (
       list.some((x: any) => {
         const t = String(x.text ?? "").toLowerCase();
-        return (
-          x.actionCode === "H12410" ||
-          x.actionCode === "H12420" ||
-          x.actionCode === "14000" ||
-          t.includes("placed on the union calendar") ||
-          t.includes("placed on the house calendar") ||
-          t.includes("placed on the private calendar") ||
-          t.includes("placed on senate legislative calendar under general orders")
-        );
+        const floorCalendar =
+          /calendar no\.\s*\d+/.test(t) && !/discharge|consensus|read the first time/.test(t);
+        return x.actionCode === "H12410" || x.actionCode === "H12420" || x.actionCode === "14000" || floorCalendar;
       })
     ) {
       calendared.add(billId);
