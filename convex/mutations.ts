@@ -18,6 +18,9 @@ import {
   BillStages,
 } from "./billStage";
 import { chamberOf } from "./chamber";
+import { EXTRA_SPONSOR_IDENTITY } from "./syncStatus";
+import { buildSponsorRows } from "./catalog/sponsorName";
+import type { SponsorBill } from "./catalog/sponsorName";
 import { queueForIndexNow } from "./indexNow";
 import { computeBaseRateBuckets, MS_PER_DAY } from "./baseRates";
 import type { BaseRateSample, Chamber } from "./baseRates";
@@ -36,6 +39,7 @@ export const upsertBill = internalMutation({
     sponsorLastName: v.optional(v.string()),
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
+    sponsorBioguideId: v.optional(v.string()),
     progressStage: v.optional(v.number()),
     progressDescription: v.optional(v.string()),
     // Written with progressStage, from the same `calculateBillStage` call.
@@ -492,10 +496,44 @@ export const getBillBackfillPage = internalQuery({
         introducedDate: b.introducedDate,
         stageDate: b.stageDate,
         extraSyncedBits: b.extraSyncedBits ?? 0,
+        sponsorBioguideId: b.sponsorBioguideId,
       })),
       isDone: page.isDone,
       continueCursor: page.continueCursor,
     };
+  },
+});
+
+/**
+ * Store a bill's sponsor id and re-cased name from its Congress.gov detail
+ * (backfillSponsorIdentity), and mark it done in `extraSyncedBits`.
+ *
+ * `updatedAt` is left alone: it is the sitemap's <lastmod>, and this changes
+ * nothing about the bill a search engine should re-read. A field the detail
+ * left empty is not cleared.
+ */
+export const setBillSponsorIdentity = internalMutation({
+  args: {
+    billId: v.string(),
+    sponsorFirstName: v.optional(v.string()),
+    sponsorLastName: v.optional(v.string()),
+    sponsorParty: v.optional(v.string()),
+    sponsorState: v.optional(v.string()),
+    sponsorBioguideId: v.optional(v.string()),
+  },
+  handler: async (ctx, { billId, ...fields }) => {
+    const existing = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", billId))
+      .first();
+    if (!existing) return;
+    const patch: Record<string, unknown> = {
+      extraSyncedBits: (existing.extraSyncedBits ?? 0) | EXTRA_SPONSOR_IDENTITY,
+    };
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined && (existing as Record<string, unknown>)[key] !== value) patch[key] = value;
+    }
+    await ctx.db.patch(existing._id, patch);
   },
 });
 
@@ -707,6 +745,8 @@ export const writeCongressSponsors = internalMutation({
         sponsorParty: v.optional(v.string()),
         sponsorState: v.optional(v.string()),
         billCount: v.number(),
+        sponsorBioguideId: v.optional(v.string()),
+        spellings: v.optional(v.array(v.string())),
       }),
     ),
   },
@@ -723,6 +763,8 @@ export const writeCongressSponsors = internalMutation({
         sponsorParty: s.sponsorParty,
         sponsorState: s.sponsorState,
         billCount: s.billCount,
+        sponsorBioguideId: s.sponsorBioguideId,
+        spellings: s.spellings,
       });
     }
   },
@@ -731,12 +773,15 @@ export const writeCongressSponsors = internalMutation({
 type BillPageResult = {
   page: Array<{
     billId: string;
+    billType: string;
+    introducedDate: string;
     policyAreaName?: string;
     progressStage?: number;
     sponsorFirstName?: string;
     sponsorLastName?: string;
     sponsorParty?: string;
     sponsorState?: string;
+    sponsorBioguideId?: string;
   }>;
   isDone: boolean;
   continueCursor: string;
@@ -806,11 +851,7 @@ export const recomputeCongressPolicyAreas = internalAction({
 export const recomputeCongressSponsors = internalAction({
   args: { congress: v.number() },
   handler: async (ctx, args) => {
-    const sponsorMap = new Map<
-      string,
-      { party?: string; state?: string; count: number }
-    >();
-
+    const bills: SponsorBill[] = [];
     let cursor: string | null = null;
     for (;;) {
       const page: BillPageResult = await ctx.runQuery(
@@ -818,29 +859,24 @@ export const recomputeCongressSponsors = internalAction({
         { congress: args.congress, cursor, numItems: 2000 },
       );
       for (const b of page.page) {
-        if (!b.sponsorFirstName && !b.sponsorLastName) continue;
-        const name = `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`.trim();
-        const prev = sponsorMap.get(name);
-        sponsorMap.set(name, {
-          count: (prev?.count ?? 0) + 1,
-          party: b.sponsorParty ?? prev?.party,
-          state: b.sponsorState ?? prev?.state,
+        bills.push({
+          billType: b.billType,
+          introducedDate: b.introducedDate,
+          sponsorFirstName: b.sponsorFirstName,
+          sponsorLastName: b.sponsorLastName,
+          sponsorParty: b.sponsorParty,
+          sponsorState: b.sponsorState,
+          sponsorBioguideId: b.sponsorBioguideId,
         });
       }
       if (page.isDone) break;
       cursor = page.continueCursor;
     }
 
-    // Store EVERY sponsor (~500 members): the homepage slices to top 10, but
-    // the /bills sponsor filter needs the full list. Do not truncate here.
-    const sponsors = [...sponsorMap.entries()]
-      .map(([sponsorName, d]) => ({
-        sponsorName,
-        sponsorParty: d.party,
-        sponsorState: d.state,
-        billCount: d.count,
-      }))
-      .sort((a, b) => b.billCount - a.billCount);
+    // One row per MEMBER, by Congress.gov id (see buildSponsorRows). Store EVERY
+    // member (~550): the homepage slices to top 10, but the /bills sponsor filter
+    // needs the full list. Do not truncate here.
+    const sponsors = buildSponsorRows(bills);
 
     await ctx.runMutation(internal.mutations.writeCongressSponsors, {
       congress: args.congress,

@@ -1,3 +1,4 @@
+import { sponsorFields } from "./sponsorIdentity";
 import { internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -12,6 +13,7 @@ import {
   EXTRA_LEGISLATIVE_SUBJECTS,
   EXTRA_TEXT_VERSIONS,
   EXTRA_COMPLETE,
+  EXTRA_SPONSOR_IDENTITY,
 } from "./sync";
 import { calculateBillStage, stageDateFor } from "./billStage";
 import { Id } from "./_generated/dataModel";
@@ -32,6 +34,7 @@ type BillBackfillPage = {
     introducedDate: string;
     stageDate?: string;
     extraSyncedBits: number;
+    sponsorBioguideId?: string;
   }>;
   isDone: boolean;
   continueCursor: string;
@@ -328,10 +331,8 @@ async function syncSingleBill(
     title: billDetail.title || "",
     titleWithoutNumber,
     introducedDate: billDetail.introducedDate || "",
-    sponsorFirstName: billDetail.sponsors?.[0]?.firstName,
-    sponsorLastName: billDetail.sponsors?.[0]?.lastName,
-    sponsorParty: billDetail.sponsors?.[0]?.party,
-    sponsorState: billDetail.sponsors?.[0]?.state,
+    // Names re-cased from the official full name, and the member's id.
+    ...sponsorFields(billDetail.sponsors?.[0]),
     progressStage: stage,
     progressDescription: description,
     // null, not undefined, so a stage with no date clears a stored one.
@@ -1075,10 +1076,8 @@ export const repairIncompleteBills = internalAction({
             title: billDetail.title || "",
             titleWithoutNumber,
             introducedDate: billDetail.introducedDate || "",
-            sponsorFirstName: billDetail.sponsors?.[0]?.firstName,
-            sponsorLastName: billDetail.sponsors?.[0]?.lastName,
-            sponsorParty: billDetail.sponsors?.[0]?.party,
-            sponsorState: billDetail.sponsors?.[0]?.state,
+            // Names re-cased from the official full name, and the member's id.
+            ...sponsorFields(billDetail.sponsors?.[0]),
           });
           newBits |= SYNC_DETAIL;
           consecutiveFailures = 0;
@@ -1656,6 +1655,105 @@ export const recomputeAllSponsors = internalAction({
       `Recomputed sponsors for congresses: ${congressesToUpdate.join(", ")}`,
     );
     return { congresses: congressesToUpdate };
+  },
+});
+
+/**
+ * One-time backfill of every stored bill's sponsor id, with the sponsor's name
+ * re-cased from Congress.gov's official full name (convex/sponsorIdentity.ts).
+ * One detail call per bill that has neither an id nor the done bit, so it
+ * resumes where it stopped and no-ops once every bill is done; bills synced
+ * after the id was stored never need it. When a full pass finds nothing left it
+ * recounts `congressSponsors`, which then groups members by id.
+ *
+ * Same rate safety as backfillBillEnrichment: ~350ms per call, a pause when the
+ * live remaining budget drops below the floor, and an 8-minute run that
+ * self-schedules. About 57,000 calls, so several hours.
+ *
+ *   pnpm exec convex run --prod congressApi:backfillSponsorIdentity '{}'
+ */
+export const backfillSponsorIdentity = internalAction({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    passFixed: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ done: boolean; fixedThisRun: number; pausedForRateLimit: boolean }> => {
+    requireApiKey();
+    const startedAt = Date.now();
+    let cursor: string | null = args.cursor ?? null;
+    let passFixed = args.passFixed ?? 0;
+    let fixedThisRun = 0;
+
+    for (;;) {
+      const page: BillBackfillPage = await ctx.runQuery(internal.mutations.getBillBackfillPage, {
+        cursor,
+        numItems: ENRICHMENT_PAGE,
+      });
+
+      for (const bill of page.bills) {
+        if (bill.sponsorBioguideId || (bill.extraSyncedBits & EXTRA_SPONSOR_IDENTITY) !== 0) continue;
+
+        if (lastRateLimitRemaining !== null && lastRateLimitRemaining < ENRICHMENT_RATE_FLOOR) {
+          console.warn(
+            `backfillSponsorIdentity: rate-limit floor hit (${lastRateLimitRemaining} remaining); cooling down`,
+          );
+          await ctx.scheduler.runAfter(ENRICHMENT_COOLDOWN_MS, internal.congressApi.backfillSponsorIdentity, {
+            cursor,
+            passFixed,
+          });
+          return { done: false, fixedThisRun, pausedForRateLimit: true };
+        }
+
+        try {
+          await delay(ENRICHMENT_DELAY_MS);
+          const url = `${BASE_URL}/bill/${bill.congress}/${bill.billType}/${bill.billNumber}?format=json`;
+          const resp = await fetchWithRetry(url, `sponsor id ${bill.billId}`);
+          if (resp && resp.ok) {
+            const data = await resp.json();
+            // A bill with no sponsor (the 117th's reserved numbers) is marked
+            // done with nothing to store, so it is not fetched again.
+            await ctx.runMutation(internal.mutations.setBillSponsorIdentity, {
+              billId: bill.billId,
+              ...sponsorFields(data.bill?.sponsors?.[0]),
+            });
+            fixedThisRun++;
+            passFixed++;
+          }
+        } catch (err: any) {
+          console.error(`backfillSponsorIdentity: skipping ${bill.billId} after error: ${err?.message ?? err}`);
+        }
+
+        if (Date.now() - startedAt > ENRICHMENT_MAX_RUN_MS) {
+          await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillSponsorIdentity, {
+            cursor,
+            passFixed,
+          });
+          console.log(
+            `backfillSponsorIdentity: time budget reached, ${fixedThisRun} this run (pass ${passFixed}); scheduled continuation`,
+          );
+          return { done: false, fixedThisRun, pausedForRateLimit: false };
+        }
+      }
+
+      if (page.isDone) {
+        if (passFixed > 0) {
+          // Another pass picks up any bill whose fetch failed on this one.
+          await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillSponsorIdentity, {
+            cursor: null,
+            passFixed: 0,
+          });
+          console.log(`backfillSponsorIdentity: pass complete (${passFixed}); starting another to catch failures`);
+          return { done: false, fixedThisRun, pausedForRateLimit: false };
+        }
+        console.log("backfillSponsorIdentity: complete; recounting sponsors by member id");
+        await ctx.scheduler.runAfter(0, internal.congressApi.recomputeAllSponsors, {});
+        return { done: true, fixedThisRun, pausedForRateLimit: false };
+      }
+      cursor = page.continueCursor;
+    }
   },
 });
 

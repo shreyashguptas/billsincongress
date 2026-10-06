@@ -30,7 +30,7 @@ Below that, it shows:
 - **Four headline counts** — bills introduced, House bills, Senate bills, and how many became law.
 - **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 90% of everything introduced has not made it out of committee.
 - **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
-- **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
+- **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party. Members are counted by Congress.gov's own member id, so someone whose bills spell their name two ways ("Jacky" and "Jacklyn" Rosen) is one member, and two members who share a name (the 118th's Senator and Representative Robert Menendez) are two.
 - **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
 - **Introductions month by month** — bills introduced growing upward, laws signed growing downward, each on its own scale, ending in a written sentence naming the busiest and quietest months.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.

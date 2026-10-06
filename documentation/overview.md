@@ -573,22 +573,44 @@ question" instead, which asks the assistant with the list's other filters as the
 the title search (`ask(…, { scope })`; a `null` scope means none, where leaving it out would
 pick up the page's published scope, title included, and answer about an empty set).
 
-**One member, several spellings.** Congress.gov records 45 members under two spellings ("ADAM
-SCHIFF" and "Adam Schiff", "NYDIA VELAZQUEZ" and "Nydia Velázquez"; October 2026), and in the
-118th, 44 of them are split inside the one Congress. Bills keep the spelling Congress.gov sent,
-and so does `congressSponsors`, one row per spelling, because the case-sensitive surname index
-needs each one exactly. Every reader merges them with `mergeSponsorRows`
-(`convex/catalog/sponsorName.ts`): the sponsor picker, the sponsor count on `/bills`, the home
-page's leading sponsors and the answer engine's `sponsors` dataset. Same member means the same
-name ignoring case and accents, and the same state; party is ignored, because the only
-same-name pairs with different parties are party switches (Joe Manchin, D then I). The name shown
-is a mixed-case spelling when one is stored; a name only ever stored in capitals ("CAROLYN
-MALONEY", 18 members) is shown that way rather than re-cased. A member listed under a different
-first name ("Chuck" and "Charles" Grassley, "Bernie" and "Bernard" Sanders, about five) is still
-two entries: names alone cannot tell those from two people (Sherrod and Shontel Brown are both
-Ohio Democrats), and the bills table does not store Congress.gov's member id. The picker then
-keeps one entry per name, because the sponsor filter matches on the name alone: two members who
-shared a name (none do today) would be one entry, with no party or state, returning both.
+**One member, several spellings.** Congress.gov spells the same member differently from bill
+to bill: in capitals on whole Congresses ("ROSA DELAURO", 59 members in the 117th), without
+accents ("Nydia Velazquez"), or by another first name ("Jacky" and "Jacklyn" Rosen, "Bernie" and
+"Bernard" Sanders, "C." and "Scott" Franklin). Names alone cannot sort those from two people
+(Carolyn and Sean Patrick Maloney were both New York Democrats in the House), so since 2026-10-06
+every bill stores the sponsor's Congress.gov member id, `sponsorBioguideId`, and the sponsor's
+name re-cased from Congress.gov's mixed-case full name (`convex/sponsorIdentity.ts`; it never
+guesses a casing the full name does not contain). Bills from before that are filled in once by
+`backfillSponsorIdentity` (below).
+
+`congressSponsors` holds one row per **member** of a Congress (`buildSponsorRows` in
+`convex/catalog/sponsorName.ts`), with the member's id and every spelling their bills carry
+(`spellings`). A bill without an id joins the member its name and state belong to when exactly
+one member with an id has them. The name shown is mixed case, then accented, then the spelling on
+the most bills, then the newer one. Two members who would show one name get their chamber: the
+118th's Senator Robert Menendez and his son, Representative Rob Menendez, are "Robert Menendez
+(Senate)" (75 bills) and "Robert Menendez (House)" (14), where they were one "Robert Menendez"
+with 89. Party and state are those on the member's latest bill.
+
+Every reader still goes through `mergeSponsorRows`, which now joins rows by member id (and by
+name and state for rows counted before ids): the sponsor picker, the sponsor count on `/bills`,
+the home page's leading sponsors and the answer engine's `sponsors` dataset. A sponsor filter is
+resolved against the member rows (`resolveSponsorRequest`): any spelling reaches the member, so
+"Jacky Rosen" finds all 80 of her 119th-Congress bills where it found the 73 spelled "Jacky", and a
+bill that carries an id is matched by it. The picker keeps one entry per shown name.
+
+**The backfill.** After the deploy, run once:
+
+```bash
+pnpm exec convex run --prod congressApi:backfillSponsorIdentity '{}'
+```
+
+It makes one Congress.gov detail call per bill that has neither an id nor bit 4 of
+`extraSyncedBits` (`EXTRA_SPONSOR_IDENTITY`), about 57,000, at the enrichment backfill's pace, so it
+takes several hours and resumes itself. When a pass finds nothing left it recounts
+`congressSponsors`. Until then the counts are as before, and three cases in
+`scripts/truth/handlers.test.ts` (Jacky Rosen's 80, the two Menendezes, no member in capitals)
+stay red; they pass on a simulated copy with the ids filled in.
 
 ---
 

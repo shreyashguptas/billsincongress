@@ -192,7 +192,7 @@ the read. See [Known gaps](#known-gaps).
 | --- | --- | --- |
 | `congressStats` | `writeCongressStats` (patch-or-insert) | 3 |
 | `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th). Each row also carries `stageCounts` (the same bills by stage, counted in the same pass, so they sum to `count`) and `countedAt`, which the bill page's "Among its peers" dot field reads through `bills.getJourney` |
-| `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress (550 / 595 / 552 for 119 / 118 / 117). One row per stored *spelling*: the 118th's 595 are 551 members, 44 of them under two spellings. Readers merge them with `mergeSponsorRows`; see "One member, several spellings" in `overview.md` |
+| `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress. One row per *member*, keyed by Congress.gov's member id once bills carry it (`buildSponsorRows`), with every spelling their bills use in `spellings`. Before the `backfillSponsorIdentity` run, rows without ids are one per name and state. See "One member, several spellings" in `overview.md` |
 | `congressChamberBreakdowns` | `writeCongressChamberBreakdown` (patch-or-insert) | 6 (3 Congresses × 2 chambers) |
 
 `stateCounts` is stored as an **array rather than a record**, because Convex object keys must
