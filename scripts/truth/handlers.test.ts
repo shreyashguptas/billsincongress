@@ -1478,6 +1478,18 @@ async function main() {
     assert.notEqual(r.rows[0].billId, "2s119");
   });
 
+  // "Have any bills sponsored by Texas members become law?" got "No" on
+  // 2026-10-05 from a count of 13 with an empty row list beside it.
+  await it("a count of Texas laws says how many, and that empty rows are not none", async () => {
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sponsorState: "TX", progressStage: 100 }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.total, truth.txLaws);
+    assert.ok(truth.txLaws > 0, "sanity: Texas members have laws");
+    const said = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(said.count_only, new RegExp(`^There are exactly ${truth.txLaws}\\. .*NOT because there are none`));
+  });
+
   await it("no result ever carries a total without claiming completeness", async () => {
     const shapes: Array<[string, Record<string, unknown>, number | undefined]> = [
       ["bills", { congress: 119 }, 50],

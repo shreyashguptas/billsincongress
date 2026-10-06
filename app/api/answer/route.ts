@@ -53,6 +53,9 @@ export async function POST(request: Request) {
       scope: body.scope,
       history: body.history,
       chatId: body.chatId,
+      // The answer-prompt version a PostHog prompt experiment assigned this
+      // reader ({ name, version }). Re-validated in Convex (readPromptVersion).
+      prompt: body.prompt,
       anonymousSessionId,
       // Who the browser's PostHog thinks this is, so the answer's trace and its
       // log line join the reader's person and session replay (convex/aiTrace.ts,

@@ -242,9 +242,12 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
       // reader the name "cannot be determined" with lookups to spare (2026-10-05).
       // The ranking is named only when this result's order supports it: the hint
       // must not promise "the fewest" from a fetch that comes back unsorted.
+      // Leads with the number: with `rows: []` beside it, gpt-oss read an exact
+      // count of 13 Texas laws as "No, none became law" (2026-10-05).
       payload.count_only =
-        `This was a count only, so no rows came back. The total is exact. To NAME one or more ` +
-        `of them, fetch again with a limit of 1 or more` +
+        `There are exactly ${report.total}. No rows are listed because you asked for a count, ` +
+        `NOT because there are none. To NAME one or more of them, fetch again with a limit of 1 ` +
+        `or more` +
         (report.order === "arbitrary"
           ? `. To name the first, the most or the fewest, also pass the sort that orders them; ` +
             `without one the rows are in no meaningful order.`

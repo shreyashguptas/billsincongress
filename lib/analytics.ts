@@ -100,6 +100,45 @@ export const analytics = {
   },
 
   /**
+   * The answer-prompt version a running PostHog prompt experiment assigned this
+   * reader, sent with each question so the server answers with that version
+   * (convex/answerPrompts.ts). A prompt experiment's flag carries
+   * `{ prompt_name, prompt_version }` as each variant's payload; the flag's own
+   * key is whatever PostHog generated, so it is found by its payload rather
+   * than named here. Reading it through getFeatureFlagResult records the
+   * `$feature_flag_called` exposure the experiment counts. null when no such
+   * experiment is running, which is the normal case.
+   */
+  answerPromptAssignment(): { name: string; version: number } | null {
+    // convex/catalog/promptTemplate.ts ANSWER_PROMPT_NAME; copied, not imported,
+    // so the prompt text never ships to the browser. A test keeps them equal.
+    const ANSWER_PROMPT_NAME = 'answer-system';
+    if (!ready()) return null;
+    try {
+      const payloads = posthog.featureFlags.getFlagPayloads();
+      for (const [key, raw] of Object.entries(payloads)) {
+        let payload: unknown = raw;
+        if (typeof raw === 'string') {
+          // Another flag's plain-string payload must not end the search.
+          try {
+            payload = JSON.parse(raw);
+          } catch {
+            continue;
+          }
+        }
+        if (!payload || typeof payload !== 'object') continue;
+        const { prompt_name: name, prompt_version: version } = payload as Record<string, unknown>;
+        if (name !== ANSWER_PROMPT_NAME || typeof version !== 'number') continue;
+        posthog.getFeatureFlagResult(key);
+        return { name, version };
+      }
+    } catch {
+      // A malformed payload is not worth a failed question: answer with production.
+    }
+    return null;
+  },
+
+  /**
    * Headers that let server-side captures attach to the same person/session.
    * Spread into fetch() headers for API calls whose routes capture events or
    * write PostHog log lines (`/api/answer` → convex/posthogLogs.ts).

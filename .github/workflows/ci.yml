@@ -63,6 +63,13 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # The same check `convex deploy` runs before it pushes, with convex/'s own
+      # tsconfig (an older lib than the app's). Without it a pull request could
+      # pass here and fail only at deploy: #170 used Array.prototype.at in a
+      # spec, passed this job, and its merge deployed nothing.
+      - name: Typecheck the Convex backend
+        run: ./node_modules/.bin/tsc --noEmit -p convex
+
       - name: Build (Cloudflare)
         run: pnpm cf:build
         env:

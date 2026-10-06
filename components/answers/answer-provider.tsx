@@ -551,6 +551,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
             history,
             chatId: chatId ?? undefined,
             conversationId: conversationIdRef.current || chatId || conversationId(),
+            // Set only while a PostHog prompt experiment is running.
+            prompt: analytics.answerPromptAssignment() ?? undefined,
           }),
         });
         if (!res.body) throw new Error('no stream');

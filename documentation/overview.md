@@ -48,7 +48,7 @@ date. The production copy in `.truth-cache/` (local, ignored) was last re-dumped
 ```
 Congress.gov API v3  (Library of Congress)
       │
-      │  nine sync jobs + one alert-email job + a profile-photo cleanup + a feedback-picture purge — convex/crons.ts
+      │  nine sync jobs + one alert-email job + a profile-photo cleanup + a feedback-picture purge + the answer-prompt refresh — convex/crons.ts
       ▼
 convex/congressApi.ts   sync, reconcile, repair, backfill
       │
@@ -356,7 +356,8 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 ### The cron jobs
 
 Nine keep the data in step with Congress; a tenth sends bill alerts, an eleventh cleans up
-profile-photo uploads, and a twelfth deletes old feedback pictures (the last three rows).
+profile-photo uploads, a twelfth deletes old feedback pictures, and a thirteenth copies the
+answer prompt from PostHog (the last four rows).
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -372,6 +373,7 @@ profile-photo uploads, and a twelfth deletes old feedback pictures (the last thr
 | `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
 | `daily-avatar-orphan-sweep` | 08:00 daily | File storage | Delete profile-photo uploads no account points at and over an hour old (`avatars.sweepOrphans`) |
 | `daily-feedback-picture-purge` | 09:15 daily | `feedbackPictures` | Delete each feedback picture, file and row, 180 days after it arrived (`feedback.purgeOldPictures`), 100 per run, rescheduling itself while more remain. The privacy policy promises the 180 days |
+| `refresh-answer-prompt` | Every 5 minutes | `answerPrompts` | Copy the `answer-system` prompt version labelled `production` in PostHog prompt management (`answerPrompts.refresh`). A no-op until `POSTHOG_PERSONAL_API_KEY` is set. See "Answer prompt" |
 
 ### Throttling
 
@@ -647,6 +649,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics. Orphaned the same way since `convex/chatAnalytics.ts` was deleted |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
 | `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days, and (index `by_storageId`) so `avatars.sweepOrphans` does not take them for orphaned photos |
+| `answerPrompts` | Copies of the `answer-system` prompt from PostHog prompt management: `name`, `version`, `template`, `isProduction`, `fetchedAt` (index `by_name_version`). Written only by `answerPrompts.store`, read once per answer. At most one row is production, and ten other versions are kept. Empty = the in-code default |
 | `usageEvents` | **Unused, and empty** — zero references outside `schema.ts`. Removing it is left to the owner |
 
 > **`chats.userId` is required, not optional, and that is the point.** An anonymous
@@ -982,12 +985,21 @@ httpAction with a scripted model and asserts the exact request PostHog would rec
 **Flag.** Two ways, and the one to watch is where they disagree:
 
 - The reader's **"No"**, below.
-- **Graders** (PostHog → AI Observability → Evaluations), configured in the UI once there is a
-  week of traces. Hog code evals are free — start with `dropped > 0` on the trace, a leaked
-  `[[` marker in the answer, and an empty answer. One LLM-as-judge "states something not in
-  the tool results" eval, sampled at 10–20%, needs an OpenRouter key added in PostHog's
-  settings and is billed by OpenRouter. A reader's "No" on an answer the grader passed is the
-  most valuable signal there is.
+- **Evaluations** (PostHog → AI evals → Evaluations), created 2026-10-05, each from a failure a
+  reader actually got, each scoring the whole trace a minute after it goes quiet. Three are
+  free Hog code checks on the model's final raw reply, before `answerSanitize.ts`, so they
+  measure the prompt and model rather than the cleanup: **Answer uses internal jargon**
+  ("dataset", `bill_actions`, `billId`, "the result is complete"), **Answer shows raw tags**
+  (`[[sponsors:…]]`, `【`, `<thinking>`) and **Answer shows its thinking** ("Let me check…",
+  "Actually, let…"). A fourth, **Answer states only what the lookups support**, is an LLM
+  judge (`gpt-5-mini`) that fails an answer stating a number, bill, date, status or person
+  the trace's tool results do not support; it is saved but stays off until an AI provider key
+  is added in PostHog's settings (the owner's step; PostHog would not enable its funded
+  models for this project). A reader's "No" on an answer the evaluations passed is the most
+  valuable signal there is.
+- **Clusters** (PostHog → AI Observability → Clusters): PostHog's default trace, generation
+  and evaluation clustering jobs are on. They group questions by topic and need more traffic
+  than the site has yet (about 140 traces a week), so expect the first runs as volume grows.
 
 **Save.** From a bad trace, "Add to dataset" (datasets are in beta; they cannot run
 experiments yet). Export to JSONL.
@@ -995,9 +1007,60 @@ experiments yet). Export to JSONL.
 **Test and fix.** Each saved answer becomes a case in `scripts/truth/questions.ts` (or
 `scripts/check-grounding.ts`), red first, then fixed — the rule above.
 
-Not used, on purpose: PostHog **prompt management** (a prompt edited in PostHog's UI would
-bypass the git-reviewed system prompt and the truth tests) and **clusters** (they need about
-1,000 traces a week; we have about 300).
+### Answer prompt (PostHog prompt management)
+
+The answer model's instructions are the `answer-system` prompt in PostHog prompt management,
+since 2026-10-05. Until then this section said prompt management was not used on purpose,
+because an edit in PostHog's UI would skip code review and the truth tests. The owner chose
+to use it so wording can be versioned and A/B tested without a deploy. These are the guards
+against that risk:
+
+- **The template is wording only.** What must stay correct is computed in code and filled
+  into named slots: `{{datasets}}` (the dataset index, from `convex/catalog/datasets.ts`),
+  `{{calendar}}` (today, and which Congresses have ended) and `{{context}}` (what the reader
+  has on screen). A version that does not use all three slots, or uses any other, is never
+  copied (`validTemplate`, `convex/catalog/promptTemplate.ts`), and the answer uses the
+  in-code `DEFAULT_TEMPLATE` instead. A bad edit costs wording, never an outage, and never
+  the date or the reader's page.
+- **No wait on PostHog.** `refresh-answer-prompt` copies the `production` version into the
+  `answerPrompts` table every 5 minutes (`convex/answerPrompts.ts`); an answer reads that row.
+  With no `POSTHOG_PERSONAL_API_KEY`, PostHog unreachable, or nothing copied, the in-code
+  default is used. Releasing a version means moving its `production` label; it reaches
+  readers within 5 minutes, and moving the label back is the rollback.
+- **Every answer names its version.** Each `$ai_generation`, `$ai_span` and `$ai_trace`
+  carries `$ai_prompt_name` and `$ai_prompt_version` (absent when the in-code default
+  served) and `answer_prompt_source` (`posthog` or `code`), so any answer can be traced to
+  the exact wording that produced it, and PostHog compares versions on cost, latency,
+  evaluation pass rate and readers' ratings.
+- **Test before release.** Export the candidate version's text and run the gates against it:
+  `ANSWER_PROMPT_FILE=candidate.txt pnpm check:grounding`. A file that fails `validTemplate`
+  stops the gate rather than quietly testing the default.
+
+**A/B tests.** Create an experiment from the prompt's Experiments tab in PostHog. Its flag
+gives each variant a payload `{ prompt_name, prompt_version }`. The browser finds the flag by
+that payload, not by its key (`analytics.answerPromptAssignment()` in `lib/analytics.ts`),
+reads it through `getFeatureFlagResult` so PostHog records the exposure, and sends
+`{ name, version }` with the question. Convex accepts only `answer-system` and a whole
+version number (`readPromptVersion`). A version not copied yet is fetched in the background
+(`answerPrompts.fetchVersion`), and that one answer gets production. A version is tried at
+most once an hour, at most three fetches start a minute, and a version more than 20 above
+production is refused (`claimFetch`), so a broken arm or a made-up version number cannot turn
+questions into PostHog API calls. Failed attempts never count toward the ten copies kept. Choosing the version in
+the browser, where PostHog's flags are already loaded, adds no wait to the answer.
+
+Versions: **1** is the prompt live through 2026-10-05; **2** is the 2026-10-05 rewrite (same
+rules, grouped, 30% fewer instruction tokens); **3** adds the two rules version 2 was found
+to need: "summarize" means the official summary (version 2 described the bill's row instead,
+3 runs of 3), and cards only for fetched ids; **4**, labelled `production` and identical to
+`DEFAULT_TEMPLATE`, lets a vote tally written in an action's own text be quoted, as
+`datasets.ts` allows. Measured on the production data copy: version 1 got 20 of 21 in 3 runs;
+version 3 got 21, 20 and 21; version 4 got 20 and 20, its one miss the Senate question every
+version misses; the grounding gate passed 16 of 16 in every run of versions 3 and 4.
+
+Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
+`POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional
+`POSTHOG_APP_HOST` (default `https://us.posthog.com`) and `POSTHOG_PROJECT_ID` (default
+`451900`).
 
 **Readers report them too.** Under every finished answer the panel asks "Was this answer
 right?" (`components/answers/answer-check.tsx`). A tap sends `answer_rated` to PostHog; a "No"
@@ -1022,7 +1085,7 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `total` | The size of that set. **Present only when `complete` is true** |
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
 | `exact_subsets` | A partition of the whole set that the server counted, with each part's members. **Present only when `complete` is true.** Today it splits a set made up entirely of reserved bill numbers ("Reserved for the Speaker.") by whom they were held for; a set that mixes them with real bills, like a leader's own bills from the 118th on, gets no split |
-| `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): how to fetch the rows to **name** one. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
+| `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): it leads with the number ("There are exactly 13.") and says the empty row list is not "none", then how to fetch the rows to **name** one. The number was added after "Have any Texas bills become law?" was answered "No" from a count of 13. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
 | `congress_is_over` | On a `bills` result from an adjourned Congress: that nothing in it is still in committee or pending. On the result, not only on rows, because a count has no rows; a bare count of the 118th's stage-40 bills was answered "yes, still in committee" |
 
 The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
@@ -1141,6 +1204,7 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 
 | Setting | Default | Override |
 | --- | --- | --- |
+| Instructions | The `answer-system` prompt in PostHog prompt management, version labelled `production`, copied every 5 minutes; the in-code `DEFAULT_TEMPLATE` when there is no usable copy. See "Answer prompt" | Move the `production` label in PostHog |
 | Model | `openai/gpt-oss-120b`. Chosen on 2026-10-05 by running the real answer loop over the production data copy (`.truth-cache`) against the 21 scored questions in `scripts/truth/questions.ts` plus 6 open ones, twice per setup: 18–19 of 21 right on Cerebras, median about 1 s, nothing over 4 s. The previous default (DeepSeek V4 Flash on DeepInfra) scored 5–6 of 21 in the same run, because DeepInfra rate-limited it and its failover, Nova Lite, served 24 of 27 answers; readers waited a median of 8–10 s for it. Also tried: Gemini 2.5 Flash (14–15, ~1.5 s), Gemini 3.1 Flash Lite (18–19, tail to 40 s), Gemini 2.5 Flash Lite (11), gpt-oss-20b (6–7), Nemotron 3.5 Lightning (5–6) | `OPENROUTER_MODEL` |
 | Providers | `cerebras,groq,amazon-bedrock`, sent as `provider.only` **and** `provider.order`, so they are tried fastest first. Without `order` OpenRouter routes by price, and the cheapest host for this model is among the slowest. The failover is the same model on the next host, not a weaker model. DeepInfra is left out: up to 42 s in the same test | `OPENROUTER_PROVIDERS` (blank falls back to the default; the order you write is the order tried) |
 | Fallbacks | none: the failover is the next host above | `OPENROUTER_FALLBACK_MODELS` — a comma list of other models to try after every host has failed; each must pass `pnpm check:retention` first |
@@ -1879,7 +1943,8 @@ Set with `pnpm exec convex env set --prod`. Checked 5 Oct 2026, production has e
 three `POSTHOG_EMAIL_*_WEBHOOK_URL`s, `POSTHOG_EMAIL_WEBHOOK_SECRET`, `POSTHOG_KEY`, `SITE_URL`,
 both `STRIPE_PRICE_PRO_*`, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. The optional
 `OPENROUTER_MODEL`, `OPENROUTER_PROVIDERS`, `OPENROUTER_FALLBACK_MODELS`, `OPENROUTER_REASONING`,
-`POSTHOG_HOST` and `STRIPE_PORTAL_CONFIGURATION` are unset, so their defaults apply.
+`POSTHOG_HOST`, `POSTHOG_PERSONAL_API_KEY` (until the owner sets it; see "Answer prompt"),
+`POSTHOG_APP_HOST`, `POSTHOG_PROJECT_ID` and `STRIPE_PORTAL_CONFIGURATION` are unset, so their defaults apply.
 `OPENROUTER_PROVIDERS` held `deepinfra,amazon-bedrock` until 5 Oct 2026; left in place it would
 have overridden the new default and kept answers on the slow host. An `OPENROUTER_*` variable
 set in production silently wins over the code, so check this list after any model change. `CONVEX_SITE_URL` is provided by
@@ -1908,6 +1973,9 @@ Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 | `ALERT_EMAILS_LIVE` | `true` lets alert email reach real addresses | Every alert send is logged and skipped |
 | `POSTHOG_KEY` | The PostHog **project** token (`phc_…`, the same public value as `NEXT_PUBLIC_POSTHOG_KEY`), used to record each answer as an AI trace (`convex/aiTrace.ts`) and as one PostHog Logs line (`convex/posthogLogs.ts`) | Nothing is recorded; answers are unaffected |
 | `POSTHOG_HOST` | PostHog ingestion host, `https://` only | `https://us.i.posthog.com` |
+| `POSTHOG_PERSONAL_API_KEY` | A PostHog **personal** API key with `llm_prompt:read`, used only by `answerPrompts.refresh` and `fetchVersion` to copy the answer prompt | No prompt is copied; answers use the in-code `DEFAULT_TEMPLATE` |
+| `POSTHOG_APP_HOST` | PostHog's app API host (not the ingestion host) | `https://us.posthog.com` |
+| `POSTHOG_PROJECT_ID` | The PostHog project the prompt lives in | `451900` |
 
 > `CONGRESS_API_KEY` and the `OPENROUTER_*` variables are read by **Convex server code**.
 > Putting them in `.env.local` does nothing — this project never runs `convex dev`.
@@ -1963,8 +2031,9 @@ under TS 7, and editors need the native TypeScript 7 extension. The Convex code'
 **There is no linter or formatter in this repository** — no ESLint, Prettier or Biome
 dependency and no config file. The static gates are TypeScript (`next build` type-checks and
 fails on an error; `next.config.mjs` has no `typescript` block to turn that off), the explicit
-`tsc --noEmit` in the review workflow, and the three repository-invariant guards described
-below. Any claim that "the build includes lint" is
+`tsc --noEmit` in the review workflow, `tsc --noEmit -p convex` in `ci.yml` (the check `convex
+deploy` runs, with `convex/`'s own ES2021 tsconfig, and the only gate on it before a merge), and
+the three repository-invariant guards described below. Any claim that "the build includes lint" is
 false.
 
 ### The test system
@@ -2032,7 +2101,7 @@ asks it to, and a nightly accuracy check on `main`:
 
 | Workflow | Job | Trigger | Steps |
 | --- | --- | --- | --- |
-| `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `pnpm cf:build` |
+| `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `tsc --noEmit -p convex` (the check `convex deploy` runs, with `convex/`'s own older-lib tsconfig; added after #170 passed CI and failed at deploy) → `pnpm cf:build` |
 | `claude-code-review.yml` | `review` | every PR push | install → capture `pnpm test` and `tsc --noEmit` output → automated code review |
 | `claude.yml` | `claude` | an `@claude` comment | install → answer the comment in the thread |
 | `accuracy.yml` | `truth` | nightly at 10:17 UTC, or by hand on `main` | install → `scripts/truth/dump.ts` → `REQUIRE_TRUTH_CACHE=1 pnpm test` |

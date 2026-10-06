@@ -232,7 +232,7 @@ test("a follow-up reminds the model of its last answer, so it can say that answe
     ],
   });
   const sent = requests[0].messages;
-  const note = sent.at(-2);
+  const note = sent[sent.length - 2];
   expect(note?.role).toBe("system");
   expect(note?.content).toContain("Secure America Act");
   expect(note?.content).toMatch(/FIRST sentence must say that reply was wrong/);
@@ -241,13 +241,89 @@ test("a follow-up reminds the model of its last answer, so it can say that answe
   expect(note?.content).toMatch(/asking something new, answer only the new question/);
   // The earlier reply is quoted as data, not spliced in as instructions.
   expect(note?.content).toContain(JSON.stringify("The most recent measure that became law is the Secure America Act [1]"));
-  expect(sent.at(-1)).toEqual({ role: "user", content: "are you sure" });
+  expect(sent[sent.length - 1]).toEqual({ role: "user", content: "are you sure" });
 });
 
 test("a first question carries no follow-up reminder", async () => {
   replyWith(["No bill in the 119th Congress matches that."]);
   await ask("Is there a bill about lighthouses?");
   expect(requests[0].messages.some((m) => m.role === "system" && /previous answer/.test(m.content ?? ""))).toBe(false);
+});
+
+test("answers use the PostHog prompt copy marked production, and the default with none", async () => {
+  const t = convexTest(schema, modules);
+  replyWith(["No bill matches.", "No bill matches."]);
+  await t.action(internal.answer.ask, { question: "Is there a bill about lighthouses?" });
+  const first = requests[0].messages[0].content ?? "";
+  expect(first.startsWith("You answer questions about the United States Congress")).toBe(true);
+
+  const wording = `${"Version three wording. ".repeat(12)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: wording, isProduction: true });
+  await t.action(internal.answer.ask, { question: "Is there a bill about lighthouses?" });
+  expect((requests[1].messages[0].content ?? "").startsWith("Version three wording.")).toBe(true);
+});
+
+test("an experiment's version is used when copied; otherwise production, and it is fetched for next time", async () => {
+  const t = convexTest(schema, modules);
+  const words = (w: string) => `${`${w} `.repeat(30)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  await t.mutation(internal.answerPrompts.store, { version: 4, template: words("Four."), isProduction: false });
+  replyWith(["No bill matches.", "No bill matches."]);
+
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 4 });
+  expect((requests[0].messages[0].content ?? "").startsWith("Four.")).toBe(true);
+
+  // Version 9 is not copied: the reader gets production, never a wait.
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 9 });
+  expect((requests[1].messages[0].content ?? "").startsWith("Three.")).toBe(true);
+  const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+  expect(scheduled.some((f) => f.name.includes("fetchVersion") && f.args[0]?.version === 9)).toBe(true);
+});
+
+test("a version that is not copied is fetched once, not on every question, and made-up ones are capped", async () => {
+  // Review on #171: a broken experiment arm or a forged version number turned
+  // every question into a PostHog API call.
+  const t = convexTest(schema, modules);
+  const words = (w: string) => `${`${w} `.repeat(30)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  replyWith(Array(7).fill("No bill matches."));
+  const fetches = async () =>
+    (await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).filter((f) =>
+      f.name.includes("fetchVersion"),
+    ).length;
+
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 9 });
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 9 });
+  expect(await fetches()).toBe(1);
+
+  for (const version of [11, 12, 13]) {
+    await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: version });
+  }
+  expect(await fetches()).toBe(3);
+  // A number far above production is made up: refused, not fetched.
+  await t.action(internal.answer.ask, { question: "Lighthouses?", promptVersion: 99_991 });
+  expect(await fetches()).toBe(3);
+  // Every one of those answers used production.
+  for (const r of requests) expect((r.messages[0].content ?? "").startsWith("Three.")).toBe(true);
+});
+
+test("empty fetch placeholders never push a real experiment copy out", async () => {
+  const t = convexTest(schema, modules);
+  const words = (w: string) => `${`${w} `.repeat(30)}\n{{datasets}}{{calendar}}{{context}}`;
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  await t.mutation(internal.answerPrompts.store, { version: 5, template: words("Five."), isProduction: false });
+  // Twelve tried-and-failed versions above it, as claimFetch leaves them.
+  await t.run(async (ctx) => {
+    for (let v = 6; v < 18; v++) {
+      await ctx.db.insert("answerPrompts", {
+        name: "answer-system", version: v, template: "", isProduction: false, fetchedAt: 0, attemptedAt: Date.now(),
+      });
+    }
+  });
+  await t.mutation(internal.answerPrompts.store, { version: 3, template: words("Three."), isProduction: true });
+  const five = await t.query(internal.answerPrompts.forAnswer, { version: 5 });
+  expect(five.version).toBe(5);
+  expect(five.template?.startsWith("Five.")).toBe(true);
 });
 
 test("the model's reasoning never reaches the reader", async () => {
