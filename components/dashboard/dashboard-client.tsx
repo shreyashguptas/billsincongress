@@ -604,17 +604,22 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
             each track scaled independently
           </span>
         </div>
-        {peak && quietest && (
+        {peak && (
           <p className="max-w-md leading-relaxed sm:text-right">
             Busiest:{' '}
             <span className="font-mono tabular text-ink">
               {formatMonth(peak.month)}
             </span>{' '}
-            ({formatCount(peak.count)}). Quietest:{' '}
-            <span className="font-mono tabular text-ink">
-              {formatMonth(quietest.month)}
-            </span>{' '}
-            ({formatCount(quietest.count)}).{' '}
+            ({formatCount(peak.count)}).{' '}
+            {quietest && (
+              <>
+                Quietest:{' '}
+                <span className="font-mono tabular text-ink">
+                  {formatMonth(quietest.month)}
+                </span>{' '}
+                ({formatCount(quietest.count)}).{' '}
+              </>
+            )}
             <span className="tabular text-ink">
               {formatCount(totalLaws)}
             </span>{' '}

@@ -51,6 +51,16 @@ it('says nothing about laws when none became law', () => {
   assert.equal(n.totalLaws, 0);
 });
 
+// Review on #172: in a Congress's first month nothing is full, and the old
+// guard then hid the busiest month and the law total along with it.
+it('names no quietest month before there are two full months to compare', () => {
+  const first = cadenceNarration([m('2027-01', 300)], 120, new Date('2027-01-20'));
+  assert.equal(first.peak?.month, '2027-01');
+  assert.equal(first.quietest, undefined);
+  const second = cadenceNarration([m('2027-01', 300), m('2027-02', 900)], 120, new Date('2027-02-10'));
+  assert.equal(second.quietest, undefined, 'one full month cannot be both busiest and quietest');
+});
+
 console.log(`\nmonthly-cadence: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));

@@ -25,6 +25,7 @@ export interface CadenceMonth {
 
 export interface CadenceNarration {
   peak?: CadenceMonth;
+  /** Absent until there are two full months to compare. */
   quietest?: CadenceMonth;
   /** The month whose bills went on to produce the most laws. */
   lawPeak?: CadenceMonth;
@@ -42,11 +43,14 @@ export function cadenceNarration(
 
   const byCount = [...months].sort((a, b) => b.count - a.count);
   const quiet = [...full].sort((a, b) => a.count - b.count);
+  // A quietest month needs at least two full months to compare, and must not be
+  // the busiest one: early in a Congress there is one full month, or none.
+  const quietest = full.length >= 2 && quiet[0] !== byCount[0] ? quiet[0] : undefined;
   const lawPeak = [...months].filter((m) => m.becameLaw > 0).sort((a, b) => b.becameLaw - a.becameLaw)[0];
 
   return {
     peak: byCount[0],
-    quietest: quiet[0],
+    quietest,
     lawPeak,
     totalLaws: months.reduce((s, m) => s + m.becameLaw, 0),
   };

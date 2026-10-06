@@ -205,16 +205,6 @@ function reservedFor(title: string): string | undefined {
 }
 
 /**
- * The exact split of a set of reserved numbers by whom they were held for,
- * counted over every matched row. The model partitioned these by eye and got it
- * wrong (see `subsets` in completeness.ts); a split we compute cannot.
- *
- * Only when EVERY matched row is a reserved number, so the parts really are the
- * whole set. From the 118th on, the leaders sponsor their reserved numbers, so a
- * query like "Mike Johnson's bills" mixes seven reserved numbers with two real
- * bills — and a "split of the whole set" listing seven would read as all of them.
- */
-/**
  * The matched set split by KIND of measure, when it holds more than one kind.
  *
  * Asked "how many Senate bills have passed the Senate?", the model filtered by
@@ -249,6 +239,16 @@ function measureSubsets(matched: Doc<"bills">[]): Subset[] {
   return parts;
 }
 
+/**
+ * The exact split of a set of reserved numbers by whom they were held for,
+ * counted over every matched row. The model partitioned these by eye and got it
+ * wrong (see `subsets` in completeness.ts); a split we compute cannot.
+ *
+ * Only when EVERY matched row is a reserved number, so the parts really are the
+ * whole set. From the 118th on, the leaders sponsor their reserved numbers, so a
+ * query like "Mike Johnson's bills" mixes seven reserved numbers with two real
+ * bills — and a "split of the whole set" listing seven would read as all of them.
+ */
 function reservedSubsets(matched: Doc<"bills">[]): Subset[] {
   const byHolder = new Map<string, Doc<"bills">[]>();
   for (const b of matched) {
