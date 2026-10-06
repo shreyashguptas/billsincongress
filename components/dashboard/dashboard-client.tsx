@@ -14,6 +14,7 @@ import { analytics } from '@/lib/analytics';
 import { HOME_CONGRESS, formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
 import { hubByPath, topicSlug } from '@/lib/hubs';
+import { cadenceNarration } from '@/lib/monthly-cadence';
 import { SectionAsk, type HomeProps } from './home/shared';
 import { HomeHero } from './home/hero';
 import { StatStrip } from './home/stat-strip';
@@ -298,7 +299,7 @@ function DashboardInner({
                 The pulse of the legislative calendar — when bills are actually filed, and how many of them eventually
                 became law.
               </SectionNote>
-              <MonthlyCadenceChart house={houseBreakdown} senate={senateBreakdown} />
+              <MonthlyCadenceChart house={houseBreakdown} senate={senateBreakdown} congress={viewCongress} />
             </div>
           </section>
 
@@ -460,9 +461,10 @@ type ChamberBreakdown = {
 interface MonthlyCadenceChartProps {
   house: ChamberBreakdown | undefined;
   senate: ChamberBreakdown | undefined;
+  congress: number;
 }
 
-function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
+function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartProps) {
   if (!house || !senate) {
     return (
       <div className="border-y border-line py-8">
@@ -490,15 +492,9 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
 
   const introMax = Math.max(...months.map((m) => m.count), 1);
   const lawMax = Math.max(...months.map((m) => m.becameLaw), 1);
-  const totalLaws = months.reduce((s, m) => s + m.becameLaw, 0);
-
-  // Pick peaks for inline narration
-  const sortedByCount = [...months].sort((a, b) => b.count - a.count);
-  const peak = sortedByCount[0];
-  const quietest = sortedByCount[sortedByCount.length - 1];
-  const lawPeak = [...months]
-    .filter((m) => m.becameLaw > 0)
-    .sort((a, b) => b.becameLaw - a.becameLaw)[0];
+  // Peaks for the sentence under the chart. Laws are counted in the month their
+  // bill was filed, so the sentence says that, never "signed" (lib/monthly-cadence.ts).
+  const { peak, quietest, lawPeak, totalLaws } = cadenceNarration(months, congress);
 
   // With >18 bars we label only the January of each year + the latest month.
   // With fewer, label each.
@@ -622,14 +618,14 @@ function MonthlyCadenceChart({ house, senate }: MonthlyCadenceChartProps) {
             <span className="tabular text-ink">
               {formatCount(totalLaws)}
             </span>{' '}
-            bills became law
+            became law
             {lawPeak && (
               <>
-                , with the most signed in{' '}
+                , and the bills filed in{' '}
                 <span className="font-mono tabular text-ink">
                   {formatMonth(lawPeak.month)}
                 </span>{' '}
-                ({lawPeak.becameLaw})
+                produced the most of them ({lawPeak.becameLaw})
               </>
             )}
             .

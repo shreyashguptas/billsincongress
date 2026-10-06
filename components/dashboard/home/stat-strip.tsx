@@ -15,16 +15,26 @@ import { fmt, type HomeProps } from './shared';
 export function StatStrip({ congress, dashboard, onDrillDown }: Pick<HomeProps, 'congress' | 'dashboard' | 'onDrillDown'>) {
   const total = Math.max(dashboard.totalBills, 1);
   const laws = dashboard.statusBreakdown.becameLaw;
-  const pct = (n: number) => `${Math.round((n / total) * 100)}% of all bills`;
+  const pct = (n: number) => `${Math.round((n / total) * 100)}% of the total`;
+  // Every count here includes resolutions, which are not bills, so the labels
+  // say so. The odds of becoming law divide by the measures that CAN become law
+  // (bills and joint resolutions); a resolution never goes to the President.
+  const lawCapable = dashboard.lawCapableCount;
+  const lawNote =
+    laws === 0
+      ? 'none yet'
+      : lawCapable
+        ? `about 1 in ${fmt(Math.round(lawCapable / laws))} that could`
+        : `of ${fmt(dashboard.totalBills)} bills and resolutions`;
 
   const cells = [
-    { label: 'Bills introduced', value: dashboard.totalBills, note: 'House and Senate', go: () => onDrillDown('congress', congress) },
-    { label: 'House bills', value: dashboard.houseCount, note: pct(dashboard.houseCount), go: () => onDrillDown('chamber', 'house') },
-    { label: 'Senate bills', value: dashboard.senateCount, note: pct(dashboard.senateCount), go: () => onDrillDown('chamber', 'senate') },
+    { label: 'Bills and resolutions', value: dashboard.totalBills, note: 'House and Senate', go: () => onDrillDown('congress', congress) },
+    { label: 'From the House', value: dashboard.houseCount, note: pct(dashboard.houseCount), go: () => onDrillDown('chamber', 'house') },
+    { label: 'From the Senate', value: dashboard.senateCount, note: pct(dashboard.senateCount), go: () => onDrillDown('chamber', 'senate') },
     {
       label: 'Became law',
       value: laws,
-      note: laws > 0 ? `about 1 in ${fmt(Math.round(total / laws))} bills` : 'none yet',
+      note: lawNote,
       go: () => onDrillDown('status', 100),
       law: true,
     },

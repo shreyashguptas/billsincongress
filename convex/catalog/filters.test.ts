@@ -264,6 +264,21 @@ it("leaves a malformed `filters` for validation to reject", () => {
   assert.deepEqual(filtersFromCall("nope", { name: "nope", sort: "x" }), {});
 });
 
+// "Senate bills" needs a way to say BILLS. The chamber filter alone counts
+// every Senate measure and answered 706 when the bills were 213.
+it("accepts measure 'bill' and 'law_capable' beside chamber", () => {
+  for (const measure of ["bill", "law_capable"]) {
+    const r = validateFilters("bills", { congress: 119, chamber: "senate", measure, reachedStage: 60 });
+    assert.ok(r.ok, `${measure} was refused`);
+  }
+});
+
+it("rejects a measure kind we do not define, and says which ones exist", () => {
+  const r = validateFilters("bills", { measure: "bills" });
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /'bill'.*'law_capable'/);
+});
+
 console.log(`\ncatalog/filters: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join("\n"));

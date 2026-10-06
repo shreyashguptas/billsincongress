@@ -49,6 +49,7 @@ const ROW_FILTER_KEYS = [
   "sponsorFilter",
   "sponsorParty",
   "chamber",
+  "measure",
   "billType",
   "billNumber",
   "reachedStage",
