@@ -53,11 +53,17 @@ export function sanitizeSearchQuery(raw: string): string {
 /**
  * The lowercase words of a reader's title query, or null when it has none.
  * Split once per search and handed to `titleHasEveryWord` for each row.
+ *
+ * Punctuation at either end of a word goes, as Convex's tokenizer drops it:
+ * kept, a quoted '"disabled veterans"' looked for the literal '"disabled' and
+ * matched nothing, which the answer engine would report as an exact zero.
+ * Inner punctuation stays, so "covid-19" and "u.s" still match titles that have it.
  */
 export function titleWords(query: string): string[] | null {
   const words = query
     .toLowerCase()
     .split(/\s+/)
+    .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
     .filter((w) => w.length > 0);
   return words.length > 0 ? words : null;
 }

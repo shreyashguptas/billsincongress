@@ -191,6 +191,16 @@ it("matches at the start of a word, not inside one", () => {
   assert.equal(titleHasEveryWord("Veterans' (Disabled) Act", titleWords("disabled")!), true);
 });
 
+it("drops punctuation at either end of a word, as Convex's tokenizer does", () => {
+  // Review on #177: a quoted query looked for '"disabled' and counted zero.
+  assert.deepEqual(titleWords('"disabled veterans"'), ["disabled", "veterans"]);
+  assert.deepEqual(titleWords("veterans' housing?"), ["veterans", "housing"]);
+  assert.deepEqual(titleWords("Medicare, Medicaid"), ["medicare", "medicaid"]);
+  assert.deepEqual(titleWords("COVID-19 U.S."), ["covid-19", "u.s"]);
+  assert.equal(titleWords(' " - '), null);
+  assert.equal(titleHasEveryWord("Disabled Veterans Act", titleWords('"disabled veterans"')!), true);
+});
+
 if (failures.length > 0) {
   console.error(`\nsearchQuery: ${passed} passed, ${failures.length} FAILED\n`);
   console.error(failures.join("\n\n"));
