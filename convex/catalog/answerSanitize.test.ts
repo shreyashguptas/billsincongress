@@ -717,6 +717,18 @@ it("keeps a bracketed code's meaning when it is the only status", () => {
   );
 });
 
+it("does not let one list item's words vouch for the next", () => {
+  // Review on #178: the look-back crossed into the item above.
+  assert.equal(
+    stageCodesAsWords("- H.R. 1, in committee (stage 40)\n- H.R. 2 (stage 40)"),
+    "- H.R. 1, in committee\n- H.R. 2 (in committee)",
+  );
+  assert.equal(
+    stageCodesAsWords("H.R. 1 is in committee (stage 40), H.R. 2 (stage 40) too."),
+    "H.R. 1 is in committee, H.R. 2 (in committee) too.",
+  );
+});
+
 it("turns a stage code that is the only status into words", () => {
   assert.equal(
     stageCodesAsWords("They are currently at progress stage 40, so none has had a vote."),

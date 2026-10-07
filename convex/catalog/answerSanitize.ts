@@ -693,7 +693,12 @@ export function stageCodesAsWords(text: string): string {
     .replace(STAGE_PAREN, (full, code: string, offset: number, whole: string) => {
       const words = knownStageDescription(Number(code));
       if (!words) return full;
-      const before = whole.slice(Math.max(0, offset - STAGE_WORDS_REACH), offset).toLowerCase();
+      // Only this item's own words count: stop at a line break or at the end of
+      // an earlier bracket, so one list item's status never vouches for the next.
+      const reach = whole.slice(Math.max(0, offset - STAGE_WORDS_REACH), offset);
+      const before = reach
+        .slice(Math.max(reach.lastIndexOf("\n"), reach.lastIndexOf(")")) + 1)
+        .toLowerCase();
       return before.includes(words) ? "" : ` (${words})`;
     })
     .replace(STAGE_PHRASE, (full, _article: string | undefined, code: string) => {
