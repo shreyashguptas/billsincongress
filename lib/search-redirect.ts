@@ -2,7 +2,7 @@
  * Where `/search?q=…` sends a reader.
  *
  * The site has never had a /search page, but readers try it: a browser's
- * site-search shortcut, or a guessed URL. Four visitors got "Page not found"
+ * site-search shortcut, or a guessed URL. Nine visitors got "Page not found"
  * there in the week to 2026-10-07. Our own WebSite JSON-LD (`app/layout.tsx`)
  * already says search lives at `/bills?title={search_term_string}`, so /search
  * goes there, carrying the words under `q`, `query` or `title`.
