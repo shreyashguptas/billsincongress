@@ -1084,7 +1084,7 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `complete` | Whether every row matching the filters was examined |
 | `total` | The size of that set. **Present only when `complete` is true** |
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
-| `exact_subsets` | A partition of the whole set that the server counted, with each part's members. **Present only when `complete` is true.** Today it splits a set made up entirely of reserved bill numbers ("Reserved for the Speaker.") by whom they were held for; a set that mixes them with real bills, like a leader's own bills from the 118th on, gets no split |
+| `exact_subsets` | A partition of the whole set that the server counted. **Present only when `complete` is true.** A set made up entirely of reserved bill numbers ("Reserved for the Speaker.") is split by whom they were held for, with each part's members. Any other set that mixes kinds of measure is split by kind — bills, joint resolutions, simple resolutions, concurrent resolutions, and reserved numbers as placeholders — with counts only. Added 2026-10-05 after "How many Senate bills have passed the Senate?" was answered 706: the chamber filter counted every Senate measure, and 470 were Senate resolutions. The bills were 213 |
 | `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): it leads with the number ("There are exactly 13.") and says the empty row list is not "none", then how to fetch the rows to **name** one. The number was added after "Have any Texas bills become law?" was answered "No" from a count of 13. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
 | `congress_is_over` | On a `bills` result from an adjourned Congress: that nothing in it is still in committee or pending. On the result, not only on rows, because a count has no rows; a bare count of the 118th's stage-40 bills was answered "yes, still in committee" |
 
@@ -1126,7 +1126,11 @@ bills has the Senate passed"* with a number that omitted all 104 laws.
 
 **Measures, not bills.** Totals count every measure, including ~2,500 simple and concurrent
 resolutions a Congress, which are not bills and can never become law. Bill rows carry
-`measureType` and `canBecomeLaw` so an answer can use the right word.
+`measureType` and `canBecomeLaw` so an answer can use the right word. The `measure` filter narrows a
+`bills` fetch to `bill` (H.R. and S. only) or `law_capable` (bills plus joint resolutions):
+"Senate bills" is `chamber: "senate"` with `measure: "bill"`, because the chamber filter alone
+takes every type and answered 706 for the 119th's 213 Senate bills that passed the Senate. A
+result that still mixes kinds says how much of it is bills in `exact_subsets`.
 
 **Time.** The system prompt now carries today's date and, for a Congress that has adjourned, an
 instruction to use the past tense. Two of the three Congresses we hold are over — about 37,000 of

@@ -130,7 +130,8 @@ export interface CompletenessReport {
 export interface Subset {
   label: string;
   count: number;
-  members: string[];
+  /** Listed only when the part is small enough to name; a count alone otherwise. */
+  members?: string[];
 }
 
 /** Written FOR THE MODEL — pasted into the tool result verbatim. */

@@ -41,7 +41,8 @@ import {
 } from "./completeness";
 import { milestoneStages } from "./stageSemantics";
 import { congressWindow, isCongressClosed } from "./congressCalendar";
-import { canBecomeLaw, measureNoun } from "./measureType";
+import { canBecomeLaw, isBill, measureClass, measureNoun } from "./measureType";
+import type { MeasureClass } from "./measureType";
 import { candidateSurnames, matchesFullName, mergeSponsorRows, nameKey } from "./sponsorName";
 
 /** Default rows per fetch. Small on purpose — context is the scarce resource. */
@@ -201,6 +202,41 @@ const PARTY_SPELLINGS: Record<string, Array<string | undefined>> = {
 const RESERVED_TITLE = /^Reserved for the (.+?)\.?$/;
 function reservedFor(title: string): string | undefined {
   return RESERVED_TITLE.exec(title.trim())?.[1];
+}
+
+/**
+ * The matched set split by KIND of measure, when it holds more than one kind.
+ *
+ * Asked "how many Senate bills have passed the Senate?", the model filtered by
+ * chamber, which counts every Senate measure, and answered 706. 470 of those were
+ * Senate resolutions, which are not bills; the bills were 213. A total that mixes
+ * kinds now says, in the result itself, how many of it are bills, so the right
+ * number is in front of the model whichever filter it chose.
+ */
+const MEASURE_PARTS: Array<{ cls: MeasureClass; label: string }> = [
+  { cls: "bill", label: "bills (H.R. and S.): what a reader means by 'bills'" },
+  { cls: "joint_resolution", label: "joint resolutions (H.J.Res., S.J.Res.): not bills, but they can become law" },
+  { cls: "simple_resolution", label: "simple resolutions (H.Res., S.Res.): NOT bills, and never become law" },
+  { cls: "concurrent_resolution", label: "concurrent resolutions (H.Con.Res., S.Con.Res.): NOT bills, and never become law" },
+];
+
+/** Reserved numbers are H.R. by type but are placeholders, so they get a part of their own. */
+const RESERVED_PART = "numbers reserved for the Speaker or the Minority Leader: placeholders, not bills";
+
+function measureSubsets(matched: Doc<"bills">[]): Subset[] {
+  const counts = new Map<string, number>();
+  for (const b of matched) {
+    const cls = reservedFor(b.title) ? "reserved" : measureClass(b.billType);
+    if (cls) counts.set(cls, (counts.get(cls) ?? 0) + 1);
+  }
+  // One kind is not a mix: "these are all bills" needs no breakdown.
+  if (counts.size < 2) return [];
+  const parts = MEASURE_PARTS.filter((p) => counts.has(p.cls)).map((p) => ({
+    label: p.label,
+    count: counts.get(p.cls) as number,
+  }));
+  if (counts.has("reserved")) parts.push({ label: RESERVED_PART, count: counts.get("reserved") as number });
+  return parts;
 }
 
 /**
@@ -366,6 +402,8 @@ function describeBillSet(f: Row): string {
   if (f.sponsorParty === NO_PARTY) parts.push("with no sponsor party recorded");
   else if (typeof f.sponsorParty === "string") parts.push(`with a ${f.sponsorParty} sponsor`);
   if (typeof f.chamber === "string") parts.push(`originating in the ${f.chamber}`);
+  if (f.measure === "bill") parts.push("that are bills (H.R. and S. only, no resolutions)");
+  if (f.measure === "law_capable") parts.push("that can become law (bills and joint resolutions)");
   if (typeof f.billType === "string") parts.push(`of type ${f.billType}`);
   if (typeof f.billNumber === "string") parts.push(`numbered ${f.billNumber}`);
   if (typeof f.titleFilter === "string") parts.push(`with '${f.titleFilter}' in the title`);
@@ -687,6 +725,8 @@ async function fetchBills(
   const requestedSurnames = sponsorNames;
   const chamberTypes =
     f.chamber === "house" ? HOUSE_TYPES : f.chamber === "senate" ? SENATE_TYPES : null;
+  const measureOk = (billType: string): boolean =>
+    f.measure === "bill" ? isBill(billType) : f.measure === "law_capable" ? canBecomeLaw(billType) : true;
   const reachedSet =
     typeof f.reachedStage === "number" ? new Set(milestoneStages(f.reachedStage)) : null;
 
@@ -713,6 +753,7 @@ async function fetchBills(
     if (typeof f.billNumber === "string" && b.billNumber !== f.billNumber) return false;
     if (typeof f.policyArea === "string" && b.policyAreaName !== f.policyArea) return false;
     if (chamberTypes && !chamberTypes.includes(b.billType)) return false;
+    if (!measureOk(b.billType)) return false;
     // A missing date satisfies NO bound. Comparing `?? ""` let undated rows slip
     // under every `before` filter — "bills last acted on before 2020" returned 11
     // measures whose real answer is none — and sort them to the top of an
@@ -889,6 +930,7 @@ async function fetchBills(
     }
   }
 
+  const reserved = reservedSubsets(matched);
   return {
     ok: true,
     rows,
@@ -902,8 +944,9 @@ async function fetchBills(
       // Only meaningful if something survived the in-memory filter: an empty page
       // from an ordered window tells you nothing about what lies beyond it.
       orderFromIndex: orderFromIndex && rows.length > 0,
-      // reportFor drops this unless the read was complete.
-      subsets: reservedSubsets(matched),
+      // reportFor drops this unless the read was complete. The reserved numbers
+      // are all one kind, so the two partitions never compete.
+      subsets: reserved.length > 0 ? reserved : measureSubsets(matched),
     }),
   };
 }
