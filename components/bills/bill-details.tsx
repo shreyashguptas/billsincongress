@@ -40,6 +40,7 @@ import {
   PenLine,
   ScrollText,
   Users,
+  CalendarCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
@@ -65,6 +66,7 @@ const PARTY_NAMES: Record<string, string> = {
 const STAGE_GLYPH: Record<BillStage, LucideIcon> = {
   [BillStages.INTRODUCED]: FilePlus,
   [BillStages.IN_COMMITTEE]: Users,
+  [BillStages.OUT_OF_COMMITTEE]: CalendarCheck,
   [BillStages.PASSED_ONE_CHAMBER]: Landmark,
   [BillStages.PASSED_BOTH_CHAMBERS]: Landmark,
   [BillStages.VETOED]: Ban,

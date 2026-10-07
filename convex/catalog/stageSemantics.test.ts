@@ -38,15 +38,17 @@ function it(name: string, fn: () => void) {
 }
 
 it("lists the ladder codes in order, matching the filter allowlist", () => {
-  assert.deepEqual(STAGE_CODES, [20, 40, 60, 80, 85, 90, 95, 100]);
+  assert.deepEqual(STAGE_CODES, [20, 40, 50, 60, 80, 85, 90, 95, 100]);
   // Drift guard: a stage the validator accepts but this module cannot expand
   // would make a reachedStage filter silently match nothing.
   assert.deepEqual(STAGE_CODES, VALID_STAGES);
 });
 
 it("expands every milestone to the terminal stages that imply it", () => {
-  assert.deepEqual(milestoneStages(20), [20, 40, 60, 80, 85, 90, 95, 100]);
-  assert.deepEqual(milestoneStages(40), [40, 60, 80, 85, 90, 95, 100]);
+  assert.deepEqual(milestoneStages(20), [20, 40, 50, 60, 80, 85, 90, 95, 100]);
+  assert.deepEqual(milestoneStages(40), [40, 50, 60, 80, 85, 90, 95, 100]);
+  // "Made it out of committee": out of committee, or anything further.
+  assert.deepEqual(milestoneStages(50), [50, 60, 80, 85, 90, 95, 100]);
   assert.deepEqual(milestoneStages(60), [60, 80, 85, 90, 95, 100]);
   assert.deepEqual(milestoneStages(80), [80, 85, 90, 95, 100]);
   assert.deepEqual(milestoneStages(90), [90, 95, 100]);
@@ -56,7 +58,7 @@ it("expands every milestone to the terminal stages that imply it", () => {
 
 it("includes 85 in every milestone up to 'passed both chambers'", () => {
   // A vetoed bill cleared both chambers on its way to the President.
-  for (const milestone of [20, 40, 60, 80]) {
+  for (const milestone of [20, 40, 50, 60, 80]) {
     assert.ok(
       milestoneStages(milestone).includes(85),
       `milestoneStages(${milestone}) should include 85`,

@@ -40,6 +40,7 @@ export interface StarterInput {
   statusBreakdown: {
     introduced?: number;
     inCommittee?: number;
+    outOfCommittee?: number;
     becameLaw?: number;
   } | null;
 }

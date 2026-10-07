@@ -76,6 +76,7 @@ module.exports = {
         status: {
           introduced: 'hsl(var(--status-introduced))',
           committee: 'hsl(var(--status-committee))',
+          'out-of-committee': 'hsl(var(--status-out-of-committee))',
           'passed-one': 'hsl(var(--status-passed-one))',
           'passed-both': 'hsl(var(--status-passed-both))',
           president: 'hsl(var(--status-president))',

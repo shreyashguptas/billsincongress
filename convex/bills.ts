@@ -127,10 +127,17 @@ export const getById = query({
 
     if (stage === BillStages.IN_COMMITTEE) {
       const chamber = chamberOf(bill.billType);
+      // Counted from today's date in Washington, as the bill page dates its
+      // journey ("days since it was introduced", app/bills/[id]/page.tsx). The
+      // UTC count it used read 439 beside the journey's 438 on S. 2431 each
+      // evening, and the number shown must be the one the bucket was chosen by.
       const introMs = Date.parse(bill.introducedDate);
+      const todayMs = Date.parse(
+        new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date()),
+      );
       const daysInCommittee = Number.isNaN(introMs)
         ? null
-        : Math.max(0, Math.floor((Date.now() - introMs) / MS_PER_DAY));
+        : Math.max(0, Math.floor((todayMs - introMs) / MS_PER_DAY));
 
       if (daysInCommittee !== null) {
         const rows = await ctx.db
@@ -1341,6 +1348,7 @@ export const getCongressDashboard = query({
     const statusBreakdown = {
       introduced: 0,
       inCommittee: 0,
+      outOfCommittee: 0,
       passedOneChamber: 0,
       passedBothChambers: 0,
       vetoed: 0,
@@ -1353,6 +1361,7 @@ export const getCongressDashboard = query({
       switch (stage.stage) {
         case 20: statusBreakdown.introduced = stage.count; break;
         case 40: statusBreakdown.inCommittee = stage.count; break;
+        case 50: statusBreakdown.outOfCommittee = stage.count; break;
         case 60: statusBreakdown.passedOneChamber = stage.count; break;
         case 80: statusBreakdown.passedBothChambers = stage.count; break;
         case 85: statusBreakdown.vetoed = stage.count; break;

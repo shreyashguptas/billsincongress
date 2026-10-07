@@ -7,6 +7,7 @@
 export const BillStages = {
   INTRODUCED: 20,
   IN_COMMITTEE: 40,
+  OUT_OF_COMMITTEE: 50,
   PASSED_ONE_CHAMBER: 60,
   PASSED_BOTH_CHAMBERS: 80,
   VETOED: 85,
@@ -18,6 +19,7 @@ export const BillStages = {
 export const BillStageDescriptions: Record<number, string> = {
   [BillStages.INTRODUCED]: "Introduced",
   [BillStages.IN_COMMITTEE]: "In Committee",
+  [BillStages.OUT_OF_COMMITTEE]: "Out of Committee",
   [BillStages.PASSED_ONE_CHAMBER]: "Passed One Chamber",
   [BillStages.PASSED_BOTH_CHAMBERS]: "Passed Both Chambers",
   [BillStages.VETOED]: "Vetoed",
@@ -32,6 +34,7 @@ export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> 
   [
     BillStages.INTRODUCED,
     BillStages.IN_COMMITTEE,
+    BillStages.OUT_OF_COMMITTEE,
     BillStages.PASSED_ONE_CHAMBER,
     BillStages.PASSED_BOTH_CHAMBERS,
     BillStages.VETOED,
@@ -39,6 +42,55 @@ export const BILL_STAGES: ReadonlyArray<{ stage: number; description: string }> 
     BillStages.SIGNED_BY_PRESIDENT,
     BillStages.BECAME_LAW,
   ].map((stage) => ({ stage, description: BillStageDescriptions[stage] }));
+
+/** The calendars a measure waits on for a floor vote once no committee holds it. */
+const FLOOR_CALENDARS = [
+  "placed on the union calendar",
+  "placed on the house calendar",
+  "placed on the private calendar",
+  "placed on senate legislative calendar under general orders",
+  // A Senate resolution held a day "over, under the rule" goes straight onto a
+  // calendar without a committee, legislative or executive (S.Res. 520, 119th,
+  // an executive resolution debated on the floor; found by the calendar-number
+  // oracle in scripts/truth/handlers.test.ts).
+  "placed on senate legislative calendar under over, under the rule",
+  "placed on senate executive calendar",
+];
+
+/**
+ * Whether an action shows the measure has left committee and waits for the
+ * floor. Shared by calculateBillStage and the committee base-rate job.
+ *
+ * 2,145 measures across the 117th–119th had been reported by their committee
+ * or placed on a floor calendar while the site still called them "in
+ * committee" (or, for 40 Rule XIV bills in the 119th, "introduced"), counted
+ * them in "haven't made it out of committee", and showed them the odds for
+ * bills stuck there (S. 2431, the 2026 Interior appropriations
+ * bill, was "in committee for 439 days" months after the Senate calendared it).
+ *
+ * The signal is the floor calendar, not the report. A House bill referred to
+ * several committees is reported by each in turn ("H. Rept. 119-431, Part 1")
+ * and stays with the others until it is calendared. "Ordered to be reported" is
+ * the committee's vote, before the report is filed, and a SUBcommittee being
+ * discharged returns the bill to its full committee: neither counts. A Senate
+ * report (code 14000) does count, because the Senate places a reported measure
+ * on its calendar the same day and does not always record that separately.
+ * Rule XIV bills skip committee and are placed on the Senate calendar directly,
+ * so they count too. The Senate records that mid-sentence ("Read the second
+ * time. Placed on Senate Legislative Calendar under General Orders.", 351
+ * actions), so the calendar is matched anywhere in the text, not only at the
+ * start (review on #174).
+ */
+export function leftCommittee(action: { text?: string; actionCode?: string }): boolean {
+  const text = (action.text || "").toLowerCase();
+  const code = action.actionCode || "";
+  return (
+    code === "H12410" ||
+    code === "H12420" ||
+    code === "14000" ||
+    FLOOR_CALENDARS.some((c) => text.includes(c))
+  );
+}
 
 // Returns "house" / "senate" / null. Shared by calculateBillStage and the
 // committee base-rate job so both agree on what "passed a chamber" means.
@@ -95,7 +147,8 @@ export function passedChamber(action: {
  * "Signed by President" text.
  *
  * Precedence (most advanced first): became law > vetoed > signed > to
- * president > passed both > passed one > in committee > introduced. Vetoed
+ * president > passed both > passed one > out of committee > in committee >
+ * introduced. Vetoed
  * outranks signed defensively so a veto can never be reported as a signing.
  */
 export function calculateBillStage(
@@ -118,6 +171,7 @@ export function calculateBillStage(
     toPresident: null,
     passedHouse: null,
     passedSenate: null,
+    outOfCommittee: null,
     inCommittee: null,
   };
   const saw = (flag: keyof typeof dates, date: string | undefined) => {
@@ -142,6 +196,7 @@ export function calculateBillStage(
   let toPresident = false;
   let passedHouse = false;
   let passedSenate = false;
+  let outOfCommittee = false;
   let inCommittee = false;
 
   for (const action of actions) {
@@ -202,6 +257,11 @@ export function calculateBillStage(
       saw("passedSenate", action.actionDate);
     }
 
+    if (leftCommittee(action)) {
+      outOfCommittee = true;
+      saw("outOfCommittee", action.actionDate);
+    }
+
     if (
       text.includes("referred to") ||
       text.includes("committee") ||
@@ -235,6 +295,7 @@ export function calculateBillStage(
       house === null ? senate : senate === null ? house : house < senate ? house : senate;
     return stageResult(BillStages.PASSED_ONE_CHAMBER, first);
   }
+  if (outOfCommittee) return stageResult(BillStages.OUT_OF_COMMITTEE, dates.outOfCommittee);
   if (inCommittee) return stageResult(BillStages.IN_COMMITTEE, dates.inCommittee);
   // Introduction is not an action the flags track; callers fall back to the
   // bill's own introducedDate (see `stageDateFor`).
@@ -254,7 +315,13 @@ export function stageDateFor(
   computed: { stage: number; stageDate: string | null },
   introducedDate: string | undefined,
 ): string | undefined {
-  if (computed.stageDate) return computed.stageDate;
+  // Never before the bill existed. Committees hold hearings "on the subject
+  // prior to introduction" of an appropriations bill, and those actions are
+  // filed on the bill: 26 bills were dated into committee months before they
+  // were introduced (S. 2431 on 14 May 2025, introduced 24 Jul 2025).
+  if (computed.stageDate) {
+    return introducedDate && computed.stageDate < introducedDate ? introducedDate : computed.stageDate;
+  }
   if (computed.stage === BillStages.INTRODUCED) return introducedDate || undefined;
   return undefined;
 }

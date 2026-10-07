@@ -34,11 +34,12 @@ export interface AnswerScope {
  * threw away — and answered about every bill in the Congress instead, with a
  * label promising otherwise. A scope that cannot be applied must not be built.
  */
-export const CATALOG_STAGES = [20, 40, 60, 80, 85, 90, 95, 100];
+export const CATALOG_STAGES = [20, 40, 50, 60, 80, 85, 90, 95, 100];
 
 const STAGE_LABEL: Record<number, string> = {
   20: 'just introduced',
   40: 'in committee',
+  50: 'out of committee',
   60: 'past one chamber',
   80: 'past both chambers',
   85: 'vetoed',

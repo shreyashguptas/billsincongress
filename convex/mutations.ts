@@ -13,6 +13,7 @@ import {
 } from "./aggregates";
 import {
   calculateBillStage,
+  leftCommittee,
   passedChamber,
   stageDateFor,
   BillStages,
@@ -648,6 +649,23 @@ export const rederiveBillFieldsFromActions = internalMutation({
       if (Object.keys(patch).length > 0) {
         await ctx.db.patch(bill._id, patch);
         changed++;
+      }
+      // Into Out of committee (50) from below it — In committee (40), or
+      // Introduced (20) for a Rule XIV bill — here is a re-label of the stored
+      // record, not a move: the calendar action is already old, and the stage
+      // existed only from 2026-10-06. Advance every follower's watermark with
+      // it, or the next digest would report each such bill as news.
+      const before = bill.progressStage ?? BillStages.INTRODUCED;
+      if (before < BillStages.OUT_OF_COMMITTEE && stage === BillStages.OUT_OF_COMMITTEE) {
+        const followers = await ctx.db
+          .query("billAlerts")
+          .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
+          .take(1000);
+        for (const alert of followers) {
+          if (alert.lastSeenStage !== undefined && alert.lastSeenStage < BillStages.OUT_OF_COMMITTEE) {
+            await ctx.db.patch(alert._id, { lastSeenStage: BillStages.OUT_OF_COMMITTEE });
+          }
+        }
       }
     }
     return { changed, skippedNoActions };
@@ -1295,14 +1313,17 @@ export const recomputeCommitteeBaseRates = internalAction({
           if (stage < BillStages.IN_COMMITTEE) continue;
 
           const chamber: Chamber = chamberOf(bill.billType);
-          const advanced = stage >= BillStages.PASSED_ONE_CHAMBER;
+          // Advanced past committee = left it: out of committee (50) or any
+          // stage beyond. Vetoed (85) passed both chambers first.
+          const advanced = stage >= BillStages.OUT_OF_COMMITTEE;
 
           if (!advanced) {
             samples.push({ chamber, advanced: false, firstAdvanceDays: null });
             continue;
           }
 
-          // Advanced: find the EARLIEST chamber-passage action to time it.
+          // Advanced: find the EARLIEST action that took it out of committee —
+          // a floor calendar or a chamber passage — to time it.
           const actions = await ctx.runQuery(
             internal.mutations.getBillActionsForBaseRate,
             { billId: bill.billId },
@@ -1310,7 +1331,7 @@ export const recomputeCommitteeBaseRates = internalAction({
           const introMs = Date.parse(bill.introducedDate);
           let firstAdvanceMs: number | null = null;
           for (const a of actions) {
-            if (passedChamber(a) === null) continue;
+            if (passedChamber(a) === null && !leftCommittee(a)) continue;
             const ms = Date.parse(a.actionDate);
             if (Number.isNaN(ms)) continue;
             if (firstAdvanceMs === null || ms < firstAdvanceMs) firstAdvanceMs = ms;

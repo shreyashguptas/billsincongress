@@ -309,6 +309,88 @@ it("H.R. 5894 (118th): the rule passing the House is not the bill passing it", (
   assert.equal(result.stageDate, "2023-10-25");
 });
 
+// --- Out of committee (50) ---------------------------------------------------
+//
+// S. 2431 (119th), the 2026 Interior appropriations bill: reported by the
+// Appropriations Committee and placed on the Senate calendar on 24 Jul 2025,
+// and shown as "in committee for 439 days" because the reported codes counted
+// as being in committee. 2,145 measures across the three Congresses read that way.
+
+const at = (date: string, text: string, extra: Partial<Action> = {}): Action => ({ text, actionDate: date, ...extra });
+
+it("S. 2431 (119th): reported and calendared in the Senate is out of committee", () => {
+  const result = calculateBillStage([
+    at("2025-05-14", "Subcommittee on Department of Interior, Environment, and Related Agencies. Hearings held on the subject prior to the subcommittee markup."),
+    at("2025-07-24", "Introduced in Senate", { actionCode: "10000" }),
+    at("2025-07-24", "Committee on Appropriations. Original measure reported to Senate by Senator Murkowski. With written report No. 119-46.", { actionCode: "14000" }),
+    at("2025-07-24", "Placed on Senate Legislative Calendar under General Orders. Calendar No. 124."),
+  ]);
+  assert.equal(result.stage, BillStages.OUT_OF_COMMITTEE);
+  assert.equal(result.stageDate, "2025-07-24");
+});
+
+it("a Rule XIV bill, read twice and calendared mid-sentence, is out of committee", () => {
+  // Review on #174: the Senate records this as one sentence, and 133 such bills
+  // were left at Introduced by a match on the start of the text.
+  assert.equal(
+    stageOf([
+      at("2025-02-03", "Introduced in the Senate. Read the first time. Placed on Senate Legislative Calendar under Read the First Time."),
+      at("2025-02-04", "Read the second time. Placed on Senate Legislative Calendar under General Orders. Calendar No. 12."),
+    ]),
+    BillStages.OUT_OF_COMMITTEE,
+  );
+});
+
+it("a House bill on the Union Calendar is out of committee", () => {
+  assert.equal(
+    stageOf([
+      at("2025-03-01", "Referred to the House Committee on Veterans' Affairs.", { actionCode: "H11100" }),
+      at("2025-11-07", "Reported (Amended) by the Committee on Veterans' Affairs. H. Rept. 119-371.", { actionCode: "5000" }),
+      at("2025-11-07", "Placed on the Union Calendar, Calendar No. 323.", { actionCode: "H12410" }),
+    ]),
+    BillStages.OUT_OF_COMMITTEE,
+  );
+});
+
+it("a House report that is only Part 1 leaves the bill with its other committees", () => {
+  // H.R. 179 (119th): reported by Natural Resources, "Part 1", never calendared.
+  assert.equal(
+    stageOf([
+      at("2025-01-03", "Referred to the Committee on Natural Resources, and in addition to the Committee on Agriculture.", { actionCode: "H11100" }),
+      at("2026-01-08", "Reported (Amended) by the Committee on Natural Resources. H. Rept. 119-430, Part I.", { actionCode: "5000" }),
+    ]),
+    BillStages.IN_COMMITTEE,
+  );
+});
+
+it("a committee vote to report, or a subcommittee discharged, is still in committee", () => {
+  assert.equal(
+    stageOf([
+      at("2025-06-25", "Referred to the Subcommittee on Energy and Mineral Resources.", { actionCode: "H11000" }),
+      at("2025-06-25", "Subcommittee on Energy and Mineral Resources Discharged", { actionCode: "H25000" }),
+      at("2025-06-25", "Ordered to be Reported in the Nature of a Substitute by Unanimous Consent.", { actionCode: "H19000" }),
+    ]),
+    BillStages.IN_COMMITTEE,
+  );
+});
+
+it("a bill out of committee that then passes a chamber is past one chamber", () => {
+  assert.equal(
+    stageOf([
+      at("2025-11-07", "Placed on the Union Calendar, Calendar No. 323.", { actionCode: "H12410" }),
+      at("2026-01-12", "Passed/agreed to in House: On passage Passed by the Yeas and Nays: 300 - 100.", { actionCode: "8000" }),
+    ]),
+    BillStages.PASSED_ONE_CHAMBER,
+  );
+});
+
+it("a stage is never dated before the bill was introduced", () => {
+  // S. 2431 was dated into committee on 14 May 2025, by a hearing held on its
+  // subject before it existed; it was introduced on 24 Jul 2025.
+  assert.equal(stageDateFor({ stage: BillStages.IN_COMMITTEE, stageDate: "2025-05-14" }, "2025-07-24"), "2025-07-24");
+  assert.equal(stageDateFor({ stage: BillStages.IN_COMMITTEE, stageDate: "2025-08-01" }, "2025-07-24"), "2025-08-01");
+});
+
 if (failures.length > 0) {
   console.error(`\nbillStage: ${passed} passed, ${failures.length} FAILED\n`);
   console.error(failures.join("\n\n"));

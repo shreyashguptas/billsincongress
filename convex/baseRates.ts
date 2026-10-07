@@ -15,9 +15,14 @@ export type Chamber = "house" | "senate";
 /** One finished-Congress bill, reduced to just what the math needs. */
 export interface BaseRateSample {
   chamber: Chamber;
-  /** Did the bill ever advance past committee (pass a chamber)? */
+  /**
+   * Did the bill ever leave committee: placed on a floor calendar, reported in
+   * the Senate, or passed a chamber? Until 2026-10-06 only a chamber passage
+   * counted, so a bill reported and calendared but never voted on read as one
+   * that never advanced, and the rate understated how many leave committee.
+   */
   advanced: boolean;
-  /** Days from introduction to first chamber passage; null if never advanced. */
+  /** Days from introduction to the first such action; null if never advanced. */
   firstAdvanceDays: number | null;
 }
 

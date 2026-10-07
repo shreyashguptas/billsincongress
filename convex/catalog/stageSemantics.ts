@@ -31,6 +31,7 @@ import { BillStages } from "../billStage";
 export const STAGE_CODES: number[] = [
   BillStages.INTRODUCED,
   BillStages.IN_COMMITTEE,
+  BillStages.OUT_OF_COMMITTEE,
   BillStages.PASSED_ONE_CHAMBER,
   BillStages.PASSED_BOTH_CHAMBERS,
   BillStages.VETOED,
@@ -95,6 +96,7 @@ export function reached(terminal: number, milestone: number): boolean {
 const DESCRIPTIONS: Record<number, string> = {
   [BillStages.INTRODUCED]: "introduced",
   [BillStages.IN_COMMITTEE]: "in committee",
+  [BillStages.OUT_OF_COMMITTEE]: "out of committee, awaiting a floor vote",
   [BillStages.PASSED_ONE_CHAMBER]: "passed one chamber",
   [BillStages.PASSED_BOTH_CHAMBERS]: "passed both chambers",
   [BillStages.VETOED]: "vetoed",

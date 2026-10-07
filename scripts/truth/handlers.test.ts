@@ -1385,6 +1385,65 @@ async function main() {
     );
   });
 
+  // --- out of committee, still called "in committee" (2026-10-05) -----------
+  //
+  // S. 2431 (119th) was reported and placed on the Senate calendar on 24 Jul
+  // 2025. The site called it "in committee for 439 days", counted it among the
+  // bills that "haven't made it out of committee", and showed it the odds for
+  // bills stuck there. The oracle is the floor calendar on record, read by hand.
+
+  // Independent of leftCommittee's wording on purpose (review on #174): a floor
+  // calendar placement carries its calendar number, so the oracle reads "Calendar
+  // No. N" off the action, minus the calendars that are not the floor (the
+  // discharge and consensus calendars, and the Senate's "Read the First Time",
+  // the step before a Rule XIV bill reaches General Orders), plus the House and
+  // Senate report codes.
+  const calendared = new Set<string>();
+  for (const [billId, list] of actionsByBill) {
+    if (
+      list.some((x: any) => {
+        const t = String(x.text ?? "").toLowerCase();
+        const floorCalendar =
+          /calendar no\.\s*\d+/.test(t) && !/discharge|consensus|read the first time/.test(t);
+        return x.actionCode === "H12410" || x.actionCode === "H12420" || x.actionCode === "14000" || floorCalendar;
+      })
+    ) {
+      calendared.add(billId);
+    }
+  }
+
+  await it("the stage calculator puts every calendared bill out of committee", async () => {
+    // The code half: holds as soon as the fix is in, before any backfill.
+    const { calculateBillStage } = await import("../../convex/billStage");
+    const missed: string[] = [];
+    for (const billId of calendared) {
+      const { stage } = calculateBillStage(actionsByBill.get(billId) ?? []);
+      if (stage < 50) missed.push(`${billId} (${stage})`);
+    }
+    assert.ok(calendared.size > 1500, `sanity: ${calendared.size} calendared measures`);
+    assert.deepEqual(missed.slice(0, 10), [], `${missed.length} calendared bills still read in committee`);
+  });
+
+  await it("S. 2431 is out of committee, not 'in committee for 439 days'", async () => {
+    // The data half: red until backfillBillFieldsFromActions has re-derived
+    // production's stages and the copy is re-dumped.
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "2431s119" });
+    assert.ok(r.ok && r.rows.length === 1, `fetch failed: ${r.error}`);
+    assert.ok(calendared.has("2431s119"), "sanity: its calendar placement is on record");
+    assert.equal(r.rows[0].progressStage, 50);
+  });
+
+  await it("no stored stage calls a calendared bill in committee", async () => {
+    const stale = (bills as any[])
+      .filter((b) => calendared.has(b.billId) && (b.progressStage ?? 20) < 50)
+      .map((b) => `${b.billId} (${b.progressStage})`);
+    assert.deepEqual(
+      stale.slice(0, 10),
+      [],
+      `${stale.length} calendared bills stored in committee — run backfillBillFieldsFromActions`,
+    );
+  });
+
   // --- the invariant, checked across many shapes ----------------------------
 
   // "Summarize H.R. 1 in two sentences." came back BLANK on 2026-10-05: its
