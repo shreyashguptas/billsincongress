@@ -580,13 +580,17 @@ accents ("Nydia Velazquez"), or by another first name ("Jacky" and "Jacklyn" Ros
 (Carolyn and Sean Patrick Maloney were both New York Democrats in the House), so since 2026-10-06
 every bill stores the sponsor's Congress.gov member id, `sponsorBioguideId`, and the sponsor's
 name re-cased from Congress.gov's mixed-case full name (`convex/sponsorIdentity.ts`; it never
-guesses a casing the full name does not contain). Bills from before that are filled in once by
+guesses a last name's casing the full name does not contain, since "MCCARTHY" is not "Mccarthy").
+A first name in capitals that the full name spells another way ("WILLIAM" on bills, "Pascrell,
+Bill, Jr." in the full name; "MIKE" Doyle, "JAMES" Cooper) is put in plain title case. Bills from before that are filled in once by
 `backfillSponsorIdentity` (below).
 
 `congressSponsors` holds one row per **member** of a Congress (`buildSponsorRows` in
 `convex/catalog/sponsorName.ts`), with the member's id and every spelling their bills carry
 (`spellings`). A bill without an id joins the member its name and state belong to when exactly
-one member with an id has them. The name shown is mixed case, then accented, then the spelling on
+one member with an id has them, or, when two do (the Menendezes, both of New Jersey), the one who
+sponsors from the bill's chamber; so the nightly recount part-way through the backfill never
+splits a member. The name shown is mixed case, then accented, then the spelling on
 the most bills, then the newer one. Two members who would show one name get their chamber: the
 118th's Senator Robert Menendez and his son, Representative Rob Menendez, are "Robert Menendez
 (Senate)" (75 bills) and "Robert Menendez (House)" (14), where they were one "Robert Menendez"
@@ -608,11 +612,15 @@ pnpm exec convex run --prod congressApi:backfillSponsorIdentity '{}'
 ```
 
 It makes one Congress.gov detail call per bill that has neither an id nor bit 4 of
-`extraSyncedBits` (`EXTRA_SPONSOR_IDENTITY`), about 57,000, at the enrichment backfill's pace, so it
-takes several hours and resumes itself. When a pass finds nothing left it recounts
-`congressSponsors`. Until then the counts are as before, and three cases in
-`scripts/truth/handlers.test.ts` (Jacky Rosen's 80, the two Menendezes, no member in capitals)
-stay red; they pass on a simulated copy with the ids filled in.
+`extraSyncedBits` (`EXTRA_SPONSOR_IDENTITY`), about 57,000, at the enrichment backfill's pace. It
+leaves 3,000 of Congress.gov's 5,000 hourly calls for the regular syncs, pausing 15 minutes when
+the budget runs that low (each run reads the budget afresh, so a pause cannot repeat forever),
+so it takes about a day and continues itself. A bill whose call fails is retried on a further
+pass; a pass that stores nothing ends it, and then it recounts `congressSponsors`. If it is ever
+cut off, the same command picks up where it stopped. Until then the counts are as before (each
+nightly recount moves members onto their ids as their bills are done), and four cases in
+`scripts/truth/handlers.test.ts` (Jacky Rosen's 80, the two Menendezes, the picker's name across
+Congresses, no member in capitals) stay red; they pass on a simulated copy with the ids filled in.
 
 ---
 

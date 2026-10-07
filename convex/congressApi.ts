@@ -1691,6 +1691,10 @@ export const backfillSponsorIdentity = internalAction({
     args,
   ): Promise<{ done: boolean; fixedThisRun: number; pausedForRateLimit: boolean }> => {
     requireApiKey();
+    // The budget remembered from an earlier run is stale: after a 15-minute
+    // pause it would still read "below the floor" and pause again, forever. The
+    // first call of this run reads the real one.
+    lastRateLimitRemaining = null;
     const startedAt = Date.now();
     let cursor: string | null = args.cursor ?? null;
     let passFixed = args.passFixed ?? 0;

@@ -56,11 +56,24 @@ export function recaseFromFullName(name: string | undefined, fullName: string | 
   return found;
 }
 
+/**
+ * A first name, re-cased like `recaseFromFullName`. When the full name uses
+ * another form of it ("WILLIAM" on bills, "Pascrell, Bill, Jr." in the full
+ * name; also "MIKE" Doyle and "JAMES" Cooper in the 117th), the name is put in
+ * plain title case instead: a given name has no "Mc" or "De" whose capital a
+ * guess could lose, and left alone it would read "WILLIAM Pascrell".
+ */
+export function recaseFirstName(name: string | undefined, fullName: string | undefined): string | undefined {
+  const recased = recaseFromFullName(name, fullName);
+  if (!recased || !uniformCase(recased) || !/[a-z]/i.test(recased)) return recased;
+  return recased.toLowerCase().replace(/(^|[\s'-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
 /** The sponsor fields we store on a bill, from a Congress.gov bill detail. */
 export function sponsorFields(sponsor: DetailSponsor | undefined): SponsorFields {
   if (!sponsor) return {};
   return {
-    sponsorFirstName: recaseFromFullName(sponsor.firstName, sponsor.fullName),
+    sponsorFirstName: recaseFirstName(sponsor.firstName, sponsor.fullName),
     sponsorLastName: recaseFromFullName(sponsor.lastName, sponsor.fullName),
     sponsorParty: sponsor.party,
     sponsorState: sponsor.state,

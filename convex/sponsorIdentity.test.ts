@@ -2,7 +2,7 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { recaseFromFullName, sponsorFields } from "./sponsorIdentity";
+import { recaseFirstName, recaseFromFullName, sponsorFields } from "./sponsorIdentity";
 
 let passed = 0;
 const failures: string[] = [];
@@ -37,6 +37,22 @@ it("leaves a mixed-case name alone, even when the full name differs", () => {
 it("never guesses a casing the full name does not contain", () => {
   assert.equal(recaseFromFullName("MCCARTHY", "Rep. Somebody, Else [R-CA-20]"), "MCCARTHY");
   assert.equal(recaseFromFullName("SMITH", undefined), "SMITH");
+});
+
+// Three 117th members' bills use a first name their full name does not:
+// "WILLIAM" for "Pascrell, Bill, Jr.", "MIKE" for "Doyle, Michael F.", "JAMES"
+// for "Cooper, Jim". Left alone, the backfill would show "WILLIAM Pascrell".
+it("title-cases a first name in capitals that the full name spells another way", () => {
+  assert.equal(recaseFirstName("WILLIAM", "Rep. Pascrell, Bill, Jr. [D-NJ-9]"), "William");
+  assert.equal(recaseFirstName("MIKE", "Rep. Doyle, Michael F. [D-PA-18]"), "Mike");
+  assert.equal(recaseFirstName("MARY GAY", "Rep. Somebody, Else [D-PA-5]"), "Mary Gay");
+  assert.equal(recaseFirstName("JO-ANN", undefined), "Jo-Ann");
+  // Found in the full name: its casing wins, as for last names.
+  assert.equal(recaseFirstName("ROSA", "Rep. DeLauro, Rosa L. [D-CT-3]"), "Rosa");
+  assert.equal(recaseFirstName("Bob", "Sen. Casey, Robert P., Jr. [D-PA]"), "Bob");
+  assert.equal(recaseFirstName("", "Sen. Casey, Robert P., Jr. [D-PA]"), "");
+  const s = sponsorFields({ bioguideId: "P000096", firstName: "WILLIAM", lastName: "PASCRELL", fullName: "Rep. Pascrell, Bill, Jr. [D-NJ-9]" });
+  assert.equal(`${s.sponsorFirstName} ${s.sponsorLastName}`, "William Pascrell");
 });
 
 it("keeps the bioguide id and drops an empty one", () => {

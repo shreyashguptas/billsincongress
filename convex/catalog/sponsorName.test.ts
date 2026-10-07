@@ -279,11 +279,26 @@ it("puts a bill stored before ids were under the member its name and state belon
   assert.equal(rows[0].billCount, 7);
 });
 
-it("does not guess which member an id-less bill is when two share its name", () => {
+// Part-way through the id backfill, the Menendezes' id-less bills used to make a
+// third "Robert Menendez" row; the bill's chamber says whose each one is.
+it("tells two members who share a name and state apart by the bill's chamber", () => {
   const rows = buildSponsorRows([
     bill("Robert", "Menendez", { sponsorBioguideId: "M000639", sponsorState: "NJ" }),
     bill("Robert", "Menendez", { sponsorBioguideId: "M001226", sponsorState: "NJ", billType: "hr" }),
-    bill("Robert", "Menendez", { sponsorState: "NJ" }),
+    ...many(3, bill("Robert", "Menendez", { sponsorState: "NJ" })),
+    ...many(2, bill("Robert", "Menendez", { sponsorState: "NJ", billType: "hres" })),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.sponsorName, r.billCount, r.sponsorBioguideId]),
+    [["Robert Menendez (Senate)", 4, "M000639"], ["Robert Menendez (House)", 3, "M001226"]],
+  );
+});
+
+it("does not guess which member an id-less bill is when two share its name, state and chamber", () => {
+  const rows = buildSponsorRows([
+    bill("Pat", "Doe", { sponsorBioguideId: "D000001", sponsorState: "NJ", billType: "hr" }),
+    bill("Pat", "Doe", { sponsorBioguideId: "D000002", sponsorState: "NJ", billType: "hr" }),
+    bill("Pat", "Doe", { sponsorState: "NJ", billType: "hr" }),
   ]);
   assert.equal(rows.reduce((n, r) => n + r.billCount, 0), 3);
   assert.equal(rows.filter((r) => !r.sponsorBioguideId).length, 1);

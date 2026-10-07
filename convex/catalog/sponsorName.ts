@@ -85,6 +85,7 @@ export interface SponsorBill {
 }
 
 const SENATE_TYPES = new Set(["s", "sjres", "sconres", "sres"]);
+const chamberKey = (bill: Pick<SponsorBill, "billType">) => (SENATE_TYPES.has(bill.billType) ? "senate" : "house");
 
 /**
  * One `congressSponsors` row per MEMBER of one Congress, counted from its bills.
@@ -96,8 +97,10 @@ const SENATE_TYPES = new Set(["s", "sjres", "sconres", "sres"]);
  * Representative Rob Menendez, were one "Robert Menendez" with 89 bills.
  *
  * A bill without an id (stored before ids were) joins the member its name and
- * state belong to when exactly one member with an id has them; otherwise it is
- * counted under the name and state alone, as before.
+ * state belong to when exactly one member with an id has them, or, when two do
+ * (the Menendezes, both of New Jersey), the one of them who sponsors from the
+ * bill's chamber; otherwise it is counted under the name and state alone, as
+ * before. So a recount part-way through the id backfill never splits a member.
  *
  * The name shown is a mixed-case spelling when there is one, then the spelling on
  * the most bills, then the newer spelling; an accented spelling beats the same
@@ -120,11 +123,17 @@ export function buildSponsorRows(bills: Iterable<SponsorBill>): BuiltSponsorRow[
     const fallback = `${nameKey(spelling)}|${bill.sponsorState ?? ""}`;
     named.push({ bill, spelling, fallback });
     if (bill.sponsorBioguideId) {
-      const ids = idsByFallback.get(fallback) ?? new Set<string>();
-      ids.add(bill.sponsorBioguideId);
-      idsByFallback.set(fallback, ids);
+      for (const key of [fallback, `${fallback}|${chamberKey(bill)}`]) {
+        const ids = idsByFallback.get(key) ?? new Set<string>();
+        ids.add(bill.sponsorBioguideId);
+        idsByFallback.set(key, ids);
+      }
     }
   }
+  const onlyId = (key: string) => {
+    const ids = idsByFallback.get(key);
+    return ids && ids.size === 1 ? [...ids][0] : undefined;
+  };
 
   interface Member {
     id?: string;
@@ -139,8 +148,7 @@ export function buildSponsorRows(bills: Iterable<SponsorBill>): BuiltSponsorRow[
   }
   const members = new Map<string, Member>();
   for (const { bill, spelling, fallback } of named) {
-    const known = idsByFallback.get(fallback);
-    const id = bill.sponsorBioguideId ?? (known && known.size === 1 ? [...known][0] : undefined);
+    const id = bill.sponsorBioguideId ?? onlyId(fallback) ?? onlyId(`${fallback}|${chamberKey(bill)}`);
     const key = id ? `id:${id}` : `name:${fallback}`;
     const m: Member = members.get(key) ?? {
       id,
