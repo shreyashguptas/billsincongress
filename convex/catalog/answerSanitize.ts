@@ -674,20 +674,28 @@ export function plainCharacters(text: string): string {
  * rows carry the words (`stage`), and the prompt lives in PostHog, so this is
  * the backstop in code.
  *
- * A parenthetical code only repeats the words beside it, so it goes. A code
- * that is the only statement of where a bill stands becomes its words:
- * "at stage 40" -> 'at the "in committee" stage'. Only codes stageSemantics
+ * A parenthetical code right after its own words only repeats them, so it
+ * goes. Anywhere else it may be the only status a bill has — "- S. 55, the
+ * Farm Act (stage 40)" in a list — so it becomes its words: "(in committee)".
+ * A code outside brackets becomes its words too: "at stage 40" -> 'at the
+ * "in committee" stage'. Only codes stageSemantics
  * knows are touched, and only next to "stage" or "progress", so "Phase 2" or
  * "40 bills" are left alone.
  */
 const STAGE_PAREN = /\s*\((?:its |the )?(?:progress(?: stage)?|stage)(?: code)? (\d{2,3})\)/gi;
 const STAGE_PHRASE = /\b(the |a )?(?:progress stage|progress|stage)(?: code)? (\d{2,3})\b(?! ?%)/gi;
 
+/** How far before a bracketed code its words may sit and still count as "beside it". */
+const STAGE_WORDS_REACH = 60;
+
 export function stageCodesAsWords(text: string): string {
   return text
-    .replace(STAGE_PAREN, (full, code: string) =>
-      knownStageDescription(Number(code)) ? "" : full,
-    )
+    .replace(STAGE_PAREN, (full, code: string, offset: number, whole: string) => {
+      const words = knownStageDescription(Number(code));
+      if (!words) return full;
+      const before = whole.slice(Math.max(0, offset - STAGE_WORDS_REACH), offset).toLowerCase();
+      return before.includes(words) ? "" : ` (${words})`;
+    })
     .replace(STAGE_PHRASE, (full, _article: string | undefined, code: string) => {
       const words = knownStageDescription(Number(code));
       if (!words) return full;

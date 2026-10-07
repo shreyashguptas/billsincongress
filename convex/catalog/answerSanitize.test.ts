@@ -709,6 +709,14 @@ it("drops a stage code that only repeats the words beside it", () => {
   assert.equal(stageCodesAsWords("It became law (stage 100) in July."), "It became law in July.");
 });
 
+it("keeps a bracketed code's meaning when it is the only status", () => {
+  // Review on #178: in a list the bracket is often the bill's only status.
+  assert.equal(
+    stageCodesAsWords("- H.R. 1234, the Clean Water Act (stage 60)\n- S. 55, the Farm Act (progress stage 40)"),
+    "- H.R. 1234, the Clean Water Act (passed one chamber)\n- S. 55, the Farm Act (in committee)",
+  );
+});
+
 it("turns a stage code that is the only status into words", () => {
   assert.equal(
     stageCodesAsWords("They are currently at progress stage 40, so none has had a vote."),

@@ -53,7 +53,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "billType", type: "string", allowed: "'hr', 's', 'hjres', 'sjres', etc. ONE type only: 's' leaves out Senate joint resolutions (sjres), which also become law, so use chamber for a chamber.", example: "hr" },
       { name: "billNumber", type: "string", allowed: "Number within its type.", example: "1234" },
       { name: "sort", type: "string", allowed: "newest_action, oldest_action, newest_introduced, oldest_introduced. REQUIRED for any 'most recent' or 'first' question.", example: "newest_action" },
-      { name: "groupBy", type: "string", allowed: "policyArea, progressStage, sponsorState, sponsorParty, billType or chamber. Returns ONE ROW PER GROUP with its own count — use it for any 'how many in each' question instead of one fetch per category.", example: "policyArea" },
+      { name: "groupBy", type: "string", allowed: "policyArea, progressStage, sponsorState, sponsorParty, billType or chamber. Returns ONE ROW PER GROUP with its own count — use it for any 'how many in each' question instead of one fetch per category. A progressStage group also carries `stage`, its words: write those, never the code.", example: "policyArea" },
       { name: "introducedAfter", type: "string", allowed: "ISO date. Bills introduced on or after it.", example: "2026-01-01" },
       { name: "introducedBefore", type: "string", allowed: "ISO date. Bills introduced on or before it.", example: "2026-06-30" },
       { name: "actionAfter", type: "string", allowed: "ISO date. Last action on or after it.", example: "2026-08-01" },

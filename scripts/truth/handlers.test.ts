@@ -845,6 +845,11 @@ async function main() {
     assert.equal(r.rows[0].stage, words[r.rows[0].progressStage]);
     const laws = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 100 }, 5);
     for (const row of laws.rows) assert.equal(row.stage, "became law");
+    // "How many bills are at each stage?" gets words on every group too.
+    const grouped = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "progressStage" }, 0);
+    assert.ok(grouped.ok, `grouped fetch failed: ${grouped.error}`);
+    assert.ok(grouped.rows.length > 1, "sanity: several stage groups");
+    for (const row of grouped.rows) assert.equal(row.stage, words[Number(row.group)]);
   });
 
   await it("'the fewest bills in California' is answerable, and it is James Gallagher", async () => {
