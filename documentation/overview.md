@@ -380,7 +380,12 @@ answer prompt from PostHog (the last four rows).
 Tuned against the Congress.gov budget of 20,000 requests/hour: 750 ms between calls, batches
 of 50 bills, up to 3 retries with exponential backoff starting at 10 s on a 429, a circuit
 breaker after 5 consecutive failures with a 5-minute cooldown, and a live floor that pauses
-the batch when the API's remaining-quota header drops below 2,000.
+the batch when the API's remaining-quota header drops below 2,000. The one-off enrichment
+backfill (`backfillBillEnrichment`) pauses for 15 minutes at a floor of 3,000. The remaining
+quota is remembered between calls, and the backfill checks it before its first call, so each
+run starts by forgetting it: a run scheduled after a pause would otherwise
+read the low number that caused the pause and pause again, forever
+(`convex/enrichmentBackfill.spec.ts`).
 
 ### Progress stage — derived here, not supplied
 
