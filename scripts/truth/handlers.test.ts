@@ -826,6 +826,32 @@ async function main() {
     assert.equal(r.report.total, undefined);
   });
 
+  await it("a bill row says where it stands in words, not only as a code", async () => {
+    // Rows carried only progressStage: 40, and the model wrote "(progress stage
+    // 40)" to readers. The words are written out here by hand, not imported.
+    const words: Record<number, string> = {
+      20: "introduced",
+      40: "in committee",
+      60: "passed one chamber",
+      80: "passed both chambers",
+      85: "vetoed",
+      90: "sent to the president",
+      95: "signed by the president",
+      100: "became law",
+    };
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "25hr119" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.rows.length, 1);
+    assert.equal(r.rows[0].stage, words[r.rows[0].progressStage]);
+    const laws = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 100 }, 5);
+    for (const row of laws.rows) assert.equal(row.stage, "became law");
+    // "How many bills are at each stage?" gets words on every group too.
+    const grouped = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "progressStage" }, 0);
+    assert.ok(grouped.ok, `grouped fetch failed: ${grouped.error}`);
+    assert.ok(grouped.rows.length > 1, "sanity: several stage groups");
+    for (const row of grouped.rows) assert.equal(row.stage, words[Number(row.group)]);
+  });
+
   await it("'the fewest bills in California' is answerable, and it is James Gallagher", async () => {
     // The read was complete and the total exact, but the page was 50 of 54
     // ordered most-first, so the true minimum was never on it.

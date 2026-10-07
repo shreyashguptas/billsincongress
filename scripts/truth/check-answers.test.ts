@@ -15,7 +15,7 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { parseAskOutput, scoreRun, workingOut, worstOutcome } from "./check-answers";
+import { parseAskOutput, scoreRun, stageCode, workingOut, worstOutcome } from "./check-answers";
 import type { RunResult } from "./check-answers";
 import { QUESTIONS } from "./questions";
 import type { Expected } from "./questions";
@@ -102,6 +102,23 @@ it("does not call ordinary answers working-out", () => {
     "The user fees in the bill fund inspections.",
   ]) {
     assert.equal(workingOut(text), null, text);
+  }
+});
+
+it("scores a stage code shown to the reader as wrong", () => {
+  const expected: Expected = { kind: "boolean", value: true, note: "" };
+  for (const text of [
+    "Yes, it is currently in committee (progress stage 40).",
+    "Yes. It is currently at progress stage 40, meaning it is still in committee.",
+  ]) {
+    assert.equal(scoreRun(expected, { text }).outcome, "WRONG", text);
+  }
+  for (const text of [
+    "Yes, it is still in committee.",
+    "There are 40 bills in committee.",
+    "It funds stage 4 cancer research.",
+  ]) {
+    assert.equal(stageCode(text), null, text);
   }
 });
 

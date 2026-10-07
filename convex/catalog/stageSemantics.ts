@@ -103,6 +103,11 @@ const DESCRIPTIONS: Record<number, string> = {
   [BillStages.BECAME_LAW]: "became law",
 };
 
+/** The description of a stage code we know, or undefined for any other number. */
+export function knownStageDescription(stage: number): string | undefined {
+  return DESCRIPTIONS[stage];
+}
+
 /** Reader-facing description of a terminal stage, e.g. 40 -> "in committee". */
 export function stageDescription(stage: number): string {
   // Unknown codes name themselves rather than throwing or guessing a
