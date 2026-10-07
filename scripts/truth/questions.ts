@@ -418,6 +418,24 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
   {
+    id: "hr25-stage-in-words",
+    focusBillId: "25hr119",
+    question: "Where does it stand right now? Is it still in committee?" + YES_OR_NO,
+    defect:
+      "Answers in the week to 2026-10-07 told readers a bill was \"currently in committee " +
+      "(progress stage 40)\" and \"at progress stage 40, meaning they are still in " +
+      "committee\". The number is our internal code; any stage code in the answer scores " +
+      "WRONG (check-answers.ts).",
+    expect: (db) => {
+      const bill = db.bills.find((b) => b.billId === "25hr119");
+      return {
+        kind: "boolean",
+        value: bill?.progressStage === IN_COMMITTEE,
+        note: `H.R. 25 of the ${CURRENT_CONGRESS}th is at stage ${bill?.progressStage}.`,
+      };
+    },
+  },
+  {
     id: "eighteenth-still-in-committee",
     question:
       "Are any bills from the 118th Congress still sitting in committee, waiting " +

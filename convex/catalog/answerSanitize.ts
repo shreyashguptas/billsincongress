@@ -24,6 +24,7 @@
  *
  * Pure module (no Convex imports) so it carries unit tests.
  */
+import { knownStageDescription } from "./stageSemantics";
 
 export interface SanitizeResult {
   text: string;
@@ -665,8 +666,38 @@ export function plainCharacters(text: string): string {
   );
 }
 
+/**
+ * The internal stage code, written to a reader as if it meant something:
+ * "currently in committee (progress stage 40)", "currently at progress stage
+ * 40, meaning they are still in committee", "the 'passed both chambers' stage
+ * (progress 80)". Nine of 186 answers in the week to 2026-10-07 did this. The
+ * rows carry the words (`stage`), and the prompt lives in PostHog, so this is
+ * the backstop in code.
+ *
+ * A parenthetical code only repeats the words beside it, so it goes. A code
+ * that is the only statement of where a bill stands becomes its words:
+ * "at stage 40" -> 'at the "in committee" stage'. Only codes stageSemantics
+ * knows are touched, and only next to "stage" or "progress", so "Phase 2" or
+ * "40 bills" are left alone.
+ */
+const STAGE_PAREN = /\s*\((?:its |the )?(?:progress(?: stage)?|stage)(?: code)? (\d{2,3})\)/gi;
+const STAGE_PHRASE = /\b(the |a )?(?:progress stage|progress|stage)(?: code)? (\d{2,3})\b(?! ?%)/gi;
+
+export function stageCodesAsWords(text: string): string {
+  return text
+    .replace(STAGE_PAREN, (full, code: string) =>
+      knownStageDescription(Number(code)) ? "" : full,
+    )
+    .replace(STAGE_PHRASE, (full, _article: string | undefined, code: string) => {
+      const words = knownStageDescription(Number(code));
+      if (!words) return full;
+      const the = /^[A-Z]/.test(full) ? "The" : "the";
+      return `${the} "${words}" stage`;
+    });
+}
+
 export function sanitizeAnswer(text: string, question?: string): SanitizeResult {
-  const plain = plainCharacters(text);
+  const plain = stageCodesAsWords(plainCharacters(text));
   if (plain !== text) return sanitizeAnswer(plain, question);
   const tags = stripThinkingTags(text);
   if (tags.removed.length > 0) {

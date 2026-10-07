@@ -178,6 +178,20 @@ export function workingOut(text: string): string | null {
   return null;
 }
 
+/**
+ * The internal stage code written to the reader: "in committee (progress stage
+ * 40)", "at progress stage 40", "(progress 80)". Nine of 186 answers in the week
+ * to 2026-10-07. The code means nothing to a reader, so it scores WRONG however
+ * right the rest is. Written here by hand, not imported from convex/, so the
+ * harness does not agree with the sanitizer's bugs.
+ */
+const STAGE_CODE = /\b(?:progress stage|progress|stage)(?: code)? (?:20|40|60|80|85|90|95|100)\b(?! ?%)/i;
+
+/** The first stage code in an answer, or null when there is none. */
+export function stageCode(text: string): string | null {
+  return STAGE_CODE.exec(text)?.[0] ?? null;
+}
+
 export function scoreRun(expected: Expected, result: AskResult): RunResult {
   if (result.error) return { outcome: "UNCHECKABLE", got: result.error };
   if (result.askedReader) {
@@ -193,6 +207,8 @@ export function scoreRun(expected: Expected, result: AskResult): RunResult {
   // answer. Scored before the claim, so a correct figure cannot hide it.
   const leak = workingOut(text);
   if (leak) return { outcome: "WRONG", got: `showed its working-out: "${leak}…"`, said: flatten(text) };
+  const code = stageCode(text);
+  if (code) return { outcome: "WRONG", got: `showed a stage code: "${code}"`, said: flatten(text) };
 
   const scored = scoreText(expected, text);
   return scored.outcome === "CORRECT" ? scored : { ...scored, said: flatten(text) };

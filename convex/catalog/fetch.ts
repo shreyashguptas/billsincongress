@@ -39,7 +39,7 @@ import {
   type Subset,
   type RowOrder,
 } from "./completeness";
-import { milestoneStages } from "./stageSemantics";
+import { milestoneStages, stageDescription } from "./stageSemantics";
 import { congressWindow, isCongressClosed } from "./congressCalendar";
 import { canBecomeLaw, isBill, measureClass, measureNoun } from "./measureType";
 import type { MeasureClass } from "./measureType";
@@ -854,6 +854,9 @@ async function fetchBills(
         sponsorParty: b.sponsorParty ?? "",
         sponsorState: b.sponsorState ?? "",
         progressStage: b.progressStage ?? 20,
+        // The words for that code. Without them the model wrote the number to
+        // readers: "currently in committee (progress stage 40)".
+        stage: stageDescription(b.progressStage ?? 20),
         policyArea: b.policyAreaName ?? "",
         latestActionDate: b.latestActionDate ?? "",
         ...(reservedFor(b.title) ? { reservedFor: reservedFor(b.title) } : {}),

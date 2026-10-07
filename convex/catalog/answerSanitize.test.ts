@@ -14,6 +14,7 @@ import {
   dropQuestionEcho,
   isAllDeliberation,
   sanitizeAnswer,
+  stageCodesAsWords,
   stripThinkingTags,
 } from "./answerSanitize";
 
@@ -691,6 +692,53 @@ it("turns every handle in a list into a card, not only the first", () => {
 it("still finds thinking written with look-alike characters", () => {
   const raw = "Let me check the stage\u201140 count.\n\n72 laws started in the House.";
   assert.equal(sanitizeAnswer(raw).text, "72 laws started in the House.");
+});
+
+// --- stage codes in words -------------------------------------------------
+// Paraphrases of three answers from the week to 2026-10-07.
+
+it("drops a stage code that only repeats the words beside it", () => {
+  assert.equal(
+    stageCodesAsWords("H.R. 25 is currently in committee (progress stage 40)."),
+    "H.R. 25 is currently in committee.",
+  );
+  assert.equal(
+    stageCodesAsWords("Three bills reached the 'passed both chambers' stage (progress 80)."),
+    "Three bills reached the 'passed both chambers' stage.",
+  );
+  assert.equal(stageCodesAsWords("It became law (stage 100) in July."), "It became law in July.");
+});
+
+it("turns a stage code that is the only status into words", () => {
+  assert.equal(
+    stageCodesAsWords("They are currently at progress stage 40, so none has had a vote."),
+    'They are currently at the "in committee" stage, so none has had a vote.',
+  );
+  assert.equal(
+    stageCodesAsWords("Stage 60 means it passed one chamber."),
+    'The "passed one chamber" stage means it passed one chamber.',
+  );
+  assert.equal(
+    stageCodesAsWords("It sits at the stage 90 point."),
+    'It sits at the "sent to the president" stage point.',
+  );
+});
+
+it("leaves numbers that are not stage codes alone", () => {
+  for (const text of [
+    "Phase 2 of the program starts in 2027.",
+    "There are 40 bills in committee.",
+    "It funds stage 4 cancer research.",
+    "A stage 55 rocket test.",
+    "We made progress 3 times.",
+  ]) {
+    assert.equal(stageCodesAsWords(text), text);
+  }
+});
+
+it("sanitizeAnswer applies it", () => {
+  const r = sanitizeAnswer("S. 5311 is currently in committee (progress stage 40).");
+  assert.equal(r.text, "S. 5311 is currently in committee.");
 });
 
 if (failures.length > 0) {

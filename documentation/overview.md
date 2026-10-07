@@ -764,7 +764,8 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │                           `reason:` lines, `{"name":…}` JSON), counts as none
                  ├─ deliberation stripped → convex/catalog/answerSanitize.ts: look-alike hyphens,
                  │                          spaces and 【cite:…】 brackets (gpt-oss's habit) made
-                 │                          plain, <thinking>…</thinking> blocks and
+                 │                          plain, internal stage codes ("(progress stage 40)")
+                 │                          dropped or written as their words, <thinking>…</thinking> blocks and
                  │                          <response>/<answer> wrappers (Nova Lite's), leading
                  │                          narration, leaked field names, thinking mid-answer
                  │                          (a draft + "Actually… Let me state it." + the answer
