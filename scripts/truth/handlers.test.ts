@@ -826,6 +826,37 @@ async function main() {
     assert.equal(r.report.total, undefined);
   });
 
+  await it("a two-word title count is the bills holding BOTH words, not either", async () => {
+    // A reader asked about disabled veterans and was told "There are exactly 474
+    // measures in the 119th Congress with 'disabled veterans' in their titles".
+    // 474 was every title with "disabled" OR "veterans"; 13 hold both. Same for
+    // "voter id" (187 reported, 7 real) and "school lunch" (124). The expected count is
+    // derived here from the dump, by hand, with the /bills page's every-word,
+    // word-start rule.
+    // ("voter id" is left out: fakedb's search matches substrings, so "id" hits
+    // "provide" and "president" and fills the window, which real search does not.)
+    for (const query of ["disabled veterans", "school lunch"]) {
+      const words = query.split(" ");
+      // Each word must START a word of the title ("ai" is not in "Rail").
+      const startsWord = (title: string, w: string) =>
+        new RegExp(`(^|[^\\p{L}\\p{N}])${w}`, "u").test(title.toLowerCase());
+      const real = bills.filter(
+        (b: any) =>
+          b.congress === 119 && words.every((w) => startsWord(String(b.title ?? ""), w)),
+      ).length;
+      const either = bills.filter(
+        (b: any) =>
+          b.congress === 119 &&
+          words.some((w) => String(b.title ?? "").toLowerCase().includes(w)),
+      ).length;
+      assert.ok(real > 0 && either > real * 2, `sanity: '${query}' has an OR/AND gap`);
+      const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: query }, 0);
+      assert.ok(r.ok, `fetch failed: ${r.error}`);
+      assert.equal(r.report.complete, true, `'${query}' reads completely`);
+      assert.equal(r.report.total, real, `'${query}' must count titles holding every word`);
+    }
+  });
+
   await it("'the fewest bills in California' is answerable, and it is James Gallagher", async () => {
     // The read was complete and the total exact, but the page was 50 of 54
     // ordered most-first, so the true minimum was never on it.

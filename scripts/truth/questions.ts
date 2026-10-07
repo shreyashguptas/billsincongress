@@ -373,6 +373,30 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
 
+  {
+    id: "disabled-veterans-titles",
+    question:
+      `How many measures in the ${CURRENT_CONGRESS}th Congress have both "disabled" ` +
+      `and "veterans" in their title?` + ONE_NUMBER,
+    defect:
+      "On 2026-10-06 a reader was told \"There are exactly 474 measures in the 119th " +
+      "Congress with 'disabled veterans' in their titles\", and rated it right. 474 was " +
+      "every title with EITHER word; the title search never checked for both.",
+    expect: (db) => {
+      const n = count(billsIn(db, CURRENT_CONGRESS), (b) => {
+        const t = (b.title ?? "").toLowerCase();
+        return /(^|[^a-z0-9])disabled/.test(t) && /(^|[^a-z0-9])veterans/.test(t);
+      });
+      return {
+        kind: "number",
+        value: n,
+        note:
+          `Measures in the ${CURRENT_CONGRESS}th whose title has words starting "disabled" and ` +
+          `"veterans". 13 on 2026-10-07; anything in the hundreds is the either-word count.`,
+      };
+    },
+  },
+
   // --- Confident zeroes over a capped, in-memory-filtered window ------------
   {
     id: "health-laws",

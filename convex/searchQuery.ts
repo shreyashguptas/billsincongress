@@ -49,3 +49,49 @@ export function sanitizeSearchQuery(raw: string): string {
     .map((term) => truncateToBytes(term, SEARCH_MAX_TERM_BYTES))
     .join(" ");
 }
+
+/**
+ * The lowercase words of a reader's title query, or null when it has none.
+ * Split once per search and handed to `titleHasEveryWord` for each row.
+ *
+ * Punctuation at either end of a word goes, as Convex's tokenizer drops it:
+ * kept, a quoted '"disabled veterans"' looked for the literal '"disabled' and
+ * matched nothing, which the answer engine would report as an exact zero.
+ * Inner punctuation stays, so "covid-19" and "u.s" still match titles that have it.
+ */
+export function titleWords(query: string): string[] | null {
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
+    .filter((w) => w.length > 0);
+  return words.length > 0 ? words : null;
+}
+
+/**
+ * True when every word starts a word of the title, case-insensitively — so a
+ * half-typed "veter" still finds "veterans", but "ai" does not find "Rail" and
+ * "id" does not find "provide". That is how Convex's own search treats a term
+ * (whole tokens, with the last one as a prefix), so this never keeps a title
+ * the search itself would not have matched on that word.
+ *
+ * Convex full-text search matches ANY term, ranked by relevance, so a title
+ * search on its own is an OR: "disabled veterans" returns every bill with
+ * "disabled" or "veterans" in its title. Every caller must narrow it to an AND
+ * with this. The /bills page did; the answer engine's copy of the search did
+ * not, and told a reader there were "exactly 474" measures about disabled
+ * veterans when 13 titles contain both words. One helper, used by both, so the
+ * two searches cannot drift apart again.
+ */
+export function titleHasEveryWord(title: string, words: readonly string[]): boolean {
+  const hay = title.toLowerCase();
+  return words.every((w) => startsAWord(hay, w));
+}
+
+/** Whether `word` occurs in `hay` at the start of a word (not inside one). */
+function startsAWord(hay: string, word: string): boolean {
+  for (let at = hay.indexOf(word); at !== -1; at = hay.indexOf(word, at + 1)) {
+    if (at === 0 || !/[\p{L}\p{N}]/u.test(hay[at - 1])) return true;
+  }
+  return false;
+}
