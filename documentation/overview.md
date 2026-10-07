@@ -613,9 +613,9 @@ pnpm exec convex run --prod congressApi:backfillSponsorIdentity '{}'
 
 It makes one Congress.gov detail call per bill that has neither an id nor bit 4 of
 `extraSyncedBits` (`EXTRA_SPONSOR_IDENTITY`), about 57,000, at the enrichment backfill's pace. It
-leaves 3,000 of Congress.gov's 5,000 hourly calls for the regular syncs, pausing 15 minutes when
-the budget runs that low (each run reads the budget afresh, so a pause cannot repeat forever),
-so it takes about a day and continues itself. A bill whose call fails is retried on a further
+calls about once every half second, well inside Congress.gov's 20,000 an hour, and pauses 15
+minutes if fewer than 3,000 calls remain this hour (each run reads the budget afresh, so a pause cannot repeat forever),
+so it takes several hours and continues itself. A bill whose call fails is retried on a further
 pass; a pass that stores nothing ends it, and then it recounts `congressSponsors`. If it is ever
 cut off, the same command picks up where it stopped. Until then the counts are as before (each
 nightly recount moves members onto their ids as their bills are done), and four cases in
