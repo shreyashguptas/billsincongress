@@ -63,8 +63,11 @@ export function titleWords(query: string): string[] | null {
 }
 
 /**
- * True when every word appears in the title, case-insensitively, as a
- * substring (so a half-typed "veter" still finds "veterans").
+ * True when every word starts a word of the title, case-insensitively — so a
+ * half-typed "veter" still finds "veterans", but "ai" does not find "Rail" and
+ * "id" does not find "provide". That is how Convex's own search treats a term
+ * (whole tokens, with the last one as a prefix), so this never keeps a title
+ * the search itself would not have matched on that word.
  *
  * Convex full-text search matches ANY term, ranked by relevance, so a title
  * search on its own is an OR: "disabled veterans" returns every bill with
@@ -76,8 +79,13 @@ export function titleWords(query: string): string[] | null {
  */
 export function titleHasEveryWord(title: string, words: readonly string[]): boolean {
   const hay = title.toLowerCase();
-  for (const w of words) {
-    if (!hay.includes(w)) return false;
+  return words.every((w) => startsAWord(hay, w));
+}
+
+/** Whether `word` occurs in `hay` at the start of a word (not inside one). */
+function startsAWord(hay: string, word: string): boolean {
+  for (let at = hay.indexOf(word); at !== -1; at = hay.indexOf(word, at + 1)) {
+    if (at === 0 || !/[\p{L}\p{N}]/u.test(hay[at - 1])) return true;
   }
-  return true;
+  return false;
 }

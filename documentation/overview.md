@@ -558,7 +558,8 @@ Search matches **titles only** (the only search index is `search_title`), plus a
 exact bill-number lookup path. A query longer than the index allows is trimmed to fit
 (degrading into a looser search) rather than throwing. Convex text search matches *any* word, ranked by
 relevance, so every caller narrows it to titles holding **every** word with
-`titleHasEveryWord` (`convex/searchQuery.ts`). The `/bills` page and the answer engine's
+`titleHasEveryWord` (`convex/searchQuery.ts`). A word must start a word of the title
+("veter" finds "veterans"; "ai" does not find "rail", nor "id" "provide"). The `/bills` page and the answer engine's
 `bills` dataset share that one helper; before they did, the assistant counted titles with
 either word and reported "exactly 474" measures about disabled veterans when 13 titles
 hold both. When a search hits the 1,024 ceiling

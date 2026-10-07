@@ -831,15 +831,18 @@ async function main() {
     // measures in the 119th Congress with 'disabled veterans' in their titles".
     // 474 was every title with "disabled" OR "veterans"; 13 hold both. Same for
     // "voter id" (187 reported, 7 real) and "school lunch" (124). The expected count is
-    // derived here from the dump, by hand, with the /bills page's every-word rule.
+    // derived here from the dump, by hand, with the /bills page's every-word,
+    // word-start rule.
     // ("voter id" is left out: fakedb's search matches substrings, so "id" hits
     // "provide" and "president" and fills the window, which real search does not.)
     for (const query of ["disabled veterans", "school lunch"]) {
       const words = query.split(" ");
+      // Each word must START a word of the title ("ai" is not in "Rail").
+      const startsWord = (title: string, w: string) =>
+        new RegExp(`(^|[^\\p{L}\\p{N}])${w}`, "u").test(title.toLowerCase());
       const real = bills.filter(
         (b: any) =>
-          b.congress === 119 &&
-          words.every((w) => String(b.title ?? "").toLowerCase().includes(w)),
+          b.congress === 119 && words.every((w) => startsWord(String(b.title ?? ""), w)),
       ).length;
       const either = bills.filter(
         (b: any) =>

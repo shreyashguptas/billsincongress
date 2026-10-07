@@ -385,13 +385,13 @@ export const QUESTIONS: TruthQuestion[] = [
     expect: (db) => {
       const n = count(billsIn(db, CURRENT_CONGRESS), (b) => {
         const t = (b.title ?? "").toLowerCase();
-        return t.includes("disabled") && t.includes("veterans");
+        return /(^|[^a-z0-9])disabled/.test(t) && /(^|[^a-z0-9])veterans/.test(t);
       });
       return {
         kind: "number",
         value: n,
         note:
-          `Measures in the ${CURRENT_CONGRESS}th whose title contains both "disabled" and ` +
+          `Measures in the ${CURRENT_CONGRESS}th whose title has words starting "disabled" and ` +
           `"veterans". 13 on 2026-10-07; anything in the hundreds is the either-word count.`,
       };
     },
