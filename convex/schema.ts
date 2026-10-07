@@ -125,7 +125,7 @@ export default defineSchema({
     sponsorLastName: v.optional(v.string()),
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
-    progressStage: v.optional(v.number()), // 20, 40, 60, 80, 85 (vetoed), 90, 95, 100
+    progressStage: v.optional(v.number()), // 20, 40, 50 (out of committee), 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
     // The day the bill reached its current stage: when it became law, was
