@@ -13,6 +13,8 @@
 import assert from "node:assert/strict";
 import {
   sanitizeSearchQuery,
+  titleHasEveryWord,
+  titleWords,
   truncateToBytes,
   SEARCH_MAX_TERMS,
   SEARCH_MAX_TERM_BYTES,
@@ -151,6 +153,29 @@ it("applies the term ceiling and the byte ceiling together", () => {
   for (const term of terms) {
     assert.equal(byteLength(term), SEARCH_MAX_TERM_BYTES);
   }
+});
+
+// --- every word, not any word ---------------------------------------------
+
+it("splits a query into lowercase words, or null when there are none", () => {
+  assert.deepEqual(titleWords("  Disabled   Veterans "), ["disabled", "veterans"]);
+  assert.equal(titleWords("   "), null);
+  assert.equal(titleWords(""), null);
+});
+
+it("requires every word, not any word", () => {
+  // The answer engine counted titles with EITHER word and told a reader there
+  // were "exactly 474" measures about disabled veterans; 13 titles hold both.
+  const words = titleWords("disabled veterans")!;
+  assert.equal(titleHasEveryWord("Disabled Veterans Housing Support Act", words), true);
+  assert.equal(titleHasEveryWord("Veterans Health Care Act", words), false);
+  assert.equal(titleHasEveryWord("Disabled Access Credit Expansion Act", words), false);
+});
+
+it("ignores case and word order, and matches a half-typed word", () => {
+  const title = "To expand housing for veterans who are disabled";
+  assert.equal(titleHasEveryWord(title, titleWords("DISABLED veterans")!), true);
+  assert.equal(titleHasEveryWord(title, titleWords("veter disab")!), true);
 });
 
 if (failures.length > 0) {

@@ -29,7 +29,12 @@ import type { Doc } from "../_generated/dataModel";
 import { isDatasetName } from "./datasets";
 import { validateFilters } from "./filters";
 import { mintHandle } from "./cite";
-import { SEARCH_LIMIT, sanitizeSearchQuery } from "../searchQuery";
+import {
+  SEARCH_LIMIT,
+  sanitizeSearchQuery,
+  titleHasEveryWord,
+  titleWords,
+} from "../searchQuery";
 import type { DatasetName } from "./types";
 import { NO_PARTY, chooseBillsIndex, countInMemoryFilters } from "./billsIndex";
 import {
@@ -729,9 +734,17 @@ async function fetchBills(
     f.measure === "bill" ? isBill(billType) : f.measure === "law_capable" ? canBecomeLaw(billType) : true;
   const reachedSet =
     typeof f.reachedStage === "number" ? new Set(milestoneStages(f.reachedStage)) : null;
+  // Convex text search is an OR over the words; narrow it to bills whose title
+  // holds EVERY word, as the /bills page does. Without this, "disabled veterans"
+  // counted every title with either word and reported "exactly 474" against a
+  // truth of 13. Relevance ranking puts every-word matches first, so they survive
+  // the 1,024-result window; when the window fills, `windowFilled` still withholds
+  // the total.
+  const wantedWords = typeof f.titleFilter === "string" ? titleWords(f.titleFilter) : null;
 
   const matched = candidates.filter((b) => {
     if (typeof f.billId === "string" && b.billId !== f.billId) return false;
+    if (wantedWords && !titleHasEveryWord(b.title, wantedWords)) return false;
     // A no-op for every other branch, where the index already pinned the
     // Congress. It matters only for the billId branch, which does not — so a
     // {billId, congress} pair that disagrees returns nothing rather than

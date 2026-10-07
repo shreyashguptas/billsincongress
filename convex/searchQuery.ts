@@ -49,3 +49,35 @@ export function sanitizeSearchQuery(raw: string): string {
     .map((term) => truncateToBytes(term, SEARCH_MAX_TERM_BYTES))
     .join(" ");
 }
+
+/**
+ * The lowercase words of a reader's title query, or null when it has none.
+ * Split once per search and handed to `titleHasEveryWord` for each row.
+ */
+export function titleWords(query: string): string[] | null {
+  const words = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+  return words.length > 0 ? words : null;
+}
+
+/**
+ * True when every word appears in the title, case-insensitively, as a
+ * substring (so a half-typed "veter" still finds "veterans").
+ *
+ * Convex full-text search matches ANY term, ranked by relevance, so a title
+ * search on its own is an OR: "disabled veterans" returns every bill with
+ * "disabled" or "veterans" in its title. Every caller must narrow it to an AND
+ * with this. The /bills page did; the answer engine's copy of the search did
+ * not, and told a reader there were "exactly 474" measures about disabled
+ * veterans when 13 titles contain both words. One helper, used by both, so the
+ * two searches cannot drift apart again.
+ */
+export function titleHasEveryWord(title: string, words: readonly string[]): boolean {
+  const hay = title.toLowerCase();
+  for (const w of words) {
+    if (!hay.includes(w)) return false;
+  }
+  return true;
+}

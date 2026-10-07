@@ -40,7 +40,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
     filters: [
       { name: "billId", type: "string", allowed: "One exact bill, by id. The fastest way to fetch a named bill.", example: "1234hr119" },
       { name: "congress", type: "number", allowed: "A Congress number. Defaults to the current one, so SET IT EXPLICITLY when the reader asks about an earlier Congress.", example: "119" },
-      { name: "titleFilter", type: "string", allowed: "Relevance search over the TITLE. Matches bills containing ANY of your words, not all.", example: "veterans housing" },
+      { name: "titleFilter", type: "string", allowed: "Search over the TITLE. Matches bills whose title contains EVERY one of your words (in any order), the same as the /bills search box. Each extra word narrows the set.", example: "veterans housing" },
       { name: "policyArea", type: "string", allowed: "Use the `topics` dataset to find exact names.", example: "Health" },
       { name: "progressStage", type: "number", allowed: "Where the bill ENDED UP: 20, 40, 60, 80, 85, 90, 95 or 100. Mutually exclusive buckets.", example: "40" },
       { name: "reachedStage", type: "number", allowed: "Got AT LEAST this far, including everything that went further. The one for milestone questions.", example: "60" },
@@ -74,7 +74,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "'Started in the House' means the CHAMBER it originated in, which is four measure types, not one. Use chamber 'house' or 'senate'. Filtering billType 'hr' answers a narrower question and undercounts: of the 119th's 64 House-originated laws, 45 are H.R. and the rest are House joint resolutions.",
       "A BILL is H.R. or S. A resolution is not a bill. 'How many Senate bills passed the Senate' is chamber 'senate' with measure 'bill', never chamber alone: chamber alone counts every Senate resolution too, and answered 706 when the bills were 213 (the other 493 were resolutions). When a result mixes kinds it carries exact_subsets splitting the total by kind; if the reader said 'bills', give the bills part, not the total.",
       "progressStage is where a bill STOPPED. It is not cumulative. A bill that became law is at 100 and is NOT counted in the 60 bucket, so counting stage 60 to answer 'how many passed a chamber' omits everything that went further. Use reachedStage for milestone questions and progressStage for 'where is it now' questions.",
-      "titleFilter matches ANY of your words, not all of them, and searches TITLES ONLY — never the text of the bill. Two words will return roughly the union of both, so a count from it is inflated. Prefer policyArea for subject questions.",
+      "titleFilter matches titles containing EVERY one of your words, in any order, and searches TITLES ONLY — never the text of the bill. A title that words the subject differently ('veteran' vs 'servicemember') is not counted, so say 'with ... in the title', not 'about ...'. Prefer policyArea for subject questions.",
     ],
     notCovered: [
       "Vote tallies and roll-call results",
