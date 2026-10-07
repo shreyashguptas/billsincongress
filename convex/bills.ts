@@ -20,7 +20,14 @@ import {
   takeFirst,
   type HubOrder,
 } from "./hubOrder";
-import { candidateSurnames, mergeSponsorRows, nameKey } from "./catalog/sponsorName";
+import {
+  billMatchesRequest,
+  candidateSurnames,
+  mergeSponsorRows,
+  nameKey,
+  resolveSponsorRequest,
+} from "./catalog/sponsorName";
+import type { SponsorRequest } from "./catalog/sponsorName";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -427,6 +434,7 @@ async function resolveCongress(
  */
 function buildBillPredicate(
   args: BillsFilterArgs,
+  sponsors?: SponsorRequest | null,
 ): (bill: Doc<"bills">) => boolean {
   // Every word must appear in the title, narrowing the `search_title` index's
   // relevance-ranked OR into an AND: Convex text search matches *any* term, so
@@ -466,7 +474,11 @@ function buildBillPredicate(
         if (!title.includes(w)) return false;
       }
     }
-    if (wantedSponsors) {
+    if (sponsors) {
+      // Resolved against the member rows: any spelling of the member, and their
+      // id where the bill carries one (see resolveSponsorRequest).
+      if (!billMatchesRequest(bill, sponsors)) return false;
+    } else if (wantedSponsors) {
       const fullName = normaliseName(
         `${bill.sponsorFirstName ?? ""} ${bill.sponsorLastName ?? ""}`,
       );
@@ -630,6 +642,38 @@ function surnameSpellings(surname: string): string[] {
 }
 
 /**
+ * Who a sponsor filter means in one Congress: every spelling and id of the
+ * members it names (resolveSponsorRequest). "Jacky Rosen" then reaches the 7 of
+ * her 80 bills in the 119th that are spelled "Jacklyn Rosen". A name this
+ * Congress never uses (the picker's one name for a member across Congresses) is
+ * found here through the member's id in the other Congresses.
+ */
+async function sponsorRequestFor(
+  ctx: QueryCtx,
+  congress: number,
+  names: string[] | undefined,
+): Promise<SponsorRequest<Doc<"congressSponsors">> | null> {
+  if (!names || names.length === 0) return null;
+  const rows = await ctx.db
+    .query("congressSponsors")
+    .withIndex("by_congress", (q) => q.eq("congress", congress))
+    .take(10000);
+  const request = resolveSponsorRequest(rows, names);
+  const covered = names.every((name) =>
+    request.rows.some((row) =>
+      [row.sponsorName, ...(row.spellings ?? [])].some((n) => normaliseName(n) === normaliseName(name)),
+    ),
+  );
+  if (covered) return request;
+  const everywhere = await ctx.db.query("congressSponsors").take(10000);
+  return resolveSponsorRequest(
+    rows,
+    names,
+    everywhere.filter((row) => row.congress !== congress),
+  );
+}
+
+/**
  * Every bill in one congress whose sponsor surname could belong to one of
  * `names`, newest first. The caller's predicate then keeps only exact
  * full-name matches.
@@ -645,19 +689,13 @@ async function billsBySponsorSurname(
   ctx: QueryCtx,
   congress: number,
   names: string[],
+  request: SponsorRequest | null,
 ): Promise<{ bills: Doc<"bills">[]; complete: boolean }> {
   // The index is case-sensitive, so a hand-typed "michael mccaul" never reaches
-  // the stored "McCaul" by guessing spellings. Add the stored spelling of every
-  // member whose name matches case-insensitively; the guesses stay as a
-  // fallback for when the congressSponsors precompute has not run.
-  const wanted = new Set(names.map(normaliseName));
-  const sponsors = await ctx.db
-    .query("congressSponsors")
-    .withIndex("by_congress", (q) => q.eq("congress", congress))
-    .take(10000);
-  const storedNames = sponsors
-    .map((row) => row.sponsorName)
-    .filter((name) => wanted.has(normaliseName(name)));
+  // the stored "McCaul" by guessing spellings. Read every stored spelling of the
+  // members the filter names; the guesses stay as a fallback for when the
+  // congressSponsors precompute has not run.
+  const storedNames = request?.spellings ?? [];
   const spellings = new Set([
     ...storedNames.flatMap(candidateSurnames),
     ...names.flatMap((name) => candidateSurnames(name).flatMap(surnameSpellings)),
@@ -713,7 +751,8 @@ export const list = query({
     if (congressFilter === null) return { data: [], hasMore: false, truncated: false };
 
     const searchQuery = args.titleFilter?.trim() || null;
-    const match = buildBillPredicate(args);
+    const sponsors = await sponsorRequestFor(ctx, congressFilter, args.sponsorFilter);
+    const match = buildBillPredicate(args, sponsors);
 
     // Fast path: a text query goes through the search index, which reaches the
     // whole Congress instead of stopping at the scan cap below.
@@ -757,6 +796,7 @@ export const list = query({
         ctx,
         congressFilter,
         args.sponsorFilter,
+        sponsors,
       );
       const filtered = bills.filter(match);
       if (!complete) {
@@ -1075,7 +1115,7 @@ export const listCount = query({
         args,
         congressFilter,
         searchQuery,
-        buildBillPredicate(args),
+        buildBillPredicate(args, await sponsorRequestFor(ctx, congressFilter, args.sponsorFilter)),
       );
       return { count: matches.length, exact: !capped };
     }
@@ -1154,17 +1194,15 @@ export const listCount = query({
       args.sponsorFilter &&
       args.sponsorFilter.length > 0
     ) {
-      const wanted = new Set(args.sponsorFilter.map(normaliseName));
-      const rows = await ctx.db
+      const hasRows = await ctx.db
         .query("congressSponsors")
         .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-        .take(10000);
-      if (rows.length === 0) return unknownCount();
-      const count = rows.reduce((total, row) => {
-        return wanted.has(normaliseName(row.sponsorName))
-          ? total + row.billCount
-          : total;
-      }, 0);
+        .first();
+      if (!hasRows) return unknownCount();
+      // The members the list resolves, counted from their rows: any spelling
+      // their bills carry, and their id across Congresses (sponsorRequestFor).
+      const request = await sponsorRequestFor(ctx, congressFilter, args.sponsorFilter);
+      const count = (request?.rows ?? []).reduce((total, row) => total + row.billCount, 0);
       return { count, exact: true };
     }
 

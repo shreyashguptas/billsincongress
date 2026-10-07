@@ -22,6 +22,7 @@ export {
   EXTRA_LEGISLATIVE_SUBJECTS,
   EXTRA_TEXT_VERSIONS,
   EXTRA_COMPLETE,
+  EXTRA_SPONSOR_IDENTITY,
   getMissingEndpoints,
 } from "./syncStatus";
 

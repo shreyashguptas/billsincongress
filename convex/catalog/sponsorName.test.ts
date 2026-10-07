@@ -17,12 +17,16 @@
  */
 import assert from "node:assert/strict";
 import {
+  billMatchesRequest,
+  buildSponsorRows,
   candidateSurnames,
   fullNameKey,
   matchesFullName,
   mergeSponsorRows,
+  resolveSponsorRequest,
   resolveSurname,
 } from "./sponsorName";
+import type { SponsorBill } from "./sponsorName";
 
 /** Real sponsorLastName values, spelled exactly as stored. */
 const KNOWN = [
@@ -226,6 +230,168 @@ it("keeps a party switcher as one member with the latest party, and same-name me
     { sponsorName: "MIKE ROGERS", sponsorParty: "R", sponsorState: "MI", billCount: 7 },
   ]);
   assert.equal(rogers.length, 2);
+});
+
+// --- One row per member, by Congress.gov id --------------------------------
+
+const bill = (first: string, last: string, extra: Partial<SponsorBill> = {}): SponsorBill => ({
+  billType: "s",
+  introducedDate: "2025-03-01",
+  sponsorFirstName: first,
+  sponsorLastName: last,
+  sponsorParty: "D",
+  sponsorState: "NV",
+  ...extra,
+});
+const many = (n: number, b: SponsorBill) => Array.from({ length: n }, () => ({ ...b }));
+
+it("counts a member once whatever spelling their bills carry", () => {
+  // The 119th: "Jacky Rosen" on 73 bills, "Jacklyn Rosen" on 7. The site said 73.
+  const rows = buildSponsorRows([
+    ...many(73, bill("Jacky", "Rosen", { sponsorBioguideId: "R000608" })),
+    ...many(7, bill("Jacklyn", "Rosen", { sponsorBioguideId: "R000608", introducedDate: "2025-01-10" })),
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].sponsorName, "Jacky Rosen");
+  assert.equal(rows[0].billCount, 80);
+  assert.deepEqual(rows[0].spellings, ["Jacklyn Rosen", "Jacky Rosen"]);
+  assert.equal(rows[0].sponsorBioguideId, "R000608");
+});
+
+it("keeps two members who share a name apart, and says which chamber each sits in", () => {
+  // The 118th: the Senator and his son the Representative were one "Robert Menendez", 89 bills.
+  const rows = buildSponsorRows([
+    ...many(75, bill("Robert", "Menendez", { sponsorBioguideId: "M000639", sponsorState: "NJ" })),
+    ...many(14, bill("Robert", "Menendez", { sponsorBioguideId: "M001226", sponsorState: "NJ", billType: "hr" })),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.sponsorName, r.billCount]),
+    [["Robert Menendez (Senate)", 75], ["Robert Menendez (House)", 14]],
+  );
+});
+
+it("puts a bill stored before ids were under the member its name and state belong to", () => {
+  const rows = buildSponsorRows([
+    ...many(5, bill("Jacky", "Rosen", { sponsorBioguideId: "R000608" })),
+    ...many(2, bill("Jacky", "Rosen")),
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].billCount, 7);
+});
+
+// Part-way through the id backfill, the Menendezes' id-less bills used to make a
+// third "Robert Menendez" row; the bill's chamber says whose each one is.
+it("tells two members who share a name and state apart by the bill's chamber", () => {
+  const rows = buildSponsorRows([
+    bill("Robert", "Menendez", { sponsorBioguideId: "M000639", sponsorState: "NJ" }),
+    bill("Robert", "Menendez", { sponsorBioguideId: "M001226", sponsorState: "NJ", billType: "hr" }),
+    ...many(3, bill("Robert", "Menendez", { sponsorState: "NJ" })),
+    ...many(2, bill("Robert", "Menendez", { sponsorState: "NJ", billType: "hres" })),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.sponsorName, r.billCount, r.sponsorBioguideId]),
+    [["Robert Menendez (Senate)", 4, "M000639"], ["Robert Menendez (House)", 3, "M001226"]],
+  );
+});
+
+it("does not guess which member an id-less bill is when two share its name, state and chamber", () => {
+  const rows = buildSponsorRows([
+    bill("Pat", "Doe", { sponsorBioguideId: "D000001", sponsorState: "NJ", billType: "hr" }),
+    bill("Pat", "Doe", { sponsorBioguideId: "D000002", sponsorState: "NJ", billType: "hr" }),
+    bill("Pat", "Doe", { sponsorState: "NJ", billType: "hr" }),
+  ]);
+  assert.equal(rows.reduce((n, r) => n + r.billCount, 0), 3);
+  assert.equal(rows.filter((r) => !r.sponsorBioguideId).length, 1);
+});
+
+it("shows a mixed-case spelling, then the commoner one, then the newer one", () => {
+  const [franklin] = buildSponsorRows([
+    ...many(11, bill("C.", "Franklin", { sponsorBioguideId: "F000472", introducedDate: "2023-03-01" })),
+    ...many(11, bill("Scott", "Franklin", { sponsorBioguideId: "F000472", introducedDate: "2024-06-01" })),
+  ]);
+  assert.equal(franklin.sponsorName, "Scott Franklin");
+  const [delauro] = buildSponsorRows([
+    ...many(30, bill("ROSA", "DELAURO", { sponsorBioguideId: "D000216" })),
+    ...many(2, bill("Rosa", "DeLauro", { sponsorBioguideId: "D000216" })),
+  ]);
+  assert.equal(delauro.sponsorName, "Rosa DeLauro");
+});
+
+it("shows the accented spelling when Congress.gov dropped the accents on more bills", () => {
+  const [nydia] = buildSponsorRows([
+    ...many(28, bill("Nydia", "Velazquez", { sponsorBioguideId: "V000081", sponsorState: "NY" })),
+    ...many(22, bill("Nydia", "Velázquez", { sponsorBioguideId: "V000081", sponsorState: "NY" })),
+  ]);
+  assert.equal(nydia.sponsorName, "Nydia Velázquez");
+  const [merged] = mergeSponsorRows([
+    { sponsorName: "Nydia Velazquez", sponsorState: "NY", billCount: 28 },
+    { sponsorName: "Nydia Velázquez", sponsorState: "NY", billCount: 22 },
+  ]);
+  assert.equal(merged.sponsorName, "Nydia Velázquez");
+});
+
+it("takes party and state from the member's latest bill", () => {
+  const [kiley] = buildSponsorRows([
+    bill("Kevin", "Kiley", { sponsorBioguideId: "K000401", sponsorParty: "R", sponsorState: "CA", introducedDate: "2025-02-01" }),
+    bill("Kevin", "Kiley", { sponsorBioguideId: "K000401", sponsorParty: "I", sponsorState: "CA", introducedDate: "2026-07-01" }),
+  ]);
+  assert.equal(kiley.sponsorParty, "I");
+});
+
+it("a filter by any spelling reaches every bill of that member, and only theirs", () => {
+  const bills = [
+    ...many(73, bill("Jacky", "Rosen", { sponsorBioguideId: "R000608" })),
+    ...many(7, bill("Jacklyn", "Rosen", { sponsorBioguideId: "R000608" })),
+    ...many(4, bill("Jacky", "Rosen", { sponsorBioguideId: "X000001", sponsorState: "TX" })),
+  ];
+  const rows = buildSponsorRows(bills);
+  for (const name of ["Jacky Rosen", "jacklyn rosen"]) {
+    const req = resolveSponsorRequest(rows, [name]);
+    // Two members named Jacky Rosen, NV and TX: the name names both.
+    assert.equal(bills.filter((b) => billMatchesRequest(b, req)).length, name === "Jacky Rosen" ? 84 : 80, name);
+  }
+});
+
+it("an id tells a filter's members apart; a bill without one falls back to its name", () => {
+  const rows = buildSponsorRows([
+    ...many(3, bill("Robert", "Menendez", { sponsorBioguideId: "M000639", sponsorState: "NJ" })),
+    ...many(2, bill("Robert", "Menendez", { sponsorBioguideId: "M001226", sponsorState: "NJ", billType: "hr" })),
+  ]);
+  const senate = resolveSponsorRequest(rows, ["Robert Menendez (Senate)"]);
+  assert.equal(billMatchesRequest(bill("Robert", "Menendez", { sponsorBioguideId: "M000639" }), senate), true);
+  assert.equal(billMatchesRequest(bill("Robert", "Menendez", { sponsorBioguideId: "M001226" }), senate), false);
+  assert.equal(billMatchesRequest(bill("Robert", "Menendez"), senate), true, "no id: matched by name");
+});
+
+it("rows without ids resolve exactly as names did before", () => {
+  const req = resolveSponsorRequest([{ sponsorName: "Adam Schiff" }, { sponsorName: "ADAM SCHIFF" }], ["Adam Schiff"]);
+  assert.equal(req.bioguides.size, 0);
+  assert.equal(billMatchesRequest(bill("ADAM", "SCHIFF"), req), true);
+  assert.equal(billMatchesRequest(bill("Adam", "Smith"), req), false);
+});
+
+it("a name only another Congress uses reaches the member here through their id", () => {
+  // Review on #173: the picker lists Jacky Rosen once, as "Jacky Rosen", but
+  // every one of her 117th-Congress bills says "Jacklyn". Filtering the 117th by
+  // the picker's name returned an exact zero.
+  const here = [{ sponsorName: "Jacklyn Rosen", sponsorBioguideId: "R000608", spellings: ["Jacklyn Rosen"], billCount: 74 }];
+  const elsewhere = [{ sponsorName: "Jacky Rosen", sponsorBioguideId: "R000608", spellings: ["Jacklyn Rosen", "Jacky Rosen"] }];
+  const alone = resolveSponsorRequest(here, ["Jacky Rosen"]);
+  assert.equal(alone.rows.length, 0, "this Congress alone does not know the name");
+  const req = resolveSponsorRequest(here, ["Jacky Rosen"], elsewhere);
+  assert.equal(req.rows.length, 1);
+  assert.equal(billMatchesRequest(bill("Jacklyn", "Rosen", { sponsorBioguideId: "R000608" }), req), true);
+  assert.equal(billMatchesRequest(bill("Jacklyn", "Rosen"), req), true, "no id: matched by the spelling found");
+});
+
+it("merges rows across Congresses by id even when they are spelled differently", () => {
+  const merged = mergeSponsorRows([
+    { sponsorName: "Jacklyn Rosen", sponsorState: "NV", billCount: 74, sponsorBioguideId: "R000608", congress: 117 },
+    { sponsorName: "Jacky Rosen", sponsorState: "NV", billCount: 80, sponsorBioguideId: "R000608", congress: 119 },
+  ]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].billCount, 154);
+  assert.equal(merged[0].sponsorName, "Jacky Rosen");
 });
 
 if (failures.length > 0) {

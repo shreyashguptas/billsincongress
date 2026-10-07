@@ -121,6 +121,11 @@ export default defineSchema({
     sponsorLastName: v.optional(v.string()),
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
+    // Congress.gov's permanent member id ("R000608"). The only way to count a
+    // member once when their bills spell them two ways ("Jacky" and "Jacklyn"
+    // Rosen), and twice when two members share a name (the Menendezes in the
+    // 118th). See convex/sponsorIdentity.ts. Absent on rows not yet backfilled.
+    sponsorBioguideId: v.optional(v.string()),
     progressStage: v.optional(v.number()), // 20, 40, 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
@@ -374,6 +379,12 @@ export default defineSchema({
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
     billCount: v.number(),
+    // One row per MEMBER since sponsor ids are stored (buildSponsorRows): the
+    // id, and every "First Last" spelling their bills carry, so a filter by
+    // either "Jacky Rosen" or "Jacklyn Rosen" reaches all of her bills. Both
+    // absent on rows counted from bills without ids.
+    sponsorBioguideId: v.optional(v.string()),
+    spellings: v.optional(v.array(v.string())),
   })
     .index("by_congress", ["congress"])
     .index("by_congress_and_count", ["congress", "billCount"])
