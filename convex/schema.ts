@@ -324,6 +324,14 @@ export default defineSchema({
     typeCounts: v.optional(
       v.array(v.object({ billType: v.string(), count: v.number() })),
     ),
+    // Simple and concurrent resolutions per stage. A simple resolution is
+    // finished once its one chamber agrees to it (stage 60), a concurrent one
+    // once both do (80); neither ever goes to the President. The home page
+    // counted 633 adopted resolutions in the 119th's "Passed one chamber" as if
+    // they were half-way to law. Optional: rows written before it carry none.
+    resolutionStageCounts: v.optional(
+      v.array(v.object({ stage: v.number(), simple: v.number(), concurrent: v.number() })),
+    ),
     updatedAt: v.string(),
   }).index("by_congress", ["congress"]),
 

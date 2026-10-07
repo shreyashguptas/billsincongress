@@ -358,6 +358,9 @@ export const writeCongressStats = internalMutation({
     typeCounts: v.optional(
       v.array(v.object({ billType: v.string(), count: v.number() })),
     ),
+    resolutionStageCounts: v.optional(
+      v.array(v.object({ stage: v.number(), simple: v.number(), concurrent: v.number() })),
+    ),
   },
   handler: async (ctx, args) => {
     const stats = {
@@ -367,6 +370,7 @@ export const writeCongressStats = internalMutation({
       senateCount: args.senateCount,
       stageCounts: args.stageCounts,
       typeCounts: args.typeCounts,
+      resolutionStageCounts: args.resolutionStageCounts,
       updatedAt: new Date().toISOString(),
     };
 
@@ -409,6 +413,8 @@ export const recomputeCongressStats = internalAction({
     // past any scan ceiling, so counting hr and s directly comes back
     // incomplete, and the only number on hand counted resolutions as bills.
     const typeCounts = new Map<string, number>();
+    // Simple and concurrent resolutions per stage (see schema.ts).
+    const resolutionStages = new Map<number, { simple: number; concurrent: number }>();
 
     for (;;) {
       const page: StatsBillPageResult = await ctx.runQuery(
@@ -421,6 +427,14 @@ export const recomputeCongressStats = internalAction({
         if (bill.billType.startsWith("h")) houseCount += 1;
         if (bill.billType.startsWith("s")) senateCount += 1;
         typeCounts.set(bill.billType, (typeCounts.get(bill.billType) ?? 0) + 1);
+        const simple = bill.billType === "hres" || bill.billType === "sres";
+        const concurrent = bill.billType === "hconres" || bill.billType === "sconres";
+        if ((simple || concurrent) && bill.progressStage !== undefined) {
+          const held = resolutionStages.get(bill.progressStage) ?? { simple: 0, concurrent: 0 };
+          if (simple) held.simple += 1;
+          else held.concurrent += 1;
+          resolutionStages.set(bill.progressStage, held);
+        }
         if (bill.progressStage !== undefined) {
           stageCounts.set(
             bill.progressStage,
@@ -446,6 +460,9 @@ export const recomputeCongressStats = internalAction({
       typeCounts: [...typeCounts.entries()]
         .map(([billType, count]) => ({ billType, count }))
         .sort((a, b) => b.count - a.count),
+      resolutionStageCounts: [...resolutionStages.entries()]
+        .map(([stage, c]) => ({ stage, ...c }))
+        .sort((a, b) => a.stage - b.stage),
     });
   },
 });

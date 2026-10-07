@@ -73,7 +73,8 @@ export function HomeHero(props: HomeProps) {
           Who&rsquo;s writing America&rsquo;s laws?
         </h1>
         <p className="mx-auto mt-4 max-w-measure text-center text-[17px] leading-relaxed text-ink-2">
-          Every bill in the {formatCongressOrdinal(congress)} Congress, seated by the party of its sponsor.
+          Every bill and resolution in the {formatCongressOrdinal(congress)} Congress, seated by the party of its
+          sponsor.
         </p>
 
         <div className="mx-auto mt-8 max-w-[900px] sm:mt-10">
@@ -110,7 +111,7 @@ export function HomeHero(props: HomeProps) {
               </span>
               <span className="mt-1.5 flex flex-col font-mono text-[13px] leading-5 text-ink-2 tabular sm:block">
                 <span>
-                  <span className="text-ink">{fmt(bills[p.key])}</span> bills
+                  <span className="text-ink">{fmt(bills[p.key])}</span> filed
                 </span>
                 <span className="hidden sm:inline"> · </span>
                 <span>

@@ -67,12 +67,12 @@ should look like a missing backend, not an empty dashboard.
 | # | Section | What it shows | Drills through? |
 | --- | --- | --- | --- |
 | 1 | Hero — the chamber (`home/hero.tsx`), on the Night stage | Headline "Who's writing America's laws?", one source line, and a parliament-style half circle. Outer seats: every bill split by the sponsor's party, one seat per ~N bills (N = bills ÷ 435, stated under the chart). Inner seats, ringed in green: the bills that became law, one seat each (scaled only past 400). The hollow shows the law count and swaps to a party's own numbers on hover. One legend row carries every party. Below, centred: the `HeroAsk` box (instant bill suggestions as you type) with its three starters as pills. A dropdown picks the Congress; "Browse bills" sits beside it. A source line closes it with the date the counts were last rebuilt (the stats row's `updatedAt`) | "Browse bills" link; suggested bills link to their pages; starters link to hubs or filtered `/bills` |
-| 2 | Figures (`home/stat-strip.tsx`) — a row of four divided by hairlines, 2×2 on phones | Bills introduced · House bills · Senate bills · Became law, each with one line of context ("65% of all bills", "about 1 in 168 bills") | All four |
-| 3 | Where bills stand (`home/stage-zoom.tsx`) | Two panels at two stated scales. Left: bills still introduced or in committee, small squares of 1–1,000 bills each. Right, zoomed in: every bill that moved, one bigger square per bill, one row per stage | Every row and square |
+| 2 | Figures (`home/stat-strip.tsx`) — a row of four divided by hairlines, 2×2 on phones | Bills and resolutions · From the House · From the Senate · Became law, each with one line of context ("65% of the total", "about 1 in 140 that could"). Every count but the last includes resolutions, so the labels say so. The law odds divide by bills and joint resolutions (`lawCapableCount`, from `congressStats.typeCounts`), the only measures that can become law; until a stats row carries `typeCounts` the note gives the whole total instead | All four |
+| 3 | Where bills stand (`home/stage-zoom.tsx`) | Two panels at two stated scales. Left: bills still introduced or in committee, small squares of 1–1,000 bills each. Right, zoomed in: every bill that moved, one bigger square per bill, one row per stage. "Passed one chamber" and "Passed both chambers" each carry a note counting the resolutions already finished there (`finishedResolutions`, from `congressStats.resolutionStageCounts`): an adopted House or Senate resolution needs only its own chamber, a concurrent one both. 633 of the 119th's 1,464 "passed one chamber" are such resolutions | Every row and square |
 | 4 | What Congress is working on (`home/topic-wheel.tsx`) | Radial chart: the six biggest policy areas as coloured slices, every other topic plus bills with no policy area as one grey slice labelled "Other topics, or none tagged", one dot per ~N bills. Full names, shares and counts live in the legend beside it, never on the rim. Clicking a slice or row pins it and offers "See these bills" and "Ask what they're about" | Pinned topic |
 | 5 | Leading sponsors (`home/sponsors-chart.tsx`) | Top 10 members as horizontal bars from zero, coloured by party, count at the bar end | Every bar |
 | 6 | Where bills come from (`home/state-map.tsx`) | Tile map, one square per state (plus territories), shaded in five equal-count steps. "Per member" divides by House seats + 2 senators (one delegate for DC and territories) using the 2020 apportionment, so it is offered only from the 118th Congress on. Hover shows the state's numbers; otherwise the top five are listed | Every tile and row |
-| 7 | Introductions month by month | Two-track chart — introductions up, laws down, **each track independently scaled** — closing with a generated sentence naming busiest, quietest, and most-laws months | No |
+| 7 | Introductions month by month | Two-track chart — introductions up, laws down, **each track independently scaled** — closing with a generated sentence (`lib/monthly-cadence.ts`) naming the busiest month, the quietest full month, and the month whose bills produced the most laws. Laws are counted in the month their bill was **filed**, not signed: the sentence once said "the most signed in Jan ’25 (27)" when the 119th's laws were signed most in Dec ’25. The quietest month skips the month in progress and a Congress's final few days of January | No |
 | 8 | Volume across recent Congresses | One bar per Congress, max height 140px | Switches Congress |
 | 9 | Podcast promo | "The Federalist Papers: Explained" | External links |
 
@@ -170,7 +170,7 @@ subscriptions on the client.
 | Query | Args | Reads | Returns |
 | --- | --- | --- | --- |
 | `bills.getAllCongressOverview` | none | `congressStats` collected | One row per Congress, ascending: totals, chamber split, `stageCounts`, `updatedAt` |
-| `bills.getCongressDashboard` | `{ congress }` | 1 `congressStats` row, all `congressPolicyAreas` and `congressSponsors` for that Congress | `null` when there is no stats row, otherwise totals, `statusBreakdown`, top 10 sponsors, top 10 policy areas |
+| `bills.getCongressDashboard` | `{ congress }` | 1 `congressStats` row, all `congressPolicyAreas` and `congressSponsors` for that Congress | `null` when there is no stats row, otherwise totals, `lawCapableCount`, `finishedResolutions`, `statusBreakdown`, top 10 sponsors, top 10 policy areas. The two named fields are absent until the stats row has been recomputed with `typeCounts` and `resolutionStageCounts` |
 | `bills.getChamberDeepBreakdown` | `{ congress, chamber }` | 1 `congressChamberBreakdowns` row | Party counts, party law counts, state counts, monthly buckets — zero-filled when the row is missing |
 
 `statusBreakdown` is an object keyed by stage **name** (`introduced`, `inCommittee`,
@@ -190,7 +190,7 @@ the read. See [Known gaps](#known-gaps).
 
 | Table | Written by | Rows today |
 | --- | --- | --- |
-| `congressStats` | `writeCongressStats` (patch-or-insert) | 3 |
+| `congressStats` | `writeCongressStats` (patch-or-insert) | 3. Besides the stage ladder, each carries `typeCounts` (measures per type) and `resolutionStageCounts` (simple and concurrent resolutions per stage) |
 | `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th). Each row also carries `stageCounts` (the same bills by stage, counted in the same pass, so they sum to `count`) and `countedAt`, which the bill page's "Among its peers" dot field reads through `bills.getJourney` |
 | `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress. One row per *member*, keyed by Congress.gov's member id once bills carry it (`buildSponsorRows`), with every spelling their bills use in `spellings`. Before the `backfillSponsorIdentity` run, rows without ids are one per name and state. See "One member, several spellings" in `overview.md` |
 | `congressChamberBreakdowns` | `writeCongressChamberBreakdown` (patch-or-insert) | 6 (3 Congresses × 2 chambers) |
@@ -297,8 +297,8 @@ one. If you add a new chart, route it through `handleDrillDown`.
 
 | Element | Filter | Example URL |
 | --- | --- | --- |
-| "Bills introduced" figure | `congress` | `/bills?congress=119` |
-| "House bills" / "Senate bills" figure | `chamber` | `/bills?congress=119&chamber=house` |
+| "Bills and resolutions" figure | `congress` | `/bills?congress=119` |
+| "From the House" / "From the Senate" figure | `chamber` | `/bills?congress=119&chamber=house` |
 | "Became law" figure | `status=100` | `/bills?congress=119&status=100` |
 | Stage row or square | `status` | `/bills?congress=119&status=40` |
 | Topic legend "→", or pinned topic's "See these bills" | `policyArea` | Newest Congress: `/bills/topic/health` (the hub). Older: `/bills?congress=117&policyArea=Health` |

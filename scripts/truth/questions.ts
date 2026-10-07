@@ -282,28 +282,27 @@ export const QUESTIONS: TruthQuestion[] = [
       `How many Senate bills in the ${CURRENT_CONGRESS}th Congress have passed the ` +
       `Senate?` + ONE_NUMBER,
     defect:
-      "Answered with the terminal 'Passed One Chamber' bucket (194, and both " +
-      "chambers at that), treating a milestone as a resting place: a bill that " +
-      "went on to become law has still passed the Senate.",
+      "Answered 706 on 2026-10-05: the chamber filter counted every Senate measure, " +
+      "and 470 of them were Senate resolutions. Earlier it answered with the terminal " +
+      "'Passed One Chamber' bucket (194, both chambers at that), treating a milestone " +
+      "as a resting place: a bill that went on to become law has still passed the Senate.",
     expect: (db) => {
       const senateBills = billsIn(db, CURRENT_CONGRESS).filter((b) => b.billType === "s");
       const milestone = count(senateBills, (b) => (b.progressStage ?? 0) >= PASSED_A_CHAMBER);
-      // Our own progressStage missed 10 S. bills that were introduced, read
-      // three times and passed the same day: their actions say "Passed/agreed
-      // to in Senate" while their stage said Introduced. The calculator reads
-      // that record since 2026-09-30; until production is backfilled, both 176
-      // and 186 are defensible readings of OUR data, so the band spans them and
-      // nothing else. It does not reach 194 (the all-chamber terminal bucket)
-      // or 142 (the Senate terminal bucket), which are the two wrong answers.
-      // Drop the tolerance once a re-dump shows the backfill has run.
+      const allSenate = count(
+        billsIn(db, CURRENT_CONGRESS).filter(isSenateMeasure),
+        (b) => (b.progressStage ?? 0) >= PASSED_A_CHAMBER,
+      );
+      // The stage backfill has run: on the 2026-10-05 dump the S. bills at stage
+      // 60 or beyond (213) are exactly the S. bills with a "Passed/agreed to in
+      // Senate" action, so the band that covered the stale stages is gone.
       return {
         kind: "number",
         value: milestone,
-        tolerance: 10,
         note:
-          `${milestone} S. bills sit at stage 60 or beyond. Ten more have a "Passed ` +
-          `Senate" action but a stale stage, hence the band. Must reject 194 (all ` +
-          `chambers, terminal bucket) and 142 (Senate terminal bucket).`,
+          `${milestone} S. bills sit at stage 60 or beyond. Must reject ${allSenate} (every ` +
+          `Senate measure, resolutions included), 194 (all chambers, terminal bucket) and ` +
+          `142 (Senate terminal bucket).`,
       };
     },
   },

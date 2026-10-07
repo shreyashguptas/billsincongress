@@ -448,7 +448,15 @@ async function main() {
         theirs.some((b: any) => reservedFor(b.title)) && theirs.some((b: any) => !reservedFor(b.title)),
         `sanity: ${name} has both reserved numbers and real bills in the ${congress}th`,
       );
-      assert.equal(r.report.subsets, undefined, `${name}: a split of part of the set`);
+      // The split by KIND may appear, and must then cover the whole set. A split
+      // by WHICH LEADER must not: it would cover only the reserved part.
+      const parts = (r.report.subsets ?? []) as Array<{ label: string; count: number }>;
+      assert.ok(!parts.some((p) => /^reserved for the/.test(p.label)), `${name}: a split of part of the set`);
+      if (parts.length > 0) {
+        assert.equal(parts.reduce((n, p) => n + p.count, 0), r.report.total, `${name}: parts must sum to the total`);
+        const reservedCount = theirs.filter((b: any) => reservedFor(b.title)).length;
+        assert.equal(parts.find((p) => /placeholders/.test(p.label))?.count, reservedCount, `${name}: placeholders are not bills`);
+      }
     }
   });
 
@@ -1553,6 +1561,76 @@ async function main() {
     assert.ok(r.ok, `fetch failed: ${r.error}`);
     const loud = r.rows.map((x: any) => x.sponsorName).filter((n: string) => n === n.toUpperCase());
     assert.deepEqual(loud.slice(0, 5), [], `${loud.length} members in capitals`);
+  });
+
+  // --- "Senate bills" counted every Senate resolution (2026-10-05) -----------
+  //
+  // "How many Senate bills have passed the Senate?" answered 706. The model
+  // used the chamber filter, which counts every Senate measure; 470 of the 706
+  // were Senate resolutions. The S. bills that passed the Senate are 213, and
+  // the Library of Congress's own passage record (code 17000) says the same.
+
+  const senateBillsPassed = (bills as any[]).filter(
+    (b) => b.congress === 119 && b.billType === "s" && passages.get(b.billId)?.has("senate"),
+  ).length;
+
+  await it("'Senate bills that passed the Senate' is the bills, not every Senate measure", async () => {
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 119, chamber: "senate", measure: "bill", reachedStage: 60 },
+      0,
+    );
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.report.total, senateBillsPassed, "must match the Senate passages on record");
+    assert.ok(r.report.total < 300, `${r.report.total} reads like the 706 that counted resolutions`);
+  });
+
+  await it("a chamber-only count says how much of its total is bills", async () => {
+    // The model may still pick chamber alone. The result must then put the bill
+    // count in front of it rather than let it read 706 as bills.
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 119, chamber: "senate", reachedStage: 60 },
+      0,
+    );
+    assert.ok(r.ok && r.report.complete);
+    const said = JSON.parse(payloadFor(r.rows, r.report));
+    const parts = said.exact_subsets as Array<{ label: string; count: number }>;
+    assert.ok(Array.isArray(parts), "a mixed total must carry its split by kind");
+    const billsPart = parts.find((p) => /^bills/.test(p.label));
+    assert.equal(billsPart?.count, senateBillsPassed);
+    assert.equal(
+      parts.reduce((n, p) => n + p.count, 0),
+      said.total,
+      "the parts must account for the whole total",
+    );
+    assert.ok(parts.some((p) => /simple resolutions/.test(p.label) && p.count > 300));
+  });
+
+  await it("a set of one kind carries no split", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, billType: "s", reachedStage: 60 }, 0);
+    assert.ok(r.ok && r.report.complete);
+    assert.equal(r.report.subsets, undefined);
+  });
+
+  await it("measure 'law_capable' keeps joint resolutions and drops the rest", async () => {
+    const r = await fetchViaHandlers(
+      ctx,
+      "bills",
+      { congress: 119, chamber: "senate", measure: "law_capable", reachedStage: 60 },
+      0,
+    );
+    assert.ok(r.ok && r.report.complete);
+    const expected = (bills as any[]).filter(
+      (b) =>
+        b.congress === 119 &&
+        (b.billType === "s" || b.billType === "sjres") &&
+        passages.get(b.billId)?.has("senate"),
+    ).length;
+    assert.equal(r.report.total, expected);
   });
 
   await it("no result ever carries a total without claiming completeness", async () => {
