@@ -50,7 +50,7 @@ it("rejects a stage that is not a real stage code", () => {
 });
 
 it("accepts every real stage code", () => {
-  for (const stage of [20, 40, 60, 80, 85, 90, 95, 100]) {
+  for (const stage of [20, 40, 50, 60, 80, 85, 90, 95, 100]) {
     assert.equal(validateFilters("bills", { progressStage: stage }).ok, true, `stage ${stage}`);
   }
 });
@@ -105,8 +105,8 @@ it("offers and accepts each of the four sort names by literal name", () => {
 });
 
 /** Same vacuity guard for the stage codes the reachedStage loop iterates. */
-it("offers each of the eight stage codes by literal value", () => {
-  for (const stage of [20, 40, 60, 80, 85, 90, 95, 100]) {
+it("offers each of the nine stage codes by literal value", () => {
+  for (const stage of [20, 40, 50, 60, 80, 85, 90, 95, 100]) {
     assert.ok(VALID_STAGES.includes(stage), `VALID_STAGES no longer offers ${stage}`);
     assert.equal(validateFilters("bills", { reachedStage: stage }).ok, true, `reachedStage ${stage}`);
   }
