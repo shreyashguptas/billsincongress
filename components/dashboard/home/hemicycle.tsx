@@ -155,7 +155,7 @@ export function Hemicycle({
         viewBox={`0 0 ${W} ${CY + 10}`}
         className="w-full h-auto"
         role="img"
-        aria-label={`${fmt(totalBills)} bills by sponsor party; ${fmt(totalLaws)} became law`}
+        aria-label={`${fmt(totalBills)} bills and resolutions by sponsor party; ${fmt(totalLaws)} became law`}
         onMouseLeave={() => onHover(null)}
       >
         {billSeats.map((s, i) => (
@@ -216,7 +216,7 @@ export function HemicycleKey({ totalBills, totalLaws }: { totalBills: number; to
   if (totalBills === 0) return null;
   return (
     <p className="text-center font-mono text-xs leading-5 text-ink-3">
-      outer seat {perSeatLabel(totalBills, OUTER_SEATS, 'bill', 'bills')}
+      outer seat {perSeatLabel(totalBills, OUTER_SEATS, 'bill or resolution', 'bills and resolutions')}
       <span className="mx-2" aria-hidden="true">·</span>
       <span className="whitespace-nowrap">
         <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle ring-1 ring-status-law" />
@@ -249,13 +249,13 @@ export function WellReadout({
     <div key={hover ?? 'all'} className="animate-fade-in">
       <p className="label-eyebrow inline-flex items-center gap-1.5 text-ink-2">
         {p && <PartyDot party={p.key} />}
-        {p ? p.label : scope ?? 'All bills'}
+        {p ? p.label : scope ?? 'Bills and resolutions'}
       </p>
       <p className="mt-1 font-serif text-[64px] font-normal leading-none tracking-[-0.03em] text-ink tabular sm:text-[length:min(128px,calc(var(--hollow)*62cqw))]">
         {fmt(l)}
       </p>
       <p className="mt-2 text-[15px] text-ink-2 sm:text-base">
-        became law, of <span className="font-mono tabular">{fmt(b)}</span> bills
+        became law, of <span className="font-mono tabular">{fmt(b)}</span> bills and resolutions
       </p>
     </div>
   );

@@ -27,12 +27,12 @@ Right under the chamber is a box for asking a question. As you type, bills whose
 
 Below that, it shows:
 
-- **Four headline counts** — bills introduced, House bills, Senate bills, and how many became law.
-- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, close to 90% of everything introduced has not made it out of committee. The first row past committee is "Out of committee": bills a committee has approved and sent to the floor, waiting for a vote.
+- **Four headline counts** — bills and resolutions introduced, how many came from each chamber, and how many became law. The counts include resolutions, which are not bills, and say so; the odds of becoming law ("about 1 in 140 that could") count only bills and joint resolutions, because the other resolutions never go to the President.
+- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, close to 90% of everything introduced has not made it out of committee. The first row past committee is "Out of committee": bills a committee has approved and sent to the floor, waiting for a vote. The rows for one and both chambers say how many of their measures are resolutions that are already finished there, since a House or Senate resolution only ever needs its own chamber.
 - **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
 - **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
 - **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
-- **Introductions month by month** — bills introduced growing upward, laws signed growing downward, each on its own scale, ending in a written sentence naming the busiest and quietest months.
+- **Introductions month by month** — bills introduced growing upward and, growing downward, how many of each month's bills went on to become law, each on its own scale. A written sentence names the busiest month, the quietest full month, and the month whose bills produced the most laws. Laws sit under the month the bill was filed, not the month it was signed.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.
 
 Nearly every number on the page is clickable. Click a stage, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.

@@ -27,6 +27,14 @@ import type { DatasetName } from "./types";
  */
 export const VALID_STAGES = [20, 40, 50, 60, 80, 85, 90, 95, 100];
 const VALID_CHAMBERS = ["house", "senate"];
+/**
+ * What KIND of measure: "bill" is H.R. and S. only, what a reader means by
+ * "Senate bills"; "law_capable" adds the joint resolutions, which also become
+ * law. Without it, "how many Senate bills have passed the Senate" could only be
+ * asked as the chamber filter, which counts every Senate measure — and answered
+ * 706 against a truth of 213, because 470 of them were Senate resolutions.
+ */
+export const VALID_MEASURES = ["bill", "law_capable"];
 /** Stored sponsor parties. A measure with none is asked for as NO_PARTY. */
 const VALID_PARTIES = ["D", "R", "I"];
 /**
@@ -171,6 +179,14 @@ export function validateFilters(name: DatasetName, raw: unknown): ValidationResu
     }
     if (key === "chamber" && !VALID_CHAMBERS.includes(value as string)) {
       return { ok: false, error: `chamber must be 'house' or 'senate'. Got '${String(value)}'.` };
+    }
+    if (key === "measure" && !VALID_MEASURES.includes(value as string)) {
+      return {
+        ok: false,
+        error:
+          `measure must be 'bill' (H.R. and S. only) or 'law_capable' (bills plus joint ` +
+          `resolutions). Got '${String(value)}'.`,
+      };
     }
     if (key === "sort") {
       const allowed = name === "sponsors" ? VALID_SPONSOR_SORTS : VALID_SORTS;

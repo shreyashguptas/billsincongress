@@ -1371,9 +1371,34 @@ export const getCongressDashboard = query({
       }
     }
 
+    // Bills and joint resolutions: the measures that can become law. "About 1 in
+    // N" divides by these, not by every measure: simple and concurrent
+    // resolutions never go to the President, so counting them made the odds look
+    // longer than they are. Absent until the row carries typeCounts.
+    const lawCapableCount = stats.typeCounts
+      ? stats.typeCounts
+          .filter((t) => ["hr", "s", "hjres", "sjres"].includes(t.billType))
+          .reduce((n, t) => n + t.count, 0)
+      : undefined;
+
+    // Resolutions that are FINISHED where they sit: a simple resolution agreed to
+    // by its chamber (stage 60), a concurrent one agreed to by both (80). The
+    // home page notes them under those rows, which otherwise read as half-way to
+    // law. Absent until the row carries resolutionStageCounts.
+    const finishedResolutions = stats.resolutionStageCounts
+      ? {
+          passedOneChamber:
+            stats.resolutionStageCounts.find((r) => r.stage === 60)?.simple ?? 0,
+          passedBothChambers:
+            stats.resolutionStageCounts.find((r) => r.stage === 80)?.concurrent ?? 0,
+        }
+      : undefined;
+
     return {
       congress: args.congress,
       totalBills: stats.totalCount,
+      lawCapableCount,
+      finishedResolutions,
       houseCount: stats.houseCount,
       senateCount: stats.senateCount,
       statusBreakdown,

@@ -46,7 +46,27 @@ function unitFor(total: number, maxSquares: number) {
   return Math.ceil(total / maxSquares);
 }
 
-const billsLabel = (n: number) => `${fmt(n)} ${n === 1 ? 'bill' : 'bills'}`;
+// Every count here includes resolutions, which are not bills, so the unit says
+// so. Rows show the bare count under that stated unit, as the stuck list does: a
+// row reading "1,464 bills" above "633 are resolutions" contradicted itself.
+const billsLabel = (n: number) => `${fmt(n)} ${n === 1 ? 'bill or resolution' : 'bills and resolutions'}`;
+
+/**
+ * Resolutions that are already finished in a row that reads as half-way: a
+ * simple resolution needs only its own chamber, a concurrent one both, and
+ * neither goes to the President. 633 of the 119th's 1,464 "passed one chamber"
+ * were adopted House or Senate resolutions (brand.md, "The road a measure travels").
+ */
+function finishedNote(key: string, finished: HomeProps['dashboard']['finishedResolutions']): string | null {
+  if (!finished) return null;
+  if (key === 'passedOneChamber' && finished.passedOneChamber > 0) {
+    return `${fmt(finished.passedOneChamber)} are House or Senate resolutions, finished once agreed to`;
+  }
+  if (key === 'passedBothChambers' && finished.passedBothChambers > 0) {
+    return `${fmt(finished.passedBothChambers)} are concurrent resolutions, finished once both agree`;
+  }
+  return null;
+}
 
 export function StageZoom({
   congress,
@@ -82,7 +102,7 @@ export function StageZoom({
           finding
           title={
             <>
-              {((stuckTotal / all) * 100).toFixed(1)}% of bills haven&rsquo;t made it out of committee. Here are the
+              {((stuckTotal / all) * 100).toFixed(1)}% of bills and resolutions haven&rsquo;t made it out of committee. Here are the
               ones that have.
             </>
           }
@@ -97,7 +117,7 @@ export function StageZoom({
           {/* Stuck — small squares, many bills each */}
           <div className="lg:col-span-4 lg:border-r lg:border-line lg:pr-10">
             <p className="label-eyebrow">Stuck · {billsLabel(stuckTotal)}</p>
-            <p className="mt-1 font-mono text-xs text-ink-3">each square = {fmt(stuckUnit)} bills</p>
+            <p className="mt-1 font-mono text-xs text-ink-3">each square = {billsLabel(stuckUnit)}</p>
             <div className="mt-4 flex flex-wrap gap-[2px]">
               {stuck.flatMap((s) =>
                 Array.from({ length: squares(s.value, stuckUnit) }, (_, i) => (
@@ -138,7 +158,7 @@ export function StageZoom({
               Zoomed in · the {fmt(movedTotal)} that moved ({((movedTotal / all) * 100).toFixed(1)}%)
             </p>
             <p className="mt-1 font-mono text-xs text-ink-3">
-              each square = {movedUnit === 1 ? '1 bill' : `${fmt(movedUnit)} bills`}
+              each square = {billsLabel(movedUnit)}
             </p>
             <div className="mt-4 border-b border-line">
               {moved.map((s) => (
@@ -151,11 +171,18 @@ export function StageZoom({
                     faded(s.key) && 'opacity-35',
                   )}
                 >
-                  <span className="flex items-baseline justify-between gap-3 sm:block">
-                    <span className="block text-[15px] font-medium leading-5 text-ink">{s.label}</span>
-                    <span className="mt-1 block font-mono text-[13px] text-ink-2 tabular group-hover:text-ink">
-                      {billsLabel(s.value)} →
+                  <span className="block">
+                    <span className="flex items-baseline justify-between gap-3 sm:block">
+                      <span className="block text-[15px] font-medium leading-5 text-ink">{s.label}</span>
+                      <span className="mt-1 block font-mono text-[13px] text-ink-2 tabular group-hover:text-ink">
+                        {fmt(s.value)} →
+                      </span>
                     </span>
+                    {finishedNote(s.key, dashboard.finishedResolutions) && (
+                      <span className="mt-1 block text-xs leading-4 text-ink-3">
+                        {finishedNote(s.key, dashboard.finishedResolutions)}
+                      </span>
+                    )}
                   </span>
                   <span className="flex flex-wrap gap-[3px] sm:pt-1">
                     {Array.from({ length: squares(s.value, movedUnit) }, (_, i) => (
