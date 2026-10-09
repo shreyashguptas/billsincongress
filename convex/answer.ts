@@ -29,7 +29,7 @@ import {
 } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
-import { billsInScope, describeBillRef, keepWebResultsForBill } from "./catalog/webResults";
+import { billsInScope, keepWebResultsForBill, withheldNote } from "./catalog/webResults";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "./reasoning";
@@ -928,16 +928,7 @@ async function runLoop(
             webReason = reason;
             result = JSON.stringify({
               results: hits.map((h) => ({ _cite: h.handle, url: h.url, excerpt: h.excerpt })),
-              ...(removed.length > 0 && {
-                // Neutral on purpose: "nothing found" here would push the model
-                // toward a false statement of absence. Naming what was kept
-                // tells it how to search for another bill if that was the aim.
-                note:
-                  `${removed.length} result(s) named only bills other than ` +
-                  `${scope.map(describeBillRef).join(" or ")} and were withheld. That is not ` +
-                  `evidence the web has nothing on the question. To search for a different ` +
-                  `bill, put its number in the query.`,
-              }),
+              ...(removed.length > 0 && { note: withheldNote(scope, removed.length) }),
             });
             note({ tool: "web", detail: reason });
           }

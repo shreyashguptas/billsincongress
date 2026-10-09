@@ -173,35 +173,52 @@ function sameBill(a: BillRef, b: BillRef): boolean {
 }
 
 /**
+ * What a search is about, as the filter needs it.
+ *
+ * `bills`: a result must name one of these (or no bill) to be kept.
+ * `earlierVersionOf`: set instead for a search for an earlier Congress's
+ * version of the open bill. Its number is unknown, so the only safe drop is a
+ * result that names only OTHER bills of the open bill's own Congress — none of
+ * them can be an earlier version of it, and one of them is exactly the
+ * same-titled bill this filter exists to keep out.
+ */
+export interface WebScope {
+  bills: BillRef[];
+  earlierVersionOf?: BillRef;
+}
+
+/**
  * Which bills a search is about: every bill the model's query names, the bill
  * the reader has open, and any of our bill ids in the model's stated reason
  * ("We don't have the official summary for bill 5395s119"). A union, because
  * each only ever WIDENS what is kept: on a bill page the model may look up a
  * companion by number, and a rule's title names the bill it governs ("Providing
  * for consideration of H.R. 1234") without the rule itself being any less in
- * scope. Empty means "no bill in scope": filter nothing.
+ * scope. No bills means "nothing in scope": filter nothing.
  *
  * A query that names a Congress other than the open bill's ("GAP Act Medicare
- * 116th Congress") is not filtered at all: it is plainly looking for an earlier
- * version, whose number the model does not know, and pinning it to the open
- * bill would empty it. Dropping only the open bill is not enough: a title can
- * name other bills ("…the Washington, D.C. Admission Act (H.R. 51 and S. 51)"),
- * and those alone would then be in scope.
+ * 116th Congress") is looking for an earlier version, so it gets
+ * `earlierVersionOf` instead (see WebScope). Keeping the open bill in scope
+ * would empty that search; dropping only the open bill is not enough either,
+ * because a title can name other bills ("…the Washington, D.C. Admission Act
+ * (H.R. 51 and S. 51)") and those alone would then be in scope.
  *
  * A bill named in the query without a Congress borrows the open bill's Congress
  * when it IS the open bill, so "H.R. 10717 summary" on the 119th's page still
  * rejects the 93rd's H.R. 10717.
  */
-export function billsInScope(query: string, pageBillId?: string, reason = ""): BillRef[] {
+export function billsInScope(query: string, pageBillId?: string, reason = ""): WebScope {
   const ordinal = ORDINAL_CONGRESS.exec(readable(query));
   const queryCongress = plausibleCongress(ordinal ? Number(ordinal[1]) : undefined);
   const page = pageBillId ? billRefFromId(pageBillId) : null;
-  if (page && queryCongress !== undefined && queryCongress !== page.congress) return [];
+  if (page && queryCongress !== undefined && queryCongress !== page.congress) {
+    return { bills: [], earlierVersionOf: page };
+  }
   const named = billRefsIn(query).filter(
     (ref) => !(page && ref.congress === undefined && page.type === ref.type && page.number === ref.number),
   );
   const inReason = [...reason.matchAll(BILL_ID_IN_TEXT)].flatMap((m) => billRefFromId(m[1]) ?? []);
-  return [...(page ? [page] : []), ...named, ...inReason];
+  return { bills: [...(page ? [page] : []), ...named, ...inReason] };
 }
 
 const TYPE_LABELS: Readonly<Record<string, string>> = {
@@ -221,9 +238,39 @@ function ordinalOf(n: number): string {
   return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
 }
 
+/**
+ * The note the model gets when results were withheld. Neutral on purpose:
+ * "nothing found" would push it toward a false statement of absence. Naming
+ * what was kept tells it how to search for another bill if that was the aim.
+ */
+export function withheldNote(scope: WebScope, removed: number): string {
+  const what = scope.earlierVersionOf
+    ? `other ${ordinalOf(scope.earlierVersionOf.congress ?? 0)}-Congress bills, which cannot be ` +
+      `an earlier version of ${describeBillRef({ ...scope.earlierVersionOf, congress: undefined })}`
+    : `only bills other than ${scope.bills.map(describeBillRef).join(" or ")}`;
+  return (
+    `${removed} result(s) named ${what}, and were withheld. That is not evidence the web has ` +
+    `nothing on the question. To search for a different bill, put its number in the query.`
+  );
+}
+
 export interface WebHit {
   url: string;
   title: string;
+}
+
+/**
+ * The bills one result names. A reference without a Congress takes it from the
+ * same bill named elsewhere in the result: congress.gov's URL says
+ * `119th-congress/house-bill/9707`, its title only "H.R.9707 - GAP Act".
+ */
+function refsOfHit(hit: WebHit): BillRef[] {
+  const refs = [...billRefsIn(hit.url), ...billRefsIn(hit.title)];
+  return refs.map((r) => {
+    if (r.congress !== undefined) return r;
+    const twin = refs.find((o) => o.congress !== undefined && o.type === r.type && o.number === r.number);
+    return twin ? { ...r, congress: twin.congress } : r;
+  });
 }
 
 /**
@@ -232,14 +279,21 @@ export interface WebHit {
  */
 export function keepWebResultsForBill<T extends WebHit>(
   hits: T[],
-  scope: BillRef[],
+  scope: WebScope,
 ): { kept: T[]; removed: T[] } {
-  if (scope.length === 0) return { kept: hits, removed: [] };
+  const sibling = scope.earlierVersionOf;
+  if (!sibling && scope.bills.length === 0) return { kept: hits, removed: [] };
   const kept: T[] = [];
   const removed: T[] = [];
   for (const hit of hits) {
-    const refs = [...billRefsIn(hit.url), ...billRefsIn(hit.title)];
-    const aboutOther = refs.length > 0 && !refs.some((r) => scope.some((s) => sameBill(r, s)));
+    const refs = refsOfHit(hit);
+    const aboutOther =
+      refs.length > 0 &&
+      (sibling
+        ? refs.every(
+            (r) => r.congress === sibling.congress && !(r.type === sibling.type && r.number === sibling.number),
+          )
+        : !refs.some((r) => scope.bills.some((s) => sameBill(r, s))));
     (aboutOther ? removed : kept).push(hit);
   }
   return { kept, removed };

@@ -11,6 +11,7 @@ import {
   billsInScope,
   describeBillRef,
   keepWebResultsForBill,
+  withheldNote,
 } from "./webResults";
 
 let passed = 0;
@@ -234,6 +235,30 @@ it("a search for an earlier Congress's version is not pinned to the open bill", 
   assert.equal(urlsKept(hits, "GAP Act Medicare 116th Congress", "10725hr119").length, 2);
   // The same Congress as the open bill keeps the filter on.
   assert.equal(urlsKept(hits.slice(0, 1), "GAP Act 119th Congress", "10725hr119").length, 0);
+});
+
+it("an earlier-version search still drops the same-titled bill of the open bill's own Congress", () => {
+  // Review finding on #181: with that search unfiltered, H.R. 9707 (119th, the
+  // other GAP Act) could be presented as this bill's earlier version.
+  const hits = [
+    hit("https://www.congress.gov/bill/119th-congress/house-bill/9707", "H.R.9707 - GAP Act"),
+    hit("https://www.congress.gov/bill/116th-congress/house-bill/4321"),
+    hit("https://www.quiverquant.com/bills/119/hr-10725"),
+    hit("https://example.org/gap-act-history"),
+  ];
+  assert.deepEqual(urlsKept(hits, "GAP Act Medicare 116th Congress", "10725hr119"), [
+    "https://www.congress.gov/bill/116th-congress/house-bill/4321",
+    "https://www.quiverquant.com/bills/119/hr-10725",
+    "https://example.org/gap-act-history",
+  ]);
+});
+
+it("the note to the model is neutral and says what was kept", () => {
+  const plain = withheldNote(billsInScope("GAP Act", "10725hr119"), 3);
+  assert.match(plain, /^3 result\(s\) named only bills other than H\.R\. 10725 \(119th Congress\)/);
+  assert.match(plain, /not evidence the web has nothing/);
+  const earlier = withheldNote(billsInScope("GAP Act 116th Congress", "10725hr119"), 1);
+  assert.match(earlier, /other 119th-Congress bills, which cannot be an earlier version of H\.R\. 10725/);
 });
 
 it("describes what the filter kept, for the model's note", () => {

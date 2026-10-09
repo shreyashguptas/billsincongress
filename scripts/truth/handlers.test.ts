@@ -1591,6 +1591,10 @@ async function main() {
         `query "${query}"`,
       );
     }
+    // A search for an earlier version must not let the other GAP Act back in
+    // as this bill's history (review finding on #181).
+    const earlier = keepWebResultsForBill(hits, billsInScope("GAP Act Medicare 116th Congress", "10725hr119"));
+    assert.deepEqual(earlier.kept.map((h) => h.url), ["https://www.quiverquant.com/bills/119/hr-10725"]);
   });
 
   await it("every pair of same-titled bills is kept apart by the web filter", async () => {
