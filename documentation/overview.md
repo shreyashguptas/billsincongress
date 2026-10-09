@@ -1185,6 +1185,30 @@ shown to the reader verbatim, and sources render in two blocks — *From our dat
 repeats the reader's question verbatim or at more than 80% of its length. A rejection is
 recoverable: the model rephrases and retries.
 
+**Results about another bill are dropped before the model sees them**
+(`convex/catalog/webResults.ts`). The search engine matches on a bill's short title as much as
+its number, and short titles repeat — this Congress has two "GAP Act"s, and on 2026-10-08 the
+page for H.R. 10725 described H.R. 9707. Each result's URL and title are read for bill
+references (`house-bill/9707`, `BILLS-119hr9707ih`, `hr-9707`, `/hr/9707`, `H.R. 9707`, and
+this site's own `/bills/9707hr119`), with the Congress where one is written. A result that names
+only other bills is removed; one that names no bill, or names a bill in scope, is kept. In
+scope: every bill the model's query names, the bill the reader has open, and any bill id in the
+model's `reason` — a union, so a companion looked up by number and a rule whose title names the
+bill it governs both survive. With none, nothing is filtered. A query that names a Congress
+other than the open bill's ("… 116th Congress") is a search for an earlier version, whose number
+the model does not know: it drops only results that name only *other* bills of the open bill's
+own Congress, which cannot be an earlier version of it (and include the same-titled bill). A
+reference without a Congress takes one from the same bill named elsewhere in the result
+(congress.gov's URL carries it, its title does not). A Congress read from a bare number next
+to a reference (`/93/hr10717`) must be at least 80, so a date path (`/2026/10/08/hr-10725`) is not
+taken for one. `scripts/truth/handlers.test.ts` runs every pair of same-titled 119th-Congress
+measures, and every 119th bill that re-uses a 118th title, through it. When results are
+removed, the model is told how many, which bill(s) the filter kept to, that this is not evidence
+the web has nothing, and to put a bill's number in the query to search for a different one. The
+trace's `search_web` span records what the model was given (the `web_search` generation still
+holds the raw response), and the surviving results are renumbered `web:1…`.
+When nothing survives, the model has only our own data to answer from.
+
 > Nothing limits the model to **one** web search — `search_web` is available in every tool
 > round. Two searches in one turn collide: handles are re-minted `web:1…web:5` and `webReason`
 > is overwritten by the last call, so the sentence shown may not match the sources listed.

@@ -1568,6 +1568,111 @@ async function main() {
     assert.equal(r.report.total, expected);
   });
 
+  // --- Web fallback: pages about a same-titled bill ------------------------
+
+  await it("H.R. 10725's web search never offers H.R. 9707's pages (two GAP Acts)", async () => {
+    // Live on 2026-10-08: the bill page for H.R. 10725 described H.R. 9707,
+    // because the web search matched the short title they share.
+    const { billsInScope, keepWebResultsForBill } = await import("../../convex/catalog/webResults");
+    const ours = bills.find((b: any) => b.billId === "10725hr119");
+    const other = bills.find((b: any) => b.billId === "9707hr119");
+    assert.ok(ours && other, "sanity: both bills are in production");
+    const hits = [
+      { url: "https://www.quiverquant.com/bills/119/hr-10725", title: "" },
+      { url: "https://www.congress.gov/bill/119th-congress/house-bill/9707", title: "" },
+      { url: "https://legilist.com/bill/119/hr/9707", title: "" },
+      { url: "https://www.congress.gov/119/bills/hr9707/BILLS-119hr9707ih.htm", title: "" },
+    ];
+    for (const query of ["H.R. 10725 GAP Act summary", "GAP Act foreign adversary investments general aviation"]) {
+      const { kept } = keepWebResultsForBill(hits, billsInScope(query, "10725hr119"));
+      assert.deepEqual(
+        kept.map((h) => h.url),
+        ["https://www.quiverquant.com/bills/119/hr-10725"],
+        `query "${query}"`,
+      );
+    }
+    // A search for an earlier version must not let the other GAP Act back in
+    // as this bill's history (review finding on #181).
+    const earlier = keepWebResultsForBill(hits, billsInScope("GAP Act Medicare 116th Congress", "10725hr119"));
+    assert.deepEqual(earlier.kept.map((h) => h.url), ["https://www.quiverquant.com/bills/119/hr-10725"]);
+  });
+
+  await it("every pair of same-titled bills is kept apart by the web filter", async () => {
+    // Not just the GAP Acts: short titles repeat across the Congress. For each
+    // collision, the page of one bill must reject the other's Congress.gov,
+    // govinfo and tracker pages and keep its own.
+    const { billsInScope, keepWebResultsForBill } = await import("../../convex/catalog/webResults");
+    const LONG: Record<string, string> = {
+      hr: "house-bill", s: "senate-bill", hres: "house-resolution", sres: "senate-resolution",
+      hjres: "house-joint-resolution", sjres: "senate-joint-resolution",
+      hconres: "house-concurrent-resolution", sconres: "senate-concurrent-resolution",
+    };
+    const pagesOf = (b: any) => [
+      `https://www.congress.gov/bill/${b.congress}th-congress/${LONG[b.billType]}/${b.billNumber}`,
+      `https://www.govinfo.gov/app/details/BILLS-${b.congress}${b.billType}${b.billNumber}ih`,
+      `https://www.quiverquant.com/bills/${b.congress}/${b.billType}-${b.billNumber}`,
+      `https://legilist.com/bill/${b.congress}/${b.billType}/${b.billNumber}`,
+    ];
+    const byTitle = new Map<string, any[]>();
+    for (const b of bills as any[]) {
+      if (b.congress !== 119 || !b.title || !LONG[b.billType]) continue;
+      const key = b.title.trim().toLowerCase();
+      byTitle.set(key, [...(byTitle.get(key) ?? []), b]);
+    }
+    let pairs = 0;
+    const wrong: string[] = [];
+    for (const [title, group] of byTitle) {
+      if (group.length < 2) continue;
+      for (const a of group) {
+        for (const b of group) {
+          if (a === b) continue;
+          pairs++;
+          const hits = [...pagesOf(a), ...pagesOf(b)].map((url) => ({ url, title: "" }));
+          const { kept } = keepWebResultsForBill(hits, billsInScope(`${title} summary`, a.billId));
+          const expected = pagesOf(a);
+          if (JSON.stringify(kept.map((h) => h.url)) !== JSON.stringify(expected)) {
+            wrong.push(`${a.billId} vs ${b.billId}: kept ${kept.map((h) => h.url).join(", ")}`);
+          }
+        }
+      }
+    }
+    assert.ok(pairs > 0, "sanity: the 119th has bills that share a title");
+    assert.deepEqual(wrong.slice(0, 5), [], `${wrong.length} of ${pairs} pairs mixed up`);
+  });
+
+  await it("a search for a bill's earlier-Congress version keeps that version's pages", async () => {
+    // Review finding on #181: with the open bill always in scope, a search for
+    // the 118th's version of a re-introduced bill came back empty, and the
+    // model could say there was no earlier version. Checked over every bill
+    // whose title the 118th and the 119th share.
+    const { billsInScope, keepWebResultsForBill } = await import("../../convex/catalog/webResults");
+    const LONG: Record<string, string> = {
+      hr: "house-bill", s: "senate-bill", hres: "house-resolution", sres: "senate-resolution",
+      hjres: "house-joint-resolution", sjres: "senate-joint-resolution",
+      hconres: "house-concurrent-resolution", sconres: "senate-concurrent-resolution",
+    };
+    const earlier = new Map<string, any>();
+    for (const b of bills as any[]) {
+      if (b.congress === 118 && b.title && LONG[b.billType]) earlier.set(b.title.trim().toLowerCase(), b);
+    }
+    let pairs = 0;
+    const wrong: string[] = [];
+    for (const b of bills as any[]) {
+      if (b.congress !== 119 || !b.title) continue;
+      const old = earlier.get(b.title.trim().toLowerCase());
+      if (!old) continue;
+      pairs++;
+      const url = `https://www.congress.gov/bill/118th-congress/${LONG[old.billType]}/${old.billNumber}`;
+      const { kept } = keepWebResultsForBill(
+        [{ url, title: "" }],
+        billsInScope(`${b.title} 118th Congress`, b.billId),
+      );
+      if (kept.length !== 1) wrong.push(`${b.billId} → ${old.billId}`);
+    }
+    assert.ok(pairs > 0, "sanity: some 119th bills re-use a 118th title");
+    assert.deepEqual(wrong.slice(0, 5), [], `${wrong.length} of ${pairs} lost their earlier version`);
+  });
+
   await it("no result ever carries a total without claiming completeness", async () => {
     const shapes: Array<[string, Record<string, unknown>, number | undefined]> = [
       ["bills", { congress: 119 }, 50],
