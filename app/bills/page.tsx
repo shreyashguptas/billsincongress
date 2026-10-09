@@ -182,31 +182,31 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   }
 
   return (
-    <>
-      <BillsClient
-        initialBills={initialBills}
-        initialHasMore={initialHasMore}
-        initialTruncated={initialTruncated}
-        initialTotal={initialTotal}
-        initialPage={page}
-        urlFilters={urlFilters}
-        serverFilterSignature={filterSignature(applied)}
-        congressNumbers={congressNumbers}
-        browseDirectory={<HubDirectory />}
-      />
-      <div className="container-editorial">
-        {/* Server-rendered page links. The list above is a client component
-            whose "Load more" button a crawler cannot press, which is why depth
-            on this page was unreachable while the hub pages were not. Filters
-            are carried through, so these work as controls and not only as
-            crawl paths. */}
+    <BillsClient
+      initialBills={initialBills}
+      initialHasMore={initialHasMore}
+      initialTruncated={initialTruncated}
+      initialTotal={initialTotal}
+      initialPage={page}
+      urlFilters={urlFilters}
+      serverFilterSignature={filterSignature(applied)}
+      congressNumbers={congressNumbers}
+      browseDirectory={<HubDirectory />}
+      maxPage={MAX_PAGE}
+      serverPagination={
+        /* Server-rendered page links. The list is a client component whose
+           "Load more" button a crawler cannot press, which is why depth on
+           this page was unreachable while the hub pages were not. Filters
+           are carried through, so these work as controls and not only as
+           crawl paths. BillsClient swaps them for links built from its own
+           filters once the reader changes any. */
         <CrawlablePagination
           page={page}
           {...pagesForCount(initialTotal, page, initialHasMore, ITEMS_PER_PAGE, MAX_PAGE)}
           hrefForPage={(n) => hrefForPage(params, n)}
           className="mb-12 justify-center"
         />
-      </div>
-    </>
+      }
+    />
   );
 }

@@ -33,7 +33,9 @@ import {
   isSet,
   scanLimitedActive,
 } from '@/lib/bills/filter-registry';
-import { buildFilterQuery, filtersFromQuery } from '@/lib/bills/filter-url';
+import { billsPageHref, buildFilterQuery, filtersFromQuery } from '@/lib/bills/filter-url';
+import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
+import { pagesForCount } from '@/lib/pagination';
 import { loadSponsors } from '@/components/bills/filters/sponsor-source';
 import { matchSponsorName, type SponsorMatchKind } from '@/lib/sponsor-match';
 import { readsAsQuestion } from '@/lib/bill-suggest';
@@ -86,6 +88,15 @@ export interface BillsClientProps {
    * server-rendered HTML, which is the only reason they exist.
    */
   browseDirectory?: ReactNode;
+  /**
+   * The page links for the filters the server applied, server-rendered so a
+   * crawler with no JavaScript can walk them. Shown only while the filters are
+   * still those: after a change in the browser they would lead to a page of
+   * the old list, so links built from the current filters replace them.
+   */
+  serverPagination?: ReactNode;
+  /** Deepest page the list query can serve. */
+  maxPage: number;
 }
 
 export default function BillsClient({
@@ -98,6 +109,8 @@ export default function BillsClient({
   serverFilterSignature,
   congressNumbers,
   browseDirectory,
+  serverPagination,
+  maxPage,
 }: BillsClientProps) {
   const [bills, setBills] = useState<Bill[]>(initialBills ?? []);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -747,6 +760,19 @@ export default function BillsClient({
             )}
           </div>
         </div>
+      </div>
+      <div className="container-editorial">
+        {currentSignature === serverFilterSignature
+          ? serverPagination
+          : !isLoading &&
+            !error && (
+              <CrawlablePagination
+                page={currentPage}
+                {...pagesForCount(totalBills, currentPage, hasMore, ITEMS_PER_PAGE, maxPage)}
+                hrefForPage={(n) => billsPageHref(filters, n)}
+                className="mb-12 justify-center"
+              />
+            )}
       </div>
     </div>
   );
