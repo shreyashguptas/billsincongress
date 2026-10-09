@@ -90,9 +90,10 @@ export interface BillsClientProps {
   browseDirectory?: ReactNode;
   /**
    * The page links for the filters the server applied, server-rendered so a
-   * crawler with no JavaScript can walk them. Shown only while the filters are
-   * still those: after a change in the browser they would lead to a page of
-   * the old list, so links built from the current filters replace them.
+   * crawler with no JavaScript can walk them. Shown only while the list is
+   * still the one the server rendered (same filters, same page): otherwise they
+   * would lead to a page of the old list, so links built from the current
+   * filters, page and count replace them.
    */
   serverPagination?: ReactNode;
   /** Deepest page the list query can serve. */
@@ -762,7 +763,10 @@ export default function BillsClient({
         </div>
       </div>
       <div className="container-editorial">
-        {currentSignature === serverFilterSignature
+        {/* The server's links fit only the list the server rendered: the same
+            filters AND the same page. Coming back to the first-load filters
+            refetches page 1, and "Load more" moves the page on. */}
+        {currentSignature === serverFilterSignature && currentPage === initialPage
           ? serverPagination
           : !isLoading &&
             !error && (
