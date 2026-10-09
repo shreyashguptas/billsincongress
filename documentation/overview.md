@@ -1194,10 +1194,16 @@ this site's own `/bills/9707hr119`), with the Congress where one is written. A r
 only other bills is removed; one that names no bill, or names a bill in scope, is kept. In
 scope: every bill the model's query names, the bill the reader has open, and any bill id in the
 model's `reason` — a union, so a companion looked up by number and a rule whose title names the
-bill it governs both survive. With none, nothing is filtered. `scripts/truth/handlers.test.ts`
-runs every pair of same-titled 119th-Congress measures through it. The model is told how many were
-removed, the trace's `search_web` span records what the model was given (the `web_search`
-generation still holds the raw response), and the surviving results are renumbered `web:1…`.
+bill it governs both survive. With none, nothing is filtered, and nothing is filtered either
+when the query names a Congress other than the open bill's ("… 116th Congress": a search for an
+earlier version, whose number the model does not know). A Congress read from a bare number next
+to a reference (`/93/hr10717`) must be at least 80, so a date path (`/2026/10/08/hr-10725`) is not
+taken for one. `scripts/truth/handlers.test.ts` runs every pair of same-titled 119th-Congress
+measures, and every 119th bill that re-uses a 118th title, through it. When results are
+removed, the model is told how many, which bill(s) the filter kept to, that this is not evidence
+the web has nothing, and to put a bill's number in the query to search for a different one. The
+trace's `search_web` span records what the model was given (the `web_search` generation still
+holds the raw response), and the surviving results are renumbered `web:1…`.
 When nothing survives, the model has only our own data to answer from.
 
 > Nothing limits the model to **one** web search — `search_web` is available in every tool

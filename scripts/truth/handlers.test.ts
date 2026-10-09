@@ -1636,6 +1636,39 @@ async function main() {
     assert.deepEqual(wrong.slice(0, 5), [], `${wrong.length} of ${pairs} pairs mixed up`);
   });
 
+  await it("a search for a bill's earlier-Congress version keeps that version's pages", async () => {
+    // Review finding on #181: with the open bill always in scope, a search for
+    // the 118th's version of a re-introduced bill came back empty, and the
+    // model could say there was no earlier version. Checked over every bill
+    // whose title the 118th and the 119th share.
+    const { billsInScope, keepWebResultsForBill } = await import("../../convex/catalog/webResults");
+    const LONG: Record<string, string> = {
+      hr: "house-bill", s: "senate-bill", hres: "house-resolution", sres: "senate-resolution",
+      hjres: "house-joint-resolution", sjres: "senate-joint-resolution",
+      hconres: "house-concurrent-resolution", sconres: "senate-concurrent-resolution",
+    };
+    const earlier = new Map<string, any>();
+    for (const b of bills as any[]) {
+      if (b.congress === 118 && b.title && LONG[b.billType]) earlier.set(b.title.trim().toLowerCase(), b);
+    }
+    let pairs = 0;
+    const wrong: string[] = [];
+    for (const b of bills as any[]) {
+      if (b.congress !== 119 || !b.title) continue;
+      const old = earlier.get(b.title.trim().toLowerCase());
+      if (!old) continue;
+      pairs++;
+      const url = `https://www.congress.gov/bill/118th-congress/${LONG[old.billType]}/${old.billNumber}`;
+      const { kept } = keepWebResultsForBill(
+        [{ url, title: "" }],
+        billsInScope(`${b.title} 118th Congress`, b.billId),
+      );
+      if (kept.length !== 1) wrong.push(`${b.billId} → ${old.billId}`);
+    }
+    assert.ok(pairs > 0, "sanity: some 119th bills re-use a 118th title");
+    assert.deepEqual(wrong.slice(0, 5), [], `${wrong.length} of ${pairs} lost their earlier version`);
+  });
+
   await it("no result ever carries a total without claiming completeness", async () => {
     const shapes: Array<[string, Record<string, unknown>, number | undefined]> = [
       ["bills", { congress: 119 }, 50],

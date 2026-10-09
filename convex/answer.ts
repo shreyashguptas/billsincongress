@@ -29,7 +29,7 @@ import {
 } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
-import { billsInScope, keepWebResultsForBill } from "./catalog/webResults";
+import { billsInScope, describeBillRef, keepWebResultsForBill } from "./catalog/webResults";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "./reasoning";
@@ -915,9 +915,10 @@ async function runLoop(
             // them: H.R. 10725's page described H.R. 9707, the other "GAP Act".
             // Filtered before the span is recorded, so the trace shows what the
             // model saw. See convex/catalog/webResults.ts.
+            const scope = billsInScope(query, opts.pageContext?.billId, reason);
             const { kept, removed } = keepWebResultsForBill(
               await searchWeb(query, opts.apiKey, opts.trace),
-              billsInScope(query, opts.pageContext?.billId, reason),
+              scope,
             );
             const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));
             for (const h of hits) {
@@ -928,7 +929,14 @@ async function runLoop(
             result = JSON.stringify({
               results: hits.map((h) => ({ _cite: h.handle, url: h.url, excerpt: h.excerpt })),
               ...(removed.length > 0 && {
-                note: `${removed.length} result(s) were about a different bill and were removed. Nothing in them describes this bill.`,
+                // Neutral on purpose: "nothing found" here would push the model
+                // toward a false statement of absence. Naming what was kept
+                // tells it how to search for another bill if that was the aim.
+                note:
+                  `${removed.length} result(s) named only bills other than ` +
+                  `${scope.map(describeBillRef).join(" or ")} and were withheld. That is not ` +
+                  `evidence the web has nothing on the question. To search for a different ` +
+                  `bill, put its number in the query.`,
               }),
             });
             note({ tool: "web", detail: reason });

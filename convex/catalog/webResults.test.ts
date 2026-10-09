@@ -5,7 +5,13 @@
  * H.R. 9707 (the other "GAP Act") to a reader.
  */
 import assert from "node:assert/strict";
-import { billRefFromId, billRefsIn, billsInScope, keepWebResultsForBill } from "./webResults";
+import {
+  billRefFromId,
+  billRefsIn,
+  billsInScope,
+  describeBillRef,
+  keepWebResultsForBill,
+} from "./webResults";
 
 let passed = 0;
 const failures: string[] = [];
@@ -206,6 +212,34 @@ it("off a bill page, the bill id in the model's reason sets the scope", () => {
     keepWebResultsForBill(hits, scope).kept.map((h) => h.url),
     ["http://www.congress.gov/bill/119th-congress/senate-bill/3168"],
   );
+});
+
+it("a date in a news URL is not read as a Congress", () => {
+  // Review finding on #181: `/10/08/hr-10725` parsed as the 8th Congress's bill,
+  // so a page about the right bill was dropped as "a different bill".
+  const hits = [
+    hit("https://example-news.com/2026/10/08/hr-10725-gap-act-medicare"),
+    hit("https://thehill.com/policy/healthcare/2026/10/hr10725-explained"),
+  ];
+  assert.equal(urlsKept(hits, "H.R. 10725 GAP Act summary", "10725hr119").length, 2);
+});
+
+it("a search for an earlier Congress's version is not pinned to the open bill", () => {
+  // Review finding on #181: on H.R. 10725's page, "GAP Act Medicare 116th
+  // Congress" had every 116th-Congress result removed.
+  const hits = [
+    hit("https://www.congress.gov/bill/116th-congress/house-bill/4321"),
+    hit("https://www.govtrack.us/congress/bills/116/hr4321"),
+  ];
+  assert.equal(urlsKept(hits, "GAP Act Medicare 116th Congress", "10725hr119").length, 2);
+  // The same Congress as the open bill keeps the filter on.
+  assert.equal(urlsKept(hits.slice(0, 1), "GAP Act 119th Congress", "10725hr119").length, 0);
+});
+
+it("describes what the filter kept, for the model's note", () => {
+  assert.equal(describeBillRef({ type: "hr", number: 10725, congress: 119 }), "H.R. 10725 (119th Congress)");
+  assert.equal(describeBillRef({ type: "sjres", number: 12, congress: 112 }), "S.J.Res. 12 (112th Congress)");
+  assert.equal(describeBillRef({ type: "s", number: 5 }), "S. 5");
 });
 
 it("with no bill in scope nothing is filtered", () => {

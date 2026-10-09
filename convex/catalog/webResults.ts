@@ -84,9 +84,19 @@ const LONG_REF = new RegExp(`(${Object.keys(LONG_TYPES).join("|")})/(\\d{1,5})(?
 const ORDINAL_CONGRESS = /(?<!\d)(\d{1,3})(?:st|nd|rd|th)[\s_-]*congress/i;
 
 /** Congresses that exist or will within a century. Anything else is a misread. */
-function plausibleCongress(n: number | undefined): number | undefined {
-  return n !== undefined && n >= 1 && n <= 200 ? n : undefined;
+function plausibleCongress(n: number | undefined, min = 1): number | undefined {
+  return n !== undefined && n >= min && n <= 200 ? n : undefined;
 }
+
+/**
+ * Floor for a bare number read as a Congress because it sits next to a bill
+ * reference (`/93/hr10717`, `hr9523-119`). A news URL puts a month or a day
+ * there — `/2026/10/08/hr-10725-gap-act` is not the 8th Congress's bill — and
+ * no source we parse lists a Congress that early by number alone.
+ * Congress.gov's bill pages start at the 93rd. Written-out ordinals ("1st
+ * Congress") are not held to it.
+ */
+const MIN_ADJACENT_CONGRESS = 80;
 
 function normaliseShortType(raw: string): string {
   const compact = raw.toLowerCase().replace(/[\s.]/g, "");
@@ -133,8 +143,8 @@ export function billRefsIn(text: string): BillRef[] {
   }
   for (const m of plain.matchAll(SHORT_REF)) {
     const congress =
-      plausibleCongress(m[1] ? Number(m[1]) : undefined) ??
-      plausibleCongress(m[4] ? Number(m[4]) : undefined) ??
+      plausibleCongress(m[1] ? Number(m[1]) : undefined, MIN_ADJACENT_CONGRESS) ??
+      plausibleCongress(m[4] ? Number(m[4]) : undefined, MIN_ADJACENT_CONGRESS) ??
       pageCongress;
     const number = Number(m[3]);
     if (number === 0) continue;
@@ -171,17 +181,44 @@ function sameBill(a: BillRef, b: BillRef): boolean {
  * for consideration of H.R. 1234") without the rule itself being any less in
  * scope. Empty means "no bill in scope": filter nothing.
  *
+ * A query that names a Congress other than the open bill's ("GAP Act Medicare
+ * 116th Congress") is not filtered at all: it is plainly looking for an earlier
+ * version, whose number the model does not know, and pinning it to the open
+ * bill would empty it. Dropping only the open bill is not enough: a title can
+ * name other bills ("…the Washington, D.C. Admission Act (H.R. 51 and S. 51)"),
+ * and those alone would then be in scope.
+ *
  * A bill named in the query without a Congress borrows the open bill's Congress
  * when it IS the open bill, so "H.R. 10717 summary" on the 119th's page still
  * rejects the 93rd's H.R. 10717.
  */
 export function billsInScope(query: string, pageBillId?: string, reason = ""): BillRef[] {
+  const ordinal = ORDINAL_CONGRESS.exec(readable(query));
+  const queryCongress = plausibleCongress(ordinal ? Number(ordinal[1]) : undefined);
   const page = pageBillId ? billRefFromId(pageBillId) : null;
+  if (page && queryCongress !== undefined && queryCongress !== page.congress) return [];
   const named = billRefsIn(query).filter(
     (ref) => !(page && ref.congress === undefined && page.type === ref.type && page.number === ref.number),
   );
   const inReason = [...reason.matchAll(BILL_ID_IN_TEXT)].flatMap((m) => billRefFromId(m[1]) ?? []);
   return [...(page ? [page] : []), ...named, ...inReason];
+}
+
+const TYPE_LABELS: Readonly<Record<string, string>> = {
+  hr: "H.R.", s: "S.", hres: "H.Res.", sres: "S.Res.", hjres: "H.J.Res.", sjres: "S.J.Res.",
+  hconres: "H.Con.Res.", sconres: "S.Con.Res.",
+};
+
+/** "H.R. 10725 (119th Congress)", for telling the model what the filter kept. */
+export function describeBillRef(ref: BillRef): string {
+  const label = `${TYPE_LABELS[ref.type] ?? ref.type} ${ref.number}`;
+  return ref.congress === undefined ? label : `${label} (${ordinalOf(ref.congress)} Congress)`;
+}
+
+function ordinalOf(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
 }
 
 export interface WebHit {
