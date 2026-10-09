@@ -43,6 +43,20 @@ export function buildFilterQuery(f: BillsFilterValues): string {
 }
 
 /**
+ * `/bills` URL for one page of a filter set. Page 1 carries no page parameter,
+ * matching the canonical URL. Used by the page links once the reader changes
+ * filters in the browser: the server-rendered links describe the filters the
+ * page loaded with, so they sent a reader who had searched "veterans" to page
+ * 2 of every bill.
+ */
+export function billsPageHref(f: BillsFilterValues, page: number): string {
+  const query = new URLSearchParams(buildFilterQuery(f));
+  if (page > 1) query.set('page', String(page));
+  const qs = query.toString();
+  return qs ? `/bills?${qs}` : '/bills';
+}
+
+/**
  * One single-value filter as a URL carries it, or undefined when it should not
  * apply: empty, or outside the filter's vocabulary (`accepts` in the registry —
  * `?introducedDate=junk` is no filter, not a filter Convex silently ignores).
