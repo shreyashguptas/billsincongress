@@ -1378,6 +1378,11 @@ export const backfillBillEnrichment = internalAction({
     pausedForRateLimit: boolean;
   }> => {
     requireApiKey();
+    // The budget remembered from an earlier run is stale: after the 15-minute
+    // cooldown it would still read "below the floor" (the check comes before
+    // this run's first call), so the run would pause again, forever. The first
+    // call of this run reads the real one.
+    lastRateLimitRemaining = null;
 
     const startedAt = Date.now();
     let cursor: string | null = args.cursor ?? null;
