@@ -117,8 +117,14 @@ export function buildJourney(
 ): BillJourney {
   // A resolution is agreed to, not passed: that is how the record says it.
   const resolution = ["hres", "sres", "hconres", "sconres"].includes(billType.toLowerCase());
+  // An action dated before the bill was introduced counts as on that day. The
+  // Senate files an original measure with the hearings its subcommittee held
+  // "on the subject prior to introduction" (S. 2431: May 14, introduced and
+  // sent to the floor July 24), and dated as they are they drew 71 days "in
+  // committee" before the bill existed. 94 bills in the 117th–119th had one.
   const dated = actions
     .filter((a): a is JourneyAction & { actionDate: string } => Boolean(a.actionDate))
+    .map((a) => (introducedDate && a.actionDate < introducedDate ? { ...a, actionDate: introducedDate } : a))
     .sort((a, b) => (a.actionDate < b.actionDate ? -1 : a.actionDate > b.actionDate ? 1 : 0));
 
   // Stage after each day's actions. Monotone in practice, because the

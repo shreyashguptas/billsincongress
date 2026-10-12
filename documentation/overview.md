@@ -531,7 +531,10 @@ seven-step track and no dot field.
 - **The journey** is `buildJourney` in `convex/billJourney.ts`, a pure module. It runs
   `calculateBillStage` over every prefix of the bill's actions in date order and records the
   day each stage changed, so there is no second definition of "passed a chamber" to drift from
-  the stored stage. It also picks out the moments a reader cares about (the referral, a
+  the stored stage. An action dated before the bill was introduced counts as on the day it was:
+  the Senate files an original measure with the hearings held "on the subject prior to
+  introduction" (94 bills in the 117th–119th), and taken at their dates they drew months "in
+  committee" before the bill existed (S. 2431: 71 days from May 14, introduced July 24). It also picks out the moments a reader cares about (the referral, a
   committee's recorded vote, each chamber's passage with its tally or "by unanimous
   consent", presentation, signature, the public law number) from the action text. A bill
   with more than 1,000 stored actions gets no journey rather than one read from part of the
