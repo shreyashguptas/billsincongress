@@ -40,7 +40,8 @@ const DASHBOARD: DashboardStats = {
   totalBills: 19067,
   statusBreakdown: {
     introduced: 499,
-    inCommittee: 18255,
+    inCommittee: 18100,
+    outOfCommittee: 155,
     passedOneChamber: 192,
     passedBothChambers: 0,
     vetoed: 2,
@@ -92,7 +93,7 @@ async function main() {
 
   await it('orders stages along the path, Vetoed after the President, and drops empty ones', () => {
     const { stages } = homeCardFromDashboard(DASHBOARD);
-    assert.deepEqual(stages!.map((s) => s.stage), [20, 40, 60, 90, 85, 100]);
+    assert.deepEqual(stages!.map((s) => s.stage), [20, 40, 50, 60, 90, 85, 100]);
     assert.ok(!stages!.some((s) => s.count === 0));
   });
 
