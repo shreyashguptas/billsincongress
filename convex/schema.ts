@@ -106,7 +106,11 @@ export default defineSchema({
     lastEmailedAt: v.optional(v.number()), // epoch ms of the last digest naming it
   })
     .index("by_user", ["userId"])
-    .index("by_user_and_bill", ["userId", "billId"]),
+    .index("by_user_and_bill", ["userId", "billId"])
+    // Every reader following one bill: the stage re-derivation advances their
+    // watermark when a stage is only re-labelled (In committee to Out of
+    // committee), so no digest calls a months-old committee report news.
+    .index("by_billId", ["billId"]),
 
   bills: defineTable({
     billId: v.string(), // Composite key: "{number}{type}{congress}" e.g. "1234hr119"
@@ -121,7 +125,7 @@ export default defineSchema({
     sponsorLastName: v.optional(v.string()),
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
-    progressStage: v.optional(v.number()), // 20, 40, 60, 80, 85 (vetoed), 90, 95, 100
+    progressStage: v.optional(v.number()), // 20, 40, 50 (out of committee), 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
     // The day the bill reached its current stage: when it became law, was

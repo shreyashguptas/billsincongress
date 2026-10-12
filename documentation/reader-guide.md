@@ -28,7 +28,7 @@ Right under the chamber is a box for asking a question. As you type, bills whose
 Below that, it shows:
 
 - **Four headline counts** — bills and resolutions introduced, how many came from each chamber, and how many became law. The counts include resolutions, which are not bills, and say so; the odds of becoming law ("about 1 in 140 that could") count only bills and joint resolutions, because the other resolutions never go to the President.
-- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 90% of everything introduced has not made it out of committee. The rows for one and both chambers say how many of their measures are resolutions that are already finished there, since a House or Senate resolution only ever needs its own chamber.
+- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, close to 90% of everything introduced has not made it out of committee. The first row past committee is "Out of committee": bills a committee has approved and sent to the floor, waiting for a vote. The rows for one and both chambers say how many of their measures are resolutions that are already finished there, since a House or Senate resolution only ever needs its own chamber.
 - **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
 - **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
 - **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
@@ -61,7 +61,7 @@ Below that:
 - **Among its peers** — every bill and resolution on the same topic in the same Congress, one dot each, coloured by stage, with this one ringed: "Of 2,181 Health bills and resolutions this Congress, this is the only one that became law." The counts are recounted in full every night, and the page says when; the ring only appears when the bill has not changed since that count.
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
-- **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever advanced. It is labelled as a description of that group of past bills, not a prediction about this one.
+- **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever left committee. It is labelled as a description of that group of past bills, not a prediction about this one. A bill already out of committee does not show it.
 
 ### Sharing a bill
 
@@ -169,12 +169,13 @@ The `/bills` page carries a live "Updated *n* hours ago" indicator drawn from th
 
 ### The one number computed here
 
-A bill's position in Congress is **not** a field the government hands out. It is derived here, by reading the bill's action history into an eight-rung ladder:
+A bill's position in Congress is **not** a field the government hands out. It is derived here, by reading the bill's action history into a nine-rung ladder:
 
 | Stage | Label |
 | ---: | --- |
 | 20 | Introduced |
 | 40 | In Committee |
+| 50 | Out of Committee |
 | 60 | Passed One Chamber |
 | 80 | Passed Both Chambers |
 | 85 | Vetoed |
