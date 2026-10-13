@@ -37,7 +37,13 @@ function replyWith(replies: Reply[]) {
       if (r.status && r.status !== 200) return new Response("upstream down", { status: r.status });
       return Response.json({
         choices: [{ message: { content: r.content ?? "" }, finish_reason: "stop" }],
-        usage: { prompt_tokens: 10, completion_tokens: 5, cost: 0.00001, ...(r.byok !== undefined && { is_byok: r.byok }) },
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          cost: 0,
+          cost_details: { upstream_inference_cost: 0.000004 },
+          ...(r.byok !== undefined && { is_byok: r.byok }),
+        },
       });
     }),
   );

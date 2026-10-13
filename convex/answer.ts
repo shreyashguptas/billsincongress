@@ -463,9 +463,9 @@ async function callModel(
     outputTokens: data.usage?.completion_tokens,
     // Under BYOK `cost` is OpenRouter's fee (nothing, below its allowance) and
     // Anthropic bills the tokens; the trace records what the answer cost us.
-    costUsd: claude
-      ? data.usage?.cost_details?.upstream_inference_cost
-      : typeof data.usage?.cost === "number" ? data.usage.cost : undefined,
+    costUsd: [claude ? data.usage?.cost_details?.upstream_inference_cost : undefined, data.usage?.cost].find(
+      (c): c is number => typeof c === "number",
+    ),
     httpStatus: response.status,
   });
   // finish_reason was never read, so a completion cut off at max_tokens was
