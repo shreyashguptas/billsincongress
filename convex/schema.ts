@@ -374,7 +374,10 @@ export default defineSchema({
     countedAt: v.optional(v.string()),
   })
     .index("by_congress", ["congress"])
-    .index("by_congress_and_count", ["congress", "count"]),
+    .index("by_congress_and_count", ["congress", "count"])
+    // The bill page's one row (bills.getPage). Topic names are unique within
+    // a Congress: writeCongressPolicyAreas replaces the whole set at once.
+    .index("by_congress_and_policy_area", ["congress", "policyAreaName"]),
 
   // Precomputed sponsors per congress
   congressSponsors: defineTable({
@@ -616,6 +619,13 @@ export default defineSchema({
     totalFailed: v.optional(v.number()),
     totalSkipped: v.optional(v.number()),
     errorDetails: v.optional(v.string()),
+    // The bill types whose sync chains have ended, and how many bills they
+    // touched between them (mutations.finishSyncType). The per-Congress
+    // rollups are recounted once, by the chain that ends last, and only when
+    // something was synced: they used to be recounted by every type's chain,
+    // eight whole-Congress scans a night where one does.
+    typesFinished: v.optional(v.array(v.string())),
+    billsSynced: v.optional(v.number()),
   })
     .index("by_congress", ["congress"])
     .index("by_status", ["status"]),

@@ -1188,6 +1188,34 @@ export const updateSyncSnapshot = internalMutation({
   },
 });
 
+/**
+ * Records that one bill type's sync chain has ended, and says whether this was
+ * the last of the snapshot's types to end. Exactly one caller gets
+ * `last: true`: mutations are serialized, and a type that ends twice is only
+ * counted the first time.
+ */
+export const finishSyncType = internalMutation({
+  args: {
+    snapshotId: v.id("syncSnapshots"),
+    billType: v.string(),
+    billsSynced: v.number(),
+    typeCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const snapshot = await ctx.db.get(args.snapshotId);
+    if (!snapshot) return { last: false, billsSynced: 0 };
+    const finished = snapshot.typesFinished ?? [];
+    const total = snapshot.billsSynced ?? 0;
+    if (finished.includes(args.billType)) {
+      return { last: false, billsSynced: total };
+    }
+    const typesFinished = [...finished, args.billType];
+    const billsSynced = total + args.billsSynced;
+    await ctx.db.patch(args.snapshotId, { typesFinished, billsSynced });
+    return { last: typesFinished.length >= args.typeCount, billsSynced };
+  },
+});
+
 const DELETE_CONGRESS_BATCH_SIZE = 50;
 
 /**

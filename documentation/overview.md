@@ -48,7 +48,7 @@ date. The production copy in `.truth-cache/` (local, ignored) was last re-dumped
 ```
 Congress.gov API v3  (Library of Congress)
       │
-      │  nine sync jobs + one alert-email job + a profile-photo cleanup + a feedback-picture purge + the answer-prompt refresh — convex/crons.ts
+      │  ten sync jobs + one alert-email job + a profile-photo cleanup + a feedback-picture purge + the answer-prompt refresh — convex/crons.ts
       ▼
 convex/congressApi.ts   sync, reconcile, repair, backfill
       │
@@ -257,7 +257,8 @@ throws: at build it fails the deploy, keeping the previous one live, and at runt
 that Google retries while the cache keeps the last good copy. It used to fall back to the
 static file alone, and Google read the index exactly once (23 Jun 2026), recorded "Success, 0
 discovered pages", and knew 6 of the site's pages for the next three months. A build with no
-`NEXT_PUBLIC_CONVEX_URL` at all (a fork's pull request) still produces the static file only.
+`NEXT_PUBLIC_CONVEX_URL` at all (a fork's pull request, and every pull request's CI build, which
+is given no Convex URL on purpose) still produces the static file only.
 
 **Hubs** are defined in `lib/hubs.ts`: 2 chamber + 5 status + 33 topic = **40**. Stage hubs
 for 80 / 90 / 95 deliberately do not exist. The comment there records the reason as measured on
@@ -365,7 +366,8 @@ answer prompt from PostHog (the last four rows).
 | `indexnow-submit-morning` | 01:30 daily | — | Drain the IndexNow queue, 30 min after the sync |
 | `weekly-full-sync` | Sun 02:00 | Current Congress | Everything changed in 7 days, as a safety net |
 | `weekly-repair-incomplete` | Wed 03:00 | All | Re-fetch only the endpoints a half-synced bill is missing |
-| `daily-recompute-stats` | 04:00 daily | All | Rebuild `congressStats` and `congressChamberBreakdowns` |
+| `daily-recompute-stats` | 04:00 daily | Current Congress | Rebuild `congressStats` and `congressChamberBreakdowns`; a safety net, since the sync already recounted every rollup when it ended |
+| `weekly-recompute-all-stats` | Thu 04:00 | Finished Congresses | The same for every earlier Congress, the day after the repair pass |
 | `weekly-committee-base-rates` | Fri 04:30 | Finished Congresses | Recompute committee base rates |
 | `monthly-current-congress-repull` | 05:00 on the 1st | Current Congress | Full re-fetch with no date filter |
 | `weekly-reconcile-recent-congresses` | Mon 06:00 | Current + 2 | Diff the full live list against ours — **the only path that finds never-synced bills in a previous Congress** (the monthly re-pull covers the current one) |
@@ -523,10 +525,13 @@ entirely unless backed by at least 100 past bills.
 ### The bill journey and its peers
 
 The bill page's status panel draws the bill's journey, and below the body sits the
-"Among its peers" dot field. Both come from one public query, `bills.getJourney`, which
-the page fetches beside `bills.getById`. It never fails the page: on any error (including
-the window where the site is deployed before Convex has the query) the page draws the plain
-seven-step track and no dot field.
+"Among its peers" dot field. The page makes **one** Convex call, `bills.getPage`, which
+returns the bill (exactly what `bills.getById` returns, for the share card) together with
+its journey and peers, reading the bill row once. They used to be two calls, `getById` and
+`getJourney`, each reading the bill, and the second read every topic row of the Congress to
+use one; see [Database cost](#database-cost). A failed call is a 404, as a failed `getById`
+always was. Each part is null when it cannot be drawn honestly, and the page then draws the
+plain seven-step track and no dot field.
 
 - **The journey** is `buildJourney` in `convex/billJourney.ts`, a pure module. It runs
   `calculateBillStage` over every prefix of the bill's actions in date order and records the
@@ -546,7 +551,8 @@ seven-step track and no dot field.
   President's desk, which says just that: the record shows no signature or veto.
 - **The peer counts** are `congressPolicyAreas.stageCounts`: the nightly
   `recomputeCongressPolicyAreas` counts every bill of the Congress by topic and by stage in
-  the same pass, so the parts always sum to the topic's `count`. `getJourney` returns them
+  the same pass, so the parts always sum to the topic's `count`. `getPage` reads the one row
+for the bill's topic through the `by_congress_and_policy_area` index, and returns them
   only when they do. `countedAt` is taken before the scan starts; the page rings "this
   bill" only when the bill's `updatedAt` is no later than that, so a bill that moved since
   the count is never ringed in a group it may have left. A bill with no topic yet (Congress
@@ -735,6 +741,38 @@ O(log n) instead of a table scan.
 They are kept in sync by **triggers**: `convex/mutations.ts` imports `internalMutation` from
 `./functions` (the trigger-wrapped constructor), not from `./_generated/server`. Using the
 wrong import is how an aggregate silently drifts from the table.
+
+### Database cost
+
+Convex bills the team (Starter Plus, pay as you go, with a **$15 spending cap that disables
+the deployment** when reached) mostly for two things: database I/O, $0.22 a GB past the first
+1 GB, and function calls, $2.20 a million past the first million. Storage is cents. The
+usage is in the Convex dashboard under Settings → Usage, broken down by function.
+
+In the billing period ending 15 Oct 2026, reads ran at ~1.75 GB and ~96,000 calls a day, on
+course for ~$15.70 a month. Where it went, and what was done about it:
+
+| Source | Reads a day | Why | Now |
+| --- | --- | --- | --- |
+| Bill pages | ~0.6 GB, ~77,000 calls | ~36,000 bill pages a day are rendered and PostHog records ~200 bill page views by readers: the rest are crawlers. Each render made two calls, and the second read all ~31 topic rows of the Congress (~13 KB) to use one | One call, `bills.getPage`; one topic row by index |
+| Accuracy check copy | ~0.5 GB | `accuracy.yml` exported all of production every night | Weekly |
+| Sitemaps | ~0.2 GB on busy days | Every pull request's CI build prerendered all four sitemaps from production, ~18 MB a build (35 builds on 5 Oct) | CI builds get no Convex URL; only the deploy build prerenders them |
+| Rollup recounts | ~0.2 GB | Each of the eight bill types' sync chains recounted the whole current Congress as it finished, and the 04:00 cron recounted the finished Congresses too | Once, by the last type to finish, only if it synced a bill; finished Congresses weekly |
+
+What was left alone, and why:
+
+- **Caching bill pages at the edge.** With ~56,500 bills and ~36,000 renders a day, a
+  crawler comes back to the same bill about every day and a half, so a cache that lives
+  hours would rarely be hit, and OpenNext's cache is Workers KV, billed by the GB stored.
+  Making each render cheap was the larger and surer saving.
+- **The answer engine.** `catalog/fetch.fetchDataset` is ~1% of reads. Answers are not
+  what costs money.
+- **Lists, hubs and the home page** (`list`, `listSorted`, `listCount`,
+  `getCongressDashboard`): ~0.2 GB a day between them, each read sized to the page it
+  serves.
+
+Before adding anything that runs on a schedule or on every page render, multiply its reads
+by how often it runs. The four leaks above each looked small per call.
 
 ---
 
@@ -1004,13 +1042,15 @@ while, and `pnpm test` printed "0 failed", so a green check read as proof of the
 not checked. `REQUIRE_TRUTH_CACHE=1 pnpm test` turns those skips into failures and is the gate to
 run before merging anything under `convex/catalog/`.
 
-**They run every night in CI**, in `accuracy.yml`: a fresh `dump.ts` copy of production, then
+**They run every week in CI** (Mondays), in `accuracy.yml`: a fresh `dump.ts` copy of production, then
 `REQUIRE_TRUTH_CACHE=1 pnpm test`, on `main` only. GitHub emails the failure. They still do
 **not** run on pull requests, by design. Copying production needs `CONVEX_DEPLOY_KEY`, which can
 also deploy, and a pull request job runs its branch's own code (bots' branches included). So the
 local gate is still the one to run before merging anything under `convex/catalog/` or
-`convex/answer.ts`. The nightly run catches what slips past it, and answers that drift as the
-data changes under code nobody touched.
+`convex/answer.ts`. The weekly run catches what slips past it, and answers that drift as the
+data changes under code nobody touched. It was nightly until October 2026; the copy is a full
+export that reads the whole database, ~0.5 GB of reads a run, and nightly that was about a
+fifth of the Convex bill. "Run workflow" on `main` runs it on demand.
 
 On the runner, the full snapshot (readers' accounts and chats included) exists only while
 `dump.ts` pulls the eight public tables out of it, and is deleted before the script exits, even
@@ -1991,7 +2031,9 @@ screenshot guard allows them, and only while `app/manifest.ts` references each f
 
 ### Frontend / build-time
 
-Inlined by Next at **build** time, so they must be present wherever `pnpm cf:build` runs.
+Inlined by Next at **build** time, so they must be present wherever `pnpm cf:build` builds
+something that will be deployed. CI's pull request build leaves out the two Convex ones on
+purpose (see [Database cost](#database-cost)).
 `.env.example` ships the first five.
 
 | Variable | If unset |
@@ -2182,14 +2224,14 @@ file name with more than one dot.
 ### CI
 
 Two required status checks on every pull request, one workflow that only runs when somebody
-asks it to, and a nightly accuracy check on `main`:
+asks it to, and a weekly accuracy check on `main`:
 
 | Workflow | Job | Trigger | Steps |
 | --- | --- | --- | --- |
-| `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `tsc --noEmit -p convex` (the check `convex deploy` runs, with `convex/`'s own older-lib tsconfig; added after #170 passed CI and failed at deploy) → `pnpm cf:build` |
+| `ci.yml` | `build` | every PR push | install (frozen lockfile) → `pnpm test` → `tsc --noEmit -p convex` (the check `convex deploy` runs, with `convex/`'s own older-lib tsconfig; added after #170 passed CI and failed at deploy) → `pnpm cf:build`, with no Convex URL, so the build never reads production (see [Database cost](#database-cost)) |
 | `claude-code-review.yml` | `review` | every PR push | install → capture `pnpm test` and `tsc --noEmit` output → automated code review |
 | `claude.yml` | `claude` | an `@claude` comment | install → answer the comment in the thread |
-| `accuracy.yml` | `truth` | nightly at 10:17 UTC, or by hand on `main` | install → `scripts/truth/dump.ts` → `REQUIRE_TRUTH_CACHE=1 pnpm test` |
+| `accuracy.yml` | `truth` | Mondays at 10:17 UTC, or by hand on `main` | install → `scripts/truth/dump.ts` → `REQUIRE_TRUTH_CACHE=1 pnpm test` |
 
 `ci.yml`, `deploy.yml` and `accuracy.yml` declare `permissions: contents: read` and a
 `timeout-minutes`, so none of them can hold write access they do not use, or hold a runner for
