@@ -1613,11 +1613,14 @@ export const backfillEnrichmentStatus = internalAction({
 // Recomputes congressStats for every congress that has bills. Called after
 // syncs and by the daily stats cron.
 export const recomputeAllStats = internalAction({
-  // `currentOnly` is the daily cron's: a finished Congress's bills only change
-  // through a repair or backfill, so recounting the 117th and 118th every night
-  // read ~19k bills each to write the same numbers. The weekly cron, a manual
-  // run and the backfills recount every Congress.
-  args: { currentOnly: v.optional(v.boolean()) },
+  // `only: "current"` is the daily cron's: a finished Congress's bills only
+  // change through a repair or backfill, so recounting the 117th and 118th every
+  // night read ~19k bills each to write the same numbers. The weekly cron takes
+  // `only: "finished"`, so the current Congress is not scanned twice that
+  // morning. A manual run and the backfills recount every Congress.
+  args: {
+    only: v.optional(v.union(v.literal("current"), v.literal("finished"))),
+  },
   handler: async (ctx, args): Promise<{ congresses: number[] }> => {
     // Find which congresses exist by probing the index. The upper bound tracks
     // the current congress (never below 120, the last hardcoded value) so a
@@ -1625,9 +1628,10 @@ export const recomputeAllStats = internalAction({
     const currentCongress =
       Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
     const upperCongress = Math.max(120, currentCongress);
-    const lowerCongress = args.currentOnly ? currentCongress : 93;
+    const lowerCongress = args.only === "current" ? currentCongress : 93;
+    const lastCongress = args.only === "finished" ? currentCongress - 1 : upperCongress;
     const congressesToUpdate: number[] = [];
-    for (let c = lowerCongress; c <= upperCongress; c++) {
+    for (let c = lowerCongress; c <= lastCongress; c++) {
       const bills = await ctx.runQuery(internal.bills.hasBillsForCongress, { congress: c });
       if (bills) congressesToUpdate.push(c);
     }

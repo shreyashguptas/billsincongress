@@ -140,7 +140,7 @@ Ten scheduled jobs keep the database in step with Congress, an eleventh sends bi
 | --- | --- |
 | Daily, 01:00 UTC | Pull every bill **in the current Congress** that Congress.gov reports as changed in the last 26 hours |
 | Daily, 04:00 UTC | Rebuild the current Congress's precomputed statistics behind the dashboard (they are also rebuilt right after each nightly update that changes a bill) |
-| Thursday, 04:00 UTC | Rebuild the precomputed statistics for every Congress, after Wednesday's repairs |
+| Thursday, 04:00 UTC | Rebuild the precomputed statistics for earlier Congresses, after Wednesday's repairs |
 | Sunday, 02:00 UTC | Re-pull everything in the current Congress changed in the last seven days, as a safety net |
 | Monday, 06:00 UTC | Compare the full live list for all three Congresses against ours and fetch anything missing entirely |
 | Wednesday, 03:00 UTC | Repair bills that were only half-fetched |

@@ -367,7 +367,7 @@ answer prompt from PostHog (the last four rows).
 | `weekly-full-sync` | Sun 02:00 | Current Congress | Everything changed in 7 days, as a safety net |
 | `weekly-repair-incomplete` | Wed 03:00 | All | Re-fetch only the endpoints a half-synced bill is missing |
 | `daily-recompute-stats` | 04:00 daily | Current Congress | Rebuild `congressStats` and `congressChamberBreakdowns`; a safety net, since the sync already recounted every rollup when it ended |
-| `weekly-recompute-all-stats` | Thu 04:00 | All | The same for every Congress, the day after the repair pass |
+| `weekly-recompute-all-stats` | Thu 04:00 | Finished Congresses | The same for every earlier Congress, the day after the repair pass |
 | `weekly-committee-base-rates` | Fri 04:30 | Finished Congresses | Recompute committee base rates |
 | `monthly-current-congress-repull` | 05:00 on the 1st | Current Congress | Full re-fetch with no date filter |
 | `weekly-reconcile-recent-congresses` | Mon 06:00 | Current + 2 | Diff the full live list against ours — **the only path that finds never-synced bills in a previous Congress** (the monthly re-pull covers the current one) |
