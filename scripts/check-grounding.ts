@@ -989,6 +989,33 @@ export function sentences(text: string): string[] {
   return out;
 }
 
+/**
+ * An admission that we do not hold something. The gate's co-sponsor question has
+ * one right answer — we hold the primary sponsor only — and models say it in
+ * three shapes, each of which must count:
+ *   negated verb   "we don't track co-sponsors", "doesn't hold"
+ *   passive        "co-sponsors are not tracked anywhere in what we hold"
+ *   restriction    "our data holds only the primary sponsor", "we only track
+ *                  each bill's primary sponsor" (Claude Haiku and Opus 5.5 on
+ *                  2026-10-13; the first two patterns failed both correct answers)
+ */
+const NOT_HELD: RegExp[] = [
+  // "doesn't track" is as good an admission as "don't track".
+  /\b(?:do(?:es)?(?: not|n't)|did(?: not|n't))\s+(?:\w+\s+){0,2}(?:have|hold|track|store|carry|record)/i,
+  /\bn(?:ot|ever)\s+(?:\w+\s+){0,2}(?:tracked|held|stored|recorded|carried|captured|included)\b/i,
+  /not (?:in our|something we|part of what we|information we)|isn't in our|is not in our|no co-?sponsor/i,
+  // Scoped to the primary sponsor so that "we only track bills" says nothing here.
+  /\b(?:only\s+(?:hold|track|record|store|carry|have|list)s?|(?:hold|track|record|store|carry|have|list)s?\s+only)\b[^.]*\bprimary sponsor/i,
+];
+
+export function admitsNotHeld(text: string): boolean {
+  // Curly apostrophes and non-breaking hyphens are how gpt-oss writes "don’t"
+  // and "co‑sponsor"; a correct admission failed this gate on 2026-10-05 for the
+  // apostrophe alone.
+  const plain = text.replace(/[\u2018\u2019]/g, "'").replace(/[\u2010\u2011]/g, "-");
+  return NOT_HELD.some((re) => re.test(plain));
+}
+
 /** Assertions that a set is EMPTY. Hedges are handled by DISCLAIMED below. */
 const ABSENCE_PATTERNS: RegExp[] = [
   /\bthere (?:are|were|is|was|have been|has been) (?:no|none|not a single|zero)\b/i,
@@ -1016,6 +1043,18 @@ const ABSENCE_PATTERNS: RegExp[] = [
  * allows. Unscoped, it is a claim about the set, which it does not.
  */
 const PRONOUN_ABSENCE = /\bnone of (?:them|these|those)\b/i;
+/**
+ * "None of them" can also mean the lookups: "I tried several ways to find bills
+ * with recent activity, but none of them could check every bill" (Claude Opus
+ * 5.5, 2026-10-13) admits the read was incomplete, which is the answer wanted.
+ * Recognised by what follows the pronoun — a lookup that could or could not do
+ * something — never by the noun before it, which may as well be the bills.
+ * The verb is named, not left open: "none of them could be found" and "none of
+ * them can show action" are the bills again, and the empty-set claim this check
+ * is for.
+ */
+const LOOKUP_SCOPED =
+  /\bnone of (?:them|these|those) (?:could|can|was able to|were able to|managed to) (?:check|read|cover|search|scan|reach|sort|count|list|return|retrieve|fetch|get|see|tell|confirm|guarantee)\b/i;
 const SAMPLE_SCOPED =
   /\b(?:sample|the rows I|the ones I|among the (?:measures|bills|rows|results) I|what I (?:did see|could see|retrieved))\b/i;
 
@@ -1034,7 +1073,7 @@ export function claimsAbsence(text: string): string | null {
   for (const s of sentences(text)) {
     if (DISCLAIMED.test(s)) continue;
     if (ABSENCE_PATTERNS.some((re) => re.test(s))) return s;
-    if (PRONOUN_ABSENCE.test(s) && !SAMPLE_SCOPED.test(s)) return s;
+    if (PRONOUN_ABSENCE.test(s) && !SAMPLE_SCOPED.test(s) && !LOOKUP_SCOPED.test(s)) return s;
   }
   return null;
 }
@@ -1096,7 +1135,26 @@ const RECENCY_PATTERN =
  * not a hit: what this looks for is a bill named DEFINITIVELY as the newest.
  */
 const NEGATION_PATTERN =
-  /\b(?:not|never|cannot|can't|couldn't|could not|unable|unclear|unknown|n't|isn't|aren't|no way)\b/i;
+  /\b(?:not|never|cannot|could not|unable|unclear|unknown|no way)\b|n't\b/i;
+
+/**
+ * The negation has to govern the superlative, not merely share its sentence.
+ * Any "n't" counts, so "H.R. 10152 is the most recent measure to see action,
+ * though it hasn't passed the House" would be excused by a clause about
+ * something else. The sentence is cut at clause breaks and every clause that
+ * ranks must carry its own negation: "the results weren't sorted, so that row
+ * doesn't show it is the newest" (Claude Haiku 5.5, 2026-10-13) still passes,
+ * because "doesn't" sits in the clause with "newest". Commas are not breaks —
+ * they also set off a bill's title.
+ */
+const CLAUSE_BREAK = /[;:\u2013\u2014]|\s-\s|\b(?:but|though|although|while|whereas|yet|and|so|because)\b/i;
+
+function negatedWhereRanked(claim: string): boolean {
+  return claim
+    .split(CLAUSE_BREAK)
+    .filter((clause) => RECENCY_PATTERN.test(clause))
+    .every((clause) => NEGATION_PATTERN.test(clause));
+}
 
 /** Names a specific row as the newest — the claim `order: "arbitrary"` forbids. */
 export function namesOneAsNewest(text: string): string | null {
@@ -1105,7 +1163,7 @@ export function namesOneAsNewest(text: string): string | null {
     // The row's own fields are struck out first: what is left is the ranking.
     const claim = s.replace(ROW_LEVEL_SUPERLATIVE, " ");
     if (!RECENCY_PATTERN.test(claim)) continue;
-    if (NEGATION_PATTERN.test(claim)) continue;
+    if (negatedWhereRanked(claim)) continue;
     if (!SET_SUPERLATIVE.some((re) => re.test(claim))) continue;
     if (references.some((r) => s.includes(r))) return s;
   }
@@ -1176,25 +1234,10 @@ async function main() {
   answers.push(["co-sponsors", cosponsors]);
   report("co-sponsor question", cosponsors);
   // Curly apostrophes and non-breaking hyphens are how gpt-oss writes "don’t"
-  // and "co‑sponsor"; a correct admission failed this gate on 2026-10-05 for the
-  // apostrophe alone. Read the plain form.
+  // and "co‑sponsor"; read the plain form for the count check too.
   const said = cosponsors.text.replace(/[\u2018\u2019]/g, "'").replace(/[\u2010\u2011]/g, "-");
-  // "doesn't track" is as good an admission as "don't track", and the narrower
-  // pattern failed a correct answer for saying it the other way round.
-  const admits =
-    /\b(?:do(?:es)?(?: not|n't)|did(?: not|n't))\s+(?:\w+\s+){0,2}(?:have|hold|track|store|carry|record)/i.test(
-      said,
-    ) ||
-    // The passive says the same thing: "co-sponsors are not tracked anywhere in
-    // what we hold" is the admission this gate is for.
-    /\bn(?:ot|ever)\s+(?:\w+\s+){0,2}(?:tracked|held|stored|recorded|carried|captured|included)\b/i.test(
-      said,
-    ) ||
-    /not (?:in our|something we|part of what we|information we)|isn't in our|is not in our|no co-?sponsor/i.test(
-      said,
-    );
   const inventedNumber = /\b\d+\s+co-?sponsors?\b/i.test(said);
-  check("admits we do not hold co-sponsors", admits, cosponsors.text.slice(0, 300));
+  check("admits we do not hold co-sponsors", admitsNotHeld(cosponsors.text), cosponsors.text.slice(0, 300));
   check("does NOT state a co-sponsor count", !inventedNumber, cosponsors.text.slice(0, 300));
   check("dropped no invented citations", cosponsors.dropped === 0, `dropped=${cosponsors.dropped}`);
 

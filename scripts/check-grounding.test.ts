@@ -24,6 +24,7 @@ import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDERS,
   MAX_PRICE,
+  admitsNotHeld,
   claimsAbsence,
   leaksVocabulary,
   namesOneAsNewest,
@@ -187,6 +188,9 @@ it("catches a claim that the set is empty", () => {
     "I found no measures with action in the past week.",
     "None of them show an action in the past week.",
     "Not a single bill advanced this week.",
+    // "None of them could" is excused only for a lookup's verb; these are bills.
+    "None of them could be found in the past week.",
+    "None of them can show action this week.",
   ];
   for (const claim of claims) assert.ok(claimsAbsence(claim), `missed: ${claim}`);
 });
@@ -198,6 +202,8 @@ it("allows an honest sentence that merely contains the word", () => {
     "From the sample I did see, none of them show an action after introduction.",
     "I have no way of knowing how many moved.",
     "That does not mean none exist.",
+    // Claude Opus 5.5, 2026-10-13: "none of them" is the lookups, not the bills.
+    "I tried several ways to find bills with recent activity, but none of them could check every bill.",
   ];
   for (const text of honest) assert.equal(claimsAbsence(text), null, `over-fired on: ${text}`);
 });
@@ -227,6 +233,10 @@ it("catches a row named as the newest over an arbitrary page", () => {
     // The hedge names the sample and still hands the reader a winner, which is
     // the maximum `order: "arbitrary"` forbids in as many words.
     "H.R. 10152 had the most recent date among the measures I retrieved.",
+    // Any "n't" now negates, so a clause about something else must not excuse
+    // the ranking beside it.
+    "H.R. 10152 is the most recent measure to see action, though it hasn't passed the House.",
+    "H.R. 10152 is the latest bill to move; it didn't get a vote.",
   ];
   for (const claim of claims) assert.ok(namesOneAsNewest(claim), `missed: ${claim}`);
 });
@@ -240,8 +250,31 @@ it("allows a refusal and a row's own field", () => {
     // permits. This sentence used to fail the gate while its own comment
     // promised it would not.
     "H.R. 9710, whose latest recorded action was 2026-07-15, is one of the measures I saw.",
+    // Claude Haiku 5.5, 2026-10-13. "weren't" and "doesn't" negate as surely as
+    // "isn't", and this is the refusal the question is asking for.
+    "Our search returned H.R. 9710, the Third World Immigration Moratorium Act, with its latest action on July 15, 2026 [1], but the results weren't sorted, so that row doesn't show it is the newest.",
   ];
   for (const text of honest) assert.equal(namesOneAsNewest(text), null, `over-fired on: ${text}`);
+});
+
+it("hears an admission that we do not hold co-sponsors, however it is phrased", () => {
+  const admissions = [
+    "We don't track co-sponsors.",
+    "Co-sponsors are not tracked anywhere in what we hold.",
+    // Claude Haiku 5.5 and Opus 5.5, 2026-10-13: correct answers the gate failed.
+    "I can't give you a co-sponsor count for H.R. 1. Our data holds only the primary sponsor of each bill.",
+    "Our records hold only each bill's primary sponsor, not its co-sponsors.",
+    "I can't tell you how many co-sponsors H.R. 1 has, because we only track each bill's primary sponsor.",
+  ];
+  for (const text of admissions) assert.ok(admitsNotHeld(text), `missed: ${text}`);
+});
+
+it("does not hear an admission in an answer that gives the number", () => {
+  const claims = [
+    "H.R. 1 has 212 co-sponsors.",
+    "The primary sponsor is Representative Jodey Arrington, and the bill has 40 co-sponsors.",
+  ];
+  for (const text of claims) assert.equal(admitsNotHeld(text), false, `over-fired on: ${text}`);
 });
 
 it("catches our plumbing in the reader's answer", () => {
