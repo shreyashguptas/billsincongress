@@ -54,6 +54,15 @@ export const DEFAULT_MODEL = "openai/gpt-oss-120b";
 export const DEFAULT_PROVIDERS = "cerebras,groq,amazon-bedrock";
 export const DEFAULT_FALLBACK_MODELS = "";
 export const MAX_PRICE = { prompt: 0.5, completion: 1.0 };
+/**
+ * Production answers on this first, on the site's own Anthropic key (BYOK), and
+ * moves a turn to MODEL only when a Claude call fails. The gate does NOT fall
+ * back: a Claude failure here is a finding, and grading the fallback instead
+ * would pass a gate on behalf of a model readers mostly do not get. Blank
+ * OPENROUTER_CLAUDE_MODEL grades MODEL, as a blank value runs production on it.
+ */
+export const DEFAULT_CLAUDE_MODEL = "anthropic/claude-haiku-5.5";
+const CLAUDE_MODEL = (process.env.OPENROUTER_CLAUDE_MODEL ?? DEFAULT_CLAUDE_MODEL).trim();
 
 const MODEL = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
@@ -774,6 +783,7 @@ const reasoning = reasoningConfig(process.env.OPENROUTER_REASONING);
 const reasoningOn = !("enabled" in reasoning);
 
 async function callModel(messages: ChatMessage[], withTools: boolean) {
+  if (CLAUDE_MODEL) return callClaude(messages, withTools);
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -807,6 +817,35 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
     throw new Error(`OpenRouter: ${JSON.stringify(data.error ?? res.status).slice(0, 300)}`);
   }
   servedModels.add(String(data.model ?? "unknown"));
+  return data.choices?.[0]?.message;
+}
+
+/** The Claude route as convex/answer.ts sends it: Anthropic's endpoint only, our key only. */
+async function callClaude(messages: ChatMessage[], withTools: boolean) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      messages,
+      ...(withTools ? { tools: ANSWER_TOOLS } : {}),
+      max_tokens: reasoningOn ? ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS : ANSWER_MAX_TOKENS,
+      reasoning,
+      provider: { only: ["anthropic"], allow_fallbacks: false, data_collection: "deny", max_price: MAX_PRICE },
+      usage: { include: true },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(`OpenRouter: ${JSON.stringify(data.error ?? res.status).slice(0, 300)}`);
+  }
+  if (data.usage?.is_byok !== true) {
+    throw new Error("Claude was not billed to our Anthropic key: check the BYOK key on OpenRouter");
+  }
+  servedModels.add(`${String(data.model ?? "unknown")} (BYOK)`);
   return data.choices?.[0]?.message;
 }
 
@@ -1221,7 +1260,7 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `model=${MODEL} fallbacks=${FALLBACKS.join(",") || "(none)"} ` +
+    `claude=${CLAUDE_MODEL || "(off)"} model=${MODEL} fallbacks=${FALLBACKS.join(",") || "(none)"} ` +
       `providers=${PROVIDERS.join(",")} today=${TODAY}\n`,
   );
   const answers: Array<[string, Answer]> = [];

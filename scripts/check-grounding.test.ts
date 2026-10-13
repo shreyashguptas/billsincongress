@@ -20,6 +20,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  DEFAULT_CLAUDE_MODEL,
   DEFAULT_FALLBACK_MODELS,
   DEFAULT_MODEL,
   DEFAULT_PROVIDERS,
@@ -313,6 +314,7 @@ function shipped(name: string): string {
 
 it("runs the model configuration production ships", () => {
   assert.equal(JSON.stringify(DEFAULT_MODEL), shipped("DEFAULT_MODEL"));
+  assert.equal(JSON.stringify(DEFAULT_CLAUDE_MODEL), shipped("DEFAULT_CLAUDE_MODEL"));
   assert.equal(JSON.stringify(DEFAULT_PROVIDERS), shipped("DEFAULT_PROVIDERS"));
   assert.equal(JSON.stringify(DEFAULT_FALLBACK_MODELS), shipped("DEFAULT_FALLBACK_MODELS"));
   assert.equal(

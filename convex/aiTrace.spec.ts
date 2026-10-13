@@ -85,6 +85,8 @@ beforeEach(() => {
   modelFails = false;
   modelEmpty = false;
   process.env.OPENROUTER_API_KEY = "sk-or-test-not-a-real-key";
+  // Traces of the default-model loop; the Claude route is answerClaude.spec.ts.
+  process.env.OPENROUTER_CLAUDE_MODEL = "";
   process.env.POSTHOG_KEY = "phc_test_not_a_real_key";
   delete process.env.POSTHOG_HOST;
   vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
@@ -103,6 +105,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.POSTHOG_KEY;
+  delete process.env.OPENROUTER_CLAUDE_MODEL;
 });
 
 async function ask(
