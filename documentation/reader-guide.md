@@ -58,7 +58,7 @@ Each bill page shows the bill number and Congress, its policy area, the official
 Below that:
 
 - **A status panel** naming the bill's current stage and how it got there. Its journey is drawn to scale: one bar segment per stage, as long as the bill stayed in it, and under each one the number of days and what happened then — the committee vote, each chamber's passage with its yes and no tally, the signature and the public law number. All of it is read from the bill's official actions on Congress.gov. A bill that has spent time in only one stage shows the seven-step track instead. Resolutions that cannot become law get a shorter track that ends where they are finished: a simple resolution (H.Res., S.Res.) has three steps and ends at "Agreed to by the House" or "by the Senate"; a concurrent resolution (H.Con.Res., S.Con.Res.) has four and ends at "Agreed to by both chambers". A sentence under the track says why: neither ever goes to the President, and neither is a law. The same shorter track and the same words appear wherever the site shows a stage: the bill lists, the bill cards in answers, your account page and the alert emails. A bill still on its way also shows how many days are left in the two-year Congress, because a bill that has not become law when the Congress ends dies with it.
-- **Among its peers** — every bill and resolution on the same topic in the same Congress, one dot each, coloured by stage, with this one ringed: "Of 2,181 Health bills and resolutions this Congress, this is the only one that became law." The counts are recounted in full every night, and the page says when; the ring only appears when the bill has not changed since that count.
+- **Among its peers** — every bill and resolution on the same topic in the same Congress, one dot each, coloured by stage, with this one ringed: "Of 2,181 Health bills and resolutions this Congress, this is the only one that became law." The counts are recounted in full after every nightly update that changes a bill, and the page says when; the ring only appears when the bill has not changed since that count.
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
 - **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever left committee. It is labelled as a description of that group of past bills, not a prediction about this one. A bill already out of committee does not show it.
@@ -134,12 +134,13 @@ Every bill record on this site comes from one place: the **[official Congress.go
 
 ### How it stays current
 
-Nine scheduled jobs keep the database in step with Congress, a tenth sends bill-alert emails, an eleventh deletes profile-photo uploads that were never attached to an account, and a twelfth deletes old feedback pictures:
+Ten scheduled jobs keep the database in step with Congress, an eleventh sends bill-alert emails, a twelfth deletes profile-photo uploads that were never attached to an account, and a thirteenth deletes old feedback pictures:
 
 | When | What it does |
 | --- | --- |
 | Daily, 01:00 UTC | Pull every bill **in the current Congress** that Congress.gov reports as changed in the last 26 hours |
-| Daily, 04:00 UTC | Rebuild the precomputed statistics behind the dashboard |
+| Daily, 04:00 UTC | Rebuild the current Congress's precomputed statistics behind the dashboard (they are also rebuilt right after each nightly update that changes a bill) |
+| Thursday, 04:00 UTC | Rebuild the precomputed statistics for every Congress, after Wednesday's repairs |
 | Sunday, 02:00 UTC | Re-pull everything in the current Congress changed in the last seven days, as a safety net |
 | Monday, 06:00 UTC | Compare the full live list for all three Congresses against ours and fetch anything missing entirely |
 | Wednesday, 03:00 UTC | Repair bills that were only half-fetched |

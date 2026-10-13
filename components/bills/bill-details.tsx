@@ -29,7 +29,7 @@ import PodcastPromo from '@/components/podcast-promo';
 import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
 import { journeyView } from '@/lib/bill-journey';
-import type { billsService } from '@/lib/services/bills-service';
+import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
   ArrowLeft,
   Ban,
@@ -84,7 +84,7 @@ const LONG_TITLE_CHARS = 90;
 interface BillDetailsProps {
   bill: Bill;
   /** The journey and peer counts; null when Convex could not supply them. */
-  extras?: Awaited<ReturnType<typeof billsService.fetchBillJourney>>;
+  extras?: BillPageExtras | null;
   /** Today in Washington, YYYY-MM-DD, from the server. */
   today: string;
 }
