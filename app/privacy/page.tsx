@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'September 30, 2026';
+const LAST_UPDATED = 'October 13, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -130,12 +130,13 @@ export default function PrivacyPage() {
           <ExternalLink href="https://openrouter.ai">
             OpenRouter
           </ExternalLink>
-          , which routes it to the AI model that writes the answer. We
-          restrict that routing to providers that process data in the
-          United States. We also require that routing go only to
-          providers that do not retain your question or use it to train
-          models. OpenRouter and the model provider it routes to receive
-          your question text but not your name or email address.
+          , which routes it to the AI model that writes the answer: Claude
+          Haiku, run on our own account with Anthropic. Anthropic does not
+          use your question to train models and deletes it within 30 days.
+          If Claude cannot answer, the question goes to a backup model,
+          routed only to providers in the United States that do not retain
+          it or train on it. OpenRouter and the model provider receive your
+          question text but not your name or email address.
         </p>
         <p>
           If you are signed in, your conversations are saved to your
@@ -401,7 +402,7 @@ const summary = [
   'We never sell your data. No ads, no ad trackers, no data brokers.',
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
-  'AI questions are answered through OpenRouter, routed only to US providers that do not retain or train on them.',
+  'AI questions are answered by Claude Haiku on our own Anthropic account, through OpenRouter. Anthropic does not train on them and deletes them within 30 days.',
   'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. Each answer is recorded there too, with the conversation it came from, so we can find and fix wrong ones; that text is deleted after 30 days.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
   'We email you only for account reasons and bill alerts you turn on — never marketing.',
@@ -473,7 +474,11 @@ const providers = [
   },
   {
     name: 'OpenRouter',
-    role: 'Routes your questions to the AI model that generates the answer, restricted to US providers that do not retain them or train on them. Receives your question and the relevant public bill details — not your identity.',
+    role: 'Routes your questions to the AI model that generates the answer. Receives your question and the relevant public bill details — not your identity.',
+  },
+  {
+    name: 'Anthropic',
+    role: 'Makes Claude Haiku, the AI model that writes most answers, called on our own account. Receives your question and the relevant public bill details — not your identity. Does not train on them and deletes them within 30 days. When Claude cannot answer, a backup model on US providers that do not retain questions answers instead.',
   },
   {
     name: 'Exa',

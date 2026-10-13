@@ -816,10 +816,12 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  ├─ rate-limit check  ← the token is consumed BEFORE the model is called
                  ├─ primed, costing no round: describe_dataset for bills + topics, and
                  │    (off bill pages) the topics list for the Congress on screen
-                 ├─ tool loop, max 4 rounds (the 5th call goes out WITHOUT tools)
+                 ├─ tool loop, max 4 rounds (the 5th call goes out WITHOUT tools);
+                 │    each round on Claude Haiku 5.5 (BYOK), or on gpt-oss-120b for the
+                 │    rest of the turn once a Claude call has failed (`answerRound`)
                  │    ├─ describe_dataset
                  │    ├─ fetch_dataset   → convex/catalog/fetch.ts
-                 │    ├─ search_web      → OpenRouter web plugin, engine "exa"
+                 │    ├─ search_web      → OpenRouter web plugin, engine "exa", on gpt-oss-120b
                  │    ├─ ask_reader      → ends the turn with a question, not an answer
                  │    └─ no answer, no call → one nudge, then the no-tools round early;
                  │                           still empty → `error` frame (empty_model_output).
@@ -956,7 +958,7 @@ is exactly those six.
 | Question length | 2,000 characters |
 | History sent back to the model | 10 turns / 8,000 characters, oldest dropped first. On a follow-up, a system note just before the question repeats the model's last answer (first 400 characters) and quotes it as data and, only when the reader doubts or re-asks that question, tells it to open by saying that answer was wrong if the name or number no longer holds, and to say it stands otherwise; a new question is answered without mentioning the earlier reply (`followUpNote`, `convex/answer.ts`). Added 2026-10-05 after a reader got the wrong "latest law", asked "are you sure?", and was given the right one with no word that the first had been wrong |
 | Filters put beside `filters` | Moved into it (`filtersFromCall`, `convex/catalog/filters.ts`) when they are filters of that dataset. gpt-oss sent `"sort"` next to `filters` on 2026-10-05; it was ignored, the result came back unsorted, and the model named an arbitrary law as the newest |
-| Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), temperature 0.3, reasoning effort `low` (`OPENROUTER_REASONING`; `off` asks for 2,048 and no reasoning, which gpt-oss refuses, so the retry uses its default) |
+| Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), reasoning effort `low` (`OPENROUTER_REASONING`; `off` asks for 2,048 and no reasoning, which gpt-oss refuses, so the retry uses its default). Temperature 0.3 on gpt-oss; none sent to Claude, which refuses a non-default temperature |
 | Summary text per row | 6,000 characters (`SUMMARY_MAX_CHARS`). 86 of 41,681 CRS summaries are longer; those rows carry `textIsOpeningOnly` and `fullTextLength`, and the model says it read the opening. Uncut, H.R. 1's summaries were bigger than the model's context window and the answer came back blank |
 
 **Provenance handles.** Every row handed to the model carries a `_cite` handle such as
@@ -1273,12 +1275,15 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 | Setting | Default | Override |
 | --- | --- | --- |
 | Instructions | The `answer-system` prompt in PostHog prompt management, version labelled `production`, copied every 5 minutes; the in-code `DEFAULT_TEMPLATE` when there is no usable copy. See "Answer prompt" | Move the `production` label in PostHog |
-| Model | `openai/gpt-oss-120b`. Chosen on 2026-10-05 by running the real answer loop over the production data copy (`.truth-cache`) against the 21 scored questions in `scripts/truth/questions.ts` plus 6 open ones, twice per setup: 18–19 of 21 right on Cerebras, median about 1 s, nothing over 4 s. The previous default (DeepSeek V4 Flash on DeepInfra) scored 5–6 of 21 in the same run, because DeepInfra rate-limited it and its failover, Nova Lite, served 24 of 27 answers; readers waited a median of 8–10 s for it. Also tried: Gemini 2.5 Flash (14–15, ~1.5 s), Gemini 3.1 Flash Lite (18–19, tail to 40 s), Gemini 2.5 Flash Lite (11), gpt-oss-20b (6–7), Nemotron 3.5 Lightning (5–6) | `OPENROUTER_MODEL` |
-| Providers | `cerebras,groq,amazon-bedrock`, sent as `provider.only` **and** `provider.order`, so they are tried fastest first. Without `order` OpenRouter routes by price, and the cheapest host for this model is among the slowest. The failover is the same model on the next host, not a weaker model. DeepInfra is left out: up to 42 s in the same test | `OPENROUTER_PROVIDERS` (blank falls back to the default; the order you write is the order tried) |
-| Fallbacks | none: the failover is the next host above | `OPENROUTER_FALLBACK_MODELS` — a comma list of other models to try after every host has failed; each must pass `pnpm check:retention` first |
-| Reasoning | `low` effort: the model reasons in a separate `reasoning` field that is recorded in the AI trace and never shown. gpt-oss always reasons; at `low` a round thinks for 10–80 tokens, a few hundredths of a second on Cerebras. Its reasoning is **not** handed back on later rounds: the model answers without it, and Amazon Bedrock refused a request carrying another model's reasoning. A request refused while carrying a reasoning setting is retried once with the setting **left out** (the model's default), and the rest of that answer leaves it out: `{ enabled: false }` is itself refused by gpt-oss ("Reasoning is mandatory"). A value of `OPENROUTER_REASONING` that is not `off` or an effort falls back to `low` with a log line. On the previous host the same setting doubled the wait (about 8 s to 18 s), so watch the host's speed, not the setting | `OPENROUTER_REASONING` — `off`, `minimal`, `low`, `medium`, `high`; no deploy needed (`convex/reasoning.ts`) |
-| Retention | `data_collection: "deny"` and `zdr: true` on every request | — |
-| Price ceiling | `$0.50 / $1.00` per million prompt/completion tokens. Cerebras charges $0.35 / $0.75 for gpt-oss-120b, the most of the three hosts; a typical answer costs about half a cent | — |
+| Model | `anthropic/claude-haiku-5.5` at reasoning effort `low`. Chosen on 2026-10-13 on the 20 scored questions in `scripts/truth/questions.ts`, twice each, every flagged answer read by hand: 38 of 40 right against gpt-oss-120b's 37, at about a seventh of the token cost, but a median of 3.7 s per answer against 1.1 s. Medium and high effort scored the same at about 3x the cost; thinking off and max effort both scored lower. Runs on the site's **own Anthropic API key**, attached to OpenRouter as BYOK ("bring your own key"), never on OpenRouter credits | `OPENROUTER_CLAUDE_MODEL`; set it **blank** to answer on the fallback model alone (a Convex env change, no deploy) |
+| Claude provider | Anthropic's own endpoint only: `provider.only: ["anthropic"]`, `allow_fallbacks: false`, `data_collection: "deny"` (`CLAUDE_PROVIDER`). Not merged with the gpt-oss list, because Amazon Bedrock also serves Claude, on OpenRouter credits. The request asks for `usage`, and a reply OpenRouter did not bill to our key (`usage.is_byok !== true`) is **discarded**: OpenRouter has already charged that one, but the check stops the next, so a broken BYOK setup costs one request and an error log rather than a month of spend nobody sees. No temperature is sent (Claude 5.5 refuses a non-default one) and no `models` failover list | — |
+| Fallback model | `openai/gpt-oss-120b`, the default until 2026-10-13. A Claude call that errors, is refused (`finish_reason: "content_filter"`) or is not BYOK-billed does not fail the answer: that round and **the rest of the turn** run on gpt-oss (`answerRound` in `convex/answer.ts`), so a broken Claude route costs a reader one extra request, not one a round. The transcript holds only content and tool calls (no reasoning is handed back), so either model can pick it up. gpt-oss also stays the model behind `search_web`, whose citation parsing is provider-specific. Chosen on 2026-10-05 by running the real answer loop over the production data copy (`.truth-cache`) against the 21 scored questions in `scripts/truth/questions.ts` plus 6 open ones, twice per setup: 18–19 of 21 right on Cerebras, median about 1 s, nothing over 4 s. The previous default (DeepSeek V4 Flash on DeepInfra) scored 5–6 of 21 in the same run, because DeepInfra rate-limited it and its failover, Nova Lite, served 24 of 27 answers; readers waited a median of 8–10 s for it. Also tried: Gemini 2.5 Flash (14–15, ~1.5 s), Gemini 3.1 Flash Lite (18–19, tail to 40 s), Gemini 2.5 Flash Lite (11), gpt-oss-20b (6–7), Nemotron 3.5 Lightning (5–6) | `OPENROUTER_MODEL` |
+| gpt-oss providers | `cerebras,groq,amazon-bedrock`, sent as `provider.only` **and** `provider.order`, so they are tried fastest first. Without `order` OpenRouter routes by price, and the cheapest host for this model is among the slowest. The failover is the same model on the next host, not a weaker model. DeepInfra is left out: up to 42 s in the same test | `OPENROUTER_PROVIDERS` (blank falls back to the default; the order you write is the order tried) |
+| Fallbacks | none: the failover is the next host above. Applies to gpt-oss calls only, never to Claude | `OPENROUTER_FALLBACK_MODELS` — a comma list of other models to try after every gpt-oss host has failed; each must pass `pnpm check:retention` first |
+| Reasoning | `low` effort: the model reasons in a separate `reasoning` field that is recorded in the AI trace and never shown. gpt-oss always reasons; at `low` a round thinks for 10–80 tokens, a few hundredths of a second on Cerebras. Its reasoning is **not** handed back on later rounds: the model answers without it, and Amazon Bedrock refused a request carrying another model's reasoning. A request refused while carrying a reasoning setting is retried once with the setting **left out** (the model's default), and the rest of that answer leaves it out: `{ enabled: false }` is itself refused by gpt-oss ("Reasoning is mandatory"). That retry is gpt-oss only: a Claude 400 goes to the fallback model like any other Claude failure. The same setting reaches both models (effort `low` was measured on Claude too, above). A value of `OPENROUTER_REASONING` that is not `off` or an effort falls back to `low` with a log line. On the previous host the same setting doubled the wait (about 8 s to 18 s), so watch the host's speed, not the setting | `OPENROUTER_REASONING` — `off`, `minimal`, `low`, `medium`, `high`; no deploy needed (`convex/reasoning.ts`) |
+| Retention | gpt-oss: `data_collection: "deny"` and `zdr: true`, so only zero-retention hosts serve it. Claude: `data_collection: "deny"` but **no `zdr`**: OpenRouter has no zero-retention Anthropic endpoint for an account without a ZDR agreement, so the flag empties the pool. Anthropic deletes API inputs and outputs within 30 days (privacy.claude.com, "How long do you store my organization's data") and its commercial terms do not train on API data. The reader guide says so | — |
+| Price ceiling | `$0.50 / $1.00` per million prompt/completion tokens (`MAX_PRICE`), sent on both routes. Cerebras charges $0.35 / $0.75 for gpt-oss-120b, the most of the three hosts; a typical gpt-oss answer costs about half a cent | — |
+| Cost | Claude is billed by Anthropic to our key: roughly $3–6 a month at current volume (2026-10). OpenRouter's BYOK fee is $0 below $25k a month of BYOK usage. gpt-oss fallback and web-search calls are billed to OpenRouter credits as before. A Claude generation's `$ai_total_cost_usd` in PostHog is Anthropic's charge to our key (`upstream_inference_cost`), not OpenRouter's BYOK fee | — |
 
 > **The 404 trap.** Two allowlists must overlap: the per-request `provider.only` above, and
 > the allowed-providers setting on the **OpenRouter account itself**. If they do not overlap,
@@ -1286,10 +1291,17 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 > shipped default (`coreweave,gmicloud`, neither permitted on the account) took production
 > chat down until it was corrected. Check this first if chat 404s after a deploy.
 >
+> The same applies to Claude: `anthropic` must be allowed on the account, and the Anthropic key
+> must be attached under BYOK. Neither failure takes chat down, because the turn moves to
+> gpt-oss, so it shows up only as `$ai_generation` errors on the Claude model, answers
+> served by `openai/gpt-oss-120b`, and `Claude failed; answering the rest of this turn on the default model`
+> in the Convex logs.
+>
 > Note also that the provider pin names **companies, not regions** — a base slug matches all
 > that provider's endpoints including regional variants. It is an allowlist chosen for US
 > processing, not a hard geographic guarantee; OpenRouter's true region-locking is
-> enterprise-only.
+> enterprise-only. The Claude route is not on that allowlist: it is pinned to Anthropic
+> alone, wherever Anthropic processes it.
 
 ### Rate limits
 
@@ -1312,13 +1324,13 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
-| `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for the primary **and every fallback** |
+| `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for gpt-oss-120b **and every fallback** in `OPENROUTER_FALLBACK_MODELS`. Not the Claude route, which has no zero-retention endpoint by design (see Retention above) |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web plugin still returns the `url_citation` annotations the code parses |
-| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers |
+| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers. It grades Claude (`DEFAULT_CLAUDE_MODEL`, BYOK required) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf. Blank `OPENROUTER_CLAUDE_MODEL` grades gpt-oss, as it does in production |
 
 Re-run the three manual probes whenever the model or provider pin changes. Their defaults
 cannot drift from production: `scripts/check-grounding.ts` exports `DEFAULT_MODEL`,
-`DEFAULT_PROVIDERS` (`cerebras,groq,amazon-bedrock`), `DEFAULT_FALLBACK_MODELS` and `MAX_PRICE`
+`DEFAULT_CLAUDE_MODEL`, `DEFAULT_PROVIDERS` (`cerebras,groq,amazon-bedrock`), `DEFAULT_FALLBACK_MODELS` and `MAX_PRICE`
 copied from `convex/answer.ts` and sends the full production provider settings, and
 `scripts/check-grounding.test.ts` (part of `pnpm test`) fails if those, or the defaults in
 `check-web-citations.ts` and `check-provider-retention.ts`, differ from `convex/answer.ts`.
@@ -2010,7 +2022,7 @@ Set with `pnpm exec convex env set --prod`. Checked 5 Oct 2026, production has e
 `CONGRESS_API_KEY`, `JWKS`, `JWT_PRIVATE_KEY`, `OPENROUTER_API_KEY`, the
 three `POSTHOG_EMAIL_*_WEBHOOK_URL`s, `POSTHOG_EMAIL_WEBHOOK_SECRET`, `POSTHOG_KEY`, `SITE_URL`,
 both `STRIPE_PRICE_PRO_*`, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`. The optional
-`OPENROUTER_MODEL`, `OPENROUTER_PROVIDERS`, `OPENROUTER_FALLBACK_MODELS`, `OPENROUTER_REASONING`,
+`OPENROUTER_CLAUDE_MODEL`, `OPENROUTER_MODEL`, `OPENROUTER_PROVIDERS`, `OPENROUTER_FALLBACK_MODELS`, `OPENROUTER_REASONING`,
 `POSTHOG_HOST`, `POSTHOG_PERSONAL_API_KEY` (until the owner sets it; see "Answer prompt"),
 `POSTHOG_APP_HOST`, `POSTHOG_PROJECT_ID` and `STRIPE_PORTAL_CONFIGURATION` are unset, so their defaults apply.
 `OPENROUTER_PROVIDERS` held `deepinfra,amazon-bedrock` until 5 Oct 2026; left in place it would
@@ -2021,8 +2033,9 @@ Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
 | `CONGRESS_API_KEY` | Congress.gov v3 | Throws `"CONGRESS_API_KEY not configured"` |
-| `OPENROUTER_API_KEY` | OpenRouter bearer token | AI returns "not configured" |
-| `OPENROUTER_MODEL` | Model override | `openai/gpt-oss-120b` |
+| `OPENROUTER_API_KEY` | OpenRouter bearer token. Claude is billed to the site's Anthropic key, which lives in the OpenRouter account's BYOK settings, not in Convex | AI returns "not configured" |
+| `OPENROUTER_CLAUDE_MODEL` | The answer model, tried first on Anthropic's endpoint with our BYOK key. Set it to an empty string to answer on `OPENROUTER_MODEL` alone: the instant rollback, a Convex env change rather than a deploy | `anthropic/claude-haiku-5.5` |
+| `OPENROUTER_MODEL` | The fallback model, and the model behind web search | `openai/gpt-oss-120b` |
 | `OPENROUTER_PROVIDERS` | Provider pin, tried in the order written | `cerebras,groq,amazon-bedrock` |
 | `OPENROUTER_FALLBACK_MODELS` | Other models to try after every host has failed | None |
 | `OPENROUTER_REASONING` | The answer model's private reasoning: `off`, or an effort | `low` |
@@ -2136,18 +2149,22 @@ price ceiling drift from `convex/answer.ts` (see [Guardrails](#guardrails)).
 Last, `vitest run` executes the **Convex function specs**, `convex/**/*.spec.ts` (config in
 `vitest.config.mts`). These run real queries, mutations and HTTP actions against an in-memory
 database with `convex-test`, which needs vitest's `import.meta.glob` — that is the only reason
-vitest is here. There are ten:
+vitest is here. There are fourteen:
 
 | Spec | Covers |
 | --- | --- |
 | `convex/aiTrace.spec.ts` | The real `/answer/stream` with a scripted model, asserting the exact AI-trace request PostHog would receive |
 | `convex/answer.spec.ts` | The answer loop when the model returns neither an answer nor a lookup (the nudge, the no-tools round, `empty_model_output`) |
+| `convex/answerClaude.spec.ts` | The Claude route: Anthropic's endpoint only, no temperature, and a failed, refused or non-BYOK Claude reply moving the rest of the turn to gpt-oss-120b instead of failing the answer |
 | `convex/answerLogs.spec.ts` | The PostHog log line per answer, and that the question text is never on it |
 | `convex/avatars.spec.ts` | Profile photos: ownership, replacement, removal, byte check, size limit, rate limit, the orphan sweep |
 | `convex/billsList.spec.ts` | `bills.list` with a sponsor filter, read by surname rather than a capped scan |
+| `convex/dashboardCounts.spec.ts` | The home page's "became law" and "passed one chamber" denominators, which leave out resolutions that can never become law |
+| `convex/enrichmentBackfill.spec.ts` | The enrichment backfill's rate-limit pause, which once left a low budget behind and paused every later run forever |
 | `convex/feedback.spec.ts` | The feedback-picture endpoint and its purge (below) |
 | `convex/hubSort.spec.ts` | `bills.listSorted`, the hubs' "Newest first" / "Oldest first" |
 | `convex/pro.spec.ts` | The Pro plan and bill alerts end to end (below) |
+| `convex/sponsorIdentity.spec.ts` | The sponsor-id backfill's write and the recount after it, which counts each member once by Congress.gov id |
 | `convex/stageDate.spec.ts` | Both writers of `bills.stageDate` clear a date that is no longer true |
 | `convex/users.spec.ts` | `currentUser.hasPassword`, which decides whether "Change password" shows |
  `convex/pro.spec.ts` covers the Pro plan end to end: plan changes from
@@ -2463,6 +2480,7 @@ Congress, so a deleted historical Congress does not come back on its own.
 | The assistant refuses to name "the most recent" | The result came back `order: "arbitrary"`. Either the question needs a `sort` filter, or the set is too big to read completely and the sort was honestly refused |
 | A filtered list looks short | The 1,200-row scan cap — see [query limits](#query-limits-and-how-truncation-is-surfaced). If the page says "partial list" it is working as intended; if it does not, the filter has an index and the list is complete |
 | AI chat 404s after a deploy | The provider allowlist and the OpenRouter **account** setting no longer overlap |
+| Answers come from `openai/gpt-oss-120b` instead of Claude | Every Claude call is failing and the turn falls back. Check the Convex log for `Claude failed`: `is_byok=false` means the Anthropic key is missing or broken in the OpenRouter account's BYOK settings (and OpenRouter billed that call to its credits); a 404 means `anthropic` is not allowed on the account. Or `OPENROUTER_CLAUDE_MODEL` is set blank |
 | "The answer service is not deployed yet" | The frontend is ahead of Convex. Check the "Deploy the Convex backend" step of the latest Deploy run; re-run it from the Actions tab (on `main`) once fixed |
 | A Congress shows with 0 bills | The nightly 04:00 recompute will clean it up, or delete it manually |
 | Intermittent Worker `1101` errors | The KV cache bindings are missing or misconfigured |
@@ -2539,6 +2557,10 @@ with the next Convex deploy.
    flags, time zones, locales) produced no mismatch. React re-renders and the reader sees the
    page normally, so it is left in Error Tracking rather than filtered: a cluster on one
    browser or region reads as "something edited the page".
+2. **`answer_citation_unresolved` names the wrong model.** Its `model` property is the literal
+   `'gpt-oss-120b'` in `components/answers/answer-provider.tsx`, but since 13 Oct 2026 Claude
+   Haiku 5.5 writes most answers. Use the `$ai_generation` events of the same trace for the
+   model that actually answered.
 
 Fixed on 1 Oct 2026: readers who translated a page were shown the error screen by React's
 `NotFoundError: Failed to execute 'removeChild' on 'Node'` (9 events, 3 visitors, 28–30 Sep),

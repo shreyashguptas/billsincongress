@@ -1,3 +1,9 @@
+# Replies to the owner — mandatory
+
+Keep every reply short: 5 lines max, no walls of text. Say what you did, what
+he needs to know, and the one decision he must make. Details go in a linked
+page or the PR, never in the chat.
+
 <!-- convex-ai-start -->
 
 This project uses [Convex](https://convex.dev) as its backend.
