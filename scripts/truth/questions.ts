@@ -442,6 +442,28 @@ export const QUESTIONS: TruthQuestion[] = [
   },
 
   {
+    id: "web-other-gap-act",
+    question: "Is this bill about investments in general aviation?" + YES_OR_NO,
+    focusBillId: "10725hr119",
+    defect:
+      "Told a reader H.R. 10725 \"would strengthen the review of foreign-adversary " +
+      "investments in the general-aviation sector\". That is H.R. 9707, the other " +
+      "\"GAP Act\": H.R. 10725 has no official summary, so the model searched the web, " +
+      "and three of the five pages it got back were H.R. 9707's.",
+    expect: (db) => {
+      const ours = db.bills.find((b) => b.billId === "10725hr119");
+      const other = db.bills.find((b) => b.billId === "9707hr119");
+      return {
+        kind: "boolean",
+        value: false,
+        note:
+          `H.R. 10725 is "${ours?.title ?? "missing"}" (${ours?.policyAreaName ?? "no topic"}); ` +
+          `the aviation bill is H.R. 9707, "${other?.title ?? "missing"}". Yes is the defect.`,
+      };
+    },
+  },
+
+  {
     id: "house-passed-not-in-committee",
     question: "Has this bill passed the House?" + YES_OR_NO,
     focusBillId: "10326hr119",
