@@ -153,7 +153,7 @@ export const FILTERS: FilterDefinition[] = [
     param: 'status',
     label: 'Outcome',
     helper:
-      'How far the bill got. Most never leave committee; a few hundred of roughly 18,000 become law.',
+      'How far the bill got. Most never leave committee, and only a small share become law.',
     emptyLabel: 'Any outcome',
     multi: false,
     tier: 'base',
@@ -166,6 +166,8 @@ export const FILTERS: FilterDefinition[] = [
     hubPath: (v) =>
       ({
         '100': '/bills/enacted',
+        '90': '/bills/to-president',
+        '80': '/bills/passed-both-chambers',
         '40': '/bills/in-committee',
         '60': '/bills/passed-one-chamber',
         '85': '/bills/vetoed',

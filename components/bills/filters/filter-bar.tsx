@@ -19,7 +19,7 @@ export interface FilterBarProps {
   congressNumbers: number[];
   /**
    * The browse-by-category disclosure. Passed in as already-rendered JSX from a
-   * server component rather than imported, so its 40 hub anchors stay in the
+   * server component rather than imported, so its hub anchors stay in the
    * server-rendered HTML instead of becoming client-only markup.
    */
   browseDirectory?: ReactNode;

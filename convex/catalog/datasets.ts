@@ -39,7 +39,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
     ],
     filters: [
       { name: "billId", type: "string", allowed: "One exact bill, by id. The fastest way to fetch a named bill.", example: "1234hr119" },
-      { name: "congress", type: "number", allowed: "A Congress number. Defaults to the current one, so SET IT EXPLICITLY when the reader asks about an earlier Congress.", example: "119" },
+      { name: "congress", type: "number", allowed: "A Congress number. Defaults to the newest one we hold, so SET IT EXPLICITLY when the reader asks about an earlier Congress.", example: "$CONGRESS" },
       { name: "titleFilter", type: "string", allowed: "Relevance search over the TITLE. Matches bills containing ANY of your words, not all.", example: "veterans housing" },
       { name: "policyArea", type: "string", allowed: "Use the `topics` dataset to find exact names.", example: "Health" },
       { name: "progressStage", type: "number", allowed: "Where the bill ENDED UP: 20, 40, 50, 60, 80, 85, 90, 95 or 100. Mutually exclusive buckets.", example: "40" },
@@ -55,7 +55,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "groupBy", type: "string", allowed: "policyArea, progressStage, sponsorState, sponsorParty, billType or chamber. Returns ONE ROW PER GROUP with its own count — use it for any 'how many in each' question instead of one fetch per category.", example: "policyArea" },
       { name: "introducedAfter", type: "string", allowed: "ISO date. Bills introduced on or after it.", example: "2026-01-01" },
       { name: "introducedBefore", type: "string", allowed: "ISO date. Bills introduced on or before it.", example: "2026-06-30" },
-      { name: "actionAfter", type: "string", allowed: "ISO date. Last action on or after it.", example: "2026-08-01" },
+      { name: "actionAfter", type: "string", allowed: "ISO date. Last action on or after it.", example: "$MONTH_START" },
       { name: "actionBefore", type: "string", allowed: "ISO date. Last action on or before it.", example: "2026-08-31" },
     ],
     gotchas: [
@@ -68,11 +68,11 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "Most bills never leave committee. A bill at stage 40 is in the normal case, not a stalled one — do not describe it as stalled or failing. A bill at stage 50 HAS left committee and is waiting for a floor vote: never call it 'in committee'. 'Still in committee' is stage 40 alone; 'made it out of committee' is reachedStage 50.",
       "A bill missing from a Congress is not proof it does not exist. Congresses before the earliest synced one are simply not loaded.",
       "EVERY result tells you whether it is complete. `complete: true` means we read the entire set and `total` is exact — you may state it, and you may add several exact totals together to build a breakdown. `complete: false` means there is NO total: do not state a number, do not say 'none' or 'no results', and do not call any row the newest, oldest, largest or smallest. An empty incomplete result is not evidence of absence.",
-      "For a BREAKDOWN — 'how many in each category', 'per state', 'by party' — pass groupBy and get one row per group with its own count, in ONE fetch. Do not loop a separate fetch per category: there are 31 policy areas and you will run out of lookups before you finish.",
+      "For a BREAKDOWN — 'how many in each category', 'per state', 'by party' — pass groupBy and get one row per group with its own count, in ONE fetch. Do not loop a separate fetch per category: there are more than 30 policy areas and you will run out of lookups before you finish.",
       "To COUNT without spending context on rows, pass limit 0. You get an exact total and no rows, and the scan reaches much further. That is how you build a per-topic or per-state breakdown: one limit-0 fetch per category.",
       "Row order is NEVER meaningful unless the result says so. Check the `order` field. If it says `arbitrary`, the rows are in database insertion order and the first row is not the newest, largest or anything else. For 'the most recent X' you MUST pass a sort — reading the max off an unsorted page named the third-most-recent law as the most recent, and the true answer was not even on the page.",
-      "'Started in the House' means the CHAMBER it originated in, which is four measure types, not one. Use chamber 'house' or 'senate'. Filtering billType 'hr' answers a narrower question and undercounts: of the 119th's 64 House-originated laws, 45 are H.R. and the rest are House joint resolutions.",
-      "A BILL is H.R. or S. A resolution is not a bill. 'How many Senate bills passed the Senate' is chamber 'senate' with measure 'bill', never chamber alone: chamber alone counts every Senate resolution too, and answered 706 when the bills were 213 (the other 493 were resolutions). When a result mixes kinds it carries exact_subsets splitting the total by kind; if the reader said 'bills', give the bills part, not the total.",
+      "'Started in the House' means the CHAMBER it originated in, which is four measure types, not one. Use chamber 'house' or 'senate'. Filtering billType 'hr' answers a narrower question and undercounts: it leaves out House joint resolutions, which also become law.",
+      "A BILL is H.R. or S. A resolution is not a bill. 'How many Senate bills passed the Senate' is chamber 'senate' with measure 'bill', never chamber alone: chamber alone counts every Senate resolution too, and once gave a reader a total more than three times the number of bills. When a result mixes kinds it carries exact_subsets splitting the total by kind; if the reader said 'bills', give the bills part, not the total.",
       "progressStage is where a bill STOPPED. It is not cumulative. A bill that became law is at 100 and is NOT counted in the 60 bucket, so counting stage 60 to answer 'how many passed a chamber' omits everything that went further. Use reachedStage for milestone questions and progressStage for 'where is it now' questions.",
       "titleFilter matches ANY of your words, not all of them, and searches TITLES ONLY — never the text of the bill. Two words will return roughly the union of both, so a count from it is inflated. Prefer policyArea for subject questions.",
     ],
@@ -85,13 +85,13 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "The full text of bills (we hold a link to the PDF, not the words)",
     ],
     examples: [
-      '{ "congress": 119, "policyArea": "Health", "progressStage": 100, "limit": 1 } — with limit 0 for a pure count',
-      '{ "congress": 119, "progressStage": 100, "sort": "newest_action" } — the most recent law',
-      '{ "congress": 119, "progressStage": 100, "groupBy": "policyArea" } — how many laws in each category, in one call',
-      '{ "congress": 119, "chamber": "senate", "measure": "bill", "reachedStage": 60, "limit": 0 } — how many Senate bills have passed the Senate, including those that went further',
-      '{ "congress": 119, "sponsorState": "TX", "progressStage": 100 }',
+      '{ "congress": $CONGRESS, "policyArea": "Health", "progressStage": 100 } — with limit 1 beside filters, or limit 0 for a pure count',
+      '{ "congress": $CONGRESS, "progressStage": 100, "sort": "newest_action" } — the most recent law',
+      '{ "congress": $CONGRESS, "progressStage": 100, "groupBy": "policyArea" } — how many laws in each category, in one call',
+      '{ "congress": $CONGRESS, "chamber": "senate", "measure": "bill", "reachedStage": 60 } with limit 0 beside filters — how many Senate bills have passed the Senate, including those that went further',
+      '{ "congress": $CONGRESS, "sponsorState": "TX", "progressStage": 100 }',
       '{ "congress": 117, "sponsorParty": "none" } — the measures the home page shows as party not recorded',
-      '{ "congress": 119, "actionAfter": "2026-08-01" } — what has moved this month',
+      '{ "congress": $CONGRESS, "actionAfter": "$MONTH_START" } — what has moved this month',
       '{ "billId": "1234hr119" }',
     ],
   },
@@ -149,11 +149,11 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "count", type: "number", meaning: "How many bills carry it in this Congress." },
       { name: "congress", type: "number", meaning: "Which Congress the count is for." },
     ],
-    filters: [{ name: "congress", type: "number", allowed: "A Congress number.", example: "119" }],
+    filters: [{ name: "congress", type: "number", allowed: "A Congress number.", example: "$CONGRESS" }],
     gotchas: [
       "Use this to find the EXACT spelling of a policy area before filtering `bills` by it. A near-miss returns zero bills and looks like an empty topic.",
       "Counts are precomputed and exact — do not recompute them by counting rows from `bills`.",
-      "These counts are STAGE-BLIND. They cover every measure in the topic at any stage, including the ~96% still in committee. They CANNOT tell you how many became law. For that, fetch `bills` with policyArea and progressStage together and read its total — and pass limit 0, because the big topics (Health, Taxation, Armed Forces, International Affairs, Government Operations) have more measures than a normal fetch reads, and only the count-only path reaches all of them.",
+      "These counts are STAGE-BLIND. They cover every measure in the topic at any stage, including the large majority still in committee. They CANNOT tell you how many became law. For that, fetch `bills` with policyArea and progressStage together and read its total — and pass limit 0, because the big topics (Health, Taxation, Armed Forces, International Affairs, Government Operations) have more measures than a normal fetch reads, and only the count-only path reaches all of them.",
       "Every bill has at most one policy area, so these counts sum to roughly the total measure count, not more.",
     ],
     notCovered: [
@@ -162,7 +162,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "The richer legislative-subject list",
       "How far the measures in a topic got — use `bills` with policyArea plus progressStage",
     ],
-    examples: ['{ "congress": 119 }'],
+    examples: ['{ "congress": $CONGRESS }'],
   },
 
   sponsors: {
@@ -176,22 +176,22 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "sponsorState", type: "string", meaning: "Two-letter state." },
     ],
     filters: [
-      { name: "congress", type: "number", allowed: "A Congress number.", example: "119" },
+      { name: "congress", type: "number", allowed: "A Congress number.", example: "$CONGRESS" },
       { name: "sponsorState", type: "string", allowed: "Two-letter state code.", example: "MD" },
       { name: "sort", type: "string", allowed: "most_bills (default) or fewest_bills. REQUIRED for any 'fewest' question — the default page hides the bottom of the ranking.", example: "fewest_bills" },
     ],
     gotchas: [
       "Counts are of bills INTRODUCED, which is not a measure of influence or success. Do not present a high count as effectiveness.",
       "Reflects PRIMARY sponsorship only — a member who co-sponsors heavily but introduces little will look inactive here, and is not.",
-      "There is NO name filter here — this dataset lists members, it does not look one up. To count what ONE named member introduced, fetch `bills` with sponsorFilter and limit 0. Being refused a name filter here says nothing about whether we hold that member; asked how many bills Monica De La Cruz introduced, the assistant tried this dataset, was refused, and told the reader it could not find out. She has 35.",
+      "There is NO name filter here — this dataset lists members, it does not look one up. To count what ONE named member introduced, fetch `bills` with sponsorFilter and limit 0. Being refused a name filter here says nothing about whether we hold that member; asked how many bills Monica De La Cruz introduced, the assistant tried this dataset, was refused, and told the reader it could not find out, though `bills` had her exact count.",
       "Use the exact sponsorName from this dataset in the `bills` sponsorFilter. Reformatting the name will match nothing.",
-      "Before any 'most' or 'fewest' claim, check `complete` — and then check the ORDER, because a complete total does not make the page complete. Filtering by sponsorState reads that state's members directly, so the total is exact; but the rows are still one page of it, ordered most-first by default. California has 54 members and you see 50, so the fewest is NOT the last row you can see. For 'who introduced the fewest' pass sort 'fewest_bills'; for 'the most', 'most_bills'. Never read a minimum off a page.",
+      "Before any 'most' or 'fewest' claim, check `complete` — and then check the ORDER, because a complete total does not make the page complete. Filtering by sponsorState reads that state's members directly, so the total is exact; but the rows are still one page of it, ordered most-first by default. A big state has more members than one page shows, so the fewest is NOT the last row you can see. For 'who introduced the fewest' pass sort 'fewest_bills'; for 'the most', 'most_bills'. Never read a minimum off a page.",
     ],
     notCovered: ["Committee membership", "Voting records", "Seniority, leadership roles, or district", "Co-sponsorship counts"],
     examples: [
-      '{ "congress": 119 }',
-      '{ "congress": 119, "sponsorState": "MD" }',
-      '{ "congress": 119, "sponsorState": "CA", "sort": "fewest_bills" } — who introduced the fewest',
+      '{ "congress": $CONGRESS }',
+      '{ "congress": $CONGRESS, "sponsorState": "MD" }',
+      '{ "congress": $CONGRESS, "sponsorState": "CA", "sort": "fewest_bills" } — who introduced the fewest',
     ],
   },
 
@@ -216,20 +216,20 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "figuresLastRecomputed", type: "string", meaning: "ISO timestamp of when these precomputed totals were last rebuilt. Can lag dataLastSynced." },
     ],
     filters: [
-      { name: "congress", type: "number", allowed: "A Congress number.", example: "119" },
+      { name: "congress", type: "number", allowed: "A Congress number.", example: "$CONGRESS" },
       { name: "chamber", type: "string", allowed: "'house' or 'senate'. Omit for whole-Congress totals.", example: "house" },
     ],
     gotchas: [
       "These totals are authoritative and precomputed. NEVER estimate a count by fetching rows from `bills` and counting the rows you can see.",
-      "EVERY NUMBER ON A ROW HAS THE SCOPE THAT ROW'S `scope` FIELD DESCRIBES, and nothing wider. A chamber row contains ONLY that chamber's figures. A whole-Congress row contains BOTH chambers' — its stage ladder is not the House's and not the Senate's. Reading a whole-Congress law count off a chamber-shaped question answered 'how many House bills became law' with 104 when the answer is 64.",
+      "EVERY NUMBER ON A ROW HAS THE SCOPE THAT ROW'S `scope` FIELD DESCRIBES, and nothing wider. A chamber row contains ONLY that chamber's figures. A whole-Congress row contains BOTH chambers' — its stage ladder is not the House's and not the Senate's. Reading a whole-Congress law count off a chamber-shaped question answered 'how many House bills became law' with both chambers' figure.",
       "totalMeasures is MEASURES, not bills — it includes resolutions, which are not bills. When the reader asks how many BILLS, answer with billsOnly. Do not try to count hr and s from the `bills` dataset: there are far too many to read, so that comes back incomplete and you will end up with no answer at all.",
       "stageCounts are TERMINAL buckets, not milestones. The 'passed one chamber' figure excludes every measure that later became law. To answer 'how many did the Senate pass', use the `bills` dataset with reachedStage, not this ladder.",
-      "On a chamber row, read the became-law figure straight off stageCounts. partyLawCounts is the same number split by party, and adding its parts up in front of the reader — 'the row shows 64, and 8+56 confirms it' — puts three numbers in one sentence where the answer is one. State the figure; do not show the arithmetic.",
+      "On a chamber row, read the became-law figure straight off stageCounts. partyLawCounts is the same number split by party, and adding its parts up in front of the reader — 'the row shows X, and Y+Z confirms it' — puts three numbers in one sentence where the answer is one. State the figure; do not show the arithmetic.",
       "The current Congress is still in progress, so its totals are a snapshot and will grow. Say so when comparing it to a finished Congress.",
       "This is the ONLY place that tells you how fresh our data is. If the reader asks how current it is, or whether something that happened recently is reflected, fetch this and quote dataLastSynced. Never guess at or promise a refresh interval.",
     ],
     notCovered: ["Per-member statistics", "Historical trends within a session", "Anything about individual bills"],
-    examples: ['{ "congress": 119 }', '{ "congress": 119, "chamber": "house" }'],
+    examples: ['{ "congress": $CONGRESS }', '{ "congress": $CONGRESS, "chamber": "house" }'],
   },
 };
 
@@ -248,8 +248,30 @@ export function datasetIndex(): string {
   return DATASET_NAMES.map((n) => `  ${n.padEnd(15)} ${DATASETS[n].summary}`).join("\n");
 }
 
+/**
+ * What describe_dataset fills in per request. The examples used to say
+ * `"congress": 119` and an `actionAfter` of 2026-08-01 labelled "this month".
+ * Models copy examples literally, so a fixed Congress would have been queried
+ * after the next one convened, and "this month" was already two months stale.
+ */
+export interface DescribeVars {
+  /** The newest Congress we hold bills for, read from the database. */
+  congress: number;
+  /** ISO date the answer is written on. */
+  today: string;
+}
+
+/** Fill $CONGRESS and $MONTH_START. Throws on a token left unfilled. */
+function fill(text: string, vars: DescribeVars): string {
+  const out = text
+    .replace(/\$CONGRESS/g, String(vars.congress))
+    .replace(/\$MONTH_START/g, `${vars.today.slice(0, 7)}-01`);
+  if (/\$[A-Z_]{4,}/.test(out)) throw new Error(`describeDataset: unfilled token in ${out.slice(0, 80)}`);
+  return out;
+}
+
 /** Full field-level documentation, returned by the describe_dataset tool. */
-export function describeDataset(name: DatasetName): string {
+export function describeDataset(name: DatasetName, vars: DescribeVars): string {
   const d = DATASETS[name];
   const lines: string[] = [
     `DATASET: ${d.name}`,
@@ -272,8 +294,11 @@ export function describeDataset(name: DatasetName): string {
     "NOT IN THIS DATASET",
     ...d.notCovered.map((n) => `  - ${n}`),
     "",
-    "EXAMPLE CALLS",
+    // These are the `filters` object only. Two examples once wrote `"limit": 0`
+    // inside it; Claude copied them literally and 9 of its first 55 lookups were
+    // rejected (2026-10-13), each costing the reader a round.
+    "EXAMPLE FILTERS (the `filters` argument; `limit` is a separate argument beside it, never inside)",
     ...d.examples.map((e) => `  ${e}`),
   ];
-  return lines.join("\n");
+  return fill(lines.join("\n"), vars);
 }

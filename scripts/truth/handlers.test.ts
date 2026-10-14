@@ -1646,6 +1646,23 @@ async function main() {
     assert.ok(r.report.total < 300, `${r.report.total} reads like the 706 that counted resolutions`);
   });
 
+  // On Claude's first evening (2026-10-13) this question, and 8 other lookups,
+  // came back "'limit' is not a filter on 'bills'": Claude copied two worked
+  // examples that wrote `"limit": 0` inside `filters`. Each rejection spent a
+  // round; answers ran out of rounds and said "I couldn't" instead of the count.
+  await it("the live Claude call, limit inside filters, still gets the exact count", async () => {
+    const { filtersFromCall, limitFromCall } = await import("../../convex/catalog/filters");
+    const args = {
+      name: "bills",
+      filters: { congress: 119, chamber: "senate", measure: "bill", reachedStage: 60, limit: 0 },
+    };
+    const r = await fetchViaHandlers(ctx, "bills", filtersFromCall("bills", args) as any, limitFromCall(args));
+    assert.ok(r.ok, `rejected again: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.rows.length, 0, "limit 0 is a count: no rows");
+    assert.equal(r.report.total, senateBillsPassed, "must match the Senate passages on record");
+  });
+
   await it("a chamber-only count says how much of its total is bills", async () => {
     // The model may still pick chamber alone. The result must then put the bill
     // count in front of it rather than let it read 706 as bills.
@@ -1822,6 +1839,52 @@ async function main() {
       assert.ok(typeof r.report.set === "string" && r.report.set.length > 0, `${label}: no set`);
     }
   });
+
+  // --- The current Congress comes from the data, not the constant 119 --------
+
+  // Every handler defaulted a missing Congress to 119. From 3 January 2027 that
+  // answers "how many bills this Congress?" with the 119th's final totals.
+  const newest = Math.max(...bills.map((b: any) => b.congress as number));
+
+  await it("a lookup that names no Congress reads the newest one we hold", async () => {
+    for (const name of ["stats", "topics", "sponsors"] as const) {
+      const implicit = await fetchViaHandlers(ctx, name, {}, 0);
+      const explicit = await fetchViaHandlers(ctx, name, { congress: newest }, 0);
+      assert.ok(implicit.ok && explicit.ok, `${name}: ${implicit.error ?? explicit.error}`);
+      assert.equal(implicit.report.set, explicit.report.set, `${name} defaulted to a different Congress`);
+      assert.equal(implicit.report.total, explicit.report.total, name);
+    }
+    const counted = await fetchViaHandlers(ctx, "bills", { measure: "bill" }, 0);
+    assert.ok(counted.ok);
+    const { ordinal } = await import("../../convex/catalog/congressCalendar");
+    assert.match(counted.report.set, new RegExp(`the ${ordinal(newest)} Congress`));
+  });
+
+  await it("a bill fetched by id is not narrowed to the newest Congress", async () => {
+    const old = bills.find((b: any) => b.congress < newest);
+    assert.ok(old, "the copy holds no earlier Congress");
+    const r = await fetchViaHandlers(ctx, "bills", { billId: old.billId }, 1);
+    assert.ok(r.ok, r.error);
+    assert.equal(r.rows.length, 1, `${old.billId} was not found without a congress`);
+  });
+
+  await it("the site's topic list holds every policy area in the data", async () => {
+    // The /bills topic picker and the 33 topic pages come from POLICY_AREAS in
+    // lib/constants/filters.ts. A topic Congress.gov adds would be missing from
+    // both, silently; this fails first.
+    const { POLICY_AREAS } = await import("../../lib/constants/filters");
+    const known = new Set<string>(POLICY_AREAS);
+    const missing = [
+      ...new Set(
+        ctx.db
+          .rowsOf("congressPolicyAreas")
+          .map((t: any) => t.policyAreaName as string)
+          .filter((name: string) => name && !known.has(name)),
+      ),
+    ];
+    assert.deepEqual(missing, [], "policy areas in the data but not on the site");
+  });
+
 }
 
 main().then(() => {

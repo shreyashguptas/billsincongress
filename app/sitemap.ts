@@ -47,7 +47,7 @@ export default async function sitemap(props: {
       // Hubs link to their own siblings, so a crawler that reaches one topic
       // reaches all 33 — but it has to reach one first, and only two places
       // hand it that entry point in server-rendered HTML: the browse
-      // disclosure in the /bills filter band (all 40, the only complete
+      // disclosure in the /bills filter band (every hub, the only complete
       // index) and the homepage policy-area list (the top 8 topics, and the
       // only hub links on a page Google already indexes). The sitewide footer
       // links both chambers and /bills/enacted, whose sibling row reaches the

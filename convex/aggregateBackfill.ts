@@ -165,7 +165,11 @@ export const countsByType = internalQuery({
 export const status = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const congresses = [117, 118, 119];
+    // Every Congress we hold, read from its stats row rather than a fixed list
+    // that would silently skip the next one.
+    const congresses = (await ctx.db.query("congressStats").take(100))
+      .map((row) => row.congress)
+      .sort((a, b) => a - b);
     const out = [] as Array<{
       congress: number;
       aggregateTotal: number;

@@ -86,17 +86,16 @@ const CHAMBER_HUBS: HubDefinition[] = [
 ];
 
 /**
- * Status hubs, restricted to stages that actually hold bills.
+ * Status hubs: one per stage a bill can stop at, except 95 (signed, not yet
+ * numbered as a law), a gap of a day or two that a page would almost always
+ * show empty.
  *
- * Measured against production (re-checked 2026-08-29): stages 90 (to President)
- * and 95 (signed) are 0 in all three Congresses, and stage 80 (passed both
- * chambers) holds just 2 bills, both in the 117th — the pipeline records those
- * transitions as "became law" instead. Pages for them would be empty or
- * near-empty, so they are deliberately absent.
- *
- * Note stage 85 (vetoed) IS here: it is small but real (13 in the 118th, 2 in
- * the 119th), and a status the site can filter by must be a status the site can
- * show.
+ * Stages 80 (passed both chambers) and 90 (on the President's desk) were left
+ * out on a measurement from 2026-08-29 that they were empty. By 2026-10-14 the
+ * 119th held 52 bills at 80 and 3 at 90, so the bills nearest to becoming law
+ * had no page. How many bills a stage holds is the data's to say, and changes
+ * daily; a stage that is empty today shows an empty list. The explainers below
+ * state no counts for the same reason.
  */
 const STATUS_HUBS: HubDefinition[] = [
   {
@@ -107,8 +106,30 @@ const STATUS_HUBS: HubDefinition[] = [
     metaDescription:
       'Every bill that completed the legislative process and became law, with the date it was enacted and who sponsored it.',
     explainer:
-      'These bills finished the whole journey: passed the House, passed the Senate in identical form, and were signed by the President — or became law without a signature, or over a veto. This is the small minority. Of roughly 18,000 bills introduced in a typical Congress, a few hundred reach this point.',
+      'These bills finished the whole journey: passed the House, passed the Senate in identical form, and were signed by the President — or became law without a signature, or over a veto. This is the small minority: only a small share of what is introduced ever reaches this point.',
     filter: { progressStage: '100' },
+  },
+  {
+    kind: 'status',
+    path: '/bills/to-president',
+    heading: "Bills on the President's desk",
+    metaTitle: "Bills on the President's Desk — Awaiting Signature or Veto",
+    metaDescription:
+      'Bills passed by both chambers and presented to the President, who has not yet signed or vetoed them.',
+    explainer:
+      "Both chambers passed these bills in identical form, and they have been presented to the President. The President has ten days, Sundays excepted, to sign or veto. A bill left unsigned becomes law after that time if Congress is in session, and dies in a pocket veto if Congress has adjourned. The list is short by nature: most bills spend only days here.",
+    filter: { progressStage: '90' },
+  },
+  {
+    kind: 'status',
+    path: '/bills/passed-both-chambers',
+    heading: 'Bills that passed both chambers',
+    metaTitle: 'Bills That Passed Both Chambers of Congress',
+    metaDescription:
+      'Bills each chamber has passed, in the same or a different form, that have not yet gone to the President, and concurrent resolutions both chambers agreed to.',
+    explainer:
+      'Each chamber has passed these, but not always in the same form. When the second chamber changed the text, the first must accept those changes, or the two must settle them in a conference, before the bill can go anywhere. Once both have agreed to one text, it is enrolled: printed, signed by the leaders of both chambers, and presented to the President. The list also holds concurrent resolutions (H.Con.Res. and S.Con.Res.), which never go to the President: for them, both chambers agreeing is the whole journey.',
+    filter: { progressStage: '80' },
   },
   {
     kind: 'status',
@@ -251,7 +272,9 @@ export type HubSortedBy = 'stageDate' | 'latestActionDate';
 
 const STAGE_DATE_LABELS: Record<string, string> = {
   '100': 'Became law',
+  '90': 'Presented to the President',
   '85': 'Vetoed',
+  '80': 'Passed both chambers',
   '60': 'Passed a chamber',
   '40': 'Sent to committee',
   '20': 'Introduced',

@@ -19,7 +19,7 @@ It is free to read, has no ads, and you do not need an account to read anything 
 
 ### The front page — one Congress at a glance
 
-The home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them).
+The home page is a dashboard for a single Congress at a time (by default the newest one we hold bills for; a picker switches between them).
 
 It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover a party to see its own numbers. A small "party not recorded" group counts bill numbers Congress.gov lists with no sponsor at all — in the 117th Congress, eleven House bill numbers held back for the Speaker and the Minority Leader — and the assistant can list them if you ask.
 
@@ -45,7 +45,7 @@ Each filter's own control displays what it is currently set to, with a running "
 
 ### Forty ways in
 
-Between the front page and roughly 56,500 individual bill pages sit 40 browse pages: two by chamber (House, Senate), five by stage (introduced, in committee, passed one chamber, enacted, vetoed) and 33 by policy topic.
+Between the front page and roughly 56,500 individual bill pages sit 42 browse pages: two by chamber (House, Senate), seven by stage (introduced, in committee, passed one chamber, passed both chambers, on the President's desk, became law, vetoed) and 33 by policy topic.
 
 Each one is written as a document, not just a filtered list with a new heading. Every one carries a plain-language explanation of what that grouping actually means — what "in committee" really implies, why most bills stop there, what a concurrent resolution is for.
 

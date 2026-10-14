@@ -12,13 +12,13 @@ import { limitChatQuestion } from "./rateLimits";
 import {
   ANSWER_TOOLS,
   buildSystemPrompt,
-  CURRENT_CONGRESS,
   MAX_TOOL_ROUNDS,
   primedDescriptions,
 } from "./catalog/tools";
-import { describeDataset, isDatasetName } from "./catalog/datasets";
+import { describeDataset, isDatasetName, type DescribeVars } from "./catalog/datasets";
+import { congressForDate } from "./catalog/congressCalendar";
 import { resolveAnswer } from "./catalog/cite";
-import { filtersFromCall } from "./catalog/filters";
+import { filtersFromCall, limitFromCall } from "./catalog/filters";
 import { ANSWER_PROMPT_NAME } from "./catalog/promptTemplate";
 import type { ServedPrompt } from "./answerPrompts";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
@@ -611,6 +611,14 @@ async function runLoop(
   // One date for the whole turn: the prompt's calendar note and the rows'
   // `finalStatus` must agree on which Congresses are over.
   const today = new Date().toISOString().slice(0, 10);
+  // The newest Congress we hold bills for. It was the constant 119; from the day
+  // the 120th convened the model would have answered "this Congress" from the
+  // 119th. Null only on an empty database, when the sitting Congress stands in.
+  const newestCongress: number | null = await ctx.runQuery(
+    internal.catalog.fetch.getNewestCongress,
+    {},
+  );
+  const describeVars: DescribeVars = { congress: newestCongress ?? congressForDate(today), today };
   // The instructions' wording: a copy of a PostHog prompt version, or the
   // in-code default (convex/answerPrompts.ts). Tagged on every generation so
   // PostHog can compare versions.
@@ -638,6 +646,7 @@ async function runLoop(
         // from its own training cutoff, and had no way to know that two of the
         // three Congresses we hold have already adjourned.
         today,
+        newestCongress,
         template: prompt.template ?? undefined,
       }),
     },
@@ -706,7 +715,7 @@ async function runLoop(
   // Spend no round on describing the datasets nearly every question needs
   // (see PRIMED_DATASETS for the measurement). Placed first, so it reads as the
   // model's own opening move in this turn.
-  const primed = primedDescriptions();
+  const primed = primedDescriptions(describeVars);
   messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
   for (const r of primed.results) messages.push({ role: "tool", ...r });
 
@@ -718,7 +727,7 @@ async function runLoop(
     await seed(
       "topics_0",
       "topics",
-      { congress: opts.pageContext?.congress ?? CURRENT_CONGRESS },
+      { congress: opts.pageContext?.congress ?? describeVars.congress },
       (count) => `policy areas · ${count}`,
     );
   }
@@ -940,16 +949,18 @@ async function runLoop(
       if (call.function.name === "describe_dataset") {
         const name = String(args.name ?? "");
         result = isDatasetName(name)
-          ? describeDataset(name)
+          ? describeDataset(name, describeVars)
           : `Unknown dataset '${name}'. See the dataset index in your instructions.`;
         note({ tool: "describe", detail: name });
       } else if (call.function.name === "fetch_dataset") {
+        const limit = limitFromCall(args);
         const fetched = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
           name: String(args.name ?? ""),
           // A filter put beside `filters` is moved into it: a stray `sort` named
-          // the wrong "latest law" live on 2026-10-05 (see filtersFromCall).
+          // the wrong "latest law" live on 2026-10-05 (see filtersFromCall). And a
+          // `limit` put inside it is moved out (see limitFromCall).
           filters: filtersFromCall(String(args.name ?? ""), args),
-          ...(typeof args.limit === "number" ? { limit: args.limit } : {}),
+          ...(limit !== undefined ? { limit } : {}),
           today,
         });
         if (fetched.ok) {
