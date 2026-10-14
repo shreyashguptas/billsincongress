@@ -99,7 +99,7 @@ it("title carries the status so it survives SERP truncation", () => {
 });
 
 it("every stage produces a distinct human status phrase", () => {
-  const stages = [20, 40, 60, 80, 85, 90, 95, 100];
+  const stages = [20, 40, 50, 60, 80, 85, 90, 95, 100];
   const seen = new Set(stages.map((s) => billStatusPhrase(bareBill({ progress_stage: s }))));
   assert.equal(seen.size, stages.length, `collisions among ${[...seen].join(" / ")}`);
 });
@@ -384,7 +384,7 @@ it("the article agrees with every real policy area", () => {
 });
 
 it("every description stays inside the snippet budget across all stages", () => {
-  for (const stage of [20, 40, 60, 80, 85, 90, 95, 100]) {
+  for (const stage of [20, 40, 50, 60, 80, 85, 90, 95, 100]) {
     for (const summary of [undefined, "<p>Directs the Secretary to establish a program.</p>"]) {
       const d = billSeoDescription(bareBill({ progress_stage: stage, latest_summary: summary }));
       assert.ok(d.length <= 158, `stage ${stage} produced ${d.length} chars`);
