@@ -1308,6 +1308,45 @@ async function main() {
     assert.match(r.error, /grouped by it/i);
   });
 
+  // "Did the House or the Senate introduce more bills?" was answered from a
+  // grouped read that stopped at 5,000 rows: House 3,348 + Senate 1,652, exactly
+  // 5,000, labelled largest first. The reader rated it wrong (2026-10-13). A
+  // partial grouped read now carries no counts and points at the exact source.
+  await it("a grouped read that could not finish gives no per-group counts", async () => {
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "chamber" }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const measures = bills.filter((b: any) => b.congress === 119).length;
+    assert.ok(measures > 5000, "sanity: the 119th is bigger than one grouped read");
+    assert.equal(r.report.complete, false);
+    assert.equal(r.report.order, "arbitrary", "a partial read cannot be largest first");
+    for (const row of r.rows) {
+      assert.equal(row.count, undefined, `${row.group} carries a count from a partial read`);
+    }
+    const payload = payloadFor(r.rows, r.report);
+    assert.doesNotMatch(payload, /3,?348|1,?652/, "the numbers the reader was given");
+    assert.match(payload, /houseMeasures and senateMeasures/, "must point at the exact split");
+
+    // And the place it points at holds the real split.
+    const stats = await fetchViaHandlers(ctx, "stats", { congress: 119 });
+    assert.ok(stats.ok);
+    const house = bills.filter(
+      (b: any) => b.congress === 119 && ["hr", "hjres", "hconres", "hres"].includes(b.billType),
+    ).length;
+    assert.equal(stats.rows[0].houseMeasures, house);
+    assert.equal(stats.rows[0].senateMeasures, measures - house);
+  });
+
+  await it("a partial grouped read with other filters is told to narrow, not sent to stats", async () => {
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 40, groupBy: "chamber" }, 0);
+    assert.ok(r.ok);
+    if (r.report.complete) return; // small enough to count: nothing to check
+    const payload = payloadFor(r.rows, r.report);
+    assert.match(payload, /Narrow the filters/);
+    assert.doesNotMatch(payload, /fetch `stats`/, "stats holds a different set than this one");
+  });
+
   await it("the stats row separates bills from resolutions", async () => {
     // "How many bills have been introduced" had no exact source: 18,476 measures
     // is past any scan ceiling, so counting hr and s came back incomplete, and
