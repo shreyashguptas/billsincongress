@@ -12,11 +12,11 @@ import { limitChatQuestion } from "./rateLimits";
 import {
   ANSWER_TOOLS,
   buildSystemPrompt,
-  CURRENT_CONGRESS,
   MAX_TOOL_ROUNDS,
   primedDescriptions,
 } from "./catalog/tools";
-import { describeDataset, isDatasetName } from "./catalog/datasets";
+import { describeDataset, isDatasetName, type DescribeVars } from "./catalog/datasets";
+import { congressForDate } from "./catalog/congressCalendar";
 import { resolveAnswer } from "./catalog/cite";
 import { filtersFromCall, limitFromCall } from "./catalog/filters";
 import { ANSWER_PROMPT_NAME } from "./catalog/promptTemplate";
@@ -29,6 +29,7 @@ import {
 } from "./catalog/answerSanitize";
 import { parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
+import { billsInScope, keepWebResultsForBill, withheldNote } from "./catalog/webResults";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "./reasoning";
@@ -610,6 +611,14 @@ async function runLoop(
   // One date for the whole turn: the prompt's calendar note and the rows'
   // `finalStatus` must agree on which Congresses are over.
   const today = new Date().toISOString().slice(0, 10);
+  // The newest Congress we hold bills for. It was the constant 119; from the day
+  // the 120th convened the model would have answered "this Congress" from the
+  // 119th. Null only on an empty database, when the sitting Congress stands in.
+  const newestCongress: number | null = await ctx.runQuery(
+    internal.catalog.fetch.getNewestCongress,
+    {},
+  );
+  const describeVars: DescribeVars = { congress: newestCongress ?? congressForDate(today), today };
   // The instructions' wording: a copy of a PostHog prompt version, or the
   // in-code default (convex/answerPrompts.ts). Tagged on every generation so
   // PostHog can compare versions.
@@ -637,6 +646,7 @@ async function runLoop(
         // from its own training cutoff, and had no way to know that two of the
         // three Congresses we hold have already adjourned.
         today,
+        newestCongress,
         template: prompt.template ?? undefined,
       }),
     },
@@ -705,7 +715,7 @@ async function runLoop(
   // Spend no round on describing the datasets nearly every question needs
   // (see PRIMED_DATASETS for the measurement). Placed first, so it reads as the
   // model's own opening move in this turn.
-  const primed = primedDescriptions();
+  const primed = primedDescriptions(describeVars);
   messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
   for (const r of primed.results) messages.push({ role: "tool", ...r });
 
@@ -717,7 +727,7 @@ async function runLoop(
     await seed(
       "topics_0",
       "topics",
-      { congress: opts.pageContext?.congress ?? CURRENT_CONGRESS },
+      { congress: opts.pageContext?.congress ?? describeVars.congress },
       (count) => `policy areas · ${count}`,
     );
   }
@@ -939,7 +949,7 @@ async function runLoop(
       if (call.function.name === "describe_dataset") {
         const name = String(args.name ?? "");
         result = isDatasetName(name)
-          ? describeDataset(name)
+          ? describeDataset(name, describeVars)
           : `Unknown dataset '${name}'. See the dataset index in your instructions.`;
         note({ tool: "describe", detail: name });
       } else if (call.function.name === "fetch_dataset") {
@@ -995,7 +1005,16 @@ async function runLoop(
           if (!guard.ok) {
             result = `ERROR: ${guard.error}`;
           } else {
-            const hits = await searchWeb(query, opts.apiKey, opts.trace);
+            // Short titles repeat across bills, and the search engine matches on
+            // them: H.R. 10725's page described H.R. 9707, the other "GAP Act".
+            // Filtered before the span is recorded, so the trace shows what the
+            // model saw. See convex/catalog/webResults.ts.
+            const scope = billsInScope(query, opts.pageContext?.billId, reason);
+            const { kept, removed } = keepWebResultsForBill(
+              await searchWeb(query, opts.apiKey, opts.trace),
+              scope,
+            );
+            const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));
             for (const h of hits) {
               allowed.add(h.handle);
               webSources.push(h);
@@ -1003,6 +1022,7 @@ async function runLoop(
             webReason = reason;
             result = JSON.stringify({
               results: hits.map((h) => ({ _cite: h.handle, url: h.url, excerpt: h.excerpt })),
+              ...(removed.length > 0 && { note: withheldNote(scope, removed.length) }),
             });
             note({ tool: "web", detail: reason });
           }

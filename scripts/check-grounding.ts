@@ -92,6 +92,9 @@ const FINAL_ROUND_INSTRUCTION =
 
 /** Mirrors convex/answer.ts, which dates "recent" and "this week" from today. */
 const TODAY = new Date().toISOString().slice(0, 10);
+/** The fixtures below describe the 119th, so the catalog is filled for it too. */
+const FIXTURE_CONGRESS = 119;
+const DESCRIBE_VARS = { congress: FIXTURE_CONGRESS, today: TODAY };
 /**
  * A candidate answer-prompt version to gate before it is labelled `production`
  * in PostHog: export its text to a file and pass ANSWER_PROMPT_FILE. Without
@@ -865,14 +868,14 @@ async function ask(question: string): Promise<Answer> {
   const messages: ChatMessage[] = [
     // `today` is passed the way answer.ts passes it: without it the model dates
     // "recent" and "this week" from its own training cutoff.
-    { role: "system", content: buildSystemPrompt({ today: TODAY, template: PROMPT_TEMPLATE }) },
+    { role: "system", content: buildSystemPrompt({ today: TODAY, newestCongress: FIXTURE_CONGRESS, template: PROMPT_TEMPLATE }) },
   ];
   // The opening production gives every question off a bill page (runLoop in
   // convex/answer.ts): bills and topics already described, and the policy-area
   // list already fetched. The prompt tells the model it has these; without them
   // this gate tested a loop no reader gets, and on 2026-10-05 gpt-oss, told the
   // topic list was in front of it, cited a handle that did not exist.
-  const primed = primedDescriptions();
+  const primed = primedDescriptions(DESCRIBE_VARS);
   messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
   for (const r of primed.results) messages.push({ role: "tool", ...r });
   const topics = serveFetch("topics", { congress: 119 }, 20);
@@ -955,7 +958,7 @@ async function ask(question: string): Promise<Answer> {
       let result: string;
 
       if (call.function.name === "describe_dataset") {
-        result = isDatasetName(name) ? describeDataset(name) : `Unknown dataset '${name}'.`;
+        result = isDatasetName(name) ? describeDataset(name, DESCRIBE_VARS) : `Unknown dataset '${name}'.`;
         work.push(`describe ${name}`);
       } else if (call.function.name === "fetch_dataset") {
         if (!isDatasetName(name)) {

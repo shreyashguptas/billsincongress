@@ -61,7 +61,7 @@ function termDay(congress: number): string {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Ordinal suffix, so the note reads "121st" and not "121th". */
-function ordinal(n: number): string {
+export function ordinal(n: number): string {
   const j = n % 10;
   const k = n % 100;
   if (j === 1 && k !== 11) return `${n}st`;

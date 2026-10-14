@@ -119,18 +119,24 @@ it("finds hubs by path and returns null otherwise", () => {
   assert.equal(hubByPath("/bills/nope"), null);
 });
 
-it("has two chambers, five statuses and one topic per policy area", () => {
+it("has two chambers, seven statuses and one topic per policy area", () => {
   assert.equal(hubsOfKind("chamber").length, 2);
-  assert.equal(hubsOfKind("status").length, 5);
+  assert.equal(hubsOfKind("status").length, 7);
   assert.equal(TOPIC_HUBS.length, POLICY_AREAS.length);
 });
 
-it("omits the progress stages that are empty in every congress", () => {
-  // 80 (passed both), 90 (to President) and 95 (signed) measured 0 across
-  // c117-c119; a page for them would be permanently blank.
+it("has a page for the bills nearest to becoming law", () => {
+  // 80 (passed both chambers) and 90 (on the President's desk) were left out on
+  // a 2026-08-29 measurement that they were empty; on 2026-10-14 the 119th held
+  // 52 and 3. Only 95 (signed, not yet numbered), a gap of a day or two, has none.
   const stages = hubsOfKind("status").map((h) => h.filter.progressStage);
-  for (const empty of ["80", "90", "95"]) {
-    assert.ok(!stages.includes(empty), `stage ${empty} should have no hub`);
+  for (const stage of ["80", "90"]) assert.ok(stages.includes(stage), `stage ${stage} has no hub`);
+  assert.ok(!stages.includes("95"));
+});
+
+it("states no count in a stage explainer, because counts change daily", () => {
+  for (const hub of hubsOfKind("status")) {
+    assert.doesNotMatch(hub.explainer, /\d{2,}[,\d]*/, `${hub.path} states a number`);
   }
 });
 

@@ -263,7 +263,7 @@ it("describes multiple sponsors as a count, one sponsor by name", () => {
 
 it("always offers the currently applied value in its own option list", () => {
   const cases: Array<[string, string]> = [
-    ["status", "90"], // a stage that holds no bills and is not offered
+    ["status", "999"], // a stage no picker offers, arriving from an old link
     ["policyArea", "Some Retired Area"],
     ["state", "ZZ"],
     ["billType", "hres"],
@@ -346,16 +346,19 @@ it("offers every state jurisdiction, sorted by name", () => {
   }
 });
 
-it("offers no permanently-empty outcome in the picker", () => {
-  // Stages 80, 90 and 95 hold zero bills in every Congress we carry; lib/hubs.ts
-  // documents the same measurement and builds no hub pages for them.
+it("offers every stage a bill can stop at", () => {
+  // 80 and 90 were left out on a 2026-08-29 measurement that they were empty;
+  // on 2026-10-14 the 119th held 52 bills at 80 and 3 at 90, and a reader could
+  // not pick either. Which stages hold bills is the data's to say.
   const offered = FILTER_BY_FIELD.status.options(ctx()).map((o) => o.value);
-  for (const dead of ["80", "90", "95"]) {
-    assert.equal(offered.includes(dead), false, `stage ${dead} is always empty`);
+  for (const stage of ["20", "40", "50", "60", "80", "85", "90", "95", "100"]) {
+    assert.ok(offered.includes(stage), `stage ${stage} is not offered`);
   }
+  assert.equal(FILTER_BY_FIELD.status.hubPath?.("90"), "/bills/to-president");
+  assert.equal(FILTER_BY_FIELD.status.hubPath?.("80"), "/bills/passed-both-chambers");
 });
 
-it("still labels a retired outcome that arrives from a bookmark", () => {
+it("labels a stage on its chip the way the stage list does", () => {
   assert.equal(FILTER_BY_FIELD.status.describe("90"), "To President");
 });
 

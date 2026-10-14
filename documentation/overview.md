@@ -98,13 +98,13 @@ case: *"The answer service is not deployed yet. Run `pnpm exec convex deploy`."*
 ```
 app/                       Next.js App Router — 21 page.tsx files
   page.tsx                 Home dashboard (server) → components/dashboard/dashboard-client.tsx
-  bills/                   Browser, bill detail, and the 40 hub pages
+  bills/                   Browser, bill detail, and the 42 hub pages
     [id]/page.tsx          One bill
     [id]/share-image/      Its share card, drawn on request (next/og)
     [id]/get-bill.ts       The bill lookup the page and the card share
     _hub/                  Hub view, directory and view-tracker (route-private)
     topic/[slug]/          33 policy-area hubs
-    house|senate|enacted|in-committee|passed-one-chamber|introduced|vetoed/
+    house|senate|enacted|to-president|passed-both-chambers|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
     components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
   about/ privacy/ terms/   Content and legal
@@ -210,7 +210,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
-| `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/enacted`, `/vetoed` | 5 stage hubs |
+| `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs, one per stage a bill can stop at except 95 (signed, not yet numbered as a law: a day or two). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`) |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
@@ -310,7 +310,10 @@ A route that writes its own `Cache-Control` is listed in `setsOwnCacheControl` i
 file, and the middleware leaves it alone — its header would otherwise replace the route's.
 The share card is the one such route today.
 
-**Error boundaries.** `app/error.tsx` catches client render failures for a route segment;
+**Error boundaries.** `app/error.tsx` catches render failures for a route segment, on the
+client and from the server (a bill page whose Convex read failed throws to it rather than
+claiming the bill does not exist). Its "Try again" calls `retry()`, which fetches the segment
+again; `reset()` only redraws the failed render, so after a Convex blip it could never succeed.
 `app/global-error.tsx` catches failures in the root layout and renders its own
 `<html>`/`<body>` with inline styles, since it replaces the layout. Both recognise a
 stale-asset `ChunkLoadError` — a tab opened before a deploy asking for a content-hashed chunk
@@ -529,14 +532,24 @@ The bill page's status panel draws the bill's journey, and below the body sits t
 returns the bill (exactly what `bills.getById` returns, for the share card) together with
 its journey and peers, reading the bill row once. They used to be two calls, `getById` and
 `getJourney`, each reading the bill, and the second read every topic row of the Congress to
-use one; see [Database cost](#database-cost). A failed call is a 404, as a failed `getById`
-always was. Each part is null when it cannot be drawn honestly, and the page then draws the
-plain seven-step track and no dot field.
+use one; see [Database cost](#database-cost). Only a bill Convex says does not exist is a
+404. Any other failure (Convex down, a server error, the network) is rethrown by
+`getBillPage` in `app/bills/[id]/get-bill.ts`, so the reader gets the error page with its
+"Try again" and the response is a 500, which tells a crawler to come back rather than to
+drop a real bill. Until October 2026 every failure was a 404: on 11 Oct a three-hour Convex
+outage told every reader and crawler that the bills they opened did not exist. Each part is
+null when it cannot be drawn honestly, and the page then draws the plain seven-step track and
+no dot field.
 
 - **The journey** is `buildJourney` in `convex/billJourney.ts`, a pure module. It runs
   `calculateBillStage` over every prefix of the bill's actions in date order and records the
   day each stage changed, so there is no second definition of "passed a chamber" to drift from
-  the stored stage. It also picks out the moments a reader cares about (the referral, a
+  the stored stage. An action dated before the bill was introduced counts as on the day it was.
+  94 bills in the 117th–119th Congresses have one: 53 a sponsor's introductory remarks, about
+  34 committee hearings or mark-ups held "prior to introduction" (as the Senate records for an
+  original appropriations or defense bill), and 7 other actions. Taken at their dates they drew
+  time "in committee" before the bill existed (S. 2431: 71 days from May 14, introduced
+  July 24). It also picks out the moments a reader cares about (the referral, a
   committee's recorded vote, each chamber's passage with its tally or "by unanimous
   consent", presentation, signature, the public law number) from the action text. A bill
   with more than 1,000 stored actions gets no journey rather than one read from part of the
@@ -997,6 +1010,8 @@ is exactly those six.
 | History sent back to the model | 10 turns / 8,000 characters, oldest dropped first. On a follow-up, a system note just before the question repeats the model's last answer (first 400 characters) and quotes it as data and, only when the reader doubts or re-asks that question, tells it to open by saying that answer was wrong if the name or number no longer holds, and to say it stands otherwise; a new question is answered without mentioning the earlier reply (`followUpNote`, `convex/answer.ts`). Added 2026-10-05 after a reader got the wrong "latest law", asked "are you sure?", and was given the right one with no word that the first had been wrong |
 | Filters put beside `filters` | Moved into it (`filtersFromCall`, `convex/catalog/filters.ts`) when they are filters of that dataset. gpt-oss sent `"sort"` next to `filters` on 2026-10-05; it was ignored, the result came back unsorted, and the model named an arbitrary law as the newest |
 | `limit` put inside `filters` | Moved out to the call's `limit` (`limitFromCall`, same file); a `limit` beside `filters` wins. Two of the `bills` worked examples wrote `"limit": 0` inside the filter object, Claude copied them, and 9 of its first 55 lookups (2026-10-13) were rejected as "'limit' is not a filter", each costing the reader a round. The examples now show `limit` beside `filters`, and `describe_dataset` heads them "EXAMPLE FILTERS" |
+| No Congress named | The newest Congress we hold any bill for (`newestCongress`, `convex/catalog/fetch.ts`: one indexed read). A lookup by `billId` is not narrowed, because the id names its own Congress. This was the constant 119 until 2026-10-14; from 3 January 2027 it would have answered "this Congress" with the 119th's final totals. The answer reads the same value once (`getNewestCongress`), and it names the newest Congress in the prompt's calendar note and fills the worked examples, which say `"congress": $CONGRESS` and `"actionAfter": "$MONTH_START"` in `convex/catalog/datasets.ts` (`describeDataset`). When a newer Congress has convened that we hold no bills for, the calendar note says so (`calendarBlock`, `convex/catalog/tools.ts`) |
+| Numbers in the catalog | None about the data. The notes in `datasets.ts` once said "64 House-originated laws", "~96% still in committee" and "She has 35"; by 2026-10-14 all three were wrong (73, about 91%, 36), and the model reads them as facts. `datasets.test.ts` fails on any number in a dataset's notes other than stage codes and a few fixed values |
 | Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), reasoning effort `low` (`OPENROUTER_REASONING`; `off` asks for 2,048 and no reasoning, which gpt-oss refuses, so the retry uses its default). Temperature 0.3 on gpt-oss; none sent to Claude, which refuses a non-default temperature |
 | Summary text per row | 6,000 characters (`SUMMARY_MAX_CHARS`). 86 of 41,681 CRS summaries are longer; those rows carry `textIsOpeningOnly` and `fullTextLength`, and the model says it read the opening. Uncut, H.R. 1's summaries were bigger than the model's context window and the answer came back blank |
 
@@ -1124,8 +1139,8 @@ against that risk:
 
 - **The template is wording only.** What must stay correct is computed in code and filled
   into named slots: `{{datasets}}` (the dataset index, from `convex/catalog/datasets.ts`),
-  `{{calendar}}` (today, and which Congresses have ended) and `{{context}}` (what the reader
-  has on screen). A version that does not use all three slots, or uses any other, is never
+  `{{calendar}}` (today, which Congresses have ended, and whether a Congress has convened that
+  we hold no bills for yet) and `{{context}}` (what the reader has on screen). A version that does not use all three slots, or uses any other, is never
   copied (`validTemplate`, `convex/catalog/promptTemplate.ts`), and the answer uses the
   in-code `DEFAULT_TEMPLATE` instead. A bad edit costs wording, never an outage, and never
   the date or the reader's page.
@@ -1296,6 +1311,30 @@ shown to the reader verbatim, and sources render in two blocks — *From our dat
 `lib/search-query-guard.ts` rejects any search string containing first-person words, or that
 repeats the reader's question verbatim or at more than 80% of its length. A rejection is
 recoverable: the model rephrases and retries.
+
+**Results about another bill are dropped before the model sees them**
+(`convex/catalog/webResults.ts`). The search engine matches on a bill's short title as much as
+its number, and short titles repeat — this Congress has two "GAP Act"s, and on 2026-10-08 the
+page for H.R. 10725 described H.R. 9707. Each result's URL and title are read for bill
+references (`house-bill/9707`, `BILLS-119hr9707ih`, `hr-9707`, `/hr/9707`, `H.R. 9707`, and
+this site's own `/bills/9707hr119`), with the Congress where one is written. A result that names
+only other bills is removed; one that names no bill, or names a bill in scope, is kept. In
+scope: every bill the model's query names, the bill the reader has open, and any bill id in the
+model's `reason` — a union, so a companion looked up by number and a rule whose title names the
+bill it governs both survive. With none, nothing is filtered. A query that names a Congress
+other than the open bill's ("… 116th Congress") is a search for an earlier version, whose number
+the model does not know: it drops only results that name only *other* bills of the open bill's
+own Congress, which cannot be an earlier version of it (and include the same-titled bill). A
+reference without a Congress takes one from the same bill named elsewhere in the result
+(congress.gov's URL carries it, its title does not). A Congress read from a bare number next
+to a reference (`/93/hr10717`) must be at least 80, so a date path (`/2026/10/08/hr-10725`) is not
+taken for one. `scripts/truth/handlers.test.ts` runs every pair of same-titled 119th-Congress
+measures, and every 119th bill that re-uses a 118th title, through it. When results are
+removed, the model is told how many, which bill(s) the filter kept to, that this is not evidence
+the web has nothing, and to put a bill's number in the query to search for a different one. The
+trace's `search_web` span records what the model was given (the `web_search` generation still
+holds the raw response), and the surviving results are renumbered `web:1…`.
+When nothing survives, the model has only our own data to answer from.
 
 > Nothing limits the model to **one** web search — `search_web` is available in every tool
 > round. Two searches in one turn collide: handles are re-minted `web:1…web:5` and `webReason`
@@ -1913,7 +1952,7 @@ tell a page which app was chosen, so nothing records where it went.
 ### Link previews: the share cards
 
 A link pasted into iMessage, WhatsApp, Slack, Discord, LinkedIn, X or an email client unfurls
-into a **share card** drawn for that page. The home page, bill pages and the 40 hub pages
+into a **share card** drawn for that page. The home page, bill pages and the 42 hub pages
 (status, chamber, topic) each have one; every other page (About, Learn, Pro) uses the generic
 card from `app/layout.tsx` (`DEFAULT_OG_IMAGE`, `public/images/og-default.png`), which
 `scripts/generate-og-image.ts` builds from `lib/og/generic-share-card.tsx` with the same frame
@@ -1947,9 +1986,10 @@ including why a card never repeats the title or number the app already prints un
   page counts. A topic's rank is computed from all 33 topic counts, each exact, sorted here —
   not taken from `congressPolicyAreas`' stored order, which daily updates patch in place — and
   dropped, rather than guessed, if any count is a floor. That is 33 small Convex reads per topic
-  render, once a day per topic thanks to caching. The home card reads `HOME_CONGRESS`
-  (`lib/congress.ts`), the Congress `app/page.tsx` shows by default, not the newest synced one:
-  when a new Congress convenes the page stays put until someone moves it, and its card with it.
+  render, once a day per topic thanks to caching. The home card calls `homeCongress`
+  (`lib/congress.ts`), as `app/page.tsx` does: the newest Congress that holds any measure, read
+  from the per-Congress totals. It was the constant 119 until 2026-10-14; the page and its
+  card now move to a new Congress together once its first bills are synced.
 - **Freshness.** A card states a status or a count, and both go stale. Each URL carries a design
   version and the figure it shows: `?v=<SHARE_CARD_VERSION>.<stage>` for a bill
   (`billShareImagePath`) and `?v=<SHARE_CARD_VERSION>.<count>` for a hub (`hubShareImagePath`) and
@@ -1967,7 +2007,7 @@ including why a card never repeats the title or number the app already prints un
 - **Failures.** An unknown bill or hub is a 404. A failed lookup is a `307` to the generic card,
   sent `no-store`: a 404 there would be cached by crawlers as "this link has no picture" for as
   long as they like. `lookupBill` in `app/bills/[id]/get-bill.ts` keeps "no such bill" and "could
-  not ask" apart; the page treats both as a 404, as before.
+  not ask" apart; the bill page keeps them apart too (a 404 and the error page).
 - **Fonts.** A Worker has no filesystem to read a `.ttf` from, and fetching one from Google on
   every render would put a third party in the path of every preview, so Newsreader (500, 600),
   Geist 500 and Geist Mono 500 are embedded in `lib/og/fonts.ts` as base64 TTF, subset to
