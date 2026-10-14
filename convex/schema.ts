@@ -106,7 +106,11 @@ export default defineSchema({
     lastEmailedAt: v.optional(v.number()), // epoch ms of the last digest naming it
   })
     .index("by_user", ["userId"])
-    .index("by_user_and_bill", ["userId", "billId"]),
+    .index("by_user_and_bill", ["userId", "billId"])
+    // Every reader following one bill: the stage re-derivation advances their
+    // watermark when a stage is only re-labelled (In committee to Out of
+    // committee), so no digest calls a months-old committee report news.
+    .index("by_billId", ["billId"]),
 
   bills: defineTable({
     billId: v.string(), // Composite key: "{number}{type}{congress}" e.g. "1234hr119"
@@ -121,7 +125,12 @@ export default defineSchema({
     sponsorLastName: v.optional(v.string()),
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
-    progressStage: v.optional(v.number()), // 20, 40, 60, 80, 85 (vetoed), 90, 95, 100
+    // Congress.gov's permanent member id ("R000608"). The only way to count a
+    // member once when their bills spell them two ways ("Jacky" and "Jacklyn"
+    // Rosen), and twice when two members share a name (the Menendezes in the
+    // 118th). See convex/sponsorIdentity.ts. Absent on rows not yet backfilled.
+    sponsorBioguideId: v.optional(v.string()),
+    progressStage: v.optional(v.number()), // 20, 40, 50 (out of committee), 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
     // The day the bill reached its current stage: when it became law, was
@@ -365,7 +374,10 @@ export default defineSchema({
     countedAt: v.optional(v.string()),
   })
     .index("by_congress", ["congress"])
-    .index("by_congress_and_count", ["congress", "count"]),
+    .index("by_congress_and_count", ["congress", "count"])
+    // The bill page's one row (bills.getPage). Topic names are unique within
+    // a Congress: writeCongressPolicyAreas replaces the whole set at once.
+    .index("by_congress_and_policy_area", ["congress", "policyAreaName"]),
 
   // Precomputed sponsors per congress
   congressSponsors: defineTable({
@@ -374,6 +386,12 @@ export default defineSchema({
     sponsorParty: v.optional(v.string()),
     sponsorState: v.optional(v.string()),
     billCount: v.number(),
+    // One row per MEMBER since sponsor ids are stored (buildSponsorRows): the
+    // id, and every "First Last" spelling their bills carry, so a filter by
+    // either "Jacky Rosen" or "Jacklyn Rosen" reaches all of her bills. Both
+    // absent on rows counted from bills without ids.
+    sponsorBioguideId: v.optional(v.string()),
+    spellings: v.optional(v.array(v.string())),
   })
     .index("by_congress", ["congress"])
     .index("by_congress_and_count", ["congress", "billCount"])
@@ -601,6 +619,13 @@ export default defineSchema({
     totalFailed: v.optional(v.number()),
     totalSkipped: v.optional(v.number()),
     errorDetails: v.optional(v.string()),
+    // The bill types whose sync chains have ended, and how many bills they
+    // touched between them (mutations.finishSyncType). The per-Congress
+    // rollups are recounted once, by the chain that ends last, and only when
+    // something was synced: they used to be recounted by every type's chain,
+    // eight whole-Congress scans a night where one does.
+    typesFinished: v.optional(v.array(v.string())),
+    billsSynced: v.optional(v.number()),
   })
     .index("by_congress", ["congress"])
     .index("by_status", ["status"]),

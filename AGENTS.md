@@ -1,3 +1,9 @@
+# Replies to the owner — mandatory
+
+Keep every reply short: 5 lines max, no walls of text. Say what you did, what
+he needs to know, and the one decision he must make. Details go in a linked
+page or the PR, never in the chat.
+
 <!-- convex-ai-start -->
 
 This project uses [Convex](https://convex.dev) as its backend.
@@ -141,7 +147,7 @@ Three rules, in order of importance:
 
    **These tests do not run on pull requests**, because the production copy is not committed.
    `pnpm test` reports them as `SKIPPED` and prints what did not run — a green PR check is NOT
-   evidence the answer engine was checked. (`.github/workflows/accuracy.yml` runs them nightly
+   evidence the answer engine was checked. (`.github/workflows/accuracy.yml` runs them weekly
    against `main`, but that is after the merge, not before.) Before merging anything under
    `convex/catalog/` or `convex/answer.ts`, run the gate locally:
 

@@ -24,6 +24,7 @@ import {
 const STAGE_FILL: Record<BillStage, string> = {
   [BillStages.INTRODUCED]: 'bg-status-introduced',
   [BillStages.IN_COMMITTEE]: 'bg-status-committee',
+  [BillStages.OUT_OF_COMMITTEE]: 'bg-status-out-of-committee',
   [BillStages.PASSED_ONE_CHAMBER]: 'bg-status-passed-one',
   [BillStages.PASSED_BOTH_CHAMBERS]: 'bg-status-passed-both',
   [BillStages.VETOED]: 'bg-status-vetoed',

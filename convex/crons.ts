@@ -22,11 +22,23 @@ crons.weekly(
   {},
 );
 
+// The current Congress only; the nightly sync has already recounted all of
+// its rollups if it touched any bill, so this is the safety net for a sync
+// that died part-way.
 crons.daily(
   "daily-recompute-stats",
   { hourUTC: 4, minuteUTC: 0 },
   internal.congressApi.recomputeAllStats,
-  {},
+  { only: "current" },
+);
+
+// The finished Congresses, the day after Wednesday's repair pass, which can
+// touch their bills. The daily job above covers the current one.
+crons.weekly(
+  "weekly-recompute-all-stats",
+  { dayOfWeek: "thursday", hourUTC: 4, minuteUTC: 0 },
+  internal.congressApi.recomputeAllStats,
+  { only: "finished" },
 );
 
 // Monthly full re-pull of the current congress: re-derives stage +
