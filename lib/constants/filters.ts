@@ -99,9 +99,10 @@ export const labelFor = (
 export const LIVE_STATUS_OPTIONS = [
   { value: 'all', label: 'Any outcome' },
   { value: '100', label: 'Became law' },
-  { value: '95', label: 'Signed by the President' },
-  { value: '90', label: "On the President's desk" },
   { value: '85', label: 'Vetoed' },
+  { value: '90', label: "On the President's desk" },
+  // Signed, not yet numbered as a law: a day or two, so almost always empty.
+  { value: '95', label: 'Signed by the President' },
   { value: '80', label: 'Passed both chambers' },
   { value: '60', label: 'Passed one chamber' },
   { value: '50', label: 'Out of committee, awaiting a vote' },
