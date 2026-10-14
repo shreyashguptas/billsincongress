@@ -310,7 +310,9 @@ A route that writes its own `Cache-Control` is listed in `setsOwnCacheControl` i
 file, and the middleware leaves it alone — its header would otherwise replace the route's.
 The share card is the one such route today.
 
-**Error boundaries.** `app/error.tsx` catches client render failures for a route segment;
+**Error boundaries.** `app/error.tsx` catches render failures for a route segment, on the
+client and from the server (a bill page whose Convex read failed throws to it rather than
+claiming the bill does not exist);
 `app/global-error.tsx` catches failures in the root layout and renders its own
 `<html>`/`<body>` with inline styles, since it replaces the layout. Both recognise a
 stale-asset `ChunkLoadError` — a tab opened before a deploy asking for a content-hashed chunk
@@ -529,8 +531,12 @@ The bill page's status panel draws the bill's journey, and below the body sits t
 returns the bill (exactly what `bills.getById` returns, for the share card) together with
 its journey and peers, reading the bill row once. They used to be two calls, `getById` and
 `getJourney`, each reading the bill, and the second read every topic row of the Congress to
-use one; see [Database cost](#database-cost). A failed call is a 404, as a failed `getById`
-always was. Each part is null when it cannot be drawn honestly, and the page then draws the
+use one; see [Database cost](#database-cost). Only a bill Convex says does not exist is a
+404. Any other failure (Convex down, a server error, the network) is rethrown by
+`getBillPage` in `app/bills/[id]/get-bill.ts`, so the reader gets the error page with its
+"Try again" and the response is a 500, which tells a crawler to come back rather than to
+drop a real bill. Until October 2026 every failure was a 404: on 11 Oct a three-hour Convex
+outage told every reader and crawler that the bills they opened did not exist. Each part is null when it cannot be drawn honestly, and the page then draws the
 plain seven-step track and no dot field.
 
 - **The journey** is `buildJourney` in `convex/billJourney.ts`, a pure module. It runs
@@ -1961,7 +1967,7 @@ including why a card never repeats the title or number the app already prints un
 - **Failures.** An unknown bill or hub is a 404. A failed lookup is a `307` to the generic card,
   sent `no-store`: a 404 there would be cached by crawlers as "this link has no picture" for as
   long as they like. `lookupBill` in `app/bills/[id]/get-bill.ts` keeps "no such bill" and "could
-  not ask" apart; the page treats both as a 404, as before.
+  not ask" apart; the bill page keeps them apart too (a 404 and the error page).
 - **Fonts.** A Worker has no filesystem to read a `.ttf` from, and fetching one from Google on
   every render would put a third party in the path of every preview, so Newsreader (500, 600),
   Geist 500 and Geist Mono 500 are embedded in `lib/og/fonts.ts` as base64 TTF, subset to
