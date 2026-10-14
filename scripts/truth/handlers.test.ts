@@ -839,6 +839,7 @@ async function main() {
     const words: Record<number, string> = {
       20: "introduced",
       40: "in committee",
+      50: "out of committee, awaiting a floor vote",
       60: "passed one chamber",
       80: "passed both chambers",
       85: "vetoed",
