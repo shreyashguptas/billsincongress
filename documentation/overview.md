@@ -312,7 +312,8 @@ The share card is the one such route today.
 
 **Error boundaries.** `app/error.tsx` catches render failures for a route segment, on the
 client and from the server (a bill page whose Convex read failed throws to it rather than
-claiming the bill does not exist);
+claiming the bill does not exist). Its "Try again" calls `retry()`, which fetches the segment
+again; `reset()` only redraws the failed render, so after a Convex blip it could never succeed.
 `app/global-error.tsx` catches failures in the root layout and renders its own
 `<html>`/`<body>` with inline styles, since it replaces the layout. Both recognise a
 stale-asset `ChunkLoadError` — a tab opened before a deploy asking for a content-hashed chunk
@@ -536,8 +537,9 @@ use one; see [Database cost](#database-cost). Only a bill Convex says does not e
 `getBillPage` in `app/bills/[id]/get-bill.ts`, so the reader gets the error page with its
 "Try again" and the response is a 500, which tells a crawler to come back rather than to
 drop a real bill. Until October 2026 every failure was a 404: on 11 Oct a three-hour Convex
-outage told every reader and crawler that the bills they opened did not exist. Each part is null when it cannot be drawn honestly, and the page then draws the
-plain seven-step track and no dot field.
+outage told every reader and crawler that the bills they opened did not exist. Each part is
+null when it cannot be drawn honestly, and the page then draws the plain seven-step track and
+no dot field.
 
 - **The journey** is `buildJourney` in `convex/billJourney.ts`, a pure module. It runs
   `calculateBillStage` over every prefix of the bill's actions in date order and records the
