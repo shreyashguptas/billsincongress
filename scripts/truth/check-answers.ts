@@ -185,7 +185,7 @@ export function workingOut(text: string): string | null {
  * right the rest is. Written here by hand, not imported from convex/, so the
  * harness does not agree with the sanitizer's bugs.
  */
-const STAGE_CODE = /\b(?:progress stage|progress|stage)(?: code)? (?:20|40|60|80|85|90|95|100)\b(?! ?%)/i;
+const STAGE_CODE = /\b(?:progress stage|progress|stage)(?: code)? (?:20|40|50|60|80|85|90|95|100)\b(?! ?%)/i;
 
 /** The first stage code in an answer, or null when there is none. */
 export function stageCode(text: string): string | null {

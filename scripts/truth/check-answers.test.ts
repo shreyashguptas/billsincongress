@@ -110,6 +110,7 @@ it("scores a stage code shown to the reader as wrong", () => {
   for (const text of [
     "Yes, it is currently in committee (progress stage 40).",
     "Yes. It is currently at progress stage 40, meaning it is still in committee.",
+    "It is out of committee (progress stage 50).",
   ]) {
     assert.equal(scoreRun(expected, { text }).outcome, "WRONG", text);
   }
