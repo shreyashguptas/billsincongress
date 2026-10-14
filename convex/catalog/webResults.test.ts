@@ -262,6 +262,12 @@ it("names the open bill once when the query names it too", () => {
   assert.match(withheldNote(scope, 1), /^1 result\(s\) named only bills other than H\.R\. 10725 \(119th Congress\), and were withheld/);
   // A different bill named in the query is still kept beside the open one.
   assert.equal(billsInScope("H.R. 10725 and H.R. 9707 compared", "10725hr119").bills.length, 2);
+  // Off a bill page, the query names "H.R. 51" with no Congress and the reason
+  // names 51hr119 (review on #191): once, without the Congress, which covers both.
+  assert.deepEqual(
+    billsInScope("H.R. 51 statehood summary", undefined, "We hold no summary for 51hr119.").bills,
+    [{ type: "hr", number: 51 }],
+  );
 });
 
 it("the note to the model is neutral and says what was kept", () => {
