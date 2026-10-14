@@ -49,6 +49,38 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
  */
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
 /**
+ * The answer model, tried before DEFAULT_MODEL; override with
+ * OPENROUTER_CLAUDE_MODEL, and set it blank to answer on DEFAULT_MODEL alone.
+ *
+ * Claude Haiku 5.5 at low effort, chosen on 2026-10-13 on the same truth
+ * questions as above (20 scored, twice each, every flagged answer read by hand):
+ * 38 of 40 right against gpt-oss's 37, at about a seventh of the token cost,
+ * but a median of 3.7 s against 1.1 s. Medium and high effort scored the same
+ * and cost about 3x; thinking off and max effort both scored lower.
+ *
+ * It runs on the site's OWN Anthropic key, attached to OpenRouter as BYOK, and
+ * never on OpenRouter credits: CLAUDE_PROVIDER pins the Anthropic endpoint, and
+ * callModel rejects any Claude reply OpenRouter did not bill to that key. A
+ * failed or rejected Claude call does not fail the answer; the rest of the turn
+ * runs on DEFAULT_MODEL (see answerRound). DEFAULT_MODEL also stays the model
+ * behind searchWeb, whose citation parsing is provider-specific.
+ */
+const DEFAULT_CLAUDE_MODEL = "anthropic/claude-haiku-5.5";
+/**
+ * Anthropic's own endpoint and nothing else. Not merged with DEFAULT_PROVIDERS:
+ * Amazon Bedrock is on that list and also serves Claude, on OpenRouter credits.
+ *
+ * No `zdr: true` here, unlike providerConfig: OpenRouter has no zero-retention
+ * Anthropic endpoint for an account without a ZDR agreement, so the flag empties
+ * the pool. Anthropic deletes API inputs and outputs within 30 days and does not
+ * train on them; the reader guide says so.
+ */
+const CLAUDE_PROVIDER = {
+  only: ["anthropic"],
+  allow_fallbacks: false,
+  data_collection: "deny",
+} as const;
+/**
  * Provider allowlist, so questions are only served from providers that process
  * data in the US; override with OPENROUTER_PROVIDERS. Every slug here must ALSO
  * be permitted by the OpenRouter account's own allowed-providers setting: if
@@ -296,13 +328,24 @@ function providerConfig() {
   };
 }
 
+/** The Claude model for this deployment, or "" when Claude is switched off. */
+function claudeModel(): string {
+  // `??` not `||`: a blank value deliberately turns Claude off.
+  return (process.env.OPENROUTER_CLAUDE_MODEL ?? DEFAULT_CLAUDE_MODEL).trim();
+}
+
 async function callModel(
   messages: ChatMessage[],
   apiKey: string,
-  opts: { withTools?: boolean; trace?: AnswerTrace; omitReasoning?: boolean } = {},
+  opts: { withTools?: boolean; trace?: AnswerTrace; omitReasoning?: boolean; claude?: boolean } = {},
 ): Promise<{ message: any; lengthCapped: boolean; reasoningRefused?: boolean }> {
-  const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
-  const fallbacks = fallbackModels();
+  const claude = opts.claude ?? false;
+  const model = claude ? claudeModel() : process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  // OpenRouter's `models` failover shares one provider config across the chain,
+  // so it is never sent with Claude: the fallback is answerRound's job.
+  const fallbacks = claude ? [] : fallbackModels();
+  // Claude 5.5 refuses a non-default temperature.
+  const temperature = claude ? undefined : 0.3;
   const withTools = opts.withTools ?? true;
   // After a refusal the parameter is left out, so the request carries the
   // model's own default. Retrying with { enabled: false } instead was itself
@@ -323,7 +366,7 @@ async function callModel(
       input: messages,
       latencyMs: Date.now() - started,
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
-      temperature: 0.3,
+      ...(temperature !== undefined && { temperature }),
       maxTokens,
       ...g,
     });
@@ -346,9 +389,11 @@ async function callModel(
       // and the reader got a canned apology on top of 17 successful fetches.
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
       max_tokens: maxTokens,
-      temperature: 0.3,
+      ...(temperature !== undefined && { temperature }),
       ...(reasoning && { reasoning }),
-      provider: providerConfig(),
+      provider: claude ? { ...CLAUDE_PROVIDER, max_price: MAX_PRICE } : providerConfig(),
+      // Carries usage.is_byok, which the BYOK check below reads.
+      ...(claude && { usage: { include: true } }),
     }),
   }).catch((error: unknown) => {
     record({ error: String(error) });
@@ -364,7 +409,8 @@ async function callModel(
     // A request refused while it carried a reasoning setting gets one retry
     // without it, so the worst this setting can do is give the reader the
     // model's default, never no answer.
-    if (reasoning && response.status === 400) {
+    // Not for Claude: any Claude failure goes to DEFAULT_MODEL instead.
+    if (reasoning && response.status === 400 && !claude) {
       // Any 400, not necessarily caused by reasoning (a context-length or
       // tools-schema 400 looks the same), so the log says what happened, not why.
       console.error(`400 with a reasoning setting, retrying without it: ${message}`);
@@ -395,13 +441,31 @@ async function callModel(
     );
   }
   const choice = data.choices?.[0];
+  // A Claude reply OpenRouter paid for out of its own credits is discarded, so
+  // a BYOK misconfiguration costs one request and an error log, not a month of
+  // spend nobody sees. OpenRouter has already billed it; this stops the next.
+  if (claude && data.usage?.is_byok !== true) {
+    const message = `Claude reply was not billed to our Anthropic key (is_byok=${String(data.usage?.is_byok)}); check the Anthropic BYOK key on OpenRouter`;
+    record({ error: message, httpStatus: response.status });
+    throw new Error(message);
+  }
+  // Refusals come back as a normal reply with this reason and no usable text.
+  if (claude && choice?.finish_reason === "content_filter") {
+    const message = "Claude declined the request";
+    record({ error: message, httpStatus: response.status });
+    throw new Error(message);
+  }
   record({
     model: servedModel,
     ...(typeof data.provider === "string" && { host: data.provider }),
     output: choice?.message ? [choice.message] : [],
     inputTokens: data.usage?.prompt_tokens,
     outputTokens: data.usage?.completion_tokens,
-    costUsd: typeof data.usage?.cost === "number" ? data.usage.cost : undefined,
+    // Under BYOK `cost` is OpenRouter's fee (nothing, below its allowance) and
+    // Anthropic bills the tokens; the trace records what the answer cost us.
+    costUsd: [claude ? data.usage?.cost_details?.upstream_inference_cost : undefined, data.usage?.cost].find(
+      (c): c is number => typeof c === "number",
+    ),
     httpStatus: response.status,
   });
   // finish_reason was never read, so a completion cut off at max_tokens was
@@ -727,6 +791,27 @@ async function runLoop(
   // leaves it out, so a persistent refusal costs one extra request, not one a round.
   let omitReasoning = false;
 
+  // Claude first (DEFAULT_CLAUDE_MODEL). Once a Claude call fails — an error,
+  // a refusal, or a reply not billed to our key — the rest of the turn runs on
+  // DEFAULT_MODEL, so a broken Claude route costs a reader one request, not one
+  // a round, and never costs them the answer. The transcript is plain content
+  // and tool calls (no reasoning is handed back), so either model can pick it up.
+  let claude = claudeModel() !== "";
+  const answerRound = async (
+    roundMessages: ChatMessage[],
+    roundOpts: { withTools: boolean; omitReasoning: boolean },
+  ) => {
+    if (claude) {
+      try {
+        return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace, claude: true });
+      } catch (error) {
+        console.error("Claude failed; answering the rest of this turn on the default model:", error);
+        claude = false;
+      }
+    }
+    return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace });
+  };
+
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     // On the final round the tools are WITHHELD, not discouraged. Asking the
     // model to "answer now" while still handing it the tool schema left it free
@@ -743,9 +828,8 @@ async function runLoop(
     let lengthCapped = false;
     let reasoningRefused: boolean | undefined;
     try {
-      ({ message, lengthCapped, reasoningRefused } = await callModel(finalMessages, opts.apiKey, {
+      ({ message, lengthCapped, reasoningRefused } = await answerRound(finalMessages, {
         withTools: !isFinalRound,
-        trace: opts.trace,
         omitReasoning,
       }));
     } catch (error) {
@@ -760,9 +844,8 @@ async function runLoop(
       // saw, the retry without the setting failed too: leave it out for this
       // last attempt instead of paying for it again (review on #169).
       if (/OpenRouter 400\b/.test(String(error))) omitReasoning = true;
-      ({ message, lengthCapped, reasoningRefused } = await callModel(finalMessages, opts.apiKey, {
+      ({ message, lengthCapped, reasoningRefused } = await answerRound(finalMessages, {
         withTools: true,
-        trace: opts.trace,
         omitReasoning,
       }));
     }

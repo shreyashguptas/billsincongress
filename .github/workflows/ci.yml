@@ -70,10 +70,14 @@ jobs:
       - name: Typecheck the Convex backend
         run: ./node_modules/.bin/tsc --noEmit -p convex
 
+      # No Convex URL here, on purpose. With one, the build prerenders every
+      # sitemap from production, reading all ~56,000 bills: about 18 MB of
+      # database reads per push, which on a busy day was most of the site's
+      # sitemap cost (35 builds on 5 Oct 2026). Without it the build takes the
+      # path a fork's pull request already takes (app/sitemap.ts: static
+      # sitemap only). The deploy build still prerenders them from production.
       - name: Build (Cloudflare)
         run: pnpm cf:build
         env:
-          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
-          NEXT_PUBLIC_CONVEX_SITE_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_SITE_URL }}
           NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
           NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}

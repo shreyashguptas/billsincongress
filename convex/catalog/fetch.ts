@@ -43,7 +43,14 @@ import { milestoneStages } from "./stageSemantics";
 import { congressWindow, isCongressClosed } from "./congressCalendar";
 import { canBecomeLaw, isBill, measureClass, measureNoun } from "./measureType";
 import type { MeasureClass } from "./measureType";
-import { candidateSurnames, matchesFullName, mergeSponsorRows, nameKey } from "./sponsorName";
+import {
+  billMatchesRequest,
+  candidateSurnames,
+  mergeSponsorRows,
+  nameKey,
+  resolveSponsorRequest,
+} from "./sponsorName";
+import type { SponsorRequest } from "./sponsorName";
 
 /** Default rows per fetch. Small on purpose — context is the scarce resource. */
 const DEFAULT_LIMIT = 20;
@@ -466,6 +473,34 @@ async function fetchBills(
   // not.
   if (plan.branch === "titleSearch") ceiling = Math.min(ceiling, SEARCH_LIMIT);
 
+  // Who a sponsor filter means: every spelling and id of the members it names,
+  // read once from the member rows (resolveSponsorRequest). "Jacky Rosen" then
+  // reaches her bills spelled "Jacklyn Rosen", 7 of her 80 in the 119th.
+  const sponsorRows = sponsorNames
+    ? await ctx.db
+        .query("congressSponsors")
+        .withIndex("by_congress", (q) => q.eq("congress", congress))
+        .take(SPONSOR_SCAN_LIMIT)
+    : [];
+  // A name this Congress never uses (one member's name from another Congress,
+  // "Jacky Rosen" for her 117th bills spelled "Jacklyn") is found through the
+  // member's id in the other Congresses rather than answered as zero.
+  const covered = (names: string[], rows: typeof sponsorRows) =>
+    names.every((name) =>
+      rows.some((row) =>
+        [row.sponsorName, ...(row.spellings ?? [])].some((n) => nameKey(n) === nameKey(name)),
+      ),
+    );
+  const otherCongresses =
+    sponsorNames && !covered(sponsorNames, sponsorRows)
+      ? (await ctx.db.query("congressSponsors").take(SPONSOR_SCAN_LIMIT * 4)).filter(
+          (row) => row.congress !== congress,
+        )
+      : [];
+  const sponsorRequest: SponsorRequest | null = sponsorNames
+    ? resolveSponsorRequest(sponsorRows, sponsorNames, otherCongresses)
+    : null;
+
   let candidates;
   let windowFilled = false;
   let orderFromIndex = false;
@@ -577,12 +612,11 @@ async function fetchBills(
       // "VELAZQUEZ" from "Velázquez" or back: an accent cannot be guessed. The
       // member table holds every stored spelling, so take them from there.
       const storedSpellings = new Map<string, string[]>();
-      for (const row of await ctx.db
-        .query("congressSponsors")
-        .withIndex("by_congress", (q) => q.eq("congress", congress))
-        .take(SPONSOR_SCAN_LIMIT)) {
-        const key = nameKey(row.sponsorName);
-        storedSpellings.set(key, [...(storedSpellings.get(key) ?? []), row.sponsorName]);
+      for (const requested of sponsorNames ?? []) {
+        storedSpellings.set(
+          nameKey(requested),
+          resolveSponsorRequest(sponsorRows, [requested], otherCongresses).spellings,
+        );
       }
 
       for (const requested of sponsorNames ?? []) {
@@ -775,14 +809,9 @@ async function fetchBills(
     // of the 119th at the very front and the contract then told the model "row 1
     // is genuinely the oldest" — of a bill with no known date at all.
     if (requestedSort && !requestedSort.key(b as BillSortRow)) return false;
-    if (requestedSurnames) {
-      if (
-        !requestedSurnames.some((n) =>
-          matchesFullName(n, b.sponsorFirstName as string, b.sponsorLastName as string),
-        )
-      ) {
-        return false;
-      }
+    if (requestedSurnames && sponsorRequest) {
+      // Any spelling of the members asked for, and their id where the row has one.
+      if (!billMatchesRequest(b, sponsorRequest)) return false;
     }
     return true;
   });
