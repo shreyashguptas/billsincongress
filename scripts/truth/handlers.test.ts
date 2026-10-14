@@ -1341,7 +1341,11 @@ async function main() {
     const { payloadFor } = await import("../../convex/catalog/completeness");
     const r = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 40, groupBy: "chamber" }, 0);
     assert.ok(r.ok);
-    if (r.report.complete) return; // small enough to count: nothing to check
+    // The 119th's in-committee measures are far past the grouped scan ceiling,
+    // so this read must come back partial. If it ever completes, this case
+    // would test nothing: pick a bigger set rather than let it pass silently
+    // (review on #189).
+    assert.equal(r.report.complete, false, "the set fit the scan, so the partial-read path went unchecked");
     const payload = payloadFor(r.rows, r.report);
     assert.match(payload, /Narrow the filters/);
     assert.doesNotMatch(payload, /fetch `stats`/, "stats holds a different set than this one");
