@@ -28,9 +28,9 @@ Right under the chamber is a box for asking a question. As you type, bills whose
 Below that, it shows:
 
 - **Four headline counts** — bills and resolutions introduced, how many came from each chamber, and how many became law. The counts include resolutions, which are not bills, and say so; the odds of becoming law ("about 1 in 140 that could") count only bills and joint resolutions, because the other resolutions never go to the President.
-- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, over 90% of everything introduced has not made it out of committee. The rows for one and both chambers say how many of their measures are resolutions that are already finished there, since a House or Senate resolution only ever needs its own chamber.
+- **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, close to 90% of everything introduced has not made it out of committee. The first row past committee is "Out of committee": bills a committee has approved and sent to the floor, waiting for a vote. The rows for one and both chambers say how many of their measures are resolutions that are already finished there, since a House or Senate resolution only ever needs its own chamber.
 - **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
-- **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party.
+- **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party. Members are counted by Congress.gov's own member id, so someone whose bills spell their name two ways ("Jacky" and "Jacklyn" Rosen) is one member, and two members who share a name (the 118th's Senator and Representative Robert Menendez) are two.
 - **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
 - **Introductions month by month** — bills introduced growing upward and, growing downward, how many of each month's bills went on to become law, each on its own scale. A written sentence names the busiest month, the quietest full month, and the month whose bills produced the most laws. Laws sit under the month the bill was filed, not the month it was signed.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.
@@ -58,10 +58,10 @@ Each bill page shows the bill number and Congress, its policy area, the official
 Below that:
 
 - **A status panel** naming the bill's current stage and how it got there. Its journey is drawn to scale: one bar segment per stage, as long as the bill stayed in it, and under each one the number of days and what happened then — the committee vote, each chamber's passage with its yes and no tally, the signature and the public law number. All of it is read from the bill's official actions on Congress.gov. A bill that has spent time in only one stage shows the seven-step track instead. Resolutions that cannot become law get a shorter track that ends where they are finished: a simple resolution (H.Res., S.Res.) has three steps and ends at "Agreed to by the House" or "by the Senate"; a concurrent resolution (H.Con.Res., S.Con.Res.) has four and ends at "Agreed to by both chambers". A sentence under the track says why: neither ever goes to the President, and neither is a law. The same shorter track and the same words appear wherever the site shows a stage: the bill lists, the bill cards in answers, your account page and the alert emails. A bill still on its way also shows how many days are left in the two-year Congress, because a bill that has not become law when the Congress ends dies with it.
-- **Among its peers** — every bill and resolution on the same topic in the same Congress, one dot each, coloured by stage, with this one ringed: "Of 2,181 Health bills and resolutions this Congress, this is the only one that became law." The counts are recounted in full every night, and the page says when; the ring only appears when the bill has not changed since that count.
+- **Among its peers** — every bill and resolution on the same topic in the same Congress, one dot each, coloured by stage, with this one ringed: "Of 2,181 Health bills and resolutions this Congress, this is the only one that became law." The counts are recounted in full after every nightly update that changes a bill, and the page says when; the ring only appears when the bill has not changed since that count.
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
-- **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever advanced. It is labelled as a description of that group of past bills, not a prediction about this one.
+- **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever left committee. It is labelled as a description of that group of past bills, not a prediction about this one. A bill already out of committee does not show it.
 
 ### Sharing a bill
 
@@ -134,12 +134,13 @@ Every bill record on this site comes from one place: the **[official Congress.go
 
 ### How it stays current
 
-Nine scheduled jobs keep the database in step with Congress, a tenth sends bill-alert emails, an eleventh deletes profile-photo uploads that were never attached to an account, and a twelfth deletes old feedback pictures:
+Ten scheduled jobs keep the database in step with Congress, an eleventh sends bill-alert emails, a twelfth deletes profile-photo uploads that were never attached to an account, and a thirteenth deletes old feedback pictures:
 
 | When | What it does |
 | --- | --- |
 | Daily, 01:00 UTC | Pull every bill **in the current Congress** that Congress.gov reports as changed in the last 26 hours |
-| Daily, 04:00 UTC | Rebuild the precomputed statistics behind the dashboard |
+| Daily, 04:00 UTC | Rebuild the current Congress's precomputed statistics behind the dashboard (they are also rebuilt right after each nightly update that changes a bill) |
+| Thursday, 04:00 UTC | Rebuild the precomputed statistics for earlier Congresses, after Wednesday's repairs |
 | Sunday, 02:00 UTC | Re-pull everything in the current Congress changed in the last seven days, as a safety net |
 | Monday, 06:00 UTC | Compare the full live list for all three Congresses against ours and fetch anything missing entirely |
 | Wednesday, 03:00 UTC | Repair bills that were only half-fetched |
@@ -169,12 +170,13 @@ The `/bills` page carries a live "Updated *n* hours ago" indicator drawn from th
 
 ### The one number computed here
 
-A bill's position in Congress is **not** a field the government hands out. It is derived here, by reading the bill's action history into an eight-rung ladder:
+A bill's position in Congress is **not** a field the government hands out. It is derived here, by reading the bill's action history into a nine-rung ladder:
 
 | Stage | Label |
 | ---: | --- |
 | 20 | Introduced |
 | 40 | In Committee |
+| 50 | Out of Committee |
 | 60 | Passed One Chamber |
 | 80 | Passed Both Chambers |
 | 85 | Vetoed |
@@ -210,13 +212,17 @@ The question panel is the only place in the interface where a machine writes pro
 
 **Answers are short on purpose.** The model is told to put the answer in the first sentence, keep most answers to one to three sentences plus bill cards, and stop: no closing summary or offer to help further.
 
-**Its thinking is kept out of the answer.** The model thinks privately, in a separate place that is recorded with the question for review and never shown to you; the model in use always works this way. Before October 2026 the model had no such space and sometimes thought out loud in the answer itself ("Let me also check…", "That's a good answer"), so as a safety net, before an answer is displayed, code removes that thinking, including a draft it wrote and then reconsidered (but only when the final answer repeats the draft's figures), and keeps the answer it settled on. A sentence that carries a figure is never mistaken for thinking, and the whole answer is never removed.
+**Its thinking is kept out of the answer.** The model thinks privately, in a separate place that is recorded with the question for review and never shown to you; both models in use work this way. Before October 2026 the model had no such space and sometimes thought out loud in the answer itself ("Let me also check…", "That's a good answer"), so as a safety net, before an answer is displayed, code removes that thinking, including a draft it wrote and then reconsidered (but only when the final answer repeats the draft's figures), and keeps the answer it settled on. A sentence that carries a figure is never mistaken for thinking, and the whole answer is never removed.
 
 **You can see its work.** When an answer involved lookups, it shows a log of them.
 
 **Every answer is recorded so wrong ones can be found.** Each question is recorded in PostHog as a trace: what the model was sent (the instructions, the conversation so far, the records it looked up), what it replied, and the tokens, cost and time each step took. A reader's "No" under an answer points at its trace. The text of a trace is deleted after 30 days; the counts stay. The point is the loop in [`overview.md`](overview.md#recording-and-the-wrong-answer-loop): a wrong answer found this way becomes a case in the accuracy tests before it is fixed.
 
-**The model itself:** OpenAI's open-weight gpt-oss-120b, reached through OpenRouter and run by Cerebras, chosen in October 2026 because it answered our test questions correctly more often than the alternatives we tried and typically in about a second. If Cerebras is busy, the same model is served by Groq or Amazon Bedrock instead, so a busy host costs a little speed, not a weaker model. Requests carry zero-retention and no-training flags, and a maximum price per million tokens so a repriced provider is skipped rather than silently billed. Routing is pinned to a short allowlist of providers chosen for US data processing — OpenRouter's true region-locking is an enterprise feature, so this is an allowlist, not a hard geographic guarantee.
+**The model itself:** Anthropic's Claude Haiku 5.5, reached through OpenRouter but run by Anthropic itself and paid for with this site's own Anthropic account. It was chosen on 13 October 2026 because, on our test questions, it got 38 of 40 answers right against 37 for the model before it, at about a seventh of the cost. It is slower: a typical answer now takes about four seconds rather than one.
+
+**If Claude fails, the previous model finishes the answer.** That is OpenAI's open-weight gpt-oss-120b, run by Cerebras, or by Groq or Amazon Bedrock when Cerebras is busy. If a request to Claude errors, is refused, or is not billed to this site's own Anthropic account, the rest of that answer is written by gpt-oss-120b, so a Claude outage costs you a little time, not the answer. The labelled web search always runs on gpt-oss-120b.
+
+**What happens to your question there.** Claude requests go only to Anthropic, never to another company that also runs Claude. They do **not** have zero data retention: Anthropic keeps what it was sent (your question, the conversation so far and the records looked up) and the answer for up to 30 days, then deletes them, and its commercial terms do not let it train models on them. The gpt-oss-120b requests carry a zero-retention flag, so they are only served by providers that keep nothing. Every request carries a no-training flag and a maximum price per million tokens, so a repriced provider is skipped rather than silently billed. gpt-oss routing is pinned to a short allowlist of providers chosen for US data processing — OpenRouter's true region-locking is an enterprise feature, so this is an allowlist, not a hard geographic guarantee.
 
 **Limits:** five questions a day without an account, 100 with a free one, 500 on Pro. Questions are capped at 2,000 characters, and bill searches at 120; a box shows a count as you get close and says the limit in words when you reach it. For the few bills whose official summary runs to hundreds of pages, the assistant reads only its opening and says so.
 
@@ -231,6 +237,7 @@ The full detail is in the [Privacy Policy](https://billsincongress.com/privacy).
 - **Product analytics run on every page** (PostHog, US cloud) — pages visited, clicks, performance, errors, and session replay. There is currently no cookie banner and no opt-out control on the site.
 - **The full text of every question you ask the assistant is sent to PostHog** as part of that analytics data (the `answer_question_submitted` event), whether or not you are signed in. If you ask about a bills list narrowed by a title search, the words you searched for go with it.
 - **Every answer is recorded in PostHog, with the conversation it came from** — the question, the earlier turns, the public records the assistant looked up and the answer — whether or not you are signed in. PostHog deletes that text after 30 days and keeps the counts (tokens, cost, time). A wrong answer may be kept longer as a test case.
+- **Your question also goes to the AI that writes the answer.** That is Anthropic (Claude), through OpenRouter, and Anthropic keeps the request and the answer for up to 30 days and does not train on them. When an answer falls back to gpt-oss-120b, the rest of it goes to a provider that keeps nothing. See "The model itself" above.
 - **If you tap "No" under an answer, the answer goes to PostHog too** (the `answer_rated` event): your question, the one before it if it was a follow-up, the answer as you saw it, and the sources it cited — so it can be checked. Tapping "Yes" records only that you did.
 - **Each answer also leaves one server log line in PostHog**, saying whether it was answered or failed, how long it took, and which bill page it was asked on. It carries the same analytics ID and session ID as the rest of your visit, so we can open the session replay of an answer that went wrong. The line itself does not carry the question or the answer (the record above does). PostHog keeps these lines for 14 days.
 - **Searches and filters on the bills list reach PostHog through the page address.** The search words and every filter, sponsor names included, are written into the URL (`/bills?title=farm`), and analytics records the full URL of every page viewed. The suggestions under the home page's question box, and the search boxes inside the filter pickers (typing to find a sponsor, say), are recorded as a length rather than the text: the suggestions until you ask the question or open "See all matching bills", the pickers until you choose an option, which then goes into the URL.
@@ -267,7 +274,7 @@ Stated plainly, because they affect what you can trust:
 - **Coverage stops at the 117th Congress.** Anything older is not here. A bill missing from a search is not evidence it does not exist.
 - **A filtered list can still stop short of its own count.** The browse query gives up after scanning 1,200 records, so a filter whose matches are thinly spread can run out early. Filters by sponsor, state, topic and status now use an index and return everything; other combinations may not — and when that happens the page says "partial list" rather than pretending it is the whole set. Search and the sitemap are the reliable ways to reach a specific bill.
 - **Browsing is depth-capped** even without a filter — roughly 510 results on `/bills`, 500 on a browse page.
-- **Members' names are shown as Congress.gov records them.** Eighteen members, mostly from the 117th Congress, are only ever recorded in capitals ("CAROLYN MALONEY") and are shown that way, because re-casing a name by rule misspells some (McCarthy). Where Congress.gov spells one member two ways that differ only in capitals or accents, the site counts them as one person. Where it uses two different first names ("Chuck" and "Charles" Grassley, about five members), the sponsor list shows two entries and each holds part of that member's bills.
+- **Members' names are shown as Congress.gov records them, in mixed case.** Some Congresses record a member only in capitals ("ROSA DELAURO"); the site takes the capitals of each name from Congress.gov's official full name for that member ("DeLauro") rather than guessing them, and puts a first name the full name spells another way in plain title case ("William" Pascrell, whose full name says "Bill"). Members are counted by Congress.gov's member id, so one member spelled two ways ("Jacky" and "Jacklyn" Rosen) is one entry, and the name shown is the one on most of their bills.
 - **Search matches titles and bill numbers only**, never the text of a bill. A bill about a subject whose title does not mention it will not turn up that way.
 - **Older Congresses are not actively refreshed.** The nightly, weekly and monthly jobs track the current Congress only; the Monday reconciliation adds bills that were never synced but does not re-check ones already stored. An upstream correction to a 2022 bill may not be picked up.
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.

@@ -42,6 +42,7 @@
     /* Bill stages — a cool-to-warm ramp that ends in the site's only green. */
     --status-introduced: 220 8% 55%;
     --status-committee: 220 25% 38%;
+    --status-out-of-committee: 200 45% 38%;
     --status-passed-one: 35 65% 42%;
     --status-passed-both: 28 70% 45%;
     --status-president: 18 70% 42%;
@@ -90,6 +91,7 @@
        differ in lightness, not just saturation. */
     --status-introduced: 220 8% 74%;
     --status-committee: 220 26% 52%;
+    --status-out-of-committee: 200 45% 58%;
     --status-passed-one: 35 60% 60%;
     --status-passed-both: 28 65% 60%;
     --status-president: 18 65% 58%;

@@ -255,7 +255,7 @@ it('labels every stage code the backend can store', () => {
   }
 });
 
-it('labels exactly the eight stage codes, no more and no fewer', () => {
+it('labels exactly the nine stage codes, no more and no fewer', () => {
   assert.deepEqual(
     Object.keys(CompactStageLabel)
       .map(Number)

@@ -6,10 +6,17 @@ name: Accuracy check
 # they report SKIPPED, because the copy is not committed, so until this file
 # existed they ran only when somebody remembered to run them on a laptop.
 #
-# This runs them every night against `main` and a fresh copy, and fails loudly
+# This runs them every week against `main` and a fresh copy, and fails loudly
 # when an answer has gone wrong. GitHub emails the failure.
 #
-# Why nightly and not on every pull request: copying production needs the
+# Why weekly and not nightly: the copy is a full export of production, which
+# reads the whole database. Nightly, it was ~0.5 GB of reads a day, about a
+# fifth of the site's Convex bill (October 2026). The answer engine's data
+# moves slowly, and the local gate in AGENTS.md runs before anything under
+# convex/catalog/ or convex/answer.ts merges, so a week is soon enough to
+# catch drift. "Run workflow" is still there for a check today.
+#
+# Why not on every pull request: copying production needs the
 # Convex deploy key, and that key can also DEPLOY. A pull request job runs the
 # branch's own code, and that includes branches opened by bots. Giving that
 # code a key that can rewrite production is not a trade worth making for
@@ -21,9 +28,10 @@ name: Accuracy check
 # underneath code nobody touched.
 on:
   schedule:
-    # 10:17 UTC is about 6 a.m. Eastern. Off the hour, because scheduled runs
-    # at :00 queue behind everyone else's.
-    - cron: "17 10 * * *"
+    # Mondays at 10:17 UTC, about 6 a.m. Eastern: after the weekend's full
+    # sync and the Monday reconcile. Off the hour, because scheduled runs at
+    # :00 queue behind everyone else's.
+    - cron: "17 10 * * 1"
   workflow_dispatch:
 
 concurrency:

@@ -1,5 +1,5 @@
 import { cache } from 'react';
-import { billsService } from '@/lib/services/bills-service';
+import { billsService, type BillPageExtras } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
 
 // Bill IDs look like "1hr119" / "4199s118": number + type + congress. Anything
@@ -30,11 +30,24 @@ export async function lookupBill(id: string): Promise<BillLookup> {
   }
 }
 
-// Fetch the bill once per request. React's `cache()` dedupes the call shared
-// between generateMetadata and the page render (request-scoped only — no
-// persistent cache). The page renders dynamically on each request; returns
-// null on any failure so the caller can route to notFound() cleanly.
-export const getBill = cache(async (id: string): Promise<Bill | null> => {
-  const result = await lookupBill(id);
-  return result.status === 'found' ? result.bill : null;
+export interface BillPage {
+  bill: Bill;
+  extras: BillPageExtras;
+}
+
+// Fetch the bill page's data once per request, in one Convex call. React's
+// `cache()` dedupes the call shared between generateMetadata and the page
+// render (request-scoped only — no persistent cache). The page renders
+// dynamically on each request; returns null on any failure so the caller can
+// route to notFound() cleanly.
+export const getBillPage = cache(async (id: string): Promise<BillPage | null> => {
+  if (!BILL_ID_PATTERN.test(id)) return null;
+  try {
+    return await billsService.fetchBillPage(id);
+  } catch (error) {
+    if (!(error instanceof Error && error.message === 'Bill not found')) {
+      console.error(`getBillPage(${id}) failed:`, error);
+    }
+    return null;
+  }
 });

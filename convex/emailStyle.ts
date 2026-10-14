@@ -44,6 +44,7 @@ export const SPECTRUM = ["#eb6834", "#1baf7a", "#4a3aa7", "#eda100", "#2a78d6", 
 export const STAGE: Record<number, { fill: string; tint: string; text: string }> = {
   20: { fill: "#838995", tint: "#f0f1f3", text: "#4a515a" },
   40: { fill: "#495979", tint: "#e9ecf2", text: "#3a4761" },
+  50: { fill: "#356f8d", tint: "#e6f0f4", text: "#225067" },
   60: { fill: "#b17725", tint: "#f8eedf", text: "#7a4f14" },
   80: { fill: "#c36d22", tint: "#f9ebde", text: "#83461a" },
   85: { fill: "#5e6678", tint: "#eceef1", text: "#4a515a" },

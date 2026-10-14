@@ -25,7 +25,14 @@ import {
   takeFirst,
   type HubOrder,
 } from "./hubOrder";
-import { candidateSurnames, mergeSponsorRows, nameKey } from "./catalog/sponsorName";
+import {
+  billMatchesRequest,
+  candidateSurnames,
+  mergeSponsorRows,
+  nameKey,
+  resolveSponsorRequest,
+} from "./catalog/sponsorName";
+import type { SponsorRequest } from "./catalog/sponsorName";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -90,6 +97,87 @@ export const hasBillsForCongress = internalQuery({
   },
 });
 
+/**
+ * The bill as the bill page and its share card draw it: the row plus its
+ * policy area, latest summary, PDF link and committee base rate. Takes the
+ * already-read row so `getPage` reads it once, not once per part.
+ */
+async function billWithDetails(ctx: QueryCtx, bill: Doc<"bills">) {
+  const args = { billId: bill.billId };
+  // Summaries / text versions are picked by date and finality, not array
+  // position — the Library of Congress does not return them in order.
+  const [subjects, summaries, texts] = await Promise.all([
+    ctx.db
+      .query("billSubjects")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first(),
+    ctx.db
+      .query("billSummaries")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(MAX_SUMMARIES_PER_BILL),
+    ctx.db
+      .query("billText")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .take(MAX_TEXT_VERSIONS_PER_BILL),
+  ]);
+
+  const summary = pickLatestSummary(summaries);
+  const text = pickCurrentText(texts);
+
+  // Committee base-rate context, only when the bucket has enough past bills.
+  const stage = bill.progressStage ?? BillStages.INTRODUCED;
+  let baseRate:
+    | {
+        base_rate_percent: number;
+        base_rate_sample: number;
+        days_in_committee: number;
+      }
+    | Record<string, never> = {};
+
+  if (stage === BillStages.IN_COMMITTEE) {
+    const chamber = chamberOf(bill.billType);
+    // Counted from today's date in Washington, as the bill page dates its
+    // journey ("days since it was introduced", app/bills/[id]/page.tsx). The
+    // UTC count it used read 439 beside the journey's 438 on S. 2431 each
+    // evening, and the number shown must be the one the bucket was chosen by.
+    const introMs = Date.parse(bill.introducedDate);
+    const todayMs = Date.parse(
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date()),
+    );
+    const daysInCommittee = Number.isNaN(introMs)
+      ? null
+      : Math.max(0, Math.floor((todayMs - introMs) / MS_PER_DAY));
+
+    if (daysInCommittee !== null) {
+      const rows = await ctx.db
+        .query("committeeBaseRates")
+        .withIndex("by_chamber", (q) => q.eq("chamber", chamber))
+        .collect();
+      const row = rows.find(
+        (r) =>
+          daysInCommittee >= r.bucketStart && daysInCommittee < r.bucketEnd,
+      );
+      if (row && row.sampleSize >= MIN_BASE_RATE_SAMPLE) {
+        baseRate = {
+          base_rate_percent: row.ratePercent,
+          base_rate_sample: row.sampleSize,
+          days_in_committee: daysInCommittee,
+        };
+      }
+    }
+  }
+
+  return {
+    ...bill,
+    bill_subjects: subjects
+      ? { policy_area_name: subjects.policyAreaName || "" }
+      : { policy_area_name: "" },
+    latest_summary: summary?.text || "",
+    pdf_url: text?.formatsUrlPdf || "",
+    ...baseRate,
+  };
+}
+
 export const getById = query({
   args: { billId: v.string() },
   handler: async (ctx, args) => {
@@ -97,74 +185,8 @@ export const getById = query({
       .query("bills")
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
-
     if (!bill) return null;
-
-    // Summaries / text versions are picked by date and finality, not array
-    // position — the Library of Congress does not return them in order.
-    const [subjects, summaries, texts] = await Promise.all([
-      ctx.db
-        .query("billSubjects")
-        .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-        .first(),
-      ctx.db
-        .query("billSummaries")
-        .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-        .take(MAX_SUMMARIES_PER_BILL),
-      ctx.db
-        .query("billText")
-        .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-        .take(MAX_TEXT_VERSIONS_PER_BILL),
-    ]);
-
-    const summary = pickLatestSummary(summaries);
-    const text = pickCurrentText(texts);
-
-    // Committee base-rate context, only when the bucket has enough past bills.
-    const stage = bill.progressStage ?? BillStages.INTRODUCED;
-    let baseRate:
-      | {
-          base_rate_percent: number;
-          base_rate_sample: number;
-          days_in_committee: number;
-        }
-      | Record<string, never> = {};
-
-    if (stage === BillStages.IN_COMMITTEE) {
-      const chamber = chamberOf(bill.billType);
-      const introMs = Date.parse(bill.introducedDate);
-      const daysInCommittee = Number.isNaN(introMs)
-        ? null
-        : Math.max(0, Math.floor((Date.now() - introMs) / MS_PER_DAY));
-
-      if (daysInCommittee !== null) {
-        const rows = await ctx.db
-          .query("committeeBaseRates")
-          .withIndex("by_chamber", (q) => q.eq("chamber", chamber))
-          .collect();
-        const row = rows.find(
-          (r) =>
-            daysInCommittee >= r.bucketStart && daysInCommittee < r.bucketEnd,
-        );
-        if (row && row.sampleSize >= MIN_BASE_RATE_SAMPLE) {
-          baseRate = {
-            base_rate_percent: row.ratePercent,
-            base_rate_sample: row.sampleSize,
-            days_in_committee: daysInCommittee,
-          };
-        }
-      }
-    }
-
-    return {
-      ...bill,
-      bill_subjects: subjects
-        ? { policy_area_name: subjects.policyAreaName || "" }
-        : { policy_area_name: "" },
-      latest_summary: summary?.text || "",
-      pdf_url: text?.formatsUrlPdf || "",
-      ...baseRate,
-    };
+    return await billWithDetails(ctx, bill);
   },
 });
 
@@ -182,7 +204,60 @@ const MAX_JOURNEY_ACTIONS = 1000;
  * total, or more actions than the cap (a journey from part of the record would
  * misdate a stage).
  */
-export const getJourney = query({
+async function billJourneyAndPeers(ctx: QueryCtx, bill: Doc<"bills">) {
+  const args = { billId: bill.billId };
+  const actions = await ctx.db
+    .query("billActions")
+    .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+    .take(MAX_JOURNEY_ACTIONS + 1);
+  const journey =
+    actions.length > MAX_JOURNEY_ACTIONS
+      ? null
+      : buildJourney(actions, bill.introducedDate, bill.billType);
+
+  let peers: {
+    policyArea: string;
+    total: number;
+    stageCounts: Array<{ stage: number; count: number }>;
+    countedAt: string;
+  } | null = null;
+  const policyAreaName = bill.policyAreaName;
+  if (policyAreaName) {
+    // The one row for this bill's topic, not every topic in the Congress: a
+    // row carries its whole stage ladder, and reading all ~33 of them was
+    // ~80% of what a bill page read from the database.
+    const row = await ctx.db
+      .query("congressPolicyAreas")
+      .withIndex("by_congress_and_policy_area", (q) =>
+        q.eq("congress", bill.congress).eq("policyAreaName", policyAreaName),
+      )
+      .first();
+    const parts = row?.stageCounts;
+    if (
+      row &&
+      parts &&
+      row.countedAt &&
+      parts.reduce((sum, p) => sum + p.count, 0) === row.count
+    ) {
+      peers = {
+        policyArea: row.policyAreaName,
+        total: row.count,
+        stageCounts: parts,
+        countedAt: row.countedAt,
+      };
+    }
+  }
+
+  return { journey, peers, billUpdatedAt: bill.updatedAt };
+}
+
+/**
+ * Everything the bill page draws, in one call: the bill (as `getById` returns
+ * it) and its journey and peers. One call and one read of the bill row, where
+ * the page used to make two calls that each read it. Nearly every bill-page
+ * render is a crawler, so this is most of the site's database bill.
+ */
+export const getPage = query({
   args: { billId: v.string() },
   handler: async (ctx, args) => {
     const bill = await ctx.db
@@ -190,45 +265,11 @@ export const getJourney = query({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
     if (!bill) return null;
-
-    const actions = await ctx.db
-      .query("billActions")
-      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
-      .take(MAX_JOURNEY_ACTIONS + 1);
-    const journey =
-      actions.length > MAX_JOURNEY_ACTIONS
-        ? null
-        : buildJourney(actions, bill.introducedDate, bill.billType);
-
-    let peers: {
-      policyArea: string;
-      total: number;
-      stageCounts: Array<{ stage: number; count: number }>;
-      countedAt: string;
-    } | null = null;
-    if (bill.policyAreaName) {
-      const rows = await ctx.db
-        .query("congressPolicyAreas")
-        .withIndex("by_congress", (q) => q.eq("congress", bill.congress))
-        .take(MAX_POLICY_AREAS_PER_CONGRESS);
-      const row = rows.find((r) => r.policyAreaName === bill.policyAreaName);
-      const parts = row?.stageCounts;
-      if (
-        row &&
-        parts &&
-        row.countedAt &&
-        parts.reduce((sum, p) => sum + p.count, 0) === row.count
-      ) {
-        peers = {
-          policyArea: row.policyAreaName,
-          total: row.count,
-          stageCounts: parts,
-          countedAt: row.countedAt,
-        };
-      }
-    }
-
-    return { journey, peers, billUpdatedAt: bill.updatedAt };
+    const [details, extras] = await Promise.all([
+      billWithDetails(ctx, bill),
+      billJourneyAndPeers(ctx, bill),
+    ]);
+    return { bill: details, extras };
   },
 });
 
@@ -432,6 +473,7 @@ async function resolveCongress(
  */
 function buildBillPredicate(
   args: BillsFilterArgs,
+  sponsors?: SponsorRequest | null,
 ): (bill: Doc<"bills">) => boolean {
   // Every word must appear in the title, narrowing the `search_title` index's
   // relevance-ranked OR into an AND: Convex text search matches *any* term, so
@@ -461,7 +503,11 @@ function buildBillPredicate(
       return false;
     }
     if (wantedWords && !titleHasEveryWord(bill.title, wantedWords)) return false;
-    if (wantedSponsors) {
+    if (sponsors) {
+      // Resolved against the member rows: any spelling of the member, and their
+      // id where the bill carries one (see resolveSponsorRequest).
+      if (!billMatchesRequest(bill, sponsors)) return false;
+    } else if (wantedSponsors) {
       const fullName = normaliseName(
         `${bill.sponsorFirstName ?? ""} ${bill.sponsorLastName ?? ""}`,
       );
@@ -625,6 +671,38 @@ function surnameSpellings(surname: string): string[] {
 }
 
 /**
+ * Who a sponsor filter means in one Congress: every spelling and id of the
+ * members it names (resolveSponsorRequest). "Jacky Rosen" then reaches the 7 of
+ * her 80 bills in the 119th that are spelled "Jacklyn Rosen". A name this
+ * Congress never uses (the picker's one name for a member across Congresses) is
+ * found here through the member's id in the other Congresses.
+ */
+async function sponsorRequestFor(
+  ctx: QueryCtx,
+  congress: number,
+  names: string[] | undefined,
+): Promise<SponsorRequest<Doc<"congressSponsors">> | null> {
+  if (!names || names.length === 0) return null;
+  const rows = await ctx.db
+    .query("congressSponsors")
+    .withIndex("by_congress", (q) => q.eq("congress", congress))
+    .take(10000);
+  const request = resolveSponsorRequest(rows, names);
+  const covered = names.every((name) =>
+    request.rows.some((row) =>
+      [row.sponsorName, ...(row.spellings ?? [])].some((n) => normaliseName(n) === normaliseName(name)),
+    ),
+  );
+  if (covered) return request;
+  const everywhere = await ctx.db.query("congressSponsors").take(10000);
+  return resolveSponsorRequest(
+    rows,
+    names,
+    everywhere.filter((row) => row.congress !== congress),
+  );
+}
+
+/**
  * Every bill in one congress whose sponsor surname could belong to one of
  * `names`, newest first. The caller's predicate then keeps only exact
  * full-name matches.
@@ -640,19 +718,13 @@ async function billsBySponsorSurname(
   ctx: QueryCtx,
   congress: number,
   names: string[],
+  request: SponsorRequest | null,
 ): Promise<{ bills: Doc<"bills">[]; complete: boolean }> {
   // The index is case-sensitive, so a hand-typed "michael mccaul" never reaches
-  // the stored "McCaul" by guessing spellings. Add the stored spelling of every
-  // member whose name matches case-insensitively; the guesses stay as a
-  // fallback for when the congressSponsors precompute has not run.
-  const wanted = new Set(names.map(normaliseName));
-  const sponsors = await ctx.db
-    .query("congressSponsors")
-    .withIndex("by_congress", (q) => q.eq("congress", congress))
-    .take(10000);
-  const storedNames = sponsors
-    .map((row) => row.sponsorName)
-    .filter((name) => wanted.has(normaliseName(name)));
+  // the stored "McCaul" by guessing spellings. Read every stored spelling of the
+  // members the filter names; the guesses stay as a fallback for when the
+  // congressSponsors precompute has not run.
+  const storedNames = request?.spellings ?? [];
   const spellings = new Set([
     ...storedNames.flatMap(candidateSurnames),
     ...names.flatMap((name) => candidateSurnames(name).flatMap(surnameSpellings)),
@@ -708,7 +780,8 @@ export const list = query({
     if (congressFilter === null) return { data: [], hasMore: false, truncated: false };
 
     const searchQuery = args.titleFilter?.trim() || null;
-    const match = buildBillPredicate(args);
+    const sponsors = await sponsorRequestFor(ctx, congressFilter, args.sponsorFilter);
+    const match = buildBillPredicate(args, sponsors);
 
     // Fast path: a text query goes through the search index, which reaches the
     // whole Congress instead of stopping at the scan cap below.
@@ -752,6 +825,7 @@ export const list = query({
         ctx,
         congressFilter,
         args.sponsorFilter,
+        sponsors,
       );
       const filtered = bills.filter(match);
       if (!complete) {
@@ -1070,7 +1144,7 @@ export const listCount = query({
         args,
         congressFilter,
         searchQuery,
-        buildBillPredicate(args),
+        buildBillPredicate(args, await sponsorRequestFor(ctx, congressFilter, args.sponsorFilter)),
       );
       return { count: matches.length, exact: !capped };
     }
@@ -1149,17 +1223,15 @@ export const listCount = query({
       args.sponsorFilter &&
       args.sponsorFilter.length > 0
     ) {
-      const wanted = new Set(args.sponsorFilter.map(normaliseName));
-      const rows = await ctx.db
+      const hasRows = await ctx.db
         .query("congressSponsors")
         .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-        .take(10000);
-      if (rows.length === 0) return unknownCount();
-      const count = rows.reduce((total, row) => {
-        return wanted.has(normaliseName(row.sponsorName))
-          ? total + row.billCount
-          : total;
-      }, 0);
+        .first();
+      if (!hasRows) return unknownCount();
+      // The members the list resolves, counted from their rows: any spelling
+      // their bills carry, and their id across Congresses (sponsorRequestFor).
+      const request = await sponsorRequestFor(ctx, congressFilter, args.sponsorFilter);
+      const count = (request?.rows ?? []).reduce((total, row) => total + row.billCount, 0);
       return { count, exact: true };
     }
 
@@ -1336,6 +1408,7 @@ export const getCongressDashboard = query({
     const statusBreakdown = {
       introduced: 0,
       inCommittee: 0,
+      outOfCommittee: 0,
       passedOneChamber: 0,
       passedBothChambers: 0,
       vetoed: 0,
@@ -1348,6 +1421,7 @@ export const getCongressDashboard = query({
       switch (stage.stage) {
         case 20: statusBreakdown.introduced = stage.count; break;
         case 40: statusBreakdown.inCommittee = stage.count; break;
+        case 50: statusBreakdown.outOfCommittee = stage.count; break;
         case 60: statusBreakdown.passedOneChamber = stage.count; break;
         case 80: statusBreakdown.passedBothChambers = stage.count; break;
         case 85: statusBreakdown.vetoed = stage.count; break;

@@ -28,6 +28,7 @@ export interface DashboardStats {
   statusBreakdown: {
     introduced: number;
     inCommittee: number;
+    outOfCommittee: number;
     passedOneChamber: number;
     passedBothChambers: number;
     vetoed: number;
@@ -44,6 +45,7 @@ export interface DashboardStats {
 const ROW_ORDER: Array<[number, keyof DashboardStats['statusBreakdown']]> = [
   [BillStages.INTRODUCED, 'introduced'],
   [BillStages.IN_COMMITTEE, 'inCommittee'],
+  [BillStages.OUT_OF_COMMITTEE, 'outOfCommittee'],
   [BillStages.PASSED_ONE_CHAMBER, 'passedOneChamber'],
   [BillStages.PASSED_BOTH_CHAMBERS, 'passedBothChambers'],
   [BillStages.TO_PRESIDENT, 'toPresident'],

@@ -29,7 +29,7 @@ import PodcastPromo from '@/components/podcast-promo';
 import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
 import { journeyView } from '@/lib/bill-journey';
-import type { billsService } from '@/lib/services/bills-service';
+import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
   ArrowLeft,
   Ban,
@@ -40,6 +40,7 @@ import {
   PenLine,
   ScrollText,
   Users,
+  CalendarCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { cn, formatCount } from '@/lib/utils';
@@ -65,6 +66,7 @@ const PARTY_NAMES: Record<string, string> = {
 const STAGE_GLYPH: Record<BillStage, LucideIcon> = {
   [BillStages.INTRODUCED]: FilePlus,
   [BillStages.IN_COMMITTEE]: Users,
+  [BillStages.OUT_OF_COMMITTEE]: CalendarCheck,
   [BillStages.PASSED_ONE_CHAMBER]: Landmark,
   [BillStages.PASSED_BOTH_CHAMBERS]: Landmark,
   [BillStages.VETOED]: Ban,
@@ -82,7 +84,7 @@ const LONG_TITLE_CHARS = 90;
 interface BillDetailsProps {
   bill: Bill;
   /** The journey and peer counts; null when Convex could not supply them. */
-  extras?: Awaited<ReturnType<typeof billsService.fetchBillJourney>>;
+  extras?: BillPageExtras | null;
   /** Today in Washington, YYYY-MM-DD, from the server. */
   today: string;
 }

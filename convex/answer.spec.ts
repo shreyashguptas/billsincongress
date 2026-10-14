@@ -40,6 +40,8 @@ function replyWith(contents: string[]) {
 beforeEach(() => {
   requests = [];
   vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+  // The loop on the default model; the Claude route is answerClaude.spec.ts.
+  vi.stubEnv("OPENROUTER_CLAUDE_MODEL", "");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 

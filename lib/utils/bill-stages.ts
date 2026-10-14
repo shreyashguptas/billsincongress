@@ -5,6 +5,7 @@ import { measureClass } from '../../convex/catalog/measureType';
 export const BillStages = {
   INTRODUCED: 20,
   IN_COMMITTEE: 40,
+  OUT_OF_COMMITTEE: 50,
   PASSED_ONE_CHAMBER: 60,
   PASSED_BOTH_CHAMBERS: 80,
   VETOED: 85,
@@ -18,6 +19,7 @@ export type BillStage = typeof BillStages[keyof typeof BillStages];
 export const BillStageDescriptions: Record<BillStage, string> = {
   [BillStages.INTRODUCED]: 'Introduced',
   [BillStages.IN_COMMITTEE]: 'In Committee',
+  [BillStages.OUT_OF_COMMITTEE]: 'Out of Committee',
   [BillStages.PASSED_ONE_CHAMBER]: 'Passed One Chamber',
   [BillStages.PASSED_BOTH_CHAMBERS]: 'Passed Both Chambers',
   [BillStages.VETOED]: 'Vetoed',
@@ -47,6 +49,7 @@ export function isValidStage(stage: number): stage is BillStage {
 export const CompactStageLabel: Record<BillStage, string> = {
   [BillStages.INTRODUCED]: 'Introduced',
   [BillStages.IN_COMMITTEE]: 'In committee',
+  [BillStages.OUT_OF_COMMITTEE]: 'Out of committee',
   [BillStages.PASSED_ONE_CHAMBER]: 'Passed one chamber',
   [BillStages.PASSED_BOTH_CHAMBERS]: 'Passed both',
   [BillStages.VETOED]: 'Vetoed',
@@ -75,9 +78,12 @@ export function compactStageLabel(stage: number, billType?: string | null): stri
 
 // The 7-step main path a bill travels. Vetoed sits off this path: a vetoed
 // bill made it as far as the President (step 5) but is not advancing.
+// Out of committee is the committee step finished, so it fills step 2 like In
+// committee does; its own label and colour tell the two apart.
 const StageSteps: Record<BillStage, number> = {
   [BillStages.INTRODUCED]: 1,
   [BillStages.IN_COMMITTEE]: 2,
+  [BillStages.OUT_OF_COMMITTEE]: 2,
   [BillStages.PASSED_ONE_CHAMBER]: 3,
   [BillStages.PASSED_BOTH_CHAMBERS]: 4,
   [BillStages.VETOED]: 5,
@@ -127,11 +133,13 @@ const RESOLUTION_STEPS: Record<Exclude<StagePath, 'law'>, Partial<Record<BillSta
   simple_resolution: {
     [BillStages.INTRODUCED]: 1,
     [BillStages.IN_COMMITTEE]: 2,
+    [BillStages.OUT_OF_COMMITTEE]: 2,
     [BillStages.PASSED_ONE_CHAMBER]: 3,
   },
   concurrent_resolution: {
     [BillStages.INTRODUCED]: 1,
     [BillStages.IN_COMMITTEE]: 2,
+    [BillStages.OUT_OF_COMMITTEE]: 2,
     [BillStages.PASSED_ONE_CHAMBER]: 3,
     [BillStages.PASSED_BOTH_CHAMBERS]: 4,
   },
@@ -198,6 +206,7 @@ export const MAIN_PATH_LABELS = [
 export const StageLabel: Record<BillStage, string> = {
   [BillStages.INTRODUCED]: 'Introduced',
   [BillStages.IN_COMMITTEE]: 'In committee',
+  [BillStages.OUT_OF_COMMITTEE]: 'Out of committee',
   [BillStages.PASSED_ONE_CHAMBER]: 'Passed one chamber',
   [BillStages.PASSED_BOTH_CHAMBERS]: 'Passed both chambers',
   [BillStages.VETOED]: 'Vetoed',
