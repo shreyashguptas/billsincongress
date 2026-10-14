@@ -1751,7 +1751,8 @@ async function main() {
     }
     const counted = await fetchViaHandlers(ctx, "bills", { measure: "bill" }, 0);
     assert.ok(counted.ok);
-    assert.match(counted.report.set, new RegExp(`the ${newest}th Congress`));
+    const { ordinal } = await import("../../convex/catalog/congressCalendar");
+    assert.match(counted.report.set, new RegExp(`the ${ordinal(newest)} Congress`));
   });
 
   await it("a bill fetched by id is not narrowed to the newest Congress", async () => {

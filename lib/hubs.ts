@@ -126,9 +126,9 @@ const STATUS_HUBS: HubDefinition[] = [
     heading: 'Bills that passed both chambers',
     metaTitle: 'Bills That Passed Both Chambers of Congress',
     metaDescription:
-      'Bills approved by both the House and the Senate that have not yet gone to the President, and concurrent resolutions both chambers agreed to.',
+      'Bills each chamber has passed, in the same or a different form, that have not yet gone to the President, and concurrent resolutions both chambers agreed to.',
     explainer:
-      'Both the House and the Senate have passed these. For a bill, the next step is enrollment: the final text is printed, signed by the leaders of both chambers, and presented to the President. The list also holds concurrent resolutions (H.Con.Res. and S.Con.Res.), which never go to the President: for them, both chambers agreeing is the whole journey.',
+      'Each chamber has passed these, but not always in the same form. When the second chamber changed the text, the first must accept those changes, or the two must settle them in a conference, before the bill can go anywhere. Once both have agreed to one text, it is enrolled: printed, signed by the leaders of both chambers, and presented to the President. The list also holds concurrent resolutions (H.Con.Res. and S.Con.Res.), which never go to the President: for them, both chambers agreeing is the whole journey.',
     filter: { progressStage: '80' },
   },
   {

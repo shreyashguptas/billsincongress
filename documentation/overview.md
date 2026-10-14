@@ -1923,7 +1923,7 @@ tell a page which app was chosen, so nothing records where it went.
 ### Link previews: the share cards
 
 A link pasted into iMessage, WhatsApp, Slack, Discord, LinkedIn, X or an email client unfurls
-into a **share card** drawn for that page. The home page, bill pages and the 40 hub pages
+into a **share card** drawn for that page. The home page, bill pages and the 42 hub pages
 (status, chamber, topic) each have one; every other page (About, Learn, Pro) uses the generic
 card from `app/layout.tsx` (`DEFAULT_OG_IMAGE`, `public/images/og-default.png`), which
 `scripts/generate-og-image.ts` builds from `lib/og/generic-share-card.tsx` with the same frame
