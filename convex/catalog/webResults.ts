@@ -218,7 +218,24 @@ export function billsInScope(query: string, pageBillId?: string, reason = ""): W
     (ref) => !(page && ref.congress === undefined && page.type === ref.type && page.number === ref.number),
   );
   const inReason = [...reason.matchAll(BILL_ID_IN_TEXT)].flatMap((m) => billRefFromId(m[1]) ?? []);
-  return { bills: [...(page ? [page] : []), ...named, ...inReason] };
+  // Once each: a query that names the open bill with its Congress ("GAP Act
+  // H.R. 10725 119th Congress") listed it twice, and the note to the model then
+  // read "other than H.R. 10725 (119th Congress) or H.R. 10725 (119th Congress)"
+  // (live, 2026-10-14).
+  // A bill named without a Congress already covers every Congress's bill of
+  // that number, so it replaces any copy that names one (off a bill page, a
+  // query naming "H.R. 51" and a reason naming 51hr119). Neither changes what
+  // the filter keeps.
+  const bills: BillRef[] = [];
+  for (const ref of [...(page ? [page] : []), ...named, ...inReason]) {
+    const same = (b: BillRef) => b.type === ref.type && b.number === ref.number;
+    if (bills.some((b) => same(b) && (b.congress === undefined || b.congress === ref.congress))) continue;
+    if (ref.congress === undefined) {
+      for (let i = bills.length - 1; i >= 0; i--) if (same(bills[i])) bills.splice(i, 1);
+    }
+    bills.push(ref);
+  }
+  return { bills };
 }
 
 const TYPE_LABELS: Readonly<Record<string, string>> = {
