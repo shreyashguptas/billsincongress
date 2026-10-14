@@ -1734,6 +1734,51 @@ async function main() {
       assert.ok(typeof r.report.set === "string" && r.report.set.length > 0, `${label}: no set`);
     }
   });
+
+  // --- The current Congress comes from the data, not the constant 119 --------
+
+  // Every handler defaulted a missing Congress to 119. From 3 January 2027 that
+  // answers "how many bills this Congress?" with the 119th's final totals.
+  const newest = Math.max(...bills.map((b: any) => b.congress as number));
+
+  await it("a lookup that names no Congress reads the newest one we hold", async () => {
+    for (const name of ["stats", "topics", "sponsors"] as const) {
+      const implicit = await fetchViaHandlers(ctx, name, {}, 0);
+      const explicit = await fetchViaHandlers(ctx, name, { congress: newest }, 0);
+      assert.ok(implicit.ok && explicit.ok, `${name}: ${implicit.error ?? explicit.error}`);
+      assert.equal(implicit.report.set, explicit.report.set, `${name} defaulted to a different Congress`);
+      assert.equal(implicit.report.total, explicit.report.total, name);
+    }
+    const counted = await fetchViaHandlers(ctx, "bills", { measure: "bill" }, 0);
+    assert.ok(counted.ok);
+    assert.match(counted.report.set, new RegExp(`the ${newest}th Congress`));
+  });
+
+  await it("a bill fetched by id is not narrowed to the newest Congress", async () => {
+    const old = bills.find((b: any) => b.congress < newest);
+    assert.ok(old, "the copy holds no earlier Congress");
+    const r = await fetchViaHandlers(ctx, "bills", { billId: old.billId }, 1);
+    assert.ok(r.ok, r.error);
+    assert.equal(r.rows.length, 1, `${old.billId} was not found without a congress`);
+  });
+
+  await it("the site's topic list holds every policy area in the data", async () => {
+    // The /bills topic picker and the 33 topic pages come from POLICY_AREAS in
+    // lib/constants/filters.ts. A topic Congress.gov adds would be missing from
+    // both, silently; this fails first.
+    const { POLICY_AREAS } = await import("../../lib/constants/filters");
+    const known = new Set<string>(POLICY_AREAS);
+    const missing = [
+      ...new Set(
+        ctx.db
+          .rowsOf("congressPolicyAreas")
+          .map((t: any) => t.policyAreaName as string)
+          .filter((name: string) => name && !known.has(name)),
+      ),
+    ];
+    assert.deepEqual(missing, [], "policy areas in the data but not on the site");
+  });
+
 }
 
 main().then(() => {

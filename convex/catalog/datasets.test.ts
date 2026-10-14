@@ -10,6 +10,8 @@ import { DATASETS, DATASET_NAMES, datasetIndex, describeDataset } from "./datase
 import { VALID_SORTS, VALID_STAGES } from "./filters";
 import type { DatasetName } from "./types";
 
+const VARS = { congress: 119, today: "2026-10-14" };
+
 let passed = 0;
 const failures: string[] = [];
 
@@ -71,7 +73,7 @@ it("keeps the prompt index inside its token budget", () => {
 });
 
 it("describes a dataset with its gotchas included", () => {
-  const text = describeDataset("bills");
+  const text = describeDataset("bills", VARS);
   assert.ok(text.includes("progressStage"));
   assert.ok(text.toLowerCase().includes("not a percentage"));
   assert.ok(text.toLowerCase().includes("primary sponsor"));
@@ -203,7 +205,7 @@ it("tells sponsors to check completeness before any 'most' or 'fewest' claim", (
 it("puts the new filters and the completeness rule into describe_dataset output", () => {
   // describeDataset is what the model actually reads; a gotcha it does not
   // render is a gotcha that does not exist.
-  const text = describeDataset("bills");
+  const text = describeDataset("bills", VARS);
   for (const needle of ["reachedStage", "sort", "actionAfter", "complete", "order", "limit 0"]) {
     assert.ok(text.includes(needle), `describeDataset('bills') omits ${needle}`);
   }
@@ -232,6 +234,36 @@ it("the always-present index says stats can separate bills from resolutions", ()
     .find((l) => l.trim().startsWith("stats"));
   assert.ok(line, "no stats line in the index");
   assert.match(line, /resolution/i, "the index does not hint at the bills/resolutions split");
+});
+
+it("fills the examples with the newest Congress and this month, not fixed ones", () => {
+  // The examples said "congress": 119 and an actionAfter of 2026-08-01 labelled
+  // "this month". Models copy examples literally: from 3 January 2027 they would
+  // have queried the 119th for "this Congress", and in October "this month"
+  // already meant August.
+  const text = describeDataset("bills", { congress: 120, today: "2027-02-17" });
+  assert.match(text, /"congress": 120/);
+  assert.doesNotMatch(text, /"congress": 119/);
+  assert.match(text, /"actionAfter": "2027-02-01" \} — what has moved this month/);
+  assert.doesNotMatch(text, /\$[A-Z_]{4,}/, "a token was left unfilled");
+  for (const name of DATASET_NAMES) describeDataset(name, VARS);
+});
+
+it("states no count about our data in its notes, because a count goes stale", () => {
+  // Four sentences here were already false on 2026-10-14: "64 House-originated
+  // laws" (73), "~96% still in committee" (about 91%), "She has 35" (36), and a
+  // "this month" dated August. A number the model reads as a fact must come from
+  // a fetch. What may stay: stage codes, limit 0, "more than 30" policy areas,
+  // and the 51-50 tally quoted as an example of action text.
+  const allowed = new Set(["0", "20", "30", "40", "50", "51", "60", "80", "85", "90", "95", "100"]);
+  for (const name of DATASET_NAMES) {
+    const d = DATASETS[name];
+    // Field meanings are left out: their numbers are formats ("e.g. '1234'").
+    const prose = [d.summary, d.grain, ...d.gotchas, ...d.notCovered].join("\n");
+    for (const m of prose.matchAll(/(?<![\w$-])(\d[\d,.]*\d|\d)(?![\w])/g)) {
+      assert.ok(allowed.has(m[1]), `${name} states the number ${m[1]}: "${prose.slice(Math.max(0, m.index! - 60), m.index! + 40)}"`);
+    }
+  }
 });
 
 console.log(`\ncatalog/datasets: ${passed} passed, ${failures.length} failed`);

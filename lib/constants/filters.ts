@@ -84,22 +84,25 @@ export const labelFor = (
 ) => options.find((o) => o.value === value)?.label ?? value;
 
 /**
- * Statuses offered in the picker, in reader-interest order rather than
- * pipeline order — "did it become law" is the question people arrive with.
+ * Statuses offered in the picker: every stage a bill can stop at
+ * (convex/billStage.ts), in reader-interest order rather than pipeline order —
+ * "did it become law" is the question people arrive with, and the stages
+ * closest to it come next.
  *
- * Stages 80 (passed both chambers), 90 (to President) and 95 (signed) are
- * absent because they are empty or near-empty in every Congress we carry — 90
- * and 95 hold nothing at all, 80 holds two bills, both in the 117th — since the
- * ingest pipeline records those transitions as "became law" instead.
- * `lib/hubs.ts` documents the same measurement and builds no hub pages for them.
- *
- * They stay in `STATUS_OPTIONS` above, because a bookmarked `?status=90` must
- * still be labelled rather than shown as a bare number.
+ * This used to leave out 80 (passed both chambers), 90 (on the President's
+ * desk) and 95 (signed), on a measurement from 2026-08-29 that they were empty.
+ * By 2026-10-14 the 119th held 52 bills at 80 and 3 at 90, and a reader could
+ * not pick either. Which stages hold bills is a fact about the data and changes
+ * daily, so the picker no longer encodes one: a stage that is empty in the
+ * chosen Congress shows an empty list, which is the true answer.
  */
 export const LIVE_STATUS_OPTIONS = [
   { value: 'all', label: 'Any outcome' },
   { value: '100', label: 'Became law' },
+  { value: '95', label: 'Signed by the President' },
+  { value: '90', label: "On the President's desk" },
   { value: '85', label: 'Vetoed' },
+  { value: '80', label: 'Passed both chambers' },
   { value: '60', label: 'Passed one chamber' },
   { value: '50', label: 'Out of committee, awaiting a vote' },
   { value: '40', label: 'Still in committee' },
