@@ -18,7 +18,7 @@ import {
 } from "./catalog/tools";
 import { describeDataset, isDatasetName } from "./catalog/datasets";
 import { resolveAnswer } from "./catalog/cite";
-import { filtersFromCall } from "./catalog/filters";
+import { filtersFromCall, limitFromCall } from "./catalog/filters";
 import { ANSWER_PROMPT_NAME } from "./catalog/promptTemplate";
 import type { ServedPrompt } from "./answerPrompts";
 import { payloadFor, workLogLabel } from "./catalog/completeness";
@@ -943,12 +943,14 @@ async function runLoop(
           : `Unknown dataset '${name}'. See the dataset index in your instructions.`;
         note({ tool: "describe", detail: name });
       } else if (call.function.name === "fetch_dataset") {
+        const limit = limitFromCall(args);
         const fetched = await ctx.runQuery(internal.catalog.fetch.fetchDataset, {
           name: String(args.name ?? ""),
           // A filter put beside `filters` is moved into it: a stray `sort` named
-          // the wrong "latest law" live on 2026-10-05 (see filtersFromCall).
+          // the wrong "latest law" live on 2026-10-05 (see filtersFromCall). And a
+          // `limit` put inside it is moved out (see limitFromCall).
           filters: filtersFromCall(String(args.name ?? ""), args),
-          ...(typeof args.limit === "number" ? { limit: args.limit } : {}),
+          ...(limit !== undefined ? { limit } : {}),
           today,
         });
         if (fetched.ok) {
