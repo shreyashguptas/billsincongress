@@ -253,6 +253,17 @@ it("an earlier-version search still drops the same-titled bill of the open bill'
   ]);
 });
 
+it("names the open bill once when the query names it too", () => {
+  // Live on 2026-10-14: "GAP Act H.R. 10725 119th Congress general aviation" on
+  // H.R. 10725's page told the model results were withheld for naming "only
+  // bills other than H.R. 10725 (119th Congress) or H.R. 10725 (119th Congress)".
+  const scope = billsInScope("GAP Act H.R. 10725 119th Congress general aviation", "10725hr119");
+  assert.equal(scope.bills.length, 1);
+  assert.match(withheldNote(scope, 1), /^1 result\(s\) named only bills other than H\.R\. 10725 \(119th Congress\), and were withheld/);
+  // A different bill named in the query is still kept beside the open one.
+  assert.equal(billsInScope("H.R. 10725 and H.R. 9707 compared", "10725hr119").bills.length, 2);
+});
+
 it("the note to the model is neutral and says what was kept", () => {
   const plain = withheldNote(billsInScope("GAP Act", "10725hr119"), 3);
   assert.match(plain, /^3 result\(s\) named only bills other than H\.R\. 10725 \(119th Congress\)/);

@@ -218,7 +218,17 @@ export function billsInScope(query: string, pageBillId?: string, reason = ""): W
     (ref) => !(page && ref.congress === undefined && page.type === ref.type && page.number === ref.number),
   );
   const inReason = [...reason.matchAll(BILL_ID_IN_TEXT)].flatMap((m) => billRefFromId(m[1]) ?? []);
-  return { bills: [...(page ? [page] : []), ...named, ...inReason] };
+  // Once each: a query that names the open bill with its Congress ("GAP Act
+  // H.R. 10725 119th Congress") listed it twice, and the note to the model then
+  // read "other than H.R. 10725 (119th Congress) or H.R. 10725 (119th Congress)"
+  // (live, 2026-10-14).
+  const bills: BillRef[] = [];
+  for (const ref of [...(page ? [page] : []), ...named, ...inReason]) {
+    if (!bills.some((b) => b.type === ref.type && b.number === ref.number && b.congress === ref.congress)) {
+      bills.push(ref);
+    }
+  }
+  return { bills };
 }
 
 const TYPE_LABELS: Readonly<Record<string, string>> = {
