@@ -98,13 +98,13 @@ case: *"The answer service is not deployed yet. Run `pnpm exec convex deploy`."*
 ```
 app/                       Next.js App Router — 21 page.tsx files
   page.tsx                 Home dashboard (server) → components/dashboard/dashboard-client.tsx
-  bills/                   Browser, bill detail, and the 40 hub pages
+  bills/                   Browser, bill detail, and the 42 hub pages
     [id]/page.tsx          One bill
     [id]/share-image/      Its share card, drawn on request (next/og)
     [id]/get-bill.ts       The bill lookup the page and the card share
     _hub/                  Hub view, directory and view-tracker (route-private)
     topic/[slug]/          33 policy-area hubs
-    house|senate|enacted|in-committee|passed-one-chamber|introduced|vetoed/
+    house|senate|enacted|to-president|passed-both-chambers|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
     components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
   about/ privacy/ terms/   Content and legal
@@ -210,7 +210,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
-| `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/enacted`, `/vetoed` | 5 stage hubs |
+| `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs, one per stage a bill can stop at except 95 (signed, not yet numbered as a law: a day or two). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`) |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
@@ -1010,6 +1010,8 @@ is exactly those six.
 | History sent back to the model | 10 turns / 8,000 characters, oldest dropped first. On a follow-up, a system note just before the question repeats the model's last answer (first 400 characters) and quotes it as data and, only when the reader doubts or re-asks that question, tells it to open by saying that answer was wrong if the name or number no longer holds, and to say it stands otherwise; a new question is answered without mentioning the earlier reply (`followUpNote`, `convex/answer.ts`). Added 2026-10-05 after a reader got the wrong "latest law", asked "are you sure?", and was given the right one with no word that the first had been wrong |
 | Filters put beside `filters` | Moved into it (`filtersFromCall`, `convex/catalog/filters.ts`) when they are filters of that dataset. gpt-oss sent `"sort"` next to `filters` on 2026-10-05; it was ignored, the result came back unsorted, and the model named an arbitrary law as the newest |
 | `limit` put inside `filters` | Moved out to the call's `limit` (`limitFromCall`, same file); a `limit` beside `filters` wins. Two of the `bills` worked examples wrote `"limit": 0` inside the filter object, Claude copied them, and 9 of its first 55 lookups (2026-10-13) were rejected as "'limit' is not a filter", each costing the reader a round. The examples now show `limit` beside `filters`, and `describe_dataset` heads them "EXAMPLE FILTERS" |
+| No Congress named | The newest Congress we hold any bill for (`newestCongress`, `convex/catalog/fetch.ts`: one indexed read). A lookup by `billId` is not narrowed, because the id names its own Congress. This was the constant 119 until 2026-10-14; from 3 January 2027 it would have answered "this Congress" with the 119th's final totals. The answer reads the same value once (`getNewestCongress`), and it names the newest Congress in the prompt's calendar note and fills the worked examples, which say `"congress": $CONGRESS` and `"actionAfter": "$MONTH_START"` in `convex/catalog/datasets.ts` (`describeDataset`). When a newer Congress has convened that we hold no bills for, the calendar note says so (`calendarBlock`, `convex/catalog/tools.ts`) |
+| Numbers in the catalog | None about the data. The notes in `datasets.ts` once said "64 House-originated laws", "~96% still in committee" and "She has 35"; by 2026-10-14 all three were wrong (73, about 91%, 36), and the model reads them as facts. `datasets.test.ts` fails on any number in a dataset's notes other than stage codes and a few fixed values |
 | Answer tokens | 2,048 for the answer plus 2,048 for private reasoning (4,096 sent as `max_tokens`, which covers both), reasoning effort `low` (`OPENROUTER_REASONING`; `off` asks for 2,048 and no reasoning, which gpt-oss refuses, so the retry uses its default). Temperature 0.3 on gpt-oss; none sent to Claude, which refuses a non-default temperature |
 | Summary text per row | 6,000 characters (`SUMMARY_MAX_CHARS`). 86 of 41,681 CRS summaries are longer; those rows carry `textIsOpeningOnly` and `fullTextLength`, and the model says it read the opening. Uncut, H.R. 1's summaries were bigger than the model's context window and the answer came back blank |
 
@@ -1137,8 +1139,8 @@ against that risk:
 
 - **The template is wording only.** What must stay correct is computed in code and filled
   into named slots: `{{datasets}}` (the dataset index, from `convex/catalog/datasets.ts`),
-  `{{calendar}}` (today, and which Congresses have ended) and `{{context}}` (what the reader
-  has on screen). A version that does not use all three slots, or uses any other, is never
+  `{{calendar}}` (today, which Congresses have ended, and whether a Congress has convened that
+  we hold no bills for yet) and `{{context}}` (what the reader has on screen). A version that does not use all three slots, or uses any other, is never
   copied (`validTemplate`, `convex/catalog/promptTemplate.ts`), and the answer uses the
   in-code `DEFAULT_TEMPLATE` instead. A bad edit costs wording, never an outage, and never
   the date or the reader's page.
@@ -1921,7 +1923,7 @@ tell a page which app was chosen, so nothing records where it went.
 ### Link previews: the share cards
 
 A link pasted into iMessage, WhatsApp, Slack, Discord, LinkedIn, X or an email client unfurls
-into a **share card** drawn for that page. The home page, bill pages and the 40 hub pages
+into a **share card** drawn for that page. The home page, bill pages and the 42 hub pages
 (status, chamber, topic) each have one; every other page (About, Learn, Pro) uses the generic
 card from `app/layout.tsx` (`DEFAULT_OG_IMAGE`, `public/images/og-default.png`), which
 `scripts/generate-og-image.ts` builds from `lib/og/generic-share-card.tsx` with the same frame
@@ -1955,9 +1957,10 @@ including why a card never repeats the title or number the app already prints un
   page counts. A topic's rank is computed from all 33 topic counts, each exact, sorted here —
   not taken from `congressPolicyAreas`' stored order, which daily updates patch in place — and
   dropped, rather than guessed, if any count is a floor. That is 33 small Convex reads per topic
-  render, once a day per topic thanks to caching. The home card reads `HOME_CONGRESS`
-  (`lib/congress.ts`), the Congress `app/page.tsx` shows by default, not the newest synced one:
-  when a new Congress convenes the page stays put until someone moves it, and its card with it.
+  render, once a day per topic thanks to caching. The home card calls `homeCongress`
+  (`lib/congress.ts`), as `app/page.tsx` does: the newest Congress that holds any measure, read
+  from the per-Congress totals. It was the constant 119 until 2026-10-14; the page and its
+  card now move to a new Congress together once its first bills are synced.
 - **Freshness.** A card states a status or a count, and both go stale. Each URL carries a design
   version and the figure it shows: `?v=<SHARE_CARD_VERSION>.<stage>` for a bill
   (`billShareImagePath`) and `?v=<SHARE_CARD_VERSION>.<count>` for a hub (`hubShareImagePath`) and

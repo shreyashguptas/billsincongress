@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { fetchQuery } from 'convex/nextjs';
 import { api } from '@/convex/_generated/api';
 import { SHARE_CARD_SIZE, SITE_NAME, homeShareImagePath } from '@/lib/seo';
-import { HOME_CONGRESS } from '@/lib/congress';
+import { homeCongress } from '@/lib/congress';
 import DashboardClient, {
   type InitialDashboardData,
 } from '@/components/dashboard/dashboard-client';
@@ -57,8 +57,10 @@ export default async function Home({
   searchParams: Promise<{ congress?: string }>;
 }) {
   const params = await searchParams;
-  const congress = Number(params.congress) || HOME_CONGRESS;
-  const data = await loadDashboardData(congress);
+  // Read first: it names the newest Congress we hold, which is the default.
+  const allCongress = await loadOverview();
+  const congress = Number(params.congress) || homeCongress(allCongress);
+  const data = await loadDashboardData(congress, allCongress);
   return <DashboardClient initialCongress={congress} initialData={data} />;
 }
 
@@ -67,14 +69,24 @@ export default async function Home({
 // day, so per-request freshness is fine; we prefer plain dynamic rendering over
 // the previous experimental Cache Components streaming, which did not render
 // reliably on the Cloudflare Workers runtime.
+async function loadOverview(): Promise<InitialDashboardData['allCongress'] | null> {
+  if (!process.env.NEXT_PUBLIC_CONVEX_URL) return null;
+  try {
+    return await fetchQuery(api.bills.getAllCongressOverview);
+  } catch (error) {
+    console.error('loadOverview failed:', error);
+    return null;
+  }
+}
+
 async function loadDashboardData(
   congress: number,
+  allCongress: InitialDashboardData['allCongress'] | null,
 ): Promise<InitialDashboardData | null> {
-  if (!process.env.NEXT_PUBLIC_CONVEX_URL) return null;
+  if (!process.env.NEXT_PUBLIC_CONVEX_URL || !allCongress) return null;
 
   try {
-    const [allCongress, dashboard, house, senate] = await Promise.all([
-      fetchQuery(api.bills.getAllCongressOverview),
+    const [dashboard, house, senate] = await Promise.all([
       fetchQuery(api.bills.getCongressDashboard, { congress }),
       fetchQuery(api.bills.getChamberDeepBreakdown, {
         congress,
