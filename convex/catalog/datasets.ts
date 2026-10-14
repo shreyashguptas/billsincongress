@@ -85,10 +85,10 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "The full text of bills (we hold a link to the PDF, not the words)",
     ],
     examples: [
-      '{ "congress": 119, "policyArea": "Health", "progressStage": 100, "limit": 1 } — with limit 0 for a pure count',
+      '{ "congress": 119, "policyArea": "Health", "progressStage": 100 } — with limit 1 beside filters, or limit 0 for a pure count',
       '{ "congress": 119, "progressStage": 100, "sort": "newest_action" } — the most recent law',
       '{ "congress": 119, "progressStage": 100, "groupBy": "policyArea" } — how many laws in each category, in one call',
-      '{ "congress": 119, "chamber": "senate", "measure": "bill", "reachedStage": 60, "limit": 0 } — how many Senate bills have passed the Senate, including those that went further',
+      '{ "congress": 119, "chamber": "senate", "measure": "bill", "reachedStage": 60 } with limit 0 beside filters — how many Senate bills have passed the Senate, including those that went further',
       '{ "congress": 119, "sponsorState": "TX", "progressStage": 100 }',
       '{ "congress": 117, "sponsorParty": "none" } — the measures the home page shows as party not recorded',
       '{ "congress": 119, "actionAfter": "2026-08-01" } — what has moved this month',
@@ -272,7 +272,10 @@ export function describeDataset(name: DatasetName): string {
     "NOT IN THIS DATASET",
     ...d.notCovered.map((n) => `  - ${n}`),
     "",
-    "EXAMPLE CALLS",
+    // These are the `filters` object only. Two examples once wrote `"limit": 0`
+    // inside it; Claude copied them literally and 9 of its first 55 lookups were
+    // rejected (2026-10-13), each costing the reader a round.
+    "EXAMPLE FILTERS (the `filters` argument; `limit` is a separate argument beside it, never inside)",
     ...d.examples.map((e) => `  ${e}`),
   ];
   return lines.join("\n");
