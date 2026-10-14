@@ -20,8 +20,7 @@ import {
   truncateAtWord,
 } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/json-ld';
-import { BILL_ID_PATTERN, getBill } from './get-bill';
-import { billsService } from '@/lib/services/bills-service';
+import { getBillPage } from './get-bill';
 
 // schema.org Legislation + BreadcrumbList nodes for a bill page. Stage
 // thresholds mirror convex/billStage.ts (80 = passed both chambers,
@@ -98,11 +97,12 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const bill = await getBill(id);
+  const page = await getBillPage(id);
 
-  if (!bill) {
+  if (!page) {
     return { title: 'Bill Not Found' };
   }
+  const { bill } = page;
 
   const title = billSeoTitle(bill);
   const description = billSeoDescription(bill);
@@ -142,14 +142,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function BillPage({ params }: PageProps): Promise<ReactElement> {
   const { id } = await params;
-  const [bill, extras] = await Promise.all([
-    getBill(id),
-    BILL_ID_PATTERN.test(id) ? billsService.fetchBillJourney(id) : Promise.resolve(null),
-  ]);
+  const page = await getBillPage(id);
 
-  if (!bill) {
+  if (!page) {
     notFound();
   }
+  const { bill, extras } = page;
 
   // Today in Washington, where Congress keeps its calendar: the journey's "days
   // so far" and the Congress clock count to it. Computed once here and passed

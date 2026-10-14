@@ -106,6 +106,7 @@ export function truncateAtWord(text: string, maxLength: number): string {
 const STAGE_PHRASES: Record<number, string> = {
   20: 'Introduced',
   40: 'In committee',
+  50: 'Out of committee',
   60: 'Passed one chamber',
   80: 'Passed both chambers',
   85: 'Vetoed',

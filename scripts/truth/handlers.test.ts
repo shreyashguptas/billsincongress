@@ -789,11 +789,18 @@ async function main() {
     for (const name of ["Anna Paulina Luna", "Mary Gay Scanlon"]) {
       const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sponsorFilter: [name] }, 0);
       assert.ok(r.ok, `${name}: ${r.error}`);
-      const real = bills.filter(
+      const named = bills.filter(
         (b: any) =>
           b.congress === 119 &&
           `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`.trim() === name,
-      ).length;
+      );
+      // Once bills carry member ids, the member's bills are every bill with their
+      // id, whatever it is spelled: 3 of Mary Gay Scanlon's 27 say "Mary Scanlon".
+      const ids = new Set(named.map((b: any) => b.sponsorBioguideId).filter(Boolean));
+      const real =
+        ids.size > 0
+          ? bills.filter((b: any) => b.congress === 119 && ids.has(b.sponsorBioguideId)).length
+          : named.length;
       assert.ok(real > 0, `sanity: ${name} really has bills`);
       assert.equal(r.report.total, real, `${name} came back wrong`);
       assert.equal(r.report.complete, true);
@@ -1411,6 +1418,65 @@ async function main() {
     );
   });
 
+  // --- out of committee, still called "in committee" (2026-10-05) -----------
+  //
+  // S. 2431 (119th) was reported and placed on the Senate calendar on 24 Jul
+  // 2025. The site called it "in committee for 439 days", counted it among the
+  // bills that "haven't made it out of committee", and showed it the odds for
+  // bills stuck there. The oracle is the floor calendar on record, read by hand.
+
+  // Independent of leftCommittee's wording on purpose (review on #174): a floor
+  // calendar placement carries its calendar number, so the oracle reads "Calendar
+  // No. N" off the action, minus the calendars that are not the floor (the
+  // discharge and consensus calendars, and the Senate's "Read the First Time",
+  // the step before a Rule XIV bill reaches General Orders), plus the House and
+  // Senate report codes.
+  const calendared = new Set<string>();
+  for (const [billId, list] of actionsByBill) {
+    if (
+      list.some((x: any) => {
+        const t = String(x.text ?? "").toLowerCase();
+        const floorCalendar =
+          /calendar no\.\s*\d+/.test(t) && !/discharge|consensus|read the first time/.test(t);
+        return x.actionCode === "H12410" || x.actionCode === "H12420" || x.actionCode === "14000" || floorCalendar;
+      })
+    ) {
+      calendared.add(billId);
+    }
+  }
+
+  await it("the stage calculator puts every calendared bill out of committee", async () => {
+    // The code half: holds as soon as the fix is in, before any backfill.
+    const { calculateBillStage } = await import("../../convex/billStage");
+    const missed: string[] = [];
+    for (const billId of calendared) {
+      const { stage } = calculateBillStage(actionsByBill.get(billId) ?? []);
+      if (stage < 50) missed.push(`${billId} (${stage})`);
+    }
+    assert.ok(calendared.size > 1500, `sanity: ${calendared.size} calendared measures`);
+    assert.deepEqual(missed.slice(0, 10), [], `${missed.length} calendared bills still read in committee`);
+  });
+
+  await it("S. 2431 is out of committee, not 'in committee for 439 days'", async () => {
+    // The data half: red until backfillBillFieldsFromActions has re-derived
+    // production's stages and the copy is re-dumped.
+    const r = await fetchViaHandlers(ctx, "bills", { billId: "2431s119" });
+    assert.ok(r.ok && r.rows.length === 1, `fetch failed: ${r.error}`);
+    assert.ok(calendared.has("2431s119"), "sanity: its calendar placement is on record");
+    assert.equal(r.rows[0].progressStage, 50);
+  });
+
+  await it("no stored stage calls a calendared bill in committee", async () => {
+    const stale = (bills as any[])
+      .filter((b) => calendared.has(b.billId) && (b.progressStage ?? 20) < 50)
+      .map((b) => `${b.billId} (${b.progressStage})`);
+    assert.deepEqual(
+      stale.slice(0, 10),
+      [],
+      `${stale.length} calendared bills stored in committee — run backfillBillFieldsFromActions`,
+    );
+  });
+
   // --- the invariant, checked across many shapes ----------------------------
 
   // "Summarize H.R. 1 in two sentences." came back BLANK on 2026-10-05: its
@@ -1522,6 +1588,64 @@ async function main() {
     assert.ok(truth.txLaws > 0, "sanity: Texas members have laws");
     const said = JSON.parse(payloadFor(r.rows, r.report));
     assert.match(said.count_only, new RegExp(`^There are exactly ${truth.txLaws}\\. .*NOT because there are none`));
+  });
+
+  // --- one member, several spellings; two members, one name (2026-10-05) ----
+  //
+  // Counted by spelling, Jacky Rosen had 73 bills in the 119th: 7 more are
+  // spelled "Jacklyn Rosen". The 118th's Senator Robert Menendez and his son,
+  // Representative Rob Menendez, were one "Robert Menendez" with 89. And 59
+  // members of the 117th were shown in capitals ("ELEANOR NORTON", #5 on the
+  // home page). The fix is Congress.gov's member id on every bill; these are
+  // the data half, red until backfillSponsorIdentity has run and the copy is
+  // re-dumped.
+
+  await it("Jacky Rosen has 80 bills in the 119th, not the 73 spelled 'Jacky'", async () => {
+    const truth = (bills as any[]).filter(
+      (b) => b.congress === 119 && b.sponsorLastName === "Rosen" && b.sponsorState === "NV",
+    ).length;
+    assert.ok(truth >= 80, `sanity: ${truth}`);
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sponsorFilter: ["Jacky Rosen"] }, 0);
+    assert.ok(r.ok && r.report.complete, `fetch failed or incomplete: ${r.error ?? ""}`);
+    assert.equal(r.report.total, truth);
+  });
+
+  await it("the 118th's two Robert Menendezes are counted apart", async () => {
+    const senateTypes = new Set(["s", "sjres", "sconres", "sres"]);
+    const theirs = (bills as any[]).filter((b) => b.congress === 118 && b.sponsorLastName === "Menendez");
+    const senator = theirs.filter((b) => senateTypes.has(b.billType)).length;
+    const r = await fetchViaHandlers(ctx, "sponsors", { congress: 118, sponsorState: "NJ" }, 50);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const rows = r.rows.filter((x: any) => /Menendez/.test(x.sponsorName));
+    assert.deepEqual(
+      rows.map((x: any) => x.billCount).sort((a: number, b: number) => b - a),
+      [senator, theirs.length - senator],
+      `one row covering both members: ${JSON.stringify(rows)}`,
+    );
+  });
+
+  await it("the picker's one name for a member finds their bills in every Congress", async () => {
+    // Review on #173: the picker lists Jacky Rosen once, as "Jacky Rosen"; all
+    // 74 of her 117th-Congress bills say "Jacklyn". The 117th filtered by the
+    // picker's name must not come back as an exact zero.
+    const list = await runQuery(billsQueries.listAllSponsors, {});
+    const rosen = list.find((s: any) => /Rosen$/.test(s.name) && s.state === "NV");
+    assert.ok(rosen, "sanity: Rosen is in the picker");
+    for (const congress of [117, 118, 119]) {
+      const truth = (bills as any[]).filter(
+        (b) => b.congress === congress && b.sponsorLastName === "Rosen" && b.sponsorState === "NV",
+      ).length;
+      const { count, exact } = await runQuery(billsQueries.listCount, { congress, sponsorFilter: [rosen.name] });
+      assert.equal(exact, true);
+      assert.equal(count, truth, `${congress}th: "${rosen.name}"`);
+    }
+  });
+
+  await it("no member of the 117th is shown in capitals", async () => {
+    const r = await fetchViaHandlers(ctx, "sponsors", { congress: 117 }, 600);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const loud = r.rows.map((x: any) => x.sponsorName).filter((n: string) => n === n.toUpperCase());
+    assert.deepEqual(loud.slice(0, 5), [], `${loud.length} members in capitals`);
   });
 
   // --- "Senate bills" counted every Senate resolution (2026-10-05) -----------

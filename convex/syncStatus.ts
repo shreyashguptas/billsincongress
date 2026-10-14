@@ -17,6 +17,9 @@ export const SYNC_COMPLETE = 31; // all endpoint bits set
 export const EXTRA_LEGISLATIVE_SUBJECTS = 1; // bit 0: all legislativeSubjects stored
 export const EXTRA_TEXT_VERSIONS = 2; // bit 1: all text versions stored
 export const EXTRA_COMPLETE = 3; // all enrichment bits set
+// bit 2: the sponsor's member id and re-cased name fetched (backfillSponsorIdentity).
+// Not part of EXTRA_COMPLETE, which means "subjects and text stored".
+export const EXTRA_SPONSOR_IDENTITY = 4;
 
 const ENDPOINT_NAMES: Record<number, string> = {
   [SYNC_DETAIL]: "detail",

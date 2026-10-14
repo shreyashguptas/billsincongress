@@ -622,7 +622,9 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 analytics.answerCitationUnresolved({
                   surface,
                   marker_count: data.dropped,
-                  model: 'gpt-oss-120b',
+                  // The answer model, not read from the response: a turn that fell back
+                  // to gpt-oss-120b is told apart by the trace's $ai_generation events.
+                  model: 'claude-haiku-5.5',
                 });
               }
               if (webSources.length > 0) {

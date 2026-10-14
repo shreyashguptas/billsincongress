@@ -26,6 +26,7 @@ import {
   watermarkFor,
   type ActionRow,
   type BillChange,
+  isRelabelOnly,
 } from "./alertDigest";
 
 /** Upper bound on actions read for one bill. The longest carry a few hundred. */
@@ -312,7 +313,9 @@ export const sendDigestForUser = internalMutation({
         congress: bill.congress,
         title: bill.title,
         newActions: fresh,
-        ...(stageMoved ? { stageChange: { from: alert.lastSeenStage, to: bill.progressStage! } } : {}),
+        ...(stageMoved && !isRelabelOnly(alert.lastSeenStage, bill.progressStage!, fresh)
+          ? { stageChange: { from: alert.lastSeenStage, to: bill.progressStage! } }
+          : {}),
       };
       if (!hasNews(change)) continue;
       changes.push(change);

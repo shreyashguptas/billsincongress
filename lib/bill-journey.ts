@@ -230,6 +230,7 @@ export function congressClock(congress: number, today: string, introducedDate: s
 const PEER_ORDER = [
   BillStages.INTRODUCED,
   BillStages.IN_COMMITTEE,
+  BillStages.OUT_OF_COMMITTEE,
   BillStages.PASSED_ONE_CHAMBER,
   BillStages.PASSED_BOTH_CHAMBERS,
   BillStages.TO_PRESIDENT,
