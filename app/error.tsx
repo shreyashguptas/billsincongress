@@ -13,10 +13,13 @@ import { useChunkErrorRecovery } from '@/lib/use-chunk-error-recovery';
 // guarded reload, and always shows a retry control as the fallback.
 export default function Error({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  // `retry` fetches the segment again; `reset` only redraws what failed. A bill
+  // page whose Convex read failed needs the fetch, or "Try again" can never
+  // succeed, even after Convex is back.
+  retry: () => void;
 }) {
   const chunkError = useChunkErrorRecovery(error);
 
@@ -35,7 +38,7 @@ export default function Error({
           : 'An unexpected error interrupted this page. Try again, or head back home.'}
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <Button type="button" onClick={() => (chunkError ? window.location.reload() : reset())}>
+        <Button type="button" onClick={() => (chunkError ? window.location.reload() : retry())}>
           {chunkError ? 'Reload page' : 'Try again'}
         </Button>
         <Button asChild variant="outline">

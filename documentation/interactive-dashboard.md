@@ -191,7 +191,7 @@ the read. See [Known gaps](#known-gaps).
 | Table | Written by | Rows today |
 | --- | --- | --- |
 | `congressStats` | `writeCongressStats` (patch-or-insert) | 3. Besides the stage ladder, each carries `typeCounts` (measures per type) and `resolutionStageCounts` (simple and concurrent resolutions per stage) |
-| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th). Each row also carries `stageCounts` (the same bills by stage, counted in the same pass, so they sum to `count`) and `countedAt`, which the bill page's "Among its peers" dot field reads through `bills.getJourney` |
+| `congressPolicyAreas` | `writeCongressPolicyAreas` (delete-all-then-insert in one transaction) | ≤ 33 per Congress (31 for the 119th). Each row also carries `stageCounts` (the same bills by stage, counted in the same pass, so they sum to `count`) and `countedAt`, which the bill page's "Among its peers" dot field reads through `bills.getPage` (one row, by the `by_congress_and_policy_area` index) |
 | `congressSponsors` | `writeCongressSponsors` (delete-all-then-insert) | ~550 per Congress. One row per *member*, keyed by Congress.gov's member id once bills carry it (`buildSponsorRows`), with every spelling their bills use in `spellings`. Before the `backfillSponsorIdentity` run, rows without ids are one per name and state. See "One member, several spellings" in `overview.md` |
 | `congressChamberBreakdowns` | `writeCongressChamberBreakdown` (patch-or-insert) | 6 (3 Congresses × 2 chambers) |
 
@@ -261,9 +261,10 @@ below, not performance.
 
 | Trigger | What it refreshes |
 | --- | --- |
-| Cron `daily-recompute-stats`, 04:00 UTC | `congressStats` for every Congress with bills, then both chamber breakdowns. **Not** policy areas or sponsors. |
-| A sync batch finishing the last page of a (Congress, bill type) | Stats, policy areas, sponsors, and that chamber's breakdown. In practice this fires nightly, off `daily-incremental-sync` (01:00 UTC), and weekly off `weekly-full-sync` (Sun 02:00 UTC) — both of which only touch the **current** Congress |
-| `reconcileMissingBills` completing a Congress | Stats, policy areas, sponsors, both chamber breakdowns |
+| The **last** bill type of a sync ending, if the sync touched any bill | `recomputeCongressRollups`: stats, policy areas, sponsors, both chamber breakdowns. Each type's chain calls `mutations.finishSyncType` on every path that ends it (done, nothing to list, list fetch failed); exactly one gets `last: true`. Fires nightly off `daily-incremental-sync` (01:00 UTC) and weekly off `weekly-full-sync` (Sun 02:00 UTC), both **current** Congress only |
+| Cron `daily-recompute-stats`, 04:00 UTC | `recomputeAllStats({ only: "current" })`: the current Congress's stats and both chamber breakdowns. A safety net for a sync that died part-way |
+| Cron `weekly-recompute-all-stats`, Thu 04:00 UTC | `recomputeAllStats({ only: "finished" })`: stats and both chamber breakdowns for every **finished** Congress, the day after Wednesday's repair pass |
+| `reconcileMissingBills` completing a Congress | `recomputeCongressRollups` |
 | `pnpm exec convex run --prod congressApi:triggerRecomputeStats '{}'` | Wraps `recomputeAllStats` |
 
 The nightly entry point is `incrementalSync`. (A legacy `dailySync` wrapper around it, wired
@@ -275,11 +276,17 @@ queries. The floor of 120 exists so a newly seated Congress is never silently dr
 
 Chamber recomputes are kept **sequential, never `Promise.all`** — each paginates 6–7k bills.
 
-Freshness: stats and chamber breakdowns are at most ~24h stale, refreshed by their own cron.
-Policy areas and sponsors ride on the nightly incremental sync **completing its last page** —
-there is no rollup cron that refreshes them independently, so a failed or partial sync leaves
-them stale with nothing to catch it, and closed Congresses only refresh when a sync or
-reconcile happens to touch them.
+Each type used to recount everything itself as it finished, so a night's sync scanned the
+whole current Congress eight times, and the 04:00 cron rescanned every finished Congress whose
+numbers could not have moved. Together that was about 0.2 GB of database reads a day; see
+[Database cost](overview.md#database-cost).
+
+Freshness: the current Congress's rollups are recounted minutes after the nightly sync ends,
+and its stats and chamber breakdowns again at 04:00. A finished Congress's stats and chamber
+breakdowns are at most a week stale. Policy areas and sponsors ride on a sync or a reconcile
+**ending** — there is no rollup cron that refreshes them independently, so a sync that dies
+part-way leaves them stale until the next one, and closed Congresses only refresh when a
+reconcile touches them.
 
 ---
 
@@ -406,8 +413,8 @@ the committee base rates and `convex/billStage.ts` backs stage derivation. That 
 the numbers testable without a database.
 
 **5. Wire it into the schedule** — both places, or say in the PR which you are skipping:
-post-sync (the `syncBillBatch` and `reconcileMissingBills` completion branches in
-`congressApi.ts`) and nightly (`recomputeAllStats`). If it is expensive and historical data
+post-sync (`recomputeCongressRollups` in `congressApi.ts`, which the last finishing sync type
+and `reconcileMissingBills` both call) and nightly (`recomputeAllStats`). If it is expensive and historical data
 barely moves, give it its own weekly cron instead, the way `weekly-committee-base-rates` does.
 
 **6. Add the public read query** in `convex/bills.ts`: a single indexed row, and **always

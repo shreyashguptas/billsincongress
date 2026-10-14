@@ -1646,6 +1646,23 @@ async function main() {
     assert.ok(r.report.total < 300, `${r.report.total} reads like the 706 that counted resolutions`);
   });
 
+  // On Claude's first evening (2026-10-13) this question, and 8 other lookups,
+  // came back "'limit' is not a filter on 'bills'": Claude copied two worked
+  // examples that wrote `"limit": 0` inside `filters`. Each rejection spent a
+  // round; answers ran out of rounds and said "I couldn't" instead of the count.
+  await it("the live Claude call, limit inside filters, still gets the exact count", async () => {
+    const { filtersFromCall, limitFromCall } = await import("../../convex/catalog/filters");
+    const args = {
+      name: "bills",
+      filters: { congress: 119, chamber: "senate", measure: "bill", reachedStage: 60, limit: 0 },
+    };
+    const r = await fetchViaHandlers(ctx, "bills", filtersFromCall("bills", args) as any, limitFromCall(args));
+    assert.ok(r.ok, `rejected again: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.rows.length, 0, "limit 0 is a count: no rows");
+    assert.equal(r.report.total, senateBillsPassed, "must match the Senate passages on record");
+  });
+
   await it("a chamber-only count says how much of its total is bills", async () => {
     // The model may still pick chamber alone. The result must then put the bill
     // count in front of it rather than let it read 706 as bills.

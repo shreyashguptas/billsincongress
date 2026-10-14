@@ -105,6 +105,9 @@ function resolveTextQuery(
 
 type BillsQueries = typeof Api.bills;
 
+/** The bill page's journey and peer counts, from `bills.getPage`. */
+export type BillPageExtras = NonNullable<FunctionReturnType<BillsQueries['getPage']>>['extras'];
+
 /**
  * Set once a direct call from this page has failed to connect, so the rest of
  * the visit goes straight to the relay instead of paying a failed request
@@ -217,19 +220,25 @@ export const billsService = {
   },
 
   /**
-   * The bill page's journey and peer counts (`bills.getJourney`). Never throws:
-   * the page draws without them rather than failing, which also covers the
-   * window where the site is deployed before Convex has the query.
+   * Everything the bill page draws, in one Convex call (`bills.getPage`): the
+   * bill, plus its journey and peer counts. Fails like `fetchBillById`.
    */
-  async fetchBillJourney(id: string): Promise<FunctionReturnType<BillsQueries['getJourney']>> {
+  async fetchBillPage(id: string): Promise<{ bill: Bill; extras: BillPageExtras }> {
     const client = getConvexHttpClient();
-    if (!client) return null;
+    if (!client) {
+      throw new Error('Convex not configured');
+    }
+
     try {
       const { api } = await import('../../convex/_generated/api');
-      return await client.query(api.bills.getJourney, { billId: id });
+      const result = await client.query(api.bills.getPage, { billId: id });
+      if (!result) {
+        throw new Error('Bill not found');
+      }
+      return { bill: transformConvexBill(result.bill), extras: result.extras };
     } catch (error) {
-      console.error(`fetchBillJourney(${id}) failed:`, error);
-      return null;
+      console.error('Error fetching bill page from Convex:', error);
+      throw error;
     }
   },
 

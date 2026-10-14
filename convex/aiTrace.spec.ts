@@ -32,6 +32,7 @@ let sent: Sent[] = [];
 let modelCalls = 0;
 let modelFails = false;
 let modelEmpty = false;
+let modelClaude = false;
 
 function setup() {
   const t = convexTest(schema, modules);
@@ -42,6 +43,21 @@ function setup() {
 /** Round 1: the model asks to describe the bills dataset. Round 2: it answers. */
 function modelReply() {
   modelCalls += 1;
+  if (modelClaude) {
+    // Under BYOK OpenRouter charges nothing; Anthropic's charge is upstream.
+    return {
+      model: "anthropic/claude-haiku-5.5",
+      provider: "Anthropic",
+      choices: [{ finish_reason: "stop", message: { role: "assistant", content: ANSWER } }],
+      usage: {
+        prompt_tokens: 1000,
+        completion_tokens: 20,
+        cost: 0,
+        is_byok: true,
+        cost_details: { upstream_inference_cost: 0.0002 },
+      },
+    };
+  }
   if (modelEmpty) {
     return {
       model: "deepseek/deepseek-v4-flash-0731",
@@ -84,7 +100,10 @@ beforeEach(() => {
   modelCalls = 0;
   modelFails = false;
   modelEmpty = false;
+  modelClaude = false;
   process.env.OPENROUTER_API_KEY = "sk-or-test-not-a-real-key";
+  // Traces of the default-model loop; the Claude route is answerClaude.spec.ts.
+  process.env.OPENROUTER_CLAUDE_MODEL = "";
   process.env.POSTHOG_KEY = "phc_test_not_a_real_key";
   delete process.env.POSTHOG_HOST;
   vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
@@ -103,6 +122,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.POSTHOG_KEY;
+  delete process.env.OPENROUTER_CLAUDE_MODEL;
 });
 
 async function ask(
@@ -193,6 +213,16 @@ describe("recording an answer as a PostHog trace", () => {
       expect(e.properties.$ai_prompt_version).toBe(7);
       expect(e.properties.answer_prompt_source).toBe("posthog");
     }
+  });
+
+  test("a Claude generation costs what Anthropic charged our key, not OpenRouter's BYOK fee", async () => {
+    modelClaude = true;
+    delete process.env.OPENROUTER_CLAUDE_MODEL;
+    const t = setup();
+    await ask(t);
+    const [first] = batches()[0];
+    expect(first.properties.$ai_model).toBe("anthropic/claude-haiku-5.5");
+    expect(first.properties.$ai_total_cost_usd).toBe(0.0002);
   });
 
   test("a generation holds what the model was sent, what it said, and what it cost", async () => {

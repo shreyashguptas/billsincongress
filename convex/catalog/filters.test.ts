@@ -8,7 +8,8 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { filtersFromCall, validateFilters, VALID_SORTS, VALID_STAGES } from "./filters";
+import { filtersFromCall, limitFromCall, validateFilters, VALID_SORTS, VALID_STAGES } from "./filters";
+import { DATASETS } from "./datasets";
 
 let passed = 0;
 const failures: string[] = [];
@@ -257,6 +258,37 @@ it("lets a value inside `filters` win, and moves only that dataset's filters", (
   assert.deepEqual(filtersFromCall("bills", args), { sort: "oldest_action" });
   // `sort` is not a topics filter, so it is not moved and validation sees what was sent.
   assert.deepEqual(filtersFromCall("topics", { name: "topics", congress: 119, sort: "x" }), { congress: 119 });
+});
+
+// Claude copied `"limit": 0` into `filters` from two worked examples, and 9 of
+// its first 55 lookups were rejected as "'limit' is not a filter" (2026-10-13).
+it("moves a limit put inside `filters` out to the call's limit", () => {
+  const args = { name: "bills", filters: { congress: 119, progressStage: 100, limit: 0 } };
+  assert.deepEqual(filtersFromCall("bills", args), { congress: 119, progressStage: 100 });
+  assert.equal(limitFromCall(args), 0);
+  const validated = validateFilters("bills", filtersFromCall("bills", args));
+  assert.equal(validated.ok, true, "the call must not be rejected");
+});
+
+it("lets a limit beside `filters` win over one inside it", () => {
+  const args = { name: "bills", filters: { congress: 119, limit: 0 }, limit: 5 };
+  assert.equal(limitFromCall(args), 5);
+  assert.deepEqual(filtersFromCall("bills", args), { congress: 119 });
+});
+
+it("has no limit when neither place gives a number", () => {
+  assert.equal(limitFromCall({ name: "bills", filters: { congress: 119 } }), undefined);
+  assert.equal(limitFromCall({ name: "bills", filters: { limit: "0" } }), undefined);
+  assert.equal(limitFromCall({ name: "bills", filters: "congress=119" }), undefined);
+});
+
+it("shows no worked example with limit inside the filters object", () => {
+  for (const [name, doc] of Object.entries(DATASETS)) {
+    for (const example of doc.examples) {
+      const object = example.slice(0, example.lastIndexOf("}") + 1);
+      assert.ok(!/"limit"/.test(object), `${name} example puts limit inside filters: ${example}`);
+    }
+  }
 });
 
 it("leaves a malformed `filters` for validation to reject", () => {

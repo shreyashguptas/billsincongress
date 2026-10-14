@@ -78,8 +78,6 @@ const BILL_TYPES = [
   "sres",
 ];
 
-const HOUSE_TYPES_SET = new Set(["hr", "hjres", "hconres", "hres"]);
-
 const INCREMENTAL_LOOKBACK_HOURS = 26; // covers 24-hour cron + 2-hour buffer
 const FULL_SYNC_LOOKBACK_DAYS = 7; // weekly safety net catches anything missed
 const INCREMENTAL_STAGGER_MS = 120000; // 2 minutes between bill types (fewer bills)
@@ -448,6 +446,58 @@ async function syncSingleBill(
 
 // Fetches one page of bills and chains the next batch through the scheduler,
 // which keeps each run under the 10-min action timeout.
+/**
+ * Every precomputed rollup for one Congress, each from a full scan of its
+ * bills: the stats row, topic counts, sponsors, and both chambers' breakdowns.
+ */
+export const recomputeCongressRollups = internalAction({
+  args: { congress: v.number() },
+  handler: async (ctx, args) => {
+    await ctx.runAction(internal.mutations.recomputeCongressStats, {
+      congress: args.congress,
+    });
+    await ctx.runAction(internal.mutations.recomputeCongressPolicyAreas, {
+      congress: args.congress,
+    });
+    await ctx.runAction(internal.mutations.recomputeCongressSponsors, {
+      congress: args.congress,
+    });
+    for (const chamber of ["house", "senate"] as const) {
+      await ctx.runAction(
+        internal.mutations.recomputeCongressChamberBreakdown,
+        { congress: args.congress, chamber },
+      );
+    }
+  },
+});
+
+/**
+ * Called on every path that ends a bill type's sync chain. When it is the last
+ * of the snapshot's types to end, and the sync touched any bill, the rollups
+ * are recounted once. Each type used to recount them itself as it finished:
+ * eight whole-Congress scans a night, the largest scheduled read on the site.
+ */
+async function finishSyncType(
+  ctx: ActionCtx,
+  args: { congress: number; billType: string; snapshotId?: Id<"syncSnapshots"> },
+  billsSynced: number,
+): Promise<void> {
+  if (!args.snapshotId) return;
+  const result = await ctx.runMutation(internal.mutations.finishSyncType, {
+    snapshotId: args.snapshotId,
+    billType: args.billType,
+    billsSynced,
+    typeCount: BILL_TYPES.length,
+  });
+  if (result.last && result.billsSynced > 0) {
+    // Scheduled, not awaited: five full scans should not spend this batch's
+    // ten-minute action budget.
+    await ctx.scheduler.runAfter(0, internal.congressApi.recomputeCongressRollups, {
+      congress: args.congress,
+    });
+  }
+}
+
 export const syncBillBatch = internalAction({
   args: {
     congress: v.number(),
@@ -485,6 +535,7 @@ export const syncBillBatch = internalAction({
             errorDetails: "Rate limit exhausted on bill list fetch",
           });
         }
+        await finishSyncType(ctx, args, args.offset);
         return { processed: 0, hasMore: false, error: "Rate limit exhausted" };
       }
       if (!listResponse.ok) {
@@ -492,6 +543,7 @@ export const syncBillBatch = internalAction({
       }
     } catch (error: any) {
       console.error(`Failed to fetch bill list: ${error.message}`);
+      await finishSyncType(ctx, args, args.offset);
       return { processed: 0, hasMore: false, error: error.message };
     }
 
@@ -502,6 +554,7 @@ export const syncBillBatch = internalAction({
       console.log(
         `No more ${args.billType} bills for Congress ${args.congress} at offset ${args.offset}`
       );
+      await finishSyncType(ctx, args, args.offset);
       return { processed: 0, hasMore: false };
     }
 
@@ -620,25 +673,7 @@ export const syncBillBatch = internalAction({
         totalFailed: failCount,
       });
 
-      await ctx.runAction(internal.mutations.recomputeCongressStats, {
-        congress: args.congress,
-      });
-      await ctx.runAction(internal.mutations.recomputeCongressPolicyAreas, {
-        congress: args.congress,
-      });
-      await ctx.runAction(internal.mutations.recomputeCongressSponsors, {
-        congress: args.congress,
-      });
-
-      // Only this bill type's chamber; the other recomputes when its own types
-      // finish, and the daily cron sweeps both.
-      const chamber: "house" | "senate" = HOUSE_TYPES_SET.has(args.billType)
-        ? "house"
-        : "senate";
-      await ctx.runAction(
-        internal.mutations.recomputeCongressChamberBreakdown,
-        { congress: args.congress, chamber },
-      );
+      await finishSyncType(ctx, args, args.offset + successCount);
     }
 
     return { processed: bills.length, hasMore, successCount, failCount };
@@ -806,21 +841,9 @@ export const reconcileMissingBills = internalAction({
       console.log(
         `reconcileMissingBills: congress ${args.congress} complete; refreshing rollups`,
       );
-      await ctx.runAction(internal.mutations.recomputeCongressStats, {
+      await ctx.runAction(internal.congressApi.recomputeCongressRollups, {
         congress: args.congress,
       });
-      await ctx.runAction(internal.mutations.recomputeCongressPolicyAreas, {
-        congress: args.congress,
-      });
-      await ctx.runAction(internal.mutations.recomputeCongressSponsors, {
-        congress: args.congress,
-      });
-      for (const chamber of ["house", "senate"] as const) {
-        await ctx.runAction(
-          internal.mutations.recomputeCongressChamberBreakdown,
-          { congress: args.congress, chamber },
-        );
-      }
       return {
         congress: args.congress,
         billType: null,
@@ -1590,16 +1613,25 @@ export const backfillEnrichmentStatus = internalAction({
 // Recomputes congressStats for every congress that has bills. Called after
 // syncs and by the daily stats cron.
 export const recomputeAllStats = internalAction({
-  args: {},
-  handler: async (ctx): Promise<{ congresses: number[] }> => {
+  // `only: "current"` is the daily cron's: a finished Congress's bills only
+  // change through a repair or backfill, so recounting the 117th and 118th every
+  // night read ~19k bills each to write the same numbers. The weekly cron takes
+  // `only: "finished"`, so the current Congress is not scanned twice that
+  // morning. A manual run and the backfills recount every Congress.
+  args: {
+    only: v.optional(v.union(v.literal("current"), v.literal("finished"))),
+  },
+  handler: async (ctx, args): Promise<{ congresses: number[] }> => {
     // Find which congresses exist by probing the index. The upper bound tracks
     // the current congress (never below 120, the last hardcoded value) so a
     // newly-seated congress is never silently dropped from the rollups.
     const currentCongress =
       Math.floor((new Date().getFullYear() - 1789) / 2) + 1;
     const upperCongress = Math.max(120, currentCongress);
+    const lowerCongress = args.only === "current" ? currentCongress : 93;
+    const lastCongress = args.only === "finished" ? currentCongress - 1 : upperCongress;
     const congressesToUpdate: number[] = [];
-    for (let c = 93; c <= upperCongress; c++) {
+    for (let c = lowerCongress; c <= lastCongress; c++) {
       const bills = await ctx.runQuery(internal.bills.hasBillsForCongress, { congress: c });
       if (bills) congressesToUpdate.push(c);
     }
@@ -1634,7 +1666,7 @@ export const recomputeAllStats = internalAction({
 export const triggerRecomputeStats = internalAction({
   args: {},
   handler: async (ctx): Promise<{ congresses: number[] }> => {
-    const result = await ctx.runAction(internal.congressApi.recomputeAllStats);
+    const result = await ctx.runAction(internal.congressApi.recomputeAllStats, {});
     return result;
   },
 });
