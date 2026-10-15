@@ -20,6 +20,7 @@
  * tests and run unchanged on the server render and in the browser.
  */
 import { POLICY_AREAS } from './constants/filters';
+import { stagePath } from './utils/bill-stages';
 
 export type HubKind = 'chamber' | 'status' | 'topic';
 
@@ -311,4 +312,33 @@ export function hubDateLabel(hub: HubDefinition, sortedBy: HubSortedBy): string 
     return STAGE_DATE_LABELS[hub.filter.progressStage ?? ''] ?? 'Reached this stage';
   }
   return 'Latest action';
+}
+
+/**
+ * The topic, stage and chamber pages a bill appears on, in that order: the
+ * links at the foot of a bill page (components/bills/bill-related.tsx).
+ *
+ * Only a bill gets a stage page. Every stage hub is worded for the road to
+ * law, so an agreed-to S.Res. (stage 60) would be sent to "Bills that passed
+ * one chamber", the half-way-to-law reading `billStatusPhrase` (lib/seo.ts)
+ * exists to avoid. A resolution keeps its topic and chamber links.
+ */
+export function billHubs({
+  billType,
+  stage,
+  policyArea,
+}: {
+  billType: string;
+  stage: number;
+  policyArea: string | null;
+}): HubDefinition[] {
+  const chamber = billType.toLowerCase().startsWith('s') ? 'senate' : 'house';
+  const topicPath = policyArea ? `/bills/topic/${topicSlug(policyArea)}` : null;
+  return [
+    ALL_HUBS.find((h) => h.kind === 'topic' && h.path === topicPath),
+    stagePath(billType) === 'law'
+      ? ALL_HUBS.find((h) => h.kind === 'status' && h.filter.progressStage === String(stage))
+      : undefined,
+    ALL_HUBS.find((h) => h.kind === 'chamber' && h.filter.chamber === chamber),
+  ].filter((h): h is HubDefinition => Boolean(h));
 }

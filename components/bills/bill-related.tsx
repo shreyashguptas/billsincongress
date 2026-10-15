@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { analytics } from '@/lib/analytics';
 import { stageFill } from '@/components/brand/status';
-import { ALL_HUBS, topicSlug, type HubDefinition } from '@/lib/hubs';
+import { billHubs, type HubDefinition } from '@/lib/hubs';
 import { measureStageLabel } from '@/lib/utils/bill-stages';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 
@@ -105,25 +105,6 @@ export function BillRelatedSection({
       </div>
     </section>
   );
-}
-
-/** The topic, stage and chamber pages a bill appears on, in that order. */
-export function billHubs({
-  billType,
-  stage,
-  policyArea,
-}: {
-  billType: string;
-  stage: number;
-  policyArea: string | null;
-}): HubDefinition[] {
-  const chamber = billType.toLowerCase().startsWith('s') ? 'senate' : 'house';
-  const topicPath = policyArea ? `/bills/topic/${topicSlug(policyArea)}` : null;
-  return [
-    ALL_HUBS.find((h) => h.kind === 'topic' && h.path === topicPath),
-    ALL_HUBS.find((h) => h.kind === 'status' && h.filter.progressStage === String(stage)),
-    ALL_HUBS.find((h) => h.kind === 'chamber' && h.filter.chamber === chamber),
-  ].filter((h): h is HubDefinition => Boolean(h));
 }
 
 /** "All Health bills", "All House bills"; a stage hub's heading already reads as a link. */

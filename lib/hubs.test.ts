@@ -11,6 +11,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  billHubs,
   ALL_HUBS,
   RESERVED_BILL_SLUGS,
   TOPIC_HUBS,
@@ -206,6 +207,18 @@ it("labels every stage hub's date with what it is", () => {
   }
   assert.equal(hubDateLabel(hubByPath("/bills/enacted")!, "stageDate"), "Became law");
   assert.equal(hubDateLabel(hubByPath("/bills/house")!, "latestActionDate"), "Latest action");
+});
+
+it("links a bill to its topic, stage and chamber pages, and a resolution to no stage page", () => {
+  const paths = (billType: string, stage: number, policyArea: string | null) =>
+    billHubs({ billType, stage, policyArea }).map((h) => h.path);
+  assert.deepEqual(paths("hr", 60, "Energy"), ["/bills/topic/energy", "/bills/passed-one-chamber", "/bills/house"]);
+  // S.Res. 156 (119th), agreed to by the Senate: "Bills that passed one
+  // chamber" would read as half-way to law.
+  assert.deepEqual(paths("sres", 60, "Native Americans"), ["/bills/topic/native-americans", "/bills/senate"]);
+  assert.deepEqual(paths("hconres", 80, null), ["/bills/house"]);
+  // Stage 50 has no hub; no topic yet means no topic link.
+  assert.deepEqual(paths("s", 50, null), ["/bills/senate"]);
 });
 
 if (failures.length > 0) {

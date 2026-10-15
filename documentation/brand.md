@@ -309,7 +309,8 @@ Patterns that appear on more than one page:
   Congress, most recently acted on. Each row: the number in `ink-2` mono, the title in `ink`
   (underlined on hover), and under it the stage named the reader's way beside an 8px dot in its
   stage colour. Then a row of underlined text links, never buttons, to the bill's topic, stage
-  and chamber pages ("All Health bills →", "Bills in committee →", "All House bills →"). The
+  and chamber pages ("All Health bills →", "Bills in committee →", "All House bills →"). A
+  resolution gets no stage link: every stage page is worded for the road to law. The
   heading is "More <topic> bills"; a bill with no topic yet shows only the links, under "Where
   this bill sits".
 
