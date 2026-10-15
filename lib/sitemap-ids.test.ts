@@ -4,7 +4,7 @@
  * Run with: `pnpm test`.
  */
 import assert from 'node:assert/strict';
-import { billLastModified, listedSitemapIds, sitemapChunk, sitemapFileUrl, sitemapIds } from './sitemap-ids';
+import { billLastModified, listedSitemapIds, servedSitemapChunk, sitemapChunk, sitemapFileUrl, sitemapIds, urlsetXml } from './sitemap-ids';
 
 let passed = 0;
 const failures: string[] = [];
@@ -80,6 +80,30 @@ it('dates a bill by its latest action, else its introduction, never a write', ()
 it('serves every sitemap file from the site root', () => {
   assert.equal(sitemapFileUrl('https://billsincongress.com', 1191), 'https://billsincongress.com/sitemap-1191.xml');
   assert.equal(sitemapFileUrl('https://billsincongress.com', 0), 'https://billsincongress.com/sitemap-0.xml');
+});
+
+// The 120th Congress starts in January 2027. Its files must exist from the day
+// its bills do, with no deploy: Next's generateSitemaps answered 404 for any id
+// not known at build time.
+it('serves a quarter of any Congress we hold, and 404s everything else', () => {
+  assert.deepEqual(servedSitemapChunk('1191', [119, 118]), sitemapChunk(1191));
+  assert.deepEqual(servedSitemapChunk('1201', [120, 119]), sitemapChunk(1201));
+  assert.equal(servedSitemapChunk('1201', [119, 118]), null); // no bills for the 120th yet
+  for (const raw of ['119', '1190', '1199', 'abc', '01191', '1191.5', '', '-1191']) {
+    assert.equal(servedSitemapChunk(raw, [119]), null, raw);
+  }
+});
+
+it('writes a sitemaps.org urlset, with lastmod only where a date is known', () => {
+  assert.equal(
+    urlsetXml([{ loc: 'https://billsincongress.com/' }, { loc: 'https://billsincongress.com/bills/1hr119', lastmod: '2026-10-13' }]),
+    '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      '<url>\n<loc>https://billsincongress.com/</loc>\n</url>\n' +
+      '<url>\n<loc>https://billsincongress.com/bills/1hr119</loc>\n<lastmod>2026-10-13</lastmod>\n</url>\n</urlset>\n',
+  );
+  assert.match(urlsetXml([{ loc: 'https://x.test/?a=1&b=<2>' }]), /<loc>https:\/\/x\.test\/\?a=1&amp;b=&lt;2&gt;<\/loc>/);
+  // A quarter with no bills yet is still a valid, empty file.
+  assert.equal(urlsetXml([]), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>\n');
 });
 
 console.log(`\nsitemap-ids: ${passed} passed, ${failures.length} failed`);

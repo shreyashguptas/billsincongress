@@ -30,13 +30,12 @@ const nextConfig = {
   // a real CSP for a Convex + Next app needs to allowlist the Convex
   // deployment URL, Google OAuth endpoints, and any analytics origin, and
   // would break things if rolled in unattended. Add as a separate exercise.
-  // The sitemap files at the site root. Next.js builds them at
-  // /sitemap/<id>.xml (app/sitemap.ts, generateSitemaps), but a sitemap file
-  // may only list pages under its own folder, so the index names
-  // /sitemap-<id>.xml (lib/sitemap-ids.ts, sitemapFileUrl) and this serves it.
-  // The old addresses keep working: Search Console still has them on file.
+  // The sitemap files at the site root. They are built by a route handler,
+  // app/sitemap-files/[id]/route.ts, but a sitemap file may only list pages
+  // under its own folder, so the index names /sitemap-<id>.xml
+  // (lib/sitemap-ids.ts, sitemapFileUrl) and this serves it.
   async rewrites() {
-    return [{ source: '/sitemap-:id(\\d+).xml', destination: '/sitemap/:id.xml' }];
+    return [{ source: '/sitemap-:id(\\d+).xml', destination: '/sitemap-files/:id' }];
   },
   async headers() {
     return [

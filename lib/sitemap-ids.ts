@@ -1,7 +1,7 @@
 /**
  * Which sitemap files exist: 0 for the static pages and hubs, then eight per
- * Congress, one for each quarter of its two years. Shared by `app/sitemap.ts`
- * (which builds the files) and `app/sitemap_index.xml/route.ts` (which lists
+ * Congress, one for each quarter of its two years. Shared by
+ * `app/sitemap-files/[id]/route.ts` (which builds the files) and `app/sitemap_index.xml/route.ts` (which lists
  * them), so the two cannot drift.
  *
  * Why quarters. Google read the small files (the index, and the 49 static
@@ -45,10 +45,11 @@ function validCongresses(congresses: unknown): number[] {
 }
 
 /**
- * Every file Next.js builds: 0, then all eight quarters of each Congress,
- * including quarters that have not begun. A quarter's file exists before its
- * first bill does, so a new quarter needs no deploy; the index lists it once it
- * starts (`listedSitemapIds`).
+ * Every file prerendered at build: 0, then all eight quarters of each
+ * Congress, including quarters that have not begun. A new quarter needs no
+ * deploy (the index lists it once it starts, `listedSitemapIds`), and neither
+ * does a new Congress: its files are built on first request once it has bills
+ * (`servedSitemapChunk`).
  */
 export function sitemapIds(congresses: unknown): number[] {
   return [0, ...validCongresses(congresses).flatMap((c) => quarterIds(c))];
@@ -133,9 +134,43 @@ export function billLastModified(bill: {
  * The public address of a sitemap file. At the site root, not under
  * `/sitemap/`: the sitemap protocol scopes a file to the folder it sits in, so
  * `/sitemap/119.xml` may only list `/sitemap/...` pages, and Google applies that
- * rule to any file not submitted by hand. Next.js builds the files at
- * `/sitemap/<id>.xml`; next.config.mjs rewrites this address onto that one.
+ * rule to any file not submitted by hand. The route handler lives at
+ * `/sitemap-files/<id>`; next.config.mjs rewrites this address onto it.
  */
 export function sitemapFileUrl(siteUrl: string, id: number): string {
   return `${siteUrl}/sitemap-${id}.xml`;
+}
+
+/**
+ * The quarter a requested file id names, or null when it is not a file we
+ * serve: not a number, not a quarter (`119`, the retired one-file-per-Congress
+ * address), or a quarter of a Congress we hold no bills for. `congresses` is
+ * `api.bills.getCongressNumbers`, so a new Congress's files exist from the day
+ * its bills do, with no deploy (app/sitemap-files/[id]/route.ts).
+ */
+export function servedSitemapChunk(raw: string, congresses: unknown): SitemapChunk | null {
+  if (!/^[1-9]\d*$/.test(raw)) return null;
+  let chunk: SitemapChunk;
+  try {
+    chunk = sitemapChunk(Number(raw));
+  } catch {
+    return null;
+  }
+  return validCongresses(congresses).includes(chunk.congress) ? chunk : null;
+}
+
+export interface SitemapUrl {
+  loc: string;
+  lastmod?: string;
+}
+
+const XML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' };
+
+/** A sitemaps.org `<urlset>`: one `<url>` per entry, `<lastmod>` only where a real date is known. */
+export function urlsetXml(urls: SitemapUrl[]): string {
+  const esc = (s: string) => s.replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
+  const body = urls
+    .map((u) => `<url>\n<loc>${esc(u.loc)}</loc>\n${u.lastmod ? `<lastmod>${esc(u.lastmod)}</lastmod>\n` : ''}</url>`)
+    .join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}${body ? '\n' : ''}</urlset>\n`;
 }

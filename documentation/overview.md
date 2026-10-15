@@ -114,7 +114,7 @@ app/                       Next.js App Router — 21 page.tsx files
   alerts/unsubscribe/      The page an alert email's unsubscribe link opens (a button, never an action on load)
   api/                     answer/, bill-chat/usage, alerts/unsubscribe, bills/query
   share-image/             Share cards: home/route.tsx (the home page) and [...path]/route.tsx (the hubs)
-  robots.ts sitemap.ts sitemap_index.xml/ llms.txt/ manifest.ts
+  robots.ts sitemap-files/[id]/ sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
   fonts/                   The three faces (index.ts, shared with global-error.tsx); Newsreader re-centred
                            on its capitals (scripts/generate-serif-font.ts), with its OFL licence
@@ -223,7 +223,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
 | `/share-image/home?v=` | GET — the home page's share card. A static segment, so it wins over the hub catch-all beside it |
 | `/share-image/<hub path>?v=` | GET — a status, chamber or topic page's share card, e.g. `/share-image/bills/topic/health` for `/bills/topic/health`. 404 for a path that is not a hub |
-| `/robots.txt`, `/sitemap_index.xml`, `/sitemap-<n>.xml` (also at `/sitemap/<n>.xml`; `<n>` is 0 or Congress × 10 + quarter), `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
+| `/robots.txt`, `/sitemap_index.xml`, `/sitemap-<n>.xml` (`<n>` is 0 or Congress × 10 + quarter), `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
 | `/sw.js`, `/offline.html` | The service worker and the one page it serves (static files) |
 
 **Browsers that cannot reach Convex.** The `/bills` list, its count, the sponsor picker and
@@ -250,17 +250,23 @@ cut for every other caller.
 
 **Sitemaps** are `/sitemap_index.xml` (a route handler) listing `/sitemap-0.xml` (the home
 page, `/bills`, the hubs, `/learn`, `/about`, `/pro`, `/privacy` and `/terms`) plus eight files
-per Congress from `app/sitemap.ts`, one for each quarter of its two years (`/sitemap-1191.xml` is
+per Congress from `app/sitemap-files/[id]/route.ts`, one for each quarter of its two years (`/sitemap-1191.xml` is
 the 119th's first quarter), about 56,000 URLs in all. They were one file per Congress (17,828 to
 19,649 URLs, 1.7 to 1.9 MB) until 15 Oct 2026: Google read the small files within seconds but
 recorded "Sitemap could not be read" for every large one, while its live test and Bing read
 them. A quarter holds at most ~4,300 bills (~430 KB), and its set is an indexed range on
 `introducedDate` (`bills.listForSitemap`), which never changes. Every quarter's file is built,
 including ones not yet begun, and the index lists a quarter once it starts, so a new quarter
-needs no deploy. The old one-per-Congress addresses (`/sitemap-119.xml`) now answer 404. Next.js builds the files at
-`/sitemap/<n>.xml`; the index names them at the site root, `/sitemap-<n>.xml`, which
-`next.config.mjs` rewrites onto the built ones, because the sitemap protocol scopes a file to its
-own folder and `/sitemap/119.xml` sat outside `/bills/`. Each bill's `<lastmod>` is the day of its
+needs no deploy. Neither does a new Congress: the files are a route handler,
+`app/sitemap-files/[id]/route.ts`, not Next's `sitemap.ts` + `generateSitemaps`, which built only
+the ids known at deploy and answered 404 for the rest. Known files are prerendered at build; a
+quarter of a Congress that gains a `congressStats` row later is built on its first request
+(`servedSitemapChunk`). A file requested before its Congress has bills answers 404, and that
+404 is cached like any response, for up to a day, then rebuilt (checked with a 60-second
+revalidate on a local OpenNext preview, 15 Oct 2026). The old one-per-Congress addresses
+(`/sitemap-119.xml`) answer 404. The index names every file at the site root, `/sitemap-<n>.xml`,
+which `next.config.mjs` rewrites onto `/sitemap-files/<n>`, because the sitemap protocol scopes a
+file to its own folder and `/sitemap/119.xml` sat outside `/bills/`. Each bill's `<lastmod>` is the day of its
 latest action (or its introduction), from `billLastModified` in `lib/sitemap-ids.ts`. The index
 entries carry no `<lastmod>`: a file's true date would mean reading every bill to build the
 index. `sitemap-0.xml` carries no dates, and no file carries `changefreq` or `priority`, which Google and

@@ -69,9 +69,10 @@ export const upsertBill = internalMutation({
 
     if (existing) {
       // Skip no-op patches: any real write fires the aggregate triggers
-      // (convex/functions.ts) and restamps `updatedAt`, which is the <lastmod>
-      // the sitemap gives search engines (app/sitemap.ts). The monthly re-pull
-      // resends every bill unchanged, so blind patching announces fake updates.
+      // (convex/functions.ts) and restamps `updatedAt`. That was the sitemap's
+      // <lastmod> until Oct 2026 (it is now the latest action date,
+      // lib/sitemap-ids.ts), and the monthly re-pull resends every bill
+      // unchanged, so blind patching would fire ~18,000 needless writes.
       const changed = (Object.keys(fields) as Array<keyof typeof fields>).some(
         (key) => (existing as Record<string, unknown>)[key] !== fields[key],
       );
