@@ -413,9 +413,19 @@ it("bill titles fit Bing's 65 characters and keep the identifier, status and Con
   assert.match(billSeoTitle(long), /^S\.Res\. 156 — Agreed to by the Senate: A resolution/);
 });
 
+it("a bill name is cut between words, and a 65-character title is never cut again", () => {
+  // H.R. 7128 (119th) came out "TRIA Program Reauthoriza……" with no Congress.
+  const t = billSeoTitle(
+    bareBill({ bill_type: "hr", bill_type_label: "H.R.", bill_number: "7128", progress_stage: 60, title: "TRIA Program Reauthorization Act of 2026" }),
+  );
+  assert.equal(t, "H.R. 7128 — Passed one chamber: TRIA Program… (119th)");
+  assert.deepEqual(pageTitle("x".repeat(SEO_TITLE_MAX)), { absolute: "x".repeat(SEO_TITLE_MAX) });
+  assert.deepEqual(pageTitle("Health Bills in Congress"), { absolute: "Health Bills in Congress" });
+});
+
 it("pageTitle keeps the site-name suffix only when it fits", () => {
   assert.equal(pageTitle("About"), "About");
-  const long = "Civil Rights and Liberties, Minority Issues Bills in Congress";
+  const long = "Civil Rights and Liberties, Minority Issues: a much longer title";
   assert.deepEqual(pageTitle(long), { absolute: long });
   const huge = pageTitle("x ".repeat(60).trim());
   assert.ok(typeof huge === "object" && huge.absolute.length <= SEO_TITLE_MAX);
@@ -429,7 +439,12 @@ it("bill descriptions are never shorter than DESCRIPTION_MIN", () => {
     latest_summary: "",
   });
   const withSummary = bareBill({ latest_summary: "<p>Short summary.</p>" });
-  for (const bill of [short, withSummary, bareBill()]) {
+  // H.R. 2497 (119th): 116 characters, too long for either full sentence.
+  const nearly = bareBill({
+    title: "Abortion Care Awareness Act of 2025",
+    latest_summary: "<p>This bill requires the Department of Health and Human Services to carry out a campaign.</p>",
+  });
+  for (const bill of [short, withSummary, nearly, bareBill()]) {
     const d = billSeoDescription(bill);
     assert.ok(d.length >= DESCRIPTION_MIN && d.length <= 160, `${d.length} chars: ${d}`);
   }

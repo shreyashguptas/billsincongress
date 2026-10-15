@@ -229,8 +229,11 @@ const TITLE_SUFFIX = ` · ${SITE_NAME}`;
  * searcher matched; the suffix is the first thing to go.
  */
 export function pageTitle(title: string): string | { absolute: string } {
-  if (title.length + TITLE_SUFFIX.length <= SEO_TITLE_MAX) return title;
-  return { absolute: truncateAtWord(title, SEO_TITLE_MAX - 1) };
+  // A title that already names the site ("Health Bills in Congress") would
+  // read "… Bills in Congress · Bills in Congress" with the suffix.
+  const named = title.includes(SITE_NAME);
+  if (!named && title.length + TITLE_SUFFIX.length <= SEO_TITLE_MAX) return title;
+  return { absolute: title.length <= SEO_TITLE_MAX ? title : truncateAtWord(title, SEO_TITLE_MAX - 1) };
 }
 
 /**
@@ -243,10 +246,21 @@ export function billSeoTitle(bill: Bill): string {
   const head = `${billIdentifier(bill)} — ${billStatusPhrase(bill)}`;
   const tail = ` (${congressOrdinal(bill.congress)})`;
   const room = SEO_TITLE_MAX - head.length - tail.length - ': '.length;
-  // Too little room for a name that says anything: an eight-letter stub of
-  // "Securing…" helps nobody, and the description carries the name in full.
-  const name = room >= 12 ? truncateAtWord(bill.title?.trim() ?? '', room - 1) : '';
+  const name = fitName(bill.title?.trim() ?? '', room);
   return name ? `${head}: ${name}${tail}` : `${head}${tail}`;
+}
+
+/**
+ * As much of a bill's name as fits in `room` characters, cut between words
+ * ("TRIA Program…", never "TRIA Program Reauthoriza…"), or '' when too little
+ * of it would fit to say anything.
+ */
+function fitName(name: string, room: number): string {
+  if (name.length <= room) return name;
+  const cut = name.slice(0, room - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  const words = (lastSpace > 0 ? cut.slice(0, lastSpace) : '').replace(/[\s,;:—–-]+$/, '');
+  return words.length >= 10 ? `${words}…` : '';
 }
 
 const DESCRIPTION_LIMIT = 158;
@@ -284,8 +298,10 @@ export const DESCRIPTION_MIN = 120;
 function atLeastDescription(text: string, bill: Bill): string {
   if (text.length >= DESCRIPTION_MIN) return text;
   const additions = [
-    ` Introduced in the ${chamberName(bill)} in the ${congressOrdinal(bill.congress)} Congress.`,
+    ` Part of the ${congressOrdinal(bill.congress)} Congress.`,
     ' Follow its status, sponsors, actions and full text.',
+    ' From Congress.gov, updated daily.',
+    ' Updated daily.',
   ];
   let out = text;
   for (const add of additions) {

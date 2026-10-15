@@ -191,12 +191,18 @@ function topicDescription(policyArea: string): string {
   return short.length + tail.length <= 160 ? short + tail : short;
 }
 
+/** "Health Bills in Congress — Status and Progress", shortened where a long area name needs it. */
+function topicTitle(policyArea: string): string {
+  const full = `${policyArea} Bills in Congress — Status and Progress`;
+  return full.length <= 65 ? full : `${policyArea} Bills in Congress`;
+}
+
 function topicHub(policyArea: string): HubDefinition {
   return {
     kind: 'topic',
     path: `/bills/topic/${topicSlug(policyArea)}`,
     heading: `${policyArea} bills`,
-    metaTitle: `${policyArea} Bills in Congress`,
+    metaTitle: topicTitle(policyArea),
     metaDescription: topicDescription(policyArea),
     explainer: `Every bill whose primary policy area is ${policyArea}. The Congressional Research Service assigns each bill exactly one policy area out of ${POLICY_AREAS.length}, chosen to reflect what the bill is mainly about — so a bill appears here rather than under a second, related heading.`,
     filter: { policyArea },
