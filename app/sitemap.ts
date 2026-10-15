@@ -3,12 +3,12 @@ import { api } from '@/convex/_generated/api';
 import { ALL_HUBS } from '@/lib/hubs';
 import { SITE_URL } from '@/lib/seo';
 import { getConvexHttpClient } from '@/lib/convex-client';
-import { billLastModified, sitemapIds } from '@/lib/sitemap-ids';
+import { billLastModified, sitemapChunk, sitemapIds } from '@/lib/sitemap-ids';
 
-// Sitemap id 0 = static pages; ids 117/118/119/… = one sitemap per congress
-// (each well under the 50k-URL spec limit). Built at /sitemap/<id>.xml, served
-// to crawlers at /sitemap-<id>.xml (lib/sitemap-ids.ts, sitemapFileUrl) and
-// listed by the /sitemap_index.xml route handler. Regenerated at most daily
+// Sitemap id 0 = static pages; ids 1191…1198 = the 119th Congress's eight
+// quarters, and so on (lib/sitemap-ids.ts says why quarters). Built at
+// /sitemap/<id>.xml, served to crawlers at /sitemap-<id>.xml (sitemapFileUrl)
+// and listed by the /sitemap_index.xml route handler. Regenerated at most daily
 // via ISR (OpenNext KV incremental cache) — only crawlers fetch these.
 export const revalidate = 86400;
 
@@ -75,16 +75,26 @@ export default async function sitemap(props: {
   const client = getConvexHttpClient();
   if (!client) throw new Error(`sitemap ${id}: NEXT_PUBLIC_CONVEX_URL is not set`);
 
+  // Only the ids generateSitemaps returns are built; any other, including the
+  // one-file-per-Congress addresses (/sitemap-119.xml) that Google could not
+  // read, answers 404.
+  const chunk = sitemapChunk(id);
+  const range = {
+    congress: chunk.congress,
+    introducedFrom: chunk.introducedFrom,
+    introducedBefore: chunk.introducedBefore,
+  };
+
   const entries: MetadataRoute.Sitemap = [];
   let cursor: string | null = null;
-  // ~17-20k bills per congress at 2,500 per query ≈ 7-8 Convex calls.
+  // At most ~4,300 bills a quarter at 2,500 per query: one or two Convex calls.
   for (;;) {
     const result: {
       page: Array<{ billId: string; latestActionDate: string | null; introducedDate: string }>;
       isDone: boolean;
       continueCursor: string;
     } = await client.query(api.bills.listForSitemap, {
-      congress: id,
+      ...range,
       paginationOpts: { cursor, numItems: SITEMAP_PAGE_SIZE },
     });
     for (const bill of result.page) {
@@ -96,7 +106,8 @@ export default async function sitemap(props: {
     if (result.isDone) break;
     cursor = result.continueCursor;
   }
-  // A Congress is only listed once it has a congressStats row, so it has bills.
-  if (entries.length === 0) throw new Error(`sitemap ${id}: no bills returned`);
+  // A quarter with no bills yet is a true answer, not a failed one: a file is
+  // built for every quarter of a Congress before it begins, and the index only
+  // lists one once it has. A failed read throws above instead.
   return entries;
 }

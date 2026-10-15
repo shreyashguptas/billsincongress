@@ -1353,21 +1353,35 @@ export const getCongressNumbers = query({
 });
 
 /**
- * Cursor-paginated feed of every bill in a congress, for sitemap generation.
- * Returns only the id and the dates (~17-20k bills per congress, so the sitemap
- * route loops pages of 2,500 to stay well under per-query read limits). The
- * general `list` query is unusable here — it caps offset at 500 by design.
+ * Cursor-paginated feed of the bills in one sitemap file: one Congress, and
+ * optionally the bills introduced in [introducedFrom, introducedBefore), the
+ * quarter that file covers (lib/sitemap-ids.ts). Returns only the id and the
+ * dates; the sitemap route loops pages of 2,500 to stay well under per-query
+ * read limits. The general `list` query is unusable here — it caps offset at
+ * 500 by design.
  */
 export const listForSitemap = query({
   args: {
     congress: v.number(),
+    introducedFrom: v.optional(v.string()),
+    introducedBefore: v.optional(v.union(v.string(), v.null())),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const result = await ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .paginate(args.paginationOpts);
+    const { introducedFrom, introducedBefore } = args;
+    const result =
+      introducedFrom === undefined
+        ? await ctx.db
+            .query("bills")
+            .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+            .paginate(args.paginationOpts)
+        : await ctx.db
+            .query("bills")
+            .withIndex("by_congress_and_introduced", (q) => {
+              const from = q.eq("congress", args.congress).gte("introducedDate", introducedFrom);
+              return introducedBefore ? from.lt("introducedDate", introducedBefore) : from;
+            })
+            .paginate(args.paginationOpts);
     return {
       page: result.page.map((b) => ({
         billId: b.billId,
@@ -1378,31 +1392,6 @@ export const listForSitemap = query({
       isDone: result.isDone,
       continueCursor: result.continueCursor,
     };
-  },
-});
-
-/**
- * The newest latest-action date in each Congress: the `<lastmod>` of that
- * Congress's sitemap file in the sitemap index. One indexed row per Congress.
- * Null when no bill in it carries a date (an index entry then has no lastmod,
- * which is honest; a made-up one is not).
- */
-export const sitemapLastModified = query({
-  args: {},
-  handler: async (ctx) => {
-    const stats = await ctx.db.query("congressStats").take(100);
-    return await Promise.all(
-      stats.map(async ({ congress }) => {
-        const newest = await ctx.db
-          .query("bills")
-          .withIndex("by_congress_and_latest_action", (q) =>
-            q.eq("congress", congress).gt("latestActionDate", ""),
-          )
-          .order("desc")
-          .first();
-        return { congress, lastModified: newest?.latestActionDate ?? null };
-      }),
-    );
   },
 });
 

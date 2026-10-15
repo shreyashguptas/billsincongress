@@ -262,7 +262,7 @@ An account is free and gets you three things: bookmarking bills, saved conversat
 
 - **The code** is all here, MIT licensed. Every data transformation, every prompt, every guardrail.
 - **The data** is public domain, published by the U.S. government. If you want it in bulk, take it from [Congress.gov](https://api.congress.gov/) directly rather than scraping this site.
-- **The sitemap** lists every bill page — 56,000-plus URLs, split one file per Congress, each dated by the bill's latest action — so search engines can reach every bill rather than the handful a crawler could find by clicking. Each bill page also links to five more bills on its topic and to its topic, stage and chamber lists, so bills are reachable by following links too.
+- **The sitemap** lists every bill page — 56,000-plus URLs, split into one file per quarter of each Congress, each bill dated by the bill's latest action — so search engines can reach every bill rather than the handful a crawler could find by clicking. Each bill page also links to five more bills on its topic and to its topic, stage and chamber lists, so bills are reachable by following links too.
 - **[`/llms.txt`](https://billsincongress.com/llms.txt)** tells AI systems what this site is, how its URLs are built, and asks them to cite it with a link.
 - **Crawler policy:** bots that answer someone's question and link back — ChatGPT search, Perplexity, Google, Bing, Apple — are welcome. Eighteen named crawlers that harvest content to train models are blocked in `robots.txt`. That is a request, not enforcement; it depends on the crawler honouring it.
 

@@ -223,7 +223,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
 | `/share-image/home?v=` | GET — the home page's share card. A static segment, so it wins over the hub catch-all beside it |
 | `/share-image/<hub path>?v=` | GET — a status, chamber or topic page's share card, e.g. `/share-image/bills/topic/health` for `/bills/topic/health`. 404 for a path that is not a hub |
-| `/robots.txt`, `/sitemap_index.xml`, `/sitemap-<n>.xml` (also at `/sitemap/<n>.xml`), `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
+| `/robots.txt`, `/sitemap_index.xml`, `/sitemap-<n>.xml` (also at `/sitemap/<n>.xml`; `<n>` is 0 or Congress × 10 + quarter), `/llms.txt`, `/manifest.webmanifest` | Machine-readable |
 | `/sw.js`, `/offline.html` | The service worker and the one page it serves (static files) |
 
 **Browsers that cannot reach Convex.** The `/bills` list, its count, the sponsor picker and
@@ -249,14 +249,21 @@ hand-edited URL can no longer make the page show "Server Error". `billsService` 
 cut for every other caller.
 
 **Sitemaps** are `/sitemap_index.xml` (a route handler) listing `/sitemap-0.xml` (the home
-page, `/bills`, the hubs, `/learn`, `/about`, `/pro`, `/privacy` and `/terms`) plus one file per
-Congress from `app/sitemap.ts`, about 56,000 URLs. Next.js builds the files at
+page, `/bills`, the hubs, `/learn`, `/about`, `/pro`, `/privacy` and `/terms`) plus eight files
+per Congress from `app/sitemap.ts`, one for each quarter of its two years (`/sitemap-1191.xml` is
+the 119th's first quarter), about 56,000 URLs in all. They were one file per Congress (17,828 to
+19,649 URLs, 1.7 to 1.9 MB) until 15 Oct 2026: Google read the small files within seconds but
+recorded "Sitemap could not be read" for every large one, while its live test and Bing read
+them. A quarter holds at most ~4,300 bills (~430 KB), and its set is an indexed range on
+`introducedDate` (`bills.listForSitemap`), which never changes. Every quarter's file is built,
+including ones not yet begun, and the index lists a quarter once it starts, so a new quarter
+needs no deploy. The old one-per-Congress addresses (`/sitemap-119.xml`) now answer 404. Next.js builds the files at
 `/sitemap/<n>.xml`; the index names them at the site root, `/sitemap-<n>.xml`, which
 `next.config.mjs` rewrites onto the built ones, because the sitemap protocol scopes a file to its
 own folder and `/sitemap/119.xml` sat outside `/bills/`. Each bill's `<lastmod>` is the day of its
-latest action (or its introduction), from `billLastModified` in `lib/sitemap-ids.ts`; each
-Congress file's `<lastmod>` in the index is the newest of those (`bills.sitemapLastModified`).
-`sitemap-0.xml` carries no dates, and no file carries `changefreq` or `priority`, which Google and
+latest action (or its introduction), from `billLastModified` in `lib/sitemap-ids.ts`. The index
+entries carry no `<lastmod>`: a file's true date would mean reading every bill to build the
+index. `sitemap-0.xml` carries no dates, and no file carries `changefreq` or `priority`, which Google and
 Bing both ignore. Both take their
 list from `lib/sitemap-ids.ts`, and both are prerendered at build and revalidated daily. **A
 sitemap never answers OK with less than the whole site.** A failed or empty Congress lookup
