@@ -3,11 +3,9 @@ import { SITE_URL } from '@/lib/seo';
 import { getConvexHttpClient } from '@/lib/convex-client';
 import { listedSitemapIds, sitemapFileUrl } from '@/lib/sitemap-ids';
 
-// Next's generateSitemaps emits /sitemap/<id>.xml chunks but no index file,
-// so this route hand-rolls the <sitemapindex> that robots.txt and Search
-// Console point at. It lists each file at its root address, /sitemap-<id>.xml
+// The <sitemapindex> that robots.txt and Search Console point at. It lists each file at its root address, /sitemap-<id>.xml
 // (see sitemapFileUrl for why). Ids come from lib/sitemap-ids.ts, as in
-// app/sitemap.ts: 0 = static pages, then Congress × 10 + quarter (1191 is the
+// app/sitemap-files/[id]/route.ts: 0 = static pages, then Congress × 10 + quarter (1191 is the
 // 119th's first quarter). This index lists only quarters that have begun.
 export const revalidate = 86400;
 
@@ -20,7 +18,7 @@ export async function GET(): Promise<Response> {
   const client = getConvexHttpClient();
   // No deployment URL at all is a build without secrets (a fork's pull request,
   // a fresh clone), not an outage — this route is prerendered at build, so a
-  // throw here would fail that build. Mirror generateSitemaps and list the
+  // throw here would fail that build. Mirror generateStaticParams and list the
   // static file only. A lookup that fails or returns nothing still throws.
   let ids: number[];
   if (!client) {

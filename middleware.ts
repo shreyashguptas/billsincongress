@@ -44,6 +44,14 @@ export default convexAuthNextjsMiddleware(
       return NextResponse.redirect(url, 301);
     }
 
+    // The sitemap route handler's internal path. Crawlers reach it only
+    // through the /sitemap-<id>.xml rewrite in next.config.mjs, which this
+    // middleware never sees (its matcher skips paths with a dot). Asked for
+    // directly, any id would reach the handler and leave a cached 404 behind.
+    if (pathname === "/sitemap-files" || pathname.startsWith("/sitemap-files/")) {
+      return new NextResponse("Not found", { status: 404 });
+    }
+
     if (isAuthPage(request) && (await convexAuth.isAuthenticated())) {
       return nextjsMiddlewareRedirect(request, "/account");
     }
