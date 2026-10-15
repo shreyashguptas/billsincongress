@@ -304,6 +304,15 @@ Patterns that appear on more than one page:
   share, count); hovering or focusing a row drops every other stage's dots to
   35%. The ring is drawn only when the bill has not changed since the count.
 
+- **Related bills** ("Keep reading", bill page, `components/bills/bill-related.tsx`): under
+  the peer dots, a hairline-ruled list of up to five bills on the same topic in the same
+  Congress, most recently acted on. Each row: the number in `ink-2` mono, the title in `ink`
+  (underlined on hover), and under it the stage named the reader's way beside an 8px dot in its
+  stage colour. Then a row of underlined text links, never buttons, to the bill's topic, stage
+  and chamber pages ("All Health bills →", "Bills in committee →", "All House bills →"). The
+  heading is "More <topic> bills"; a bill with no topic yet shows only the links, under "Where
+  this bill sits".
+
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the

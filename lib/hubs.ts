@@ -104,7 +104,7 @@ const STATUS_HUBS: HubDefinition[] = [
     heading: 'Bills that became law',
     metaTitle: 'Bills That Became Law — Enacted Legislation in Congress',
     metaDescription:
-      'Every bill that completed the legislative process and became law, with the date it was enacted and who sponsored it.',
+      'Every bill that completed the legislative process and became law, with the date it was enacted, who sponsored it, and the road it took.',
     explainer:
       'These bills finished the whole journey: passed the House, passed the Senate in identical form, and were signed by the President — or became law without a signature, or over a veto. This is the small minority: only a small share of what is introduced ever reaches this point.',
     filter: { progressStage: '100' },
@@ -115,7 +115,7 @@ const STATUS_HUBS: HubDefinition[] = [
     heading: "Bills on the President's desk",
     metaTitle: "Bills on the President's Desk — Awaiting Signature or Veto",
     metaDescription:
-      'Bills passed by both chambers and presented to the President, who has not yet signed or vetoed them.',
+      'Bills passed by both chambers of Congress and presented to the President, who has not yet signed or vetoed them. Updated daily.',
     explainer:
       "Both chambers passed these bills in identical form, and they have been presented to the President. The President has ten days, Sundays excepted, to sign or veto. A bill left unsigned becomes law after that time if Congress is in session, and dies in a pocket veto if Congress has adjourned. The list is short by nature: most bills spend only days here.",
     filter: { progressStage: '90' },
@@ -137,7 +137,7 @@ const STATUS_HUBS: HubDefinition[] = [
     heading: 'Bills in committee',
     metaTitle: 'Bills in Committee — Legislation Awaiting Action',
     metaDescription:
-      'Bills currently referred to a congressional committee, the stage where the large majority of legislation stops.',
+      'Bills currently referred to a congressional committee, the stage where the large majority of legislation stops. Updated daily.',
     explainer:
       'After introduction a bill is referred to the committee with jurisdiction over its subject. The committee may hold hearings, amend it, vote it forward — or, far more often, never take it up at all. A bill that is never scheduled simply dies when the Congress ends. This is where most legislation is at any given moment, and where most of it stays.',
     filter: { progressStage: '40' },
@@ -159,7 +159,7 @@ const STATUS_HUBS: HubDefinition[] = [
     heading: 'Newly introduced bills',
     metaTitle: 'Newly Introduced Bills in Congress',
     metaDescription:
-      'Bills formally introduced in Congress and not yet referred onward or acted upon.',
+      'Bills formally introduced in Congress and not yet referred to a committee or acted upon, with sponsor and date. Updated daily.',
     explainer:
       'A bill enters the record when a member formally introduces it. At this point it has a number and a sponsor but no committee action behind it yet. Introduction is a low bar — any member may introduce any bill — so this stage says what someone proposed, not what Congress is likely to do.',
     filter: { progressStage: '20' },
@@ -170,20 +170,34 @@ const STATUS_HUBS: HubDefinition[] = [
     heading: 'Vetoed bills',
     metaTitle: 'Vetoed Bills — Legislation Rejected by the President',
     metaDescription:
-      'Bills passed by both chambers of Congress and rejected by the President.',
+      'Bills passed by both chambers of Congress and rejected by the President, with each bill\'s sponsor, latest action and full record. Updated daily.',
     explainer:
       'These bills passed both the House and the Senate and were then rejected by the President. A veto is not necessarily the end: Congress can override one with a two-thirds vote in both chambers, though that threshold is high enough that overrides are rare. Vetoes are uncommon, so this is a short list by nature — and a complete one.',
     filter: { progressStage: '85' },
   },
 ];
 
+/**
+ * 120–160 characters for every one of the 33 areas, from "Law" to "Civil
+ * Rights and Liberties, Minority Issues": the wording narrows only as far as a long
+ * name needs, so the short names stay above the floor.
+ */
+function topicDescription(policyArea: string): string {
+  const area = policyArea.toLowerCase();
+  const long = `Every bill and resolution before the U.S. Congress on ${area}, with its current status, sponsor and progress.`;
+  const tail = ' Updated daily from Congress.gov.';
+  if (long.length + tail.length <= 160) return long + tail;
+  const short = `Every bill before Congress on ${area}, with its current status, sponsor and progress.`;
+  return short.length + tail.length <= 160 ? short + tail : short;
+}
+
 function topicHub(policyArea: string): HubDefinition {
   return {
     kind: 'topic',
     path: `/bills/topic/${topicSlug(policyArea)}`,
     heading: `${policyArea} bills`,
-    metaTitle: `${policyArea} Bills in Congress — Status and Progress`,
-    metaDescription: `Every bill before Congress on ${policyArea.toLowerCase()}, with current status, sponsor and progress. Updated daily from Congress.gov.`,
+    metaTitle: `${policyArea} Bills in Congress`,
+    metaDescription: topicDescription(policyArea),
     explainer: `Every bill whose primary policy area is ${policyArea}. The Congressional Research Service assigns each bill exactly one policy area out of ${POLICY_AREAS.length}, chosen to reflect what the bill is mainly about — so a bill appears here rather than under a second, related heading.`,
     filter: { policyArea },
   };

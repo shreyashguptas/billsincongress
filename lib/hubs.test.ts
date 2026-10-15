@@ -24,6 +24,7 @@ import {
   topicSlug,
 } from "./hubs";
 import { POLICY_AREAS } from "./constants/filters";
+import { DESCRIPTION_MIN, SEO_TITLE_MAX } from "./seo";
 
 let passed = 0;
 const failures: string[] = [];
@@ -144,9 +145,15 @@ it("gives every hub a heading, both meta fields and a real explainer", () => {
   for (const hub of ALL_HUBS) {
     assert.ok(hub.heading.length > 0, `${hub.path} has no heading`);
     assert.ok(hub.metaTitle.length > 0, `${hub.path} has no metaTitle`);
+    // Bing Webmaster Tools flagged hub titles up to 106 characters "Title too
+    // long" and short descriptions "too short" (Oct 2026).
     assert.ok(
-      hub.metaDescription.length >= 50,
-      `${hub.path} description too short to be useful`,
+      hub.metaTitle.length <= SEO_TITLE_MAX,
+      `${hub.path} title is ${hub.metaTitle.length} chars, over ${SEO_TITLE_MAX}`,
+    );
+    assert.ok(
+      hub.metaDescription.length >= DESCRIPTION_MIN && hub.metaDescription.length <= 160,
+      `${hub.path} description is ${hub.metaDescription.length} chars, outside ${DESCRIPTION_MIN}–160`,
     );
     // The explainer is what stops a hub being a doorway page. A stub would
     // defeat the entire point, so require real prose.

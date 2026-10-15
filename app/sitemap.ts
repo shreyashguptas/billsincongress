@@ -3,10 +3,11 @@ import { api } from '@/convex/_generated/api';
 import { ALL_HUBS } from '@/lib/hubs';
 import { SITE_URL } from '@/lib/seo';
 import { getConvexHttpClient } from '@/lib/convex-client';
-import { sitemapIds } from '@/lib/sitemap-ids';
+import { billLastModified, sitemapIds } from '@/lib/sitemap-ids';
 
 // Sitemap id 0 = static pages; ids 117/118/119/… = one sitemap per congress
-// (each well under the 50k-URL spec limit). Served at /sitemap/<id>.xml and
+// (each well under the 50k-URL spec limit). Built at /sitemap/<id>.xml, served
+// to crawlers at /sitemap-<id>.xml (lib/sitemap-ids.ts, sitemapFileUrl) and
 // listed by the /sitemap_index.xml route handler. Regenerated at most daily
 // via ISR (OpenNext KV incremental cache) — only crawlers fetch these.
 export const revalidate = 86400;
@@ -36,10 +37,15 @@ export default async function sitemap(props: {
   id: Promise<string>;
 }): Promise<MetadataRoute.Sitemap> {
   const id = Number(await props.id);
+  // No changefreq or priority anywhere: Google and Bing both ignore them
+  // (Google, "Build and submit a sitemap"; Bing Webmaster blog, July 2025), and
+  // they were ~40% of each file's bytes. These pages carry no <lastmod> either:
+  // we hold no date they changed, and a made-up one teaches a crawler to
+  // distrust the real ones in the bill files.
   if (id === 0) {
     return [
-      { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1 },
-      { url: `${SITE_URL}/bills`, changeFrequency: 'daily', priority: 0.9 },
+      { url: `${SITE_URL}/` },
+      { url: `${SITE_URL}/bills` },
       // Hub pages sit above individual bills in the hierarchy, so they rank
       // between /bills and a bill page. A sitemap entry declares them, links
       // make them discoverable, and the indexing problem needs both.
@@ -54,18 +60,12 @@ export default async function sitemap(props: {
       // other stage hubs; it has no topics. A filter picker also links the
       // hub for the value it is set to, but that picker renders nothing until
       // someone opens it, so the anchor is not in the document a crawler gets.
-      ...ALL_HUBS.map((hub) => ({
-        url: `${SITE_URL}${hub.path}`,
-        changeFrequency: 'daily' as const,
-        priority: 0.8,
-      })),
-      { url: `${SITE_URL}/learn`, changeFrequency: 'monthly', priority: 0.6 },
-      { url: `${SITE_URL}/about`, changeFrequency: 'monthly', priority: 0.5 },
-      { url: `${SITE_URL}/pro`, changeFrequency: 'monthly', priority: 0.5 },
-      // Indexable and linked from every footer, so listed — but last, and
-      // rarely re-crawled: nobody arrives from search looking for them.
-      { url: `${SITE_URL}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
-      { url: `${SITE_URL}/terms`, changeFrequency: 'yearly', priority: 0.2 },
+      ...ALL_HUBS.map((hub) => ({ url: `${SITE_URL}${hub.path}` })),
+      { url: `${SITE_URL}/learn` },
+      { url: `${SITE_URL}/about` },
+      { url: `${SITE_URL}/pro` },
+      { url: `${SITE_URL}/privacy` },
+      { url: `${SITE_URL}/terms` },
     ];
   }
 
@@ -80,7 +80,7 @@ export default async function sitemap(props: {
   // ~17-20k bills per congress at 2,500 per query ≈ 7-8 Convex calls.
   for (;;) {
     const result: {
-      page: Array<{ billId: string; updatedAt: string }>;
+      page: Array<{ billId: string; latestActionDate: string | null; introducedDate: string }>;
       isDone: boolean;
       continueCursor: string;
     } = await client.query(api.bills.listForSitemap, {
@@ -88,14 +88,9 @@ export default async function sitemap(props: {
       paginationOpts: { cursor, numItems: SITEMAP_PAGE_SIZE },
     });
     for (const bill of result.page) {
-      const lastModified = new Date(bill.updatedAt);
       entries.push({
         url: `${SITE_URL}/bills/${bill.billId}`,
-        lastModified: Number.isNaN(lastModified.getTime())
-          ? undefined
-          : lastModified,
-        changeFrequency: 'weekly',
-        priority: 0.7,
+        lastModified: billLastModified(bill),
       });
     }
     if (result.isDone) break;
