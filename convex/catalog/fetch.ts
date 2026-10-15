@@ -469,6 +469,35 @@ function withCongressOver(result: FetchResult, f: Row, today: string | undefined
   return { ...result, report: { ...result.report, congressOver } };
 }
 
+/**
+ * Where an exact per-group count lives when a grouped `bills` read was too big
+ * to finish. The precomputed tables hold whole-Congress splits, so they answer
+ * only a whole-Congress question: with any other filter the split they hold is
+ * of a different set, and the model is told to narrow instead.
+ */
+function exactGroupSource(f: Row, groupBy: string): string {
+  const narrow =
+    "No count per group is given, because these groups came from a partial read. Narrow the " +
+    "filters (a stage, a state, a party, a date) until the grouped result comes back complete.";
+  const wholeCongress = Object.entries(f).every(
+    ([key, value]) => value === undefined || key === "congress" || key === "groupBy",
+  );
+  if (!wholeCongress) return narrow;
+  const source: Record<string, string> = {
+    chamber:
+      "For the exact House and Senate split, fetch `stats` with only the congress and read " +
+      "houseMeasures and senateMeasures (measures, resolutions included), or fetch `stats` with " +
+      "that congress and each chamber for the chamber's own figures.",
+    policyArea: "For exact counts per policy area, fetch `topics` with only the congress.",
+    progressStage: "For exact counts per stage, fetch `stats` with only the congress and read stageCounts.",
+    sponsorParty: "For exact counts per sponsor party, fetch `stats` with only the congress and read partyCounts.",
+    billType: "For exact counts per measure type, fetch `stats` with only the congress and read measuresByType.",
+  };
+  return source[groupBy]
+    ? `No count per group is given, because these groups came from a partial read. ${source[groupBy]}`
+    : narrow;
+}
+
 async function fetchBills(
   ctx: QueryCtx,
   f: Row,
@@ -875,16 +904,22 @@ async function fetchBills(
     for (const b of matched) {
       buckets.set(groupValue(b, groupBy), (buckets.get(groupValue(b, groupBy)) ?? 0) + 1);
     }
-    const groupRows = [...buckets.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([group, count]) => ({
-        // A policy-area group IS a topic, and `topics:<congress>:<name>` already
-        // renders as a link to that topic. The other group fields have no page to
-        // point at, so they carry no handle rather than a broken one.
-        ...(groupBy === "policyArea" ? { _cite: mintHandle("topics", `${congress}:${group}`) } : {}),
-        group,
-        count,
-      }));
+    // A policy-area group IS a topic, and `topics:<congress>:<name>` already
+    // renders as a link to that topic. The other group fields have no page to
+    // point at, so they carry no handle rather than a broken one.
+    const cite = (group: string) =>
+      groupBy === "policyArea" ? { _cite: mintHandle("topics", `${congress}:${group}`) } : {};
+    // A count per group is a number derived from the window, so it exists ONLY
+    // when the window held the whole set. Asked whether the House or the Senate
+    // introduced more bills, the model was handed "house 3,348, senate 1,652",
+    // which is just the shape of the first 5,000 rows, labelled largest first; it
+    // repeated those numbers to a reader who rated the answer wrong (2026-10-13).
+    // A partial read names the groups it saw, in no order, and no counts.
+    const groupRows = windowFilled
+      ? [...buckets.keys()].sort().map((group) => ({ ...cite(group), group }))
+      : [...buckets.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([group, count]) => ({ ...cite(group), group, count }));
     return {
       ok: true,
       rows: groupRows,
@@ -894,11 +929,12 @@ async function fetchBills(
         filteredInMemory: countInMemoryFilters(f, plan) > 0,
         matchedCount: matched.length,
         shown: groupRows.length,
-        order: "largest_first",
+        order: windowFilled ? "arbitrary" : "largest_first",
         // `total` counts MEASURES and `shown` counts GROUPS — different units.
         // Saying so is what stops the generic sample warning from firing and
         // telling the model its complete breakdown is a page of itself.
         rowsAreGroups: true,
+        incompleteHint: windowFilled ? exactGroupSource(f, groupBy) : undefined,
       }),
     };
   }

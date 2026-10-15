@@ -1239,7 +1239,12 @@ read; over an incomplete set the sort is refused and the order stays `arbitrary`
 its own count — `{congress, progressStage: 100, groupBy: "policyArea"}` answers "how many of the
 laws passed were in each category" in a single call. Before it existed that question needed one
 fetch per policy area, ran out of tool rounds, and shipped the model's own working-out to the
-reader as the answer.
+reader as the answer. The counts exist only when the read was complete: a grouped read that
+fills the 5,000-row window returns the groups it saw with **no counts**, in `arbitrary` order,
+and its note says where the exact split lives (`exactGroupSource` in `convex/catalog/fetch.ts`:
+`stats` or `topics` for a whole Congress, otherwise "narrow the filters"). On 2026-10-13 a
+partial `{congress: 119, groupBy: "chamber"}` handed the model House 3,348 and Senate 1,652,
+which add up to exactly 5,000, labelled largest first, and the reader was given those numbers.
 
 **Terminal stage vs milestone.** `progressStage` is where a measure STOPPED — the buckets are
 mutually exclusive, so the "passed one chamber" bucket excludes everything that later became law.

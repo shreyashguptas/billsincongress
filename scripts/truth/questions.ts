@@ -307,6 +307,28 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
   {
+    id: "senate-measures-introduced",
+    question:
+      `The House or the Senate: how many measures has the Senate introduced in the ` +
+      `${CURRENT_CONGRESS}th Congress?` + ONE_NUMBER,
+    defect:
+      "Asked whether the House or the Senate introduced more, the assistant was handed a " +
+      "grouped read that stopped at 5,000 rows and told the reader House 3,348 and Senate " +
+      "1,652, which is only the shape of the first 5,000 rows (2026-10-13, rated wrong).",
+    expect: (db) => {
+      const measures = billsIn(db, CURRENT_CONGRESS);
+      const senate = count(measures, isSenateMeasure);
+      return {
+        kind: "number",
+        value: senate,
+        note:
+          `s + sjres + sconres + sres, out of ${measures.length} measures. Must reject 1652 ` +
+          `(the Senate's share of a 5,000-row partial read).`,
+      };
+    },
+  },
+
+  {
     id: "bills-introduced",
     question:
       `How many bills — not resolutions — have been introduced in the ` +
