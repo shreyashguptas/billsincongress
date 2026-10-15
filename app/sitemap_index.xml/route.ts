@@ -6,8 +6,9 @@ import { listedSitemapIds, sitemapFileUrl } from '@/lib/sitemap-ids';
 // Next's generateSitemaps emits /sitemap/<id>.xml chunks but no index file,
 // so this route hand-rolls the <sitemapindex> that robots.txt and Search
 // Console point at. It lists each file at its root address, /sitemap-<id>.xml
-// (see sitemapFileUrl for why). Chunk ids come from lib/sitemap-ids.ts, the same list
-// app/sitemap.ts builds from: 0 = static pages, then one per congress.
+// (see sitemapFileUrl for why). Ids come from lib/sitemap-ids.ts, as in
+// app/sitemap.ts: 0 = static pages, then Congress × 10 + quarter (1191 is the
+// 119th's first quarter). This index lists only quarters that have begun.
 export const revalidate = 86400;
 
 // A failed lookup throws. It used to be caught and answered with an index
