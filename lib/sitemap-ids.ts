@@ -142,13 +142,13 @@ export function sitemapFileUrl(siteUrl: string, id: number): string {
 }
 
 /**
- * The quarter a requested file id names, or null when it is not a file we
- * serve: not a number, not a quarter (`119`, the retired one-file-per-Congress
- * address), or a quarter of a Congress we hold no bills for. `congresses` is
- * `api.bills.getCongressNumbers`, so a new Congress's files exist from the day
- * its bills do, with no deploy (app/sitemap-files/[id]/route.ts).
+ * The quarter a requested file id could name, judged from the id and today's
+ * date alone: digits only, a quarter 1–8, and a Congress that has begun by
+ * `today` (YYYY-MM-DD). Anything else is refused before any database call, so
+ * a script cycling through made-up ids costs nothing; the ids that pass are a
+ * fixed, small set (eight per Congress up to the current one).
  */
-export function servedSitemapChunk(raw: string, congresses: unknown): SitemapChunk | null {
+export function plausibleSitemapChunk(raw: string, today: string): SitemapChunk | null {
   if (!/^[1-9]\d*$/.test(raw)) return null;
   let chunk: SitemapChunk;
   try {
@@ -156,8 +156,27 @@ export function servedSitemapChunk(raw: string, congresses: unknown): SitemapChu
   } catch {
     return null;
   }
+  return sitemapChunk(chunk.congress * 10 + 1).from <= today ? chunk : null;
+}
+
+/**
+ * The quarter a requested file id names, or null when it is not a file we
+ * serve: implausible (`plausibleSitemapChunk`), or a quarter of a Congress we
+ * hold no bills for. `congresses` is `api.bills.getCongressNumbers`, so a new
+ * Congress's files exist from the day its bills do, with no deploy
+ * (app/sitemap-files/[id]/route.ts).
+ */
+export function servedSitemapChunk(chunk: SitemapChunk, congresses: unknown): SitemapChunk | null {
   return validCongresses(congresses).includes(chunk.congress) ? chunk : null;
 }
+
+/**
+ * The public sitemap addresses next.config.mjs rewrites to the route handler:
+ * 0, or a Congress number (1–999) followed by a quarter 1–8. Anything else
+ * never reaches the handler. Its internal path, /sitemap-files/<id>, is
+ * refused in middleware.ts, so it can be reached only through this rewrite.
+ */
+export const SITEMAP_FILE_ID_PATTERN = '0|[1-9][0-9]{0,2}[1-8]';
 
 export interface SitemapUrl {
   loc: string;

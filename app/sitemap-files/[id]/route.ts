@@ -4,6 +4,7 @@ import { SITE_URL } from '@/lib/seo';
 import { getConvexHttpClient } from '@/lib/convex-client';
 import {
   billLastModified,
+  plausibleSitemapChunk,
   servedSitemapChunk,
   sitemapIds,
   urlsetXml,
@@ -57,16 +58,21 @@ export async function GET(
   // to distrust the real ones in the bill files.
   if (raw === '0') return xml(urlsetXml(staticPages()));
 
+  // An id that cannot name a quarter of a Congress that has begun is refused
+  // here, before any database call. The ids that pass are a small, fixed set,
+  // so the 404s cached for them are bounded too.
+  const plausible = plausibleSitemapChunk(raw, new Date().toISOString().slice(0, 10));
+  if (!plausible) return new Response('Not found', { status: 404 });
+
   // Every failure below throws. An empty list would be served as a valid,
   // successful sitemap with no bills in it; a throw is a 5xx, which Google
   // retries, and the incremental cache keeps the last good copy meanwhile.
   const client = getConvexHttpClient();
   if (!client) throw new Error(`sitemap ${raw}: NEXT_PUBLIC_CONVEX_URL is not set`);
 
-  // Only a quarter of a Congress we hold is a file. Anything else — a typo,
-  // the retired one-file-per-Congress /sitemap-119.xml, a Congress we have no
-  // bills for yet — is a 404, not an empty sitemap.
-  const chunk = servedSitemapChunk(raw, await client.query(api.bills.getCongressNumbers, {}));
+  // Only a quarter of a Congress we hold is a file. A Congress that has begun
+  // but has no bills here yet is a 404, not an empty sitemap.
+  const chunk = servedSitemapChunk(plausible, await client.query(api.bills.getCongressNumbers, {}));
   if (!chunk) return new Response('Not found', { status: 404 });
 
   const entries: SitemapUrl[] = [];

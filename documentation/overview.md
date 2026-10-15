@@ -261,7 +261,10 @@ needs no deploy. Neither does a new Congress: the files are a route handler,
 `app/sitemap-files/[id]/route.ts`, not Next's `sitemap.ts` + `generateSitemaps`, which built only
 the ids known at deploy and answered 404 for the rest. Known files are prerendered at build; a
 quarter of a Congress that gains a `congressStats` row later is built on its first request
-(`servedSitemapChunk`). A file requested before its Congress has bills answers 404, and that
+(`servedSitemapChunk`). Only plausible ids get that far: the rewrite accepts `0` or a Congress
+1–999 plus a quarter 1–8 (`SITEMAP_FILE_ID_PATTERN`), the handler refuses a Congress that has not
+begun by today before any database call (`plausibleSitemapChunk`), and `middleware.ts` answers
+404 for the handler's own path, so made-up ids cost neither a Convex call nor a cache entry. A file requested before its Congress has bills answers 404, and that
 404 is cached like any response, for up to a day, then rebuilt (checked with a 60-second
 revalidate on a local OpenNext preview, 15 Oct 2026). The old one-per-Congress addresses
 (`/sitemap-119.xml`) answer 404. The index names every file at the site root, `/sitemap-<n>.xml`,
