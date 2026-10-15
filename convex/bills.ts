@@ -1385,7 +1385,6 @@ export const listForSitemap = query({
     return {
       page: result.page.map((b) => ({
         billId: b.billId,
-        updatedAt: b.updatedAt,
         latestActionDate: b.latestActionDate ?? null,
         introducedDate: b.introducedDate,
       })),

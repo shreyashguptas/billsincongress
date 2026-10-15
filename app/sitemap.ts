@@ -15,8 +15,8 @@ export const revalidate = 86400;
 const SITEMAP_PAGE_SIZE = 2500;
 
 // Throws rather than falling back to [{ id: 0 }]. This runs at build time, and
-// a fallback would ship a deploy with no per-Congress sitemaps at all — every
-// /sitemap/<congress>.xml a 404 until the next deploy. Failing the build keeps
+// a fallback would ship a deploy with no bill sitemaps at all — every quarterly
+// /sitemap/<id>.xml a 404 until the next deploy. Failing the build keeps
 // the previous deploy, and its sitemaps, live. See lib/sitemap-ids.ts.
 export async function generateSitemaps(): Promise<Array<{ id: number }>> {
   const client = getConvexHttpClient();
