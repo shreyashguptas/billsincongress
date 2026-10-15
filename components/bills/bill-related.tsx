@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { analytics } from '@/lib/analytics';
+import { billNoun } from '@/lib/seo';
 import { stageFill } from '@/components/brand/status';
 import { billHubs, type HubDefinition } from '@/lib/hubs';
 import { measureStageLabel } from '@/lib/utils/bill-stages';
@@ -41,7 +42,7 @@ export function BillRelatedSection({
       <div className="border-t border-line pt-12 sm:pt-16">
         <p className="label-eyebrow">Keep reading</p>
         <h2 id="bill-related-title" className="mt-3 font-serif text-display-sm text-ink sm:text-display-lg">
-          {policyArea && related.length > 0 ? `More ${policyArea} bills` : 'Where this bill sits'}
+          {policyArea && related.length > 0 ? `More ${policyArea} bills` : `Where this ${billNoun(billType)} sits`}
         </h2>
 
         {related.length > 0 && (
@@ -82,7 +83,7 @@ export function BillRelatedSection({
         )}
 
         {hubs.length > 0 && (
-          <nav aria-label="Pages this bill belongs to" className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+          <nav aria-label={`Pages this ${billNoun(billType)} belongs to`} className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm">
             {hubs.map((hub) => (
               <Link
                 key={hub.path}

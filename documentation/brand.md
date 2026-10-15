@@ -311,8 +311,8 @@ Patterns that appear on more than one page:
   stage colour. Then a row of underlined text links, never buttons, to the bill's topic, stage
   and chamber pages ("All Health bills →", "Bills in committee →", "All House bills →"). A
   resolution gets no stage link: every stage page is worded for the road to law. The
-  heading is "More <topic> bills"; a bill with no topic yet shows only the links, under "Where
-  this bill sits".
+  heading is "More <topic> bills"; a measure with no topic yet shows only the links, under "Where
+  this bill sits" ("this resolution" on a resolution, from `billNoun`).
 
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
