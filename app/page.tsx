@@ -7,9 +7,14 @@ import DashboardClient, {
   type InitialDashboardData,
 } from '@/components/dashboard/dashboard-client';
 
-const HOME_TITLE = 'Bills in Congress — Track Every Bill in the U.S. Congress';
+const HOME_TITLE = 'Bills in Congress — Congressional Bill Tracker for Every Bill';
+// "Congressional Bill Tracker" was this site's name, and the phrase its home
+// page ranked on in Bing. Renaming the site to "Bills in Congress" on 25 Sep
+// 2026 (#121) took it out of the title, and Bing visitors landing here fell
+// from ~55 a day to ~20 the same morning, while bill pages held steady. The
+// phrase stays in the title, the description and the hero's opening line.
 const HOME_DESCRIPTION =
-  'Track every bill in the United States Congress: live status, plain-language summaries, sponsors, and progress. Independent, sourced from Congress.gov.';
+  'A congressional bill tracker for every bill in the U.S. Congress: live status, plain-language summaries, sponsors, and progress. Independent, from Congress.gov.';
 
 // A function rather than a constant only so the share card's URL carries
 // today's date (`homeShareImagePath`); nothing here is fetched.

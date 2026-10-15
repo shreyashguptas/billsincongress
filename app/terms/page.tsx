@@ -8,7 +8,7 @@ export const viewport: Viewport = sharedViewport;
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description:
-    'The terms for using Bills in Congress — a free, independent record of legislation in the United States Congress.',
+    'The terms for using Bills in Congress — a free, independent record of every bill and resolution in the United States Congress.',
   alternates: { canonical: '/terms' },
 };
 

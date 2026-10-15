@@ -73,8 +73,8 @@ export function HomeHero(props: HomeProps) {
           Who&rsquo;s writing America&rsquo;s laws?
         </h1>
         <p className="mx-auto mt-4 max-w-measure text-center text-[17px] leading-relaxed text-ink-2">
-          Every bill and resolution in the {formatCongressOrdinal(congress)} Congress, seated by the party of its
-          sponsor.
+          A congressional bill tracker: every bill and resolution in the {formatCongressOrdinal(congress)} Congress,
+          seated by the party of its sponsor.
         </p>
 
         <div className="mx-auto mt-8 max-w-[900px] sm:mt-10">

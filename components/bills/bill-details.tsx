@@ -28,6 +28,7 @@ import ShareBillButton from './share-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
 import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
+import { BillRelatedSection } from './bill-related';
 import { journeyView } from '@/lib/bill-journey';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -497,6 +498,14 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
           today={today}
         />
       )}
+
+      <BillRelatedSection
+        billId={String(bill.id)}
+        billType={bill.bill_type ?? ''}
+        stage={stage}
+        policyArea={bill.bill_subjects?.policy_area_name ?? null}
+        related={extras?.related ?? []}
+      />
 
       {/* Ask the record — the page's quiet closing band */}
       <section aria-labelledby="bill-ask-title" className="bg-sunken py-16 sm:py-[72px]">
