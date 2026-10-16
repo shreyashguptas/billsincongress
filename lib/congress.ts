@@ -7,17 +7,34 @@
  * in 1789.
  */
 
+// Relative, not '@/': Convex functions import this file, and its bundler has no alias.
+import { congressForDate } from '../convex/catalog/congressCalendar';
+
 const FIRST_CONGRESS_YEAR = 1789;
 
 /**
- * The Congress the home page shows when no `?congress=` is given. Its share
- * card (lib/og/home-share-data.ts) reads the same constant, so the picture a
- * home-page link unfurls into always describes the Congress the page shows.
- * It is set by hand rather than taken from the newest synced Congress: when a
- * new Congress convenes, its first days hold a few hundred bills, and moving
- * the home page is a decision, not something the sync should do.
+ * The Congress the home page shows when no `?congress=` is given: the newest
+ * one we hold any measure for, read from the per-Congress stats rows
+ * (`bills.getAllCongressOverview`). Its share card (lib/og/home-share-data.ts)
+ * calls this too, so the picture a home-page link unfurls into always describes
+ * the Congress the page shows.
+ *
+ * This was the constant 119, set by hand. From 3 January 2027 it would have
+ * kept showing the 119th as "the current Congress" until someone remembered to
+ * change it. The bill hubs already followed the newest Congress with data; the
+ * home page now does the same. In a new Congress's first days that is a few
+ * hundred bills, which is what the current Congress then holds.
+ *
+ * With no stats at all (an empty or unreachable database), the Congress
+ * sitting today, by the calendar rule.
  */
-export const HOME_CONGRESS = 119;
+export function homeCongress(
+  overview: ReadonlyArray<{ congress: number; totalCount: number }> | null | undefined,
+  today: string = new Date().toISOString().slice(0, 10),
+): number {
+  const held = (overview ?? []).filter((row) => row.totalCount > 0).map((row) => row.congress);
+  return held.length > 0 ? Math.max(...held) : congressForDate(today);
+}
 
 /** First calendar year of a Congress (119 → 2025). */
 export function congressStartYear(congress: number): number {

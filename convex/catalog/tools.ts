@@ -16,17 +16,14 @@
  * confidently wrong answer that audit found was a set-level claim made from a
  * page. See convex/catalog/completeness.ts.
  */
-import { datasetIndex, DATASET_NAMES, DATASETS, describeDataset } from "./datasets";
+import { datasetIndex, DATASET_NAMES, DATASETS, describeDataset, type DescribeVars } from "./datasets";
 import type { DatasetName } from "./types";
 import { renderContextBlock, type PageContext } from "./context";
-import { calendarNote } from "./congressCalendar";
+import { calendarNote, congressForDate, congressWindow, ordinal } from "./congressCalendar";
 import { DEFAULT_TEMPLATE, renderPrompt, validTemplate } from "./promptTemplate";
 
 /** Bounds a runaway tool loop. On exceeding it we force a final answer. */
 export const MAX_TOOL_ROUNDS = 4;
-
-/** The Congress the site is currently tracking. */
-export const CURRENT_CONGRESS = 119;
 
 /**
  * Datasets described to the model BEFORE the question, so the lookup budget
@@ -48,7 +45,7 @@ export const PRIMED_DATASETS: readonly DatasetName[] = ["bills", "topics"];
  * and tool results the model would otherwise have spent a round producing. Same
  * text, same shape, no round trip.
  */
-export function primedDescriptions(): {
+export function primedDescriptions(vars: DescribeVars): {
   toolCalls: Array<{
     id: string;
     type: "function";
@@ -63,7 +60,7 @@ export function primedDescriptions(): {
   }));
   const results = PRIMED_DATASETS.map((name) => ({
     tool_call_id: `primed_describe_${name}`,
-    content: describeDataset(name),
+    content: describeDataset(name, vars),
   }));
   return { toolCalls, results };
 }
@@ -223,6 +220,12 @@ export const ANSWER_TOOLS = [
  * "this year" and "how long ago" against its own training cutoff, and had no way
  * to know that two of the three Congresses we hold have adjourned.
  *
+ * `newestCongress` is the newest Congress we hold bills for, read from the
+ * database by the caller. It used to be a constant, 119, which on 3 January 2027
+ * would have told the model the 120th did not exist and answered "this Congress"
+ * from the 119th's final totals. Without it the Congress sitting on `today` is
+ * used, which is a rule of the calendar rather than a fact about our data.
+ *
  * `template` is a version from PostHog prompt management; one that fails
  * validTemplate is ignored for DEFAULT_TEMPLATE, so a bad edit there can never
  * take answers down.
@@ -232,20 +235,41 @@ export function buildSystemPrompt(
     pageContext?: PageContext | null;
     scopeLabel?: string;
     today?: string;
+    newestCongress?: number | null;
     template?: string;
   } = {},
 ): string {
   const today = opts.today;
-  const calendar = today
-    ? `\n\nTODAY, AND WHICH CONGRESSES ARE OVER\n${calendarNote(CURRENT_CONGRESS, today)}\n` +
-      `Congresses before the ${CURRENT_CONGRESS}th have all adjourned. Anything in them is ` +
-      `final: describe it in the past tense, and never say a bill from one is waiting, pending, ` +
-      `or might still move.`
-    : "";
+  const calendar = today ? `\n\nTODAY, AND WHICH CONGRESSES ARE OVER\n${calendarBlock(today, opts.newestCongress)}` : "";
   const template = validTemplate(opts.template) ? opts.template : DEFAULT_TEMPLATE;
   return renderPrompt(template, {
     datasets: datasetIndex(),
     calendar,
     context: renderContextBlock(opts.pageContext ?? null, opts.scopeLabel),
   });
+}
+
+/**
+ * Today, the Congress our data runs to, and whether a newer one has convened
+ * that we hold no bills for yet. That last case is the first days of every new
+ * Congress, before the sync has pulled a bill from it: the model must say so
+ * rather than answer "this Congress" from the one that just ended.
+ */
+export function calendarBlock(today: string, newestCongress?: number | null): string {
+  const sitting = congressForDate(today);
+  const newest = newestCongress ?? sitting;
+  const lines = [
+    calendarNote(newest, today),
+    `Congresses before the ${ordinal(newest)} have all adjourned. Anything in them is ` +
+      `final: describe it in the past tense, and never say a bill from one is waiting, pending, ` +
+      `or might still move.`,
+  ];
+  if (sitting > newest) {
+    lines.push(
+      `The ${ordinal(sitting)} Congress convened on ${congressWindow(sitting).startDate}, and we ` +
+        `hold none of its bills yet. Say so if the reader asks about the current Congress; do ` +
+        `not answer with the ${ordinal(newest)}'s figures as if they were this Congress's.`,
+    );
+  }
+  return lines.join("\n");
 }

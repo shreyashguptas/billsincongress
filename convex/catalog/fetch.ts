@@ -26,7 +26,7 @@ import { internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import type { QueryCtx } from "../_generated/server";
 import type { Doc } from "../_generated/dataModel";
-import { isDatasetName } from "./datasets";
+import { DATASETS, isDatasetName } from "./datasets";
 import { validateFilters } from "./filters";
 import { mintHandle } from "./cite";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "../searchQuery";
@@ -117,6 +117,21 @@ export async function runFetch(
       ? 0
       : Math.min(Math.max(1, args.limit ?? DEFAULT_LIMIT), MAX_LIMIT);
     const f = validated.filters;
+    // A dataset that takes a Congress gets the newest one we hold when the
+    // model leaves it out. This was the constant 119, which from 3 January 2027
+    // would have answered "this Congress" with the 119th's final totals. A bill
+    // fetched by id is left alone: its id names its own Congress.
+    if (
+      f.congress === undefined &&
+      f.billId === undefined &&
+      DATASETS[args.name as DatasetName].filters.some((d) => d.name === "congress")
+    ) {
+      const newest = await newestCongress(ctx);
+      if (newest === null) {
+        return { ok: false, error: "We hold no bills yet, so there is no Congress to read." };
+      }
+      f.congress = newest;
+    }
 
     switch (args.name as DatasetName) {
       case "bills":
@@ -134,6 +149,22 @@ export async function runFetch(
     }
   }
 }
+
+/**
+ * The newest Congress we hold any bill for: one indexed read. Null only on an
+ * empty database. The site's own pages default the same way (bills.ts
+ * `resolveCongress`).
+ */
+export async function newestCongress(ctx: QueryCtx): Promise<number | null> {
+  const latest = await ctx.db.query("bills").withIndex("by_congress").order("desc").first();
+  return latest?.congress ?? null;
+}
+
+/** For the answer action, which has no database of its own. */
+export const getNewestCongress = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<number | null> => newestCongress(ctx),
+});
 
 export const fetchDataset = internalQuery({
   args: {
@@ -418,7 +449,7 @@ function describeBillSet(f: Row): string {
   if (typeof f.introducedBefore === "string") parts.push(`introduced on or before ${f.introducedBefore}`);
   if (typeof f.actionAfter === "string") parts.push(`last acted on or after ${f.actionAfter}`);
   if (typeof f.actionBefore === "string") parts.push(`last acted on or before ${f.actionBefore}`);
-  const congress = (f.congress as number) ?? 119;
+  const congress = f.congress as number;
   const where = parts.length > 0 ? ` ${parts.join(", ")}` : "";
   return `every measure in the ${congressOrdinal(congress)} Congress${where}`;
 }
@@ -438,6 +469,35 @@ function withCongressOver(result: FetchResult, f: Row, today: string | undefined
   return { ...result, report: { ...result.report, congressOver } };
 }
 
+/**
+ * Where an exact per-group count lives when a grouped `bills` read was too big
+ * to finish. The precomputed tables hold whole-Congress splits, so they answer
+ * only a whole-Congress question: with any other filter the split they hold is
+ * of a different set, and the model is told to narrow instead.
+ */
+function exactGroupSource(f: Row, groupBy: string): string {
+  const narrow =
+    "No count per group is given, because these groups came from a partial read. Narrow the " +
+    "filters (a stage, a state, a party, a date) until the grouped result comes back complete.";
+  const wholeCongress = Object.entries(f).every(
+    ([key, value]) => value === undefined || key === "congress" || key === "groupBy",
+  );
+  if (!wholeCongress) return narrow;
+  const source: Record<string, string> = {
+    chamber:
+      "For the exact House and Senate split, fetch `stats` with only the congress and read " +
+      "houseMeasures and senateMeasures (measures, resolutions included), or fetch `stats` with " +
+      "that congress and each chamber for the chamber's own figures.",
+    policyArea: "For exact counts per policy area, fetch `topics` with only the congress.",
+    progressStage: "For exact counts per stage, fetch `stats` with only the congress and read stageCounts.",
+    sponsorParty: "For exact counts per sponsor party, fetch `stats` with only the congress and read partyCounts.",
+    billType: "For exact counts per measure type, fetch `stats` with only the congress and read measuresByType.",
+  };
+  return source[groupBy]
+    ? `No count per group is given, because these groups came from a partial read. ${source[groupBy]}`
+    : narrow;
+}
+
 async function fetchBills(
   ctx: QueryCtx,
   f: Row,
@@ -445,7 +505,9 @@ async function fetchBills(
   countOnly: boolean,
   today?: string,
 ): Promise<FetchResult> {
-  const congress = (f.congress as number) ?? 119;
+  // Set by runFetch, except on a lookup by id, which names its own Congress and
+  // must not be narrowed to another one (see the billId check in the predicate).
+  const congress = typeof f.congress === "number" ? f.congress : ((await newestCongress(ctx)) ?? 0);
   const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter) : "";
   const sponsorNames = Array.isArray(f.sponsorFilter) ? (f.sponsorFilter as string[]) : null;
   const groupBy = typeof f.groupBy === "string" ? f.groupBy : null;
@@ -842,16 +904,22 @@ async function fetchBills(
     for (const b of matched) {
       buckets.set(groupValue(b, groupBy), (buckets.get(groupValue(b, groupBy)) ?? 0) + 1);
     }
-    const groupRows = [...buckets.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([group, count]) => ({
-        // A policy-area group IS a topic, and `topics:<congress>:<name>` already
-        // renders as a link to that topic. The other group fields have no page to
-        // point at, so they carry no handle rather than a broken one.
-        ...(groupBy === "policyArea" ? { _cite: mintHandle("topics", `${congress}:${group}`) } : {}),
-        group,
-        count,
-      }));
+    // A policy-area group IS a topic, and `topics:<congress>:<name>` already
+    // renders as a link to that topic. The other group fields have no page to
+    // point at, so they carry no handle rather than a broken one.
+    const cite = (group: string) =>
+      groupBy === "policyArea" ? { _cite: mintHandle("topics", `${congress}:${group}`) } : {};
+    // A count per group is a number derived from the window, so it exists ONLY
+    // when the window held the whole set. Asked whether the House or the Senate
+    // introduced more bills, the model was handed "house 3,348, senate 1,652",
+    // which is just the shape of the first 5,000 rows, labelled largest first; it
+    // repeated those numbers to a reader who rated the answer wrong (2026-10-13).
+    // A partial read names the groups it saw, in no order, and no counts.
+    const groupRows = windowFilled
+      ? [...buckets.keys()].sort().map((group) => ({ ...cite(group), group }))
+      : [...buckets.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([group, count]) => ({ ...cite(group), group, count }));
     return {
       ok: true,
       rows: groupRows,
@@ -861,11 +929,12 @@ async function fetchBills(
         filteredInMemory: countInMemoryFilters(f, plan) > 0,
         matchedCount: matched.length,
         shown: groupRows.length,
-        order: "largest_first",
+        order: windowFilled ? "arbitrary" : "largest_first",
         // `total` counts MEASURES and `shown` counts GROUPS — different units.
         // Saying so is what stops the generic sample warning from firing and
         // telling the model its complete breakdown is a page of itself.
         rowsAreGroups: true,
+        incompleteHint: windowFilled ? exactGroupSource(f, groupBy) : undefined,
       }),
     };
   }
@@ -1130,7 +1199,7 @@ async function fetchSummaries(ctx: QueryCtx, f: Row, limit: number): Promise<Fet
 }
 
 async function fetchTopics(ctx: QueryCtx, f: Row): Promise<FetchResult> {
-  const congress = (f.congress as number) ?? 119;
+  const congress = f.congress as number;
   // The whole list is ~31 rows and it is the index the model uses to find exact
   // policy-area spellings. Paging it at 20 hid a third of the topics and made
   // every per-topic breakdown silently incomplete.
@@ -1149,7 +1218,7 @@ async function fetchTopics(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     ok: true,
     rows,
     report: completeReport({
-      set: `every policy area in the ${congress}th Congress, with its total measure count at any stage`,
+      set: `every policy area in the ${congressOrdinal(congress)} Congress, with its total measure count at any stage`,
       total: sorted.length,
       shown: rows.length,
       order: "largest_first",
@@ -1163,7 +1232,7 @@ async function fetchSponsors(
   limit: number,
   countOnly: boolean,
 ): Promise<FetchResult> {
-  const congress = (f.congress as number) ?? 119;
+  const congress = f.congress as number;
   const state = typeof f.sponsorState === "string" ? f.sponsorState : null;
 
   // Read the STATE through its own index rather than filtering a national
@@ -1217,8 +1286,8 @@ async function fetchSponsors(
     rows,
     report: reportFor({
       set: state
-        ? `every member from ${state} who introduced a measure in the ${congress}th Congress`
-        : `every member who introduced a measure in the ${congress}th Congress`,
+        ? `every member from ${state} who introduced a measure in the ${congressOrdinal(congress)} Congress`
+        : `every member who introduced a measure in the ${congressOrdinal(congress)} Congress`,
       windowFilled,
       filteredInMemory: false,
       matchedCount: sorted.length,
@@ -1318,7 +1387,7 @@ async function wholeCongressPartySplit(ctx: QueryCtx, congress: number): Promise
 }
 
 async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
-  const congress = (f.congress as number) ?? 119;
+  const congress = f.congress as number;
   const stats = await ctx.db
     .query("congressStats")
     .withIndex("by_congress", (q) => q.eq("congress", congress))
@@ -1328,7 +1397,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
       ok: true,
       rows: [],
       report: completeReport({
-        set: `precomputed totals for the ${congress}th Congress`,
+        set: `precomputed totals for the ${congressOrdinal(congress)} Congress`,
         total: 0,
         shown: 0,
         order: "arbitrary",
@@ -1361,7 +1430,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
         },
       ],
       report: completeReport({
-        set: `precomputed whole-Congress totals for the ${congress}th`,
+        set: `precomputed whole-Congress totals for the ${congressOrdinal(congress)}`,
         total: 1,
         shown: 1,
         order: "arbitrary",
@@ -1383,7 +1452,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     return {
       ok: false,
       error:
-        `We hold no per-chamber breakdown for the ${congress}th Congress, so a ` +
+        `We hold no per-chamber breakdown for the ${congressOrdinal(congress)} Congress, so a ` +
         `${String(f.chamber)}-only figure cannot be given. Whole-Congress totals are ` +
         `available by omitting the chamber filter — but they cover BOTH chambers and must ` +
         `not be described as one chamber's.`,
@@ -1419,7 +1488,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     ok: true,
     rows: [row],
     report: completeReport({
-      set: `precomputed ${String(f.chamber)}-only totals for the ${congress}th Congress`,
+      set: `precomputed ${String(f.chamber)}-only totals for the ${congressOrdinal(congress)} Congress`,
       total: 1,
       shown: 1,
       order: "arbitrary",

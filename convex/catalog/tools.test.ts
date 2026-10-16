@@ -12,7 +12,7 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { ANSWER_TOOLS, MAX_TOOL_ROUNDS, PRIMED_DATASETS, buildSystemPrompt, primedDescriptions } from "./tools";
+import { calendarBlock, ANSWER_TOOLS, MAX_TOOL_ROUNDS, PRIMED_DATASETS, buildSystemPrompt, primedDescriptions } from "./tools";
 import { describeDataset } from "./datasets";
 
 let passed = 0;
@@ -30,6 +30,7 @@ function it(name: string, fn: () => void) {
 }
 
 const TODAY = "2026-08-31";
+const VARS = { congress: 119, today: TODAY };
 const prompt = buildSystemPrompt({ today: TODAY });
 
 it("forbids opening by describing the result rather than Congress", () => {
@@ -43,7 +44,7 @@ it("forbids opening by describing the result rather than Congress", () => {
 
 it("keeps the real offending openings in the prompt as examples", () => {
   // A rule the model has already broken is worth showing it, verbatim.
-  assert.ok(prompt.includes("The result is complete with a total of 54"));
+  assert.ok(prompt.includes("The result is complete, and it's sorted fewest-first."));
   assert.ok(prompt.includes("The count is exact"));
   assert.ok(prompt.includes("The top row shows"));
 });
@@ -90,13 +91,13 @@ it("offers the reader-question tool and says when to reach for it", () => {
 // bills and topics. That exchange is now primed before the question.
 it("primes bills and topics with their real descriptions, as matched call/result pairs", () => {
   assert.deepEqual([...PRIMED_DATASETS], ["bills", "topics"]);
-  const { toolCalls, results } = primedDescriptions();
+  const { toolCalls, results } = primedDescriptions(VARS);
   assert.equal(toolCalls.length, results.length);
   toolCalls.forEach((call, i) => {
     assert.equal(call.function.name, "describe_dataset");
     const { name } = JSON.parse(call.function.arguments);
     assert.equal(results[i].tool_call_id, call.id);
-    assert.equal(results[i].content, describeDataset(name));
+    assert.equal(results[i].content, describeDataset(name, VARS));
   });
   // Every call id must be unique, or a provider rejects the transcript.
   assert.equal(new Set(toolCalls.map((c) => c.id)).size, toolCalls.length);
@@ -140,6 +141,25 @@ it("tells the model to write the answer once, not a draft it then reconsiders", 
   for (const tell of ["Actually…", "The question asks…", "the reader means…"]) {
     assert.ok(prompt.includes(tell), `the prompt no longer names ${tell}`);
   }
+});
+
+it("names the newest Congress we hold, from the data, not a constant", () => {
+  const p120 = buildSystemPrompt({ today: "2027-03-01", newestCongress: 120 });
+  assert.match(p120, /Congresses before the 120th have all adjourned/);
+  assert.doesNotMatch(p120, /119th have all adjourned/);
+});
+
+it("says when a new Congress has convened that we hold no bills for yet", () => {
+  // 3 January 2027: the 120th sits, the sync has not pulled a bill from it, and
+  // the newest Congress we hold is the 119th, which just ended.
+  const block = calendarBlock("2027-01-03", 119);
+  assert.match(block, /119th Congress adjourned sine die on 2027-01-03/);
+  assert.match(block, /The 120th Congress convened on 2027-01-03, and we hold none of its bills yet/);
+  assert.doesNotMatch(calendarBlock("2026-10-14", 119), /hold none of its bills/);
+});
+
+it("prints ordinals, not '121th'", () => {
+  assert.match(calendarBlock("2029-02-01", 121), /before the 121st have all adjourned/);
 });
 
 if (failures.length > 0) {
