@@ -213,16 +213,54 @@ export function billSummaryText(bill: Bill): string {
 }
 
 /**
+ * The longest <title> we publish. Bing Webmaster Tools flagged 357 of our pages
+ * "Title too long" (Oct 2026): bill titles ran 90–140 characters, topic pages
+ * up to 106. Bing's guidance is 65, and Google cuts a result's title at about
+ * 60, so nothing past this is ever read.
+ */
+export const SEO_TITLE_MAX = 65;
+
+/** The layout's title template (app/layout.tsx) adds this to every page title. */
+const TITLE_SUFFIX = ` · ${SITE_NAME}`;
+
+/**
+ * A page's `metadata.title`: the site-name suffix when the whole thing still
+ * fits, otherwise the page's own words alone. The page's words are the ones a
+ * searcher matched; the suffix is the first thing to go.
+ */
+export function pageTitle(title: string): string | { absolute: string } {
+  // A title that already names the site ("Health Bills in Congress") would
+  // read "… Bills in Congress · Bills in Congress" with the suffix.
+  const named = title.includes(SITE_NAME);
+  if (!named && title.length + TITLE_SUFFIX.length <= SEO_TITLE_MAX) return title;
+  return { absolute: title.length <= SEO_TITLE_MAX ? title : truncateAtWord(title, SEO_TITLE_MAX - 1) };
+}
+
+/**
  * Page <title>. The identifier and the status come first, because that is what
- * the queries ask for and because anything past ~60 characters is cut from a
- * search result.
+ * the queries ask for; the bill's name fills what is left of the 65 characters,
+ * and the Congress closes it, because "H.R. 40" names a different bill in every
+ * Congress.
  */
 export function billSeoTitle(bill: Bill): string {
-  const id = billIdentifier(bill);
-  const status = billStatusPhrase(bill);
-  const name = truncateAtWord(bill.title ?? '', 70);
-  const ord = `${congressOrdinal(bill.congress)} Congress`;
-  return name ? `${id} — ${status}: ${name} (${ord})` : `${id} — ${status} (${ord})`;
+  const head = `${billIdentifier(bill)} — ${billStatusPhrase(bill)}`;
+  const tail = ` (${congressOrdinal(bill.congress)})`;
+  const room = SEO_TITLE_MAX - head.length - tail.length - ': '.length;
+  const name = fitName(bill.title?.trim() ?? '', room);
+  return name ? `${head}: ${name}${tail}` : `${head}${tail}`;
+}
+
+/**
+ * As much of a bill's name as fits in `room` characters, cut between words
+ * ("TRIA Program…", never "TRIA Program Reauthoriza…"), or '' when too little
+ * of it would fit to say anything.
+ */
+function fitName(name: string, room: number): string {
+  if (name.length <= room) return name;
+  const cut = name.slice(0, room - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  const words = (lastSpace > 0 ? cut.slice(0, lastSpace) : '').replace(/[\s,;:—–-]+$/, '');
+  return words.length >= 10 ? `${words}…` : '';
 }
 
 const DESCRIPTION_LIMIT = 158;
@@ -245,6 +283,35 @@ function isDescriptiveTitle(title: string | undefined): boolean {
  * published a summary. Never falls back to the bare title.
  */
 export function billSeoDescription(bill: Bill): string {
+  return atLeastDescription(composeBillDescription(bill), bill);
+}
+
+/**
+ * The shortest description we publish. Bing flagged 251 pages "Meta
+ * description too short" (Oct 2026); the short ones were bills whose summary or
+ * title said little, and a few hub pages. Under this, a snippet is mostly
+ * white space beside a competitor's two full lines.
+ */
+export const DESCRIPTION_MIN = 120;
+
+/** Tops a short bill description up with true facts we hold, never filler about the bill. */
+function atLeastDescription(text: string, bill: Bill): string {
+  if (text.length >= DESCRIPTION_MIN) return text;
+  const additions = [
+    ` Part of the ${congressOrdinal(bill.congress)} Congress.`,
+    ' Follow its status, sponsors, actions and full text.',
+    ' From Congress.gov, updated daily.',
+    ' Updated daily.',
+  ];
+  let out = text;
+  for (const add of additions) {
+    if (out.length >= DESCRIPTION_MIN) break;
+    if (out.length + add.length <= DESCRIPTION_LIMIT) out += add;
+  }
+  return out;
+}
+
+function composeBillDescription(bill: Bill): string {
   const id = billIdentifier(bill);
   const status = lowerFirst(billStatusPhrase(bill));
   const summary = billSummaryText(bill);

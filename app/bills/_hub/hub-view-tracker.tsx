@@ -91,7 +91,7 @@ export function HubLink({
 /**
  * Reports clicks on any hub link inside it, using one delegated listener.
  *
- * The browse directory holds 40 links. Making each one a client component would
+ * The browse directory holds every hub link (over 40). Making each one a client component would
  * mean 40 hydrated islands and 40 `usePathname()` subscriptions to measure
  * something that happens a handful of times a month. This wraps the whole
  * server-rendered block instead: the anchors stay ordinary server-rendered

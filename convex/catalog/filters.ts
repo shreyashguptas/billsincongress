@@ -110,7 +110,32 @@ export function filtersFromCall(name: string, args: Record<string, unknown>): un
   const stray = Object.fromEntries(
     Object.entries(args).filter(([key]) => !CALL_KEYS.has(key) && declared.has(key)),
   );
-  return { ...stray, ...(inside as Record<string, unknown>) };
+  // `limit` put inside `filters` is the call's limit (see limitFromCall), not a filter.
+  const { limit: _limit, ...filters } = inside as Record<string, unknown>;
+  return { ...stray, ...filters };
+}
+
+/**
+ * The limit a fetch_dataset call meant, including one the model put INSIDE
+ * `filters` instead of beside it.
+ *
+ * The other half of filtersFromCall. On Claude's first evening (2026-10-13),
+ * 9 of 55 lookups sent `filters: { ..., "limit": 0 }`, copying two worked
+ * examples that wrote it there, and every one was rejected as "'limit' is not
+ * a filter". Each rejection cost the reader a round: answers ran out of rounds,
+ * took 11.8 s at the median, and said "I can't" instead of giving the count.
+ * Moving it is the same call the model meant, so the completeness report is
+ * computed exactly as if it had been sent beside `filters`. A limit beside
+ * `filters` wins over one inside it.
+ */
+export function limitFromCall(args: Record<string, unknown>): number | undefined {
+  if (typeof args.limit === "number") return args.limit;
+  const inside = args.filters;
+  if (inside !== null && typeof inside === "object" && !Array.isArray(inside)) {
+    const limit = (inside as Record<string, unknown>).limit;
+    if (typeof limit === "number") return limit;
+  }
+  return undefined;
 }
 
 export function validateFilters(name: DatasetName, raw: unknown): ValidationResult {

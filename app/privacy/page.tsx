@@ -8,7 +8,7 @@ export const viewport: Viewport = sharedViewport;
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description:
-    'How Bills in Congress collects, uses, and protects your data — in plain English.',
+    'How Bills in Congress collects, uses, and protects your data — in plain English: what we keep when you browse, sign in, or ask a question.',
   alternates: { canonical: '/privacy' },
 };
 
