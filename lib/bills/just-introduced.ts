@@ -15,8 +15,14 @@
  * label on bill cards and in the journey is untouched: it is still true of the
  * bills that really are at stage 20.
  *
+ * A Congress that was not sitting in the last 30 days has no bills in that
+ * window, so there the option keeps its old meaning, stage 20: "Just
+ * introduced" on /bills?congress=118 would otherwise always be empty.
+ *
  * Pure module so it carries unit tests.
  */
+// Relative, as in lib/congress.ts, which imports the same calendar.
+import { congressForDate } from '../../convex/catalog/congressCalendar';
 
 /** The `status` URL value of the "Just introduced" option. */
 export const JUST_INTRODUCED_STATUS = '20';
@@ -28,7 +34,7 @@ export const JUST_INTRODUCED_WINDOW = 'month';
 export const JUST_INTRODUCED_DAYS = 30;
 
 /** How a chip or a summary names the option once it is applied. */
-export const JUST_INTRODUCED_LABEL = 'Just introduced (last 30 days)';
+export const JUST_INTRODUCED_LABEL = 'Just introduced';
 
 /** Windows narrower than the one "Just introduced" stands for. */
 const NARROWER_WINDOWS = new Set(['week']);
@@ -45,10 +51,12 @@ const NARROWER_WINDOWS = new Set(['week']);
 export function stageAndIntroducedArgs(
   status: string | null | undefined,
   introducedDateFilter: string | null | undefined,
+  congress?: string | number | null,
+  now: number = Date.now(),
 ): { progressStage?: number; introducedDateFilter?: string } {
   const window =
     introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined;
-  if (status === JUST_INTRODUCED_STATUS) {
+  if (status === JUST_INTRODUCED_STATUS && isJustIntroducedWindow(congress, now)) {
     return {
       introducedDateFilter:
         window && NARROWER_WINDOWS.has(window) ? window : JUST_INTRODUCED_WINDOW,
@@ -59,6 +67,23 @@ export function stageAndIntroducedArgs(
     ...(stage !== undefined && !Number.isNaN(stage) ? { progressStage: stage } : {}),
     ...(window ? { introducedDateFilter: window } : {}),
   };
+}
+
+/**
+ * Whether "Just introduced" means the 30-day window for this Congress: no
+ * Congress chosen (the newest), or one that was sitting at some point in the
+ * window. Any earlier Congress keeps stage 20.
+ */
+export function isJustIntroducedWindow(
+  congress: string | number | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (congress === undefined || congress === null || congress === '' || congress === 'all') {
+    return true;
+  }
+  const n = typeof congress === 'number' ? congress : Number.parseInt(congress, 10);
+  if (Number.isNaN(n)) return true;
+  return n >= congressForDate(justIntroducedSince(now));
 }
 
 /**

@@ -165,6 +165,9 @@ it('scopes "Just introduced" to the last 30 days, the bills the list shows', () 
   assert.equal(s?.filters.progressStage, undefined);
   assert.equal(s?.filters.introducedAfter, '2026-09-16');
   assert.equal(s?.label, 'health bills introduced in the last 30 days');
+  const past = scopeFromFilters({ congress: '118', status: '20' }, now);
+  assert.equal(past?.filters.progressStage, 20, 'an ended Congress keeps stage 20');
+  assert.equal(past?.filters.introducedAfter, undefined);
   const hub = scopeFromHub(hubByPath('/bills/introduced')!, now);
   assert.deepEqual(hub?.filters, { introducedAfter: '2026-09-16' });
 });

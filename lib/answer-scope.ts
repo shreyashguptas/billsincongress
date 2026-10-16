@@ -15,7 +15,11 @@
  */
 import type { BillsFilterValues } from '@/app/bills/filter-signature';
 import type { HubDefinition } from './hubs';
-import { JUST_INTRODUCED_STATUS, justIntroducedSince } from './bills/just-introduced';
+import {
+  JUST_INTRODUCED_STATUS,
+  isJustIntroducedWindow,
+  justIntroducedSince,
+} from './bills/just-introduced';
 
 export interface AnswerScope {
   dataset: 'bills';
@@ -38,7 +42,7 @@ export interface AnswerScope {
 export const CATALOG_STAGES = [20, 40, 50, 60, 80, 85, 90, 95, 100];
 
 const STAGE_LABEL: Record<number, string> = {
-  20: 'introduced in the last 30 days',
+  20: 'just introduced',
   40: 'in committee',
   50: 'out of committee',
   60: 'past one chamber',
@@ -88,9 +92,9 @@ export function scopeFromFilters(
   // so the assistant is handed the bills the list shows, not the stage's
   // handful of placeholder numbers.
   const stage = num(input.status);
-  if (value(input.status) === JUST_INTRODUCED_STATUS) {
+  if (value(input.status) === JUST_INTRODUCED_STATUS && isJustIntroducedWindow(congress, now)) {
     filters.introducedAfter = justIntroducedSince(now);
-    parts.push(STAGE_LABEL[20]);
+    parts.push('introduced in the last 30 days');
   } else if (stage !== undefined) {
     if (CATALOG_STAGES.includes(stage)) filters.progressStage = stage;
     parts.push(STAGE_LABEL[stage] ?? '');

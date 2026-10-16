@@ -274,7 +274,7 @@ export const billsService = {
 
       const result = await queryBills('list', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
-        ...stageAndIntroducedArgs(status, introducedDateFilter),
+        ...stageAndIntroducedArgs(status, introducedDateFilter, congress),
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,
@@ -352,7 +352,7 @@ export const billsService = {
     try {
       return await queryBills('listCount', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
-        ...stageAndIntroducedArgs(status, introducedDateFilter),
+        ...stageAndIntroducedArgs(status, introducedDateFilter, congress),
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,

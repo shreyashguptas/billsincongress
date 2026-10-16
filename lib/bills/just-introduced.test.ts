@@ -11,6 +11,7 @@
 import assert from 'node:assert/strict';
 import {
   JUST_INTRODUCED_STATUS,
+  isJustIntroducedWindow,
   justIntroducedSince,
   stageAndIntroducedArgs,
 } from './just-introduced';
@@ -56,6 +57,23 @@ it('computes the same first day as the list query', () => {
   // convex/bills.ts cutoffDateForFilter('month'): now minus 30 days, ISO date.
   assert.equal(justIntroducedSince(Date.parse('2026-10-16T12:00:00Z')), '2026-09-16');
   assert.equal(justIntroducedSince(Date.parse('2026-03-01T00:30:00Z')), '2026-01-30');
+});
+
+// A Congress that was not sitting in the window has no bills in it, so a
+// date window there would always say "No bills found".
+it('keeps stage 20 for a Congress that ended before the window', () => {
+  const now = Date.parse('2026-10-16T12:00:00Z');
+  assert.deepEqual(stageAndIntroducedArgs('20', 'all', '118', now), { progressStage: 20 });
+  assert.deepEqual(stageAndIntroducedArgs('20', 'all', '119', now), { introducedDateFilter: 'month' });
+  assert.deepEqual(stageAndIntroducedArgs('20', 'all', 'all', now), { introducedDateFilter: 'month' });
+  assert.equal(isJustIntroducedWindow(undefined, now), true);
+  assert.equal(isJustIntroducedWindow(119, now), true);
+  assert.equal(isJustIntroducedWindow('117', now), false);
+  // Early in a new Congress the old one still sat inside the window.
+  const jan10 = Date.parse('2027-01-10T12:00:00Z');
+  assert.equal(isJustIntroducedWindow('119', jan10), true);
+  assert.equal(isJustIntroducedWindow('120', jan10), true);
+  assert.equal(isJustIntroducedWindow('119', Date.parse('2027-03-01T12:00:00Z')), false);
 });
 
 console.log(`\njust-introduced: ${passed} passed, ${failures.length} failed`);

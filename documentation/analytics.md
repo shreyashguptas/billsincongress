@@ -233,7 +233,8 @@ data and against `dashboard_drilldown_clicked.filter_type`.
 **`filter_kind: "status"`, `filter_value: "20"` changed meaning on 2026-10-16.**
 The value is still "Just introduced", but it now means the bills introduced in
 the last 30 days, at any stage, instead of stage 20 (11 placeholder numbers in
-the whole 119th; `lib/bills/just-introduced.ts`). The value was kept so saved
+the whole 119th; `lib/bills/just-introduced.ts`), except with an earlier
+Congress chosen, where it is still stage 20. The value was kept so saved
 insights and old `/bills?status=20` links keep working. Before that date, a
 `bills_no_results` on a `status=20` URL was the stage being empty; after it, it
 is a real empty combination.
