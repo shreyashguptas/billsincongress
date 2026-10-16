@@ -39,7 +39,7 @@ import {
   type Subset,
   type RowOrder,
 } from "./completeness";
-import { milestoneStages } from "./stageSemantics";
+import { milestoneStages, stageDescription } from "./stageSemantics";
 import { congressWindow, isCongressClosed } from "./congressCalendar";
 import { canBecomeLaw, isBill, measureClass, measureNoun } from "./measureType";
 import type { MeasureClass } from "./measureType";
@@ -915,11 +915,15 @@ async function fetchBills(
     // which is just the shape of the first 5,000 rows, labelled largest first; it
     // repeated those numbers to a reader who rated the answer wrong (2026-10-13).
     // A partial read names the groups it saw, in no order, and no counts.
+    // The words for a stage bucket, so "how many at each stage" is not
+    // answered with bare codes ("40: 1,234").
+    const stage = (group: string) =>
+      groupBy === "progressStage" ? { stage: stageDescription(Number(group)) } : {};
     const groupRows = windowFilled
-      ? [...buckets.keys()].sort().map((group) => ({ ...cite(group), group }))
+      ? [...buckets.keys()].sort().map((group) => ({ ...cite(group), group, ...stage(group) }))
       : [...buckets.entries()]
           .sort((a, b) => b[1] - a[1])
-          .map(([group, count]) => ({ ...cite(group), group, count }));
+          .map(([group, count]) => ({ ...cite(group), group, ...stage(group), count }));
     return {
       ok: true,
       rows: groupRows,
@@ -952,6 +956,9 @@ async function fetchBills(
         sponsorParty: b.sponsorParty ?? "",
         sponsorState: b.sponsorState ?? "",
         progressStage: b.progressStage ?? 20,
+        // The words for that code. Without them the model wrote the number to
+        // readers: "currently in committee (progress stage 40)".
+        stage: stageDescription(b.progressStage ?? 20),
         policyArea: b.policyAreaName ?? "",
         latestActionDate: b.latestActionDate ?? "",
         ...(reservedFor(b.title) ? { reservedFor: reservedFor(b.title) } : {}),

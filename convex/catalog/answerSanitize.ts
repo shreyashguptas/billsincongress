@@ -24,6 +24,7 @@
  *
  * Pure module (no Convex imports) so it carries unit tests.
  */
+import { knownStageDescription } from "./stageSemantics";
 
 export interface SanitizeResult {
   text: string;
@@ -665,8 +666,51 @@ export function plainCharacters(text: string): string {
   );
 }
 
+/**
+ * The internal stage code, written to a reader as if it meant something:
+ * "currently in committee (progress stage 40)", "currently at progress stage
+ * 40, meaning they are still in committee", "the 'passed both chambers' stage
+ * (progress 80)". Nine of 186 answers in the week to 2026-10-07 did this. The
+ * rows carry the words (`stage`), and the prompt lives in PostHog, so this is
+ * the backstop in code.
+ *
+ * A parenthetical code right after its own words only repeats them, so it
+ * goes. Anywhere else it may be the only status a bill has — "- S. 55, the
+ * Farm Act (stage 40)" in a list — so it becomes its words: "(in committee)".
+ * A code outside brackets becomes its words too: "at stage 40" -> 'at the
+ * "in committee" stage'. Only codes stageSemantics
+ * knows are touched, and only next to "stage" or "progress", so "Phase 2" or
+ * "40 bills" are left alone.
+ */
+const STAGE_PAREN = /\s*\((?:its |the )?(?:progress(?: stage)?|stage)(?: code)? (\d{2,3})\)/gi;
+const STAGE_PHRASE = /\b(the |a )?(?:progress stage|progress|stage)(?: code)? (\d{2,3})\b(?! ?%)/gi;
+
+/** How far before a bracketed code its words may sit and still count as "beside it". */
+const STAGE_WORDS_REACH = 60;
+
+export function stageCodesAsWords(text: string): string {
+  return text
+    .replace(STAGE_PAREN, (full, code: string, offset: number, whole: string) => {
+      const words = knownStageDescription(Number(code));
+      if (!words) return full;
+      // Only this item's own words count: stop at a line break or at the end of
+      // an earlier bracket, so one list item's status never vouches for the next.
+      const reach = whole.slice(Math.max(0, offset - STAGE_WORDS_REACH), offset);
+      const before = reach
+        .slice(Math.max(reach.lastIndexOf("\n"), reach.lastIndexOf(")")) + 1)
+        .toLowerCase();
+      return before.includes(words) ? "" : ` (${words})`;
+    })
+    .replace(STAGE_PHRASE, (full, _article: string | undefined, code: string) => {
+      const words = knownStageDescription(Number(code));
+      if (!words) return full;
+      const the = /^[A-Z]/.test(full) ? "The" : "the";
+      return `${the} "${words}" stage`;
+    });
+}
+
 export function sanitizeAnswer(text: string, question?: string): SanitizeResult {
-  const plain = plainCharacters(text);
+  const plain = stageCodesAsWords(plainCharacters(text));
   if (plain !== text) return sanitizeAnswer(plain, question);
   const tags = stripThinkingTags(text);
   if (tags.removed.length > 0) {
