@@ -1,5 +1,6 @@
 import posthog from 'posthog-js';
 
+import { installChunkErrorRecovery } from '@/lib/chunk-error';
 import { shouldDropException } from '@/lib/error-filter';
 import { redactEvent } from '@/lib/redact-secrets';
 import { shimBlockedStorage } from '@/lib/safe-storage';
@@ -8,6 +9,11 @@ import { shimBlockedStorage } from '@/lib/safe-storage';
 // `window.localStorage` while rendering, and a browser that blocks storage
 // throws on that read, which took every page down. See lib/safe-storage.ts.
 shimBlockedStorage();
+
+// A stale-asset chunk that fails outside render (a lazy feature loaded from an
+// effect or a click) is an unhandled rejection the error boundaries never see.
+// Give it the same one guarded reload they do. See lib/chunk-error.ts.
+installChunkErrorRecovery(window);
 
 // IMPORTANT: this is the only place posthog.init() may be called. Never add a
 // PostHogProvider or a second init elsewhere.

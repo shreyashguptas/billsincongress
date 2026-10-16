@@ -14,7 +14,12 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from 'node:assert/strict';
-import { isChunkLoadError, reloadForChunkError } from './chunk-error';
+import {
+  handleWindowChunkFailure,
+  installChunkErrorRecovery,
+  isChunkLoadError,
+  reloadForChunkError,
+} from './chunk-error';
 
 let passed = 0;
 const failures: string[] = [];
@@ -161,6 +166,74 @@ it('does not reload at all when storage is blocked', () => {
     for (let i = 0; i < 6; i++) reloadForChunkError(BASE + i * 60_000);
     assert.equal(count(), 0);
   });
+});
+
+// The window-level listener. A chunk fetched by a dynamic import() outside
+// render rejects as an unhandled promise rejection that no error boundary
+// sees; that is how 8 Safari readers in 30 days were left on bill pages whose
+// ask box, save button and charts silently did nothing.
+
+/** A rejected `ChunkLoadError` as Safari reported it, as the event carries it. */
+const staleChunk = () =>
+  err('ChunkLoadError', 'Loading chunk 4821 failed. (error: /_next/static/chunks/4821.js)');
+
+it('reloads once on an unhandled chunk rejection the boundaries never see', () => {
+  withWindow('working', (count) => {
+    handleWindowChunkFailure({ reason: staleChunk() });
+    assert.equal(count(), 1);
+  });
+});
+
+it('reloads once on an uncaught chunk error event', () => {
+  withWindow('working', (count) => {
+    handleWindowChunkFailure({ error: staleChunk() });
+    assert.equal(count(), 1);
+  });
+});
+
+it('ignores ordinary rejections and errors, which a reload would not fix', () => {
+  withWindow('working', (count) => {
+    handleWindowChunkFailure({ reason: err('TypeError', 'Failed to fetch') });
+    handleWindowChunkFailure({ reason: undefined });
+    handleWindowChunkFailure({ error: err('TypeError', "reading 'map'") });
+    handleWindowChunkFailure({ error: null });
+    assert.equal(count(), 0);
+  });
+});
+
+it('shares the boundary guard, so a listener and a boundary together reload once', () => {
+  withWindow('working', (count) => {
+    handleWindowChunkFailure({ reason: staleChunk() });
+    handleWindowChunkFailure({ reason: staleChunk() });
+    handleWindowChunkFailure({ error: staleChunk() });
+    reloadForChunkError(); // the boundary catching the same failure
+    assert.equal(count(), 1);
+  });
+});
+
+it('installs on both window events and the installed handler recovers', () => {
+  const listeners = new Map<string, (e: unknown) => void>();
+  installChunkErrorRecovery({
+    addEventListener: ((type: string, fn: (e: unknown) => void) => {
+      listeners.set(type, fn);
+    }) as Window['addEventListener'],
+  });
+  assert.deepEqual([...listeners.keys()].sort(), ['error', 'unhandledrejection']);
+  withWindow('working', (count) => {
+    listeners.get('unhandledrejection')!({ reason: staleChunk() });
+    assert.equal(count(), 1);
+  });
+});
+
+it('does not preventDefault, so PostHog still records the exception', () => {
+  let prevented = false;
+  withWindow('working', () => {
+    handleWindowChunkFailure({
+      reason: staleChunk(),
+      preventDefault: () => { prevented = true; },
+    } as { reason: unknown });
+  });
+  assert.equal(prevented, false);
 });
 
 console.log(`\nchunk-error: ${passed} passed, ${failures.length} failed`);

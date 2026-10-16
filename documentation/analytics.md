@@ -143,6 +143,12 @@ visible in the repo:
 > Two consequences when reading error charts: exception counts before and after
 > 26 Aug 2026 are not comparable, and **only `$exception` is filtered** — every
 > product event in the tables below is sent exactly as it was.
+>
+> A stale-asset `ChunkLoadError` is **not** filtered. Since 16 Oct 2026 an unhandled one
+> also triggers one guarded page reload (window listener in `instrumentation-client.ts`, see
+> "Error boundaries" in `overview.md`); the listener does not suppress the event, so it is
+> still recorded, and a reader who recovered shows a second `$pageview` of the same URL
+> seconds later.
 
 Server-rendered pages with no interactivity (the About page and the legal pages — `/terms`,
 `/privacy`) intentionally have **no custom code** — their clicks are covered by autocapture.
