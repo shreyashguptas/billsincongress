@@ -48,7 +48,8 @@ function stubCongressGov(failing: string[] = []) {
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.stubGlobal("fetch", async (input: string | URL | Request) => {
-    const type = new URL(String(input)).pathname.split("/").at(-1)!;
+    const parts = new URL(String(input)).pathname.split("/");
+    const type = parts[parts.length - 1];
     if (failing.includes(type)) {
       return new Response("upstream error", { status: 500, statusText: "Internal Server Error" });
     }

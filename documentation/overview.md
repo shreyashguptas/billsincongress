@@ -420,11 +420,13 @@ read the low number that caused the pause and pause again, forever
 Each sync (`congressApi.syncCongress`) writes one `syncSnapshots` row, `running`, and starts
 one chain of `syncBillBatch` calls per bill type. Every batch adds its counts to the row's
 `totalProcessed` / `totalSuccess` / `totalFailed` (`mutations.recordSyncBatch`, or with the
-finish below), so the totals are summed over all eight types. Every path that ends a chain
-calls `mutations.finishSyncType`: the list ran out, the list was empty, or the list fetch
+finish below), so the totals are summed over all eight types. Every path on which a batch
+returns calls `mutations.finishSyncType` when it ends its chain: the list ran out, the list was empty, or the list fetch
 failed (rate limit exhausted, an HTTP error, a body that is not JSON). A failed fetch records
 the type in `typesFailed` and a line in `errorDetails`. A circuit-breaker pause only adds a note:
-the chain resumes later and has not ended.
+the chain resumes later and has not ended. A batch that crashes before returning (an action
+timeout, a thrown mutation) never gets there, so that night's row stays `running` and "Updated"
+keeps showing the previous completed night, which is still true.
 
 The **last** type to end closes the row, with `completedAt`: `completed` if every type ran to
 the end of its list, `failed` if any did not. The "Updated *n* ago" on `/bills` and the hub
