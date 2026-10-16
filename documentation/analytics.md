@@ -230,6 +230,14 @@ match the reader-facing labels ("Outcome", "Topic", "Sponsor's state") — the
 labels are free to change, the metric vocabulary is joined against historical
 data and against `dashboard_drilldown_clicked.filter_type`.
 
+**`filter_kind: "status"`, `filter_value: "20"` changed meaning on 2026-10-16.**
+The value is still "Just introduced", but it now means the bills introduced in
+the last 30 days, at any stage, instead of stage 20 (11 placeholder numbers in
+the whole 119th; `lib/bills/just-introduced.ts`). The value was kept so saved
+insights and old `/bills?status=20` links keep working. Before that date, a
+`bills_no_results` on a `status=20` URL was the stage being empty; after it, it
+is a real empty combination.
+
 **`layout` is the payoff property of the filter redesign.** It records whether a
 picker opened as a bottom `sheet` or an anchored `popover`, which is chosen by
 the reader's pointer device rather than by screen width. Cross-tabbing
