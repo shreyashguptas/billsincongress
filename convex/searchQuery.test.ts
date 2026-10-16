@@ -13,6 +13,8 @@
 import assert from "node:assert/strict";
 import {
   sanitizeSearchQuery,
+  titleHasEveryWord,
+  titleWords,
   truncateToBytes,
   SEARCH_MAX_TERMS,
   SEARCH_MAX_TERM_BYTES,
@@ -151,6 +153,52 @@ it("applies the term ceiling and the byte ceiling together", () => {
   for (const term of terms) {
     assert.equal(byteLength(term), SEARCH_MAX_TERM_BYTES);
   }
+});
+
+// --- every word, not any word ---------------------------------------------
+
+it("splits a query into lowercase words, or null when there are none", () => {
+  assert.deepEqual(titleWords("  Disabled   Veterans "), ["disabled", "veterans"]);
+  assert.equal(titleWords("   "), null);
+  assert.equal(titleWords(""), null);
+});
+
+it("requires every word, not any word", () => {
+  // The answer engine counted titles with EITHER word and told a reader there
+  // were "exactly 474" measures about disabled veterans; 13 titles hold both.
+  const words = titleWords("disabled veterans")!;
+  assert.equal(titleHasEveryWord("Disabled Veterans Housing Support Act", words), true);
+  assert.equal(titleHasEveryWord("Veterans Health Care Act", words), false);
+  assert.equal(titleHasEveryWord("Disabled Access Credit Expansion Act", words), false);
+});
+
+it("ignores case and word order, and matches a half-typed word", () => {
+  const title = "To expand housing for veterans who are disabled";
+  assert.equal(titleHasEveryWord(title, titleWords("DISABLED veterans")!), true);
+  assert.equal(titleHasEveryWord(title, titleWords("veter disab")!), true);
+});
+
+it("matches at the start of a word, not inside one", () => {
+  // Review on #177: substring matching let a short word hide inside a longer
+  // one, and the answer engine reports the result as an exact count.
+  assert.equal(titleHasEveryWord("Rail Safety Act", titleWords("ai safety")!), false);
+  assert.equal(titleHasEveryWord("AI Safety Act", titleWords("ai safety")!), true);
+  assert.equal(titleHasEveryWord("To provide voter registration", titleWords("voter id")!), false);
+  assert.equal(titleHasEveryWord("Voter ID Act", titleWords("voter id")!), true);
+  assert.equal(titleHasEveryWord("Begun in 2020", titleWords("gun")!), false);
+  // Punctuation and hyphens still start a word.
+  assert.equal(titleHasEveryWord("Anti-Gun Violence Act", titleWords("gun violence")!), true);
+  assert.equal(titleHasEveryWord("Veterans' (Disabled) Act", titleWords("disabled")!), true);
+});
+
+it("drops punctuation at either end of a word, as Convex's tokenizer does", () => {
+  // Review on #177: a quoted query looked for '"disabled' and counted zero.
+  assert.deepEqual(titleWords('"disabled veterans"'), ["disabled", "veterans"]);
+  assert.deepEqual(titleWords("veterans' housing?"), ["veterans", "housing"]);
+  assert.deepEqual(titleWords("Medicare, Medicaid"), ["medicare", "medicaid"]);
+  assert.deepEqual(titleWords("COVID-19 U.S."), ["covid-19", "u.s"]);
+  assert.equal(titleWords(' " - '), null);
+  assert.equal(titleHasEveryWord("Disabled Veterans Act", titleWords('"disabled veterans"')!), true);
 });
 
 if (failures.length > 0) {

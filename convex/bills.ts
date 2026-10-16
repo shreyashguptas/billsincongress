@@ -6,7 +6,12 @@ import { billsByChamber, billsByStage } from "./aggregates";
 import { calculateBillStage, BillStages } from "./billStage";
 import { buildJourney } from "./billJourney";
 import { MIN_BASE_RATE_SAMPLE, MS_PER_DAY } from "./baseRates";
-import { SEARCH_LIMIT, sanitizeSearchQuery } from "./searchQuery";
+import {
+  SEARCH_LIMIT,
+  sanitizeSearchQuery,
+  titleHasEveryWord,
+  titleWords,
+} from "./searchQuery";
 import {
   chamberBounds,
   chamberOf,
@@ -506,12 +511,7 @@ function buildBillPredicate(
   // "sunshine protection act" would otherwise match all 1,024 bills containing
   // "act". Relevance ranking puts every-term matches at the top, so they survive
   // the 1,024-result ceiling; prefix typing still resolves.
-  const titleWords = args.titleFilter
-    ? args.titleFilter
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => w.length > 0)
-    : null;
+  const wantedWords = args.titleFilter ? titleWords(args.titleFilter) : null;
 
   const wantedSponsors =
     args.sponsorFilter && args.sponsorFilter.length > 0
@@ -533,12 +533,7 @@ function buildBillPredicate(
     ) {
       return false;
     }
-    if (titleWords) {
-      const title = bill.title.toLowerCase();
-      for (const w of titleWords) {
-        if (!title.includes(w)) return false;
-      }
-    }
+    if (wantedWords && !titleHasEveryWord(bill.title, wantedWords)) return false;
     if (sponsors) {
       // Resolved against the member rows: any spelling of the member, and their
       // id where the bill carries one (see resolveSponsorRequest).
