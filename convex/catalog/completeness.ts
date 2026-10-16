@@ -165,6 +165,11 @@ export function reportFor(input: {
   rowsAreGroups?: boolean;
   /** An exact partition of the matched set. Dropped unless the read is complete. */
   subsets?: Subset[];
+  /**
+   * Where to get the exact answer instead, appended to the note when the read
+   * is incomplete. Ignored when it is complete.
+   */
+  incompleteHint?: string;
 }): CompletenessReport {
   const complete = !input.windowFilled;
   if (complete) {
@@ -186,13 +191,14 @@ export function reportFor(input: {
     order: input.order,
     ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
     ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
-    note: input.filteredInMemory
-      ? INCOMPLETE_NOTE +
-        " (These filters have no index, so an ARBITRARY sample was examined — ordered by when we " +
-        "synced each row, which has nothing to do with dates, size or importance — and the rest " +
-        "of your filters were applied to that sample. Do not assume the rows you cannot see are " +
-        "the older or less relevant ones.)"
-      : INCOMPLETE_NOTE,
+    note:
+      (input.filteredInMemory
+        ? INCOMPLETE_NOTE +
+          " (These filters have no index, so an ARBITRARY sample was examined — ordered by when we " +
+          "synced each row, which has nothing to do with dates, size or importance — and the rest " +
+          "of your filters were applied to that sample. Do not assume the rows you cannot see are " +
+          "the older or less relevant ones.)"
+        : INCOMPLETE_NOTE) + (input.incompleteHint ? ` ${input.incompleteHint}` : ""),
   };
 }
 

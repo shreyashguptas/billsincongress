@@ -10,6 +10,7 @@ import {
   billShareImagePath,
   SHARE_CARD_SIZE,
   billSeoTitle,
+  pageTitle,
   billIdentifier,
   billStatusPhrase,
   billSummaryText,
@@ -120,7 +121,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 
   return {
-    title,
+    title: pageTitle(title),
     description,
     alternates: { canonical },
     openGraph: {

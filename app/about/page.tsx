@@ -10,7 +10,7 @@ export const viewport: Viewport = sharedViewport;
 export const metadata: Metadata = {
   title: 'About',
   description:
-    'About Bills in Congress — an independent record of legislation in the United States Congress.',
+    'About Bills in Congress — an independent congressional bill tracker covering every bill and resolution in the United States Congress.',
   alternates: { canonical: '/about' },
 };
 

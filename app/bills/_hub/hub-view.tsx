@@ -21,7 +21,7 @@ import {
   type HubSortedBy,
 } from '@/lib/hubs';
 import type { Bill } from '@/lib/types/bill';
-import { SHARE_CARD_SIZE, SITE_URL, hubShareImagePath } from '@/lib/seo';
+import { SHARE_CARD_SIZE, SITE_URL, hubShareImagePath, pageTitle } from '@/lib/seo';
 import { HubViewTracker, HubLink, HubOrderSwitch } from './hub-view-tracker';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { scopeFromHub } from '@/lib/answer-scope';
@@ -85,7 +85,7 @@ export async function hubMetadata(
         : hub.heading,
   };
   return {
-    title: hub.metaTitle,
+    title: pageTitle(hub.metaTitle),
     description: hub.metaDescription,
     alternates: { canonical },
     ...(empty || reordered ? { robots: { index: false, follow: true } } : {}),

@@ -307,6 +307,28 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
   {
+    id: "senate-measures-introduced",
+    question:
+      `The House or the Senate: how many measures has the Senate introduced in the ` +
+      `${CURRENT_CONGRESS}th Congress?` + ONE_NUMBER,
+    defect:
+      "Asked whether the House or the Senate introduced more, the assistant was handed a " +
+      "grouped read that stopped at 5,000 rows and told the reader House 3,348 and Senate " +
+      "1,652, which is only the shape of the first 5,000 rows (2026-10-13, rated wrong).",
+    expect: (db) => {
+      const measures = billsIn(db, CURRENT_CONGRESS);
+      const senate = count(measures, isSenateMeasure);
+      return {
+        kind: "number",
+        value: senate,
+        note:
+          `s + sjres + sconres + sres, out of ${measures.length} measures. Must reject 1652 ` +
+          `(the Senate's share of a 5,000-row partial read).`,
+      };
+    },
+  },
+
+  {
     id: "bills-introduced",
     question:
       `How many bills — not resolutions — have been introduced in the ` +
@@ -455,6 +477,28 @@ export const QUESTIONS: TruthQuestion[] = [
           `is pending. Its ${stranded.toLocaleString("en-US")} committee-stage rows are ` +
           `bills that died there — an answer that offers that number as a live backlog ` +
           `is the defect.`,
+      };
+    },
+  },
+
+  {
+    id: "web-other-gap-act",
+    question: "Is this bill about investments in general aviation?" + YES_OR_NO,
+    focusBillId: "10725hr119",
+    defect:
+      "Told a reader H.R. 10725 \"would strengthen the review of foreign-adversary " +
+      "investments in the general-aviation sector\". That is H.R. 9707, the other " +
+      "\"GAP Act\": H.R. 10725 has no official summary, so the model searched the web, " +
+      "and three of the five pages it got back were H.R. 9707's.",
+    expect: (db) => {
+      const ours = db.bills.find((b) => b.billId === "10725hr119");
+      const other = db.bills.find((b) => b.billId === "9707hr119");
+      return {
+        kind: "boolean",
+        value: false,
+        note:
+          `H.R. 10725 is "${ours?.title ?? "missing"}" (${ours?.policyAreaName ?? "no topic"}); ` +
+          `the aviation bill is H.R. 9707, "${other?.title ?? "missing"}". Yes is the defect.`,
       };
     },
   },

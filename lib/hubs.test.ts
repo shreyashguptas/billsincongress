@@ -11,6 +11,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  billHubs,
   ALL_HUBS,
   RESERVED_BILL_SLUGS,
   TOPIC_HUBS,
@@ -24,6 +25,7 @@ import {
   topicSlug,
 } from "./hubs";
 import { POLICY_AREAS } from "./constants/filters";
+import { DESCRIPTION_MIN, SEO_TITLE_MAX } from "./seo";
 
 let passed = 0;
 const failures: string[] = [];
@@ -119,18 +121,24 @@ it("finds hubs by path and returns null otherwise", () => {
   assert.equal(hubByPath("/bills/nope"), null);
 });
 
-it("has two chambers, five statuses and one topic per policy area", () => {
+it("has two chambers, seven statuses and one topic per policy area", () => {
   assert.equal(hubsOfKind("chamber").length, 2);
-  assert.equal(hubsOfKind("status").length, 5);
+  assert.equal(hubsOfKind("status").length, 7);
   assert.equal(TOPIC_HUBS.length, POLICY_AREAS.length);
 });
 
-it("omits the progress stages that are empty in every congress", () => {
-  // 80 (passed both), 90 (to President) and 95 (signed) measured 0 across
-  // c117-c119; a page for them would be permanently blank.
+it("has a page for the bills nearest to becoming law", () => {
+  // 80 (passed both chambers) and 90 (on the President's desk) were left out on
+  // a 2026-08-29 measurement that they were empty; on 2026-10-14 the 119th held
+  // 52 and 3. Only 95 (signed, not yet numbered), a gap of a day or two, has none.
   const stages = hubsOfKind("status").map((h) => h.filter.progressStage);
-  for (const empty of ["80", "90", "95"]) {
-    assert.ok(!stages.includes(empty), `stage ${empty} should have no hub`);
+  for (const stage of ["80", "90"]) assert.ok(stages.includes(stage), `stage ${stage} has no hub`);
+  assert.ok(!stages.includes("95"));
+});
+
+it("states no count in a stage explainer, because counts change daily", () => {
+  for (const hub of hubsOfKind("status")) {
+    assert.doesNotMatch(hub.explainer, /\d{2,}[,\d]*/, `${hub.path} states a number`);
   }
 });
 
@@ -138,9 +146,15 @@ it("gives every hub a heading, both meta fields and a real explainer", () => {
   for (const hub of ALL_HUBS) {
     assert.ok(hub.heading.length > 0, `${hub.path} has no heading`);
     assert.ok(hub.metaTitle.length > 0, `${hub.path} has no metaTitle`);
+    // Bing Webmaster Tools flagged hub titles up to 106 characters "Title too
+    // long" and short descriptions "too short" (Oct 2026).
     assert.ok(
-      hub.metaDescription.length >= 50,
-      `${hub.path} description too short to be useful`,
+      hub.metaTitle.length <= SEO_TITLE_MAX,
+      `${hub.path} title is ${hub.metaTitle.length} chars, over ${SEO_TITLE_MAX}`,
+    );
+    assert.ok(
+      hub.metaDescription.length >= DESCRIPTION_MIN && hub.metaDescription.length <= 160,
+      `${hub.path} description is ${hub.metaDescription.length} chars, outside ${DESCRIPTION_MIN}–160`,
     );
     // The explainer is what stops a hub being a doorway page. A stub would
     // defeat the entire point, so require real prose.
@@ -193,6 +207,18 @@ it("labels every stage hub's date with what it is", () => {
   }
   assert.equal(hubDateLabel(hubByPath("/bills/enacted")!, "stageDate"), "Became law");
   assert.equal(hubDateLabel(hubByPath("/bills/house")!, "latestActionDate"), "Latest action");
+});
+
+it("links a bill to its topic, stage and chamber pages, and a resolution to no stage page", () => {
+  const paths = (billType: string, stage: number, policyArea: string | null) =>
+    billHubs({ billType, stage, policyArea }).map((h) => h.path);
+  assert.deepEqual(paths("hr", 60, "Energy"), ["/bills/topic/energy", "/bills/passed-one-chamber", "/bills/house"]);
+  // S.Res. 156 (119th), agreed to by the Senate: "Bills that passed one
+  // chamber" would read as half-way to law.
+  assert.deepEqual(paths("sres", 60, "Native Americans"), ["/bills/topic/native-americans", "/bills/senate"]);
+  assert.deepEqual(paths("hconres", 80, null), ["/bills/house"]);
+  // Stage 50 has no hub; no topic yet means no topic link.
+  assert.deepEqual(paths("s", 50, null), ["/bills/senate"]);
 });
 
 if (failures.length > 0) {

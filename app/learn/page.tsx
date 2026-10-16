@@ -31,7 +31,7 @@ export const viewport: Viewport = sharedViewport;
 export const metadata: Metadata = {
   title: 'How Congress works',
   description:
-    'How Congress works, in pictures: people vote, Congress meets in two rooms, and an idea becomes a law in six steps.',
+    'How Congress works, in pictures: people vote, Congress meets in two rooms, and an idea becomes a law in six steps. A plain-language guide.',
   alternates: { canonical: '/learn' },
 };
 
