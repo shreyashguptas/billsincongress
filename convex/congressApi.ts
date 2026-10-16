@@ -476,11 +476,19 @@ export const recomputeCongressRollups = internalAction({
  * of the snapshot's types to end, and the sync touched any bill, the rollups
  * are recounted once. Each type used to recount them itself as it finished:
  * eight whole-Congress scans a night, the largest scheduled read on the site.
+ *
+ * The mutation also closes the snapshot when this is the last type, as
+ * "completed", or "failed" if any type passed an `error`. `batch` is the
+ * ending batch's counts, when it fetched any bills.
  */
 async function finishSyncType(
   ctx: ActionCtx,
   args: { congress: number; billType: string; snapshotId?: Id<"syncSnapshots"> },
   billsSynced: number,
+  end: {
+    batch?: { processed: number; success: number; failed: number };
+    error?: string;
+  } = {},
 ): Promise<void> {
   if (!args.snapshotId) return;
   const result = await ctx.runMutation(internal.mutations.finishSyncType, {
@@ -488,6 +496,7 @@ async function finishSyncType(
     billType: args.billType,
     billsSynced,
     typeCount: BILL_TYPES.length,
+    ...end,
   });
   if (result.last && result.billsSynced > 0) {
     // Scheduled, not awaited: five full scans should not spend this batch's
@@ -518,9 +527,9 @@ export const syncBillBatch = internalAction({
       `Fetching ${args.billType} bills for Congress ${args.congress} at offset ${args.offset}`
     );
 
-    let listResponse;
+    let listData;
     try {
-      listResponse = await fetchWithRetry(
+      const listResponse = await fetchWithRetry(
         listUrl,
         `${args.billType} list offset=${args.offset}`
       );
@@ -528,26 +537,26 @@ export const syncBillBatch = internalAction({
         console.error(
           `Failed to fetch bill list for ${args.billType} at offset ${args.offset}: rate limit exhausted`
         );
-        if (args.snapshotId) {
-          await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
-            snapshotId: args.snapshotId,
-            status: "failed",
-            errorDetails: "Rate limit exhausted on bill list fetch",
-          });
-        }
-        await finishSyncType(ctx, args, args.offset);
+        await finishSyncType(ctx, args, args.offset, {
+          error: `Rate limit exhausted on bill list fetch at offset ${args.offset}`,
+        });
         return { processed: 0, hasMore: false, error: "Rate limit exhausted" };
       }
       if (!listResponse.ok) {
         throw new Error(`API error ${listResponse.status}: ${listResponse.statusText}`);
       }
+      // Inside the try: a body that is not JSON ends the chain like any other
+      // failed fetch, instead of throwing past finishSyncType and leaving the
+      // snapshot "running".
+      listData = await listResponse.json();
     } catch (error: any) {
       console.error(`Failed to fetch bill list: ${error.message}`);
-      await finishSyncType(ctx, args, args.offset);
+      await finishSyncType(ctx, args, args.offset, {
+        error: `Bill list fetch failed at offset ${args.offset}: ${error.message}`,
+      });
       return { processed: 0, hasMore: false, error: error.message };
     }
 
-    const listData = await listResponse.json();
     const bills = listData.bills || [];
 
     if (bills.length === 0) {
@@ -619,12 +628,14 @@ export const syncBillBatch = internalAction({
     if (rateLimitAborted) {
       const resumeOffset = args.offset + successCount;
       if (args.snapshotId) {
-        await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
+        // Only the successes count: the resumed batch tries the rest again,
+        // and counts them then. A pause is not a failure of the run.
+        await ctx.runMutation(internal.mutations.recordSyncBatch, {
           snapshotId: args.snapshotId,
-          errorDetails: `Rate limit circuit breaker at offset ${args.offset} for ${args.billType}; resuming at ${resumeOffset} after backoff`,
-          totalProcessed: args.offset + successCount,
-          totalSuccess: (args.offset || 0) + successCount,
-          totalFailed: failCount,
+          processed: successCount,
+          success: successCount,
+          failed: 0,
+          note: `Rate limit circuit breaker at offset ${args.offset} for ${args.billType}; resuming at ${resumeOffset} after backoff`,
         });
       }
       await ctx.scheduler.runAfter(
@@ -641,17 +652,15 @@ export const syncBillBatch = internalAction({
       return { processed: successCount, hasMore: true, successCount, failCount, rateLimitAborted: true };
     }
 
-    if (args.snapshotId) {
-      await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
-        snapshotId: args.snapshotId,
-        totalProcessed: args.offset + bills.length,
-        totalSuccess: (args.offset || 0) + successCount,
-        totalFailed: failCount,
-      });
-    }
-
+    const batch = { processed: bills.length, success: successCount, failed: failCount };
     const hasMore = bills.length >= BATCH_SIZE;
     if (hasMore) {
+      if (args.snapshotId) {
+        await ctx.runMutation(internal.mutations.recordSyncBatch, {
+          snapshotId: args.snapshotId,
+          ...batch,
+        });
+      }
       await ctx.scheduler.runAfter(
         5000, // 5 second gap between batches
         internal.congressApi.syncBillBatch,
@@ -663,17 +672,10 @@ export const syncBillBatch = internalAction({
           fromDateTime: args.fromDateTime,
         }
       );
-    } else if (args.snapshotId) {
-      await ctx.runMutation(internal.mutations.updateSyncSnapshot, {
-        snapshotId: args.snapshotId,
-        status: "completed",
-        completedAt: new Date().toISOString(),
-        totalProcessed: args.offset + bills.length,
-        totalSuccess: (args.offset || 0) + successCount,
-        totalFailed: failCount,
-      });
-
-      await finishSyncType(ctx, args, args.offset + successCount);
+    } else {
+      // The type's last batch. Its counts go in with the finish, and the
+      // snapshot is closed there once every type has ended, not here.
+      await finishSyncType(ctx, args, args.offset + successCount, { batch });
     }
 
     return { processed: bills.length, hasMore, successCount, failCount };

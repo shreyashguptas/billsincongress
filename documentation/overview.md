@@ -415,6 +415,27 @@ so each run starts by forgetting it: a run scheduled after a pause would otherwi
 read the low number that caused the pause and pause again, forever
 (`convex/enrichmentBackfill.spec.ts`).
 
+### Sync runs and "Updated X ago"
+
+Each sync (`congressApi.syncCongress`) writes one `syncSnapshots` row, `running`, and starts
+one chain of `syncBillBatch` calls per bill type. Every batch adds its counts to the row's
+`totalProcessed` / `totalSuccess` / `totalFailed` (`mutations.recordSyncBatch`, or with the
+finish below), so the totals are summed over all eight types. Every path that ends a chain
+calls `mutations.finishSyncType`: the list ran out, the list was empty, or the list fetch
+failed (rate limit exhausted, an HTTP error, a body that is not JSON). A failed fetch records
+the type in `typesFailed` and a line in `errorDetails`. A circuit-breaker pause only adds a note:
+the chain resumes later and has not ended.
+
+The **last** type to end closes the row, with `completedAt`: `completed` if every type ran to
+the end of its list, `failed` if any did not. The "Updated *n* ago" on `/bills` and the hub
+pages (`components/bills/sync-status.tsx`) reads `bills.getSyncStatus`, the newest
+**completed** row, so it is the last time every bill type was checked. A failed night leaves
+the previous time in place rather than claim a check that did not happen. Until October 2026
+the row was closed per type, by the first type to finish a batch that had bills in it, with only
+that type's counts. A night on which every list came back empty (the Monday incremental, right
+after the Sunday full sync) was never closed, and readers were shown the day before. Rows from
+before the fix can still read `running`. Tests: `convex/syncSnapshot.spec.ts`.
+
 ### Progress stage — derived here, not supplied
 
 `convex/billStage.ts` is a **pure module** (no Convex imports) so it can be unit-tested
@@ -715,7 +736,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 | `billText` | Links to official PDF and text versions |
 | `billLegislativeSubjects` | The long per-bill subject list (HR1/119 has ~239). Stored but not surfaced |
 | `billTitles` | **Unused, and empty** — never written; the only reference is a delete loop in `mutations.ts`. Removing it is left to the owner |
-| `syncSnapshots` | Audit trail of every sync run |
+| `syncSnapshots` | Audit trail of every sync run; the newest `completed` row is the site's "Updated *n* ago" (see "Sync runs") |
 
 Two design decisions worth knowing:
 
@@ -2597,7 +2618,7 @@ Congress, so a deleted historical Congress does not come back on its own.
 | "The answer service is not deployed yet" | The frontend is ahead of Convex. Check the "Deploy the Convex backend" step of the latest Deploy run; re-run it from the Actions tab (on `main`) once fixed |
 | A Congress shows with 0 bills | The nightly 04:00 recompute will clean it up, or delete it manually |
 | Intermittent Worker `1101` errors | The KV cache bindings are missing or misconfigured |
-| Data looks stale | Check `bills:getSyncStatus`; the daily sync runs 01:00 UTC and stats rebuild at 04:00 UTC |
+| Data looks stale | Check `bills:getSyncStatus`; the daily sync runs 01:00 UTC and stats rebuild at 04:00 UTC. If "Updated" is more than a day old, read the newest `syncSnapshots` rows: a `failed` one names the bill types and errors in `errorDetails` (see "Sync runs") |
 | A reader paid but is still Free | The webhook did not land. Check `stripeEvents` for a `failed` row and the endpoint's delivery log in Stripe; `STRIPE_WEBHOOK_SECRET` must be that endpoint's own secret |
 | No alert emails at all | `ALERT_EMAILS_LIVE` is not `true` (test mode), or `ALERTS_UNSUBSCRIBE_SECRET` is unset (every send throws) |
 
