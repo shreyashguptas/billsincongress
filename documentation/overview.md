@@ -352,7 +352,9 @@ bill pages and `/`). So `instrumentation-client.ts` also registers window `unhan
 and `error` listeners (`installChunkErrorRecovery`) that run the same guarded reload for a
 chunk failure. They share the boundaries' sessionStorage guard, so a listener and a boundary
 firing for one failure still reload once, and they do not `preventDefault()`, so PostHog still
-records the `$exception`. Old HTML naming old chunks is mostly the anonymous-page cache above
+records the `$exception`. They do nothing while the browser reports itself offline: Safari and
+Firefox word a dynamic import that failed for lack of network like a stale chunk, and reloading
+a page that still reads fine would replace it with the service worker's offline page. Old HTML naming old chunks is mostly the anonymous-page cache above
 (`stale-while-revalidate=86400`), which can serve a day-old page from a deploy whose chunks are
 gone.
 `next.config.mjs` sets a per-deploy `deploymentId` (the git commit) so Next.js skew protection

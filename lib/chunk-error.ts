@@ -84,6 +84,12 @@ type WindowFailureEvent = { reason?: unknown; error?: unknown };
  * record the `$exception`, exactly as before.
  */
 export function handleWindowChunkFailure(event: WindowFailureEvent): void {
+  // Safari and Firefox report ANY failed dynamic import with the message that
+  // marks a stale chunk, including one that failed because the network dropped.
+  // The boundaries only fire once a render has already failed; this fires on
+  // pages that still read fine, and reloading one offline would swap the bill
+  // on screen for the service worker's offline page.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
   const error = 'reason' in event ? event.reason : event.error;
   if (isChunkLoadError(error)) reloadForChunkError();
 }

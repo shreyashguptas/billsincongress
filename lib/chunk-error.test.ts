@@ -170,8 +170,8 @@ it('does not reload at all when storage is blocked', () => {
 
 // The window-level listener. A chunk fetched by a dynamic import() outside
 // render rejects as an unhandled promise rejection that no error boundary
-// sees; that is how 8 Safari readers in 30 days were left on bill pages whose
-// ask box, save button and charts silently did nothing.
+// sees; that is how 8 Safari readers in 30 days were left on pages where a
+// lazily loaded control (the Pro and alert dialogs) silently did nothing.
 
 /** A rejected `ChunkLoadError` as Safari reported it, as the event carries it. */
 const staleChunk = () =>
@@ -223,6 +223,23 @@ it('installs on both window events and the installed handler recovers', () => {
     listeners.get('unhandledrejection')!({ reason: staleChunk() });
     assert.equal(count(), 1);
   });
+});
+
+it('does not reload a reader who is offline, whose page still reads fine', () => {
+  // Safari words a dynamic import that failed for lack of network exactly like
+  // a stale chunk. Reloading would replace the bill on screen with /offline.html.
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+  try {
+    withWindow('working', (count) => {
+      handleWindowChunkFailure({ reason: staleChunk() });
+      handleWindowChunkFailure({ error: staleChunk() });
+      assert.equal(count(), 0);
+    });
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'navigator', original);
+    else delete (globalThis as { navigator?: unknown }).navigator;
+  }
 });
 
 it('does not preventDefault, so PostHog still records the exception', () => {
