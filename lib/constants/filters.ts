@@ -107,6 +107,9 @@ export const LIVE_STATUS_OPTIONS = [
   { value: '60', label: 'Passed one chamber' },
   { value: '50', label: 'Out of committee, awaiting a vote' },
   { value: '40', label: 'Still in committee' },
+  // Not stage 20: the bills introduced in the last 30 days, at any stage. The
+  // stage itself holds a handful of placeholder numbers; see
+  // lib/bills/just-introduced.ts.
   { value: '20', label: 'Just introduced' },
 ];
 

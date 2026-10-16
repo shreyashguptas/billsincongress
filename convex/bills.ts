@@ -976,8 +976,9 @@ export const list = query({
  * The bills of one hub page in a real date order — "Newest first" or "Oldest
  * first" on /bills/enacted, /bills/house, /bills/topic/health and the rest.
  *
- * Unlike `list`, the order here is a promise, so this only takes the three hub
- * shapes an index can serve whole: a stage, a topic, or a chamber. Each reads
+ * Unlike `list`, the order here is a promise, so this only takes the four hub
+ * shapes an index can serve whole: a stage, a topic, a chamber, or the bills
+ * introduced in the last 30 days. Each reads
  * an index that enforces its entire filter, so there is no scan cap, nothing
  * filtered in memory, and page 10 is as correct as page 1. (`list` walks
  * insertion order, which on /bills/enacted buried the newest laws on pages 2
@@ -987,6 +988,8 @@ export const list = query({
  *             became law, was vetoed, passed a chamber.
  *  - topic:   by `latestActionDate`.
  *  - chamber: by `latestActionDate`, merging the chamber's four bill types.
+ *  - introduced: by `introducedDate`, one range of the introduced-date index
+ *             (/bills/introduced, "Just introduced"; lib/bills/just-introduced.ts).
  *
  * Bills with no date sort last in both directions (see convex/hubOrder.ts).
  * scripts/truth/hub-order.test.ts runs `sortedBills` against a copy of
@@ -1004,6 +1007,7 @@ export const listSorted = query({
         kind: v.literal("chamber"),
         chamber: v.union(v.literal("house"), v.literal("senate")),
       }),
+      v.object({ kind: v.literal("introduced"), window: v.literal("month") }),
     ),
     order: v.union(v.literal("newest"), v.literal("oldest")),
     offset: v.optional(v.number()),
@@ -1016,8 +1020,12 @@ export const listSorted = query({
     }
     const limit = Math.max(1, clampPageNumber(args.limit, 9, MAX_LIST_LIMIT));
     const offset = clampPageNumber(args.offset, 0, MAX_LIST_OFFSET);
-    const sortedBy: "stageDate" | "latestActionDate" =
-      scope.kind === "stage" ? "stageDate" : "latestActionDate";
+    const sortedBy: "stageDate" | "latestActionDate" | "introducedDate" =
+      scope.kind === "stage"
+        ? "stageDate"
+        : scope.kind === "introduced"
+          ? "introducedDate"
+          : "latestActionDate";
 
     const congress = await resolveCongress(ctx, args.congress);
     if (congress === null) return { data: [], hasMore: false, sortedBy };
@@ -1037,7 +1045,8 @@ export const listSorted = query({
 export type HubScope =
   | { kind: "stage"; progressStage: number }
   | { kind: "topic"; policyArea: string }
-  | { kind: "chamber"; chamber: "house" | "senate" };
+  | { kind: "chamber"; chamber: "house" | "senate" }
+  | { kind: "introduced"; window: "month" };
 
 /**
  * One hub's bills as an ordered stream. Newest-first is a single descending
@@ -1079,6 +1088,19 @@ export function sortedBills(
             q.eq("congress", congress).eq("progressStage", stage).eq("stageDate", undefined),
           ),
     ]);
+  }
+
+  // "Just introduced" (/bills/introduced): every bill introduced in the window,
+  // read as one range of the introduced-date index, so the set is whole and the
+  // order is real. Every bill has an introduced date, so there is no undated tail.
+  if (scope.kind === "introduced") {
+    const since = cutoffDateForFilter(scope.window) ?? "";
+    return ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_introduced", (q) =>
+        q.eq("congress", congress).gte("introducedDate", since),
+      )
+      .order(order === "newest" ? "desc" : "asc");
   }
 
   if (scope.kind === "topic") {

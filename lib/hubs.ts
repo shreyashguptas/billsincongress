@@ -45,6 +45,12 @@ export interface HubDefinition {
     chamber?: 'house' | 'senate';
     progressStage?: string;
     policyArea?: string;
+    /**
+     * Bills introduced in this window, at any stage: what "Just introduced"
+     * means (lib/bills/just-introduced.ts). Not stage 20, which is all but
+     * empty because bills are sent to committee the day they are introduced.
+     */
+    introducedWithin?: 'month';
   };
 }
 
@@ -160,10 +166,10 @@ const STATUS_HUBS: HubDefinition[] = [
     heading: 'Newly introduced bills',
     metaTitle: 'Newly Introduced Bills in Congress',
     metaDescription:
-      'Bills formally introduced in Congress and not yet referred to a committee or acted upon, with sponsor and date. Updated daily.',
+      'Every bill and resolution introduced in Congress in the last 30 days, newest first, with sponsor and where each one stands now. Updated daily.',
     explainer:
-      'A bill enters the record when a member formally introduces it. At this point it has a number and a sponsor but no committee action behind it yet. Introduction is a low bar — any member may introduce any bill — so this stage says what someone proposed, not what Congress is likely to do.',
-    filter: { progressStage: '20' },
+      'The bills members have introduced in the past month, newest first. A bill enters the record when a member formally introduces it, and it is almost always sent to the committee with jurisdiction over its subject the same day, so most of these already read "in committee". Introduction is a low bar — any member may introduce any bill — so this list says what members are proposing now, not what Congress is likely to do.',
+    filter: { introducedWithin: 'month' },
   },
   {
     kind: 'status',
@@ -277,9 +283,13 @@ export function hubHref(hub: HubDefinition, { page = 1, order = 'newest' }: { pa
 export type HubSortScope =
   | { kind: 'stage'; progressStage: number }
   | { kind: 'topic'; policyArea: string }
-  | { kind: 'chamber'; chamber: 'house' | 'senate' };
+  | { kind: 'chamber'; chamber: 'house' | 'senate' }
+  | { kind: 'introduced'; window: 'month' };
 
 export function hubSortScope(hub: HubDefinition): HubSortScope {
+  if (hub.filter.introducedWithin !== undefined) {
+    return { kind: 'introduced', window: hub.filter.introducedWithin };
+  }
   if (hub.filter.progressStage !== undefined) {
     return { kind: 'stage', progressStage: Number.parseInt(hub.filter.progressStage, 10) };
   }
@@ -289,7 +299,7 @@ export function hubSortScope(hub: HubDefinition): HubSortScope {
 }
 
 /** The date a sorted hub's rows are ordered by, as `bills.listSorted` reports it. */
-export type HubSortedBy = 'stageDate' | 'latestActionDate';
+export type HubSortedBy = 'stageDate' | 'latestActionDate' | 'introducedDate';
 
 const STAGE_DATE_LABELS: Record<string, string> = {
   '100': 'Became law',
@@ -298,7 +308,6 @@ const STAGE_DATE_LABELS: Record<string, string> = {
   '80': 'Passed both chambers',
   '60': 'Passed a chamber',
   '40': 'Sent to committee',
-  '20': 'Introduced',
 };
 
 /**
@@ -311,6 +320,7 @@ export function hubDateLabel(hub: HubDefinition, sortedBy: HubSortedBy): string 
   if (sortedBy === 'stageDate') {
     return STAGE_DATE_LABELS[hub.filter.progressStage ?? ''] ?? 'Reached this stage';
   }
+  if (sortedBy === 'introducedDate') return 'Introduced';
   return 'Latest action';
 }
 
