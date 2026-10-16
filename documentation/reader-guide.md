@@ -19,7 +19,7 @@ It is free to read, has no ads, and you do not need an account to read anything 
 
 ### The front page — one Congress at a glance
 
-The home page is a dashboard for a single Congress at a time (the 119th by default; a picker switches between them).
+The home page is a dashboard for a single Congress at a time (by default the newest one we hold bills for; a picker switches between them).
 
 It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover a party to see its own numbers. A small "party not recorded" group counts bill numbers Congress.gov lists with no sponsor at all — in the 117th Congress, eleven House bill numbers held back for the Speaker and the Minority Leader — and the assistant can list them if you ask.
 
@@ -45,7 +45,7 @@ Each filter's own control displays what it is currently set to, with a running "
 
 ### Forty ways in
 
-Between the front page and roughly 56,500 individual bill pages sit 40 browse pages: two by chamber (House, Senate), five by stage (introduced, in committee, passed one chamber, enacted, vetoed) and 33 by policy topic.
+Between the front page and roughly 56,500 individual bill pages sit 42 browse pages: two by chamber (House, Senate), seven by stage (introduced, in committee, passed one chamber, passed both chambers, on the President's desk, became law, vetoed) and 33 by policy topic.
 
 Each one is written as a document, not just a filtered list with a new heading. Every one carries a plain-language explanation of what that grouping actually means — what "in committee" really implies, why most bills stop there, what a concurrent resolution is for.
 
@@ -59,6 +59,7 @@ Below that:
 
 - **A status panel** naming the bill's current stage and how it got there. Its journey is drawn to scale: one bar segment per stage, as long as the bill stayed in it, and under each one the number of days and what happened then — the committee vote, each chamber's passage with its yes and no tally, the signature and the public law number. All of it is read from the bill's official actions on Congress.gov. A bill that has spent time in only one stage shows the seven-step track instead. Resolutions that cannot become law get a shorter track that ends where they are finished: a simple resolution (H.Res., S.Res.) has three steps and ends at "Agreed to by the House" or "by the Senate"; a concurrent resolution (H.Con.Res., S.Con.Res.) has four and ends at "Agreed to by both chambers". A sentence under the track says why: neither ever goes to the President, and neither is a law. The same shorter track and the same words appear wherever the site shows a stage: the bill lists, the bill cards in answers, your account page and the alert emails. A bill still on its way also shows how many days are left in the two-year Congress, because a bill that has not become law when the Congress ends dies with it.
 - **Among its peers** — every bill and resolution on the same topic in the same Congress, one dot each, coloured by stage, with this one ringed: "Of 2,181 Health bills and resolutions this Congress, this is the only one that became law." The counts are recounted in full after every nightly update that changes a bill, and the page says when; the ring only appears when the bill has not changed since that count.
+- **Keep reading** — up to five more bills on the same topic in the same Congress, the most recently acted on first, each with its stage, then links to the bill's topic, stage and chamber lists (a resolution gets no stage list, since those are worded for bills on their way to law).
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
 - **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever left committee. It is labelled as a description of that group of past bills, not a prediction about this one. A bill already out of committee does not show it.
@@ -202,7 +203,7 @@ The question panel is the only place in the interface where a machine writes pro
 
 **It is told to admit what is missing.** When a lookup returns nothing, the model is instructed to say the site does not hold it, or to run the labelled web search, rather than fall back on general knowledge. It is specifically told never to state co-sponsor counts, vote tallies or hearing schedules. These are prompt instructions, not hard blocks — unlike the citation check, nothing inspects the finished answer for them.
 
-**Web search is a labelled exception.** When the answer genuinely is not in this site's data, the model may search the open web. When it does, it must state in one sentence what is missing here, and that sentence is shown to you word for word. Sources are then printed in two separate blocks: *From our database* and *Not from our database*.
+**Web search is a labelled exception.** When the answer genuinely is not in this site's data, the model may search the open web. When it does, it must state in one sentence what is missing here, and that sentence is shown to you word for word. Sources are then printed in two separate blocks: *From our database* and *Not from our database*. Before the model reads them, any result that is about a different bill is thrown away: many bills share a short title (there are two "GAP Act"s in this Congress), and the search engine cannot tell them apart. The check reads the bill number and Congress written in each page's address and title, so a page that names no bill at all, such as a sponsor's press release, still gets through.
 
 **Your question is never handed to the search engine verbatim.** A search phrase is rejected before it leaves the server if it contains first-person words or simply repeats your question, so the model has to rephrase into a neutral query. Your question text does still go to the AI provider that writes the answer — that is unavoidable — but not to the search engine as you typed it.
 
@@ -261,7 +262,7 @@ An account is free and gets you three things: bookmarking bills, saved conversat
 
 - **The code** is all here, MIT licensed. Every data transformation, every prompt, every guardrail.
 - **The data** is public domain, published by the U.S. government. If you want it in bulk, take it from [Congress.gov](https://api.congress.gov/) directly rather than scraping this site.
-- **The sitemap** lists every bill page — 56,000-plus URLs, split one file per Congress — so search engines can reach every bill rather than the handful a crawler could find by clicking.
+- **The sitemap** lists every bill page — 56,000-plus URLs, split into one file per quarter of each Congress, each bill dated by the bill's latest action — so search engines can reach every bill rather than the handful a crawler could find by clicking. Each bill page also links to five more bills on its topic and to its topic, stage and chamber lists, so bills are reachable by following links too.
 - **[`/llms.txt`](https://billsincongress.com/llms.txt)** tells AI systems what this site is, how its URLs are built, and asks them to cite it with a link.
 - **Crawler policy:** bots that answer someone's question and link back — ChatGPT search, Perplexity, Google, Bing, Apple — are welcome. Eighteen named crawlers that harvest content to train models are blocked in `robots.txt`. That is a request, not enforcement; it depends on the crawler honouring it.
 

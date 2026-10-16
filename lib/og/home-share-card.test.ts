@@ -16,7 +16,7 @@ import { ImageResponse } from 'next/og';
 import { homeShareImagePath, SHARE_CARD_SIZE, SHARE_CARD_VERSION } from '@/lib/seo';
 import { shareCardFonts } from './card-parts';
 import { GenericShareCard } from './generic-share-card';
-import { HOME_CONGRESS } from '@/lib/congress';
+import { homeCongress } from '@/lib/congress';
 import { HomeShareCard, homeCardFromDashboard, type DashboardStats } from './home-share-card';
 import { loadHomeCardData } from './home-share-data';
 
@@ -69,23 +69,36 @@ async function main() {
 
   // The card describes the Congress the page shows
 
-  await it('reads the Congress the home page shows by default, not the newest one', async () => {
+  await it('reads the newest Congress we hold, from the stats rows', async () => {
+    // It was the constant 119, which from 3 January 2027 would have kept
+    // describing the 119th as the current Congress.
     const asked: number[] = [];
-    const data = await loadHomeCardData(async (congress) => {
-      asked.push(congress);
-      return { ...DASHBOARD, congress };
-    });
-    assert.deepEqual(asked, [HOME_CONGRESS]);
-    assert.equal(data?.congress, HOME_CONGRESS);
+    const data = await loadHomeCardData(
+      async (congress) => {
+        asked.push(congress);
+        return { ...DASHBOARD, congress };
+      },
+      async () => [
+        { congress: 118, totalCount: 19315 },
+        { congress: 119, totalCount: 19633 },
+        { congress: 120, totalCount: 212 },
+      ],
+    );
+    assert.deepEqual(asked, [120]);
+    assert.equal(data?.congress, 120);
   });
 
-  await it('app/page.tsx defaults to the same constant', () => {
-    // When a new Congress convenes, a card that followed the newest synced
-    // Congress would describe a few hundred bills while the page still shows
-    // the last one. Both must read HOME_CONGRESS.
+  await it('skips a Congress with no measures, and falls back to the calendar', () => {
+    assert.equal(homeCongress([{ congress: 119, totalCount: 5 }, { congress: 120, totalCount: 0 }]), 119);
+    assert.equal(homeCongress(null, '2027-01-04'), 120);
+    assert.equal(homeCongress([], '2026-10-14'), 119);
+  });
+
+  await it('app/page.tsx defaults through the same function', () => {
+    // The card and the page must agree on which Congress the home page shows.
     const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
     const page = readFileSync(join(root, 'app', 'page.tsx'), 'utf8');
-    assert.match(page, /Number\(params\.congress\) \|\| HOME_CONGRESS/);
+    assert.match(page, /Number\(params\.congress\) \|\| homeCongress\(/);
     assert.doesNotMatch(page, /\|\|\s*\d{3}\b/, 'no literal Congress number as the default');
   });
 

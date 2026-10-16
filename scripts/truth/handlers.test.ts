@@ -1339,6 +1339,49 @@ async function main() {
     assert.match(r.error, /grouped by it/i);
   });
 
+  // "Did the House or the Senate introduce more bills?" was answered from a
+  // grouped read that stopped at 5,000 rows: House 3,348 + Senate 1,652, exactly
+  // 5,000, labelled largest first. The reader rated it wrong (2026-10-13). A
+  // partial grouped read now carries no counts and points at the exact source.
+  await it("a grouped read that could not finish gives no per-group counts", async () => {
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "chamber" }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const measures = bills.filter((b: any) => b.congress === 119).length;
+    assert.ok(measures > 5000, "sanity: the 119th is bigger than one grouped read");
+    assert.equal(r.report.complete, false);
+    assert.equal(r.report.order, "arbitrary", "a partial read cannot be largest first");
+    for (const row of r.rows) {
+      assert.equal(row.count, undefined, `${row.group} carries a count from a partial read`);
+    }
+    const payload = payloadFor(r.rows, r.report);
+    assert.doesNotMatch(payload, /3,?348|1,?652/, "the numbers the reader was given");
+    assert.match(payload, /houseMeasures and senateMeasures/, "must point at the exact split");
+
+    // And the place it points at holds the real split.
+    const stats = await fetchViaHandlers(ctx, "stats", { congress: 119 });
+    assert.ok(stats.ok);
+    const house = bills.filter(
+      (b: any) => b.congress === 119 && ["hr", "hjres", "hconres", "hres"].includes(b.billType),
+    ).length;
+    assert.equal(stats.rows[0].houseMeasures, house);
+    assert.equal(stats.rows[0].senateMeasures, measures - house);
+  });
+
+  await it("a partial grouped read with other filters is told to narrow, not sent to stats", async () => {
+    const { payloadFor } = await import("../../convex/catalog/completeness");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, progressStage: 40, groupBy: "chamber" }, 0);
+    assert.ok(r.ok);
+    // The 119th's in-committee measures are far past the grouped scan ceiling,
+    // so this read must come back partial. If it ever completes, this case
+    // would test nothing: pick a bigger set rather than let it pass silently
+    // (review on #189).
+    assert.equal(r.report.complete, false, "the set fit the scan, so the partial-read path went unchecked");
+    const payload = payloadFor(r.rows, r.report);
+    assert.match(payload, /Narrow the filters/);
+    assert.doesNotMatch(payload, /fetch `stats`/, "stats holds a different set than this one");
+  });
+
   await it("the stats row separates bills from resolutions", async () => {
     // "How many bills have been introduced" had no exact source: 18,476 measures
     // is past any scan ceiling, so counting hr and s came back incomplete, and
@@ -1677,6 +1720,23 @@ async function main() {
     assert.ok(r.report.total < 300, `${r.report.total} reads like the 706 that counted resolutions`);
   });
 
+  // On Claude's first evening (2026-10-13) this question, and 8 other lookups,
+  // came back "'limit' is not a filter on 'bills'": Claude copied two worked
+  // examples that wrote `"limit": 0` inside `filters`. Each rejection spent a
+  // round; answers ran out of rounds and said "I couldn't" instead of the count.
+  await it("the live Claude call, limit inside filters, still gets the exact count", async () => {
+    const { filtersFromCall, limitFromCall } = await import("../../convex/catalog/filters");
+    const args = {
+      name: "bills",
+      filters: { congress: 119, chamber: "senate", measure: "bill", reachedStage: 60, limit: 0 },
+    };
+    const r = await fetchViaHandlers(ctx, "bills", filtersFromCall("bills", args) as any, limitFromCall(args));
+    assert.ok(r.ok, `rejected again: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.rows.length, 0, "limit 0 is a count: no rows");
+    assert.equal(r.report.total, senateBillsPassed, "must match the Senate passages on record");
+  });
+
   await it("a chamber-only count says how much of its total is bills", async () => {
     // The model may still pick chamber alone. The result must then put the bill
     // count in front of it rather than let it read 706 as bills.
@@ -1723,6 +1783,111 @@ async function main() {
     assert.equal(r.report.total, expected);
   });
 
+  // --- Web fallback: pages about a same-titled bill ------------------------
+
+  await it("H.R. 10725's web search never offers H.R. 9707's pages (two GAP Acts)", async () => {
+    // Live on 2026-10-08: the bill page for H.R. 10725 described H.R. 9707,
+    // because the web search matched the short title they share.
+    const { billsInScope, keepWebResultsForBill } = await import("../../convex/catalog/webResults");
+    const ours = bills.find((b: any) => b.billId === "10725hr119");
+    const other = bills.find((b: any) => b.billId === "9707hr119");
+    assert.ok(ours && other, "sanity: both bills are in production");
+    const hits = [
+      { url: "https://www.quiverquant.com/bills/119/hr-10725", title: "" },
+      { url: "https://www.congress.gov/bill/119th-congress/house-bill/9707", title: "" },
+      { url: "https://legilist.com/bill/119/hr/9707", title: "" },
+      { url: "https://www.congress.gov/119/bills/hr9707/BILLS-119hr9707ih.htm", title: "" },
+    ];
+    for (const query of ["H.R. 10725 GAP Act summary", "GAP Act foreign adversary investments general aviation"]) {
+      const { kept } = keepWebResultsForBill(hits, billsInScope(query, "10725hr119"));
+      assert.deepEqual(
+        kept.map((h) => h.url),
+        ["https://www.quiverquant.com/bills/119/hr-10725"],
+        `query "${query}"`,
+      );
+    }
+    // A search for an earlier version must not let the other GAP Act back in
+    // as this bill's history (review finding on #181).
+    const earlier = keepWebResultsForBill(hits, billsInScope("GAP Act Medicare 116th Congress", "10725hr119"));
+    assert.deepEqual(earlier.kept.map((h) => h.url), ["https://www.quiverquant.com/bills/119/hr-10725"]);
+  });
+
+  await it("every pair of same-titled bills is kept apart by the web filter", async () => {
+    // Not just the GAP Acts: short titles repeat across the Congress. For each
+    // collision, the page of one bill must reject the other's Congress.gov,
+    // govinfo and tracker pages and keep its own.
+    const { billsInScope, keepWebResultsForBill } = await import("../../convex/catalog/webResults");
+    const LONG: Record<string, string> = {
+      hr: "house-bill", s: "senate-bill", hres: "house-resolution", sres: "senate-resolution",
+      hjres: "house-joint-resolution", sjres: "senate-joint-resolution",
+      hconres: "house-concurrent-resolution", sconres: "senate-concurrent-resolution",
+    };
+    const pagesOf = (b: any) => [
+      `https://www.congress.gov/bill/${b.congress}th-congress/${LONG[b.billType]}/${b.billNumber}`,
+      `https://www.govinfo.gov/app/details/BILLS-${b.congress}${b.billType}${b.billNumber}ih`,
+      `https://www.quiverquant.com/bills/${b.congress}/${b.billType}-${b.billNumber}`,
+      `https://legilist.com/bill/${b.congress}/${b.billType}/${b.billNumber}`,
+    ];
+    const byTitle = new Map<string, any[]>();
+    for (const b of bills as any[]) {
+      if (b.congress !== 119 || !b.title || !LONG[b.billType]) continue;
+      const key = b.title.trim().toLowerCase();
+      byTitle.set(key, [...(byTitle.get(key) ?? []), b]);
+    }
+    let pairs = 0;
+    const wrong: string[] = [];
+    for (const [title, group] of byTitle) {
+      if (group.length < 2) continue;
+      for (const a of group) {
+        for (const b of group) {
+          if (a === b) continue;
+          pairs++;
+          const hits = [...pagesOf(a), ...pagesOf(b)].map((url) => ({ url, title: "" }));
+          const { kept } = keepWebResultsForBill(hits, billsInScope(`${title} summary`, a.billId));
+          const expected = pagesOf(a);
+          if (JSON.stringify(kept.map((h) => h.url)) !== JSON.stringify(expected)) {
+            wrong.push(`${a.billId} vs ${b.billId}: kept ${kept.map((h) => h.url).join(", ")}`);
+          }
+        }
+      }
+    }
+    assert.ok(pairs > 0, "sanity: the 119th has bills that share a title");
+    assert.deepEqual(wrong.slice(0, 5), [], `${wrong.length} of ${pairs} pairs mixed up`);
+  });
+
+  await it("a search for a bill's earlier-Congress version keeps that version's pages", async () => {
+    // Review finding on #181: with the open bill always in scope, a search for
+    // the 118th's version of a re-introduced bill came back empty, and the
+    // model could say there was no earlier version. Checked over every bill
+    // whose title the 118th and the 119th share.
+    const { billsInScope, keepWebResultsForBill } = await import("../../convex/catalog/webResults");
+    const LONG: Record<string, string> = {
+      hr: "house-bill", s: "senate-bill", hres: "house-resolution", sres: "senate-resolution",
+      hjres: "house-joint-resolution", sjres: "senate-joint-resolution",
+      hconres: "house-concurrent-resolution", sconres: "senate-concurrent-resolution",
+    };
+    const earlier = new Map<string, any>();
+    for (const b of bills as any[]) {
+      if (b.congress === 118 && b.title && LONG[b.billType]) earlier.set(b.title.trim().toLowerCase(), b);
+    }
+    let pairs = 0;
+    const wrong: string[] = [];
+    for (const b of bills as any[]) {
+      if (b.congress !== 119 || !b.title) continue;
+      const old = earlier.get(b.title.trim().toLowerCase());
+      if (!old) continue;
+      pairs++;
+      const url = `https://www.congress.gov/bill/118th-congress/${LONG[old.billType]}/${old.billNumber}`;
+      const { kept } = keepWebResultsForBill(
+        [{ url, title: "" }],
+        billsInScope(`${b.title} 118th Congress`, b.billId),
+      );
+      if (kept.length !== 1) wrong.push(`${b.billId} → ${old.billId}`);
+    }
+    assert.ok(pairs > 0, "sanity: some 119th bills re-use a 118th title");
+    assert.deepEqual(wrong.slice(0, 5), [], `${wrong.length} of ${pairs} lost their earlier version`);
+  });
+
   await it("no result ever carries a total without claiming completeness", async () => {
     const shapes: Array<[string, Record<string, unknown>, number | undefined]> = [
       ["bills", { congress: 119 }, 50],
@@ -1748,6 +1913,52 @@ async function main() {
       assert.ok(typeof r.report.set === "string" && r.report.set.length > 0, `${label}: no set`);
     }
   });
+
+  // --- The current Congress comes from the data, not the constant 119 --------
+
+  // Every handler defaulted a missing Congress to 119. From 3 January 2027 that
+  // answers "how many bills this Congress?" with the 119th's final totals.
+  const newest = Math.max(...bills.map((b: any) => b.congress as number));
+
+  await it("a lookup that names no Congress reads the newest one we hold", async () => {
+    for (const name of ["stats", "topics", "sponsors"] as const) {
+      const implicit = await fetchViaHandlers(ctx, name, {}, 0);
+      const explicit = await fetchViaHandlers(ctx, name, { congress: newest }, 0);
+      assert.ok(implicit.ok && explicit.ok, `${name}: ${implicit.error ?? explicit.error}`);
+      assert.equal(implicit.report.set, explicit.report.set, `${name} defaulted to a different Congress`);
+      assert.equal(implicit.report.total, explicit.report.total, name);
+    }
+    const counted = await fetchViaHandlers(ctx, "bills", { measure: "bill" }, 0);
+    assert.ok(counted.ok);
+    const { ordinal } = await import("../../convex/catalog/congressCalendar");
+    assert.match(counted.report.set, new RegExp(`the ${ordinal(newest)} Congress`));
+  });
+
+  await it("a bill fetched by id is not narrowed to the newest Congress", async () => {
+    const old = bills.find((b: any) => b.congress < newest);
+    assert.ok(old, "the copy holds no earlier Congress");
+    const r = await fetchViaHandlers(ctx, "bills", { billId: old.billId }, 1);
+    assert.ok(r.ok, r.error);
+    assert.equal(r.rows.length, 1, `${old.billId} was not found without a congress`);
+  });
+
+  await it("the site's topic list holds every policy area in the data", async () => {
+    // The /bills topic picker and the 33 topic pages come from POLICY_AREAS in
+    // lib/constants/filters.ts. A topic Congress.gov adds would be missing from
+    // both, silently; this fails first.
+    const { POLICY_AREAS } = await import("../../lib/constants/filters");
+    const known = new Set<string>(POLICY_AREAS);
+    const missing = [
+      ...new Set(
+        ctx.db
+          .rowsOf("congressPolicyAreas")
+          .map((t: any) => t.policyAreaName as string)
+          .filter((name: string) => name && !known.has(name)),
+      ),
+    ];
+    assert.deepEqual(missing, [], "policy areas in the data but not on the site");
+  });
+
 }
 
 main().then(() => {

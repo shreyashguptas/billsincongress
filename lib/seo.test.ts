@@ -20,6 +20,9 @@ import {
   billNoun,
   billSeoDescription,
   billSeoTitle,
+  pageTitle,
+  SEO_TITLE_MAX,
+  DESCRIPTION_MIN,
   billStatusPhrase,
   billSummaryText,
 } from "./seo";
@@ -362,7 +365,7 @@ it("a bill with an unparseable date omits the date rather than printing junk", (
 
 it("a bill with no title still yields a usable title tag", () => {
   const t = billSeoTitle(bareBill({ title: "" }));
-  assert.match(t, /^S\. 5213 — In committee \(119th Congress\)$/);
+  assert.match(t, /^S\. 5213 — In committee \(119th\)$/);
 });
 
 it("identifier is the searched form", () => {
@@ -389,6 +392,61 @@ it("every description stays inside the snippet budget across all stages", () => 
       const d = billSeoDescription(bareBill({ progress_stage: stage, latest_summary: summary }));
       assert.ok(d.length <= 158, `stage ${stage} produced ${d.length} chars`);
     }
+  }
+});
+
+it("bill titles fit Bing's 65 characters and keep the identifier, status and Congress", () => {
+  // Live titles before this ran to 142 characters (S.Res. 156, 119th), and Bing
+  // flagged 357 pages "Title too long".
+  const long = bareBill({
+    bill_type: "sres",
+    bill_type_label: "S.Res.",
+    bill_number: "156",
+    progress_stage: 60,
+    title: "A resolution commemorating the 50th anniversary of the Indian Self-Determination and Education Assistance Act",
+  });
+  for (const bill of [bareBill(), long, bareBill({ title: "Securing our Border Act" })]) {
+    const t = billSeoTitle(bill);
+    assert.ok(t.length <= SEO_TITLE_MAX, `${t.length} chars: ${t}`);
+    assert.match(t, /\(119th\)$/);
+  }
+  assert.match(billSeoTitle(long), /^S\.Res\. 156 — Agreed to by the Senate: A resolution/);
+});
+
+it("a bill name is cut between words, and a 65-character title is never cut again", () => {
+  // H.R. 7128 (119th) came out "TRIA Program Reauthoriza……" with no Congress.
+  const t = billSeoTitle(
+    bareBill({ bill_type: "hr", bill_type_label: "H.R.", bill_number: "7128", progress_stage: 60, title: "TRIA Program Reauthorization Act of 2026" }),
+  );
+  assert.equal(t, "H.R. 7128 — Passed one chamber: TRIA Program… (119th)");
+  assert.deepEqual(pageTitle("x".repeat(SEO_TITLE_MAX)), { absolute: "x".repeat(SEO_TITLE_MAX) });
+  assert.deepEqual(pageTitle("Health Bills in Congress"), { absolute: "Health Bills in Congress" });
+});
+
+it("pageTitle keeps the site-name suffix only when it fits", () => {
+  assert.equal(pageTitle("About"), "About");
+  const long = "Civil Rights and Liberties, Minority Issues: a much longer title";
+  assert.deepEqual(pageTitle(long), { absolute: long });
+  const huge = pageTitle("x ".repeat(60).trim());
+  assert.ok(typeof huge === "object" && huge.absolute.length <= SEO_TITLE_MAX);
+});
+
+it("bill descriptions are never shorter than DESCRIPTION_MIN", () => {
+  // H.R. 2475 (119th) published a 90-character description: a short title,
+  // no summary. Bing flagged 251 pages "Meta description too short".
+  const short = bareBill({
+    title: "To amend the Act.",
+    latest_summary: "",
+  });
+  const withSummary = bareBill({ latest_summary: "<p>Short summary.</p>" });
+  // H.R. 2497 (119th): 116 characters, too long for either full sentence.
+  const nearly = bareBill({
+    title: "Abortion Care Awareness Act of 2025",
+    latest_summary: "<p>This bill requires the Department of Health and Human Services to carry out a campaign.</p>",
+  });
+  for (const bill of [short, withSummary, nearly, bareBill()]) {
+    const d = billSeoDescription(bill);
+    assert.ok(d.length >= DESCRIPTION_MIN && d.length <= 160, `${d.length} chars: ${d}`);
   }
 });
 

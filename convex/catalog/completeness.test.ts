@@ -92,6 +92,16 @@ it("the incomplete note forbids the three sentences that shipped wrong answers",
   assert.match(note, /largest, smallest, newest, oldest/i);
 });
 
+it("adds where the exact answer lives to an incomplete note, and nothing to a complete one", () => {
+  const hint = "For the exact House and Senate split, fetch `stats`.";
+  const base = { set: "s", filteredInMemory: false, matchedCount: 5000, shown: 2, order: "arbitrary" as const };
+  const partial = reportFor({ ...base, windowFilled: true, incompleteHint: hint });
+  assert.ok(String(partial.note).endsWith(hint), "the hint must follow the incomplete note");
+  assert.match(String(partial.note), /INCOMPLETE RESULT/);
+  const whole = reportFor({ ...base, windowFilled: false, incompleteHint: hint });
+  assert.equal(whole.note, undefined, "a complete result has no note to add to");
+});
+
 it("names the unindexed-filter case, because that is when a zero is meaningless", () => {
   const unindexed = reportFor({
     set: "s",

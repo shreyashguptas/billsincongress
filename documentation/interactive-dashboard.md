@@ -57,8 +57,14 @@ records what is specific to the dashboard.
 
 ## What the page renders, in order
 
-`app/page.tsx` is a server component: it reads `?congress=` (defaulting to **119**), fetches
-four queries in one `Promise.all`, and hands them to `DashboardClient` as initial data.
+`app/page.tsx` is a server component. It reads the per-Congress totals
+(`getAllCongressOverview`) first: without `?congress=`, the page shows the newest Congress
+that holds any measure (`homeCongress` in `lib/congress.ts`). It then fetches the dashboard
+and both chamber breakdowns for that Congress in one `Promise.all`, and hands everything to
+`DashboardClient` as initial data. The default used to be the constant 119, set by hand; from
+3 January 2027 it would have kept showing the 119th as the current Congress. In a new
+Congress's first days the page therefore shows a few hundred bills, which is what that
+Congress then holds. The home share card calls the same function, so they agree.
 
 Before any data renders, `DashboardClient` checks `useConvexEnabled()` and shows a
 "Backend not connected" panel if `NEXT_PUBLIC_CONVEX_URL` is unset — a missing backend
@@ -108,8 +114,8 @@ topic wheel uses for its inline "Ask what they're about"). The comment in `dashb
 the rule: this sits **alongside** the drill-down and never replaces it, because browsing and
 asking are different intents.
 
-`DashboardClient` also mounts `<AskPageContext congress={viewCongress} />` above the hero. Every
-catalog fetch defaults to the 119th Congress, so before this the selector and the answer engine
+`DashboardClient` also mounts `<AskPageContext congress={viewCongress} />` above the hero. A catalog
+fetch with no Congress reads the newest one we hold, so before this the selector and the answer engine
 disagreed silently: a reader studying the 117th here and then asking a question was answered
 about a different Congress entirely, with nothing on screen to say so. The selector's value now
 travels with the question. See [The answer engine → Page context](./overview.md#page-context).

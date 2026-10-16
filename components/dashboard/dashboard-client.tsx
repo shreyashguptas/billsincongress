@@ -11,7 +11,7 @@ import { AskPageContext } from '@/components/answers/ask-page-context';
 import { SectionHeader } from '@/components/brand/section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { analytics } from '@/lib/analytics';
-import { HOME_CONGRESS, formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
+import { formatCongressOrdinal, formatCongressProse } from '@/lib/congress';
 import PodcastPromo from '@/components/podcast-promo';
 import { hubByPath, topicSlug } from '@/lib/hubs';
 import { cadenceNarration } from '@/lib/monthly-cadence';
@@ -41,12 +41,13 @@ type DashboardView = {
 };
 
 interface DashboardProps {
-  initialCongress?: number;
+  /** The page decides it (`homeCongress` in lib/congress.ts), so there is no default here. */
+  initialCongress: number;
   initialData?: InitialDashboardData | null;
 }
 
 export default function Dashboard({
-  initialCongress = HOME_CONGRESS,
+  initialCongress,
   initialData = null,
 }: DashboardProps) {
   const convexEnabled = useConvexEnabled();
@@ -85,7 +86,7 @@ function ConvexNotConfigured() {
 }
 
 function DashboardInner({
-  initialCongress = HOME_CONGRESS,
+  initialCongress,
   initialData = null,
 }: DashboardProps) {
   const router = useRouter();

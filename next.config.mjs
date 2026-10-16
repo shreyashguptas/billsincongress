@@ -30,6 +30,16 @@ const nextConfig = {
   // a real CSP for a Convex + Next app needs to allowlist the Convex
   // deployment URL, Google OAuth endpoints, and any analytics origin, and
   // would break things if rolled in unattended. Add as a separate exercise.
+  // The sitemap files at the site root. They are built by a route handler,
+  // app/sitemap-files/[id]/route.ts, but a sitemap file may only list pages
+  // under its own folder, so the index names /sitemap-<id>.xml
+  // (lib/sitemap-ids.ts, sitemapFileUrl) and this serves it. The handler's own
+  // path is refused in middleware.ts, so this rewrite is the only way in.
+  async rewrites() {
+    // The id pattern is SITEMAP_FILE_ID_PATTERN in lib/sitemap-ids.ts (kept in
+    // step by a test): 0, or a Congress 1–999 and a quarter 1–8.
+    return [{ source: '/sitemap-:id(0|[1-9][0-9]{0,2}[1-8]).xml', destination: '/sitemap-files/:id' }];
+  },
   async headers() {
     return [
       {

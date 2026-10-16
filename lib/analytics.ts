@@ -473,8 +473,9 @@ export const analytics = {
   }) => capture('hub_order_changed', props),
 
   /**
-   * A link from one hub to a sibling hub, from /bills into a hub, or from the
-   * site footer's three hub links.
+   * A link from one hub to a sibling hub, from /bills into a hub, from the
+   * site footer's three hub links, or from the foot of a bill page
+   * (`bill_page`: its topic, stage and chamber).
    *
    * `placement` distinguishes the browse disclosure on /bills from the
    * sibling row on a hub page, a picker footer, and the site footer (`footer`). Worth having: this
@@ -485,8 +486,20 @@ export const analytics = {
     from_path: string;
     to_path: string;
     hub_kind: 'chamber' | 'status' | 'topic';
-    placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer';
+    placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer' | 'bill_page';
   }) => capture('hub_link_clicked', props),
+
+  /**
+   * A bill in the "Keep reading" list at the foot of a bill page (same topic,
+   * same Congress, most recently acted on). `position` is 1–5, top first:
+   * whether readers take the first link or read down the list.
+   */
+  relatedBillClicked: (props: {
+    from_bill_id: string;
+    to_bill_id: string;
+    policy_area: string;
+    position: number;
+  }) => capture('related_bill_clicked', props),
 
   /**
    * Instant bill suggestions under the home ask box settled on a result set.

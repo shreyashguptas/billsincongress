@@ -248,8 +248,39 @@ async function billJourneyAndPeers(ctx: QueryCtx, bill: Doc<"bills">) {
     }
   }
 
-  return { journey, peers, billUpdatedAt: bill.updatedAt };
+  // A few bills on the same topic, most recently acted on. Bill pages were
+  // near-orphans: each linked only to the site's navigation, so ~56,800 of them
+  // were reachable almost only through the sitemap, and Bing indexed 13.3K of
+  // the 56.8K it knew (Oct 2026). Each page now links to its neighbours. One
+  // indexed range read of RELATED_BILLS + 1 rows; the bill itself is skipped.
+  const related = policyAreaName
+    ? (
+        await ctx.db
+          .query("bills")
+          .withIndex("by_congress_policy_area_and_latest_action", (q) =>
+            q.eq("congress", bill.congress).eq("policyAreaName", policyAreaName),
+          )
+          .order("desc")
+          .take(RELATED_BILLS + 1)
+      )
+        .filter((b) => b.billId !== bill.billId)
+        .slice(0, RELATED_BILLS)
+        .map((b) => ({
+          billId: b.billId,
+          billType: b.billType,
+          billTypeLabel: b.billTypeLabel,
+          billNumber: b.billNumber,
+          title: b.title,
+          progressStage: b.progressStage ?? null,
+          latestActionDate: b.latestActionDate ?? null,
+        }))
+    : [];
+
+  return { journey, peers, related, billUpdatedAt: bill.updatedAt };
 }
+
+/** How many same-topic bills a bill page links to. */
+const RELATED_BILLS = 5;
 
 /**
  * Everything the bill page draws, in one call: the bill (as `getById` returns
@@ -1317,25 +1348,40 @@ export const getCongressNumbers = query({
 });
 
 /**
- * Cursor-paginated feed of every bill in a congress, for sitemap generation.
- * Returns only billId + updatedAt (~17-20k bills per congress, so the sitemap
- * route loops pages of 2,500 to stay well under per-query read limits). The
- * general `list` query is unusable here — it caps offset at 500 by design.
+ * Cursor-paginated feed of the bills in one sitemap file: one Congress, and
+ * optionally the bills introduced in [introducedFrom, introducedBefore), the
+ * quarter that file covers (lib/sitemap-ids.ts). Returns only the id and the
+ * dates; the sitemap route loops pages of 2,500 to stay well under per-query
+ * read limits. The general `list` query is unusable here — it caps offset at
+ * 500 by design.
  */
 export const listForSitemap = query({
   args: {
     congress: v.number(),
+    introducedFrom: v.optional(v.string()),
+    introducedBefore: v.optional(v.union(v.string(), v.null())),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const result = await ctx.db
-      .query("bills")
-      .withIndex("by_congress", (q) => q.eq("congress", args.congress))
-      .paginate(args.paginationOpts);
+    const { introducedFrom, introducedBefore } = args;
+    const result =
+      introducedFrom === undefined
+        ? await ctx.db
+            .query("bills")
+            .withIndex("by_congress", (q) => q.eq("congress", args.congress))
+            .paginate(args.paginationOpts)
+        : await ctx.db
+            .query("bills")
+            .withIndex("by_congress_and_introduced", (q) => {
+              const from = q.eq("congress", args.congress).gte("introducedDate", introducedFrom);
+              return introducedBefore ? from.lt("introducedDate", introducedBefore) : from;
+            })
+            .paginate(args.paginationOpts);
     return {
       page: result.page.map((b) => ({
         billId: b.billId,
-        updatedAt: b.updatedAt,
+        latestActionDate: b.latestActionDate ?? null,
+        introducedDate: b.introducedDate,
       })),
       isDone: result.isDone,
       continueCursor: result.continueCursor,

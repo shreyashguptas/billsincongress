@@ -93,6 +93,26 @@ it("records a committee's recorded vote", () => {
   );
 });
 
+it("never dates a stage before the bill was introduced", () => {
+  // S. 2431 (119th): its subcommittee held hearings "on the subject prior to
+  // introduction" in May and June; the bill was introduced, reported and put on
+  // the calendar on July 24. It read "71 days in committee" from May 14.
+  const j = buildJourney(
+    [
+      act("2025-05-14", "Subcommittee on Department of Interior, Environment, and Related Agencies. Hearings held on the subject prior to introduction and referral."),
+      act("2025-06-11", "Subcommittee on Department of Interior, Environment, and Related Agencies. Hearings held on the subject prior to introduction and referral."),
+      act("2025-07-24", "Introduced in Senate", { actionCode: "10000" }),
+      act("2025-07-24", "Committee on Appropriations. Original measure reported to Senate by Senator Murkowski. With written report No. 119-46.", { actionCode: "14000" }),
+      act("2025-07-24", "Placed on Senate Legislative Calendar under General Orders. Calendar No. 124."),
+    ],
+    "2025-07-24",
+    "s",
+  );
+  assert.ok(j.steps.every((s) => s.date >= "2025-07-24"), JSON.stringify(j.steps));
+  assert.ok(j.events.every((e) => e.date >= "2025-07-24"), JSON.stringify(j.events));
+  assert.equal(j.steps[j.steps.length - 1].stage, BillStages.OUT_OF_COMMITTEE);
+});
+
 it("a bill with no actions is introduced and nothing else", () => {
   const j = buildJourney([], "2026-09-29");
   assert.deepEqual(j.steps, [{ stage: BillStages.INTRODUCED, date: "2026-09-29" }]);
