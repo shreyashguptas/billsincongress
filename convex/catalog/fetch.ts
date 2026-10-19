@@ -427,7 +427,6 @@ function chooseOrderingIndex(
   return { indexName: "by_congress_and_latest_action", direction: sort.direction, order: sort.order };
 }
 
-/** Plain-English description of the set a bills fetch drew from. */
 /**
  * A title filter in double quotes is a PHRASE: the search reads every title with
  * any of its words, and only those containing the whole phrase are kept. Without
@@ -437,7 +436,9 @@ function chooseOrderingIndex(
 function titlePhrase(f: Row): string | null {
   if (typeof f.titleFilter !== "string") return null;
   const m = f.titleFilter.match(/^\s*"([^"]+)"\s*$/);
-  return m ? m[1].trim().replace(/\s+/g, " ").toLowerCase() : null;
+  const phrase = m ? m[1].trim().replace(/\s+/g, " ").toLowerCase() : "";
+  // '"  "' is no phrase: it would keep every title under a label naming none.
+  return phrase === "" ? null : phrase;
 }
 
 /**
@@ -456,6 +457,12 @@ function stageText(b: Doc<"bills">, today: string | undefined): string | undefin
   return `got as far as "${words}" before the ${congressOrdinal(b.congress)} Congress ended`;
 }
 
+/** The words a title search runs on: quotes are phrase markers, not search terms. */
+function titleSearchWords(f: Row): string {
+  return typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter.replace(/"/g, " ")) : "";
+}
+
+/** Plain-English description of the set a bills fetch drew from. */
 function describeBillSet(f: Row): string {
   const parts: string[] = [];
   if (typeof f.billId === "string") return `the single bill ${f.billId}`;
@@ -481,7 +488,7 @@ function describeBillSet(f: Row): string {
     parts.push(
       phrase
         ? `with the exact phrase '${phrase}' in the title`
-        : `whose title has any of the words ${sanitizeSearchQuery(f.titleFilter)
+        : `whose title has any of the words ${titleSearchWords(f)
             .split(" ")
             .map((w) => `'${w}'`)
             .join(", ")} (not necessarily together)`,
@@ -550,7 +557,7 @@ async function fetchBills(
   // Set by runFetch, except on a lookup by id, which names its own Congress and
   // must not be narrowed to another one (see the billId check in the predicate).
   const congress = typeof f.congress === "number" ? f.congress : ((await newestCongress(ctx)) ?? 0);
-  const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter.replace(/"/g, " ")) : "";
+  const title = titleSearchWords(f);
   const phrase = titlePhrase(f);
   const sponsorNames = Array.isArray(f.sponsorFilter) ? (f.sponsorFilter as string[]) : null;
   const groupBy = typeof f.groupBy === "string" ? f.groupBy : null;

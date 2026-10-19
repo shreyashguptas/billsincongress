@@ -1953,6 +1953,20 @@ async function main() {
     assert.ok(r.report.total > 4, "the any-word search is the wide one");
   });
 
+  await it("a partly quoted title search is an any-word search, and its label shows no quotes", async () => {
+    // Review on #201: '"student visa" F-1' is not one phrase, so it runs as words,
+    // and a label reading 'any of the words '"student', 'visa"'' would suggest otherwise.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"student visa" F-1' }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.match(r.report.set, /any of the words 'student', 'visa', 'F-1'/);
+    assert.ok(!r.report.set.includes('"'), r.report.set);
+  });
+
+  await it("an empty quoted phrase is not a phrase that matches every title", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"  "' }, 0);
+    assert.ok(!r.ok || !/exact phrase/.test(r.report.set), JSON.stringify(r.report ?? r));
+  });
+
   // --- 2026-10-15: "all of these are still at the introduced stage" ----------
   // Every one was at stage 40, in committee. Rows carried only the number, and
   // the map from number to words lived in a description the model had to recall.
