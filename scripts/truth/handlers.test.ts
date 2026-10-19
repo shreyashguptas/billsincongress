@@ -31,6 +31,7 @@ import {
 import { validateFilters } from "../../convex/catalog/filters";
 import { isDatasetName } from "../../convex/catalog/datasets";
 import { payloadFor } from "../../convex/catalog/completeness";
+import { mergeSponsorRows } from "../../convex/catalog/sponsorName";
 
 let passed = 0;
 const failures: string[] = [];
@@ -833,9 +834,13 @@ async function main() {
     assert.equal(r.report.total, undefined);
   });
 
-  await it("'the fewest bills in California' is answerable, and it is James Gallagher", async () => {
+  await it("'the fewest bills in California' is answerable, and it is the real minimum", async () => {
     // The read was complete and the total exact, but the page was 50 of 54
     // ordered most-first, so the true minimum was never on it.
+    //
+    // Compared by COUNT, not by name: on 2026-10-19 Adam Gray and James
+    // Gallagher were tied at 8, and which of two tied rows comes first is not
+    // a fact about California. Naming one member here failed the weekly run.
     const r = await fetchViaHandlers(
       ctx,
       "sponsors",
@@ -844,11 +849,71 @@ async function main() {
     );
     assert.ok(r.ok);
     assert.equal(r.report.order, "fewest_bills_first");
-    const realMin = truth.caSponsors.reduce((a: any, b: any) =>
-      b.billCount < a.billCount ? b : a,
+    const fewest = Math.min(...truth.caSponsors.map((s: any) => s.billCount));
+    const atMinimum = truth.caSponsors
+      .filter((s: any) => s.billCount === fewest)
+      .map((s: any) => s.sponsorName);
+    assert.equal(r.rows[0].billCount, fewest);
+    assert.ok(
+      atMinimum.includes(r.rows[0].sponsorName),
+      `${r.rows[0].sponsorName} is not among the members with ${fewest}: ${atMinimum.join(", ")}`,
     );
-    assert.equal(r.rows[0].sponsorName, realMin.sponsorName);
-    assert.equal(r.rows[0].billCount, realMin.billCount);
+  });
+
+  await it("a tie for the fewest is told to the model, not hidden behind row 1", async () => {
+    // "Who introduced the fewest bills in California?" → "Adam Gray, with 8."
+    // James Gallagher also had 8 (2026-10-19). The page was sorted and complete,
+    // so row 1 really was AT the minimum — but nothing said it was not alone
+    // there, and with a limit of 1 Gallagher was not on the page at all.
+    // One entry per PERSON, merged exactly as the handler merges them (id, else
+    // folded name and state; mixed-case spelling shown), so a fragment of a
+    // member stored two ways cannot pose as the minimum. Merging has its own
+    // cases; this one is about the tie.
+    const atMinimum = (state: string | null) => {
+      const members = mergeSponsorRows(
+        sponsorRows.filter(
+          (s: any) => s.congress === 119 && (state === null || s.sponsorState === state),
+        ) as any[],
+      );
+      const fewest = Math.min(...members.map((s) => s.billCount));
+      return members.filter((s) => s.billCount === fewest).map((s) => s.sponsorName);
+    };
+    const tied = atMinimum("CA");
+    for (const limit of [1, 5]) {
+      const r = await fetchViaHandlers(
+        ctx,
+        "sponsors",
+        { congress: 119, sponsorState: "CA", sort: "fewest_bills" },
+        limit,
+      );
+      assert.ok(r.ok);
+      const payload = JSON.parse(payloadFor(r.rows, r.report));
+      if (tied.length < 2) {
+        assert.equal(payload.tied_with_row_1, undefined, "one member at the minimum is not a tie");
+        continue;
+      }
+      assert.equal(r.report.tiedWithFirst?.count, tied.length);
+      assert.deepEqual([...r.report.tiedWithFirst.members].sort(), [...tied].sort());
+      for (const name of tied) {
+        assert.ok(
+          String(payload.tied_with_row_1).includes(name),
+          `limit ${limit}: the model is never told ${name} shares the minimum`,
+        );
+      }
+    }
+    // Nationally the same holds, with the tie read across every state.
+    const national = atMinimum(null);
+    const r = await fetchViaHandlers(ctx, "sponsors", { congress: 119, sort: "fewest_bills" }, 1);
+    assert.ok(r.ok);
+    assert.equal(r.report.tiedWithFirst?.count ?? 1, national.length);
+  });
+
+  await it("the most bills in a state is not reported as a tie when one member leads", async () => {
+    const r = await fetchViaHandlers(ctx, "sponsors", { congress: 119, sponsorState: "CA" }, 1);
+    assert.ok(r.ok);
+    const top = Math.max(...truth.caSponsors.map((s: any) => s.billCount));
+    const leaders = truth.caSponsors.filter((s: any) => s.billCount === top).length;
+    assert.equal(r.report.tiedWithFirst?.count ?? 1, leaders);
   });
 
   await it("one unrecognised name among several does not get silently counted as zero", async () => {

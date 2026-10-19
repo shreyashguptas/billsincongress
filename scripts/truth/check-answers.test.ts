@@ -160,6 +160,41 @@ it("scores the true member correct without repeating the whole answer", () => {
   assert.equal(r.said, undefined);
 });
 
+const tiedForFewest: Expected = {
+  kind: "name",
+  value: "James Gallagher",
+  names: ["James Gallagher", "Adam Gray"],
+  rivals: ["Eric Swalwell", "Tom McClintock"],
+  note: "",
+};
+
+it("scores one of two tied members WRONG and names who was left out", () => {
+  const r = scoreRun(tiedForFewest, { text: "Adam Gray has introduced the fewest, with 8." });
+  assert.equal(r.outcome, "WRONG");
+  assert.equal(r.got, "does not name James Gallagher");
+});
+
+it("scores a reply naming every tied member correct", () => {
+  const r = scoreRun(tiedForFewest, {
+    text: "Adam Gray and James Gallagher are tied for the fewest, with 8 each.",
+  });
+  assert.equal(r.outcome, "CORRECT");
+});
+
+it("scores a padded tie WRONG, naming the member who should not be there", () => {
+  const r = scoreRun(tiedForFewest, {
+    text: "Adam Gray, James Gallagher and Eric Swalwell are tied for the fewest.",
+  });
+  assert.equal(r.outcome, "WRONG");
+  assert.equal(r.got, "also names Eric Swalwell");
+});
+
+it("scores an invented tie WRONG when one member is alone at the minimum", () => {
+  const alone: Expected = { kind: "name", value: "James Gallagher", rivals: ["Tom McClintock"], note: "" };
+  const r = scoreRun(alone, { text: "James Gallagher and Tom McClintock are tied for the fewest." });
+  assert.equal(r.outcome, "WRONG");
+});
+
 it("KNOWN LIMIT: a name answer that also names the right member scores CORRECT", () => {
   // Documented, not desired. Unlike extractNumber, a substring match cannot see
   // a second name, so an answer asserting McClintock while mentioning Gallagher

@@ -80,6 +80,8 @@ const COUNT_SCAN_LIMIT = 5000;
 const MAX_SPONSOR_LOOKUPS = 10;
 /** Sponsors per Congress is ~550, so the whole set is readable in one go. */
 const SPONSOR_SCAN_LIMIT = 2000;
+/** Members named in a tie for first place; past this a tie is a count alone. */
+const TIE_NAMES_LIMIT = 20;
 
 type Row = Record<string, unknown>;
 type FetchResult =
@@ -1281,6 +1283,20 @@ async function fetchSponsors(
         congress,
       }));
 
+  // A sort ranks the rows but does not break ties, so row 1 is "the fewest"
+  // only when nobody else has its count. Named over the whole sorted set, not the
+  // page, so a tie wider than the limit is still reported in full.
+  const first = sorted[0]?.billCount;
+  const tied = first === undefined ? [] : sorted.filter((s) => s.billCount === first);
+  const tiedWithFirst: Subset | undefined =
+    tied.length > 1
+      ? {
+          label: `with ${first} bill${first === 1 ? "" : "s"} each`,
+          count: tied.length,
+          ...(tied.length <= TIE_NAMES_LIMIT ? { members: tied.map((s) => s.sponsorName) } : {}),
+        }
+      : undefined;
+
   return {
     ok: true,
     rows,
@@ -1294,6 +1310,7 @@ async function fetchSponsors(
       shown: rows.length,
       // Sorting a complete set is exact; a filled window makes the claim a lie.
       order: windowFilled ? "arbitrary" : ascending ? "fewest_bills_first" : "most_bills_first",
+      tiedWithFirst,
     }),
   };
 }
