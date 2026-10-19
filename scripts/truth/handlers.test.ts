@@ -1965,6 +1965,18 @@ async function main() {
     assert.equal(r.rows[0].stage, "in committee");
   });
 
+  await it("a bill from an ended Congress is never 'in committee' in the present tense", async () => {
+    // Review on #201: `stage: "in committee"` beside `finalStatus: "...died in
+    // committee..."`, under a prompt that says to use the stage words.
+    const dead = bills.find((b: any) => b.congress === 117 && b.progressStage === 40 && b.billType === "hr");
+    assert.ok(dead, "sanity: the 117th has bills that died in committee");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, billId: dead!.billId }, 1, "2026-10-19");
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.ok(r.rows[0].finalStatus, "an ended Congress's bill carries finalStatus");
+    assert.notEqual(r.rows[0].stage, "in committee");
+    assert.match(r.rows[0].stage, /117th Congress ended/);
+  });
+
 }
 
 main().then(() => {

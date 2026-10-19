@@ -440,9 +440,20 @@ function titlePhrase(f: Row): string | null {
   return m ? m[1].trim().replace(/\s+/g, " ").toLowerCase() : null;
 }
 
-/** Where a bill is, in words, so no answer has to recall what stage 40 means. */
-function stageText(stage: number): string {
-  return (BillStageDescriptions[stage] ?? `stage ${stage}`).toLowerCase();
+/**
+ * Where a bill is, in words, so no answer has to recall what stage 40 means.
+ * In an ended Congress a bill that did not reach the President is not "in
+ * committee" any more, it got that far and stopped: the words say so in the past
+ * tense, beside finalStatus (review on #201). A simple or concurrent resolution
+ * there gets no stage words at all, because its stored stage does not show
+ * adoption (see finalStatus).
+ */
+function stageText(b: Doc<"bills">, today: string | undefined): string | undefined {
+  const stage = b.progressStage ?? 20;
+  const words = (BillStageDescriptions[stage] ?? `stage ${stage}`).toLowerCase();
+  if (!today || !isCongressClosed(b.congress, today) || stage >= 90) return words;
+  if (!canBecomeLaw(b.billType)) return undefined;
+  return `got as far as "${words}" before the ${congressOrdinal(b.congress)} Congress ended`;
 }
 
 function describeBillSet(f: Row): string {
@@ -985,7 +996,7 @@ async function fetchBills(
         sponsorParty: b.sponsorParty ?? "",
         sponsorState: b.sponsorState ?? "",
         progressStage: b.progressStage ?? 20,
-        stage: stageText(b.progressStage ?? 20),
+        ...(stageText(b, today) ? { stage: stageText(b, today) } : {}),
         policyArea: b.policyAreaName ?? "",
         latestActionDate: b.latestActionDate ?? "",
         ...(reservedFor(b.title) ? { reservedFor: reservedFor(b.title) } : {}),

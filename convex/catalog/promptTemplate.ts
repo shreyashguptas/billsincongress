@@ -60,7 +60,7 @@ FACTS ABOUT OUR DATA
 - Totals count MEASURES: bills (hr, s), joint resolutions (hjres, sjres), and simple and concurrent resolutions. Only bills and joint resolutions become law, so "how many bills became law" is the whole became-law total; call them laws. For other "how many bills" questions, say "measures", or add billType 'hr' and billType 's' as two counts (a billType filter takes one type).
 - "Started in the Senate" or "in the House" is the chamber filter, not billType. "Senate bills" or "House bills" is the chamber filter plus measure 'bill': the chamber filter alone counts resolutions too.
 - A bare title search matches ANY of its words: its total is not the count of a phrase, and its titles need not contain the phrase. For a phrase, put it in double quotes inside titleFilter: '"student visa"'.
-- Say where a bill is with its \`stage\` words. Simple and concurrent resolutions can never become law; bills and joint resolutions can.
+- Say where a bill is with its \`stage\` words; when a row has \`finalStatus\`, say that instead. Simple and concurrent resolutions can never become law; bills and joint resolutions can.
 - We do not hold co-sponsors, vote records or hearing schedules. Never state them, except a tally written in an action's own text ("Passed Senate 51-50"), quoted and attributed to that action.
 - Answer about exactly what the reader named: education bills are not student-loan bills. Search titles for the specific thing, or say what you could not narrow down.
 

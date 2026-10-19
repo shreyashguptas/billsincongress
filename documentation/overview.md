@@ -1206,14 +1206,15 @@ to need: "summarize" means the official summary (version 2 described the bill's 
 3 runs of 3), and cards only for fetched ids; **4** lets a vote tally written in an action's own text be quoted, as
 `datasets.ts` allows. Measured on the production data copy: version 1 got 20 of 21 in 3 runs;
 version 3 got 21, 20 and 21; version 4 got 20 and 20, its one miss the Senate question every
-version misses; the grounding gate passed 16 of 16 in every run of versions 3 and 4. **6**
-(2026-10-19, identical to `DEFAULT_TEMPLATE`) answers the fact-check judge's real failures
+version misses; the grounding gate passed 16 of 16 in every run of versions 3 and 4. **6** and
+**7** (2026-10-19; 7 is identical to `DEFAULT_TEMPLATE` and adds "when a row has `finalStatus`,
+say that instead" to 6) answers the fact-check judge's real failures
 on Claude Haiku: a claim about a whole set ("all", "none of them", "the exception",
 "exactly three") needs every row or its own count; a bare title search matches any word, so a
 phrase goes in double quotes; a bill's place is said with its `stage` words; and what a bill
 does comes only from its official summary or a web excerpt, never from its title. On the
 production data copy it got 43 of 46 scorable answers (Claude Haiku 5.5, low effort), including
-the new "student visa" question version 5 could not answer. Version 6 is the one labelled
+the new "student visa" question version 5 could not answer. Version 7 is the one labelled
 `production`.
 
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
@@ -1304,7 +1305,9 @@ against a true four. A filter in double quotes (`'"student visa"'`) is a phrase:
 reads every title with any of its words and keeps only those containing the phrase, counted in
 memory, so a filled search window still makes the result incomplete. Bill rows also carry
 `stage` in words ("in committee") beside `progressStage`, after an answer called stage-40 bills
-"introduced".
+"introduced". In an ended Congress the words are past tense ("got as far as \"in committee\"
+before the 117th Congress ended"), beside `finalStatus`, and a simple or concurrent resolution
+there gets none, since its stored stage does not show adoption.
 
 **Time.** The system prompt now carries today's date and, for a Congress that has adjourned, an
 instruction to use the past tense. Two of the three Congresses we hold are over — about 37,000 of

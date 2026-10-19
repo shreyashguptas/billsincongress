@@ -31,7 +31,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "sponsorParty", type: "string", meaning: "'D', 'R' or 'I'. Empty when no party is recorded — see gotchas." },
       { name: "sponsorState", type: "string", meaning: "Two-letter state of the sponsor, e.g. 'MD'." },
       { name: "progressStage", type: "number", meaning: "Stage code. See gotchas — it is not a percentage." },
-      { name: "stage", type: "string", meaning: "Where the bill is, in words: 'introduced', 'in committee', 'out of committee', 'passed one chamber', 'passed both chambers', 'vetoed', 'to president', 'signed by president', 'became law'. Say this, never the code." },
+      { name: "stage", type: "string", meaning: "Where the bill is, in words: 'introduced', 'in committee', 'out of committee', 'passed one chamber', 'passed both chambers', 'vetoed', 'to president', 'signed by president', 'became law'. In an ended Congress it says how far the bill got before the Congress ended; there, say finalStatus. Say this, never the code." },
       { name: "policyAreaName", type: "string", meaning: "The single policy area assigned to the bill." },
       { name: "measureType", type: "string", meaning: "What this row IS in plain words: 'bill', 'joint resolution', 'concurrent resolution' or 'simple resolution'. Use it — a resolution is not a bill." },
       { name: "finalStatus", type: "string", meaning: "Present only on an unfinished measure from a Congress that has ENDED: what became of it, in words. Repeat what it says, in the past tense — never 'unlikely to' or 'may still' — and claim no more than it does." },
