@@ -449,10 +449,15 @@ function titlePhrase(f: Row): string | null {
  * there gets no stage words at all, because its stored stage does not show
  * adoption (see finalStatus).
  */
-function stageText(b: Doc<"bills">, today: string | undefined): string | undefined {
+export function stageText(b: Doc<"bills">, today: string | undefined): string | undefined {
   const stage = b.progressStage ?? 20;
   const words = (BillStageDescriptions[stage] ?? `stage ${stage}`).toLowerCase();
-  if (!today || !isCongressClosed(b.congress, today) || stage >= 90) return words;
+  if (!today || !isCongressClosed(b.congress, today) || stage >= 95) return words;
+  // Sent to the President and stored no further: signed, vetoed or pocket-vetoed
+  // since, and finalStatus gives no verdict at 90, so say only what we know.
+  if (stage === 90) {
+    return `was sent to the President before the ${congressOrdinal(b.congress)} Congress ended; our record stops there`;
+  }
   if (!canBecomeLaw(b.billType)) return undefined;
   return `got as far as "${words}" before the ${congressOrdinal(b.congress)} Congress ended`;
 }

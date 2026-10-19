@@ -1953,6 +1953,17 @@ async function main() {
     assert.ok(r.report.total > 4, "the any-word search is the wide one");
   });
 
+  await it("a bill sent to the President in an ended Congress is not 'to president' now", async () => {
+    // Review on #201: no stored bill sits at 90 in an ended Congress today, so this
+    // drives the function directly. finalStatus gives no verdict at 90 and up, so
+    // the stage words are all the model has.
+    const { stageText } = await import("../../convex/catalog/fetch");
+    const words = stageText({ congress: 118, billType: "hr", progressStage: 90 } as any, "2026-10-19");
+    assert.notEqual(words, "to president");
+    assert.match(words ?? "", /118th Congress ended/);
+    assert.equal(stageText({ congress: 118, billType: "hr", progressStage: 100 } as any, "2026-10-19"), "became law");
+  });
+
   await it("a quoted word matches the word, not every title that contains its letters", async () => {
     // Review on #201: '"ICE"' kept "icebreaker" titles, because the phrase was a
     // substring test and the search prefix-matches its last term.
