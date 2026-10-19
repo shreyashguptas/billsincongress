@@ -559,6 +559,12 @@ async function fetchBills(
   const congress = typeof f.congress === "number" ? f.congress : ((await newestCongress(ctx)) ?? 0);
   const title = titleSearchWords(f);
   const phrase = titlePhrase(f);
+  // Whole words, plus a plural ending: a substring test kept "icebreaker" for
+  // '"ICE"' (review on #201), since Convex prefix-matches the search's last term,
+  // while "student visa" must still find "No Student Visas for Sanctuary Cities".
+  const phraseRe = phrase
+    ? new RegExp(`(^|[^a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(e?s)?($|[^a-z0-9])`)
+    : null;
   const sponsorNames = Array.isArray(f.sponsorFilter) ? (f.sponsorFilter as string[]) : null;
   const groupBy = typeof f.groupBy === "string" ? f.groupBy : null;
   // A grouped fetch is inherently a count: it ships one row per group, not bills,
@@ -898,7 +904,7 @@ async function fetchBills(
     if (typeof f.billType === "string" && b.billType !== f.billType) return false;
     if (typeof f.billNumber === "string" && b.billNumber !== f.billNumber) return false;
     if (typeof f.policyArea === "string" && b.policyAreaName !== f.policyArea) return false;
-    if (phrase && !(b.title ?? "").toLowerCase().replace(/\s+/g, " ").includes(phrase)) return false;
+    if (phraseRe && !phraseRe.test((b.title ?? "").toLowerCase().replace(/\s+/g, " "))) return false;
     if (chamberTypes && !chamberTypes.includes(b.billType)) return false;
     if (!measureOk(b.billType)) return false;
     // A missing date satisfies NO bound. Comparing `?? ""` let undated rows slip

@@ -1302,8 +1302,9 @@ containing ANY of its words, and its set label now says so ("whose title has any
 'student', 'visa'"). On 2026-10-17 the label read "with 'F-1 student visa' in the title" over
 205 any-word matches, and the answer counted the phrase in the 20 rows it was shown: three,
 against a true four. A filter in double quotes (`'"student visa"'`) is a phrase: the search
-reads every title with any of its words and keeps only those containing the phrase, counted in
-memory, so a filled search window still makes the result incomplete. Bill rows also carry
+reads every title with any of its words and keeps only those containing the phrase as whole
+words (a plural ending allowed, so `"ice"` is not "icebreaker" but "student visa" finds "Student
+Visas"), counted in memory, so a filled search window still makes the result incomplete. Bill rows also carry
 `stage` in words ("in committee") beside `progressStage`, after an answer called stage-40 bills
 "introduced". In an ended Congress the words are past tense ("got as far as \"in committee\"
 before the 117th Congress ended"), beside `finalStatus`, and a simple or concurrent resolution

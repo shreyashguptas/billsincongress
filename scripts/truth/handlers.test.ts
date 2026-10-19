@@ -1953,6 +1953,19 @@ async function main() {
     assert.ok(r.report.total > 4, "the any-word search is the wide one");
   });
 
+  await it("a quoted word matches the word, not every title that contains its letters", async () => {
+    // Review on #201: '"ICE"' kept "icebreaker" titles, because the phrase was a
+    // substring test and the search prefix-matches its last term.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"ice"' }, 100);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const strays = r.rows.filter((row: any) => !/(^|[^a-z0-9])ice(e?s)?($|[^a-z0-9])/i.test(row.title));
+    assert.deepEqual(strays.map((row: any) => row.title), []);
+    const want = bills.filter(
+      (b: any) => b.congress === 119 && /(^|[^a-z0-9])ice(e?s)?($|[^a-z0-9])/i.test(b.title ?? ""),
+    ).length;
+    if (r.report.complete) assert.equal(r.report.total, want);
+  });
+
   await it("a partly quoted title search is an any-word search, and its label shows no quotes", async () => {
     // Review on #201: '"student visa" F-1' is not one phrase, so it runs as words,
     // and a label reading 'any of the words '"student', 'visa"'' would suggest otherwise.
