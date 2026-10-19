@@ -719,6 +719,46 @@ export const QUESTIONS: TruthQuestion[] = [
       note: `The 117th adjourned sine die on ${CONGRESS_ADJOURNED[117]}; its unfinished bills died then.`,
     }),
   },
+  // --- Claims about a whole set made from a page of it (live, 2026-10-14..18)
+  {
+    id: "student-visa-titles",
+    question:
+      `How many bills in the ${CURRENT_CONGRESS}th Congress have "student visa" in their ` +
+      `title?` + ONE_NUMBER,
+    defect:
+      "Said 'three bills have Student Visa in the title', counting the phrase in a 20-row " +
+      "page of a 205-row any-word title search. A title search matches ANY of its words.",
+    expect: (db) => {
+      const n = count(
+        billsIn(db, CURRENT_CONGRESS),
+        (b) => isBill(b) && (b.title ?? "").toLowerCase().includes("student visa"),
+      );
+      return {
+        kind: "number",
+        value: n,
+        note: `Bills (hr, s) whose title contains the phrase "student visa": ${n}. Must reject 3 and 205.`,
+      };
+    },
+  },
+  {
+    id: "warrior-earliest",
+    question:
+      `Of the ${CURRENT_CONGRESS}th Congress's measures with "warrior" in the title, which ` +
+      `was introduced first?` + ONE_BILL,
+    defect:
+      "Said no bill was titled 'Warrior' from 10 rows of 11. A claim about the whole set " +
+      "needs the whole set; this one is answerable only by reading or sorting all of it.",
+    expect: (db) => {
+      const rows = billsIn(db, CURRENT_CONGRESS).filter((b) => /\bwarrior/i.test(b.title ?? ""));
+      let first = rows[0];
+      for (const b of rows) if ((b.introducedDate ?? "") < (first.introducedDate ?? "")) first = b;
+      return {
+        kind: "billId",
+        value: first.billId,
+        note: `Min introducedDate over ${rows.length} "warrior" titles: ${first.billTypeLabel}${first.billNumber} on ${first.introducedDate}.`,
+      };
+    },
+  },
   {
     id: "control-largest-topic",
     question:

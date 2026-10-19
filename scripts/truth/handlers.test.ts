@@ -1928,6 +1928,43 @@ async function main() {
     assert.deepEqual(missing, [], "policy areas in the data but not on the site");
   });
 
+  // --- 2026-10-17: "three bills have Student Visa in the title" ---------------
+  // The title search matches ANY of its words, and its set label said "with
+  // 'F-1 student visa' in the title" over 205 rows. Haiku counted the phrase in
+  // the 20 it was shown and got 3; the truth was 4. A phrase in double quotes
+  // now keeps only the titles that contain it, and the label says which search
+  // ran, so neither the count nor the description can be read off a page.
+
+  await it("a quoted title phrase counts only the titles that contain it", async () => {
+    const want = bills.filter(
+      (b: any) => b.congress === 119 && (b.title ?? "").toLowerCase().includes("student visa"),
+    ).length;
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"student visa"' }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.report.total, want);
+    assert.match(r.report.set, /exact phrase 'student visa'/);
+  });
+
+  await it("an unquoted title search says it matched any of the words", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: "student visa" }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.match(r.report.set, /any of the words 'student', 'visa'/);
+    assert.ok(r.report.total > 4, "the any-word search is the wide one");
+  });
+
+  // --- 2026-10-15: "all of these are still at the introduced stage" ----------
+  // Every one was at stage 40, in committee. Rows carried only the number, and
+  // the map from number to words lived in a description the model had to recall.
+
+  await it("a bill row says where the bill is in words", async () => {
+    const inCommittee = bills.find((b: any) => b.congress === 119 && b.progressStage === 40);
+    assert.ok(inCommittee, "sanity: the 119th has bills in committee");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, billId: inCommittee!.billId }, 1);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.rows[0].stage, "in committee");
+  });
+
 }
 
 main().then(() => {
