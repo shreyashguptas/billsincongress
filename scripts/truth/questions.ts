@@ -542,10 +542,17 @@ export const QUESTIONS: TruthQuestion[] = [
       // One entry per PERSON: a member stored under two spellings is two rows
       // whose counts add up, and a fragment must not pose as the minimum. The
       // Congress.gov id when the row has one; otherwise the name with case and
-      // accents folded ("BARBARA LEE" is "Barbara Lee"), within the state.
+      // accents folded and trailing punctuation dropped ("BARBARA LEE" is
+      // "Barbara Lee", "Jr." is "Jr"), within the state.
       // Which spelling is kept does not matter: the scorer folds names the same way.
       const fold = (name: string) =>
-        name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+        name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[.,;:]+(?=\s|$)/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
       const byPerson = new Map<string, { name: string; billCount: number }>();
       for (const s of db.congressSponsors) {
         if (s.congress !== CURRENT_CONGRESS || s.sponsorState !== "CA") continue;
