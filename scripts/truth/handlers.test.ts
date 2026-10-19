@@ -31,6 +31,7 @@ import {
 import { validateFilters } from "../../convex/catalog/filters";
 import { isDatasetName } from "../../convex/catalog/datasets";
 import { payloadFor } from "../../convex/catalog/completeness";
+import { mergeSponsorRows } from "../../convex/catalog/sponsorName";
 
 let passed = 0;
 const failures: string[] = [];
@@ -864,20 +865,18 @@ async function main() {
     // James Gallagher also had 8 (2026-10-19). The page was sorted and complete,
     // so row 1 really was AT the minimum — but nothing said it was not alone
     // there, and with a limit of 1 Gallagher was not on the page at all.
-    // One entry per PERSON (Congress.gov id), summing their spellings, so a
-    // fragment of a member stored two ways cannot pose as the minimum.
+    // One entry per PERSON, merged exactly as the handler merges them (id, else
+    // folded name and state; mixed-case spelling shown), so a fragment of a
+    // member stored two ways cannot pose as the minimum. Merging has its own
+    // cases; this one is about the tie.
     const atMinimum = (state: string | null) => {
-      const byPerson = new Map<string, { name: string; billCount: number }>();
-      for (const s of sponsorRows) {
-        if (s.congress !== 119 || (state !== null && s.sponsorState !== state)) continue;
-        const key = s.sponsorBioguideId ?? s.sponsorName;
-        const seen = byPerson.get(key);
-        if (seen) seen.billCount += s.billCount;
-        else byPerson.set(key, { name: s.sponsorName, billCount: s.billCount });
-      }
-      const members = [...byPerson.values()];
+      const members = mergeSponsorRows(
+        sponsorRows.filter(
+          (s: any) => s.congress === 119 && (state === null || s.sponsorState === state),
+        ) as any[],
+      );
       const fewest = Math.min(...members.map((s) => s.billCount));
-      return members.filter((s) => s.billCount === fewest).map((s) => s.name);
+      return members.filter((s) => s.billCount === fewest).map((s) => s.sponsorName);
     };
     const tied = atMinimum("CA");
     for (const limit of [1, 5]) {

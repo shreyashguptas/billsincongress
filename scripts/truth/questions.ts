@@ -540,11 +540,16 @@ export const QUESTIONS: TruthQuestion[] = [
       "naming only one of them would have been read as THE answer.",
     expect: (db) => {
       // One entry per PERSON: a member stored under two spellings is two rows
-      // whose counts add up, and a fragment must not pose as the minimum.
+      // whose counts add up, and a fragment must not pose as the minimum. The
+      // Congress.gov id when the row has one; otherwise the name with case and
+      // accents folded ("BARBARA LEE" is "Barbara Lee"), within the state.
+      // Which spelling is kept does not matter: the scorer folds names the same way.
+      const fold = (name: string) =>
+        name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
       const byPerson = new Map<string, { name: string; billCount: number }>();
       for (const s of db.congressSponsors) {
         if (s.congress !== CURRENT_CONGRESS || s.sponsorState !== "CA") continue;
-        const key = s.sponsorBioguideId ?? s.sponsorName;
+        const key = s.sponsorBioguideId ?? `${fold(s.sponsorName)}|${s.sponsorState}`;
         const seen = byPerson.get(key);
         if (seen) seen.billCount += s.billCount;
         else byPerson.set(key, { name: s.sponsorName, billCount: s.billCount });
@@ -559,7 +564,7 @@ export const QUESTIONS: TruthQuestion[] = [
         ...(tied.length > 1 ? { names: tied } : {}),
         rivals: ca.filter((s) => s.billCount !== fewest).map((s) => s.name),
         note:
-          `Minimum billCount over all ${ca.length} California sponsor rows: ` +
+          `Minimum billCount over all ${ca.length} California members: ` +
           `${tied.join(" and ")} with ${fewest}` +
           (tied.length > 1 ? ", tied; every one must be named" : "") +
           `. Must reject Tom McClintock.`,
