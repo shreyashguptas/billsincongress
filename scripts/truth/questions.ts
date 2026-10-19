@@ -61,6 +61,8 @@ export interface BillRow {
 export interface SponsorRow {
   congress: number;
   sponsorName: string;
+  /** Congress.gov's member id: one person, however many spellings they have. */
+  sponsorBioguideId?: string;
   sponsorState: string;
   sponsorParty?: string;
   billCount: number;
@@ -184,6 +186,19 @@ export interface Expected {
    * which is the one outcome worse than having no harness.
    */
   tolerance?: number;
+  /**
+   * Only for `name`: when several members share the answer, all of them, and a
+   * reply must name every one. Picking one of two members tied for the fewest
+   * bills is a wrong answer that a single expected name would score correct
+   * half the time, depending on which tied row happens to come first.
+   */
+  names?: string[];
+  /**
+   * Only for `name`: members a correct reply must NOT name. Without this a
+   * reply padded with a runner-up, or announcing a tie that does not exist,
+   * contains the right name and scores correct.
+   */
+  rivals?: string[];
   /** How this number was derived, and which wrong numbers it must reject. */
   note: string;
 }
@@ -212,6 +227,9 @@ export interface TruthQuestion {
  */
 const ONE_NUMBER = " Answer with just the number, in one short sentence.";
 const ONE_NAME = " Answer with just the name, in one short sentence.";
+/** For a superlative over members, where two can share first place. */
+const NAMES_IF_TIED =
+  " Answer with just the name, or every name if members are tied, in one short sentence.";
 const ONE_BILL = " Answer with just the bill, in one short sentence.";
 const YES_OR_NO = " Answer yes or no, in one short sentence.";
 
@@ -513,23 +531,38 @@ export const QUESTIONS: TruthQuestion[] = [
     id: "california-fewest-bills",
     question:
       `Which California member of the ${CURRENT_CONGRESS}th Congress has introduced ` +
-      `the fewest bills?` + ONE_NAME,
+      `the fewest bills?` + NAMES_IF_TIED,
     defect:
       "Answered Tom McClintock (25). The real minimum is James Gallagher (5); 25 " +
       "of California's members were never read, and the model justified the answer " +
-      "out loud with \"truncated: false ... meaning all matching rows were returned\".",
+      "out loud with \"truncated: false ... meaning all matching rows were returned\". " +
+      "On 2026-10-19 Adam Gray and James Gallagher were tied at 8, and a reply " +
+      "naming only one of them would have been read as THE answer.",
     expect: (db) => {
-      const ca = db.congressSponsors.filter(
-        (s) => s.congress === CURRENT_CONGRESS && s.sponsorState === "CA",
-      );
-      let fewest = ca[0];
-      for (const s of ca) if (s.billCount < fewest.billCount) fewest = s;
+      // One entry per PERSON: a member stored under two spellings is two rows
+      // whose counts add up, and a fragment must not pose as the minimum.
+      const byPerson = new Map<string, { name: string; billCount: number }>();
+      for (const s of db.congressSponsors) {
+        if (s.congress !== CURRENT_CONGRESS || s.sponsorState !== "CA") continue;
+        const key = s.sponsorBioguideId ?? s.sponsorName;
+        const seen = byPerson.get(key);
+        if (seen) seen.billCount += s.billCount;
+        else byPerson.set(key, { name: s.sponsorName, billCount: s.billCount });
+      }
+      const ca = [...byPerson.values()];
+      let fewest = ca[0].billCount;
+      for (const s of ca) if (s.billCount < fewest) fewest = s.billCount;
+      const tied = ca.filter((s) => s.billCount === fewest).map((s) => s.name);
       return {
         kind: "name",
-        value: fewest.sponsorName,
+        value: tied[0],
+        ...(tied.length > 1 ? { names: tied } : {}),
+        rivals: ca.filter((s) => s.billCount !== fewest).map((s) => s.name),
         note:
           `Minimum billCount over all ${ca.length} California sponsor rows: ` +
-          `${fewest.sponsorName} with ${fewest.billCount}. Must reject Tom McClintock.`,
+          `${tied.join(" and ")} with ${fewest}` +
+          (tied.length > 1 ? ", tied; every one must be named" : "") +
+          `. Must reject Tom McClintock.`,
       };
     },
   },
