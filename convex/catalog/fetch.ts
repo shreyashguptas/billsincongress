@@ -979,6 +979,7 @@ async function fetchBills(
     // which is just the shape of the first 5,000 rows, labelled largest first; it
     // repeated those numbers to a reader who rated the answer wrong (2026-10-13).
     // A partial read names the groups it saw, in no order, and no counts.
+    //
     // The words for a stage bucket, so "how many at each stage" is not
     // answered with bare codes ("40: 1,234").
     const stage = (group: string) =>

@@ -713,7 +713,7 @@ it("keeps a bracketed code's meaning when it is the only status", () => {
   // Review on #178: in a list the bracket is often the bill's only status.
   assert.equal(
     stageCodesAsWords("- H.R. 1234, the Clean Water Act (stage 60)\n- S. 55, the Farm Act (progress stage 40)"),
-    "- H.R. 1234, the Clean Water Act (passed one chamber)\n- S. 55, the Farm Act (in committee)",
+    "- H.R. 1234, the Clean Water Act (last recorded stage: passed one chamber)\n- S. 55, the Farm Act (last recorded stage: in committee)",
   );
 });
 
@@ -721,11 +721,11 @@ it("does not let one list item's words vouch for the next", () => {
   // Review on #178: the look-back crossed into the item above.
   assert.equal(
     stageCodesAsWords("- H.R. 1, in committee (stage 40)\n- H.R. 2 (stage 40)"),
-    "- H.R. 1, in committee\n- H.R. 2 (in committee)",
+    "- H.R. 1, in committee\n- H.R. 2 (last recorded stage: in committee)",
   );
   assert.equal(
     stageCodesAsWords("H.R. 1 is in committee (stage 40), H.R. 2 (stage 40) too."),
-    "H.R. 1 is in committee, H.R. 2 (in committee) too.",
+    "H.R. 1 is in committee, H.R. 2 (last recorded stage: in committee) too.",
   );
 });
 

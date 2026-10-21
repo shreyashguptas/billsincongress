@@ -676,7 +676,10 @@ export function plainCharacters(text: string): string {
  *
  * A parenthetical code right after its own words only repeats them, so it
  * goes. Anywhere else it may be the only status a bill has — "- S. 55, the
- * Farm Act (stage 40)" in a list — so it becomes its words: "(in committee)".
+ * Farm Act (stage 40)" in a list — so it becomes its words: "(last recorded
+ * stage: in committee)". "Last recorded", because the sanitizer cannot tell
+ * whether the bill's Congress has ended, and a bill from an ended Congress is
+ * not in committee: it died there.
  * A code outside brackets becomes its words too: "at stage 40" -> 'at the
  * "in committee" stage'. Only codes stageSemantics
  * knows are touched, and only next to "stage" or "progress", so "Phase 2" or
@@ -699,7 +702,7 @@ export function stageCodesAsWords(text: string): string {
       const before = reach
         .slice(Math.max(reach.lastIndexOf("\n"), reach.lastIndexOf(")")) + 1)
         .toLowerCase();
-      return before.includes(words) ? "" : ` (${words})`;
+      return before.includes(words) ? "" : ` (last recorded stage: ${words})`;
     })
     .replace(STAGE_PHRASE, (full, _article: string | undefined, code: string) => {
       const words = knownStageDescription(Number(code));
