@@ -63,7 +63,9 @@ const answerOk = () =>
       choices: [{ message: { role: "assistant", content: "It was referred to committee." }, finish_reason: "stop" }],
     }),
   );
-const answerDown = () => new Response("upstream overloaded", { status: 503 });
+// A 500, not a 503: a 503 is retried once after a pause (convex/transientRetry.ts),
+// which these tests' fake timers would hold forever.
+const answerDown = () => new Response("upstream failed", { status: 500 });
 const answerEmpty = () =>
   new Response(
     JSON.stringify({
@@ -131,7 +133,7 @@ describe("the answer's PostHog log line", () => {
     expect(typeof attrs.trace_id).toBe("string");
     expect(attrs.page).toBe("bill");
     expect(attrs.signed_in).toBe(false);
-    expect(attrs.error_kind).toBe("openrouter_503");
+    expect(attrs.error_kind).toBe("openrouter_500");
   });
 
   test("an answer that comes back empty every time is an ERROR line too, with the reason", async () => {
