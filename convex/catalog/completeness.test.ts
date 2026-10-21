@@ -253,6 +253,28 @@ it("an exact split reaches the model only from a complete read", () => {
   assert.equal(reportFor({ ...base, windowFilled: false, subsets: [] }).subsets, undefined);
 });
 
+it("a tie for first place reaches the model only from a complete read", () => {
+  const tiedWithFirst = { label: "with 8 bills each", count: 2, members: ["Adam Gray", "James Gallagher"] };
+  const base = { set: "s", filteredInMemory: false, matchedCount: 54, shown: 1, order: "fewest_bills_first" as const, tiedWithFirst };
+  const complete = reportFor({ ...base, windowFilled: false });
+  assert.deepEqual(complete.tiedWithFirst, tiedWithFirst);
+  const said = String(parse([], complete).tied_with_row_1);
+  assert.match(said, /2 are tied for the fewest, with 8 bills each — Adam Gray, James Gallagher/);
+  assert.match(said, /name all of them/);
+  // A tie found in a sample says nothing about the rows never read.
+  const partial = reportFor({ ...base, windowFilled: true });
+  assert.equal(partial.tiedWithFirst, undefined);
+  assert.equal(parse([], partial).tied_with_row_1, undefined);
+  // One member in first place is not a tie.
+  const alone = reportFor({ ...base, windowFilled: false, tiedWithFirst: { ...tiedWithFirst, count: 1 } });
+  assert.equal(alone.tiedWithFirst, undefined);
+  // No row 1 on a count-only lookup, so nothing to be tied with.
+  assert.equal(parse([], reportFor({ ...base, shown: 0, windowFilled: false })).tied_with_row_1, undefined);
+  // Too many to name is still a count, never an empty list.
+  const wide = reportFor({ ...base, windowFilled: false, tiedWithFirst: { label: "with 1 bill each", count: 40 } });
+  assert.match(String(parse([], wide).tied_with_row_1), /40 are tied for the fewest, with 1 bill each\. /);
+});
+
 if (failures.length > 0) {
   console.error(`completeness.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));

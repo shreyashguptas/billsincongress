@@ -113,6 +113,17 @@ export interface CompletenessReport {
    * seven and four when the truth is eight and three.
    */
   subsets?: Subset[];
+  /**
+   * Everyone who shares row 1's place in a ranking, when more than one does.
+   * Present ONLY when complete — a tie found in a sample says nothing about the
+   * rows that were never read.
+   *
+   * Row 1 of a sorted page is "the fewest" only when nobody else has its count.
+   * On 2026-10-19 Adam Gray and James Gallagher had 8 bills each, the fewest in
+   * California, and the page put one of them first by chance: a reader asking
+   * "who introduced the fewest?" would have been handed one name as THE answer.
+   */
+  tiedWithFirst?: Subset;
   /** Present only when incomplete: what was and was not read. */
   note?: string;
   /**
@@ -165,6 +176,8 @@ export function reportFor(input: {
   rowsAreGroups?: boolean;
   /** An exact partition of the matched set. Dropped unless the read is complete. */
   subsets?: Subset[];
+  /** Everyone sharing row 1's place. Dropped unless complete and more than one. */
+  tiedWithFirst?: Subset;
   /**
    * Where to get the exact answer instead, appended to the note when the read
    * is incomplete. Ignored when it is complete.
@@ -182,6 +195,9 @@ export function reportFor(input: {
       ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
       ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
       ...(input.subsets && input.subsets.length > 0 ? { subsets: input.subsets } : {}),
+      ...(input.tiedWithFirst && input.tiedWithFirst.count > 1
+        ? { tiedWithFirst: input.tiedWithFirst }
+        : {}),
     };
   }
   return {
@@ -271,6 +287,22 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
         `These parts were counted by the server over the whole set, not from the rows shown. ` +
         `Quote their counts and members exactly. Never split or count the rows yourself, and ` +
         `never infer which part a row belongs to from its number.`;
+    }
+    // Only beside a row 1: a count-only lookup is already told to fetch again
+    // with a limit to name anyone, and that fetch carries the tie.
+    if (report.tiedWithFirst && report.shown > 0) {
+      const t = report.tiedWithFirst;
+      const place =
+        report.order === "fewest_bills_first"
+          ? "the fewest"
+          : report.order === "most_bills_first"
+            ? "the most"
+            : "first place";
+      payload.tied_with_row_1 =
+        `Row 1 is NOT alone: ${t.count} are tied for ${place}, ${t.label}` +
+        (t.members ? ` — ${t.members.join(", ")}` : "") +
+        `. This was counted over the whole set, including rows not shown. Never name any one ` +
+        `of them as THE one with ${place}: name all of them, or say that ${t.count} are tied.`;
     }
   } else {
     payload.note = report.note;

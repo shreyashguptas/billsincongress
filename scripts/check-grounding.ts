@@ -1166,7 +1166,7 @@ const SET_SUPERLATIVE: RegExp[] = [
  * patterns above run, so the fact survives and only a comparison can fail.
  */
 const ROW_LEVEL_SUPERLATIVE =
-  /\b(?:whose|its|their|his|her|'s)\s+(?:most recent(?:ly)?|latest|newest)\b/gi;
+  /\b(?:whose|its|their|his|her|'s|(?:has|had|with) an?)\s+(?:most recent(?:ly)?|latest|newest)\b/gi;
 
 const RECENCY_PATTERN =
   /\b(?:most recent(?:ly)?|latest|newest|last to (?:move|act)|has moved most)\b/i;
