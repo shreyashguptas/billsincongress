@@ -31,7 +31,7 @@ import {
 import { validateFilters } from "../../convex/catalog/filters";
 import { isDatasetName } from "../../convex/catalog/datasets";
 import { payloadFor } from "../../convex/catalog/completeness";
-import { mergeSponsorRows } from "../../convex/catalog/sponsorName";
+import { buildSponsorRows, mergeSponsorRows } from "../../convex/catalog/sponsorName";
 
 let passed = 0;
 const failures: string[] = [];
@@ -832,6 +832,65 @@ async function main() {
     assert.ok(r.ok);
     assert.equal(r.report.complete, false, "a capped search must not claim completeness");
     assert.equal(r.report.total, undefined);
+  });
+
+  await it("'which representative introduced the most bills' names a House member, not a senator", async () => {
+    // Asked on 2026-10-07, the assistant named Mike Lee, a senator: the sponsors
+    // ranking mixed both chambers and no row said which was which. Today the
+    // top of that mixed list is Rick Scott, also a senator.
+    //
+    // The expected member is counted here by hand from the bills: a member's
+    // chamber is the one most of their bills started in.
+    const SENATE = new Set(["s", "sjres", "sconres", "sres"]);
+    const byMember = new Map<string, { name: string; bills: number; senate: number }>();
+    for (const b of bills as any[]) {
+      if (b.congress !== 119 || !b.sponsorBioguideId) continue;
+      const m = byMember.get(b.sponsorBioguideId) ?? {
+        name: `${b.sponsorFirstName} ${b.sponsorLastName}`,
+        bills: 0,
+        senate: 0,
+      };
+      m.bills += 1;
+      if (SENATE.has(b.billType)) m.senate += 1;
+      byMember.set(b.sponsorBioguideId, m);
+    }
+    const most = (inSenate: boolean) =>
+      Math.max(...[...byMember.values()].filter((m) => m.senate * 2 >= m.bills === inSenate).map((m) => m.bills));
+
+    // The copy holds rows from before the chamber was stored. Ranking within a
+    // chamber from those is refused, never answered from both chambers.
+    const rows = ctx.db.rowsOf("congressSponsors");
+    if (rows.some((s: any) => s.congress === 119 && !s.chamber)) {
+      const refused = await fetchViaHandlers(ctx, "sponsors", { congress: 119, chamber: "house" }, 5);
+      assert.equal(refused.ok, false, "rows without a chamber must not be ranked as one chamber");
+    }
+
+    // Recount the 119th as the nightly rollup does, then ask again.
+    const saved = [...rows];
+    const rebuilt = buildSponsorRows(
+      (bills as any[]).filter((b) => b.congress === 119),
+    ).map((r, i) => ({ ...r, congress: 119, _id: `rebuilt-${i}`, _creationTime: i }));
+    rows.splice(0, rows.length, ...saved.filter((s: any) => s.congress !== 119), ...rebuilt);
+    try {
+      const house = await fetchViaHandlers(ctx, "sponsors", { congress: 119, chamber: "house" }, 5);
+      assert.ok(house.ok, `fetch failed: ${house.error}`);
+      assert.equal(house.report.complete, true);
+      assert.equal(house.report.order, "most_bills_first");
+      assert.ok(house.rows.every((r: any) => r.chamber === "house"), "every row is a representative");
+      assert.equal(house.rows[0].billCount, most(false), "the top representative's real count");
+      assert.notEqual(house.rows[0].sponsorName, "Rick Scott");
+
+      const senate = await fetchViaHandlers(ctx, "sponsors", { congress: 119, chamber: "senate" }, 5);
+      assert.ok(senate.ok, `fetch failed: ${senate.error}`);
+      assert.ok(senate.rows.every((r: any) => r.chamber === "senate"), "every row is a senator");
+      assert.equal(senate.rows[0].billCount, most(true), "the top senator's real count");
+
+      // The two chambers together are every member, so neither filter drops one.
+      const all = await fetchViaHandlers(ctx, "sponsors", { congress: 119 }, 0);
+      assert.equal(house.report.total + senate.report.total, all.report.total);
+    } finally {
+      rows.splice(0, rows.length, ...saved);
+    }
   });
 
   await it("'the fewest bills in California' is answerable, and it is the real minimum", async () => {

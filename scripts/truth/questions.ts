@@ -53,6 +53,7 @@ export interface BillRow {
   sponsorParty?: string;
   sponsorFirstName?: string;
   sponsorLastName?: string;
+  sponsorBioguideId?: string;
   introducedDate?: string;
   latestActionDate?: string;
   title?: string;
@@ -575,6 +576,49 @@ export const QUESTIONS: TruthQuestion[] = [
           `${tied.join(" and ")} with ${fewest}` +
           (tied.length > 1 ? ", tied; every one must be named" : "") +
           `. Must reject Tom McClintock.`,
+      };
+    },
+  },
+  {
+    id: "representative-most-bills",
+    question:
+      `Which representative has introduced the most bills in the ${CURRENT_CONGRESS}th ` +
+      `Congress?` + NAMES_IF_TIED,
+    defect:
+      "Asked for the representative with the most legislation, the assistant named " +
+      "Mike Lee, a senator (2026-10-07): the member ranking mixed both chambers and " +
+      "nothing on a row said which chamber a member sat in.",
+    expect: (db) => {
+      // Counted from the bills, by hand: a member is their Congress.gov id, and
+      // their chamber is the one most of their bills started in.
+      const SENATE = new Set(["s", "sjres", "sconres", "sres"]);
+      const byMember = new Map<string, { name: string; bills: number; senate: number }>();
+      for (const b of db.bills) {
+        const id = b.sponsorBioguideId;
+        if (b.congress !== CURRENT_CONGRESS || !id) continue;
+        const m = byMember.get(id) ?? {
+          name: `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`.trim(),
+          bills: 0,
+          senate: 0,
+        };
+        m.bills += 1;
+        if (SENATE.has(b.billType)) m.senate += 1;
+        byMember.set(id, m);
+      }
+      const members = [...byMember.values()];
+      const house = members.filter((m) => m.senate * 2 < m.bills);
+      const senators = members.filter((m) => m.senate * 2 >= m.bills);
+      let most = 0;
+      for (const m of house) if (m.bills > most) most = m.bills;
+      const tied = house.filter((m) => m.bills === most).map((m) => m.name);
+      return {
+        kind: "name",
+        value: tied[0],
+        ...(tied.length > 1 ? { names: tied } : {}),
+        rivals: [...senators].sort((a, b) => b.bills - a.bills).slice(0, 5).map((m) => m.name),
+        note:
+          `Most bills among ${house.length} House members: ${tied.join(" and ")} with ${most}. ` +
+          `Must reject every senator, above all the top of the mixed list.`,
       };
     },
   },

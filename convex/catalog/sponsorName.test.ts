@@ -270,6 +270,30 @@ it("keeps two members who share a name apart, and says which chamber each sits i
   );
 });
 
+it("keeps the chamber on each member's row", () => {
+  // Without it "which representative introduced the most bills" was answered
+  // with a senator (2026-10-07).
+  const rows = buildSponsorRows([
+    ...many(3, bill("Rick", "Scott", { sponsorBioguideId: "S001217", sponsorState: "FL" })),
+    ...many(2, bill("Mike", "Lawler", { sponsorBioguideId: "L000599", sponsorState: "NY", billType: "hr" })),
+    bill("Mike", "Lawler", { sponsorBioguideId: "L000599", sponsorState: "NY", billType: "hres" }),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.sponsorName, r.chamber]),
+    [["Mike Lawler", "house"], ["Rick Scott", "senate"]],
+  );
+});
+
+it("merges a member's spellings with the chamber of the spelling on more bills, and none when no row has one", () => {
+  const merged = mergeSponsorRows([
+    { sponsorName: "Jacky Rosen", sponsorState: "NV", billCount: 73, sponsorBioguideId: "R000608", chamber: "senate" },
+    { sponsorName: "Jacklyn Rosen", sponsorState: "NV", billCount: 7, sponsorBioguideId: "R000608" },
+  ]);
+  assert.equal(merged[0].chamber, "senate");
+  const old = mergeSponsorRows([{ sponsorName: "Jacky Rosen", sponsorState: "NV", billCount: 73 }]);
+  assert.equal(old[0].chamber, undefined);
+});
+
 it("puts a bill stored before ids were under the member its name and state belong to", () => {
   const rows = buildSponsorRows([
     ...many(5, bill("Jacky", "Rosen", { sponsorBioguideId: "R000608" })),

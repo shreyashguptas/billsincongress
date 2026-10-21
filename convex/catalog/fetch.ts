@@ -1326,7 +1326,23 @@ async function fetchSponsors(
   // is the correct merge; 12 + 47 = 59 is exactly her count in the bills table.
   // The same holds for accents ("NYDIA VELAZQUEZ" / "Nydia Velázquez"); see
   // mergeSponsorRows for who counts as one member and which spelling is shown.
-  const merged = mergeSponsorRows(all);
+  const everyMember = mergeSponsorRows(all);
+
+  // "Which representative" is a question about the House alone. Ranked over
+  // both chambers it named a senator (2026-10-07). A row counted before the
+  // chamber was stored cannot be placed, so a chamber is refused outright for
+  // that Congress rather than ranked over the members who happen to carry one.
+  const chamber = f.chamber === "house" || f.chamber === "senate" ? f.chamber : null;
+  if (chamber && everyMember.some((s) => !s.chamber)) {
+    return {
+      ok: false,
+      error:
+        `Members of the ${congressOrdinal(congress)} Congress are not yet recorded by chamber, so ` +
+        `they cannot be ranked within the ${chamber === "house" ? "House" : "Senate"}. Tell the ` +
+        `reader that; never answer with a ranking of both chambers as if it were one.`,
+    };
+  }
+  const merged = chamber ? everyMember.filter((s) => s.chamber === chamber) : everyMember;
   // `fewest_bills` is not a convenience. Without it "who introduced the fewest
   // bills in California" could not be answered at all: the read is complete and
   // the total exact, but the page is 50 of 54 ordered most-first, so the true
@@ -1343,6 +1359,7 @@ async function fetchSponsors(
         billCount: s.billCount,
         sponsorParty: s.sponsorParty ?? "",
         sponsorState: s.sponsorState ?? "",
+        ...(s.chamber ? { chamber: s.chamber } : {}),
         congress,
       }));
 
@@ -1364,11 +1381,12 @@ async function fetchSponsors(
     ok: true,
     rows,
     report: reportFor({
-      set: state
-        ? `every member from ${state} who introduced a measure in the ${congressOrdinal(congress)} Congress`
-        : `every member who introduced a measure in the ${congressOrdinal(congress)} Congress`,
+      set:
+        `every ${chamber === "house" ? "House member " : chamber === "senate" ? "senator " : "member "}` +
+        `${state ? `from ${state} ` : ""}who introduced a measure in the ${congressOrdinal(congress)} Congress`,
       windowFilled,
-      filteredInMemory: false,
+      // The chamber is applied after the read, so a filled window says so.
+      filteredInMemory: chamber !== null,
       matchedCount: sorted.length,
       shown: rows.length,
       // Sorting a complete set is exact; a filled window makes the claim a lie.
