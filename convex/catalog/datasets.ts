@@ -31,6 +31,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "sponsorParty", type: "string", meaning: "'D', 'R' or 'I'. Empty when no party is recorded — see gotchas." },
       { name: "sponsorState", type: "string", meaning: "Two-letter state of the sponsor, e.g. 'MD'." },
       { name: "progressStage", type: "number", meaning: "Stage code. See gotchas — it is not a percentage." },
+      { name: "stage", type: "string", meaning: "Where the bill is, in words: 'introduced', 'in committee', 'out of committee', 'passed one chamber', 'passed both chambers', 'vetoed', 'to president', 'signed by president', 'became law'. In an ended Congress it says how far the bill got before the Congress ended; there, say finalStatus. Say this, never the code." },
       { name: "policyAreaName", type: "string", meaning: "The single policy area assigned to the bill." },
       { name: "measureType", type: "string", meaning: "What this row IS in plain words: 'bill', 'joint resolution', 'concurrent resolution' or 'simple resolution'. Use it — a resolution is not a bill." },
       { name: "finalStatus", type: "string", meaning: "Present only on an unfinished measure from a Congress that has ENDED: what became of it, in words. Repeat what it says, in the past tense — never 'unlikely to' or 'may still' — and claim no more than it does." },
@@ -40,7 +41,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
     filters: [
       { name: "billId", type: "string", allowed: "One exact bill, by id. The fastest way to fetch a named bill.", example: "1234hr119" },
       { name: "congress", type: "number", allowed: "A Congress number. Defaults to the newest one we hold, so SET IT EXPLICITLY when the reader asks about an earlier Congress.", example: "$CONGRESS" },
-      { name: "titleFilter", type: "string", allowed: "Relevance search over the TITLE. Matches bills containing ANY of your words, not all.", example: "veterans housing" },
+      { name: "titleFilter", type: "string", allowed: "Search over the TITLE. Bare words match titles containing ANY of them. Wrap a phrase in double quotes to keep only titles containing that exact phrase.", example: '"student visa"' },
       { name: "policyArea", type: "string", allowed: "Use the `topics` dataset to find exact names.", example: "Health" },
       { name: "progressStage", type: "number", allowed: "Where the bill ENDED UP: 20, 40, 50, 60, 80, 85, 90, 95 or 100. Mutually exclusive buckets.", example: "40" },
       { name: "reachedStage", type: "number", allowed: "Got AT LEAST this far, including everything that went further. The one for milestone questions.", example: "60" },
@@ -74,7 +75,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "'Started in the House' means the CHAMBER it originated in, which is four measure types, not one. Use chamber 'house' or 'senate'. Filtering billType 'hr' answers a narrower question and undercounts: it leaves out House joint resolutions, which also become law.",
       "A BILL is H.R. or S. A resolution is not a bill. 'How many Senate bills passed the Senate' is chamber 'senate' with measure 'bill', never chamber alone: chamber alone counts every Senate resolution too, and once gave a reader a total more than three times the number of bills. When a result mixes kinds it carries exact_subsets splitting the total by kind; if the reader said 'bills', give the bills part, not the total.",
       "progressStage is where a bill STOPPED. It is not cumulative. A bill that became law is at 100 and is NOT counted in the 60 bucket, so counting stage 60 to answer 'how many passed a chamber' omits everything that went further. Use reachedStage for milestone questions and progressStage for 'where is it now' questions.",
-      "titleFilter matches ANY of your words, not all of them, and searches TITLES ONLY — never the text of the bill. Two words will return roughly the union of both, so a count from it is inflated. Prefer policyArea for subject questions.",
+      "titleFilter matches ANY of your words, not all of them, and searches TITLES ONLY — never the text of the bill. Two words return roughly the union of both, so a count from it is inflated. To count or list titles containing a PHRASE, put the phrase in double quotes: titleFilter '\"student visa\"'. Prefer policyArea for subject questions.",
     ],
     notCovered: [
       "Vote tallies and roll-call results",
@@ -185,7 +186,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "Reflects PRIMARY sponsorship only — a member who co-sponsors heavily but introduces little will look inactive here, and is not.",
       "There is NO name filter here — this dataset lists members, it does not look one up. To count what ONE named member introduced, fetch `bills` with sponsorFilter and limit 0. Being refused a name filter here says nothing about whether we hold that member; asked how many bills Monica De La Cruz introduced, the assistant tried this dataset, was refused, and told the reader it could not find out, though `bills` had her exact count.",
       "Use the exact sponsorName from this dataset in the `bills` sponsorFilter. Reformatting the name will match nothing.",
-      "Before any 'most' or 'fewest' claim, check `complete` — and then check the ORDER, because a complete total does not make the page complete. Filtering by sponsorState reads that state's members directly, so the total is exact; but the rows are still one page of it, ordered most-first by default. A big state has more members than one page shows, so the fewest is NOT the last row you can see. For 'who introduced the fewest' pass sort 'fewest_bills'; for 'the most', 'most_bills'. Never read a minimum off a page.",
+      "Before any 'most' or 'fewest' claim, check `complete` — and then check the ORDER, because a complete total does not make the page complete. Filtering by sponsorState reads that state's members directly, so the total is exact; but the rows are still one page of it, ordered most-first by default. A big state has more members than one page shows, so the fewest is NOT the last row you can see. For 'who introduced the fewest' pass sort 'fewest_bills'; for 'the most', 'most_bills'. Never read a minimum off a page. When the result carries tied_with_row_1, several members share first place: name every one it lists, never the first row alone.",
     ],
     notCovered: ["Committee membership", "Voting records", "Seniority, leadership roles, or district", "Co-sponsorship counts"],
     examples: [

@@ -522,7 +522,8 @@ records PostHog's own `$feature_flag_called` exposure event, and the question re
 **Evaluations.** PostHog writes one `$ai_evaluation` event per trace each evaluation scores
 (its own event, not ours): "Answer uses internal jargon", "Answer shows raw tags" and "Answer
 shows its thinking" (Hog, live since 5 Oct 2026) and "Answer states only what the lookups
-support" (LLM judge, off until a provider key is added). Listed in overview.md under
+support" (LLM judge, live, `openai/gpt-5.6-luna` through OpenRouter; rubric revised 19 Oct 2026, so
+its pass rate before and after that date is not comparable). Listed in overview.md under
 "Recording and the wrong-answer loop".
 
 Since 2026-10-05 the model reasons privately at low effort (`OPENROUTER_REASONING`, see "Model
