@@ -31,6 +31,7 @@ import {
 import { validateFilters } from "../../convex/catalog/filters";
 import { isDatasetName } from "../../convex/catalog/datasets";
 import { payloadFor } from "../../convex/catalog/completeness";
+import { mergeSponsorRows } from "../../convex/catalog/sponsorName";
 
 let passed = 0;
 const failures: string[] = [];
@@ -860,9 +861,13 @@ async function main() {
     for (const row of grouped.rows) assert.equal(row.stage, words[Number(row.group)]);
   });
 
-  await it("'the fewest bills in California' is answerable, and it is James Gallagher", async () => {
+  await it("'the fewest bills in California' is answerable, and it is the real minimum", async () => {
     // The read was complete and the total exact, but the page was 50 of 54
     // ordered most-first, so the true minimum was never on it.
+    //
+    // Compared by COUNT, not by name: on 2026-10-19 Adam Gray and James
+    // Gallagher were tied at 8, and which of two tied rows comes first is not
+    // a fact about California. Naming one member here failed the weekly run.
     const r = await fetchViaHandlers(
       ctx,
       "sponsors",
@@ -871,11 +876,71 @@ async function main() {
     );
     assert.ok(r.ok);
     assert.equal(r.report.order, "fewest_bills_first");
-    const realMin = truth.caSponsors.reduce((a: any, b: any) =>
-      b.billCount < a.billCount ? b : a,
+    const fewest = Math.min(...truth.caSponsors.map((s: any) => s.billCount));
+    const atMinimum = truth.caSponsors
+      .filter((s: any) => s.billCount === fewest)
+      .map((s: any) => s.sponsorName);
+    assert.equal(r.rows[0].billCount, fewest);
+    assert.ok(
+      atMinimum.includes(r.rows[0].sponsorName),
+      `${r.rows[0].sponsorName} is not among the members with ${fewest}: ${atMinimum.join(", ")}`,
     );
-    assert.equal(r.rows[0].sponsorName, realMin.sponsorName);
-    assert.equal(r.rows[0].billCount, realMin.billCount);
+  });
+
+  await it("a tie for the fewest is told to the model, not hidden behind row 1", async () => {
+    // "Who introduced the fewest bills in California?" → "Adam Gray, with 8."
+    // James Gallagher also had 8 (2026-10-19). The page was sorted and complete,
+    // so row 1 really was AT the minimum — but nothing said it was not alone
+    // there, and with a limit of 1 Gallagher was not on the page at all.
+    // One entry per PERSON, merged exactly as the handler merges them (id, else
+    // folded name and state; mixed-case spelling shown), so a fragment of a
+    // member stored two ways cannot pose as the minimum. Merging has its own
+    // cases; this one is about the tie.
+    const atMinimum = (state: string | null) => {
+      const members = mergeSponsorRows(
+        sponsorRows.filter(
+          (s: any) => s.congress === 119 && (state === null || s.sponsorState === state),
+        ) as any[],
+      );
+      const fewest = Math.min(...members.map((s) => s.billCount));
+      return members.filter((s) => s.billCount === fewest).map((s) => s.sponsorName);
+    };
+    const tied = atMinimum("CA");
+    for (const limit of [1, 5]) {
+      const r = await fetchViaHandlers(
+        ctx,
+        "sponsors",
+        { congress: 119, sponsorState: "CA", sort: "fewest_bills" },
+        limit,
+      );
+      assert.ok(r.ok);
+      const payload = JSON.parse(payloadFor(r.rows, r.report));
+      if (tied.length < 2) {
+        assert.equal(payload.tied_with_row_1, undefined, "one member at the minimum is not a tie");
+        continue;
+      }
+      assert.equal(r.report.tiedWithFirst?.count, tied.length);
+      assert.deepEqual([...r.report.tiedWithFirst.members].sort(), [...tied].sort());
+      for (const name of tied) {
+        assert.ok(
+          String(payload.tied_with_row_1).includes(name),
+          `limit ${limit}: the model is never told ${name} shares the minimum`,
+        );
+      }
+    }
+    // Nationally the same holds, with the tie read across every state.
+    const national = atMinimum(null);
+    const r = await fetchViaHandlers(ctx, "sponsors", { congress: 119, sort: "fewest_bills" }, 1);
+    assert.ok(r.ok);
+    assert.equal(r.report.tiedWithFirst?.count ?? 1, national.length);
+  });
+
+  await it("the most bills in a state is not reported as a tie when one member leads", async () => {
+    const r = await fetchViaHandlers(ctx, "sponsors", { congress: 119, sponsorState: "CA" }, 1);
+    assert.ok(r.ok);
+    const top = Math.max(...truth.caSponsors.map((s: any) => s.billCount));
+    const leaders = truth.caSponsors.filter((s: any) => s.billCount === top).length;
+    assert.equal(r.report.tiedWithFirst?.count ?? 1, leaders);
   });
 
   await it("one unrecognised name among several does not get silently counted as zero", async () => {
@@ -1953,6 +2018,93 @@ async function main() {
       ),
     ];
     assert.deepEqual(missing, [], "policy areas in the data but not on the site");
+  });
+
+  // --- 2026-10-17: "three bills have Student Visa in the title" ---------------
+  // The title search matches ANY of its words, and its set label said "with
+  // 'F-1 student visa' in the title" over 205 rows. Haiku counted the phrase in
+  // the 20 it was shown and got 3; the truth was 4. A phrase in double quotes
+  // now keeps only the titles that contain it, and the label says which search
+  // ran, so neither the count nor the description can be read off a page.
+
+  await it("a quoted title phrase counts only the titles that contain it", async () => {
+    const want = bills.filter(
+      (b: any) => b.congress === 119 && (b.title ?? "").toLowerCase().includes("student visa"),
+    ).length;
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"student visa"' }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true);
+    assert.equal(r.report.total, want);
+    assert.match(r.report.set, /exact phrase 'student visa'/);
+  });
+
+  await it("an unquoted title search says it matched any of the words", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: "student visa" }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.match(r.report.set, /any of the words 'student', 'visa'/);
+    assert.ok(r.report.total > 4, "the any-word search is the wide one");
+  });
+
+  await it("a bill sent to the President in an ended Congress is not 'to president' now", async () => {
+    // Review on #201: no stored bill sits at 90 in an ended Congress today, so this
+    // drives the function directly. finalStatus gives no verdict at 90 and up, so
+    // the stage words are all the model has.
+    const { stageText } = await import("../../convex/catalog/fetch");
+    const words = stageText({ congress: 118, billType: "hr", progressStage: 90 } as any, "2026-10-19");
+    assert.notEqual(words, "to president");
+    assert.match(words ?? "", /118th Congress ended/);
+    assert.equal(stageText({ congress: 118, billType: "hr", progressStage: 100 } as any, "2026-10-19"), "became law");
+  });
+
+  await it("a quoted word matches the word, not every title that contains its letters", async () => {
+    // Review on #201: '"ICE"' kept "icebreaker" titles, because the phrase was a
+    // substring test and the search prefix-matches its last term.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"ice"' }, 100);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const strays = r.rows.filter((row: any) => !/(^|[^a-z0-9])ice(e?s)?($|[^a-z0-9])/i.test(row.title));
+    assert.deepEqual(strays.map((row: any) => row.title), []);
+    const want = bills.filter(
+      (b: any) => b.congress === 119 && /(^|[^a-z0-9])ice(e?s)?($|[^a-z0-9])/i.test(b.title ?? ""),
+    ).length;
+    if (r.report.complete) assert.equal(r.report.total, want);
+  });
+
+  await it("a partly quoted title search is an any-word search, and its label shows no quotes", async () => {
+    // Review on #201: '"student visa" F-1' is not one phrase, so it runs as words,
+    // and a label reading 'any of the words '"student', 'visa"'' would suggest otherwise.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"student visa" F-1' }, 0);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.match(r.report.set, /any of the words 'student', 'visa', 'F-1'/);
+    assert.ok(!r.report.set.includes('"'), r.report.set);
+  });
+
+  await it("an empty quoted phrase is not a phrase that matches every title", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, titleFilter: '"  "' }, 0);
+    assert.ok(!r.ok || !/exact phrase/.test(r.report.set), JSON.stringify(r.report ?? r));
+  });
+
+  // --- 2026-10-15: "all of these are still at the introduced stage" ----------
+  // Every one was at stage 40, in committee. Rows carried only the number, and
+  // the map from number to words lived in a description the model had to recall.
+
+  await it("a bill row says where the bill is in words", async () => {
+    const inCommittee = bills.find((b: any) => b.congress === 119 && b.progressStage === 40);
+    assert.ok(inCommittee, "sanity: the 119th has bills in committee");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, billId: inCommittee!.billId }, 1);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.rows[0].stage, "in committee");
+  });
+
+  await it("a bill from an ended Congress is never 'in committee' in the present tense", async () => {
+    // Review on #201: `stage: "in committee"` beside `finalStatus: "...died in
+    // committee..."`, under a prompt that says to use the stage words.
+    const dead = bills.find((b: any) => b.congress === 117 && b.progressStage === 40 && b.billType === "hr");
+    assert.ok(dead, "sanity: the 117th has bills that died in committee");
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 117, billId: dead!.billId }, 1, "2026-10-19");
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.ok(r.rows[0].finalStatus, "an ended Congress's bill carries finalStatus");
+    assert.notEqual(r.rows[0].stage, "in committee");
+    assert.match(r.rows[0].stage, /117th Congress ended/);
   });
 
 }

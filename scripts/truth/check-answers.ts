@@ -234,19 +234,20 @@ function scoreText(expected: Expected, text: string): RunResult {
       // failed to answer, and the defect it hides (naming the wrong member) is
       // the one this harness was built for.
       //
-      // KNOWN LIMIT, do not read this as safe: unlike extractNumber, which
-      // refuses when two numbers survive, a substring match cannot see a SECOND
-      // name. An answer that asserts "Tom McClintock has the fewest, ahead of
-      // James Gallagher" contains the true name and scores CORRECT. The
-      // one-name directive on every name question (questions.ts) is what keeps
-      // that out of practice, not this function — checked live on 2026-08-31,
-      // where production named McClintock alone and scored WRONG. If a future
-      // answer style starts listing runners-up, this has to grow an
-      // ambiguity refusal like extractNumber's.
-      const name = expected.value as string;
-      return containsName(text, name)
-        ? { outcome: "CORRECT", got: name }
-        : { outcome: "WRONG", got: `does not name ${name}` };
+      // A substring match cannot see a SECOND name on its own, so "Tom
+      // McClintock has the fewest, ahead of James Gallagher" would contain the
+      // true name and score CORRECT. Questions that list `rivals` close that:
+      // naming any of them is WRONG. Without rivals, the one-name directive is
+      // the only guard.
+      // A tie has no one right name: every member sharing first place must be
+      // named, or the reply presents one of them as the only answer.
+      const names = expected.names ?? [expected.value as string];
+      const missing = names.filter((n) => !containsName(text, n));
+      if (missing.length > 0) return { outcome: "WRONG", got: `does not name ${missing.join(", ")}` };
+      const extra = (expected.rivals ?? []).filter((n) => containsName(text, n));
+      return extra.length === 0
+        ? { outcome: "CORRECT", got: names.join(", ") }
+        : { outcome: "WRONG", got: `also names ${extra.join(", ")}` };
     }
   }
 }

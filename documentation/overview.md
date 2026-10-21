@@ -1140,11 +1140,16 @@ httpAction with a scripted model and asserts the exact request PostHog would rec
   ("dataset", `bill_actions`, `billId`, "the result is complete"), **Answer shows raw tags**
   (`[[sponsors:…]]`, `【`, `<thinking>`) and **Answer shows its thinking** ("Let me check…",
   "Actually, let…"). A fourth, **Answer states only what the lookups support**, is an LLM
-  judge (`gpt-5-mini`) that fails an answer stating a number, bill, date, status or person
-  the trace's tool results do not support; it is saved but stays off until an AI provider key
-  is added in PostHog's settings (the owner's step; PostHog would not enable its funded
-  models for this project). A reader's "No" on an answer the evaluations passed is the most
-  valuable signal there is.
+  judge that fails an answer stating a number, bill, date, status, person or what a bill does
+  that the trace's tool results do not support. It runs `openai/gpt-5.6-luna` through
+  OpenRouter on a key of its own (PostHog's "Openrouter key for Bills In Congress Posthog
+  Evals feature", paid from OpenRouter credits), deliberately a different model family from
+  the Claude that writes the answers. Its rubric was revised on 2026-10-19: about 40% of its
+  failures had been general civics it treated as unsupported ("Blackburn is a senator", "the
+  next step is committee action", "the Congress is in session" from the calendar note), so the
+  rubric now lists what needs no lookup and keeps failing claims about a whole set made from a
+  page, a title expanded into a description, and web details no excerpt contains. A reader's
+  "No" on an answer the evaluations passed is the most valuable signal there is.
 - **Clusters** (PostHog → AI Observability → Clusters): PostHog's default trace, generation
   and evaluation clustering jobs are on. They group questions by topic and need more traffic
   than the site has yet (about 140 traces a week), so expect the first runs as volume grows.
@@ -1199,11 +1204,19 @@ the browser, where PostHog's flags are already loaded, adds no wait to the answe
 Versions: **1** is the prompt live through 2026-10-05; **2** is the 2026-10-05 rewrite (same
 rules, grouped, 30% fewer instruction tokens); **3** adds the two rules version 2 was found
 to need: "summarize" means the official summary (version 2 described the bill's row instead,
-3 runs of 3), and cards only for fetched ids; **4**, labelled `production` and identical to
-`DEFAULT_TEMPLATE`, lets a vote tally written in an action's own text be quoted, as
+3 runs of 3), and cards only for fetched ids; **4** lets a vote tally written in an action's own text be quoted, as
 `datasets.ts` allows. Measured on the production data copy: version 1 got 20 of 21 in 3 runs;
 version 3 got 21, 20 and 21; version 4 got 20 and 20, its one miss the Senate question every
-version misses; the grounding gate passed 16 of 16 in every run of versions 3 and 4.
+version misses; the grounding gate passed 16 of 16 in every run of versions 3 and 4. **6** and
+**7** (2026-10-19; 7 is identical to `DEFAULT_TEMPLATE` and adds "when a row has `finalStatus`,
+say that instead" to 6) answers the fact-check judge's real failures
+on Claude Haiku: a claim about a whole set ("all", "none of them", "the exception",
+"exactly three") needs every row or its own count; a bare title search matches any word, so a
+phrase goes in double quotes; a bill's place is said with its `stage` words; and what a bill
+does comes only from its official summary or a web excerpt, never from its title. On the
+production data copy it got 43 of 46 scorable answers (Claude Haiku 5.5, low effort), including
+the new "student visa" question version 5 could not answer. Version 7 is the one labelled
+`production`.
 
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
 `POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional
@@ -1234,6 +1247,7 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
 | `exact_subsets` | A partition of the whole set that the server counted. **Present only when `complete` is true.** A set made up entirely of reserved bill numbers ("Reserved for the Speaker.") is split by whom they were held for, with each part's members. Any other set that mixes kinds of measure is split by kind — bills, joint resolutions, simple resolutions, concurrent resolutions, and reserved numbers as placeholders — with counts only. Added 2026-10-05 after "How many Senate bills have passed the Senate?" was answered 706: the chamber filter counted every Senate measure, and 470 were Senate resolutions. The bills were 213 |
 | `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): it leads with the number ("There are exactly 13.") and says the empty row list is not "none", then how to fetch the rows to **name** one. The number was added after "Have any Texas bills become law?" was answered "No" from a count of 13. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
+| `tied_with_row_1` | On a complete, sorted `sponsors` result where more than one member shares row 1's count: how many share it, at what count, and their names (up to 20; a count alone past that), counted over the whole set rather than the page. **Present only when `complete` is true**, and left off a count-only (`limit: 0`) lookup, which has no row 1 and is already told to fetch again to name anyone. It says "tied for the fewest" or "tied for the most" to match the sort, and tells the model to name every one of them, never row 1 alone. Added 2026-10-19: Adam Gray and James Gallagher had 8 bills each, the fewest in California, and which of them came first on the page was chance. That day seven states and the country as a whole had a tie for the fewest |
 | `congress_is_over` | On a `bills` result from an adjourned Congress: that nothing in it is still in committee or pending. On the result, not only on rows, because a count has no rows; a bare count of the 118th's stage-40 bills was answered "yes, still in committee" |
 
 The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
@@ -1284,6 +1298,19 @@ resolutions a Congress, which are not bills and can never become law. Bill rows 
 "Senate bills" is `chamber: "senate"` with `measure: "bill"`, because the chamber filter alone
 takes every type and answered 706 for the 119th's 213 Senate bills that passed the Senate. A
 result that still mixes kinds says how much of it is bills in `exact_subsets`.
+
+**Title words vs a title phrase.** `titleFilter` is a full-text search that matches titles
+containing ANY of its words, and its set label now says so ("whose title has any of the words
+'student', 'visa'"). On 2026-10-17 the label read "with 'F-1 student visa' in the title" over
+205 any-word matches, and the answer counted the phrase in the 20 rows it was shown: three,
+against a true four. A filter in double quotes (`'"student visa"'`) is a phrase: the search
+reads every title with any of its words and keeps only those containing the phrase as whole
+words (a plural ending allowed, so `"ice"` is not "icebreaker" but "student visa" finds "Student
+Visas"), counted in memory, so a filled search window still makes the result incomplete. Bill rows also carry
+`stage` in words ("in committee") beside `progressStage`, after an answer called stage-40 bills
+"introduced". In an ended Congress the words are past tense ("got as far as \"in committee\"
+before the 117th Congress ended"), beside `finalStatus`, and a simple or concurrent resolution
+there gets none, since its stored stage does not show adoption.
 
 **Time.** The system prompt now carries today's date and, for a Congress that has adjourned, an
 instruction to use the past tense. Two of the three Congresses we hold are over — about 37,000 of

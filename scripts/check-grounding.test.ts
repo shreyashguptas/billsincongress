@@ -251,6 +251,8 @@ it("allows a refusal and a row's own field", () => {
     // permits. This sentence used to fail the gate while its own comment
     // promised it would not.
     "H.R. 9710, whose latest recorded action was 2026-07-15, is one of the measures I saw.",
+    // Claude Haiku 5.5 through OpenRouter, 2026-10-19: the row's own date, then a hedge.
+    "The one measure that came back, H.R. 9710, the Third World Immigration Moratorium Act, has a latest action dated July 15, 2026 [1], but that is not verified as the most recent.",
     // Claude Haiku 5.5, 2026-10-13. "weren't" and "doesn't" negate as surely as
     // "isn't", and this is the refusal the question is asking for.
     "Our search returned H.R. 9710, the Third World Immigration Moratorium Act, with its latest action on July 15, 2026 [1], but the results weren't sorted, so that row doesn't show it is the newest.",
