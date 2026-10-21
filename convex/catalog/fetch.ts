@@ -40,6 +40,7 @@ import {
   type RowOrder,
 } from "./completeness";
 import { milestoneStages } from "./stageSemantics";
+import { BillStageDescriptions } from "../billStage";
 import { congressWindow, isCongressClosed } from "./congressCalendar";
 import { canBecomeLaw, isBill, measureClass, measureNoun } from "./measureType";
 import type { MeasureClass } from "./measureType";
@@ -80,6 +81,8 @@ const COUNT_SCAN_LIMIT = 5000;
 const MAX_SPONSOR_LOOKUPS = 10;
 /** Sponsors per Congress is ~550, so the whole set is readable in one go. */
 const SPONSOR_SCAN_LIMIT = 2000;
+/** Members named in a tie for first place; past this a tie is a count alone. */
+const TIE_NAMES_LIMIT = 20;
 
 type Row = Record<string, unknown>;
 type FetchResult =
@@ -426,6 +429,46 @@ function chooseOrderingIndex(
   return { indexName: "by_congress_and_latest_action", direction: sort.direction, order: sort.order };
 }
 
+/**
+ * A title filter in double quotes is a PHRASE: the search reads every title with
+ * any of its words, and only those containing the whole phrase are kept. Without
+ * quotes the search matches ANY word, and a reader asking about "student visa"
+ * was told the count of titles with "student" or "visa" (2026-10-17).
+ */
+function titlePhrase(f: Row): string | null {
+  if (typeof f.titleFilter !== "string") return null;
+  const m = f.titleFilter.match(/^\s*"([^"]+)"\s*$/);
+  const phrase = m ? m[1].trim().replace(/\s+/g, " ").toLowerCase() : "";
+  // '"  "' is no phrase: it would keep every title under a label naming none.
+  return phrase === "" ? null : phrase;
+}
+
+/**
+ * Where a bill is, in words, so no answer has to recall what stage 40 means.
+ * In an ended Congress a bill that did not reach the President is not "in
+ * committee" any more, it got that far and stopped: the words say so in the past
+ * tense, beside finalStatus (review on #201). A simple or concurrent resolution
+ * there gets no stage words at all, because its stored stage does not show
+ * adoption (see finalStatus).
+ */
+export function stageText(b: Doc<"bills">, today: string | undefined): string | undefined {
+  const stage = b.progressStage ?? 20;
+  const words = (BillStageDescriptions[stage] ?? `stage ${stage}`).toLowerCase();
+  if (!today || !isCongressClosed(b.congress, today) || stage >= 95) return words;
+  // Sent to the President and stored no further: signed, vetoed or pocket-vetoed
+  // since, and finalStatus gives no verdict at 90, so say only what we know.
+  if (stage === 90) {
+    return `was sent to the President before the ${congressOrdinal(b.congress)} Congress ended; our record stops there`;
+  }
+  if (!canBecomeLaw(b.billType)) return undefined;
+  return `got as far as "${words}" before the ${congressOrdinal(b.congress)} Congress ended`;
+}
+
+/** The words a title search runs on: quotes are phrase markers, not search terms. */
+function titleSearchWords(f: Row): string {
+  return typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter.replace(/"/g, " ")) : "";
+}
+
 /** Plain-English description of the set a bills fetch drew from. */
 function describeBillSet(f: Row): string {
   const parts: string[] = [];
@@ -444,7 +487,20 @@ function describeBillSet(f: Row): string {
   if (f.measure === "law_capable") parts.push("that can become law (bills and joint resolutions)");
   if (typeof f.billType === "string") parts.push(`of type ${f.billType}`);
   if (typeof f.billNumber === "string") parts.push(`numbered ${f.billNumber}`);
-  if (typeof f.titleFilter === "string") parts.push(`with '${f.titleFilter}' in the title`);
+  if (typeof f.titleFilter === "string") {
+    const phrase = titlePhrase(f);
+    // The label is how the model reads its own result; "with 'F-1 student visa'
+    // in the title" over an any-word search let it describe 205 titles as
+    // containing a phrase most of them do not.
+    parts.push(
+      phrase
+        ? `with the exact phrase '${phrase}' in the title`
+        : `whose title has any of the words ${titleSearchWords(f)
+            .split(" ")
+            .map((w) => `'${w}'`)
+            .join(", ")} (not necessarily together)`,
+    );
+  }
   if (typeof f.introducedAfter === "string") parts.push(`introduced on or after ${f.introducedAfter}`);
   if (typeof f.introducedBefore === "string") parts.push(`introduced on or before ${f.introducedBefore}`);
   if (typeof f.actionAfter === "string") parts.push(`last acted on or after ${f.actionAfter}`);
@@ -508,7 +564,14 @@ async function fetchBills(
   // Set by runFetch, except on a lookup by id, which names its own Congress and
   // must not be narrowed to another one (see the billId check in the predicate).
   const congress = typeof f.congress === "number" ? f.congress : ((await newestCongress(ctx)) ?? 0);
-  const title = typeof f.titleFilter === "string" ? sanitizeSearchQuery(f.titleFilter) : "";
+  const title = titleSearchWords(f);
+  const phrase = titlePhrase(f);
+  // Whole words, plus a plural ending: a substring test kept "icebreaker" for
+  // '"ICE"' (review on #201), since Convex prefix-matches the search's last term,
+  // while "student visa" must still find "No Student Visas for Sanctuary Cities".
+  const phraseRe = phrase
+    ? new RegExp(`(^|[^a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(e?s)?($|[^a-z0-9])`)
+    : null;
   const sponsorNames = Array.isArray(f.sponsorFilter) ? (f.sponsorFilter as string[]) : null;
   const groupBy = typeof f.groupBy === "string" ? f.groupBy : null;
   // A grouped fetch is inherently a count: it ships one row per group, not bills,
@@ -848,6 +911,7 @@ async function fetchBills(
     if (typeof f.billType === "string" && b.billType !== f.billType) return false;
     if (typeof f.billNumber === "string" && b.billNumber !== f.billNumber) return false;
     if (typeof f.policyArea === "string" && b.policyAreaName !== f.policyArea) return false;
+    if (phraseRe && !phraseRe.test((b.title ?? "").toLowerCase().replace(/\s+/g, " "))) return false;
     if (chamberTypes && !chamberTypes.includes(b.billType)) return false;
     if (!measureOk(b.billType)) return false;
     // A missing date satisfies NO bound. Comparing `?? ""` let undated rows slip
@@ -926,7 +990,7 @@ async function fetchBills(
       report: reportFor({
         set: `${describeBillSet(f)}, counted per ${groupBy}`,
         windowFilled,
-        filteredInMemory: countInMemoryFilters(f, plan) > 0,
+        filteredInMemory: countInMemoryFilters(f, plan) > 0 || phrase !== null,
         matchedCount: matched.length,
         shown: groupRows.length,
         order: windowFilled ? "arbitrary" : "largest_first",
@@ -952,6 +1016,7 @@ async function fetchBills(
         sponsorParty: b.sponsorParty ?? "",
         sponsorState: b.sponsorState ?? "",
         progressStage: b.progressStage ?? 20,
+        ...(stageText(b, today) ? { stage: stageText(b, today) } : {}),
         policyArea: b.policyAreaName ?? "",
         latestActionDate: b.latestActionDate ?? "",
         ...(reservedFor(b.title) ? { reservedFor: reservedFor(b.title) } : {}),
@@ -1035,7 +1100,7 @@ async function fetchBills(
     report: reportFor({
       set: describeBillSet(f),
       windowFilled,
-      filteredInMemory: countInMemoryFilters(f, plan) > 0,
+      filteredInMemory: countInMemoryFilters(f, plan) > 0 || phrase !== null,
       matchedCount: matched.length,
       shown: rows.length,
       order,
@@ -1281,6 +1346,20 @@ async function fetchSponsors(
         congress,
       }));
 
+  // A sort ranks the rows but does not break ties, so row 1 is "the fewest"
+  // only when nobody else has its count. Named over the whole sorted set, not the
+  // page, so a tie wider than the limit is still reported in full.
+  const first = sorted[0]?.billCount;
+  const tied = first === undefined ? [] : sorted.filter((s) => s.billCount === first);
+  const tiedWithFirst: Subset | undefined =
+    tied.length > 1
+      ? {
+          label: `with ${first} bill${first === 1 ? "" : "s"} each`,
+          count: tied.length,
+          ...(tied.length <= TIE_NAMES_LIMIT ? { members: tied.map((s) => s.sponsorName) } : {}),
+        }
+      : undefined;
+
   return {
     ok: true,
     rows,
@@ -1294,6 +1373,7 @@ async function fetchSponsors(
       shown: rows.length,
       // Sorting a complete set is exact; a filled window makes the claim a lie.
       order: windowFilled ? "arbitrary" : ascending ? "fewest_bills_first" : "most_bills_first",
+      tiedWithFirst,
     }),
   };
 }
