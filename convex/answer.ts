@@ -351,6 +351,8 @@ async function callModel(
     omitReasoning?: boolean;
     claude?: boolean;
     retried?: boolean;
+    /** Told before the retry's wait, so the loop can show a step (the stall watchdog). */
+    onRetry?: () => void;
   } = {},
 ): Promise<{ message: any; lengthCapped: boolean; reasoningRefused?: boolean }> {
   const claude = opts.claude ?? false;
@@ -364,6 +366,7 @@ async function callModel(
   // whose failure already hands the turn to the default model, and only once.
   const retryOnce = async (delayMs: number) => {
     console.error(`transient OpenRouter failure on ${model}; retrying once in ${delayMs}ms`);
+    opts.onRetry?.();
     await sleep(delayMs);
     return callModel(messages, apiKey, { ...opts, retried: true });
   };
@@ -516,6 +519,7 @@ async function searchWeb(
   apiKey: string,
   trace?: AnswerTrace,
   retried = false,
+  onRetry?: () => void,
 ): Promise<WebSource[]> {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const started = Date.now();
@@ -554,6 +558,7 @@ async function searchWeb(
   const again = async (delayMs: number) => {
     if (retried) return [];
     console.error(`transient OpenRouter failure on web search; retrying once in ${delayMs}ms`);
+    onRetry?.();
     await sleep(delayMs);
     return searchWeb(query, apiKey, trace, true);
   };
@@ -848,19 +853,27 @@ async function runLoop(
   // a round, and never costs them the answer. The transcript is plain content
   // and tool calls (no reasoning is handed back), so either model can pick it up.
   let claude = claudeModel() !== "";
+  // A visible step for a model call's one retry after a momentary failure, so
+  // the client's stall watchdog restarts for the extra call (review on #203).
+  const noteRetry = () => note({ tool: "retry", detail: "asking again" });
   const answerRound = async (
     roundMessages: ChatMessage[],
     roundOpts: { withTools: boolean; omitReasoning: boolean },
   ) => {
     if (claude) {
       try {
-        return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace, claude: true });
+        return await callModel(roundMessages, opts.apiKey, {
+          ...roundOpts,
+          trace: opts.trace,
+          claude: true,
+          onRetry: noteRetry,
+        });
       } catch (error) {
         console.error("Claude failed; answering the rest of this turn on the default model:", error);
         claude = false;
       }
     }
-    return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace });
+    return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace, onRetry: noteRetry });
   };
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -1052,7 +1065,7 @@ async function runLoop(
             // model saw. See convex/catalog/webResults.ts.
             const scope = billsInScope(query, opts.pageContext?.billId, reason);
             const { kept, removed } = keepWebResultsForBill(
-              await searchWeb(query, opts.apiKey, opts.trace),
+              await searchWeb(query, opts.apiKey, opts.trace, false, noteRetry),
               scope,
             );
             const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));

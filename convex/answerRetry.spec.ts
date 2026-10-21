@@ -95,6 +95,8 @@ test("a provider timeout sent inside a 200 is tried once more", async () => {
   expect(result.error).toBeUndefined();
   expect(result.text).toBe(ANSWER);
   expect(requests).toHaveLength(2);
+  // A visible step, so the client's stall watchdog restarts for the extra call.
+  expect(result.workLog.filter((e) => e.tool === "retry")).toEqual([{ tool: "retry", detail: "asking again" }]);
 });
 
 test("a 429 is tried once more", async () => {
@@ -147,5 +149,6 @@ test("a web search with no connection is a missing search, not the end of the an
   // The answer call, the search and its one retry, then the answer.
   expect(requests).toHaveLength(4);
   expect(requests.filter((r) => r.plugins !== undefined)).toHaveLength(2);
+  expect(result.workLog.filter((e) => e.tool === "retry")).toEqual([{ tool: "retry", detail: "asking again" }]);
   expect(result.webSources).toEqual([]);
 });
