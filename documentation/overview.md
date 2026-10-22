@@ -2225,6 +2225,11 @@ Things pnpm 12 does that bite if you do not know them:
   script that is not listed **fails the install** (`strictDepBuilds`, the default since pnpm 11).
 - **Packages younger than 24 hours do not resolve** (`minimumReleaseAge`), so a release published
   this morning installs tomorrow.
+- **Security floors for deep dependencies live in `overrides`** in `pnpm-workspace.yaml` (pnpm 12
+  ignores the old `pnpm.overrides` in `package.json`). Each entry selects only the vulnerable
+  versions, such as `'sharp@<0.35.5'`, so it stops doing anything once the parent package moves
+  past them; delete it then. A plain `pnpm update <name>` is enough when the parent's range
+  already allows the fixed version, and needs no override.
 - **The lockfile opens with a small `---` document** recording the pnpm version. Changing
   `packageManager` without re-running `pnpm install` makes `--frozen-lockfile` fail in CI.
 - `pnpm run` and `pnpm exec` install first when `node_modules` is out of date.

@@ -11,3 +11,11 @@ allowBuilds:
   # Fetch their platform binaries (the bundler, and Cloudflare's local runtime).
   esbuild: true
   workerd: true
+
+# Security floors for dependencies pinned deep in the tree, where no direct
+# bump reaches them. Each selector matches only the vulnerable versions, so it
+# does nothing once the parent package moves past them; delete it then.
+overrides:
+  # wrangler 4.147's miniflare pins sharp 0.35.4 exactly (GHSA-wq5f-xc86-pv6w,
+  # high, fixed in 0.35.5). The site's own sharp is already 0.35.5.
+  'sharp@<0.35.5': 0.35.5
