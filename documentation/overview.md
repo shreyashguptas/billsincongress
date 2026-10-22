@@ -2227,9 +2227,14 @@ Things pnpm 12 does that bite if you do not know them:
   this morning installs tomorrow.
 - **Security floors for deep dependencies live in `overrides`** in `pnpm-workspace.yaml` (pnpm 12
   ignores the old `pnpm.overrides` in `package.json`). Each entry selects only the vulnerable
-  versions, such as `'sharp@<0.35.5'`, so it stops doing anything once the parent package moves
-  past them; delete it then. A plain `pnpm update <name>` is enough when the parent's range
+  versions, such as `'glob@>=10.0.0 <10.5.0'`, so it stops doing anything once the parent package
+  moves past them; delete it then. A plain `pnpm update <name>` is enough when the parent's range
   already allows the fixed version, and needs no override.
+- **Next.js and `@opennextjs/cloudflare` move together.** Each adapter release names the Next
+  versions it supports in its `next` peer range, and a Next the adapter does not know can build
+  cleanly yet fail every request in the Worker: Next 16.4 with adapter 1.20.8 answered 500
+  (`Unexpected loadManifest(/.next/server/preview-props.json) call!`). After any Next bump, run
+  `pnpm preview` and load a few pages; `next build` and `next start` do not catch this.
 - **The lockfile opens with a small `---` document** recording the pnpm version. Changing
   `packageManager` without re-running `pnpm install` makes `--frozen-lockfile` fail in CI.
 - `pnpm run` and `pnpm exec` install first when `node_modules` is out of date.
