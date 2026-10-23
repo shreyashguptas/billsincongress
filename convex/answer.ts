@@ -864,17 +864,17 @@ async function runLoop(
         answeredBy = model;
         return reply;
       } catch (error) {
-        // A 400 is usually about the request, which Haiku gets unchanged, but
-        // not always (a parameter one model does not take): Haiku is still
-        // tried, at the cost of one more refused request. Logged loudly either
-        // way, because a request every Claude model rejects sends every answer
-        // to the last resort.
         if (claudeServiceDown(error)) {
           // The Claude API itself is unreachable: the other Claude model would
           // fail the same way, so go straight to the last resort.
           console.error(`CLAUDE API UNREACHABLE (${model}); answering the rest of this turn on the last-resort model:`, error);
           link = claudeChain.length;
         } else if (error instanceof Anthropic.BadRequestError) {
+          // A 400 is usually about the request, which Haiku gets unchanged, but
+          // not always (a parameter one model does not take): Haiku is still
+          // tried, at the cost of one more refused request. Logged loudly,
+          // because a request every Claude model rejects sends every answer to
+          // the last resort.
           console.error(`CLAUDE REQUEST REJECTED (400) by ${model}. Fix the request:`, error);
           link += 1;
         } else {
