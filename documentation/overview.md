@@ -208,6 +208,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | --- | --- |
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
 | `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below) |
+| `/search?q=` | GET — never a page: a 308 to `/bills?title=…`, carrying the words under `q`, `query` or `title` (`lib/search-redirect.ts`). Readers try it from browser search shortcuts; it matches the `SearchAction` in the site's JSON-LD |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs, one per stage a bill can stop at except 95 (signed, not yet numbered as a law: a day or two). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`) |
