@@ -71,6 +71,11 @@ export interface SponsorRow {
   sponsorBioguideId?: string;
   /** Every "First Last" spelling this member's bills carry, the shown one included. */
   spellings?: string[];
+  /**
+   * The chamber most of the member's bills started in. Absent on rows counted
+   * before it was stored, so a reader of the table must not assume either.
+   */
+  chamber?: "house" | "senate";
 }
 
 /** The fields of a bill that say who sponsored it. */
@@ -107,8 +112,12 @@ const chamberKey = (bill: Pick<SponsorBill, "billType">) => (SENATE_TYPES.has(bi
  * name without. Two members who would show the same name get the chamber they
  * sponsored from, "Robert Menendez (Senate)" and "Robert Menendez (House)". The
  * party and state are those on the member's latest bill.
+ *
+ * The chamber is kept on the row. Without it "which representative introduced
+ * the most bills" was answered with a senator (Mike Lee, 2026-10-07): the
+ * ranking mixed both chambers and nothing on a row said which was which.
  */
-export type BuiltSponsorRow = Pick<SponsorRow, "sponsorParty" | "sponsorState" | "sponsorBioguideId"> & {
+export type BuiltSponsorRow = Pick<SponsorRow, "sponsorParty" | "sponsorState" | "sponsorBioguideId" | "chamber"> & {
   sponsorName: string;
   billCount: number;
   spellings: string[];
@@ -192,7 +201,7 @@ export function buildSponsorRows(bills: Iterable<SponsorBill>): BuiltSponsorRow[
       billCount: m.count,
       ...(m.id ? { sponsorBioguideId: m.id } : {}),
       spellings: [...m.spellings.keys()].sort(),
-      chamber: m.senate * 2 >= m.count ? "Senate" : "House",
+      chamber: (m.senate * 2 >= m.count ? "senate" : "house") as "house" | "senate",
     };
   });
 
@@ -201,11 +210,9 @@ export function buildSponsorRows(bills: Iterable<SponsorBill>): BuiltSponsorRow[
   for (const r of rows) byShown.set(nameKey(r.sponsorName), [...(byShown.get(nameKey(r.sponsorName)) ?? []), r]);
   for (const same of byShown.values()) {
     if (same.length < 2 || new Set(same.map((r) => r.chamber)).size < same.length) continue;
-    for (const r of same) r.sponsorName = `${r.sponsorName} (${r.chamber})`;
+    for (const r of same) r.sponsorName = `${r.sponsorName} (${r.chamber === "senate" ? "Senate" : "House"})`;
   }
-  return rows
-    .map(({ chamber: _c, ...r }) => r)
-    .sort((a, b) => b.billCount - a.billCount || a.sponsorName.localeCompare(b.sponsorName));
+  return rows.sort((a, b) => b.billCount - a.billCount || a.sponsorName.localeCompare(b.sponsorName));
 }
 
 /**
@@ -231,7 +238,10 @@ export function buildSponsorRows(bills: Iterable<SponsorBill>): BuiltSponsorRow[
  * each spelling exactly.
  */
 export function mergeSponsorRows(rows: Iterable<SponsorRow>): Omit<SponsorRow, "congress">[] {
-  const byMember = new Map<string, SponsorRow & { shownCount: number; partyCongress: number }>();
+  const byMember = new Map<
+    string,
+    SponsorRow & { shownCount: number; partyCongress: number; chamberCount: number }
+  >();
   for (const row of rows) {
     // The member id when the row has one; rows counted before ids were stored
     // fall back to name and state.
@@ -245,8 +255,10 @@ export function mergeSponsorRows(rows: Iterable<SponsorRow>): Omit<SponsorRow, "
         billCount: row.billCount,
         ...(row.sponsorBioguideId ? { sponsorBioguideId: row.sponsorBioguideId } : {}),
         spellings: [...(row.spellings ?? [row.sponsorName])],
+        ...(row.chamber ? { chamber: row.chamber } : {}),
         shownCount: row.billCount,
         partyCongress: row.congress ?? 0,
+        chamberCount: row.chamber ? row.billCount : 0,
       });
       continue;
     }
@@ -262,12 +274,19 @@ export function mergeSponsorRows(rows: Iterable<SponsorRow>): Omit<SponsorRow, "
       held.sponsorName = row.sponsorName;
       held.shownCount = row.billCount;
     }
+    // The chamber of the spelling with more bills, as buildSponsorRows decides it.
+    if (row.chamber && row.billCount > held.chamberCount) {
+      held.chamber = row.chamber;
+      held.chamberCount = row.billCount;
+    }
     if (row.sponsorParty && (!held.sponsorParty || (row.congress ?? 0) > held.partyCongress)) {
       held.sponsorParty = row.sponsorParty;
       held.partyCongress = row.congress ?? 0;
     }
   }
-  return [...byMember.values()].map(({ shownCount: _s, partyCongress: _p, ...row }) => row);
+  return [...byMember.values()].map(
+    ({ shownCount: _s, partyCongress: _p, chamberCount: _c, ...row }) => row,
+  );
 }
 
 function tokenise(value: string): string[] {
