@@ -186,11 +186,17 @@ function readPrice(value: unknown): ClaudePrice | string {
   const v = value as Record<string, unknown>;
   const rates = (r: Record<string, unknown>): Rates | string => {
     for (const key of ["input", "output"]) {
-      if (r[key] === undefined) return `missing "${key}"`;
+      if (r[key] == null) return `missing "${key}"`;
     }
     const out: Record<string, number> = {};
     for (const key of ["input", "output", "cacheWrite", "cacheRead"]) {
-      const n = r[key] ?? (key === "cacheWrite" ? Number(r.input) * 1.25 : Number(r.input) / 10);
+      // Only the cache rates have defaults, and only when left out: a given
+      // null or string is a bad entry, never a made-up price.
+      const given = r[key];
+      const n =
+        given === undefined && key === "cacheWrite" ? Number(r.input) * 1.25
+        : given === undefined && key === "cacheRead" ? Number(r.input) / 10
+        : given;
       if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return `"${key}" is not a price`;
       if (n > MAX_PRICE_PER_MTOK) return `"${key}" is over $${MAX_PRICE_PER_MTOK} per million tokens`;
       out[key] = n;

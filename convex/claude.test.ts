@@ -258,6 +258,9 @@ it("drops a bad CLAUDE_PRICES_JSON entry and keeps the good ones", () => {
       "claude-typo-1": { input: 2, output: 10_000 }, // over the ceiling: $10 written as 10000
       "claude-half-1": { input: 1 }, // no output price
       "claude-neg-1": { input: -1, output: 5 },
+      "claude-null-1": { input: 3, output: null }, // null is not a price, never a default
+      "claude-nulls-1": { input: null, output: null },
+      "claude-nullcache-1": { input: 1, output: 5, cacheRead: null },
       "gpt-6": { input: 1, output: 5 }, // not a Claude model
       "claude-long-1": { input: 1, output: 5, long: { input: 2, output: 10 } }, // no threshold
       // A bad override leaves the built-in price alone.
@@ -265,7 +268,16 @@ it("drops a bad CLAUDE_PRICES_JSON entry and keeps the good ones", () => {
     }),
   });
   assert.ok("claude-ok-1" in prices);
-  for (const model of ["claude-typo-1", "claude-half-1", "claude-neg-1", "gpt-6", "claude-long-1"]) {
+  for (const model of [
+    "claude-typo-1",
+    "claude-half-1",
+    "claude-neg-1",
+    "claude-null-1",
+    "claude-nulls-1",
+    "claude-nullcache-1",
+    "gpt-6",
+    "claude-long-1",
+  ]) {
     assert.ok(!(model in prices), `${model} should be ignored`);
   }
   assert.deepEqual(prices["claude-sonnet-5-5"], CLAUDE_PRICES["claude-sonnet-5-5"]);
