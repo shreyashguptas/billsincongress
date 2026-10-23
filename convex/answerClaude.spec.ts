@@ -35,7 +35,7 @@ let openRouterReplies: Reply[];
 const claude = (b: Sent) => b.url === ANTHROPIC;
 const answerCalls = () => sent.filter((s) => claude(s) && !isWebSearch(s.body));
 const isWebSearch = (body: Body) =>
-  Array.isArray(body.tools) && body.tools.some((t: Body) => t.type === "web_search_20260209");
+  Array.isArray(body.tools) && body.tools.some((t: Body) => t.type === "web_search_20250305");
 
 /** A Claude API reply. The model echoes what was asked for. */
 function message(content: unknown[], stop_reason = "end_turn", extra: Body = {}): Reply {
@@ -349,7 +349,7 @@ test("the web lookup runs on Claude Sonnet with Anthropic's search tool, and its
   expect(search.inference_geo).toBe("us");
   expect(search.tools).toEqual([
     {
-      type: "web_search_20260209",
+      type: "web_search_20250305",
       name: "web_search",
       max_uses: 2,
       user_location: { type: "approximate", country: "US" },

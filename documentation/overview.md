@@ -1366,7 +1366,8 @@ shown to the reader verbatim, and sources render in two blocks — *From our dat
 **Where the search runs** (`searchWeb`, `convex/answer.ts`). A separate request from the answer
 loop, so `reason` can stay a required argument of our own `search_web` tool. First Claude
 Sonnet 5.5 (`ANTHROPIC_WEB_MODEL`) on our Anthropic key, US inference, with Anthropic's
-server-side web search tool (`web_search_20260209`, at most 2 searches, `user_location` country
+server-side web search tool (the basic `web_search_20250305`: the newer `_20260209` returned no
+citations when tried live on 2026-10-23; at most 2 searches, `user_location` country
 US); it is sent only the search phrase, never the reader's question or the conversation
 (`searchWebClaude`, `convex/claude.ts`). Up to 5 sources (`WEB_MAX_RESULTS`) are built from
 Claude's citations, in the order cited: the URL, the title, and the text Claude quoted from that

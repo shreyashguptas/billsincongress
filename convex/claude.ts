@@ -57,8 +57,14 @@ export const DEFAULT_BACKUP_MODEL = "claude-sonnet-5-5";
 /**
  * The model behind the web lookup, with Anthropic's server-side web search
  * tool; override with ANTHROPIC_WEB_MODEL, and set it blank to search through
- * OpenRouter's Exa plugin instead. The `web_search_20260209` tool version runs
- * on Sonnet and Opus, not on Haiku.
+ * OpenRouter's Exa plugin instead.
+ *
+ * The basic `web_search_20250305` tool, on purpose. The newer `_20260209`
+ * version filters the results through server-side code first, and measured on
+ * 2026-10-23 its reply then carried no citations at all: every lookup fell back
+ * to Exa after paying for the search. The basic tool cites each sentence with
+ * the text it quotes, which is what the reader's sources are built from, and it
+ * read 12.8k input tokens against 29.8k for the same query.
  */
 export const DEFAULT_WEB_MODEL = "claude-sonnet-5-5";
 
@@ -567,7 +573,7 @@ export async function searchWebClaude(opts: {
       messages: [{ role: "user", content: query }],
       tools: [
         {
-          type: "web_search_20260209",
+          type: "web_search_20250305",
           name: "web_search",
           max_uses: WEB_MAX_USES,
           user_location: { type: "approximate", country: "US" },
