@@ -1378,8 +1378,8 @@ page (never Claude's own summary), up to 500 characters. A page Claude found but
 left out: its title alone would let the answer cite it for a claim it never showed. An API error,
 a refusal, a search that errored, no search, or no quoted source falls back to gpt-oss-120b with OpenRouter's web plugin, engine `exa` (`searchWebExa`), which
 returns `url_citation` annotations. The reader sees the same either way. The work log gets a
-"searching the web" step before the lookup and a "trying the backup web search" step before
-Exa, and each call is capped at 30 s, so neither can outlast the panel's 45-second stall
+progress step ("Searching the web") before the lookup and another ("Searching the web with the
+backup search engine") before Exa, neither counted as a lookup, and each call is capped at 30 s, so neither can outlast the panel's 45-second stall
 watchdog. A blank
 `ANTHROPIC_WEB_MODEL` (or no `ANTHROPIC_API_KEY`) uses the Exa path alone.
 

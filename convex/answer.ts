@@ -1082,10 +1082,11 @@ async function runLoop(
             const scope = billsInScope(query, opts.pageContext?.billId, reason);
             // A step before the lookup, so the reader's 45 s stall watchdog
             // restarts: the round that asked for it may have used most of the
-            // window already. Retry steps are not counted as lookups.
-            note({ tool: "retry", detail: "searching the web" });
+            // window already. A progress step reads "Searching the web" and is
+            // not counted as a lookup (components/answers/work-log.tsx).
+            note({ tool: "progress", detail: "the web" });
             const web = await searchWeb(query, opts.keys, opts.trace, () =>
-              note({ tool: "retry", detail: "trying the backup web search" }),
+              note({ tool: "progress", detail: "the web with the backup search engine" }),
             );
             const { kept, removed } = keepWebResultsForBill(web.hits, scope);
             const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));
