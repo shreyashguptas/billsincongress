@@ -256,6 +256,23 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
     return () => observer.disconnect();
   }, []);
 
+  // A follow-up sent with Enter while the previous answer was still being
+  // written goes as soon as that answer is done. Emptying the box cancels it.
+  const [queued, setQueued] = useState(false);
+  const send = () => {
+    const q = input;
+    setInput('');
+    setQueued(false);
+    void ask(q, { source: 'typed' });
+  };
+  useEffect(() => {
+    if (!queued) return;
+    if (!input.trim()) setQueued(false);
+    else if (!busy) send();
+    // `send` reads the current draft; it is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued, busy, input]);
+
   const last = turns[turns.length - 1];
   // Only the LAST turn is still waiting on the reader. An earlier question they
   // have already answered keeps its rule and eyebrow, but stops asking again.
@@ -332,9 +349,14 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const q = input;
-            setInput('');
-            void ask(q, { source: 'typed' });
+            if (!input.trim()) return;
+            // The field stays live while an answer is written, so the next
+            // question can be typed; Enter then sends it once this one is done.
+            if (busy) {
+              setQueued(true);
+              return;
+            }
+            send();
           }}
           onAnimationEnd={onNudgeEnd}
           className={cn(
@@ -368,13 +390,17 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
               'h-full min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-base touchable:h-full',
               'focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 lg:text-[15px]',
             )}
-            disabled={busy}
+            // Never disabled, not even while an answer is being written: a
+            // disabled field drops focus, and the reader would have to click
+            // back into it to ask the follow-up.
             aria-describedby={noteId}
           />
           <Button
             type="submit"
             size="icon"
-            disabled={busy || !input.trim()}
+            // Not disabled while busy: a form with a disabled submit button
+            // ignores Enter, and Enter then has to queue the follow-up.
+            disabled={!input.trim()}
             aria-label="Send"
             className="shrink-0 rounded-full disabled:opacity-40 touchable:h-10 touchable:w-10"
           >

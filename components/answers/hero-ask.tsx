@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { cn } from '@/lib/utils';
 import { MAX_QUESTION_LENGTH } from '@/lib/text-limit';
+import { FINE_POINTER_QUERY } from '@/lib/type-to-ask';
 
 // Starter questions: rounded-full outline pills (brand.md, "Ask composer"),
 // on the page rather than raised. Inline-block and wrapping, so a long starter
@@ -38,9 +39,14 @@ const PILL =
  * While the reader types, matching bills appear beneath the field
  * (`lib/bill-suggest.ts` has the numbers behind this). Picking one opens the
  * bill; Enter with nothing highlighted still asks the question as typed.
+ *
+ * The field is focused when the page loads, so a reader can type without
+ * clicking it first — on a mouse or trackpad only (`FINE_POINTER_QUERY` has
+ * why). Keys typed after clicking elsewhere still come back here while it is on
+ * screen (`components/answers/type-to-ask.tsx`).
  */
 export function HeroAsk({ starters }: { starters: StarterInput }) {
-  const { ask, busy } = useAnswers();
+  const { ask, busy, phase } = useAnswers();
   const router = useRouter();
   const [input, setInput] = useState('');
   const [open, setOpen] = useState(false);
@@ -50,6 +56,20 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const listId = useId();
   const noteId = useId();
   const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_home');
+
+  // On arrival only, and only while focus is nowhere in particular. An open
+  // panel keeps focus in its own composer (the reader came back to the home
+  // page mid-conversation), and a reader who clicked the header search or
+  // tabbed to a link while the page loaded is not pulled away from it.
+  const inputRef = useRef<HTMLInputElement>(null);
+  const phaseOnArrival = useRef(phase);
+  useEffect(() => {
+    if (phaseOnArrival.current === 'open') return;
+    if (!window.matchMedia(FINE_POINTER_QUERY).matches) return;
+    const at = document.activeElement;
+    if (at && at !== document.body && at.id !== 'main') return;
+    inputRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const suggestions = useBillSuggestions(input, congress);
   const settled = suggestions.kind !== null && isSettled(suggestions, input, congress);
@@ -124,9 +144,21 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
           )}
         >
           <Input
+            id="hero-ask"
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => {
+              // The box sits under the chamber, below the fold on most
+              // laptops, and is focused on arrival. The first key brings it,
+              // and the room its suggestions open into, up the screen.
+              if (!input) {
+                const box = e.currentTarget.getBoundingClientRect();
+                if (box.bottom > window.innerHeight * 0.6) {
+                  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                  e.currentTarget.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+                }
+              }
               setInput(limit(e, input));
               setOpen(true);
             }}
