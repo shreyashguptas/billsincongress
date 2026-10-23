@@ -822,7 +822,7 @@ export const analytics = {
    */
   answerPanelOpened: (props: {
     surface: string;
-    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual';
+    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
     has_conversation: boolean;
   }) => capture('answer_panel_opened', props),
 
@@ -841,10 +841,24 @@ export const analytics = {
    */
   answerPanelRestored: (props: {
     surface: string;
-    trigger: 'launcher';
+    trigger: 'launcher' | 'typing';
     turn_count: number;
     away_ms: number;
   }) => capture('answer_panel_restored', props),
+
+  /**
+   * The reader started typing with no field focused, and the key was sent to
+   * the ask box (`components/answers/type-to-ask.tsx`). Once per run of typing,
+   * not per key: the next key lands in the focused box and is not seen here.
+   * `target` says where it went — `open_panel` opened (or restored) the panel
+   * for it, which also sends `answer_panel_opened`/`restored` with trigger
+   * `typing`.
+   */
+  askTypedAnywhere: (props: {
+    surface: string;
+    target: 'panel' | 'hero' | 'open_panel';
+    panel_phase: 'closed' | 'open' | 'minimized';
+  }) => capture('ask_typed_anywhere', props),
 
   /**
    * Drag end only, debounced — a capture per pointermove would swamp every
