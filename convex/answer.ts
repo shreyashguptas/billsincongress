@@ -33,6 +33,13 @@ import { billsInScope, keepWebResultsForBill, withheldNote } from "./catalog/web
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "./reasoning";
+import {
+  isNetworkError,
+  isRetryablePayload,
+  isRetryableStatus,
+  retryDelayMs,
+  sleep,
+} from "./transientRetry";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -338,13 +345,32 @@ function claudeModel(): string {
 async function callModel(
   messages: ChatMessage[],
   apiKey: string,
-  opts: { withTools?: boolean; trace?: AnswerTrace; omitReasoning?: boolean; claude?: boolean } = {},
+  opts: {
+    withTools?: boolean;
+    trace?: AnswerTrace;
+    omitReasoning?: boolean;
+    claude?: boolean;
+    retried?: boolean;
+    /** Told before the retry's wait, so the loop can show a step (the stall watchdog). */
+    onRetry?: () => void;
+  } = {},
 ): Promise<{ message: any; lengthCapped: boolean; reasoningRefused?: boolean }> {
   const claude = opts.claude ?? false;
   const model = claude ? claudeModel() : process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   // OpenRouter's `models` failover shares one provider config across the chain,
   // so it is never sent with Claude: the fallback is answerRound's job.
   const fallbacks = claude ? [] : fallbackModels();
+  // One more try after a momentary upstream failure (convex/transientRetry.ts):
+  // a 429, a gateway error, a provider timeout inside a 200, or no connection.
+  // Each of those ended a reader's answer in early October. Not for Claude,
+  // whose failure already hands the turn to the default model, and only once.
+  const retryOnce = async (delayMs: number) => {
+    console.error(`transient OpenRouter failure on ${model}; retrying once in ${delayMs}ms`);
+    opts.onRetry?.();
+    await sleep(delayMs);
+    return callModel(messages, apiKey, { ...opts, retried: true });
+  };
+  const mayRetry = !claude && !opts.retried;
   // Claude 5.5 refuses a non-default temperature.
   const temperature = claude ? undefined : 0.3;
   const withTools = opts.withTools ?? true;
@@ -398,8 +424,10 @@ async function callModel(
     }),
   }).catch((error: unknown) => {
     record({ error: String(error) });
+    if (mayRetry && isNetworkError(error)) return null;
     throw error;
   });
+  if (response === null) return retryOnce(retryDelayMs(null));
 
   if (!response.ok) {
     const body = (await response.text())
@@ -407,6 +435,9 @@ async function callModel(
       .replace(/Bearer\s+\S+/gi, "Bearer [redacted]");
     const message = `OpenRouter ${response.status} ${response.statusText}: ${body}`;
     record({ error: message, httpStatus: response.status });
+    if (mayRetry && isRetryableStatus(response.status)) {
+      return retryOnce(retryDelayMs(response.headers.get("retry-after")));
+    }
     // A request refused while it carried a reasoning setting gets one retry
     // without it, so the worst this setting can do is give the reader the
     // model's default, never no answer.
@@ -431,6 +462,7 @@ async function callModel(
   if (data.error) {
     const message = `OpenRouter error: ${JSON.stringify(data.error).slice(0, 500)}`;
     record({ error: message, httpStatus: response.status });
+    if (mayRetry && isRetryablePayload(data.error)) return retryOnce(retryDelayMs(null));
     throw new Error(message);
   }
   // No analytics on this path, so this log is the only place a degraded
@@ -486,6 +518,8 @@ async function searchWeb(
   query: string,
   apiKey: string,
   trace?: AnswerTrace,
+  retried = false,
+  onRetry?: () => void,
 ): Promise<WebSource[]> {
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const started = Date.now();
@@ -515,17 +549,29 @@ async function searchWeb(
     }),
   }).catch((error: unknown) => {
     record({ error: String(error) });
-    throw error;
+    // No connection is a missing search, like any other failure here, not the
+    // end of the reader's answer: it used to throw out of the whole turn.
+    if (!isNetworkError(error)) throw error;
+    return null;
   });
+  // The same one retry as callModel's, then no web results rather than no answer.
+  const again = async (delayMs: number) => {
+    if (retried) return [];
+    console.error(`transient OpenRouter failure on web search; retrying once in ${delayMs}ms`);
+    onRetry?.();
+    await sleep(delayMs);
+    return searchWeb(query, apiKey, trace, true);
+  };
+  if (response === null) return again(retryDelayMs(null));
 
   if (!response.ok) {
     record({ error: `OpenRouter ${response.status}`, httpStatus: response.status });
-    return [];
+    return isRetryableStatus(response.status) ? again(retryDelayMs(response.headers.get("retry-after"))) : [];
   }
   const data = await response.json().catch(() => ({}));
   if (data.error) {
     record({ error: JSON.stringify(data.error).slice(0, 500), httpStatus: response.status });
-    return [];
+    return isRetryablePayload(data.error) ? again(retryDelayMs(null)) : [];
   }
 
   // Annotations come back as { type: "url_citation", url_citation: { url,
@@ -807,19 +853,27 @@ async function runLoop(
   // a round, and never costs them the answer. The transcript is plain content
   // and tool calls (no reasoning is handed back), so either model can pick it up.
   let claude = claudeModel() !== "";
+  // A visible step for a model call's one retry after a momentary failure, so
+  // the client's stall watchdog restarts for the extra call (review on #203).
+  const noteRetry = () => note({ tool: "retry", detail: "asking again" });
   const answerRound = async (
     roundMessages: ChatMessage[],
     roundOpts: { withTools: boolean; omitReasoning: boolean },
   ) => {
     if (claude) {
       try {
-        return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace, claude: true });
+        return await callModel(roundMessages, opts.apiKey, {
+          ...roundOpts,
+          trace: opts.trace,
+          claude: true,
+          onRetry: noteRetry,
+        });
       } catch (error) {
         console.error("Claude failed; answering the rest of this turn on the default model:", error);
         claude = false;
       }
     }
-    return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace });
+    return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace, onRetry: noteRetry });
   };
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -1011,7 +1065,7 @@ async function runLoop(
             // model saw. See convex/catalog/webResults.ts.
             const scope = billsInScope(query, opts.pageContext?.billId, reason);
             const { kept, removed } = keepWebResultsForBill(
-              await searchWeb(query, opts.apiKey, opts.trace),
+              await searchWeb(query, opts.apiKey, opts.trace, false, noteRetry),
               scope,
             );
             const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));
