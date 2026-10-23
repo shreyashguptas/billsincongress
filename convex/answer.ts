@@ -100,6 +100,8 @@ const SITE_URL = "https://billsincongress.com";
 const MAX_HISTORY_TURNS = 10;
 const MAX_HISTORY_CHARS = 8000;
 const MAX_QUESTION_LENGTH = 2000;
+/** One Exa lookup, under the reader's 45 s stall watchdog. */
+const EXA_TIMEOUT_MS = 30_000;
 /** Search engine behind the web fallback. Named on the privacy page. */
 const WEB_ENGINE = "exa";
 /**
@@ -472,6 +474,7 @@ async function searchWeb(
   query: string,
   keys: ModelKeys,
   trace?: AnswerTrace,
+  onBackup?: () => void,
 ): Promise<{ hits: WebSource[]; engine: WebEngine }> {
   const model = claudeWebModel();
   if (keys.anthropic && model) {
@@ -487,6 +490,9 @@ async function searchWeb(
       return { hits: hits.map((h, i) => ({ handle: `web:${i + 1}`, ...h })), engine: "anthropic" };
     } catch (error) {
       console.error("Claude web search failed; searching through OpenRouter's Exa plugin instead:", error);
+      // Restarts the reader's 45 s stall watchdog for the Exa call, as the
+      // answer chain does before a backup model.
+      onBackup?.();
     }
   }
   return { hits: await searchWebExa(query, keys.openrouter, trace), engine: "exa" };
@@ -526,6 +532,8 @@ async function searchWebExa(
       plugins: [{ id: "web", engine: WEB_ENGINE, max_results: WEB_MAX_RESULTS }],
       provider: providerConfig(),
     }),
+    // Inside the reader's 45 s stall watchdog, which the step before it restarted.
+    signal: AbortSignal.timeout(EXA_TIMEOUT_MS),
   }).catch((error: unknown) => {
     record({ error: String(error) });
     throw error;
@@ -1072,7 +1080,13 @@ async function runLoop(
             // Filtered before the span is recorded, so the trace shows what the
             // model saw. See convex/catalog/webResults.ts.
             const scope = billsInScope(query, opts.pageContext?.billId, reason);
-            const web = await searchWeb(query, opts.keys, opts.trace);
+            // A step before the lookup, so the reader's 45 s stall watchdog
+            // restarts: the round that asked for it may have used most of the
+            // window already. Retry steps are not counted as lookups.
+            note({ tool: "retry", detail: "searching the web" });
+            const web = await searchWeb(query, opts.keys, opts.trace, () =>
+              note({ tool: "retry", detail: "trying the backup web search" }),
+            );
             const { kept, removed } = keepWebResultsForBill(web.hits, scope);
             const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));
             if (hits.length > 0) webEngine = web.engine;

@@ -344,6 +344,9 @@ test("the web lookup runs on Claude Sonnet with Anthropic's search tool, and its
   ]);
   expect(result.webReason).toBe("We don't track committee hearing schedules.");
   expect(result.webEngine).toBe("anthropic");
+  // A step before the lookup restarts the reader's 45 s stall watchdog; no backup step.
+  expect(result.workLog).toContainEqual({ tool: "retry", detail: "searching the web" });
+  expect(result.workLog).not.toContainEqual({ tool: "retry", detail: "trying the backup web search" });
   const search = sent.find((s) => isWebSearch(s.body))!.body;
   expect(search.model).toBe("claude-sonnet-5-5");
   expect(search.inference_geo).toBe("us");
@@ -390,6 +393,10 @@ test("a failed Claude web search falls back to Exa on OpenRouter, and the reader
   expect(result.webEngine).toBe("exa");
   const exa = sent.find((s) => s.url === OPENROUTER)!.body;
   expect(exa.plugins).toEqual([{ id: "web", engine: "exa", max_results: 5 }]);
+  // Each of the two lookups gets its own 45 s stall window, in order.
+  const steps = result.workLog.map((e) => e.detail);
+  expect(steps.indexOf("searching the web")).toBeGreaterThanOrEqual(0);
+  expect(steps.indexOf("trying the backup web search")).toBeGreaterThan(steps.indexOf("searching the web"));
   // The answer itself stayed on Haiku: a failed search is not a failed answer model.
   expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-haiku-5-5"]);
 });

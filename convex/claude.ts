@@ -324,8 +324,8 @@ export function toClaudeRequest(messages: ChatMessage[]): {
 /** One answer round on one model. Under the reader's 45 s stall watchdog. */
 const ANSWER_TIMEOUT_MS = 40_000;
 /**
- * One web lookup. Shorter than an answer round: the Exa fallback runs after it
- * with no work-log step between, and both must fit inside the same 45 s.
+ * One web lookup. The answer loop writes a work-log step before it and another
+ * before the Exa fallback, so each call gets its own 45 s window.
  */
 const WEB_TIMEOUT_MS = 30_000;
 function client(apiKey: string, timeout: number): Anthropic {
