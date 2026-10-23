@@ -66,12 +66,15 @@ const toolUse = (id: string, name: string, input: Body) => ({ type: "tool_use", 
 /** A request the API rejects. Not retried, and the next Claude model is skipped. */
 const badRequest: Reply = () =>
   Response.json({ type: "error", error: { type: "invalid_request_error", message: "nope" } }, { status: 400 });
-/** An overloaded model. The SDK retries once (after 1 ms here), then the chain moves on. */
+/** An overloaded model: one model's trouble, so the chain moves on to the next Claude model. */
 const overloaded: Reply = () =>
   Response.json(
     { type: "error", error: { type: "overloaded_error", message: "busy" } },
     { status: 529, headers: { "retry-after-ms": "1" } },
   );
+/** The Claude API itself failing: the other Claude model would fail too. */
+const serviceDown: Reply = () =>
+  Response.json({ type: "error", error: { type: "api_error", message: "upstream down" } }, { status: 503 });
 
 const openRouterAnswer =
   (content: string): Reply =>
@@ -108,22 +111,22 @@ afterEach(() => {
 
 const ask = (question: string) => convexTest(schema, modules).action(internal.answer.ask, { question });
 
-test("answers on Claude Haiku over the Claude API, on US servers, with no OpenRouter call", async () => {
+test("answers on Claude Sonnet over the Claude API, on US servers, with no OpenRouter call", async () => {
   claudeReplies = [message([thinking("sig-1"), text(ANSWER)])];
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.error).toBeUndefined();
   expect(result.text).toBe(ANSWER);
-  expect(result.answeredBy).toBe("claude-haiku-5-5");
+  expect(result.answeredBy).toBe("claude-sonnet-5-5");
   expect(sent.map((s) => s.url)).toEqual([ANTHROPIC]);
 
   const { body, headers } = sent[0];
   // Our key, sent the way SDK 1.x sends an API key.
   expect(headers.get("authorization")).toBe("Bearer sk-ant-test-not-a-real-key");
   expect(headers.get("anthropic-version")).toBe("2026-10-21");
-  expect(body.model).toBe("claude-haiku-5-5");
+  expect(body.model).toBe("claude-sonnet-5-5");
   // The owner's hard rule: AI on US servers only.
   expect(body.inference_geo).toBe("us");
-  // Effort is always sent: Haiku 5.5 would otherwise run at medium.
+  // Effort is always sent (Haiku 5.5, the backup, would otherwise run at medium).
   expect(body.thinking).toEqual({ type: "adaptive" });
   expect(body.output_config).toEqual({ effort: "low" });
   // Claude 5.5 refuses sampling parameters and forced tool choice.
@@ -164,8 +167,8 @@ test("Claude's reply goes back unchanged, and the system prompt and tools never 
   expect(results.content[0]).toMatchObject({ type: "tool_result", tool_use_id: "toolu_1" });
 });
 
-test("a failed Haiku call moves the turn to Sonnet, which picks up Haiku's work", async () => {
-  const round1 = [thinking("haiku-sig"), toolUse("toolu_1", "describe_dataset", { name: "stats" })];
+test("a failed Sonnet call moves the turn to Haiku, which is handed Sonnet's work unchanged", async () => {
+  const round1 = [thinking("sonnet-sig"), toolUse("toolu_1", "describe_dataset", { name: "stats" })];
   claudeReplies = [
     message(round1, "tool_use"),
     overloaded,
@@ -175,19 +178,20 @@ test("a failed Haiku call moves the turn to Sonnet, which picks up Haiku's work"
   const result = await ask("How many bills became law?");
   expect(result.error).toBeUndefined();
   expect(result.text).toBe(ANSWER);
-  expect(result.answeredBy).toBe("claude-sonnet-5-5");
-  // Once Haiku fails (no SDK retry: the chain is the retry), every later round is Sonnet's.
+  expect(result.answeredBy).toBe("claude-haiku-5-5");
+  // Once Sonnet fails (no SDK retry: the chain is the retry), every later round is Haiku's.
   expect(answerCalls().map((s) => s.body.model)).toEqual([
-    "claude-haiku-5-5",
-    "claude-haiku-5-5",
     "claude-sonnet-5-5",
     "claude-sonnet-5-5",
+    "claude-haiku-5-5",
+    "claude-haiku-5-5",
   ]);
   // The reader's stall watchdog restarts for the backup model's call.
   expect(result.workLog).toContainEqual({ tool: "retry", detail: "trying a backup model" });
-  // Sonnet is handed Haiku's blocks as they came: on the Claude API it reads them.
-  const sonnet = answerCalls()[2].body;
-  expect(sonnet.messages).toContainEqual({ role: "assistant", content: round1 });
+  // Haiku is handed Sonnet's blocks as they came: the transcript stays append-only,
+  // and the API drops (unbilled) the thinking Haiku cannot read.
+  const haiku = answerCalls()[2].body;
+  expect(haiku.messages).toContainEqual({ role: "assistant", content: round1 });
   expect(sent.some((s) => s.url === OPENROUTER)).toBe(false);
 });
 
@@ -202,9 +206,9 @@ test("when both Claude models fail, gpt-oss answers on OpenRouter, without Claud
   expect(result.text).toBe(ANSWER);
   expect(result.answeredBy).toBe("openai/gpt-oss-120b");
   expect(sent.map((s) => s.body.model)).toEqual([
-    "claude-haiku-5-5",
-    "claude-haiku-5-5",
     "claude-sonnet-5-5",
+    "claude-sonnet-5-5",
+    "claude-haiku-5-5",
     "openai/gpt-oss-120b",
   ]);
   const gptOss = sent[3].body;
@@ -219,16 +223,16 @@ test("when both Claude models fail, gpt-oss answers on OpenRouter, without Claud
   );
 });
 
-test("a request Claude rejects as malformed still tries Sonnet, then the last resort", async () => {
+test("a request Claude rejects as malformed still tries Haiku, then the last resort", async () => {
   claudeReplies = [badRequest, badRequest];
   openRouterReplies = [openRouterAnswer(ANSWER)];
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe(ANSWER);
-  expect(sent.map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5", "openai/gpt-oss-120b"]);
+  expect(sent.map((s) => s.body.model)).toEqual(["claude-sonnet-5-5", "claude-haiku-5-5", "openai/gpt-oss-120b"]);
   expect(console.error).toHaveBeenCalledWith(expect.stringContaining("CLAUDE REQUEST REJECTED (400)"), expect.anything());
 });
 
-test("a refusal is not an answer: none of its text reaches the reader, and Sonnet answers", async () => {
+test("a refusal is not an answer: none of its text reaches the reader, and Haiku answers", async () => {
   claudeReplies = [
     message([text("Here is a partial answ")], "refusal", {
       stop_details: { type: "refusal", category: "general_harms", explanation: null },
@@ -237,14 +241,25 @@ test("a refusal is not an answer: none of its text reaches the reader, and Sonne
   ];
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe(ANSWER);
-  expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
+  expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-sonnet-5-5", "claude-haiku-5-5"]);
 });
 
-test("a server error is not retried on the same model: Sonnet is the retry, under the reader's 45 s watchdog", async () => {
+test("an overloaded model is not retried on itself: Haiku is the retry, under the reader's 45 s watchdog", async () => {
   claudeReplies = [overloaded, message([text(ANSWER)])];
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe(ANSWER);
-  expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
+  expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-sonnet-5-5", "claude-haiku-5-5"]);
+});
+
+test("when the Claude API itself is down, the turn skips Haiku and goes straight to gpt-oss", async () => {
+  claudeReplies = [serviceDown];
+  openRouterReplies = [openRouterAnswer(ANSWER)];
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.text).toBe(ANSWER);
+  expect(result.answeredBy).toBe("openai/gpt-oss-120b");
+  expect(sent.map((s) => s.body.model)).toEqual(["claude-sonnet-5-5", "openai/gpt-oss-120b"]);
+  expect(result.workLog).toContainEqual({ tool: "retry", detail: "trying a backup model" });
+  expect(console.error).toHaveBeenCalledWith(expect.stringContaining("CLAUDE API UNREACHABLE"), expect.anything());
 });
 
 test("without ANTHROPIC_API_KEY the answer comes from gpt-oss, and the gap is logged loudly", async () => {
@@ -261,7 +276,7 @@ test("a Claude model with no price on file is never called", async () => {
   claudeReplies = [message([text(ANSWER)])];
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe(ANSWER);
-  expect(sent.map((s) => s.body.model)).toEqual(["claude-sonnet-5-5"]);
+  expect(sent.map((s) => s.body.model)).toEqual(["claude-haiku-5-5"]);
 });
 
 test("a new model priced in CLAUDE_PRICES_JSON is called, with no deploy", async () => {
@@ -355,7 +370,7 @@ test("the web lookup runs on Claude Sonnet with Anthropic's search tool, and its
   expect(result.webEngine).toBe("anthropic");
   // A step before the lookup restarts the reader's 45 s stall watchdog; no backup step.
   expect(result.workLog).toContainEqual({ tool: "progress", detail: "the web" });
-  expect(result.workLog).not.toContainEqual({ tool: "progress", detail: "the web with the backup search engine" });
+  expect(result.workLog).not.toContainEqual({ tool: "progress", detail: "the web again" });
   const search = sent.find((s) => isWebSearch(s.body))!.body;
   expect(search.model).toBe("claude-sonnet-5-5");
   expect(search.inference_geo).toBe("us");
@@ -373,7 +388,7 @@ test("the web lookup runs on Claude Sonnet with Anthropic's search tool, and its
 });
 
 test("a failed Claude web search falls back to Exa on OpenRouter, and the reader sees the same shape", async () => {
-  claudeReplies = [message([SEARCH_CALL], "tool_use"), badRequest, message([text(WEB_ANSWER)])];
+  claudeReplies = [message([SEARCH_CALL], "tool_use"), badRequest, badRequest, message([text(WEB_ANSWER)])];
   openRouterReplies = [
     () =>
       Response.json({
@@ -402,20 +417,33 @@ test("a failed Claude web search falls back to Exa on OpenRouter, and the reader
   expect(result.webEngine).toBe("exa");
   const exa = sent.find((s) => s.url === OPENROUTER)!.body;
   expect(exa.plugins).toEqual([{ id: "web", engine: "exa", max_results: 5 }]);
-  // Each of the two lookups gets its own 45 s stall window, in order.
+  // Sonnet, then Haiku, then Exa, each with its own 45 s stall window.
+  expect(sent.filter((s) => isWebSearch(s.body)).map((s) => s.body.model)).toEqual([
+    "claude-sonnet-5-5",
+    "claude-haiku-5-5",
+  ]);
   const steps = result.workLog.filter((e) => e.tool === "progress").map((e) => e.detail);
-  expect(steps).toEqual(["the web", "the web with the backup search engine"]);
-  // The answer itself stayed on Haiku: a failed search is not a failed answer model.
-  expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-haiku-5-5"]);
+  expect(steps).toEqual(["the web", "the web again", "the web again"]);
+  // The answer itself stayed on Sonnet: a failed search is not a failed answer model.
+  expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-sonnet-5-5", "claude-sonnet-5-5"]);
 });
 
 test("a Claude web search that never searched falls back to Exa", async () => {
   claudeReplies = [
     message([SEARCH_CALL], "tool_use"),
     message([text("I think hearings are usually on Tuesdays.")]),
+    message([text("Probably Tuesday.")]),
     message([text(WEB_ANSWER)]),
   ];
   openRouterReplies = [openRouterAnswer("")];
   await ask("When does Ways and Means meet next?");
+  expect(sent.filter((s) => s.url === OPENROUTER).map((s) => s.body.plugins?.[0]?.engine)).toEqual(["exa"]);
+});
+
+test("a Claude web search on a downed Claude API skips Haiku and goes straight to Exa", async () => {
+  claudeReplies = [message([SEARCH_CALL], "tool_use"), serviceDown, message([text(WEB_ANSWER)])];
+  openRouterReplies = [openRouterAnswer("")];
+  await ask("When does Ways and Means meet next?");
+  expect(sent.filter((s) => isWebSearch(s.body)).map((s) => s.body.model)).toEqual(["claude-sonnet-5-5"]);
   expect(sent.filter((s) => s.url === OPENROUTER).map((s) => s.body.plugins?.[0]?.engine)).toEqual(["exa"]);
 });

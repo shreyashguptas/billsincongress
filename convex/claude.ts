@@ -40,22 +40,22 @@ export const INFERENCE_GEO = "us";
  * The answer model, tried first; override with ANTHROPIC_ANSWER_MODEL, and set
  * it blank to skip it.
  *
- * Claude Haiku 5.5 at low effort, chosen on 2026-10-13 on the truth questions
- * (20 scored, twice each, every flagged answer read by hand): 38 of 40 right
- * against gpt-oss's 37, at about a seventh of the token cost, but a median of
- * 3.7 s against 1.1 s. Medium and high effort scored the same and cost about
- * 3x; thinking off and max effort both scored lower. (Measured through
- * OpenRouter; the request is now the Claude API's own.)
+ * Claude Sonnet 5.5 at low effort since 2026-10-23, the owner's call: the most
+ * accurate answer the price allows. It costs about twenty times Haiku per
+ * token; measured live on 2026-10-23 a four-round answer cost about 12 cents
+ * and took about 13 s. (Before that, Claude Haiku 5.5, chosen on 2026-10-13 on
+ * the truth questions: 38 of 40 right against gpt-oss's 37.)
  */
-export const DEFAULT_ANSWER_MODEL = "claude-haiku-5-5";
+export const DEFAULT_ANSWER_MODEL = "claude-sonnet-5-5";
 /**
  * Tried when the answer model fails (an error, a refusal, a timeout); override
- * with ANTHROPIC_BACKUP_MODEL, and set it blank to skip it. It reads Claude
- * Haiku 5.5's thinking blocks on the Claude API, so a turn that moves up to it
- * keeps the reasoning done so far. About twenty times Haiku's price per token,
- * which is why it is the backup and not the answer model.
+ * with ANTHROPIC_BACKUP_MODEL, and set it blank to skip it. Claude Haiku 5.5
+ * cannot read Sonnet 5.5's thinking blocks; they are still sent back unchanged,
+ * and the API drops the ones it cannot read (unbilled), so the transcript stays
+ * append-only and the turn carries on from the visible tool calls and results.
+ * Skipped when the Claude API itself is unreachable (claudeServiceDown).
  */
-export const DEFAULT_BACKUP_MODEL = "claude-sonnet-5-5";
+export const DEFAULT_BACKUP_MODEL = "claude-haiku-5-5";
 /**
  * The model behind the web lookup, with Anthropic's server-side web search
  * tool; override with ANTHROPIC_WEB_MODEL, and set it blank to search through
@@ -69,6 +69,12 @@ export const DEFAULT_BACKUP_MODEL = "claude-sonnet-5-5";
  * read 12.8k input tokens against 29.8k for the same query.
  */
 export const DEFAULT_WEB_MODEL = "claude-sonnet-5-5";
+/**
+ * Tried for the web lookup when the web model fails; override with
+ * ANTHROPIC_WEB_BACKUP_MODEL, and set it blank to go straight to Exa. Skipped,
+ * like the answer backup, when the Claude API itself is unreachable.
+ */
+export const DEFAULT_WEB_BACKUP_MODEL = "claude-haiku-5-5";
 
 /** The Claude models for one answer turn, in order. Blank values drop a link. */
 export function claudeAnswerModels(env: Record<string, string | undefined> = process.env): string[] {
@@ -81,6 +87,28 @@ export function claudeAnswerModels(env: Record<string, string | undefined> = pro
 /** The web-search model, or "" when the Claude web lookup is switched off. */
 export function claudeWebModel(env: Record<string, string | undefined> = process.env): string {
   return (env.ANTHROPIC_WEB_MODEL ?? DEFAULT_WEB_MODEL).trim();
+}
+
+/** The Claude models for one web lookup, in order. Blank values drop a link. */
+export function claudeWebModels(env: Record<string, string | undefined> = process.env): string[] {
+  const backup = (env.ANTHROPIC_WEB_BACKUP_MODEL ?? DEFAULT_WEB_BACKUP_MODEL).trim();
+  return [claudeWebModel(env), backup].filter((m, i, all) => m !== "" && all.indexOf(m) === i);
+}
+
+/**
+ * True when the Claude API as a whole looks down, not one model: the request
+ * never got an answer (a refused connection, a DNS or TLS failure) or Anthropic
+ * answered with a gateway error (502, 503, 504). Then the other Claude model
+ * would fail the same way, so the chain goes straight to the non-Claude
+ * fallback instead of spending another try on it. Not a 500: with no SDK
+ * retries, a one-off failed request would otherwise send the rest of the turn
+ * to the least accurate model. Not a timeout (one slow model), not 529 (one
+ * model overloaded), not 429 (our rate), not a refusal.
+ */
+export function claudeServiceDown(error: unknown): boolean {
+  if (error instanceof Anthropic.APIConnectionTimeoutError) return false;
+  if (error instanceof Anthropic.APIConnectionError) return true;
+  return error instanceof Anthropic.APIError && [502, 503, 504].includes(error.status ?? 0);
 }
 
 // ---------------------------------------------------------------------------

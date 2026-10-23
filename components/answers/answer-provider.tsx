@@ -623,7 +623,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                   surface,
                   marker_count: data.dropped,
                   // The model that wrote this answer, as the server reports it
-                  // (claude-haiku-5-5, claude-sonnet-5-5 or openai/gpt-oss-120b).
+                  // (claude-sonnet-5-5, claude-haiku-5-5 or openai/gpt-oss-120b).
                   model: typeof data.model === 'string' ? data.model : 'unknown',
                 });
               }

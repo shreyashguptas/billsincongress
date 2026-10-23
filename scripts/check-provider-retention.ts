@@ -38,7 +38,7 @@ import {
   ANTHROPIC_BASE_URL,
   claudePrices,
   claudeAnswerModels,
-  claudeWebModel,
+  claudeWebModels,
   INFERENCE_GEO,
 } from "../convex/claude";
 
@@ -129,7 +129,7 @@ async function main() {
     process.exit(1);
   }
   if (hasAnthropic) {
-    const models = [...new Set([...claudeAnswerModels(), claudeWebModel()].filter(Boolean))];
+    const models = [...new Set([...claudeAnswerModels(), ...claudeWebModels()].filter(Boolean))];
     console.log(`--- CLAUDE (US inference): ${models.join(", ") || "(all switched off)"} ---`);
     let allOk = true;
     for (const model of models) allOk = (await probeClaude(model)) && allOk;

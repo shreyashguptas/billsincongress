@@ -238,7 +238,7 @@ describe("recording an answer as a PostHog trace", () => {
     expect(first.event).toBe("$ai_generation");
     expect(first.properties.$ai_provider).toBe("anthropic");
     expect(first.properties.$ai_base_url).toBe("https://api.anthropic.com");
-    expect(first.properties.$ai_model).toBe("claude-haiku-5-5");
+    expect(first.properties.$ai_model).toBe("claude-sonnet-5-5");
     expect(first.properties.anthropic_inference_geo).toBe("us");
     expect(first.properties.anthropic_effort).toBe("low");
     expect(first.properties.anthropic_stop_reason).toBe("end_turn");
@@ -246,9 +246,9 @@ describe("recording an answer as a PostHog trace", () => {
     expect(first.properties.$ai_output_tokens).toBe(20);
     expect(first.properties.$ai_cache_read_input_tokens).toBe(6000);
     expect(first.properties.$ai_cache_creation_input_tokens).toBe(4000);
-    // Haiku 5.5 at US rates: (1000 x 0.10 + 20 x 0.50 + 4000 x 0.125 + 6000 x 0.01) / 1e6 x 1.1
+    // Sonnet 5.5 at US rates: (1000 x 2 + 20 x 10 + 4000 x 2.5 + 6000 x 0.10) / 1e6 x 1.1
     expect(first.properties.$ai_total_cost_usd).toBeCloseTo(
-      ((1000 * 0.1 + 20 * 0.5 + 4000 * 0.125 + 6000 * 0.01) / 1e6) * 1.1,
+      ((1000 * 2 + 20 * 10 + 4000 * 2.5 + 6000 * 0.1) / 1e6) * 1.1,
       12,
     );
     expect(first.properties.$ai_temperature).toBeUndefined();
