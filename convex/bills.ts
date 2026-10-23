@@ -1394,7 +1394,14 @@ export const listForSitemap = query({
   },
 });
 
+/**
+ * The latest sync run that checked every bill type: the site's "Updated X ago"
+ * (components/bills/sync-status.tsx). A run is closed by the last of its types
+ * to end (mutations.finishSyncType); "running" and "failed" rows are skipped,
+ * so the time shown is never later than the last full successful check.
+ */
 export const getSyncStatus = query({
+  args: {},
   handler: async (ctx) => {
     const completedSnapshot = await ctx.db
       .query("syncSnapshots")
