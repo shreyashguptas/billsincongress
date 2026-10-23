@@ -98,15 +98,17 @@ export function claudeWebModels(env: Record<string, string | undefined> = proces
 /**
  * True when the Claude API as a whole looks down, not one model: the request
  * never got an answer (a refused connection, a DNS or TLS failure) or Anthropic
- * answered with a server error (500, 502, 503, 504). Then the other Claude
- * model would fail the same way, so the chain goes straight to the non-Claude
- * fallback instead of spending another try on it. Not a timeout (one slow
- * model), not 529 (one model overloaded), not 429 (our rate), not a refusal.
+ * answered with a gateway error (502, 503, 504). Then the other Claude model
+ * would fail the same way, so the chain goes straight to the non-Claude
+ * fallback instead of spending another try on it. Not a 500: with no SDK
+ * retries, a one-off failed request would otherwise send the rest of the turn
+ * to the least accurate model. Not a timeout (one slow model), not 529 (one
+ * model overloaded), not 429 (our rate), not a refusal.
  */
 export function claudeServiceDown(error: unknown): boolean {
   if (error instanceof Anthropic.APIConnectionTimeoutError) return false;
   if (error instanceof Anthropic.APIConnectionError) return true;
-  return error instanceof Anthropic.APIError && [500, 502, 503, 504].includes(error.status ?? 0);
+  return error instanceof Anthropic.APIError && [502, 503, 504].includes(error.status ?? 0);
 }
 
 // ---------------------------------------------------------------------------

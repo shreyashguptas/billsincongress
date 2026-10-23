@@ -832,13 +832,15 @@ async function runLoop(
   // leaves it out, so a persistent refusal costs one extra request, not one a round.
   let omitReasoning = false;
 
-  // The chain, per round: Claude Haiku 5.5, then Claude Sonnet 5.5 (both on our
+  // The chain, per round: Claude Sonnet 5.5, then Claude Haiku 5.5 (both on our
   // own Anthropic key, convex/claude.ts), then gpt-oss on OpenRouter. Once a
   // model fails — an error, a timeout, a refusal, a model with no price on file
   // — the rest of the turn runs on the next one, so a broken route costs a
-  // reader one request, not one a round, and never costs them the answer.
-  // Claude's replies carry their own blocks (ChatMessage.claude): Sonnet reads
-  // Haiku's thinking, and gpt-oss gets plain content and tool calls.
+  // reader one request, not one a round, and never costs them the answer. When
+  // the Claude API itself is down (claudeServiceDown), Haiku is skipped.
+  // Claude's replies carry their own blocks (ChatMessage.claude): Haiku cannot
+  // read Sonnet's thinking, so the API drops it, and gpt-oss gets plain content
+  // and tool calls.
   const claudeChain = opts.keys.anthropic ? claudeAnswerModels() : [];
   const effort = claudeEffort(reasoningConfig(process.env.OPENROUTER_REASONING));
   let link = 0;
@@ -862,8 +864,8 @@ async function runLoop(
         answeredBy = model;
         return reply;
       } catch (error) {
-        // A 400 is usually about the request, which Sonnet gets unchanged, but
-        // not always (a parameter one model does not take): Sonnet is still
+        // A 400 is usually about the request, which Haiku gets unchanged, but
+        // not always (a parameter one model does not take): Haiku is still
         // tried, at the cost of one more refused request. Logged loudly either
         // way, because a request every Claude model rejects sends every answer
         // to the last resort.

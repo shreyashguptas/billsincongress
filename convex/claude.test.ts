@@ -324,10 +324,11 @@ it("tells the Claude API being down from one model failing", () => {
   const status = (n: number) => new Anthropic.APIError(n, undefined, "x", new Headers());
   // The API as a whole: the other Claude model would fail the same way.
   assert.ok(claudeServiceDown(new Anthropic.APIConnectionError({ message: "ECONNREFUSED" })));
-  for (const n of [500, 502, 503, 504]) assert.ok(claudeServiceDown(status(n)), String(n));
+  for (const n of [502, 503, 504]) assert.ok(claudeServiceDown(status(n)), String(n));
   // One model or one request: the backup model is worth a try.
   assert.ok(!claudeServiceDown(new Anthropic.APIConnectionTimeoutError()));
-  for (const n of [400, 404, 429, 529]) assert.ok(!claudeServiceDown(status(n)), String(n));
+  // A one-off 500 is one failed request: Haiku first, not the least accurate model.
+  for (const n of [400, 404, 429, 500, 529]) assert.ok(!claudeServiceDown(status(n)), String(n));
   assert.ok(!claudeServiceDown(new Error("refused")));
 });
 
