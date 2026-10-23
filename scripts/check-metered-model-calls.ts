@@ -2,12 +2,13 @@
  * Every publicly-reachable path to the model must be metered.
  *
  * The daily cap is the only thing standing between an open Convex deployment
- * URL and unbounded OpenRouter spend. It is easy to add a second entry point
- * and forget it — that is exactly what happened with `answer.ts`'s `ask`, which
+ * URL and unbounded model spend, on our own Anthropic key (Claude) and on
+ * OpenRouter. It is easy to add a second entry point and forget it — that is exactly what happened with `answer.ts`'s `ask`, which
  * shipped as a public `action` with no auth and no limiter while all the
  * protection lived in `stream` beside it.
  *
- * The rule: in any convex module that reads OPENROUTER_API_KEY, every PUBLIC
+ * The rule: in any convex module that reads a model key (ANTHROPIC_API_KEY or
+ * OPENROUTER_API_KEY — see MODEL_KEYS), every PUBLIC
  * `action` or `httpAction` must call `rateLimiter.limit`, or `limitChatQuestion`
  * (convex/rateLimits.ts), the one wrapper that picks the anonymous, free or Pro
  * bucket and calls `rateLimiter.limit` itself. Internal functions are
@@ -35,6 +36,13 @@ const offenders: string[] = [];
  * other spelling, and missing it means the PRECEDING function's body silently
  * runs to end-of-file and inherits its neighbour's rate limiter.
  */
+/**
+ * The environment variables that spend money on a model. A module that reads
+ * any of them is in scope. Add a key here the day a new provider is wired in:
+ * a module that spends a key this list does not name is never checked at all.
+ */
+const MODEL_KEYS = ["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"];
+
 /** Calls that consume a daily token. Anything else does not count as metering. */
 const METERED_CALLS = ["rateLimiter.limit", "limitChatQuestion("];
 
@@ -51,7 +59,8 @@ function walk(dir: string) {
     if (!path.endsWith(".ts") || path.endsWith(".test.ts")) continue;
 
     const source = readFileSync(path, "utf8");
-    if (!source.includes("OPENROUTER_API_KEY")) continue;
+    const keys = MODEL_KEYS.filter((key) => source.includes(key));
+    if (keys.length === 0) continue;
 
     // Judge each function on ITS OWN body, bounded by the next registration. A
     // whole-file grep is not enough: answer.ts holds a metered `stream` right
@@ -66,7 +75,7 @@ function walk(dir: string) {
       const body = source.slice(start, end);
       if (!METERED_CALLS.some((call) => body.includes(call))) {
         offenders.push(
-          `${path}: public ${kind} \`${name}\` reaches OpenRouter but never calls rateLimiter.limit`,
+          `${path}: public ${kind} \`${name}\` can spend ${keys.join(" / ")} but never calls rateLimiter.limit`,
         );
       }
     }

@@ -40,8 +40,8 @@ function replyWith(contents: string[]) {
 beforeEach(() => {
   requests = [];
   vi.stubEnv("OPENROUTER_API_KEY", "test-key");
-  // The loop on the default model; the Claude route is answerClaude.spec.ts.
-  vi.stubEnv("OPENROUTER_CLAUDE_MODEL", "");
+  // The loop on gpt-oss (no Anthropic key); the Claude route is answerClaude.spec.ts.
+  vi.stubEnv("ANTHROPIC_API_KEY", "");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 

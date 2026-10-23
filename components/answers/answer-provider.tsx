@@ -622,9 +622,9 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 analytics.answerCitationUnresolved({
                   surface,
                   marker_count: data.dropped,
-                  // The answer model, not read from the response: a turn that fell back
-                  // to gpt-oss-120b is told apart by the trace's $ai_generation events.
-                  model: 'claude-haiku-5.5',
+                  // The model that wrote this answer, as the server reports it
+                  // (claude-haiku-5-5, claude-sonnet-5-5 or openai/gpt-oss-120b).
+                  model: typeof data.model === 'string' ? data.model : 'unknown',
                 });
               }
               if (webSources.length > 0) {
@@ -632,7 +632,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                   surface,
                   reason: data.webReason ?? '',
                   result_count: webSources.length,
-                  engine: 'exa',
+                  // 'anthropic' (Claude's web search) or 'exa' (its fallback).
+                  engine: typeof data.webEngine === 'string' ? data.webEngine : 'unknown',
                 });
               }
             } else if (event === 'rate_limited') {

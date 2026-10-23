@@ -1,13 +1,18 @@
 /**
- * Spec §12.1. Does a web-plugin request against our PINNED model and providers
- * return url_citation annotations we can extract?
+ * Spec §12.1. Does the web lookup return sources we can show the reader?
  *
- * If not, the fallback is to call the search engine's API directly and mint
- * web:N handles ourselves — same reader-facing behaviour, same citation
- * mechanism. So this determines implementation, not feasibility.
+ * 1. CLAUDE (the default, convex/claude.ts): runs production's own
+ *    searchWebClaude — Claude Sonnet 5.5 with Anthropic's web search tool, US
+ *    inference — and prints the sources it built from Claude's citations.
+ * 2. OPENROUTER (the fallback): a web-plugin request against our PINNED model
+ *    and providers, checking for url_citation annotations we can extract.
  *
- * Run: OPENROUTER_API_KEY=sk-or-... pnpm tsx scripts/check-web-citations.ts
+ * Run: ANTHROPIC_API_KEY=sk-ant-... OPENROUTER_API_KEY=sk-or-... pnpm tsx scripts/check-web-citations.ts
+ * (either key alone checks that path alone).
  */
+import { claudeEffort, claudeWebModel, searchWebClaude } from "../convex/claude";
+
+const QUERY = "US House Ways and Means Committee hearing schedule 2026";
 /**
  * The shipped defaults, copied from convex/answer.ts and overridden by the same
  * environment variables. No fallback models: production's web search sends
@@ -21,11 +26,38 @@ const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || "cerebras,groq,amazon-bed
   .filter(Boolean);
 const MAX_PRICE = { prompt: 0.5, completion: 1.0 };
 
+/** Production's Claude web lookup, called as answer.ts calls it. */
+async function checkClaude() {
+  const model = claudeWebModel();
+  if (!model) {
+    console.log("CLAUDE: ANTHROPIC_WEB_MODEL is blank, so production searches through Exa only.\n");
+    return;
+  }
+  try {
+    const hits = await searchWebClaude({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+      model,
+      query: QUERY,
+      maxResults: 5,
+      effort: claudeEffort({ effort: "low" }),
+    });
+    console.log(`CLAUDE ${model}: ${hits.length} source(s)`);
+    for (const h of hits) console.log(`  - ${h.title || "(no title)"} <${h.url}>\n    ${h.excerpt.slice(0, 160)}`);
+    console.log(hits.every((h) => h.excerpt.trim().length > 0) ? "PASS\n" : "WARN: a source has no excerpt\n");
+  } catch (error) {
+    console.log(`FAIL: ${String(error).slice(0, 400)}`);
+    console.log("-> production falls back to the Exa path below for every web lookup.\n");
+  }
+}
+
 async function main() {
-  if (!process.env.OPENROUTER_API_KEY) {
-    console.error("Set OPENROUTER_API_KEY");
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.OPENROUTER_API_KEY) {
+    console.error("Set ANTHROPIC_API_KEY and/or OPENROUTER_API_KEY");
     process.exit(1);
   }
+  if (process.env.ANTHROPIC_API_KEY) await checkClaude();
+  if (!process.env.OPENROUTER_API_KEY) return;
+  console.log("OPENROUTER (Exa fallback):");
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -36,7 +68,7 @@ async function main() {
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: "user", content: "US House Ways and Means Committee hearing schedule 2026" },
+        { role: "user", content: QUERY },
       ],
       max_tokens: 512,
       plugins: [{ id: "web", engine: "exa", max_results: 5 }],

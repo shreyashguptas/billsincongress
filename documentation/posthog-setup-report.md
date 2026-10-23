@@ -37,7 +37,7 @@ Generated for Self-driving / scout context. Project **BillsInCongress** (id `451
 | Item | Status |
 |------|--------|
 | Prompt management | `answer-system` (v1 = prompt live through 2026-10-05, v2 = rewrite, v3 = rewrite plus summary and card rules, v4 = vote-tally exception, v5, v6/v7 = set-claim, title-phrase, stage-word and bill-description rules (2026-10-19), label `production` → v7 once the code that serves `stage` and quoted phrases is deployed). Served by `convex/answerPrompts.ts` once `POSTHOG_PERSONAL_API_KEY` is set; see "Answer prompt" in [`overview.md`](overview.md) |
-| Evaluations | Hog, live: "Answer uses internal jargon", "Answer shows raw tags", "Answer shows its thinking". LLM judge, live on OpenRouter (`openai/gpt-5.6-luna`), rubric revised 2026-10-19: "Answer states only what the lookups support" |
+| Evaluations | Hog, live: "Answer uses internal jargon", "Answer shows raw tags", "Answer shows its thinking". LLM judge, live on Claude Sonnet 5.5 since 2026-10-22 (`openai/gpt-5.6-luna` on OpenRouter before), rubric revised 2026-10-19: "Answer states only what the lookups support" |
 | Clusters | Default trace, generation and evaluation jobs enabled; no runs yet at ~140 traces a week |
 
 ## Self-driving configuration (target state)
