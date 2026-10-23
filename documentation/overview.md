@@ -2552,9 +2552,10 @@ public route (`lib/cacheable-routes.ts`), carries no auth cookie, and is a docum
 rather than an in-app navigation or prefetch (no `rsc`/`next-router-*` headers, no `_rsc`
 parameter); a response is stored only if it is a 200 HTML page the app marked
 `public, s-maxage=…` that sets no cookie. Because "200" is the only test of a good page, a page
-whose data read failed must not render as a normal page: bill pages and hub pages throw instead,
-so the reader gets the error page with a 500 that is never stored (`getBillPage`,
-`lib/hub-bills.ts`). The cache key is the URL plus the deploy's version id
+whose data read failed must not render as a normal page: bill pages, hub pages and the home page
+throw instead, so the reader gets the error page with a 500 that is never stored (`getBillPage`,
+`lib/hub-bills.ts`, `app/page.tsx`). `/bills` is the one deliberate exception: on a failed read
+it renders an empty shell whose client fetches the list itself, so a cached copy still works. The cache key is the URL plus the deploy's version id
 (`CF_VERSION_METADATA`), so each deploy starts empty and never serves a page that names the
 previous deploy's script files. Lifetimes come from the middleware's `s-maxage`: an hour for a
 bill page (its data changes with the nightly sync, and it is what crawlers fetch), five minutes
