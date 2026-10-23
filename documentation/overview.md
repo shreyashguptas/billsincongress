@@ -327,8 +327,11 @@ Caching is an **allowlist, not a denylist**, on purpose: a missing public route 
 uncached, whereas a personalised route slipping through a denylist gap would put one
 visitor's page in a shared cache. Signed-out responses on `/`, `/about`, `/learn`,
 `/privacy`, `/pro`, `/terms` and anything under `/bills` get
-`public, max-age=0, s-maxage=300, stale-while-revalidate=86400`; any request carrying an
-auth cookie gets `private, no-store`. **New public routes must be added to that file.**
+`public, max-age=0, s-maxage=300, stale-while-revalidate=86400` (`s-maxage=3600` on a bill
+page), which the Worker uses to keep them in the edge cache (see
+[Hosting](#hosting-and-cloudflare-constraints)); any request carrying an auth cookie gets
+`private, no-store`. The auth cookie names are `AUTH_COOKIE_NAMES` in `lib/edge-cache.ts`,
+shared by the middleware and the Worker. **New public routes must be added to that file.**
 A route that writes its own `Cache-Control` is listed in `setsOwnCacheControl` in the same
 file, and the middleware leaves it alone — its header would otherwise replace the route's.
 The share card is the one such route today.
@@ -2523,8 +2526,9 @@ stays red until a re-dump shows the backfill finished.
 
 ## Hosting and Cloudflare constraints
 
-One Cloudflare Worker named `billsincongress`, serving `.open-next/worker.js` with static
-assets bound as `ASSETS`. Smart placement is on so the Worker sits near the single-region
+One Cloudflare Worker named `billsincongress`. Its entry point is `cloudflare-worker.ts`, which
+wraps OpenNext's generated `.open-next/worker.js` (see *Edge cache* below); static assets are
+bound as `ASSETS`. Smart placement is on so the Worker sits near the single-region
 Convex backend; `cpu_ms` is capped at 10,000 as a cost guardrail.
 
 Page caching uses two KV namespaces — `NEXT_INC_CACHE_KV` (rendered output) and
@@ -2535,6 +2539,29 @@ which a Worker on a Custom Domain cannot do, so the daily sitemap refresh most l
 and the cached copy lasted until the next deploy. The Durable Object queue is OpenNext's fully
 recommended option; it needs a Durable Object binding and migration, and with two routes that
 revalidate once a day the memory queue is enough.
+
+**Edge cache for signed-out pages.** A Worker on a Custom Domain runs in front of
+Cloudflare's cache, so nothing it returns is cached unless it stores it, and until October 2026
+nothing did: the middleware's `public, s-maxage=…` headers were ignored, every page view was
+rendered from scratch with a Convex read, and Cloudflare reported 13% of requests cached (nearly
+all static files) while crawlers made ~100,000 page requests a week. `cloudflare-worker.ts` now
+stores signed-out pages with the Cache API (`caches.default`, per data centre) and answers
+repeats from it; `x-edge-cache: HIT | MISS` says which happened. The rules live in
+`lib/edge-cache.ts` and fail closed: a request is cached only if it is a GET of an allowlisted
+public route (`lib/cacheable-routes.ts`), carries no auth cookie, and is a document request
+rather than an in-app navigation or prefetch (no `rsc`/`next-router-*` headers, no `_rsc`
+parameter); a response is stored only if it is a 200 HTML page the app marked
+`public, s-maxage=…` that sets no cookie. Because "200" is the only test of a good page, a page
+whose data read failed must not render as a normal page: bill pages, hub pages, `/bills` and the
+home page throw instead, so the reader gets the error page with a 500 that is never stored
+(`getBillPage`, `lib/hub-bills.ts`, `app/bills/page.tsx`, `app/page.tsx`). Only reads whose
+absence the page states honestly may fail quietly, such as a count, which then shows no total. The cache key is the URL plus the deploy's version id
+(`CF_VERSION_METADATA`), so each deploy starts empty and never serves a page that names the
+previous deploy's script files. Lifetimes come from the middleware's `s-maxage`: an hour for a
+bill page (its data changes with the nightly sync, and it is what crawlers fetch), five minutes
+for everything else. A bill page can therefore be up to an hour behind a change, and its "days
+so far" count up to an hour behind midnight. Measured on a local OpenNext preview against
+production data: a repeat request took 2–3 ms against 60–180 ms to render.
 
 > **The KV cache backends are mandatory, not an optimisation.** The app revalidates on a
 > schedule. Without real backends, OpenNext falls back to a "Dummy" cache that **throws** —

@@ -74,13 +74,19 @@ export default async function Home({
 // day, so per-request freshness is fine; we prefer plain dynamic rendering over
 // the previous experimental Cache Components streaming, which did not render
 // reliably on the Cloudflare Workers runtime.
+//
+// A failed read is rethrown, so the reader gets the error page and its "Try
+// again" with a 500. It used to return null, which rendered a 200 page whose
+// dashboard stayed a skeleton; signed-out pages are now cached at the edge
+// (cloudflare-worker.ts), and that page would have been served to everyone at
+// the data centre for five minutes. Null now means only "no Convex configured".
 async function loadOverview(): Promise<InitialDashboardData['allCongress'] | null> {
   if (!process.env.NEXT_PUBLIC_CONVEX_URL) return null;
   try {
     return await fetchQuery(api.bills.getAllCongressOverview);
   } catch (error) {
     console.error('loadOverview failed:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -105,6 +111,6 @@ async function loadDashboardData(
     return { allCongress, dashboard, house, senate };
   } catch (error) {
     console.error('loadDashboardData failed:', error);
-    return null;
+    throw error;
   }
 }
