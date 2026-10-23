@@ -260,7 +260,11 @@ export function followUpNote(lastAnswer: string): string {
 export function capHistory(
   history: Array<{ role: "user" | "assistant"; content: string }>,
 ): Array<{ role: "user" | "assistant"; content: string }> {
-  const recent = history.slice(-MAX_HISTORY_TURNS);
+  // The browser sends this; its type is not a guarantee. Any other role would
+  // reach Claude as a system instruction or an orphan tool result.
+  const recent = history
+    .filter((t) => (t.role === "user" || t.role === "assistant") && typeof t.content === "string")
+    .slice(-MAX_HISTORY_TURNS);
   const out: Array<{ role: "user" | "assistant"; content: string }> = [];
   let chars = 0;
   for (let i = recent.length - 1; i >= 0; i--) {
@@ -848,21 +852,18 @@ async function runLoop(
         answeredBy = model;
         return reply;
       } catch (error) {
-        // A 400 is about the request, which the next Claude model would be sent
-        // unchanged: skip to the last resort rather than pay to be refused twice.
-        // Anything else (a timeout, an overload, a refusal) is worth Sonnet.
+        // A 400 is usually about the request, which Sonnet gets unchanged, but
+        // not always (a parameter one model does not take): Sonnet is still
+        // tried, at the cost of one more refused request. Logged loudly either
+        // way, because a request every Claude model rejects sends every answer
+        // to the last resort.
         if (error instanceof Anthropic.BadRequestError) {
-          console.error(
-            `CLAUDE REQUEST REJECTED (400) by ${model}; every Claude model would get the same request, ` +
-              `so this turn goes to the last-resort model on OpenRouter. Fix the request:`,
-            error,
-          );
-          link = claudeChain.length;
+          console.error(`CLAUDE REQUEST REJECTED (400) by ${model}. Fix the request:`, error);
         } else {
           const next = claudeChain[link + 1] ?? "the last-resort model on OpenRouter";
           console.error(`${model} failed; answering the rest of this turn on ${next}:`, error);
-          link += 1;
         }
+        link += 1;
         // A visible step, so the reader's stall watchdog (45 s, reset by each
         // work entry) restarts for the backup model's call.
         note({ tool: "retry", detail: "trying a backup model" });

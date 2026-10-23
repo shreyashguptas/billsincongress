@@ -308,14 +308,22 @@ export function toClaudeRequest(messages: ChatMessage[]): {
 
 /**
  * One client per call: cheap, and it picks up the global `fetch` at the time
- * (the specs replace it). One SDK retry for a 429, a 529, a timeout or a
- * dropped connection, then the caller's chain takes over: the next model is the
- * better retry, and the reader is waiting. 25 s a try keeps a hung model under
- * a minute, so the backup still answers well inside the proxy's 180 s cap
- * (Haiku's median was 3.7 s on 2026-10-13).
+ * (the specs replace it). No SDK retries: the caller's chain is the retry (the
+ * next model, then gpt-oss), and the reader's stall watchdog gives up after 45 s
+ * with no new work-log step. The chain writes a step before each backup, so each
+ * single try must finish inside that window; an SDK retry (or a 429's
+ * retry-after wait, up to 60 s) would not. Haiku's median was 3.7 s on
+ * 2026-10-13.
  */
-function client(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, baseURL: ANTHROPIC_BASE_URL, maxRetries: 1, timeout: 25_000 });
+/** One answer round on one model. Under the reader's 45 s stall watchdog. */
+const ANSWER_TIMEOUT_MS = 40_000;
+/**
+ * One web lookup. Shorter than an answer round: the Exa fallback runs after it
+ * with no work-log step between, and both must fit inside the same 45 s.
+ */
+const WEB_TIMEOUT_MS = 30_000;
+function client(apiKey: string, timeout: number): Anthropic {
+  return new Anthropic({ apiKey, baseURL: ANTHROPIC_BASE_URL, maxRetries: 0, timeout });
 }
 
 /** A refusal or a truncated tool call is not an answer; the chain moves on. */
@@ -396,7 +404,7 @@ export async function callClaude(opts: {
   const { system, messages } = toClaudeRequest(opts.messages);
   let response: Anthropic.Message;
   try {
-    response = await client(opts.apiKey).messages.create({
+    response = await client(opts.apiKey, ANSWER_TIMEOUT_MS).messages.create({
       model,
       max_tokens: maxTokens,
       system,
@@ -484,8 +492,8 @@ function webInstructions(today: string): string {
 
 /**
  * The sources of one Claude web-search reply, in the order Claude cited them,
- * each with the text it quoted from that page. When it cited nothing, the
- * pages it found, titled. At most `max`.
+ * each with the text it quoted from that page. A page it found but never
+ * quoted is left out. At most `max`.
  *
  * The reader-visible contract is unchanged from the Exa path: a URL, a title
  * and an excerpt per source. The excerpt is what the answer model reads, so it
@@ -504,21 +512,14 @@ export function webHitsFrom(content: Anthropic.ContentBlock[], max: number): Web
       cited.set(c.url, entry);
     }
   }
-  if (cited.size > 0) {
-    return [...cited]
-      .slice(0, max)
-      .map(([url, { title, quotes }]) => ({ url, title, excerpt: quotes.join(" … ").slice(0, EXCERPT_CHARS) }));
-  }
-  const found: WebHit[] = [];
-  for (const block of content) {
-    if (block.type !== "web_search_tool_result" || !Array.isArray(block.content)) continue;
-    for (const r of block.content) {
-      if (r.type === "web_search_result" && r.url && !found.some((f) => f.url === r.url)) {
-        found.push({ url: r.url, title: r.title ?? "", excerpt: (r.title ?? "").slice(0, EXCERPT_CHARS) });
-      }
-    }
-  }
-  return found.slice(0, max);
+  // Only quoted sources. A page Claude found but never quoted gave the answer
+  // model nothing to stand on: its title as the "excerpt" let it cite a source
+  // for a claim the source never showed it. No quotes is a failed lookup, and
+  // the caller falls back to Exa, whose excerpts are page text.
+  return [...cited]
+    .filter(([, { quotes }]) => quotes.length > 0)
+    .slice(0, max)
+    .map(([url, { title, quotes }]) => ({ url, title, excerpt: quotes.join(" … ").slice(0, EXCERPT_CHARS) }));
 }
 
 /**
@@ -559,7 +560,7 @@ export async function searchWebClaude(opts: {
 
   let response: Anthropic.Message;
   try {
-    response = await client(opts.apiKey).messages.create({
+    response = await client(opts.apiKey, WEB_TIMEOUT_MS).messages.create({
       model,
       max_tokens: WEB_MAX_TOKENS,
       system: webInstructions(today),

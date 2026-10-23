@@ -169,7 +169,6 @@ test("a failed Haiku call moves the turn to Sonnet, which picks up Haiku's work"
   claudeReplies = [
     message(round1, "tool_use"),
     overloaded,
-    overloaded,
     message([toolUse("toolu_2", "describe_dataset", { name: "members" })], "tool_use"),
     message([text(ANSWER)]),
   ];
@@ -177,9 +176,8 @@ test("a failed Haiku call moves the turn to Sonnet, which picks up Haiku's work"
   expect(result.error).toBeUndefined();
   expect(result.text).toBe(ANSWER);
   expect(result.answeredBy).toBe("claude-sonnet-5-5");
-  // Once Haiku fails (after the SDK's one retry), every later round is Sonnet's.
+  // Once Haiku fails (no SDK retry: the chain is the retry), every later round is Sonnet's.
   expect(answerCalls().map((s) => s.body.model)).toEqual([
-    "claude-haiku-5-5",
     "claude-haiku-5-5",
     "claude-haiku-5-5",
     "claude-sonnet-5-5",
@@ -188,7 +186,7 @@ test("a failed Haiku call moves the turn to Sonnet, which picks up Haiku's work"
   // The reader's stall watchdog restarts for the backup model's call.
   expect(result.workLog).toContainEqual({ tool: "retry", detail: "trying a backup model" });
   // Sonnet is handed Haiku's blocks as they came: on the Claude API it reads them.
-  const sonnet = answerCalls()[3].body;
+  const sonnet = answerCalls()[2].body;
   expect(sonnet.messages).toContainEqual({ role: "assistant", content: round1 });
   expect(sent.some((s) => s.url === OPENROUTER)).toBe(false);
 });
@@ -196,8 +194,6 @@ test("a failed Haiku call moves the turn to Sonnet, which picks up Haiku's work"
 test("when both Claude models fail, gpt-oss answers on OpenRouter, without Claude's blocks", async () => {
   claudeReplies = [
     message([thinking("sig"), toolUse("toolu_1", "describe_dataset", { name: "stats" })], "tool_use"),
-    overloaded,
-    overloaded,
     overloaded,
     overloaded,
   ];
@@ -208,12 +204,10 @@ test("when both Claude models fail, gpt-oss answers on OpenRouter, without Claud
   expect(sent.map((s) => s.body.model)).toEqual([
     "claude-haiku-5-5",
     "claude-haiku-5-5",
-    "claude-haiku-5-5",
-    "claude-sonnet-5-5",
     "claude-sonnet-5-5",
     "openai/gpt-oss-120b",
   ]);
-  const gptOss = sent[5].body;
+  const gptOss = sent[3].body;
   expect(gptOss.provider).toMatchObject({ only: ["cerebras", "groq", "amazon-bedrock"], zdr: true });
   // The transcript arrives as plain content and tool calls.
   for (const m of gptOss.messages) expect(m).not.toHaveProperty("claude");
@@ -225,12 +219,12 @@ test("when both Claude models fail, gpt-oss answers on OpenRouter, without Claud
   );
 });
 
-test("a request Claude rejects as malformed skips Sonnet, which would get the same request", async () => {
-  claudeReplies = [badRequest];
+test("a request Claude rejects as malformed still tries Sonnet, then the last resort", async () => {
+  claudeReplies = [badRequest, badRequest];
   openRouterReplies = [openRouterAnswer(ANSWER)];
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe(ANSWER);
-  expect(sent.map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "openai/gpt-oss-120b"]);
+  expect(sent.map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5", "openai/gpt-oss-120b"]);
   expect(console.error).toHaveBeenCalledWith(expect.stringContaining("CLAUDE REQUEST REJECTED (400)"), expect.anything());
 });
 
@@ -246,15 +240,11 @@ test("a refusal is not an answer: none of its text reaches the reader, and Sonne
   expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
 });
 
-test("a server error gets one quick retry on the same model before the chain moves on", async () => {
-  claudeReplies = [overloaded, overloaded, message([text(ANSWER)])];
+test("a server error is not retried on the same model: Sonnet is the retry, under the reader's 45 s watchdog", async () => {
+  claudeReplies = [overloaded, message([text(ANSWER)])];
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe(ANSWER);
-  expect(answerCalls().map((s) => s.body.model)).toEqual([
-    "claude-haiku-5-5",
-    "claude-haiku-5-5",
-    "claude-sonnet-5-5",
-  ]);
+  expect(answerCalls().map((s) => s.body.model)).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
 });
 
 test("without ANTHROPIC_API_KEY the answer comes from gpt-oss, and the gap is logged loudly", async () => {

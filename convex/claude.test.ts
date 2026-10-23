@@ -284,7 +284,7 @@ it("builds sources from Claude's citations, in the order it cited them, with its
   assert.equal(webHitsFrom(content, 1).length, 1);
 });
 
-it("falls back to the pages found, titled, when Claude cited nothing", () => {
+it("leaves out a page Claude found but never quoted, so the lookup falls back to Exa", () => {
   const content = [
     {
       type: "web_search_tool_result",
@@ -293,7 +293,7 @@ it("falls back to the pages found, titled, when Claude cited nothing", () => {
     },
     { type: "text", text: "Nothing specific.", citations: null },
   ] as unknown as Anthropic.ContentBlock[];
-  assert.deepEqual(webHitsFrom(content, 5), [{ url: "https://a.gov", title: "A page", excerpt: "A page" }]);
+  assert.deepEqual(webHitsFrom(content, 5), []);
 });
 
 it("reads no sources out of a search that errored", () => {
