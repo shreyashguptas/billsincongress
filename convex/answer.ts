@@ -37,7 +37,8 @@ import {
   callClaude,
   claudeAnswerModels,
   claudeEffort,
-  claudeWebModel,
+  claudeServiceDown,
+  claudeWebModels,
   forOpenRouter,
   searchWebClaude,
   type ChatMessage,
@@ -476,11 +477,10 @@ async function searchWeb(
   trace?: AnswerTrace,
   onBackup?: () => void,
 ): Promise<{ hits: WebSource[]; engine: WebEngine }> {
-  const model = claudeWebModel();
-  if (keys.anthropic && model) {
+  for (const model of keys.anthropic ? claudeWebModels() : []) {
     try {
       const hits = await searchWebClaude({
-        apiKey: keys.anthropic,
+        apiKey: keys.anthropic!,
         model,
         query,
         maxResults: WEB_MAX_RESULTS,
@@ -489,10 +489,12 @@ async function searchWeb(
       });
       return { hits: hits.map((h, i) => ({ handle: `web:${i + 1}`, ...h })), engine: "anthropic" };
     } catch (error) {
-      console.error("Claude web search failed; searching through OpenRouter's Exa plugin instead:", error);
-      // Restarts the reader's 45 s stall watchdog for the Exa call, as the
+      console.error(`Claude web search on ${model} failed; trying the next search:`, error);
+      // Restarts the reader's 45 s stall watchdog for the next call, as the
       // answer chain does before a backup model.
       onBackup?.();
+      // The other Claude model would fail the same way: go straight to Exa.
+      if (claudeServiceDown(error)) break;
     }
   }
   return { hits: await searchWebExa(query, keys.openrouter, trace), engine: "exa" };
@@ -865,13 +867,19 @@ async function runLoop(
         // tried, at the cost of one more refused request. Logged loudly either
         // way, because a request every Claude model rejects sends every answer
         // to the last resort.
-        if (error instanceof Anthropic.BadRequestError) {
+        if (claudeServiceDown(error)) {
+          // The Claude API itself is unreachable: the other Claude model would
+          // fail the same way, so go straight to the last resort.
+          console.error(`CLAUDE API UNREACHABLE (${model}); answering the rest of this turn on the last-resort model:`, error);
+          link = claudeChain.length;
+        } else if (error instanceof Anthropic.BadRequestError) {
           console.error(`CLAUDE REQUEST REJECTED (400) by ${model}. Fix the request:`, error);
+          link += 1;
         } else {
           const next = claudeChain[link + 1] ?? "the last-resort model on OpenRouter";
           console.error(`${model} failed; answering the rest of this turn on ${next}:`, error);
+          link += 1;
         }
-        link += 1;
         // A visible step, so the reader's stall watchdog (45 s, reset by each
         // work entry) restarts for the backup model's call.
         note({ tool: "retry", detail: "trying a backup model" });
@@ -1086,7 +1094,7 @@ async function runLoop(
             // not counted as a lookup (components/answers/work-log.tsx).
             note({ tool: "progress", detail: "the web" });
             const web = await searchWeb(query, opts.keys, opts.trace, () =>
-              note({ tool: "progress", detail: "the web with the backup search engine" }),
+              note({ tool: "progress", detail: "the web again" }),
             );
             const { kept, removed } = keepWebResultsForBill(web.hits, scope);
             const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));

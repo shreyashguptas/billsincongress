@@ -7,7 +7,7 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import type Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   CLAUDE_PRICES,
   claudePrices,
@@ -16,7 +16,9 @@ import {
   claudeCostUsd,
   claudeEffort,
   claudeTools,
+  claudeServiceDown,
   claudeWebModel,
+  claudeWebModels,
   forOpenRouter,
   OPENING_USER_TURN,
   toClaudeRequest,
@@ -285,7 +287,7 @@ it("drops a bad CLAUDE_PRICES_JSON entry and keeps the good ones", () => {
 });
 
 it("has a price for every default model", () => {
-  for (const model of [...claudeAnswerModels({}), claudeWebModel({})]) {
+  for (const model of [...claudeAnswerModels({}), ...claudeWebModels({})]) {
     assert.ok(model in CLAUDE_PRICES, `${model} has no price`);
   }
 });
@@ -302,17 +304,31 @@ it("maps the shared reasoning setting to a Claude effort, never thinking-off", (
   assert.equal(claudeEffort({ enabled: false }), "low");
 });
 
-it("chains Haiku then Sonnet by default, and a blank value drops a link", () => {
-  assert.deepEqual(claudeAnswerModels({}), ["claude-haiku-5-5", "claude-sonnet-5-5"]);
-  assert.deepEqual(claudeAnswerModels({ ANTHROPIC_ANSWER_MODEL: "" }), ["claude-sonnet-5-5"]);
+it("chains Sonnet then Haiku by default, and a blank value drops a link", () => {
+  assert.deepEqual(claudeAnswerModels({}), ["claude-sonnet-5-5", "claude-haiku-5-5"]);
+  assert.deepEqual(claudeAnswerModels({ ANTHROPIC_ANSWER_MODEL: "" }), ["claude-haiku-5-5"]);
   assert.deepEqual(claudeAnswerModels({ ANTHROPIC_ANSWER_MODEL: "", ANTHROPIC_BACKUP_MODEL: " " }), []);
   assert.deepEqual(
-    claudeAnswerModels({ ANTHROPIC_ANSWER_MODEL: "claude-sonnet-5-5" }),
-    ["claude-sonnet-5-5"],
+    claudeAnswerModels({ ANTHROPIC_ANSWER_MODEL: "claude-haiku-5-5" }),
+    ["claude-haiku-5-5"],
     "the same model twice is one link",
   );
   assert.equal(claudeWebModel({}), "claude-sonnet-5-5");
   assert.equal(claudeWebModel({ ANTHROPIC_WEB_MODEL: "" }), "");
+  assert.deepEqual(claudeWebModels({}), ["claude-sonnet-5-5", "claude-haiku-5-5"]);
+  assert.deepEqual(claudeWebModels({ ANTHROPIC_WEB_BACKUP_MODEL: "" }), ["claude-sonnet-5-5"]);
+  assert.deepEqual(claudeWebModels({ ANTHROPIC_WEB_MODEL: "", ANTHROPIC_WEB_BACKUP_MODEL: "" }), []);
+});
+
+it("tells the Claude API being down from one model failing", () => {
+  const status = (n: number) => new Anthropic.APIError(n, undefined, "x", new Headers());
+  // The API as a whole: the other Claude model would fail the same way.
+  assert.ok(claudeServiceDown(new Anthropic.APIConnectionError({ message: "ECONNREFUSED" })));
+  for (const n of [500, 502, 503, 504]) assert.ok(claudeServiceDown(status(n)), String(n));
+  // One model or one request: the backup model is worth a try.
+  assert.ok(!claudeServiceDown(new Anthropic.APIConnectionTimeoutError()));
+  for (const n of [400, 404, 429, 529]) assert.ok(!claudeServiceDown(status(n)), String(n));
+  assert.ok(!claudeServiceDown(new Error("refused")));
 });
 
 // ---------------------------------------------------------------------------
