@@ -2551,7 +2551,10 @@ repeats from it; `x-edge-cache: HIT | MISS` says which happened. The rules live 
 public route (`lib/cacheable-routes.ts`), carries no auth cookie, and is a document request
 rather than an in-app navigation or prefetch (no `rsc`/`next-router-*` headers, no `_rsc`
 parameter); a response is stored only if it is a 200 HTML page the app marked
-`public, s-maxage=…` that sets no cookie. The cache key is the URL plus the deploy's version id
+`public, s-maxage=…` that sets no cookie. Because "200" is the only test of a good page, a page
+whose data read failed must not render as a normal page: bill pages and hub pages throw instead,
+so the reader gets the error page with a 500 that is never stored (`getBillPage`,
+`lib/hub-bills.ts`). The cache key is the URL plus the deploy's version id
 (`CF_VERSION_METADATA`), so each deploy starts empty and never serves a page that names the
 previous deploy's script files. Lifetimes come from the middleware's `s-maxage`: an hour for a
 bill page (its data changes with the nightly sync, and it is what crawlers fetch), five minutes
