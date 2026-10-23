@@ -26,6 +26,9 @@ import { FINE_POINTER_QUERY } from '@/lib/type-to-ask';
 const PILL =
   'inline-block h-auto whitespace-normal rounded-full border-line bg-transparent px-4 py-2 text-center font-normal leading-5 text-ink-2 hover:border-line-strong hover:bg-transparent hover:text-ink touchable:h-auto touchable:py-3';
 
+/** Keys that scroll the page when nothing is focused. */
+const PAGE_SCROLL_KEYS = new Set([' ', 'PageDown', 'PageUp', 'ArrowDown', 'ArrowUp']);
+
 /**
  * The home hero's ask box (spec §6.1), centred under the chamber.
  *
@@ -167,6 +170,14 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setOpen(false);
+                return;
+              }
+              // The box is focused on arrival, so the keys that scroll a page
+              // land here first. While it is empty they still scroll: focus
+              // steps back to <main> and the browser carries the key on there.
+              // Typing a letter brings focus back (type-to-ask.tsx).
+              if (!input && PAGE_SCROLL_KEYS.has(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                document.getElementById('main')?.focus({ preventScroll: true });
                 return;
               }
               if (!showList || !settled || bills.length === 0) return;

@@ -1011,7 +1011,8 @@ the composer by an effect once the open phase commits. The composer is never `di
 an answer is written (a disabled field drops focus), and nor is its send button (a form with a
 disabled submit button ignores Enter): Enter then queues the follow-up, which is sent the moment
 the answer is done. The home page's `HeroAsk` focuses itself on arrival on a mouse-or-trackpad
-device only, and only if the reader has not already put focus somewhere, and its first key
+device only, and only if the reader has not already put focus somewhere; while it is empty,
+Space, Page Up/Down and the arrow keys hand focus back to `<main>` so they still scroll the page. Its first key
 scrolls it to the middle of the screen, since it sits below the fold on most laptops. Firefox's
 quick-find keys (`/` and `'`) are left alone; AltGr characters are taken.
 
