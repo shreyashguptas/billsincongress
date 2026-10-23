@@ -22,6 +22,7 @@ import { internal } from "./_generated/api";
 const modules = import.meta.glob("./**/*.ts");
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
+const ANTHROPIC = "https://api.anthropic.com/v1/messages";
 const BATCH = "https://us.i.posthog.com/batch/";
 const ANSWER = "No bill in our records matches that. [[cite:none]]";
 
@@ -40,24 +41,35 @@ function setup() {
   return t;
 }
 
+/** Claude Haiku over the Claude API, answering in one round. */
+function claudeReply(model: string) {
+  modelCalls += 1;
+  return {
+    id: "msg_test",
+    type: "message",
+    role: "assistant",
+    model,
+    content: [
+      { type: "thinking", thinking: "", signature: "sig" },
+      { type: "text", text: ANSWER, citations: null },
+    ],
+    stop_reason: "end_turn",
+    stop_sequence: null,
+    stop_details: null,
+    usage: {
+      input_tokens: 1000,
+      output_tokens: 20,
+      cache_creation_input_tokens: 4000,
+      cache_read_input_tokens: 6000,
+      inference_geo: "us",
+      server_tool_use: null,
+    },
+  };
+}
+
 /** Round 1: the model asks to describe the bills dataset. Round 2: it answers. */
 function modelReply() {
   modelCalls += 1;
-  if (modelClaude) {
-    // Under BYOK OpenRouter charges nothing; Anthropic's charge is upstream.
-    return {
-      model: "anthropic/claude-haiku-5.5",
-      provider: "Anthropic",
-      choices: [{ finish_reason: "stop", message: { role: "assistant", content: ANSWER } }],
-      usage: {
-        prompt_tokens: 1000,
-        completion_tokens: 20,
-        cost: 0,
-        is_byok: true,
-        cost_details: { upstream_inference_cost: 0.0002 },
-      },
-    };
-  }
   if (modelEmpty) {
     return {
       model: "deepseek/deepseek-v4-flash-0731",
@@ -102,14 +114,15 @@ beforeEach(() => {
   modelEmpty = false;
   modelClaude = false;
   process.env.OPENROUTER_API_KEY = "sk-or-test-not-a-real-key";
-  // Traces of the default-model loop; the Claude route is answerClaude.spec.ts.
-  process.env.OPENROUTER_CLAUDE_MODEL = "";
+  // Traces of the gpt-oss loop (no Anthropic key) unless a test sets one.
+  process.env.ANTHROPIC_API_KEY = "";
   process.env.POSTHOG_KEY = "phc_test_not_a_real_key";
   delete process.env.POSTHOG_HOST;
   vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
     const body = init?.body ? JSON.parse(String(init.body)) : {};
     sent.push({ url, body });
+    if (url === ANTHROPIC) return Response.json(claudeReply(body.model));
     if (url === OPENROUTER) {
       if (modelFails) return new Response("upstream down", { status: 502, statusText: "Bad Gateway" });
       return Response.json(modelReply());
@@ -122,7 +135,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.POSTHOG_KEY;
-  delete process.env.OPENROUTER_CLAUDE_MODEL;
+  delete process.env.ANTHROPIC_API_KEY;
 });
 
 async function ask(
@@ -215,14 +228,33 @@ describe("recording an answer as a PostHog trace", () => {
     }
   });
 
-  test("a Claude generation costs what Anthropic charged our key, not OpenRouter's BYOK fee", async () => {
+  test("a Claude generation names Anthropic, the real model, US inference, cache tokens and its cost", async () => {
     modelClaude = true;
-    delete process.env.OPENROUTER_CLAUDE_MODEL;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-not-a-real-key";
     const t = setup();
     await ask(t);
+    expect(sent.filter((s) => s.url === OPENROUTER)).toHaveLength(0);
     const [first] = batches()[0];
-    expect(first.properties.$ai_model).toBe("anthropic/claude-haiku-5.5");
-    expect(first.properties.$ai_total_cost_usd).toBe(0.0002);
+    expect(first.event).toBe("$ai_generation");
+    expect(first.properties.$ai_provider).toBe("anthropic");
+    expect(first.properties.$ai_base_url).toBe("https://api.anthropic.com");
+    expect(first.properties.$ai_model).toBe("claude-haiku-5-5");
+    expect(first.properties.anthropic_inference_geo).toBe("us");
+    expect(first.properties.anthropic_effort).toBe("low");
+    expect(first.properties.anthropic_stop_reason).toBe("end_turn");
+    expect(first.properties.$ai_input_tokens).toBe(1000);
+    expect(first.properties.$ai_output_tokens).toBe(20);
+    expect(first.properties.$ai_cache_read_input_tokens).toBe(6000);
+    expect(first.properties.$ai_cache_creation_input_tokens).toBe(4000);
+    // Haiku 5.5 at US rates: (1000 x 0.10 + 20 x 0.50 + 4000 x 0.125 + 6000 x 0.01) / 1e6 x 1.1
+    expect(first.properties.$ai_total_cost_usd).toBeCloseTo(
+      ((1000 * 0.1 + 20 * 0.5 + 4000 * 0.125 + 6000 * 0.01) / 1e6) * 1.1,
+      12,
+    );
+    expect(first.properties.$ai_temperature).toBeUndefined();
+    // Readable input for a grader: no signatures, no raw blocks.
+    expect(JSON.stringify(first.properties.$ai_input)).not.toContain('"claude"');
+    expect(first.properties.$ai_output_choices).toEqual([{ role: "assistant", content: ANSWER }]);
   });
 
   test("a generation holds what the model was sent, what it said, and what it cost", async () => {
@@ -233,6 +265,8 @@ describe("recording an answer as a PostHog trace", () => {
     expect(input[0].role).toBe("system");
     expect(input[input.length - 1]).toEqual({ role: "user", content: "Which bills about llamas became law?" });
     expect(first.properties.$ai_model).toBe("openai/gpt-oss-120b");
+    expect(first.properties.$ai_provider).toBe("openrouter");
+    expect(first.properties.$ai_base_url).toBe("https://openrouter.ai/api/v1");
     // The failover is the same model on another host, so the host is what shows it.
     expect(first.properties.openrouter_host).toBe("Cerebras");
     expect(first.properties.$ai_input_tokens).toBe(1200);

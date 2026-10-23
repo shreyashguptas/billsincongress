@@ -82,10 +82,21 @@ export function clipMessages<T extends { content: string | null }>(messages: T[]
   );
 }
 
+/** Where a generation ran, and the base URL PostHog shows for it. */
+export const PROVIDERS = {
+  anthropic: "https://api.anthropic.com",
+  openrouter: "https://openrouter.ai/api/v1",
+} as const;
+
 export interface GenerationRecord {
   /** "answer" for the loop's own calls, "web_search" for the search call. */
   name: string;
   model: string;
+  /**
+   * Who served it: the Claude API directly (convex/claude.ts), or OpenRouter
+   * (gpt-oss, the last resort). Absent means OpenRouter, the older default.
+   */
+  provider?: keyof typeof PROVIDERS;
   /**
    * The host OpenRouter routed to ("Cerebras", "Groq", "Amazon Bedrock"). Since
    * 2026-10-05 the failover is the same model on another host, so $ai_model no
@@ -95,8 +106,19 @@ export interface GenerationRecord {
   host?: string;
   input: Array<{ role: string; content: string | null }>;
   output?: unknown;
+  /** On Claude, the uncached input only; cached tokens are the next two. */
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  /** Where Anthropic says inference ran. Every request asks for "us". */
+  inferenceGeo?: string;
+  /** Server-side web searches the call ran (Claude's web lookup). */
+  webSearchRequests?: number;
+  /** Claude's stop_reason: end_turn, tool_use, max_tokens, refusal... */
+  stopReason?: string;
+  /** Claude's output_config.effort. */
+  effort?: string;
   costUsd?: number;
   latencyMs: number;
   httpStatus?: number;
@@ -186,13 +208,19 @@ export class AnswerTrace {
       $ai_parent_id: this.traceId,
       $ai_span_name: g.name,
       $ai_model: g.model,
-      $ai_provider: "openrouter",
-      $ai_base_url: "https://openrouter.ai/api/v1",
+      $ai_provider: g.provider ?? "openrouter",
+      $ai_base_url: PROVIDERS[g.provider ?? "openrouter"],
       ...(g.host !== undefined ? { openrouter_host: g.host } : {}),
       $ai_input: clipMessages(g.input),
       ...(g.output !== undefined ? { $ai_output_choices: g.output } : {}),
       ...(g.inputTokens !== undefined ? { $ai_input_tokens: g.inputTokens } : {}),
       ...(g.outputTokens !== undefined ? { $ai_output_tokens: g.outputTokens } : {}),
+      ...(g.cacheReadTokens !== undefined ? { $ai_cache_read_input_tokens: g.cacheReadTokens } : {}),
+      ...(g.cacheWriteTokens !== undefined ? { $ai_cache_creation_input_tokens: g.cacheWriteTokens } : {}),
+      ...(g.inferenceGeo !== undefined ? { anthropic_inference_geo: g.inferenceGeo } : {}),
+      ...(g.webSearchRequests !== undefined ? { web_search_requests: g.webSearchRequests } : {}),
+      ...(g.stopReason !== undefined ? { anthropic_stop_reason: g.stopReason } : {}),
+      ...(g.effort !== undefined ? { anthropic_effort: g.effort } : {}),
       ...(g.costUsd !== undefined ? { $ai_total_cost_usd: g.costUsd } : {}),
       ...(g.httpStatus !== undefined ? { $ai_http_status: g.httpStatus } : {}),
       ...(g.tools !== undefined ? { $ai_tools: g.tools } : {}),

@@ -25,6 +25,12 @@
  * 8 s to about 18 s, which is why the speed of the host, not the setting, is the
  * thing to watch.
  *
+ * Since 2026-10-22 gpt-oss is the last resort, and the same setting also sets
+ * the effort of the Claude models that answer first (claudeEffort in
+ * convex/claude.ts): "minimal" and the off-words become "low" there, because
+ * Claude Sonnet 5.5 cannot switch thinking off and lower effort is how both
+ * Claude models are told to think less.
+ *
  * OPENROUTER_REASONING: "minimal", "low", "medium" or "high" sets the effort;
  * an off-word ("off", "false", "none", "no", "0", "disabled") asks for none,
  * which a model that cannot switch it off refuses (answer.ts then retries with
