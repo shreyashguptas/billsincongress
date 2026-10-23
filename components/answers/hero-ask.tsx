@@ -65,6 +65,8 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   // page mid-conversation), and a reader who clicked the header search or
   // tabbed to a link while the page loaded is not pulled away from it.
   const inputRef = useRef<HTMLInputElement>(null);
+  // True while focus is still the one set here, which the reader never chose.
+  const autoFocused = useRef(false);
   const phaseOnArrival = useRef(phase);
   useEffect(() => {
     if (phaseOnArrival.current === 'open') return;
@@ -72,6 +74,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
     const at = document.activeElement;
     if (at && at !== document.body && at.id !== 'main') return;
     inputRef.current?.focus({ preventScroll: true });
+    autoFocused.current = document.activeElement === inputRef.current;
   }, []);
 
   const suggestions = useBillSuggestions(input, congress);
@@ -155,6 +158,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               // The box sits under the chamber, below the fold on most
               // laptops, and is focused on arrival. The first key brings it,
               // and the room its suggestions open into, up the screen.
+              autoFocused.current = false;
               if (!input) {
                 const box = e.currentTarget.getBoundingClientRect();
                 if (box.bottom > window.innerHeight * 0.6) {
@@ -166,17 +170,33 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
+            onBlur={() => {
+              autoFocused.current = false;
+              setOpen(false);
+            }}
+            onPointerDown={() => {
+              autoFocused.current = false;
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setOpen(false);
                 return;
               }
-              // The box is focused on arrival, so the keys that scroll a page
-              // land here first. While it is empty they still scroll: focus
-              // steps back to <main> and the browser carries the key on there.
-              // Typing a letter brings focus back (type-to-ask.tsx).
-              if (!input && PAGE_SCROLL_KEYS.has(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+              // Focused on arrival, the box catches the keys that scroll a page.
+              // Until the reader chooses it — clicks it, types in it, or leaves
+              // and comes back — those keys still scroll: focus steps back to
+              // <main> and the browser carries the key on there. A reader who
+              // tabbed or clicked in keeps ↓ for the suggestion list. Typing a
+              // letter brings focus back (type-to-ask.tsx).
+              if (
+                autoFocused.current &&
+                !input &&
+                PAGE_SCROLL_KEYS.has(e.key) &&
+                !e.metaKey &&
+                !e.ctrlKey &&
+                !e.altKey
+              ) {
+                autoFocused.current = false;
                 document.getElementById('main')?.focus({ preventScroll: true });
                 return;
               }
