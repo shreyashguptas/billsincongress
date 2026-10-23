@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import type Anthropic from "@anthropic-ai/sdk";
 import {
   CLAUDE_PRICES,
+  claudePrices,
+  MAX_PRICE_PER_MTOK,
   claudeAnswerModels,
   claudeCostUsd,
   claudeEffort,
@@ -214,6 +216,60 @@ it("drops the US multiplier only when Anthropic says it ran elsewhere", () => {
 it("has no price for a model that is not on file", () => {
   assert.equal(claudeCostUsd("claude-opus-5-5", { input_tokens: 1, output_tokens: 1 }), undefined);
   assert.ok(!("claude-opus-5-5" in CLAUDE_PRICES));
+});
+
+it("takes a new model's price from CLAUDE_PRICES_JSON, with the usual cache rates by default", () => {
+  const prices = claudePrices({ CLAUDE_PRICES_JSON: '{"claude-haiku-6":{"input":0.2,"output":1}}' });
+  assert.deepEqual(prices["claude-haiku-6"], { input: 0.2, output: 1, cacheWrite: 0.25, cacheRead: 0.02 });
+  // The built-in prices are still there.
+  assert.deepEqual(prices["claude-sonnet-5-5"], CLAUDE_PRICES["claude-sonnet-5-5"]);
+});
+
+it("lets CLAUDE_PRICES_JSON override a built-in price, long-context tier included", () => {
+  const prices = claudePrices({
+    CLAUDE_PRICES_JSON: JSON.stringify({
+      "claude-haiku-5-5": {
+        input: 0.2,
+        output: 1,
+        cacheWrite: 0.3,
+        cacheRead: 0.02,
+        long: { overPromptTokens: 200000, input: 1, output: 5 },
+      },
+    }),
+  });
+  assert.deepEqual(prices["claude-haiku-5-5"], {
+    input: 0.2,
+    output: 1,
+    cacheWrite: 0.3,
+    cacheRead: 0.02,
+    long: { overPromptTokens: 200000, input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
+  });
+});
+
+it("ignores CLAUDE_PRICES_JSON that is not JSON, and keeps the built-in prices", () => {
+  assert.deepEqual(claudePrices({ CLAUDE_PRICES_JSON: "{claude-haiku-6: 0.1}" }), CLAUDE_PRICES);
+  assert.deepEqual(claudePrices({ CLAUDE_PRICES_JSON: "[1,2]" }), CLAUDE_PRICES);
+});
+
+it("drops a bad CLAUDE_PRICES_JSON entry and keeps the good ones", () => {
+  const prices = claudePrices({
+    CLAUDE_PRICES_JSON: JSON.stringify({
+      "claude-ok-1": { input: 1, output: 5 },
+      "claude-typo-1": { input: 2, output: 10_000 }, // over the ceiling: $10 written as 10000
+      "claude-half-1": { input: 1 }, // no output price
+      "claude-neg-1": { input: -1, output: 5 },
+      "gpt-6": { input: 1, output: 5 }, // not a Claude model
+      "claude-long-1": { input: 1, output: 5, long: { input: 2, output: 10 } }, // no threshold
+      // A bad override leaves the built-in price alone.
+      "claude-sonnet-5-5": { input: "2", output: 10 },
+    }),
+  });
+  assert.ok("claude-ok-1" in prices);
+  for (const model of ["claude-typo-1", "claude-half-1", "claude-neg-1", "gpt-6", "claude-long-1"]) {
+    assert.ok(!(model in prices), `${model} should be ignored`);
+  }
+  assert.deepEqual(prices["claude-sonnet-5-5"], CLAUDE_PRICES["claude-sonnet-5-5"]);
+  assert.ok(MAX_PRICE_PER_MTOK >= 50, "the ceiling must stay above the dearest real model");
 });
 
 it("has a price for every default model", () => {

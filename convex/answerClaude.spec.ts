@@ -264,6 +264,15 @@ test("a Claude model with no price on file is never called", async () => {
   expect(sent.map((s) => s.body.model)).toEqual(["claude-sonnet-5-5"]);
 });
 
+test("a new model priced in CLAUDE_PRICES_JSON is called, with no deploy", async () => {
+  vi.stubEnv("ANTHROPIC_ANSWER_MODEL", "claude-opus-5-5");
+  vi.stubEnv("CLAUDE_PRICES_JSON", '{"claude-opus-5-5":{"input":4,"output":20,"cacheRead":0.2}}');
+  claudeReplies = [message([text(ANSWER)])];
+  const result = await ask("Is there a bill about lighthouses?");
+  expect(result.text).toBe(ANSWER);
+  expect(sent.map((s) => s.body.model)).toEqual(["claude-opus-5-5"]);
+});
+
 test("blank Claude models answer on gpt-oss alone", async () => {
   vi.stubEnv("ANTHROPIC_ANSWER_MODEL", "");
   vi.stubEnv("ANTHROPIC_BACKUP_MODEL", "");

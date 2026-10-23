@@ -20,10 +20,12 @@
  *    round says `tool_choice: none` instead of withholding the tools), and the
  *    system prompt is fixed for the whole turn.
  *
- * 3. A price table is the runaway-cost guard. A model with no price here is
- *    refused before any request, so a careless ANTHROPIC_*_MODEL change to a
- *    pricier model fails loudly (and the turn moves on down the chain) instead
- *    of multiplying the bill. The same table prices every call for the trace.
+ * 3. A price table is the runaway-cost guard. A model with no price is refused
+ *    before any request, so a careless ANTHROPIC_*_MODEL change to a pricier
+ *    model fails loudly (and the turn moves on down the chain) instead of
+ *    multiplying the bill. The same table prices every call for the trace.
+ *    CLAUDE_PRICES_JSON adds or overrides prices from the Convex environment,
+ *    so a new model needs two env changes, not a deploy (see claudePrices).
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { ANSWER_TOOLS } from "./catalog/tools";
@@ -123,9 +125,93 @@ export interface ClaudeUsage {
   server_tool_use?: { web_search_requests?: number | null } | null;
 }
 
+/**
+ * Above this, a price in CLAUDE_PRICES_JSON is taken for a typo ($2 written as
+ * 2000) and the entry is ignored. The dearest model on 2026-10-22 was $50 per
+ * million output tokens (Claude Fable 5.1).
+ */
+export const MAX_PRICE_PER_MTOK = 100;
+const MODEL_ID = /^claude-[a-z0-9.-]+$/;
+
+/**
+ * The price table: CLAUDE_PRICES, plus or overridden by the CLAUDE_PRICES_JSON
+ * environment variable, so switching to a newly released model needs two
+ * Convex env changes and no deploy:
+ *
+ *   CLAUDE_PRICES_JSON={"claude-haiku-6":{"input":0.1,"output":0.5}}
+ *   ANTHROPIC_ANSWER_MODEL=claude-haiku-6
+ *
+ * USD per million tokens, before the US 1.1x. `cacheWrite` defaults to 1.25x
+ * input and `cacheRead` to 0.1x input (the usual rates; give them when a model
+ * differs, as Sonnet 5.5's 0.05x read does). `long` is optional, as in
+ * ClaudePrice. Read strictly: bad JSON drops the whole setting, a bad entry
+ * drops that entry, and either is logged; neither ever fails an answer. A model
+ * priced nowhere is still refused.
+ */
+export function claudePrices(env: Record<string, string | undefined> = process.env): Record<string, ClaudePrice> {
+  const raw = (env.CLAUDE_PRICES_JSON ?? "").trim();
+  if (raw === "") return { ...CLAUDE_PRICES };
+  if (raw === parsedPrices?.raw) return parsedPrices.prices;
+  const prices: Record<string, ClaudePrice> = { ...CLAUDE_PRICES };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    console.error(`CLAUDE_PRICES_JSON is not valid JSON and is ignored: ${String(error)}`);
+  }
+  if (parsed !== undefined && (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))) {
+    console.error("CLAUDE_PRICES_JSON must be an object of model id to prices; it is ignored");
+  } else if (parsed !== undefined) {
+    for (const [model, value] of Object.entries(parsed as Record<string, unknown>)) {
+      const price = readPrice(value);
+      if (!MODEL_ID.test(model) || typeof price === "string") {
+        console.error(
+          `CLAUDE_PRICES_JSON entry for ${JSON.stringify(model)} is ignored: ` +
+            (MODEL_ID.test(model) ? price : "not a Claude model id"),
+        );
+        continue;
+      }
+      prices[model] = price;
+    }
+  }
+  parsedPrices = { raw, prices };
+  return prices;
+}
+/** One parse per value, not per call: the log lines above would repeat every round. */
+let parsedPrices: { raw: string; prices: Record<string, ClaudePrice> } | undefined;
+
+/** A ClaudePrice from one CLAUDE_PRICES_JSON entry, or why it is not one. */
+function readPrice(value: unknown): ClaudePrice | string {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return "not an object";
+  const v = value as Record<string, unknown>;
+  const rates = (r: Record<string, unknown>): Rates | string => {
+    for (const key of ["input", "output"]) {
+      if (r[key] === undefined) return `missing "${key}"`;
+    }
+    const out: Record<string, number> = {};
+    for (const key of ["input", "output", "cacheWrite", "cacheRead"]) {
+      const n = r[key] ?? (key === "cacheWrite" ? Number(r.input) * 1.25 : Number(r.input) / 10);
+      if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return `"${key}" is not a price`;
+      if (n > MAX_PRICE_PER_MTOK) return `"${key}" is over $${MAX_PRICE_PER_MTOK} per million tokens`;
+      out[key] = n;
+    }
+    return out as unknown as Rates;
+  };
+  const base = rates(v);
+  if (typeof base === "string") return base;
+  if (v.long === undefined) return base;
+  if (typeof v.long !== "object" || v.long === null) return `"long" is not an object`;
+  const longRaw = v.long as Record<string, unknown>;
+  const over = longRaw.overPromptTokens;
+  if (typeof over !== "number" || !Number.isInteger(over) || over <= 0) return `"long.overPromptTokens" is not a token count`;
+  const long = rates(longRaw);
+  if (typeof long === "string") return `long: ${long}`;
+  return { ...base, long: { ...long, overPromptTokens: over } };
+}
+
 /** What one call cost us, or undefined for a model with no price on file. */
 export function claudeCostUsd(model: string, usage: ClaudeUsage | null | undefined): number | undefined {
-  const price = CLAUDE_PRICES[model];
+  const price = claudePrices()[model];
   if (!price || !usage) return undefined;
   const input = usage.input_tokens ?? 0;
   const output = usage.output_tokens ?? 0;
@@ -142,9 +228,10 @@ export function claudeCostUsd(model: string, usage: ClaudeUsage | null | undefin
 
 /** Refuses a model with no price on file. See rule 3 at the top of this file. */
 function assertPriced(model: string) {
-  if (!CLAUDE_PRICES[model]) {
+  if (!claudePrices()[model]) {
     throw new Error(
-      `No price on file for ${model}: add it to CLAUDE_PRICES in convex/claude.ts before using it`,
+      `No price on file for ${model}: add it to the CLAUDE_PRICES_JSON Convex env var ` +
+        `(or to CLAUDE_PRICES in convex/claude.ts) before using it`,
     );
   }
 }

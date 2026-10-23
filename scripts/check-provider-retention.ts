@@ -5,7 +5,7 @@
  * chain and the web lookup would call is asked one tiny question exactly as
  * production asks: `inference_geo: "us"`. PASS needs the request to succeed,
  * Anthropic to report `usage.inference_geo` "us" (the owner's rule: AI on US
- * servers only), and the model to have a price in CLAUDE_PRICES (otherwise
+ * servers only), and the model to have a price in claudePrices() (otherwise
  * production refuses to call it). Anthropic's retention terms are account-level,
  * not per request, so there is nothing to probe for them here.
  *
@@ -36,7 +36,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   ANTHROPIC_BASE_URL,
-  CLAUDE_PRICES,
+  claudePrices,
   claudeAnswerModels,
   claudeWebModel,
   INFERENCE_GEO,
@@ -96,7 +96,7 @@ async function probe(
 
 /** One Claude model, asked the way production asks. */
 async function probeClaude(model: string): Promise<boolean> {
-  const priced = model in CLAUDE_PRICES;
+  const priced = model in claudePrices();
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, baseURL: ANTHROPIC_BASE_URL });
     const response = await client.messages.create({
