@@ -240,7 +240,7 @@ describe("recording an answer as a PostHog trace", () => {
     expect(first.properties.$ai_base_url).toBe("https://api.anthropic.com");
     expect(first.properties.$ai_model).toBe("claude-sonnet-5-5");
     expect(first.properties.anthropic_inference_geo).toBe("us");
-    expect(first.properties.anthropic_effort).toBe("low");
+    expect(first.properties.anthropic_effort).toBe("medium");
     expect(first.properties.anthropic_stop_reason).toBe("end_turn");
     expect(first.properties.$ai_input_tokens).toBe(1000);
     expect(first.properties.$ai_output_tokens).toBe(20);

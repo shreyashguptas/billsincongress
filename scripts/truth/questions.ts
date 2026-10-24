@@ -53,6 +53,7 @@ export interface BillRow {
   sponsorParty?: string;
   sponsorFirstName?: string;
   sponsorLastName?: string;
+  sponsorBioguideId?: string;
   introducedDate?: string;
   latestActionDate?: string;
   title?: string;
@@ -199,6 +200,12 @@ export interface Expected {
    * contains the right name and scores correct.
    */
   rivals?: string[];
+  /**
+   * Only for `billId`: every bill sharing first place. Six laws were signed on
+   * 2026-10-20, so "the most recent law" has six true answers, and scoring only
+   * the first row's id marked a correct reply naming another of them WRONG.
+   */
+  billIds?: string[];
   /** How this number was derived, and which wrong numbers it must reject. */
   note: string;
 }
@@ -243,18 +250,21 @@ export const QUESTIONS: TruthQuestion[] = [
       "row in that same result carried a later date.",
     expect: (db) => {
       const laws = db.bills.filter((b) => b.progressStage === BECAME_LAW);
-      let latest = laws[0];
+      let latestDate = "";
       for (const b of laws) {
-        if ((b.latestActionDate ?? "") > (latest.latestActionDate ?? "")) latest = b;
+        if ((b.latestActionDate ?? "") > latestDate) latestDate = b.latestActionDate ?? "";
       }
+      const tied = laws.filter((b) => (b.latestActionDate ?? "") === latestDate);
+      const printed = tied.map((b) => `${b.billTypeLabel}${b.billNumber}`).join(", ");
       return {
         kind: "billId",
-        value: latest.billId,
+        value: tied[0].billId,
+        billIds: tied.map((b) => b.billId),
         note:
           `Max latestActionDate over all ${laws.length} rows at stage 100 across every ` +
-          `Congress we hold: ${latest.billTypeLabel}${latest.billNumber} on ` +
-          `${latest.latestActionDate}. Row order is not date order, so any answer that ` +
-          `matches only by luck of position is still the defect.`,
+          `Congress we hold: ${latestDate}, shared by ${tied.length} (${printed}); any of ` +
+          `them is right. Row order is not date order, so a law from an earlier date is ` +
+          `still the defect.`,
       };
     },
   },
@@ -616,10 +626,19 @@ export const QUESTIONS: TruthQuestion[] = [
             "or she is genuinely absent — check before weakening this question.",
         );
       }
+      // billCount counts every measure she sponsored (33 H.R. and 3 H.Res. on
+      // 2026-10-23), but the question asks for bills, and a reply that says "33
+      // bills" is the right one. Counted from the bills table by member id.
+      const bills = count(
+        billsIn(db, CURRENT_CONGRESS),
+        (b) => isBill(b) && b.sponsorBioguideId === row.sponsorBioguideId,
+      );
       return {
         kind: "number",
-        value: row.billCount,
-        note: `congressSponsors.billCount for her ${CURRENT_CONGRESS}th-Congress row. Must reject 0.`,
+        value: bills,
+        note:
+          `H.R. and S. rows in the ${CURRENT_CONGRESS}th sponsored by her member id ` +
+          `(${row.billCount} measures in all, resolutions included). Must reject 0.`,
       };
     },
   },

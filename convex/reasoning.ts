@@ -16,7 +16,7 @@
  * comes back in `message.reasoning`, recorded in the AI trace and never sent to
  * the reader. answerSanitize.ts stays as the safety net.
  *
- * ON AT "low" BY DEFAULT, because the model is gpt-oss-120b, which always
+ * It was on at "low" by default from 2026-10-05, because the model was gpt-oss-120b, which always
  * reasons ("Reasoning is mandatory for this endpoint and cannot be disabled")
  * and does it fast. Measured on 2026-10-05 with the real answer loop over the
  * production data: a typical round reasons for 10 to 80 tokens, which on
@@ -31,14 +31,23 @@
  * Claude Sonnet 5.5 cannot switch thinking off and lower effort is how both
  * Claude models are told to think less.
  *
+ * "medium" BY DEFAULT since 2026-10-23, the owner's call after measuring it:
+ * the 25 scored questions in scripts/truth/questions.ts, asked three times each
+ * on production, got Claude Sonnet 5.5 75 of 75 right at medium against 72 of 75
+ * at low (one "36 measures" for 33 bills, one hedge, one stray extra count), for
+ * $1.15 against $1.13 per 75 answers and no slower (3.9 s against 4.1 s). Claude
+ * Opus 5.5 also scored 75 of 75, at both efforts, for about twice the price and
+ * 5.5 s. gpt-oss, the last resort, reasons at medium too: on Cerebras that is
+ * still well under a second a round.
+ *
  * OPENROUTER_REASONING: "minimal", "low", "medium" or "high" sets the effort;
  * an off-word ("off", "false", "none", "no", "0", "disabled") asks for none,
  * which a model that cannot switch it off refuses (answer.ts then retries with
- * the model's own default); anything unrecognised logs and uses "low".
+ * the model's own default); anything unrecognised logs and uses "medium".
  */
 const OFF = new Set(["off", "false", "none", "no", "0", "disabled"]);
 const EFFORTS = new Set(["minimal", "low", "medium", "high"]);
-const DEFAULT_EFFORT = "low";
+const DEFAULT_EFFORT = "medium";
 
 export function reasoningConfig(
   setting: string | undefined,
