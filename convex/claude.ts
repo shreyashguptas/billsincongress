@@ -40,8 +40,8 @@ export const INFERENCE_GEO = "us";
  * The answer model, tried first; override with ANTHROPIC_ANSWER_MODEL, and set
  * it blank to skip it.
  *
- * Claude Sonnet 5.5 at low effort since 2026-10-23, the owner's call: the most
- * accurate answer the price allows. It costs about twenty times Haiku per
+ * Claude Sonnet 5.5 since 2026-10-23, at medium effort (convex/reasoning.ts),
+ * the owner's call: the most accurate answer the price allows. It costs about twenty times Haiku per
  * token; measured live on 2026-10-23 a four-round answer cost about 12 cents
  * and took about 13 s. (Before that, Claude Haiku 5.5, chosen on 2026-10-13 on
  * the truth questions: 38 of 40 right against gpt-oss's 37.)

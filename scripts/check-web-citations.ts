@@ -11,6 +11,7 @@
  * (either key alone checks that path alone).
  */
 import { claudeEffort, claudeWebModel, searchWebClaude } from "../convex/claude";
+import { reasoningConfig } from "../convex/reasoning";
 
 const QUERY = "US House Ways and Means Committee hearing schedule 2026";
 /**
@@ -39,7 +40,8 @@ async function checkClaude() {
       model,
       query: QUERY,
       maxResults: 5,
-      effort: claudeEffort({ effort: "low" }),
+      // The effort production's web lookup uses (OPENROUTER_REASONING, or the default).
+      effort: claudeEffort(reasoningConfig(process.env.OPENROUTER_REASONING)),
     });
     console.log(`CLAUDE ${model}: ${hits.length} source(s)`);
     for (const h of hits) console.log(`  - ${h.title || "(no title)"} <${h.url}>\n    ${h.excerpt.slice(0, 160)}`);

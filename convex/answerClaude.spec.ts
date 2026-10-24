@@ -128,7 +128,7 @@ test("answers on Claude Sonnet over the Claude API, on US servers, with no OpenR
   expect(body.inference_geo).toBe("us");
   // Effort is always sent (Haiku 5.5, the backup, would otherwise run at medium).
   expect(body.thinking).toEqual({ type: "adaptive" });
-  expect(body.output_config).toEqual({ effort: "low" });
+  expect(body.output_config).toEqual({ effort: "medium" });
   // Claude 5.5 refuses sampling parameters and forced tool choice.
   expect(body.temperature).toBeUndefined();
   expect(body.tool_choice).toEqual({ type: "auto" });

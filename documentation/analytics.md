@@ -527,8 +527,8 @@ through OpenRouter before; rubric revised 19 Oct 2026; pass rates across either 
 comparable). Listed in overview.md under
 "Recording and the wrong-answer loop".
 
-Since 2026-10-05 the model reasons privately at low effort (`OPENROUTER_REASONING`, see "Model
-configuration" in overview.md). On a gpt-oss generation, `$ai_output_choices` also carries the
+Since 2026-10-05 the model reasons privately, at low effort until 2026-10-23 and medium since
+(`OPENROUTER_REASONING`, see "Model configuration" in overview.md). On a gpt-oss generation, `$ai_output_choices` also carries the
 round's `reasoning` text: what the model thought, which the reader never sees. A Claude
 generation does not: its thinking blocks go back to Claude and are never put on the trace. On
 both, the thinking tokens are counted in `$ai_output_tokens` and the cost.
