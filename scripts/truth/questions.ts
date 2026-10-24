@@ -201,9 +201,10 @@ export interface Expected {
    */
   rivals?: string[];
   /**
-   * Only for `billId`: every bill sharing first place. Six laws were signed on
-   * 2026-10-20, so "the most recent law" has six true answers, and scoring only
-   * the first row's id marked a correct reply naming another of them WRONG.
+   * Only for `billId`: every bill sharing first place. Several laws share the
+   * latest action date (2026-10-20 when this was written), so "the most recent
+   * law" has several true answers, and scoring only the first row's id marked a
+   * correct reply naming another of them WRONG.
    */
   billIds?: string[];
   /** How this number was derived, and which wrong numbers it must reject. */
@@ -629,10 +630,21 @@ export const QUESTIONS: TruthQuestion[] = [
       // billCount counts every measure she sponsored (33 H.R. and 3 H.Res. on
       // 2026-10-23), but the question asks for bills, and a reply that says "33
       // bills" is the right one. Counted from the bills table by member id.
-      const bills = count(
-        billsIn(db, CURRENT_CONGRESS),
-        (b) => isBill(b) && b.sponsorBioguideId === row.sponsorBioguideId,
-      );
+      // Both ids are optional in the schema. Without hers, the match below would
+      // be undefined === undefined: every bill with no member id. Without theirs,
+      // it would be 0, the very answer this question must reject.
+      const bills = row.sponsorBioguideId
+        ? count(
+            billsIn(db, CURRENT_CONGRESS),
+            (b) => isBill(b) && b.sponsorBioguideId === row.sponsorBioguideId,
+          )
+        : 0;
+      if (bills === 0) {
+        throw new Error(
+          "Monica De La Cruz's bills could not be matched by member id (no sponsorBioguideId " +
+            "on her row, or none on her bills). Check the dump before weakening this question.",
+        );
+      }
       return {
         kind: "number",
         value: bills,
