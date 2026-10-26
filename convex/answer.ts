@@ -713,6 +713,7 @@ async function runLoop(
           label: row.label,
           title: row.title,
           sponsor: row.sponsor,
+          sponsorLastName: row.sponsorLastName,
           sponsorParty: row.sponsorParty,
           progressStage: row.progressStage,
         });
@@ -1052,6 +1053,7 @@ async function runLoop(
                 label: row.label,
                 title: row.title,
                 sponsor: row.sponsor,
+                sponsorLastName: row.sponsorLastName,
                 sponsorParty: row.sponsorParty,
                 progressStage: row.progressStage,
               });

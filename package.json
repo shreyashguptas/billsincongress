@@ -47,8 +47,10 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
+    "remark-parse": "11.0.0",
     "stripe": "23.0.0",
-    "tailwind-merge": "^2.6.1"
+    "tailwind-merge": "^2.6.1",
+    "unified": "11.0.5"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
