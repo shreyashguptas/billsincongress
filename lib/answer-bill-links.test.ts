@@ -178,6 +178,27 @@ it('turns a list into cards when the answer adds each bill\'s policy area (live,
   assert.deepEqual(cards('- H.R. 7022 lowers health costs [1]\n- H.R. 952 [2]'), []);
 });
 
+it('turns a list into cards when the answer words the policy area loosely (live, 2026-10-26)', () => {
+  // On billsincongress.com right after #211 shipped: lower case, "and" for the
+  // last comma. The exact-name match missed it and the list stayed text.
+  const answer = `- **H.R. 7022, the Mystic Alerts Act**: sponsored by Rep. August Pfluger (R-TX), on science, technology and communications. Last action October 22, 2026. [1]
+- **H.R. 952, the Reversionary Interest Conveyance Act**: sponsored by Rep. Doris Matsui (D-CA), on public lands and natural resources. Last action October 22, 2026. [2]
+- **H.R. 3620, the Southcentral Foundation Land Transfer Act of 2025**: sponsored by Rep. Nicholas Begich (R-AK), on public lands and natural resources. Last action October 20, 2026. [3]`;
+  assert.deepEqual(cards(answer), ['3620hr119', '7022hr119', '952hr119']);
+  // The other joins a name can take.
+  const pf = bills.byId.get('7022hr119')!;
+  for (const item of [
+    'H.R. 7022, in Science, Technology, and Communications [1]',
+    'H.R. 7022 (science & technology & communications) [1]',
+    'H.R. 7022, an agriculture and food bill [1]',
+    'H.R. 7022, filed under Armed Forces & National Security [1]',
+  ]) {
+    assert.equal(onlyIdentifies(item, pf, bills), true, item);
+  }
+  // Part of a name is not the name: "science" alone is a word about the bill.
+  assert.equal(onlyIdentifies('H.R. 7022 funds science [1]', pf, bills), false);
+});
+
 it('accepts the other ways an item names a bill and its sponsor', () => {
   const pf = bills.byId.get('7022hr119')!;
   for (const item of [

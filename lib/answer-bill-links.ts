@@ -197,7 +197,7 @@ const CARD_SAYS = new Set(
   [
     // Sentence glue.
     'a an the and or but nor so yet as at by for from in into of off on onto out over per to up',
-    'upon with within without via about after before since during until through between among',
+    'upon with within without via about after before since during until through between among under',
     'it its it\'s this that these those which who whom whose what when where there here than then',
     'is are was were be been being has have had having do does did will would shall should can could may might',
     'he she they them his her their hers theirs one ones each both all any some other another same such',
@@ -250,16 +250,32 @@ const DATE = new RegExp(
 );
 
 /**
- * A bill's policy area, named the way the Congressional Research Service
- * names it ("It is in Science, Technology, Communications", "a Taxation
- * bill"). The answer adds it often; it describes the bill, not what the bill
- * does, and the bill page shows it. Only these exact names: "health" alone, in
- * a sentence about what a bill changes, is still the answer.
+ * A bill's policy area ("It is in Science, Technology, Communications", "a
+ * Taxation bill"). The answer adds it often; it describes the bill, not what
+ * the bill does, and the bill page shows it. Matched however the answer
+ * punctuates or cases it — "on science, technology and communications" was
+ * live on 2026-10-26 — but only as a whole CRS name: "health" alone, in a
+ * sentence about what a bill changes, is still the answer.
  */
 const POLICY_AREA = new RegExp(
-  `\\b(?:${POLICY_AREAS.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).sort((a, b) => b.length - a.length).join('|')})\\b(?:\\s+(?:bill|measure|policy\\s+area|area|topic|category))?`,
+  `\\b(?:${POLICY_AREAS.map(looseName)
+    .sort((a, b) => b.length - a.length)
+    .join('|')})\\b(?:\\s+(?:bill|measure|policy\\s+area|area|topic|category))?`,
   'gi',
 );
+
+/**
+ * A CRS name as a pattern that ignores how its words are joined: commas,
+ * "and" or "&", with or without an Oxford comma. "Science, Technology,
+ * Communications" matches "science, technology and communications".
+ */
+function looseName(name: string): string {
+  const words = name
+    .split(/[\s,]+/)
+    .filter((w) => w && w.toLowerCase() !== 'and')
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return words.join(String.raw`(?:\s*,\s*|\s+)(?:(?:and|&)\s+)?`);
+}
 
 /**
  * The words of a list item about `bill` that its card would not say.
