@@ -813,6 +813,11 @@ export const analytics = {
     entity_kind: 'bill' | 'sponsor' | 'topic' | 'state';
     position: number;
     entity_id: string;
+    /**
+     * Where the bill was: a card after the answer, a card the answer's own
+     * list item became, or a link in its running text.
+     */
+    placement: 'after_answer' | 'in_list' | 'in_text';
   }) => capture('answer_entity_clicked', props),
 
   /**

@@ -38,6 +38,7 @@ export function EntityBlock({
       entity_kind: block.kind,
       position,
       entity_id: id,
+      placement: 'after_answer',
     });
 
   if (block.kind === 'bill') {

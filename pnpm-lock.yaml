@@ -235,6 +235,9 @@ importers:
       lucide-react:
         specifier: 1.52.0
         version: 1.52.0(@types/react@19.3.0)(react@19.3.0)
+      mdast-util-to-string:
+        specifier: 4.0.0
+        version: 4.0.0
       next:
         specifier: 16.4.2
         version: 16.4.2(@opentelemetry/api@1.10.0)(@types/node@26.6.4)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -256,12 +259,18 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2)
+      remark-parse:
+        specifier: 11.0.0
+        version: 11.0.0(supports-color@10.2.2)
       stripe:
         specifier: 23.0.0
         version: 23.0.0(@types/node@26.6.4)
       tailwind-merge:
         specifier: ^2.6.1
         version: 2.6.1
+      unified:
+        specifier: 11.0.5
+        version: 11.0.5
     devDependencies:
       '@edge-runtime/vm':
         specifier: ^5.0.0
