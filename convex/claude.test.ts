@@ -476,6 +476,20 @@ it("reads page markup as prose: link words kept, tags, images and escapes gone",
   assert.ok(!readable(HEARINGS_MD).includes("]("), readable(HEARINGS_MD));
 });
 
+it("leaves a quote that already ends its sentence as it is", () => {
+  const page =
+    "Sec. 3. The Secretary shall submit a report to Congress within 90 days. The report shall include " +
+    `${"the costs of each program, ".repeat(20)}and its results.`;
+  const quote = "The Secretary shall submit a report to Congress within 90 days.";
+  // Not the next sentence, and no false cut where the next one runs long.
+  assert.equal(sentencesAround(page, quote), quote);
+  // An abbreviation at the end of a quote is not the end of its sentence.
+  assert.equal(
+    sentencesAround("Background. It was referred to the Committee on H.R. 2481 and reported.", "It was referred to the Committee on H.R."),
+    "It was referred to the Committee on H.R. 2481 and reported.",
+  );
+});
+
 it("does not end a sentence at an abbreviation", () => {
   const page =
     "Background. H.R. 2481, the Romance Scam Prevention Act, was introduced by Representative " +

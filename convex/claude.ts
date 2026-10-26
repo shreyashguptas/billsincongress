@@ -774,13 +774,20 @@ export function sentencesAround(page: string, quote: string): string | null {
     : from === 0 ? 0
     : at;
 
-  // On to the end of the sentence or the line, whichever comes first.
+  // On to the end of the sentence or the line, whichever comes first, unless
+  // the quote already ends its sentence: a citation into a fetched page is
+  // usually whole sentences, and widening it would add one Claude never cited.
+  const span = oneLine.slice(at, at + length).replace(/["'”’)\]]+$/, "");
+  const spanEnds = sentenceEnds(span);
+  const quoteEndsSentence = spanEnds.length > 0 && spanEnds[spanEnds.length - 1] === span.length;
   const after = text.slice(at + length, at + length + SENTENCE_REACH_CHARS);
   const nextSentence = (sentenceEnds(after)[0] ?? 0) - 1;
   const nextLine = after.indexOf("\n");
   let end: number;
   let cut = false;
-  if (nextLine >= 0 && (nextSentence < 0 || nextLine <= nextSentence)) {
+  if (quoteEndsSentence) {
+    end = at + length;
+  } else if (nextLine >= 0 && (nextSentence < 0 || nextLine <= nextSentence)) {
     end = at + length + nextLine;
   } else if (nextSentence >= 0) {
     end = at + length + nextSentence + 1;
