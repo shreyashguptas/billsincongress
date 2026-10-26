@@ -1013,6 +1013,9 @@ async function fetchBills(
         congress: b.congress,
         introducedDate: b.introducedDate,
         sponsor: `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`.trim(),
+        // As stored, so a card can print "Van Drew", not the last word of the
+        // full name ("Drew"): the two-word-surname defect from the 2026-08-30 audit.
+        sponsorLastName: b.sponsorLastName ?? "",
         sponsorParty: b.sponsorParty ?? "",
         sponsorState: b.sponsorState ?? "",
         progressStage: b.progressStage ?? 20,

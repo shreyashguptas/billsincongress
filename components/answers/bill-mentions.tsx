@@ -109,7 +109,7 @@ export function billMarkdownComponents<T extends object>(base: T, ctx: { current
             href={bill.href}
             label={bill.label}
             title={bill.title}
-            sponsorLastName={bill.sponsor?.split(' ').slice(-1)[0]}
+            sponsorLastName={bill.sponsorLastName}
             sponsorParty={bill.sponsorParty}
             stage={bill.stage}
             billType={billType}

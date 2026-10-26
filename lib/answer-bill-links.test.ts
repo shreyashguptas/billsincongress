@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import {
   type CardList,
   answerBills,
+  sponsorSurname,
   billsNamedIn,
   cardListBills,
   cardLists,
@@ -112,6 +113,14 @@ it('does not read H.R. 10 as H.R. 1, or H.R. 1 inside H.R. 100', () => {
   assert.deepEqual(billsNamedIn('S.H.R. 1x', bills), []);
 });
 
+it('prints a two-word surname whole, from the stored surname (review, 2026-10-26)', () => {
+  assert.equal(sponsorSurname({ sponsor: 'Jefferson Van Drew', sponsorLastName: 'Van Drew' }), 'Van Drew');
+  assert.equal(sponsorSurname({ sponsor: 'Monica De La Cruz', sponsorLastName: 'De La Cruz' }), 'De La Cruz');
+  // An answer saved before the projection carried it: the last word, the old guess.
+  assert.equal(sponsorSurname({ sponsor: 'August Pfluger' }), 'Pfluger');
+  assert.equal(sponsorSurname(undefined), undefined);
+});
+
 // ── Which lists become cards ────────────────────────────────────────────────
 
 it('names neither bill when two share a title or a number (review, 2026-10-26)', () => {
@@ -187,6 +196,10 @@ it('keeps an item as text when it says what the bill does', () => {
     'H.R. 7022, which the CBO says costs nothing [1]',
     'H.R. 7022 passed 410 to 12 [1]',
     'H.R. 7022 — reported by committee 30 to 1 [1]',
+    // Review, 2026-10-26: the card shows only the sponsor, and only that it passed.
+    'H.R. 7022 [1] — cosponsored by Democrats',
+    'H.R. 7022 [1] — passed the House by voice vote',
+    'H.R. 7022, agreed to by unanimous consent [1]',
     'H.R. 7022 is controversial with privacy groups [1]',
   ]) {
     assert.equal(onlyIdentifies(item, pf, bills), false, item);

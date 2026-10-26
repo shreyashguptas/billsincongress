@@ -1100,7 +1100,10 @@ entirely, since none can be judged. The renderers are built once per answer, so 
 arriving does not rebuild what is already on screen. The `[[bills:…]]` cards after the prose drop
 a bill already shown as a card. Only bills in `allowed` match, so this cannot link a bill the model
 invented. It is a rehype pass that runs before the word-by-word reveal and keeps the text's
-offsets. The cases, including the questions whose lists must stay text, are in
+offsets. Every in-answer card prints the sponsor's surname as stored: bill rows from the
+`bills` fetch carry `sponsorLastName`, the display projection passes it on, and
+`sponsorSurname()` falls back to the full name's last word only for answers saved before
+2026-10-26 (that guess printed "Drew" for Van Drew). The cases, including the questions whose lists must stay text, are in
 `lib/answer-bill-links.test.ts`, which also runs twelve real answers captured from the engine
 (`lib/answer-bill-links.real-answers.json`): the model words the same list differently every
 time, so new phrasings it misses belong there.

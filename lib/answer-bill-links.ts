@@ -25,6 +25,7 @@ export interface BillMention {
   label: string;
   title?: string;
   sponsor?: string;
+  sponsorLastName?: string;
   sponsorParty?: string;
   stage?: number;
   /** Whether the answer carries this bill's display projection (title, sponsor, stage). */
@@ -40,6 +41,16 @@ export interface AnswerBills {
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' && v !== '' ? v : undefined;
+}
+
+/**
+ * The sponsor's surname for a card, from an answer's display projection.
+ * Answers since 2026-10-26 carry it as stored ("Van Drew", "De La Cruz"). An
+ * older answer has only the full name, and its last word is the best guess —
+ * wrong for a two-word surname, which is why the projection now carries it.
+ */
+export function sponsorSurname(d: Record<string, unknown> | undefined): string | undefined {
+  return str(d?.sponsorLastName) ?? str(d?.sponsor)?.split(' ').slice(-1)[0];
 }
 
 /** The bill a cited handle is about: its row, its timeline or its summary. */
@@ -65,6 +76,7 @@ export function answerBills(
       label: str(d?.label) ?? id,
       title: str(d?.title),
       sponsor: str(d?.sponsor),
+      sponsorLastName: sponsorSurname(d),
       sponsorParty: str(d?.sponsorParty),
       stage: typeof d?.progressStage === 'number' ? d.progressStage : undefined,
       known: Boolean(d),
@@ -194,7 +206,9 @@ const CARD_SAYS = new Set(
     // Who: the card prints the sponsor and the party dot.
     'rep reps representative representatives sen sens senator senators member members congressman',
     'congresswoman congressmember delegate commissioner resident lawmaker sponsor sponsors sponsored',
-    'cosponsor cosponsors cosponsored introduced introducer filed authored led party republican',
+    // Not "cosponsor": the card shows only the sponsor, so "cosponsored by
+    // Democrats" on a Republican's bill would vanish behind a red dot.
+    'introduced introducer filed authored led party republican',
     'republicans democrat democrats democratic independent independents gop',
     // What it is: the card prints the number and the title.
     'bill bills act measure measures resolution resolutions joint concurrent simple legislation',
@@ -204,7 +218,9 @@ const CARD_SAYS = new Set(
     'month months year years today yesterday ago referred committee committees subcommittee reported',
     'passed pass passes passing cleared agreed adopted enrolled presented signed sign signing vetoed veto',
     'became become becomes enacted enactment house senate chamber chambers floor congress president',
-    'white vote voted voice unanimous consent received placed calendar ordered',
+    // Not how it passed ("by voice vote", "unanimous consent"): the stage says
+    // that it passed, never how.
+    'white received placed calendar ordered',
     'january february march april may june july august september october november december',
     'jan feb mar apr jun jul aug sep sept oct nov dec',
     'monday tuesday wednesday thursday friday saturday sunday',

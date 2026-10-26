@@ -255,7 +255,8 @@ Patterns that appear on more than one page:
   list a wall. That happens only for a list OF bills, decided for the whole
   list: one bill per item, a different bill in each, and nothing in any item
   beyond what identifies the bill — its title, number, sponsor and their
-  state, dates, policy area and stage. (The card does not show dates, the
+  state, dates, policy area and stage. Cosponsors and how a bill passed
+  ("by voice vote") are not on the card, so they keep a list as text. (The card does not show dates, the
   state or the policy area; the bill page does.) A list of facts about one bill, or one whose items carry
   the answer ("would require flood alerts", "passed 30 to 1"), stays text. A bill
   named in running text is underlined in `line-strong`, and its citation
