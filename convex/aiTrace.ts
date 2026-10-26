@@ -115,6 +115,8 @@ export interface GenerationRecord {
   inferenceGeo?: string;
   /** Server-side web searches the call ran (Claude's web lookup). */
   webSearchRequests?: number;
+  /** Pages the call fetched to read in full (Claude's web lookup). */
+  webFetchRequests?: number;
   /** Claude's stop_reason: end_turn, tool_use, max_tokens, refusal... */
   stopReason?: string;
   /** Claude's output_config.effort. */
@@ -219,6 +221,7 @@ export class AnswerTrace {
       ...(g.cacheWriteTokens !== undefined ? { $ai_cache_creation_input_tokens: g.cacheWriteTokens } : {}),
       ...(g.inferenceGeo !== undefined ? { anthropic_inference_geo: g.inferenceGeo } : {}),
       ...(g.webSearchRequests !== undefined ? { web_search_requests: g.webSearchRequests } : {}),
+      ...(g.webFetchRequests !== undefined ? { web_fetch_requests: g.webFetchRequests } : {}),
       ...(g.stopReason !== undefined ? { anthropic_stop_reason: g.stopReason } : {}),
       ...(g.effort !== undefined ? { anthropic_effort: g.effort } : {}),
       ...(g.costUsd !== undefined ? { $ai_total_cost_usd: g.costUsd } : {}),

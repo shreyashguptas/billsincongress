@@ -150,7 +150,7 @@ export interface ClaudeUsage {
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
   inference_geo?: string | null;
-  server_tool_use?: { web_search_requests?: number | null } | null;
+  server_tool_use?: { web_search_requests?: number | null; web_fetch_requests?: number | null } | null;
 }
 
 /**
@@ -481,6 +481,7 @@ function usageRecord(model: string, usage: ClaudeUsage | null | undefined): Part
     cacheWriteTokens: usage?.cache_creation_input_tokens ?? undefined,
     inferenceGeo: usage?.inference_geo ?? undefined,
     webSearchRequests: usage?.server_tool_use?.web_search_requests ?? undefined,
+    webFetchRequests: usage?.server_tool_use?.web_fetch_requests ?? undefined,
     costUsd: claudeCostUsd(model, usage),
   };
 }
@@ -604,41 +605,254 @@ export interface WebHit {
 
 /** Searches per lookup. One is the plan; a second only if the first finds nothing. */
 export const WEB_MAX_USES = 2;
+/**
+ * Pages read in full per lookup: the one result that best answers the query.
+ * Two, at 6,000 tokens each, measured on 2026-10-26 at 7.4 to 25.7 s and 9 to
+ * 13 cents a lookup, against 5.6 s and 4.7 cents before pages were read.
+ */
+export const WEB_FETCH_MAX_USES = 1;
+/**
+ * The most of the page Claude reads, in tokens. A bill page or a press release
+ * fits; a full bill text is cut here, which still leaves far more than a quote.
+ */
+const WEB_FETCH_MAX_CONTENT_TOKENS = 3000;
 const WEB_MAX_TOKENS = 4096;
-const EXCERPT_CHARS = 500;
+/** One source's excerpt for the answer model: a few whole sentences. */
+const EXCERPT_CHARS = 1200;
+/** How far a quote is widened, each way, to reach the edge of its sentence. */
+const SENTENCE_REACH_CHARS = 300;
+/** Where a quote stops short of its sentence, so the answer model cannot finish it. */
+export const CUT_OFF = "[cut off]";
+/** Sent with web results whenever an excerpt carries CUT_OFF. */
+export const CUT_OFF_NOTE =
+  `${CUT_OFF} marks where an excerpt stops before the page does. Say nothing about what follows it, ` +
+  `and do not complete the sentence it cuts.`;
+
+/** An excerpt cut at `max` characters on a word boundary, the cut marked. */
+export function clipExcerpt(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max);
+  const space = head.lastIndexOf(" ");
+  return `${(space > 0 ? head.slice(0, space) : head).trimEnd()} ${CUT_OFF}`;
+}
 
 function webInstructions(today: string): string {
   return (
     `You run web searches for a website about the United States Congress. The current date is ${today}. ` +
     `Search the web for the query you are given. Search once; search a second time only if the first ` +
-    `search found nothing relevant. Then state, in a few short sentences, only what the search results ` +
-    `say about the query, citing them. Do not answer from memory, and do not add anything the results ` +
-    `do not say.`
+    `search found nothing relevant. Then fetch the one result that best answers the query, to read ` +
+    `it in full: for a bill's text prefer govinfo.gov, and never fetch congress.gov, which refuses it. Then state, in a few short ` +
+    `sentences, only what the pages say about the query, citing them. Do not answer from memory, and ` +
+    `do not add anything the pages do not say.`
   );
 }
 
 /**
+ * Page text as prose. Fetched pages arrive as Markdown, or as raw XML for a
+ * bill's govinfo file; measured on 2026-10-26, widening a quote on that text
+ * handed the answer model navigation menus, link targets and tags. Links keep
+ * their words, images, tags and entity escapes go, and each line break stays a
+ * line break: a heading, a list item or an XML element is an edge a sentence
+ * does not cross.
+ */
+export function readable(text: string): string {
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    // The tail of a link whose start was cut off: a citation can begin inside one.
+    .replace(/\]\([^)\s]*\)/g, " ")
+    // Divider lines: "* * *", "---".
+    .replace(/^[ \t]*(?:[*_-][ \t]*){2,}$/gm, "")
+    .replace(/<[^>]+>/g, "\n")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/^[ \t]*(?:#{1,6}|[*+-])(?:[ \t]+|$)/gm, "")
+    .replace(/\\([\\[\]|*_#()])/g, "$1")
+    .replace(/\*\*|__|`/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ ?\n[\s]*/g, "\n")
+    .trim();
+}
+
+/** Whitespace collapsed, so a quote matches the page however either was wrapped. */
+function flat(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** A URL as a key: no fragment, no trailing slash. */
+function urlKey(url: string): string {
+  return url.replace(/#.*$/, "").replace(/\/+$/, "");
+}
+
+/**
+ * A search quote as the answer model may read it. Anthropic gives a search
+ * result's cited text as at most about 150 characters and ends a longer one
+ * with "...", often mid-word: "a report to Con...". Measured on 2026-10-23 to
+ * 26, the answer model finished those sentences itself ("contr..." became
+ * "controlled by such an entity") in 5 of the 7 answers the fact-check judge
+ * failed. So the half word goes, and the cut is said out loud.
+ */
+export function markCutOff(quote: string): string {
+  const q = quote.trim();
+  const m = /^([\s\S]*?)\s*(?:\.\.\.|…)$/.exec(q);
+  if (!m) return q;
+  // A cut just after a heading or list mark ("Video\n##...") leaves the mark
+  // alone, and the word before it whole.
+  const kept = m[1].replace(/[\s#*|>-]+$/, "");
+  const midWord = kept === m[1] && /[A-Za-z0-9]$/.test(kept);
+  // A cut inside a word: drop back to the last whole word.
+  const whole = midWord && kept.includes(" ") ? kept.slice(0, kept.lastIndexOf(" ")) : kept;
+  return `${whole.trimEnd()} ${CUT_OFF}`;
+}
+
+/**
+ * A full stop that ends an abbreviation, not a sentence: "H.R. 2481", "U.S.
+ * Code", "Mr. Wicker", "Sec. 2". Splitting there started an excerpt at
+ * "2481, the Romance Scam Prevention Act" (live check, 2026-10-26).
+ */
+const ABBREVIATION =
+  /(?:\b[A-Z](?:\.[A-Z])*|\b(?:Mr|Mrs|Ms|Dr|Sec|Secs|No|Nos|Rep|Reps|Sen|Sens|Jr|Sr|Inc|Co|St|Cong|sess|Stat|Res|Con|Rept|Doc|ed|vol|pp|etc|vs|e\.g|i\.e))$/;
+
+/** Where each sentence in `text` ends: the index just past its [.!?]. */
+function sentenceEnds(text: string): number[] {
+  const ends: number[] = [];
+  for (const m of text.matchAll(/[.!?](?=\s|$)/g)) {
+    const i = m.index ?? 0;
+    if (m[0] === "." && ABBREVIATION.test(text.slice(Math.max(0, i - 12), i))) continue;
+    ends.push(i + 1);
+  }
+  return ends;
+}
+
+/**
+ * The page's own text around a quote, widened to whole sentences, or null
+ * when the quote is not on the page. Every character returned is the page's,
+ * which is what lets the answer model read a sentence the search engine only
+ * quoted the start of. A sentence that runs past the reach is still marked as
+ * cut off.
+ */
+export function sentencesAround(page: string, quote: string): string | null {
+  const text = readable(page);
+  // The same text on one line, for matching: one character for one, so an
+  // index into it is an index into `text`, whose line breaks are edges.
+  const oneLine = text.replace(/\n/g, " ");
+  const q = flat(readable(quote)).replace(/^(?:\.\.\.|…)\s*/, "").replace(/\s*(?:\.\.\.|…)$/, "");
+  if (q.length < 20) return null;
+  let at = oneLine.indexOf(q);
+  let length = q.length;
+  if (at < 0) {
+    // A cut quote may end mid-word; its first 60 characters still locate it.
+    const head = q.slice(0, 60);
+    at = oneLine.indexOf(head);
+    length = head.length;
+  }
+  if (at < 0) return null;
+  if (length < q.length) {
+    // Only the head matched (the page's markup differs from the quote's
+    // somewhere inside it). Its last whole words, found after the head, still
+    // close the span, so a long quote is not shrunk to its first line.
+    const lastSpace = q.lastIndexOf(" ");
+    const tail = q.slice(Math.max(0, lastSpace - 50), lastSpace).trim();
+    const tailAt = tail.length >= 20 ? oneLine.indexOf(tail, at + length) : -1;
+    if (tailAt >= 0 && tailAt - at < q.length * 2) length = tailAt + tail.length - at;
+  }
+
+  // Back to the start of the sentence or the line, or of the page; failing all
+  // within reach, the quote's own start (a missing opening is not one to finish).
+  const from = Math.max(0, at - SENTENCE_REACH_CHARS);
+  const before = text.slice(from, at);
+  const sentenceStart = sentenceEnds(before).filter((i) => i < before.length).pop() ?? -1;
+  const lineStart = before.lastIndexOf("\n") + 1;
+  const start =
+    sentenceStart >= 0 && sentenceStart + 1 >= lineStart ? from + sentenceStart + 1
+    : lineStart > 0 ? from + lineStart
+    : from === 0 ? 0
+    : at;
+
+  // On to the end of the sentence or the line, whichever comes first.
+  const after = text.slice(at + length, at + length + SENTENCE_REACH_CHARS);
+  const nextSentence = (sentenceEnds(after)[0] ?? 0) - 1;
+  const nextLine = after.indexOf("\n");
+  let end: number;
+  let cut = false;
+  if (nextLine >= 0 && (nextSentence < 0 || nextLine <= nextSentence)) {
+    end = at + length + nextLine;
+  } else if (nextSentence >= 0) {
+    end = at + length + nextSentence + 1;
+  } else if (at + length + after.length >= text.length) {
+    end = text.length;
+  } else {
+    const lastSpace = after.lastIndexOf(" ");
+    end = at + length + (lastSpace > 0 ? lastSpace : after.length);
+    cut = true;
+  }
+  const excerpt = flat(text.slice(start, end));
+  return cut ? `${excerpt} ${CUT_OFF}` : excerpt;
+}
+
+/** The pages Claude fetched in this reply, with their text where it has one. */
+function fetchedPages(content: Anthropic.ContentBlock[]): Array<{ url: string; title: string; text: string | null }> {
+  const pages: Array<{ url: string; title: string; text: string | null }> = [];
+  for (const block of content) {
+    if (block.type !== "web_fetch_tool_result" || block.content.type !== "web_fetch_result") continue;
+    const doc = block.content.content;
+    pages.push({
+      url: block.content.url,
+      title: doc.title ?? "",
+      // A PDF arrives as base64: no text of ours to widen a quote with.
+      text: doc.source.type === "text" ? doc.source.data : null,
+    });
+  }
+  return pages;
+}
+
+/**
  * The sources of one Claude web-search reply, in the order Claude cited them,
- * each with the text it quoted from that page. A page it found but never
- * quoted is left out. At most `max`.
+ * each with what the page says. A page it found but never quoted is left out.
+ * At most `max`.
  *
  * The reader-visible contract is unchanged from the Exa path: a URL, a title
  * and an excerpt per source. The excerpt is what the answer model reads, so it
- * is Claude's quotation from the page, never Claude's own summary.
+ * is always the page's own words, never Claude's summary of them: whole
+ * sentences from the page text where Claude fetched it (a fetched page's
+ * citations point into that text exactly), and otherwise the search engine's
+ * short quote with any cut marked.
  */
 export function webHitsFrom(content: Anthropic.ContentBlock[], max: number): WebHit[] {
+  const pages = fetchedPages(content);
+  const pageText = new Map(pages.filter((p) => p.text !== null).map((p) => [urlKey(p.url), p.text as string]));
   const cited = new Map<string, { title: string; quotes: string[] }>();
+  const add = (url: string, title: string, quote: string) => {
+    const entry = cited.get(url) ?? { title, quotes: [] };
+    if (quote && !entry.quotes.includes(quote)) entry.quotes.push(quote);
+    if (!entry.title && title) entry.title = title;
+    cited.set(url, entry);
+  };
+
   for (const block of content) {
     if (block.type !== "text") continue;
     for (const c of block.citations ?? []) {
-      if (c.type !== "web_search_result_location" || !c.url) continue;
-      const entry = cited.get(c.url) ?? { title: c.title ?? "", quotes: [] };
-      const quote = c.cited_text.trim();
-      if (quote && !entry.quotes.includes(quote)) entry.quotes.push(quote);
-      if (!entry.title && c.title) entry.title = c.title;
-      cited.set(c.url, entry);
+      if (c.type === "web_search_result_location" && c.url) {
+        add(c.url, c.title ?? "", c.cited_text.trim());
+      } else if (c.type === "char_location" || c.type === "page_location") {
+        // A fetched page. The citation names it only by position, so it is
+        // matched by its text: the page whose text holds the cited words.
+        const quote = c.cited_text.trim();
+        const page =
+          pages.find((p) => p.text !== null && c.type === "char_location" &&
+            p.text.slice(c.start_char_index, c.end_char_index) === c.cited_text) ??
+          pages.find((p) => p.text !== null && flat(p.text).includes(flat(quote))) ??
+          pages.find((p) => p.text === null && p.title !== "" && p.title === c.document_title);
+        if (page) add(page.url, page.title, quote);
+      }
     }
   }
+
   // Only quoted sources. A page Claude found but never quoted gave the answer
   // model nothing to stand on: its title as the "excerpt" let it cite a source
   // for a claim the source never showed it. No quotes is a failed lookup, and
@@ -646,7 +860,18 @@ export function webHitsFrom(content: Anthropic.ContentBlock[], max: number): Web
   return [...cited]
     .filter(([, { quotes }]) => quotes.length > 0)
     .slice(0, max)
-    .map(([url, { title, quotes }]) => ({ url, title, excerpt: quotes.join(" … ").slice(0, EXCERPT_CHARS) }));
+    .map(([url, { title, quotes }]) => {
+      const text = pageText.get(urlKey(url));
+      const parts: string[] = [];
+      for (const quote of quotes) {
+        const part = (text !== undefined && sentencesAround(text, quote)) || markCutOff(flat(readable(quote)));
+        // Two quotes from one sentence widen to the same words.
+        if (parts.some((p) => p.includes(part.replace(` ${CUT_OFF}`, "")))) continue;
+        if (parts.length > 0 && [...parts, part].join(" … ").length > EXCERPT_CHARS) break;
+        parts.push(part);
+      }
+      return { url, title, excerpt: clipExcerpt(parts.join(" … "), EXCERPT_CHARS) };
+    });
 }
 
 /**
@@ -698,6 +923,18 @@ export async function searchWebClaude(opts: {
           name: "web_search",
           max_uses: WEB_MAX_USES,
           user_location: { type: "approximate", country: "US" },
+        },
+        {
+          type: "web_fetch_20250910",
+          name: "web_fetch",
+          max_uses: WEB_FETCH_MAX_USES,
+          max_content_tokens: WEB_FETCH_MAX_CONTENT_TOKENS,
+          // Citations into the fetched text, so each quote can be found on the page.
+          citations: { enabled: true },
+          // congress.gov refuses Anthropic's fetcher (url_not_allowed, measured on
+          // 2026-10-26), and a refused fetch spent the lookup's one page.
+          // govinfo.gov serves the same bill texts and lets it read them.
+          blocked_domains: ["congress.gov"],
         },
       ],
       tool_choice: { type: "auto" },
