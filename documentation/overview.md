@@ -1002,6 +1002,24 @@ every phase but `open`, and **not** gated on a conversation already existing —
 `/learn` previously had no ask affordance at all. A corner pill normally; a full-width bottom
 bar on a phone when a conversation has been set aside.
 
+**Type anywhere to ask.** `components/answers/type-to-ask.tsx`, mounted once in the root layout
+after the panel, listens for keys on the window. A printable key typed with no text box focused
+goes to the open panel's composer, else the home page's ask box if it is on screen, else it
+opens (or restores) the panel and types there. The rules for which keys are left alone — any
+Cmd/Ctrl/Alt shortcut (AltGr excepted), Space (it scrolls), anything inside a menu, listbox, dialog or text
+field, anything while a modal is open — are in `lib/type-to-ask.ts` with their tests. Where the
+box is already on screen only focus moves, in the keydown, so the browser types the character
+itself; when the panel must open first it is still `inert`, so the key is held and typed into
+the composer by an effect once the open phase commits. The composer is never `disabled` while
+an answer is written (a disabled field drops focus), and nor is its send button (a form with a
+disabled submit button ignores Enter): Enter then queues the follow-up, which is sent the moment
+the answer is done. The home page's `HeroAsk` focuses itself on arrival on a mouse-or-trackpad
+device only, and only if the reader has not already put focus somewhere; until the reader
+chooses the box (clicks or types in it), Space, Page Up/Down and the arrow keys hand focus back
+to `<main>` so they still scroll the page. Its first key
+scrolls it to the middle of the screen, since it sits below the fold on most laptops. Firefox's
+quick-find keys (`/` and `'`) are left alone; AltGr characters are taken.
+
 ### Page context
 
 Each route publishes what it has open via `components/answers/ask-page-context.tsx`, a

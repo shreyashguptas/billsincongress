@@ -235,7 +235,13 @@ Patterns that appear on more than one page:
 
 - **Ask composer**: 60px tall, `rounded-lg`, raised, `line-strong` edge; the
   send button is a 40px ink circle. Starter questions are `rounded-full`
-  outline pills in `ink-2`, each written from a live figure.
+  outline pills in `ink-2`, each written from a live figure. The reader never
+  has to click into it to type: the home page's box is focused on arrival (on a
+  computer; on a phone that would throw the keyboard over the page), the
+  panel's composer is focused when the panel opens and stays usable while an
+  answer is written (Enter there sends the follow-up once the answer is done), and a key typed with no text box focused goes to
+  whichever ask box is on screen, opening the panel if none is
+  (`lib/type-to-ask.ts`).
 - **Answer reveal**: a new answer is written onto the page word by word, each
   word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
   words a second, faster for a long answer so none takes more than five

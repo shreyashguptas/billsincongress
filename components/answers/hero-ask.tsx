@@ -18,12 +18,16 @@ import { Input } from '@/components/ui/input';
 import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { cn } from '@/lib/utils';
 import { MAX_QUESTION_LENGTH } from '@/lib/text-limit';
+import { FINE_POINTER_QUERY } from '@/lib/type-to-ask';
 
 // Starter questions: rounded-full outline pills (brand.md, "Ask composer"),
 // on the page rather than raised. Inline-block and wrapping, so a long starter
 // breaks like text instead of squeezing into Button's single line.
 const PILL =
   'inline-block h-auto whitespace-normal rounded-full border-line bg-transparent px-4 py-2 text-center font-normal leading-5 text-ink-2 hover:border-line-strong hover:bg-transparent hover:text-ink touchable:h-auto touchable:py-3';
+
+/** Keys that scroll the page when nothing is focused. */
+const PAGE_SCROLL_KEYS = new Set([' ', 'PageDown', 'PageUp', 'ArrowDown', 'ArrowUp']);
 
 /**
  * The home hero's ask box (spec §6.1), centred under the chamber.
@@ -38,9 +42,14 @@ const PILL =
  * While the reader types, matching bills appear beneath the field
  * (`lib/bill-suggest.ts` has the numbers behind this). Picking one opens the
  * bill; Enter with nothing highlighted still asks the question as typed.
+ *
+ * The field is focused when the page loads, so a reader can type without
+ * clicking it first — on a mouse or trackpad only (`FINE_POINTER_QUERY` has
+ * why). Keys typed after clicking elsewhere still come back here while it is on
+ * screen (`components/answers/type-to-ask.tsx`).
  */
 export function HeroAsk({ starters }: { starters: StarterInput }) {
-  const { ask, busy } = useAnswers();
+  const { ask, busy, phase } = useAnswers();
   const router = useRouter();
   const [input, setInput] = useState('');
   const [open, setOpen] = useState(false);
@@ -50,6 +59,23 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const listId = useId();
   const noteId = useId();
   const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_home');
+
+  // On arrival only, and only while focus is nowhere in particular. An open
+  // panel keeps focus in its own composer (the reader came back to the home
+  // page mid-conversation), and a reader who clicked the header search or
+  // tabbed to a link while the page loaded is not pulled away from it.
+  const inputRef = useRef<HTMLInputElement>(null);
+  // True while focus is still the one set here, which the reader never chose.
+  const autoFocused = useRef(false);
+  const phaseOnArrival = useRef(phase);
+  useEffect(() => {
+    if (phaseOnArrival.current === 'open') return;
+    if (!window.matchMedia(FINE_POINTER_QUERY).matches) return;
+    const at = document.activeElement;
+    if (at && at !== document.body && at.id !== 'main') return;
+    inputRef.current?.focus({ preventScroll: true });
+    autoFocused.current = document.activeElement === inputRef.current;
+  }, []);
 
   const suggestions = useBillSuggestions(input, congress);
   const settled = suggestions.kind !== null && isSettled(suggestions, input, congress);
@@ -124,17 +150,54 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
           )}
         >
           <Input
+            id="hero-ask"
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => {
+              // The box sits under the chamber, below the fold on most
+              // laptops, and is focused on arrival. The first key brings it,
+              // and the room its suggestions open into, up the screen.
+              autoFocused.current = false;
+              if (!input) {
+                const box = e.currentTarget.getBoundingClientRect();
+                if (box.bottom > window.innerHeight * 0.6) {
+                  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                  e.currentTarget.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+                }
+              }
               setInput(limit(e, input));
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
+            onBlur={() => {
+              autoFocused.current = false;
+              setOpen(false);
+            }}
+            onPointerDown={() => {
+              autoFocused.current = false;
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setOpen(false);
+                return;
+              }
+              // Focused on arrival, the box catches the keys that scroll a page.
+              // Until the reader chooses it — clicks it, types in it, or leaves
+              // and comes back — those keys still scroll: focus steps back to
+              // <main> and the browser carries the key on there. A reader who
+              // tabbed or clicked in keeps ↓ for the suggestion list. Typing a
+              // letter brings focus back (type-to-ask.tsx).
+              if (
+                autoFocused.current &&
+                !input &&
+                PAGE_SCROLL_KEYS.has(e.key) &&
+                !e.metaKey &&
+                !e.ctrlKey &&
+                !e.altKey
+              ) {
+                autoFocused.current = false;
+                document.getElementById('main')?.focus({ preventScroll: true });
                 return;
               }
               if (!showList || !settled || bills.length === 0) return;

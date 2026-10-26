@@ -80,6 +80,8 @@ It adapts to the room it has. On a wide screen it docks to the right and you can
 
 It also knows what you are looking at. Ask "what does this do?" on a bill page and it knows which bill; ask on a filtered list and it answers about those bills rather than all of them. If you tap a bill inside an answer, the panel steps aside so you can read it, and a bar offers to bring the conversation back exactly as you left it — including anything you had half typed.
 
+You never have to click into the question box. On a computer the home page's box is ready for typing as soon as the page loads, and anywhere on the site, if you start typing while no other box is selected, your words go into the question box (opening the Ask panel if it is closed). After an answer, the box is still selected, so you can type the follow-up straight away; you can even type it while the answer is still being written, and if you press Enter before the answer is finished, your follow-up is sent as soon as it is. Keyboard shortcuts, Space, menus, dialogs and the bill search in the header are left alone.
+
 Under every answer it asks "Was this answer right?". A "No" tells us which answer to check against the records; it is how wrong answers get found and fixed.
 
 It is not a general-purpose chatbot. It answers from this site's own database of Congressional records, and every source it cites is checked against the specific records it was actually shown. See [About the AI](#about-the-ai) below, which is the most important disclosure on this page.
