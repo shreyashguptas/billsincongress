@@ -151,12 +151,12 @@ components/                Shared React components
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
 
-lib/                       Pure client/shared modules — 38 modules + 36 test files at the top level, then the folders below
+lib/                       Pure client/shared modules — 43 modules + 41 test files at the top level, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server-side exceptions go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
   seo.ts hubs.ts pagination.ts cacheable-routes.ts sitemap-ids.ts
-  answer-entities.ts answer-format.ts answer-scope.ts search-query-guard.ts
+  answer-entities.ts answer-bill-links.ts answer-format.ts answer-scope.ts search-query-guard.ts
   answer-reveal.ts         The ask panel's word-by-word reveal of a finished answer
   transcript-cap.ts starter-questions.ts bill-query.ts error-filter.ts
   sponsor-match.ts         A member's name typed into the /bills title search, for the empty state
@@ -1072,6 +1072,45 @@ do not render. A card written as a row handle (`[[sponsors:119:Name]]`, `[[topic
 is rewritten to the card syntax (`[[sponsor:Name]]`, `[[topic:Health]]`) on the server, and any
 other `[[word:…]]` the page cannot render is removed rather than shown as raw text
 (`lib/answer-entities.ts`). The count of deletions is the `dropped` metric — the grounding-health number.
+
+**Bills where the answer names them.** The page then makes each bill the answer was given
+clickable where the prose names it (`lib/answer-bill-links.ts`, drawn by
+`components/answers/bill-mentions.tsx`). A bill is named when the prose cites one of its rows
+(`[n]` pointing at its `bills:`, `bill_actions:` or `bill_summaries:` handle) or prints its number
+or title (however the number is punctuated, and never "H.R. 1" inside "H.R. 10"). A title or
+number two of the answer's bills share — House and Senate companions, or H.R. 1 of two
+Congresses — names neither; only a citation can say which is meant.
+
+A list becomes cards only as a whole (`cardLists`): every item names exactly one bill, no two
+items the same bill, every bill has its card data, and no item says more than the card would
+(`onlyIdentifies`): beyond the bill's number and title words, only its sponsor and their state,
+dates, its policy area (by its exact CRS name), stage words and sentence glue. Dates, the
+sponsor's state and the policy area are not on the card, so a
+list that gives them loses them — the owner chose the plain card over one carrying the answer's
+sentence. Any other number (a vote, a dollar figure), any other content word, or a citation of a
+different source keeps the list as text, with its bills linked: the safe way to be wrong. Outside
+card lists, a name links the first time per paragraph and a citation every time.
+
+Lists are found with `remark-parse`, react-markdown's own parser, so they end exactly where the
+page ends them. The decision is made on the full answer, block by block, so a list never changes
+shape while the answer is revealed; the page's n-th list takes the n-th decision only if every
+revealed item is the start of the item it is meant to be and names its bill (the last item may
+name nothing yet). Until the `done` event brings the answer's sources, no list can be judged, so
+the reveal pauses at the start of the first list (`firstListStart`, passed to `useAnswerReveal`
+as `holdAt`) rather than showing it as bullets that turn into cards. Its clock is pinned there
+while held (`revealElapsedFor`), so once the sources arrive it carries on from that word at the
+usual pace instead of dropping the list and everything after it into one frame; a held reveal is
+never `complete`, so the thread keeps following it and the sources wait. The renderers are built once per answer, so the sources
+arriving does not rebuild what is already on screen. The `[[bills:…]]` cards after the prose drop
+a bill already shown as a card. Only bills in `allowed` match, so this cannot link a bill the model
+invented. It is a rehype pass that runs before the word-by-word reveal and keeps the text's
+offsets. Every in-answer card prints the sponsor's surname as stored: bill rows from the
+`bills` fetch carry `sponsorLastName`, the display projection passes it on, and
+`sponsorSurname()` falls back to the full name's last word only for answers saved before
+2026-10-26 (that guess printed "Drew" for Van Drew). The cases, including the questions whose lists must stay text, are in
+`lib/answer-bill-links.test.ts`, which also runs twelve real answers captured from the engine
+(`lib/answer-bill-links.real-answers.json`): the model words the same list differently every
+time, so new phrasings it misses belong there.
 
 This filters **citations and entity directives, not prose**. The sentences around them are
 never verified. A rising `dropped` means the catalog's `gotchas` need strengthening; that is
