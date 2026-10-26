@@ -1,5 +1,6 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
+import { POLICY_AREAS } from './constants/filters';
 
 /**
  * Bills named in an answer's prose, made clickable where they are named.
@@ -197,7 +198,7 @@ const CARD_SAYS = new Set(
     'republicans democrat democrats democratic independent independents gop',
     // What it is: the card prints the number and the title.
     'bill bills act measure measures resolution resolutions joint concurrent simple legislation',
-    'law laws public private titled called named known short long official',
+    'law laws public private titled called named known short long official policy area topic category subject',
     // Where it stands and when: the card prints the stage.
     'status stage action actions acted activity move moved moving step date dated day days week weeks',
     'month months year years today yesterday ago referred committee committees subcommittee reported',
@@ -233,10 +234,22 @@ const DATE = new RegExp(
 );
 
 /**
+ * A bill's policy area, named the way the Congressional Research Service
+ * names it ("It is in Science, Technology, Communications", "a Taxation
+ * bill"). The answer adds it often; it describes the bill, not what the bill
+ * does, and the bill page shows it. Only these exact names: "health" alone, in
+ * a sentence about what a bill changes, is still the answer.
+ */
+const POLICY_AREA = new RegExp(
+  `\\b(?:${POLICY_AREAS.map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).sort((a, b) => b.length - a.length).join('|')})\\b(?:\\s+(?:bill|measure|policy\\s+area|area|topic|category))?`,
+  'gi',
+);
+
+/**
  * The words of a list item about `bill` that its card would not say.
  *
  * The card prints the number, the title, the sponsor and the stage. The
- * sponsor's state, and dates, are not on it: an item that only adds those is
+ * sponsor's state, dates and the policy area are not on it: an item that only adds those is
  * still a card (the reader taps through for them) — the owner chose the plain
  * card over a card carrying the answer's sentence. Any other number is the
  * answer ("passed 30 to 1", "$4 billion") and keeps the list as text, and so
@@ -249,6 +262,7 @@ export function wordsBeyondCard(item: string, bill: BillMention, bills: AnswerBi
   const rest = item
     .replace(/\[(\d+)\]/g, (cite, n) => (bills.byNumber.get(Number(n))?.id === bill.id ? ' ' : ' citedelsewhere '))
     .replace(re, ' ')
+    .replace(POLICY_AREA, ' ')
     .replace(/\b([RDIL]|ID)-[A-Z]{2}(-\d+|-AL)?\b/g, ' ')
     .replace(/\((?:[RDIL]|ID)\)/g, ' ')
     .replace(DATE, ' ');

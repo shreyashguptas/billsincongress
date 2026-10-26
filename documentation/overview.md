@@ -1084,7 +1084,8 @@ Congresses — names neither; only a citation can say which is meant.
 A list becomes cards only as a whole (`cardLists`): every item names exactly one bill, no two
 items the same bill, every bill has its card data, and no item says more than the card would
 (`onlyIdentifies`): beyond the bill's number and title words, only its sponsor and their state,
-dates, stage words and sentence glue. Dates and the sponsor's state are not on the card, so a
+dates, its policy area (by its exact CRS name), stage words and sentence glue. Dates, the
+sponsor's state and the policy area are not on the card, so a
 list that gives them loses them — the owner chose the plain card over one carrying the answer's
 sentence. Any other number (a vote, a dollar figure), any other content word, or a citation of a
 different source keeps the list as text, with its bills linked: the safe way to be wrong. Outside

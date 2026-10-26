@@ -158,6 +158,16 @@ it('turns "sponsored by…, with its latest action on…" into cards (live, 2026
   assert.deepEqual(cards(answer), ['3620hr119', '7022hr119', '952hr119']);
 });
 
+it('turns a list into cards when the answer adds each bill\'s policy area (live, 2026-10-26)', () => {
+  const answer = `- **Mystic Alerts Act (H.R. 7022)**, sponsored by Rep. August Pfluger (R-TX). It is in Science, Technology, Communications, and its latest action was October 22, 2026. [1]
+- **Reversionary Interest Conveyance Act (H.R. 952)**, sponsored by Rep. Doris Matsui (D-CA). It is in Public Lands and Natural Resources, and its latest action was October 22, 2026. [2]
+- **Southcentral Foundation Land Transfer Act of 2025 (H.R. 3620)**, sponsored by Rep. Nicholas Begich (R-AK). It is in Public Lands and Natural Resources, and its latest action was October 20, 2026. [3]`;
+  assert.deepEqual(cards(answer), ['3620hr119', '7022hr119', '952hr119']);
+  assert.deepEqual(cards('- H.R. 7022, a Taxation bill [1]\n- H.R. 952 (policy area: Health) [2]'), ['7022hr119', '952hr119']);
+  // A policy-area WORD in a sentence about what the bill does is still the answer.
+  assert.deepEqual(cards('- H.R. 7022 lowers health costs [1]\n- H.R. 952 [2]'), []);
+});
+
 it('accepts the other ways an item names a bill and its sponsor', () => {
   const pf = bills.byId.get('7022hr119')!;
   for (const item of [
