@@ -127,11 +127,16 @@ function AssistantTurn({
   // out word by word here (lib/answer-reveal.ts). Entity cards are held until
   // the reveal reaches them, so they arrive in reading order.
   const { rate } = useAnswers();
-  const { visible: revealed, live, settledBefore, complete } = useAnswerReveal(
+  // Until the sources arrive no list can be judged (cards or text), so the
+  // reveal pauses at the first one (lib/answer-bill-links.ts, firstListStart)
+  // and carries on from there once they have.
+  const listStart = useMemo(() => firstListStart(turn.content), [turn.content]);
+  const { visible, live, settledBefore, complete } = useAnswerReveal(
     turn.id,
     turn.content,
     Boolean(turn.done),
     onRevealing,
+    turn.done ? null : listStart,
   );
   // Bills are clickable where the prose names them (lib/answer-bill-links.ts):
   // an item of a list of bills is that bill's card, and a name in running text
@@ -151,10 +156,6 @@ function AssistantTurn({
       listsByBlock,
     };
   }, [turn.content, turn.sources, turn.allowed, turn.entities]);
-  // Until the sources arrive no list can be judged, so the reveal waits at the
-  // first one (lib/answer-bill-links.ts, firstListStart).
-  const listStart = useMemo(() => firstListStart(turn.content), [turn.content]);
-  const visible = !turn.done && listStart !== null ? revealed.slice(0, listStart) : revealed;
   const billContext = useRef<BillContext>({ bills, order, surface });
   billContext.current = { bills, order, surface };
   const [components] = useState(() => billMarkdownComponents(MARKDOWN_COMPONENTS, billContext));

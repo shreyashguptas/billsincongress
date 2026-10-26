@@ -246,7 +246,9 @@ Patterns that appear on more than one page:
   word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
   words a second, faster for a long answer so none takes more than five
   seconds. Bill cards rise in when the text reaches them; the sources wait
-  for the last word. It plays once, for the answer being written — a resumed
+  for the last word. While an answer's sources are still arriving, the
+  reveal pauses at the start of a list and carries on from there once they
+  have, so a list never shows as bullets that turn into cards. It plays once, for the answer being written — a resumed
   conversation, and anyone under `prefers-reduced-motion`, sees it whole.
 - **Bills in an answer**: a bill is clickable where the answer names it, never
   only further down. When an answer lists bills, each item is drawn as that
