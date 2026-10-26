@@ -39,6 +39,9 @@ import {
   claudeEffort,
   claudeServiceDown,
   claudeWebModels,
+  clipExcerpt,
+  CUT_OFF,
+  CUT_OFF_NOTE,
   forOpenRouter,
   searchWebClaude,
   type ChatMessage,
@@ -577,7 +580,8 @@ async function searchWebExa(
       handle: `web:${i + 1}`,
       url: a.url_citation?.url ?? a.url ?? "",
       title: a.url_citation?.title ?? a.title ?? "",
-      excerpt: (a.url_citation?.content ?? a.content ?? "").slice(0, 500),
+      // Cut on a word with the cut marked, never mid-word: see CUT_OFF_NOTE.
+      excerpt: clipExcerpt(a.url_citation?.content ?? a.content ?? "", 500),
     }))
     .filter((s: WebSource) => s.url !== "");
 }
@@ -1108,9 +1112,13 @@ async function runLoop(
               webSources.push(h);
             }
             webReason = reason;
+            const notes = [
+              ...(removed.length > 0 ? [withheldNote(scope, removed.length)] : []),
+              ...(hits.some((h) => h.excerpt.includes(CUT_OFF)) ? [CUT_OFF_NOTE] : []),
+            ];
             result = JSON.stringify({
               results: hits.map((h) => ({ _cite: h.handle, url: h.url, excerpt: h.excerpt })),
-              ...(removed.length > 0 && { note: withheldNote(scope, removed.length) }),
+              ...(notes.length > 0 && { note: notes.join(" ") }),
             });
             note({ tool: "web", detail: reason });
           }

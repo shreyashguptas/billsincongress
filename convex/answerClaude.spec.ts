@@ -381,10 +381,55 @@ test("the web lookup runs on Claude Sonnet with Anthropic's search tool, and its
       max_uses: 2,
       user_location: { type: "approximate", country: "US" },
     },
+    // The best result is read in full, so its excerpts are whole sentences.
+    {
+      type: "web_fetch_20250910",
+      name: "web_fetch",
+      max_uses: 1,
+      max_content_tokens: 3000,
+      citations: { enabled: true },
+      // congress.gov refuses the fetcher, which wasted the lookup's one page.
+      blocked_domains: ["congress.gov"],
+    },
   ]);
   // The search sees the model's neutral phrase, never the reader's question.
   expect(search.messages).toEqual([{ role: "user", content: "House Ways and Means Committee hearing schedule 2026" }]);
   expect(sent.some((s) => s.url === OPENROUTER)).toBe(false);
+});
+
+test("a search quote cut mid-word reaches the answer model marked, with a note not to finish it", async () => {
+  claudeReplies = [
+    message([SEARCH_CALL], "tool_use"),
+    message([
+      { type: "server_tool_use", id: "srvtoolu_1", name: "web_search", input: { query: "Ways and Means hearings" } },
+      {
+        type: "web_search_tool_result",
+        tool_use_id: "srvtoolu_1",
+        content: [
+          { type: "web_search_result", url: "https://waysandmeans.house.gov/hearings", title: "Hearings", encrypted_content: "e", page_age: null },
+        ],
+      },
+      {
+        type: "text",
+        text: "The next hearing is on Tuesday.",
+        citations: [
+          {
+            type: "web_search_result_location",
+            url: "https://waysandmeans.house.gov/hearings",
+            title: "Hearings",
+            cited_text: "Full Committee hearing, Tuesday 10:00 AM, in room 11...",
+            encrypted_index: "x",
+          },
+        ],
+      },
+    ], "end_turn"),
+    message([text(WEB_ANSWER)]),
+  ];
+  const result = await ask("When does Ways and Means meet next?");
+  expect(result.webSources[0].excerpt).toBe("Full Committee hearing, Tuesday 10:00 AM, in room [cut off]");
+  const lookup = JSON.stringify(answerCalls()[1].body.messages);
+  expect(lookup).toContain("in room [cut off]");
+  expect(lookup).toContain("Say nothing about what follows it");
 });
 
 test("a failed Claude web search falls back to Exa on OpenRouter, and the reader sees the same shape", async () => {

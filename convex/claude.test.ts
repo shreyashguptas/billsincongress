@@ -23,6 +23,11 @@ import {
   OPENING_USER_TURN,
   toClaudeRequest,
   webHitsFrom,
+  markCutOff,
+  sentencesAround,
+  CUT_OFF,
+  readable,
+  clipExcerpt,
   type ChatMessage,
 } from "./claude";
 import { ANSWER_TOOLS } from "./catalog/tools";
@@ -386,6 +391,167 @@ it("reads no sources out of a search that errored", () => {
     { type: "web_search_tool_result", tool_use_id: "s1", content: { type: "web_search_tool_result_error", error_code: "unavailable" } },
   ] as unknown as Anthropic.ContentBlock[];
   assert.deepEqual(webHitsFrom(content, 5), []);
+});
+
+// The excerpts behind 5 of the 7 answers the fact-check judge failed between
+// 2026-10-23 and 26: the search engine's quote stops mid-word, and the answer
+// model finished the sentence itself.
+const MODULE_PAGE =
+  "SEC. 2. PROHIBITION. The Secretary of Defense may not procure a covered module. " +
+  "A cellular module is a covered module if it is produced or provided by an entity subject to section 889, " +
+  "or an entity owned by, controlled by, or under common control with such an entity. " +
+  "SEC. 3. AUDIT. Not later than 180 days after enactment, the Secretary shall begin an audit.";
+const MODULE_QUOTE =
+  "A cellular module is a covered module if it is produced or provided by an entity subject to section 889, " +
+  "or an entity owned by, contr...";
+
+it("marks where a search quote was cut, without the half word", () => {
+  assert.equal(
+    markCutOff("including any program that was included in a report to Con..."),
+    `including any program that was included in a report to ${CUT_OFF}`,
+  );
+  assert.equal(markCutOff("would create a task force to review: …"), `would create a task force to review: ${CUT_OFF}`);
+  assert.equal(markCutOff("Meetings Video\n##..."), `Meetings Video ${CUT_OFF}`);
+  // A whole quote is left alone.
+  assert.equal(markCutOff("Open to the public."), "Open to the public.");
+});
+
+it("clips a long excerpt on a word, and says so", () => {
+  assert.equal(clipExcerpt("Tuesday 10:00 AM", 500), "Tuesday 10:00 AM");
+  assert.equal(clipExcerpt("an entity owned by, controlled by", 22), `an entity owned by, ${CUT_OFF}`);
+});
+
+it("widens a cut quote to the page's whole sentence", () => {
+  assert.equal(
+    sentencesAround(MODULE_PAGE, MODULE_QUOTE),
+    "A cellular module is a covered module if it is produced or provided by an entity subject to section 889, " +
+      "or an entity owned by, controlled by, or under common control with such an entity.",
+  );
+  // Not on the page, or too short to find safely: no widening.
+  assert.equal(sentencesAround(MODULE_PAGE, "A sentence that this page never contains at all."), null);
+  assert.equal(sentencesAround(MODULE_PAGE, "SEC. 2."), null);
+});
+
+it("marks a sentence that runs past the reach as cut off, on the page's own words", () => {
+  const long = `Intro. The task force shall review ${"the use of automated tools ".repeat(30)}in federal courts.`;
+  const out = sentencesAround(long, "The task force shall review the use of automated tools the use");
+  assert.ok(out?.startsWith("The task force shall review"), out ?? "null");
+  assert.ok(out?.endsWith(CUT_OFF), out ?? "null");
+  assert.ok(!out?.includes("in federal courts"), out ?? "null");
+});
+
+const fetched = (url: string, title: string, data: string) => ({
+  type: "web_fetch_tool_result",
+  tool_use_id: "f1",
+  content: {
+    type: "web_fetch_result",
+    url,
+    retrieved_at: null,
+    content: { type: "document", title, citations: { enabled: true }, source: { type: "text", media_type: "text/plain", data } },
+  },
+});
+
+// Shapes of the pages fetched in the live check of 2026-10-26.
+const GOVINFO_XML =
+  '<action-desc><sponsor name-id="B001">Ms. Biggs of South Carolina</sponsor> introduced the following bill; ' +
+  'which was referred to the <committee-name committee-id="HAS00">Committee on Armed Services</committee-name>' +
+  '</action-desc></action><legis-type>A BILL</legis-type><official-title display="yes">To provide for an audit ' +
+  "and mitigation of covered cellular modules in the Department of Defense systems and infrastructure." +
+  '</official-title></form><legis-body><section><enum>1.</enum><header>Short title</header><text>This Act may ' +
+  "be cited as the <quote>Blocking Foreign Cellular Modules in Defense Systems Act of 2026</quote>.</text>";
+const HEARINGS_MD =
+  "[![](https://waysandmeans.house.gov/img/calendar-icon.png)](https://waysandmeans.house.gov/calendar) " +
+  "[Filters](#) Select Category Full Committee Health Oversight\n\n## Past Hearings\n\n" +
+  "October 6 2026 [Full Committee Field Hearing: Delivering for Small Business](https://waysandmeans.house.gov/event/x/) " +
+  "Collierville, Tennessee 09:00AM CT\n\nSeptember 2 2026 [Full Committee Hearing on Trade](https://waysandmeans.house.gov/event/y/)";
+
+it("reads page markup as prose: link words kept, tags, images and escapes gone", () => {
+  assert.equal(readable("See [the bill text](https://x.gov/t) &amp; **notes**."), "See the bill text & notes.");
+  // Search quotes from the live check of 2026-10-26: a bare heading mark and escaped Markdown.
+  assert.equal(readable("Meetings Video\n##"), "Meetings Video");
+  assert.equal(readable("](https://waysandmeans.house.gov/calendar) [Filters](#)"), "Filters");
+  assert.equal(readable("* * *\nIN THE SENATE"), "IN THE SENATE");
+  assert.equal(readable("Sen. Wicker, Roger F. \\[R-MS\\] \\| Bill"), "Sen. Wicker, Roger F. [R-MS] | Bill");
+  assert.ok(!readable(GOVINFO_XML).includes("<"), readable(GOVINFO_XML));
+  assert.ok(!readable(HEARINGS_MD).includes("]("), readable(HEARINGS_MD));
+});
+
+it("leaves a quote that already ends its sentence as it is", () => {
+  const page =
+    "Sec. 3. The Secretary shall submit a report to Congress within 90 days. The report shall include " +
+    `${"the costs of each program, ".repeat(20)}and its results.`;
+  const quote = "The Secretary shall submit a report to Congress within 90 days.";
+  // Not the next sentence, and no false cut where the next one runs long.
+  assert.equal(sentencesAround(page, quote), quote);
+  // An abbreviation at the end of a quote is not the end of its sentence.
+  assert.equal(
+    sentencesAround("Background. It was referred to the Committee on H.R. 2481 and reported.", "It was referred to the Committee on H.R."),
+    "It was referred to the Committee on H.R. 2481 and reported.",
+  );
+});
+
+it("does not end a sentence at an abbreviation", () => {
+  const page =
+    "Background. H.R. 2481, the Romance Scam Prevention Act, was introduced by Representative " +
+    "Valadao on March 31, 2025. It was referred to the Committee on Energy and Commerce.";
+  assert.equal(
+    sentencesAround(page, "the Romance Scam Prevention Act, was introduced by Representative Valadao on Mar..."),
+    "H.R. 2481, the Romance Scam Prevention Act, was introduced by Representative Valadao on March 31, 2025.",
+  );
+});
+
+it("widens within an XML element, not across the tags around it", () => {
+  assert.equal(
+    sentencesAround(GOVINFO_XML, "To provide for an audit and mitigation of covered cellular modules in the Dep..."),
+    "To provide for an audit and mitigation of covered cellular modules in the Department of Defense systems and infrastructure.",
+  );
+});
+
+it("widens within one line of a Markdown page, not into its menus", () => {
+  assert.equal(
+    sentencesAround(HEARINGS_MD, "October 6 2026 Full Committee Field Hearing: Delivering for Small..."),
+    "October 6 2026 Full Committee Field Hearing: Delivering for Small Business Collierville, Tennessee 09:00AM CT",
+  );
+});
+
+it("reads a fetched page's citation as whole sentences from the page", () => {
+  const start = MODULE_PAGE.indexOf("A cellular module");
+  const cited = MODULE_PAGE.slice(start, start + 60);
+  const content = [
+    fetched("https://www.congress.gov/bill/119th-congress/house-bill/10861/text", "H.R.10861 text", MODULE_PAGE),
+    {
+      type: "text",
+      text: "Modules from covered entities count.",
+      citations: [{
+        type: "char_location", cited_text: cited, document_index: 0, document_title: "H.R.10861 text",
+        start_char_index: start, end_char_index: start + 60, file_id: null,
+      }],
+    },
+  ] as unknown as Anthropic.ContentBlock[];
+  assert.deepEqual(webHitsFrom(content, 5), [{
+    url: "https://www.congress.gov/bill/119th-congress/house-bill/10861/text",
+    title: "H.R.10861 text",
+    excerpt:
+      "A cellular module is a covered module if it is produced or provided by an entity subject to section 889, " +
+      "or an entity owned by, controlled by, or under common control with such an entity.",
+  }]);
+});
+
+it("widens a search quote from the page when Claude fetched it, and marks it when it did not", () => {
+  const content = [
+    fetched("https://www.congress.gov/bill/10861/", "H.R.10861", MODULE_PAGE),
+    {
+      type: "text",
+      text: "Covered modules are defined.",
+      citations: [
+        cite("https://www.congress.gov/bill/10861", "H.R.10861", MODULE_QUOTE),
+        cite("https://news.example.com/story", "Story", "The bill would create a task force to review: ..."),
+      ],
+    },
+  ] as unknown as Anthropic.ContentBlock[];
+  const [page, story] = webHitsFrom(content, 5);
+  assert.ok(page.excerpt.endsWith("under common control with such an entity."), page.excerpt);
+  assert.equal(story.excerpt, `The bill would create a task force to review: ${CUT_OFF}`);
 });
 
 console.log(`claude.test.ts — ${passed} passed, ${failures.length} failed`);

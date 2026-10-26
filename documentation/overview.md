@@ -902,7 +902,7 @@ components/answers/answer-provider.tsx      one provider, mounted in app/layout.
                  │    straight to gpt-oss when the Claude API itself is down
                  │    ├─ describe_dataset
                  │    ├─ fetch_dataset   → convex/catalog/fetch.ts
-                 │    ├─ search_web      → Claude Sonnet 5.5 + Anthropic's web search tool;
+                 │    ├─ search_web      → Claude Sonnet 5.5 + Anthropic's web search and web fetch tools;
                  │    │                      on failure, OpenRouter web plugin, engine "exa", on gpt-oss-120b
                  │    ├─ ask_reader      → ends the turn with a question, not an answer
                  │    └─ no answer, no call → one nudge, then the no-tools round early;
@@ -1429,10 +1429,21 @@ loop, so `reason` can stay a required argument of our own `search_web` tool. Fir
 Sonnet 5.5 (`ANTHROPIC_WEB_MODEL`) on our Anthropic key, US inference, with Anthropic's
 server-side web search tool (the basic `web_search_20250305`: the newer `_20260209` returned no
 citations when tried live on 2026-10-23; at most 2 searches, `user_location` country
-US); it is sent only the search phrase, never the reader's question or the conversation
+US) and Anthropic's web fetch tool (`web_fetch_20250910`: one page, up to 3,000 tokens of it,
+citations on, `congress.gov` blocked because it refuses the fetcher, so a bill's text comes from
+govinfo.gov); it is sent only the search phrase, never the reader's question or the conversation
 (`searchWebClaude`, `convex/claude.ts`). Up to 5 sources (`WEB_MAX_RESULTS`) are built from
-Claude's citations, in the order cited: the URL, the title, and the text Claude quoted from that
-page (never Claude's own summary), up to 500 characters. A page Claude found but never quoted is
+Claude's citations, in the order cited: the URL, the title, and an excerpt that is always the
+page's own words, never Claude's summary of them, up to 1,200 characters. Where Claude read the
+page, each quote is found in the page's text (cleaned of Markdown links, tags and entity
+escapes by `readable`) and widened to its whole sentence, stopping at a line break and not at an
+abbreviation such as "H.R." (`sentencesAround`). Otherwise the search engine's own quote is used,
+which Anthropic cuts at about 150 characters, often mid-word: the half word is dropped and the
+cut written as `[cut off]` (`markCutOff`), and the model is told, with the results, never to
+finish a sentence a cut stops (`CUT_OFF_NOTE`). Exa excerpts are cut on a word and marked the
+same way. This came from the fact-check judge: from 2026-10-23 to 26, 6 of 17 answers that used
+the web failed it against 1 of 15 that did not, 5 of them because the answer finished a quote the
+search engine had cut off ("an entity owned by, contr…"). A page Claude found but never quoted is
 left out: its title alone would let the answer cite it for a claim it never showed. An API error,
 a refusal, a search that errored, no search, or no quoted source moves the lookup to Claude Haiku
 5.5 (`ANTHROPIC_WEB_BACKUP_MODEL`, the same tool), then to gpt-oss-120b with OpenRouter's web
@@ -1508,7 +1519,7 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 | Reasoning | `medium` effort, one setting for every model, since 2026-10-23 (`low` before). Measured that day on production with the 25 scored questions in `scripts/truth/questions.ts`, three times each: Claude Sonnet 5.5 got 75 of 75 right at `medium` against 72 of 75 at `low`, for $1.15 against $1.13 per 75 answers and no slower (3.9 s against 4.1 s); Claude Opus 5.5 also got 75 of 75 at both efforts, for about twice the price and about 5.5 s. **Claude:** adaptive thinking at `output_config.effort` `low`, `medium` or `high`; `off` and `minimal` both mean `low`, because Sonnet 5.5 refuses thinking switched off and Haiku 5.5 would otherwise run at `medium`. Its thinking blocks go back to Claude unchanged on later rounds and are not recorded in the AI trace. **gpt-oss:** reasons in a separate `reasoning` field that is recorded in the AI trace and never shown. gpt-oss always reasons; at `low` a round thinks for 10–80 tokens, a few hundredths of a second on Cerebras (`medium` was not timed separately; it is the last resort). Its reasoning is **not** handed back on later rounds: the model answers without it, and Amazon Bedrock refused a request carrying another model's reasoning. A gpt-oss request refused while carrying a reasoning setting is retried once with the setting **left out** (the model's default), and the rest of that answer leaves it out: `{ enabled: false }` is itself refused by gpt-oss ("Reasoning is mandatory"). A Claude 400 goes to the next model like any other Claude failure. A value of `OPENROUTER_REASONING` that is not `off` or an effort falls back to `medium` with a log line. On the previous host the same setting doubled the wait (about 8 s to 18 s), so watch the host's speed, not the setting | `OPENROUTER_REASONING` — `off`, `minimal`, `low`, `medium`, `high`; no deploy needed (`convex/reasoning.ts`) |
 | Retention | Claude: called directly on our own key, under Anthropic's standard API data policy, without zero data retention. Anthropic deletes API inputs and outputs within 30 days (privacy.claude.com, "How long do you store my organization's data") and its commercial terms do not train on API data. gpt-oss: `data_collection: "deny"` and `zdr: true`, so only zero-retention hosts serve it. The reader guide says so | — |
 | Price ceiling | `$0.50 / $1.00` per million prompt/completion tokens (`MAX_PRICE`), sent on every OpenRouter request (gpt-oss answers and the Exa web lookup). Cerebras charges $0.35 / $0.75 for gpt-oss-120b, the most of the three hosts; a typical gpt-oss answer costs about half a cent. Claude's equivalent guard is the price table above | — |
-| Cost | Claude is billed by Anthropic directly to our key; OpenRouter is not involved. On Claude Sonnet 5.5 an answer costs about 12 cents (measured 2026-10-23), so roughly $70 a month at about 20 answers a day, about twenty times what Claude Haiku 5.5 cost. Direct calls add 10% for US inference, and each Claude web lookup is a Claude Sonnet 5.5 call plus $0.01 a search: about 4¢ a lookup measured on 2026-10-23 (12.8k input tokens), so roughly $12 a month at about 10 lookups a day. gpt-oss (the last resort) and the Exa web lookup are billed to OpenRouter credits. A Claude generation's `$ai_total_cost_usd` in PostHog is computed from `CLAUDE_PRICES`; a gpt-oss one is OpenRouter's own `usage.cost` | — |
+| Cost | Claude is billed by Anthropic directly to our key; OpenRouter is not involved. On Claude Sonnet 5.5 an answer costs about 12 cents (measured 2026-10-23), so roughly $70 a month at about 20 answers a day, about twenty times what Claude Haiku 5.5 cost. Direct calls add 10% for US inference, and each Claude web lookup is a Claude Sonnet 5.5 call plus $0.01 a search: about 9¢ a lookup since it reads a page (measured on 2026-10-26: 8.6 to 9.5¢ and 6 to 10 s, one at 22 s, against 4.7¢ and 5.6 s before; about 32k input tokens, because the search results are read again after the page is fetched), so roughly $40 a month at about 15 lookups a day. gpt-oss (the last resort) and the Exa web lookup are billed to OpenRouter credits. A Claude generation's `$ai_total_cost_usd` in PostHog is computed from `CLAUDE_PRICES`; a gpt-oss one is OpenRouter's own `usage.cost` | — |
 
 > **The 404 trap.** Two allowlists must overlap: the per-request `provider.only` above, and
 > the allowed-providers setting on the **OpenRouter account itself**. If they do not overlap,
