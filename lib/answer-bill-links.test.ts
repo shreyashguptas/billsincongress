@@ -23,6 +23,7 @@ import {
   billsNamedIn,
   cardListBills,
   cardLists,
+  firstListStart,
   onlyIdentifies,
   rehypeBillLinks,
 } from './answer-bill-links';
@@ -281,8 +282,8 @@ type Node = El | { type: 'text'; value: string; position?: { start: { offset?: n
 const text = (value: string, offset?: number): Node =>
   offset === undefined ? { type: 'text', value } : { type: 'text', value, position: { start: { offset } } };
 const el = (tagName: string, ...children: Node[]): El => ({ type: 'element', tagName, properties: {}, children });
-const run = (tree: El, lists: (CardList | null)[] = [], hold = false) => {
-  rehypeBillLinks({ bills, lists, hold })(tree as never);
+const run = (tree: El, lists: (CardList | null)[] = []) => {
+  rehypeBillLinks({ bills, lists })(tree as never);
   return tree;
 };
 const links = (n: El) => n.children.filter((c): c is El => c.type === 'element' && c.tagName === 'a');
@@ -336,17 +337,12 @@ it('reads lists exactly where markdown ends them: a rule, a quote, a numbered li
   assert.deepEqual(specs('- H.R. 7022 [1]\n> a quote\n\n- H.R. 1 cuts taxes [5]').length, 2);
 });
 
-it('holds every top-level list back until the answer\'s sources arrive', () => {
-  const ul = el('ul', el('li', text('The Mystic')));
-  run(el('div', ul), [], true);
-  assert.equal(ul.properties.dataPending, true);
-});
-
-it('holds lists back even before any bill is known', () => {
-  const none = answerBills([], []);
-  const ul = el('ul', el('li', text('Anything')));
-  rehypeBillLinks({ bills: none, hold: true })(el('div', ul) as never);
-  assert.equal(ul.properties.dataPending, true);
+it('finds where the first list starts, so the reveal can wait there for the sources', () => {
+  const text = 'The newest laws:\n\n- H.R. 7022 [1]\n- H.R. 952 [2]\n\nMore after.';
+  assert.equal(firstListStart(text), text.indexOf('- H.R. 7022'));
+  assert.equal(firstListStart('No list here.\n\nNone at all.'), null);
+  // A quoted list is not a top-level list: nothing there becomes cards.
+  assert.equal(firstListStart('> - quoted'), null);
 });
 
 it('matches lists by order, and skips lists nested in an item or a quote', () => {

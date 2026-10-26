@@ -332,6 +332,7 @@ interface MdNode {
   type: string;
   value?: unknown;
   children?: MdNode[];
+  position?: { start: { offset?: number } };
 }
 
 /** The plain text of a markdown node, with a space between its parts. */
@@ -352,6 +353,18 @@ function topLevelLists(text: string): string[][] {
   return (root.children ?? [])
     .filter((n) => n.type === 'list')
     .map((list) => (list.children ?? []).map(mdText));
+}
+
+/**
+ * Where the answer's first top-level list starts, or null. While an answer's
+ * sources have not arrived, no list can be judged (cards or text), so the
+ * reveal stops here and waits: it must not show the list as bullets that turn
+ * into cards, nor write on past it so the text after the list appears first.
+ */
+export function firstListStart(text: string): number | null {
+  const root = unified().use(remarkParse).parse(text) as MdNode;
+  const list = (root.children ?? []).find((n) => n.type === 'list');
+  return list?.position?.start.offset ?? null;
 }
 
 /** A list of bills: the bill each item is, and each item's text to check the page against. */
@@ -430,10 +443,6 @@ const isElement = (n: HastNode): n is HastElement => n.type === 'element';
  *   so it never shows as a bullet first. On any disagreement the list stays
  *   text: a wrong card is worse than a plain list.
  *   Nothing inside a card is linked: a link inside a link is invalid HTML.
- * - `hold`: the answer's sources have not arrived yet, so no list can be
- *   judged. Top-level lists are marked `data-pending` and drawn as nothing
- *   until they can be — otherwise a list of bills would show as bullets, then
- *   jump to cards.
  * - Everywhere else, the first time a paragraph or item names a bill links
  *   it, and every citation of a bill links to it.
  *
@@ -443,16 +452,14 @@ const isElement = (n: HastNode): n is HastElement => n.type === 'element';
 export function rehypeBillLinks(options: {
   bills: AnswerBills;
   lists?: (CardList | null)[];
-  hold?: boolean;
 }) {
-  const { bills, lists = [], hold = false } = options;
+  const { bills, lists = [] } = options;
   return (tree: HastNode) => {
-    if (bills.byId.size === 0 && !hold) return;
+    if (bills.byId.size === 0) return;
     const { re, byText } = mentionPattern(bills);
     let listIndex = 0;
 
     const linkText = (node: HastText, linked: Set<string>): HastNode[] => {
-      if (bills.byId.size === 0) return [node];
       const origin = node.position?.start.offset;
       const at = (i: number): HastText['position'] =>
         origin === undefined ? undefined : { start: { offset: origin + i } };
@@ -514,10 +521,6 @@ export function rehypeBillLinks(options: {
       if (isElement(node)) {
         if (['a', 'code', 'pre'].includes(node.tagName)) return;
         if ((node.tagName === 'ul' || node.tagName === 'ol') && !nested) {
-          if (hold) {
-            node.properties = { ...node.properties, dataPending: true };
-            return;
-          }
           if (markCards(node, lists[listIndex++])) return;
         }
         if (node.tagName === 'li' || node.tagName === 'blockquote') nested = true;

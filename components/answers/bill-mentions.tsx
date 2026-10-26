@@ -12,7 +12,6 @@ type HastLike = { type: string; properties?: Record<string, unknown> };
 
 const prop = (node: unknown, name: string) => (node as HastLike | undefined)?.properties?.[name];
 const isCards = (node: unknown) => Boolean(prop(node, 'dataCards'));
-const isPending = (node: unknown) => Boolean(prop(node, 'dataPending'));
 
 /** What the renderers read: replaced on every render, read when they run. */
 export interface BillContext {
@@ -39,8 +38,6 @@ function billOf(node: unknown, bills: AnswerBills): BillMention | undefined {
  *   bullets or numerals go, because the cards are the list.
  * - A bill named in running text, and every citation of one, is a plain link.
  *
- * - A list held back (`data-pending`: the answer's sources have not arrived,
- *   so it cannot be judged yet) is drawn as nothing for that moment.
  *
  * Built ONCE per answer and reading `ctx` when they run: if these functions
  * changed when the sources arrived, React would treat every list and link on
@@ -83,13 +80,13 @@ export function billMarkdownComponents<T extends object>(base: T, ctx: { current
       );
     },
     ul: ({ node, children }: { node?: unknown; children?: React.ReactNode }) =>
-      isPending(node) ? null : isCards(node) ? (
+      isCards(node) ? (
         <ul className="mb-3 list-none space-y-2">{children}</ul>
       ) : (
         <ul className="mb-3 ml-5 list-disc space-y-1.5 marker:text-ink-3">{children}</ul>
       ),
     ol: ({ node, children }: { node?: unknown; children?: React.ReactNode }) =>
-      isPending(node) ? null : isCards(node) ? (
+      isCards(node) ? (
         // A ranked list of bills keeps its order on the page, not its numerals:
         // the cards stack in the order the answer gave.
         <ol className="mb-3 list-none space-y-2">{children}</ol>

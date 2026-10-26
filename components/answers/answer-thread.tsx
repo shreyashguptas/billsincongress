@@ -18,7 +18,7 @@ import { WorkLog } from './work-log';
 import { EntityBlock } from './entity-block';
 import { AnswerCheck } from './answer-check';
 import { canRate } from '@/lib/answer-rating';
-import { answerBills, billsNamedIn, cardLists, rehypeBillLinks } from '@/lib/answer-bill-links';
+import { answerBills, billsNamedIn, cardLists, firstListStart, rehypeBillLinks } from '@/lib/answer-bill-links';
 import { billMarkdownComponents, type BillContext } from './bill-mentions';
 
 /** How close to the bottom still counts as "following along". */
@@ -127,7 +127,7 @@ function AssistantTurn({
   // out word by word here (lib/answer-reveal.ts). Entity cards are held until
   // the reveal reaches them, so they arrive in reading order.
   const { rate } = useAnswers();
-  const { visible, live, settledBefore, complete } = useAnswerReveal(
+  const { visible: revealed, live, settledBefore, complete } = useAnswerReveal(
     turn.id,
     turn.content,
     Boolean(turn.done),
@@ -136,8 +136,7 @@ function AssistantTurn({
   // Bills are clickable where the prose names them (lib/answer-bill-links.ts):
   // an item of a list of bills is that bill's card, and a name in running text
   // is a link. Which lists are lists of bills is read from the WHOLE answer,
-  // block by block, so a list never changes shape mid-reveal; until the
-  // answer's sources arrive no list can be judged, so lists wait for them. A
+  // block by block, so a list never changes shape mid-reveal. A
   // bill shown as a card in a list is not repeated in the cards after the
   // prose. Worked out once per answer, not on every frame of the reveal.
   const { bills, order, cardBills, listsByBlock } = useMemo(() => {
@@ -152,10 +151,13 @@ function AssistantTurn({
       listsByBlock,
     };
   }, [turn.content, turn.sources, turn.allowed, turn.entities]);
+  // Until the sources arrive no list can be judged, so the reveal waits at the
+  // first one (lib/answer-bill-links.ts, firstListStart).
+  const listStart = useMemo(() => firstListStart(turn.content), [turn.content]);
+  const visible = !turn.done && listStart !== null ? revealed.slice(0, listStart) : revealed;
   const billContext = useRef<BillContext>({ bills, order, surface });
   billContext.current = { bills, order, surface };
   const [components] = useState(() => billMarkdownComponents(MARKDOWN_COMPONENTS, billContext));
-  const hold = !turn.done;
   // Blocks keep their index even when every card in one was already shown, so
   // block i here is block i of the full answer, whose lists `listsByBlock`
   // describes.
@@ -184,7 +186,7 @@ function AssistantTurn({
               key={i}
               components={components}
               rehypePlugins={wordSpans(live, settledBefore - starts[i], [
-                [rehypeBillLinks, { bills, lists: listsByBlock[i], hold }],
+                [rehypeBillLinks, { bills, lists: listsByBlock[i] }],
               ])}
             >
               {block.text}

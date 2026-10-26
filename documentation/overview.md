@@ -1095,8 +1095,9 @@ Lists are found with `remark-parse`, react-markdown's own parser, so they end ex
 page ends them. The decision is made on the full answer, block by block, so a list never changes
 shape while the answer is revealed; the page's n-th list takes the n-th decision only if every
 revealed item is the start of the item it is meant to be and names its bill (the last item may
-name nothing yet). Until the `done` event brings the answer's sources, lists are held back
-entirely, since none can be judged. The renderers are built once per answer, so the sources
+name nothing yet). Until the `done` event brings the answer's sources, no list can be judged, so
+the reveal waits at the start of the first list (`firstListStart`) rather than showing it as
+bullets that turn into cards, or writing on past it so the text after the list appears first. The renderers are built once per answer, so the sources
 arriving does not rebuild what is already on screen. The `[[bills:…]]` cards after the prose drop
 a bill already shown as a card. Only bills in `allowed` match, so this cannot link a bill the model
 invented. It is a rehype pass that runs before the word-by-word reveal and keeps the text's
