@@ -29,6 +29,9 @@ import {
   claimsAbsence,
   leaksVocabulary,
   namesOneAsNewest,
+  namesSortedNewest,
+  acknowledgesTie,
+  MOVED_SUBJECT,
   sentences,
   serveFetch,
   statesCount,
@@ -118,12 +121,38 @@ it("does not invent a total for a filter combination it never counted", () => {
   assert.notEqual(result.report.total, HEALTH_TOTAL);
 });
 
-it("refuses a requested sort when the window filled, as fetch.ts does", () => {
-  // Sorting a sample and labelling it "newest first" named the third-most-recent
-  // law as the most recent. The arbitrary-order check depends on this staying so.
+it("serves a whole-Congress sort in order, as fetch.ts's ordering index does", () => {
+  // This test used to pin the opposite: the fixture refused the sort, a state
+  // production stopped reaching in August, and the gate failed 4 runs in 6 on a
+  // question production answered correctly (2026-10-27).
   const result = served("bills", { congress: 119, sort: "newest_action" }, 5);
+  assert.equal(result.report.complete, false, "18,476 measures are never read whole");
+  assert.equal(result.report.order, "newest_action_first");
+  assert.equal(result.report.orderFromIndex, true);
+  assert.equal(result.rows[0].billId, "10894hr119", "row 1 production returned");
+  assert.equal(result.report.tiedWithFirst?.count, 62, "61 others share its date");
+  assert.equal(result.report.total, undefined);
+});
+
+it("refuses a sort no index can serve, and says why", () => {
+  // Sorting a sample and labelling it "newest first" named the third-most-recent
+  // law as the most recent. A title search is where production still returns an
+  // unsorted page after a sort was asked for; the arbitrary-order check uses it.
+  const result = served("bills", { congress: 119, titleFilter: "Act", sort: "newest_action" }, 5);
   assert.equal(result.report.complete, false);
   assert.equal(result.report.order, "arbitrary");
+  assert.match(result.report.sortNotApplied ?? "", /title search/);
+  assert.ok(result.rows.length > 0, "the page production returns has rows");
+  assert.ok(result.rows.some((r) => r.billId === "10152hr119"), "the newest of the page sits mid-page");
+});
+
+it("returns no unsorted rows for a sort an index would serve", () => {
+  // Production reads Health newest-first through the ordering index. The fixture
+  // does not hold those rows, so it hands back none rather than a page in an
+  // order production would never return.
+  const result = served("bills", { congress: 119, policyArea: "Health", sort: "newest_action" }, 5);
+  assert.equal(result.rows.length, 0);
+  assert.equal(result.report.complete, false);
 });
 
 it("honours a requested sort on a set it holds entirely", () => {
@@ -221,6 +250,33 @@ it("catches a count of an incomplete result, in words or digits", () => {
   for (const claim of claims) assert.ok(statesCount(claim, subject), `missed: ${claim}`);
 });
 
+it("leaves a count the answer's own lookups reported as exact alone", () => {
+  // 2026-10-27: 104 came from a complete count, and the refusal beside it is the
+  // answer the question wants. A count nobody reported still fails.
+  const subject = /\b(?:week|days?|recent|since|august|moved|action)\b/i;
+  const exact = new Set([104, 18476]);
+  const honest = "104 measures had become law as of today, but I couldn't tell which moved this week.";
+  assert.equal(statesCount(honest, subject, exact), null);
+  assert.ok(statesCount("17 bills moved in the past week.", subject, exact), "missed an invented count");
+  // Claude Sonnet 5.5, 2026-10-27, with 62 the tie its sorted lookup reported.
+  // The pattern's match starts at the year; the count is the 62.
+  const tie = "The most recent action we have is dated October 22, 2026, and 62 measures are tied for that date.";
+  assert.equal(statesCount(tie, subject, new Set([62])), null);
+  assert.ok(statesCount(tie, subject, exact), "62 is only allowed when a lookup reported it");
+  assert.ok(
+    statesCount("104 measures became law, and two measures moved this week.", subject, exact),
+    "an exact number must not excuse an invented one in the same sentence",
+  );
+});
+
+it("reads 'days' as a span of time, not a word in a title", () => {
+  // Claude Sonnet 5.5, 2026-10-27: four of the five bills it had just listed.
+  const listed = "The other four are House simple resolutions, such as [2] on National Marine Sanctuary Day.";
+  assert.equal(statesCount(listed, MOVED_SUBJECT), null);
+  assert.ok(statesCount("Three measures moved in the past few days.", MOVED_SUBJECT));
+  assert.ok(statesCount("In the last 7 days, 12 bills were introduced.", MOVED_SUBJECT));
+});
+
 it("leaves a count about a different set alone", () => {
   // A complete total from another dataset is a legitimate sentence and must not
   // fail a check scoped to the question that was asked.
@@ -241,6 +297,16 @@ it("catches a row named as the newest over an arbitrary page", () => {
     "H.R. 10152 is the latest bill to move; it didn't get a vote.",
   ];
   for (const claim of claims) assert.ok(namesOneAsNewest(claim), `missed: ${claim}`);
+});
+
+it("hears the right answer to the sorted question, and whether it names the tie", () => {
+  const right =
+    "The Disaster Data Protection Act (H.R. 10894) is one of 62 measures last acted on October 22, 2026.";
+  assert.ok(namesSortedNewest(right));
+  assert.ok(acknowledgesTie(right));
+  const alone = "The measure with the most recent action is the Disaster Data Protection Act (H.R. 10894).";
+  assert.ok(namesSortedNewest(alone));
+  assert.equal(acknowledgesTie(alone), false, "production's 2026-10-27 answer: one named as THE newest");
 });
 
 it("allows a refusal and a row's own field", () => {
