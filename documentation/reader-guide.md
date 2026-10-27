@@ -156,7 +156,7 @@ Ten scheduled jobs keep the database in step with Congress, an eleventh sends bi
 
 The sync throttles itself deliberately — three quarters of a second between calls, backing off on rate limits and pausing when Congress.gov's remaining quota runs low. It also skips the bill-record update when nothing a reader would see has changed, so a routine re-pull does not stamp a fake "updated" date on 18,000 bills or announce fake updates to search engines.
 
-The `/bills` page carries a live "Updated *n* hours ago" indicator drawn from the last completed sync.
+The `/bills` page and the hub pages carry a live "Updated *n* hours ago" indicator: the last sync that checked every bill type, including a night when Congress.gov had nothing new. If a sync fails partway, the indicator keeps the previous time rather than claim a check that did not happen.
 
 ### What is stored, and what is not
 

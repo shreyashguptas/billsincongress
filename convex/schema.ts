@@ -613,7 +613,12 @@ export default defineSchema({
     billType: v.optional(v.string()),
     startedAt: v.string(),
     completedAt: v.optional(v.string()),
-    status: v.string(), // "running", "completed", "failed"
+    // "running" until the last bill type's chain ends (finishSyncType), then
+    // "completed", or "failed" if any type's chain ended on an error. Only
+    // completed rows feed the site's "Updated X ago" (bills.getSyncStatus).
+    status: v.string(),
+    // Summed over every batch of every bill type (recordSyncBatch and
+    // finishSyncType); final once the row is closed.
     totalProcessed: v.optional(v.number()),
     totalSuccess: v.optional(v.number()),
     totalFailed: v.optional(v.number()),
@@ -626,6 +631,9 @@ export default defineSchema({
     // eight whole-Congress scans a night where one does.
     typesFinished: v.optional(v.array(v.string())),
     billsSynced: v.optional(v.number()),
+    // The bill types whose chains ended on an error; any one makes the
+    // closed row "failed". `errorDetails` has a line for each.
+    typesFailed: v.optional(v.array(v.string())),
   })
     .index("by_congress", ["congress"])
     .index("by_status", ["status"]),

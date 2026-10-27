@@ -4,6 +4,7 @@ import {
   internalQuery,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
   BILL_STAGES,
@@ -1172,20 +1173,51 @@ export const createSyncSnapshot = internalMutation({
   },
 });
 
-export const updateSyncSnapshot = internalMutation({
+/**
+ * One sync batch's counts. Every batch of every bill type adds its own to the
+ * snapshot's totals, inside a mutation, so the totals are the sum over all
+ * eight types. Each batch used to overwrite them with its own type's figures,
+ * so a row could read 14 processed while 169 bills had synced.
+ */
+const syncBatchCounts = {
+  processed: v.number(),
+  success: v.number(),
+  failed: v.number(),
+};
+
+function addBatchCounts(
+  snapshot: Doc<"syncSnapshots">,
+  batch: { processed: number; success: number; failed: number },
+) {
+  return {
+    totalProcessed: (snapshot.totalProcessed ?? 0) + batch.processed,
+    totalSuccess: (snapshot.totalSuccess ?? 0) + batch.success,
+    totalFailed: (snapshot.totalFailed ?? 0) + batch.failed,
+  };
+}
+
+function appendDetail(snapshot: Doc<"syncSnapshots">, line: string): string {
+  return snapshot.errorDetails ? `${snapshot.errorDetails}\n${line}` : line;
+}
+
+/**
+ * Adds the counts of a batch that does NOT end its type's chain (the batch
+ * that does reports them through finishSyncType). `note` records a pause, such
+ * as a rate-limit backoff, without failing the run.
+ */
+export const recordSyncBatch = internalMutation({
   args: {
     snapshotId: v.id("syncSnapshots"),
-    status: v.optional(v.string()),
-    completedAt: v.optional(v.string()),
-    totalProcessed: v.optional(v.number()),
-    totalSuccess: v.optional(v.number()),
-    totalFailed: v.optional(v.number()),
-    totalSkipped: v.optional(v.number()),
-    errorDetails: v.optional(v.string()),
+    ...syncBatchCounts,
+    note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { snapshotId, ...updates } = args;
-    await ctx.db.patch(snapshotId, updates);
+    const snapshot = await ctx.db.get(args.snapshotId);
+    if (!snapshot) return;
+    await ctx.db.patch(args.snapshotId, {
+      ...addBatchCounts(snapshot, args),
+      ...(args.note ? { errorDetails: appendDetail(snapshot, args.note) } : {}),
+    });
   },
 });
 
@@ -1194,6 +1226,15 @@ export const updateSyncSnapshot = internalMutation({
  * the last of the snapshot's types to end. Exactly one caller gets
  * `last: true`: mutations are serialized, and a type that ends twice is only
  * counted the first time.
+ *
+ * The last type to end also closes the snapshot, since only this mutation
+ * knows the run is over. It is "completed" when every type's chain reached the
+ * end of its list, and "failed" when any chain ended on an `error`. The
+ * site's "Updated X ago" (bills.getSyncStatus) reads only completed rows, so
+ * it names the last time every bill type was actually checked. The snapshot
+ * used to be closed per type, by whichever type first finished a batch that
+ * had bills in it, so a night on which every list came back empty stayed
+ * "running" for ever and readers were shown the day before.
  */
 export const finishSyncType = internalMutation({
   args: {
@@ -1201,6 +1242,8 @@ export const finishSyncType = internalMutation({
     billType: v.string(),
     billsSynced: v.number(),
     typeCount: v.number(),
+    batch: v.optional(v.object(syncBatchCounts)),
+    error: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const snapshot = await ctx.db.get(args.snapshotId);
@@ -1211,9 +1254,29 @@ export const finishSyncType = internalMutation({
       return { last: false, billsSynced: total };
     }
     const typesFinished = [...finished, args.billType];
+    const typesFailed = [
+      ...(snapshot.typesFailed ?? []),
+      ...(args.error ? [args.billType] : []),
+    ];
     const billsSynced = total + args.billsSynced;
-    await ctx.db.patch(args.snapshotId, { typesFinished, billsSynced });
-    return { last: typesFinished.length >= args.typeCount, billsSynced };
+    const last = typesFinished.length >= args.typeCount;
+    await ctx.db.patch(args.snapshotId, {
+      typesFinished,
+      typesFailed,
+      billsSynced,
+      // Always written, so a closed row reads 0, not blank, on a quiet night.
+      ...addBatchCounts(snapshot, args.batch ?? { processed: 0, success: 0, failed: 0 }),
+      ...(args.error
+        ? { errorDetails: appendDetail(snapshot, `${args.billType}: ${args.error}`) }
+        : {}),
+      ...(last
+        ? {
+            status: typesFailed.length > 0 ? "failed" : "completed",
+            completedAt: new Date().toISOString(),
+          }
+        : {}),
+    });
+    return { last, billsSynced };
   },
 });
 
