@@ -21,6 +21,8 @@ import {
   claudeWebModels,
   forOpenRouter,
   OPENING_USER_TURN,
+  reasoningOf,
+  THINKING,
   toClaudeRequest,
   webHitsFrom,
   markCutOff,
@@ -97,6 +99,61 @@ it("caches the system prompt and puts a later system note after the cached block
   assert.ok(messages.every((m) => m.role !== "system"));
 });
 
+/** A round of lookups after opening(): the model's call and its result. */
+function lookedUp(): ChatMessage[] {
+  return [
+    ...opening(),
+    { role: "assistant", content: "", tool_calls: [{ id: "toolu_1", type: "function", function: { name: "fetch_dataset", arguments: '{"name":"bills","filters":{}}' } }] },
+    { role: "tool", tool_call_id: "toolu_1", content: "rows" },
+  ];
+}
+
+it("sends our instruction after a lookup as a system message, not as the reader", () => {
+  const { messages } = toClaudeRequest([...lookedUp(), { role: "user", content: "No lookups left.", instruction: true }]);
+  assert.deepEqual(messages[messages.length - 1], { role: "system", content: "No lookups left." });
+});
+
+it("keeps a system instruction in place once Claude has replied after it", () => {
+  const { messages } = toClaudeRequest([
+    ...lookedUp(),
+    { role: "user", content: "Call a tool now.", instruction: true },
+    { role: "assistant", content: "Five bills." },
+  ]);
+  assert.deepEqual(messages.slice(-2).map((m) => m.role), ["system", "assistant"]);
+});
+
+it("sends an instruction after Claude's own words as user text, where the API refuses a system message", () => {
+  const { messages } = toClaudeRequest([
+    ...opening(),
+    { role: "assistant", content: "Let me look that up." },
+    { role: "user", content: "Call a tool now.", instruction: true },
+  ]);
+  assert.deepEqual(messages[messages.length - 1], { role: "user", content: "Call a tool now." });
+});
+
+it("joins two instructions in a row into one system message", () => {
+  const { messages } = toClaudeRequest([
+    ...lookedUp(),
+    { role: "user", content: "Call a tool now.", instruction: true },
+    { role: "user", content: "No lookups left.", instruction: true },
+  ]);
+  assert.deepEqual(messages[messages.length - 1], { role: "system", content: "Call a tool now.\n\nNo lookups left." });
+  assert.equal(messages.filter((m) => m.role === "system").length, 1);
+});
+
+it("sends an instruction to OpenRouter as a plain user message", () => {
+  const sent = forOpenRouter([{ role: "user", content: "No lookups left.", instruction: true }]);
+  assert.deepEqual(sent, [{ role: "user", content: "No lookups left." }]);
+});
+
+it("reads Claude's reasoning summary for the trace, and nothing when it did not think", () => {
+  const block = (thinking: string) => ({ type: "thinking", thinking, signature: "s" }) as Anthropic.ThinkingBlock;
+  const reply = [block("Counted House bills only."), { type: "text", text: "Five.", citations: null } as Anthropic.TextBlock, block("")];
+  assert.equal(reasoningOf(reply), "Counted House bills only.");
+  assert.equal(reasoningOf([block("")]), "");
+  assert.deepEqual(THINKING, { type: "adaptive", display: "summarized" });
+});
+
 it("sends our own lookups as tool_use blocks, and their results as one user message", () => {
   const { messages } = toClaudeRequest(opening());
   const call = messages[1].content as Anthropic.ContentBlockParam[];
@@ -149,7 +206,7 @@ it("is prefix-stable: a longer transcript converts to the shorter one's output p
     ...short,
     { role: "assistant", content: "", tool_calls: [{ id: "toolu_9", type: "function", function: { name: "describe_dataset", arguments: '{"name":"stats"}' } }] },
     { role: "tool", tool_call_id: "toolu_9", content: "stats" },
-    { role: "user", content: "That was not an answer and not a lookup." },
+    { role: "user", content: "That was not an answer and not a lookup.", instruction: true },
   ];
   const a = toClaudeRequest(short);
   const b = toClaudeRequest(long);

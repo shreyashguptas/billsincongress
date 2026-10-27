@@ -890,7 +890,7 @@ async function ask(question: string): Promise<Answer> {
     const isFinalRound = round === MAX_TOOL_ROUNDS;
     const message = await callModel(
       isFinalRound
-        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION }]
+        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION, instruction: true }]
         : messages,
       !isFinalRound,
     );
