@@ -210,7 +210,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
-| `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs, one per stage a bill can stop at except 95 (signed, not yet numbered as a law: a day or two). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`) |
+| `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs: one per stage a bill can stop at except 20 and 95 (signed, not yet numbered as a law: a day or two), plus `/bills/introduced` (below). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`). **`/bills/introduced` and the picker's "Just introduced" (`status=20`) are not stage 20** since 2026-10-16: they are the bills introduced in the last 30 days, at any stage (`lib/bills/just-introduced.ts`); for a Congress that was not sitting in those 30 days, "Just introduced" keeps the stage-20 meaning, since a date window there is always empty. Bills are referred to committee the day they are introduced, so stage 20 held only 11 numbers in the whole 119th, all reserved for party leaders on 2025-01-03, and "Just introduced" plus any topic said "No bills found" |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
 | `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
@@ -301,7 +301,7 @@ link away (`?sort=oldest`, which is `noindex, follow` so the same set is not ind
 links keep the order). Until 30 Sep 2026 hubs read `bills.list`, which walks insertion order:
 /bills/enacted showed the 119th's laws Senate batch then House batch, with the five laws signed
 on 25 Sep 2026 at rows 13, 64, 68, 98 and 107, under unlabelled introduction dates that made the
-list look sorted. Hubs now read `bills.listSorted`, which takes only the three shapes an index
+list look sorted. Hubs now read `bills.listSorted`, which takes only the four shapes an index
 can serve whole and says which date it sorted by (`sortedBy`):
 
 | Hub | Ordered by | Index |
@@ -309,6 +309,7 @@ can serve whole and says which date it sorted by (`sortedBy`):
 | Stage | `stageDate` — the day the bill reached that stage | `by_congress_stage_and_stage_date` |
 | Topic | `latestActionDate` | `by_congress_policy_area_and_latest_action` |
 | Chamber | `latestActionDate`, the chamber's four bill types merged in order (`convex/hubOrder.ts`) | `by_congress_type_and_latest_action` |
+| Introduced (`/bills/introduced`) | `introducedDate`, one range from 30 days ago | `by_congress_and_introduced` |
 
 Each index enforces the hub's whole filter, so there is no scan cap and page 10 is as correct as
 page 1. Bills with no date sort last in both directions. Each row shows the date the list is

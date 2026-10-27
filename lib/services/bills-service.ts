@@ -7,6 +7,7 @@ import {
   parseBillReference,
 } from '@/lib/bill-query';
 import { getConvexHttpClient } from '@/lib/convex-client';
+import { stageAndIntroducedArgs } from '@/lib/bills/just-introduced';
 import {
   BILLS_RELAY_PATH,
   isUnreachable,
@@ -273,14 +274,12 @@ export const billsService = {
 
       const result = await queryBills('list', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
-        progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
+        ...stageAndIntroducedArgs(status, introducedDateFilter, congress),
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
-        introducedDateFilter:
-          introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,
         lastActionDateFilter:
           lastActionDateFilter && lastActionDateFilter !== 'all' ? lastActionDateFilter : undefined,
         offset,
@@ -353,14 +352,12 @@ export const billsService = {
     try {
       return await queryBills('listCount', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
-        progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
+        ...stageAndIntroducedArgs(status, introducedDateFilter, congress),
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
-        introducedDateFilter:
-          introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,
         lastActionDateFilter:
           lastActionDateFilter && lastActionDateFilter !== 'all' ? lastActionDateFilter : undefined,
       });
