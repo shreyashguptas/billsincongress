@@ -45,6 +45,7 @@ import {
   callClaude,
   claudeEffort,
   DEFAULT_ANSWER_MODEL,
+  forOpenRouter,
   type ChatMessage as TranscriptMessage,
 } from "../convex/claude";
 
@@ -814,7 +815,7 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
     body: JSON.stringify({
       model: MODEL,
       ...(FALLBACKS.length > 0 && { models: FALLBACKS }),
-      messages: messages.map(({ claude: _raw, ...rest }) => rest),
+      messages: forOpenRouter(messages),
       // Withheld entirely on the final round, as answer.ts does. Sending the
       // schema and asking the model not to use it is advice; not sending it is a
       // guarantee. Testing the advice version tests a loop we no longer run.
@@ -890,7 +891,7 @@ async function ask(question: string): Promise<Answer> {
     const isFinalRound = round === MAX_TOOL_ROUNDS;
     const message = await callModel(
       isFinalRound
-        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION }]
+        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION, instruction: true }]
         : messages,
       !isFinalRound,
     );
