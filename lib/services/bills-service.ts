@@ -414,8 +414,11 @@ export const billsService = {
       const { api } = await import('../../convex/_generated/api');
       return await client.query(api.bills.getCongressNumbers);
     } catch (error) {
+      // Rethrown like fetchBills: an empty list reads as "no Congress", and
+      // /bills would render "Congress unavailable" with a 200 that the edge
+      // cache stores. Callers that can do without it catch it themselves.
       console.error('Error fetching congress numbers from Convex:', error);
-      return [];
+      throw error;
     }
   },
 

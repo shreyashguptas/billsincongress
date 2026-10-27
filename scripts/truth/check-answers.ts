@@ -209,7 +209,12 @@ function scoreText(expected: Expected, text: string): RunResult {
       // question about the 118th is not scored against a 119th-shaped id.
       const id = expected.value as string;
       const congress = Number(id.slice(-3));
-      return scoreExtraction(expected, extractBillId(text, congress));
+      const extraction = extractBillId(text, congress);
+      // A tie for first place: any of the tied bills is a true answer.
+      if (extraction.found && expected.billIds?.includes(extraction.value as string)) {
+        return { outcome: "CORRECT", got: String(extraction.value) };
+      }
+      return scoreExtraction(expected, extraction);
     }
     case "name": {
       // Unlike the other kinds, a missing name scores WRONG rather than

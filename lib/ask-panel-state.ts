@@ -30,7 +30,9 @@ export type OpenTrigger =
   | 'hero'
   | 'starter'
   | 'ask'
-  | 'manual';
+  | 'manual'
+  /** The reader started typing with no field focused (`lib/type-to-ask.ts`). */
+  | 'typing';
 
 /**
  * Why the panel stopped being open. Reported on `answer_panel_closed`.

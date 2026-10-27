@@ -95,7 +95,9 @@ function DashboardInner({
   // While the user is on the SSR'd Congress, skip the live queries — the
   // initial render has all the data inline. Subscribing only happens when
   // the user clicks a different Congress button, which is rare on cold load.
-  const isInitial = selectedCongress === initialCongress;
+  // Without server data there is nothing inline, so subscribe rather than
+  // show the skeleton forever.
+  const isInitial = selectedCongress === initialCongress && initialData != null;
 
   const liveAll = useQuery(api.bills.getAllCongressOverview);
   const liveDashboard = useQuery(

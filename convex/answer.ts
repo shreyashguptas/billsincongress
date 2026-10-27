@@ -33,11 +33,29 @@ import { billsInScope, keepWebResultsForBill, withheldNote } from "./catalog/web
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
 import { AnswerTrace, readTraceIdentity, type GenerationRecord } from "./aiTrace";
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "./reasoning";
+import {
+  callClaude,
+  claudeAnswerModels,
+  claudeEffort,
+  claudeServiceDown,
+  claudeWebModels,
+  clipExcerpt,
+  CUT_OFF,
+  CUT_OFF_NOTE,
+  forOpenRouter,
+  searchWebClaude,
+  type ChatMessage,
+} from "./claude";
+import Anthropic from "@anthropic-ai/sdk";
 import type { Id } from "./_generated/dataModel";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
- * Baked-in model; override per-deployment with OPENROUTER_MODEL.
+ * The LAST RESORT, on OpenRouter credits; override per-deployment with
+ * OPENROUTER_MODEL. Readers get it only when every Claude model in the chain
+ * (convex/claude.ts: Claude Haiku 5.5, then Claude Sonnet 5.5, on the site's
+ * own Anthropic key) has failed this turn, or when ANTHROPIC_API_KEY is unset.
+ * It is also the model behind the Exa web lookup, the web search's fallback.
  *
  * gpt-oss-120b, chosen on 2026-10-05 by running the real answer loop over the
  * production data copy against 28 questions with known answers (21 scored),
@@ -49,38 +67,6 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
  * reasons in a separate field, so its thinking cannot land in the answer.
  */
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
-/**
- * The answer model, tried before DEFAULT_MODEL; override with
- * OPENROUTER_CLAUDE_MODEL, and set it blank to answer on DEFAULT_MODEL alone.
- *
- * Claude Haiku 5.5 at low effort, chosen on 2026-10-13 on the same truth
- * questions as above (20 scored, twice each, every flagged answer read by hand):
- * 38 of 40 right against gpt-oss's 37, at about a seventh of the token cost,
- * but a median of 3.7 s against 1.1 s. Medium and high effort scored the same
- * and cost about 3x; thinking off and max effort both scored lower.
- *
- * It runs on the site's OWN Anthropic key, attached to OpenRouter as BYOK, and
- * never on OpenRouter credits: CLAUDE_PROVIDER pins the Anthropic endpoint, and
- * callModel rejects any Claude reply OpenRouter did not bill to that key. A
- * failed or rejected Claude call does not fail the answer; the rest of the turn
- * runs on DEFAULT_MODEL (see answerRound). DEFAULT_MODEL also stays the model
- * behind searchWeb, whose citation parsing is provider-specific.
- */
-const DEFAULT_CLAUDE_MODEL = "anthropic/claude-haiku-5.5";
-/**
- * Anthropic's own endpoint and nothing else. Not merged with DEFAULT_PROVIDERS:
- * Amazon Bedrock is on that list and also serves Claude, on OpenRouter credits.
- *
- * No `zdr: true` here, unlike providerConfig: OpenRouter has no zero-retention
- * Anthropic endpoint for an account without a ZDR agreement, so the flag empties
- * the pool. Anthropic deletes API inputs and outputs within 30 days and does not
- * train on them; the reader guide says so.
- */
-const CLAUDE_PROVIDER = {
-  only: ["anthropic"],
-  allow_fallbacks: false,
-  data_collection: "deny",
-} as const;
 /**
  * Provider allowlist, so questions are only served from providers that process
  * data in the US; override with OPENROUTER_PROVIDERS. Every slug here must ALSO
@@ -118,6 +104,8 @@ const SITE_URL = "https://billsincongress.com";
 const MAX_HISTORY_TURNS = 10;
 const MAX_HISTORY_CHARS = 8000;
 const MAX_QUESTION_LENGTH = 2000;
+/** One Exa lookup, under the reader's 45 s stall watchdog. */
+const EXA_TIMEOUT_MS = 30_000;
 /** Search engine behind the web fallback. Named on the privacy page. */
 const WEB_ENGINE = "exa";
 /**
@@ -204,27 +192,18 @@ export interface AnswerResult {
    * cut-off answer loses precisely the qualification that made it honest.
    */
   truncatedByLength?: boolean;
+  /**
+   * The model that wrote the reply: claude-haiku-5-5, claude-sonnet-5-5, or the
+   * OpenRouter model when the turn fell through to it. For analytics, which
+   * hard-coded the answer model before and so mislabelled every fallback.
+   */
+  answeredBy?: string;
+  /** Who ran the web lookup that produced `webSources`: Anthropic's search tool or Exa. */
+  webEngine?: WebEngine;
   error?: string;
 }
 
-type ChatMessage = {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
-  tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
-  tool_call_id?: string;
-  /**
-   * Never set by the loop. The model's reasoning is NOT handed back on later
-   * rounds: measured on 2026-10-05, DeepSeek through OpenRouter answers fine
-   * without it, and when DeepSeek is rate-limited (429) and OpenRouter fails
-   * over to amazon/nova-lite-v1 on Amazon Bedrock, Bedrock refuses the whole
-   * request: "User messages cannot contain reasoning content." DeepSeek's own
-   * API does require it, but we never call that API directly. gpt-oss, the
-   * model since then, scored 18-19 of 21 on the truth questions without it
-   * (2026-10-05), and its failover hosts include Bedrock. Kept in the type so
-   * the refusal path can strip it from anything that carries it.
-   */
-  reasoning_details?: unknown[];
-};
+export type WebEngine = "anthropic" | "exa";
 
 /**
  * The prompt for one answer, from the copy in `answerPrompts`. Never throws and
@@ -287,7 +266,11 @@ export function followUpNote(lastAnswer: string): string {
 export function capHistory(
   history: Array<{ role: "user" | "assistant"; content: string }>,
 ): Array<{ role: "user" | "assistant"; content: string }> {
-  const recent = history.slice(-MAX_HISTORY_TURNS);
+  // The browser sends this; its type is not a guarantee. Any other role would
+  // reach Claude as a system instruction or an orphan tool result.
+  const recent = history
+    .filter((t) => (t.role === "user" || t.role === "assistant") && typeof t.content === "string")
+    .slice(-MAX_HISTORY_TURNS);
   const out: Array<{ role: "user" | "assistant"; content: string }> = [];
   let chars = 0;
   for (let i = recent.length - 1; i >= 0; i--) {
@@ -329,24 +312,46 @@ function providerConfig() {
   };
 }
 
-/** The Claude model for this deployment, or "" when Claude is switched off. */
-function claudeModel(): string {
-  // `??` not `||`: a blank value deliberately turns Claude off.
-  return (process.env.OPENROUTER_CLAUDE_MODEL ?? DEFAULT_CLAUDE_MODEL).trim();
+/** The two keys a turn can spend. Either may be missing; see `stream`. */
+export interface ModelKeys {
+  /** The site's own Claude API key: Claude Haiku 5.5, Sonnet 5.5, Claude web search. */
+  anthropic?: string;
+  /** OpenRouter, on its credits: gpt-oss (the last resort) and the Exa web lookup. */
+  openrouter?: string;
 }
 
+/** The keys from the Convex environment. Blank counts as missing. */
+function modelKeys(): ModelKeys {
+  const anthropic = process.env.ANTHROPIC_API_KEY?.trim();
+  const openrouter = process.env.OPENROUTER_API_KEY?.trim();
+  return {
+    ...(anthropic ? { anthropic } : {}),
+    ...(openrouter ? { openrouter } : {}),
+  };
+}
+
+/** Said once per question while ANTHROPIC_API_KEY is missing, so it cannot go unnoticed. */
+function warnNoAnthropicKey() {
+  console.error(
+    "ANTHROPIC_API_KEY is not set in the Convex environment: answering on OpenRouter's gpt-oss " +
+      "(the last resort) instead of Claude. Set it: npx convex env set ANTHROPIC_API_KEY <key> --prod",
+  );
+}
+
+/** The gpt-oss call on OpenRouter: the last resort of the answer chain. */
 async function callModel(
   messages: ChatMessage[],
-  apiKey: string,
-  opts: { withTools?: boolean; trace?: AnswerTrace; omitReasoning?: boolean; claude?: boolean } = {},
+  apiKey: string | undefined,
+  opts: { withTools?: boolean; trace?: AnswerTrace; omitReasoning?: boolean } = {},
 ): Promise<{ message: any; lengthCapped: boolean; reasoningRefused?: boolean }> {
-  const claude = opts.claude ?? false;
-  const model = claude ? claudeModel() : process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
-  // OpenRouter's `models` failover shares one provider config across the chain,
-  // so it is never sent with Claude: the fallback is answerRound's job.
-  const fallbacks = claude ? [] : fallbackModels();
-  // Claude 5.5 refuses a non-default temperature.
-  const temperature = claude ? undefined : 0.3;
+  const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not set, so the last-resort model cannot answer");
+  }
+  // Claude's own blocks never go to OpenRouter, and never onto the trace.
+  const sent = forOpenRouter(messages);
+  const fallbacks = fallbackModels();
+  const temperature = 0.3;
   const withTools = opts.withTools ?? true;
   // After a refusal the parameter is left out, so the request carries the
   // model's own default. Retrying with { enabled: false } instead was itself
@@ -364,10 +369,11 @@ async function callModel(
     opts.trace?.generation({
       name: "answer",
       model,
-      input: messages,
+      provider: "openrouter",
+      input: sent,
       latencyMs: Date.now() - started,
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
-      ...(temperature !== undefined && { temperature }),
+      temperature,
       maxTokens,
       ...g,
     });
@@ -383,18 +389,17 @@ async function callModel(
     body: JSON.stringify({
       model,
       ...(fallbacks.length > 0 && { models: fallbacks }),
-      messages,
+      messages: sent,
       // Omitted entirely on the final round. Sending the tools and asking the
       // model not to use them is advice; not sending them is a guarantee. When it
       // was advice, a model that asked for one more lookup fell out of the loop
       // and the reader got a canned apology on top of 17 successful fetches.
+      // (Claude gets the same guarantee from tool_choice "none"; see claude.ts.)
       ...(withTools ? { tools: ANSWER_TOOLS } : {}),
       max_tokens: maxTokens,
-      ...(temperature !== undefined && { temperature }),
+      temperature,
       ...(reasoning && { reasoning }),
-      provider: claude ? { ...CLAUDE_PROVIDER, max_price: MAX_PRICE } : providerConfig(),
-      // Carries usage.is_byok, which the BYOK check below reads.
-      ...(claude && { usage: { include: true } }),
+      provider: providerConfig(),
     }),
   }).catch((error: unknown) => {
     record({ error: String(error) });
@@ -410,13 +415,12 @@ async function callModel(
     // A request refused while it carried a reasoning setting gets one retry
     // without it, so the worst this setting can do is give the reader the
     // model's default, never no answer.
-    // Not for Claude: any Claude failure goes to DEFAULT_MODEL instead.
-    if (reasoning && response.status === 400 && !claude) {
+    if (reasoning && response.status === 400) {
       // Any 400, not necessarily caused by reasoning (a context-length or
       // tools-schema 400 looks the same), so the log says what happened, not why.
       console.error(`400 with a reasoning setting, retrying without it: ${message}`);
       const retried = await callModel(
-        messages.map(({ reasoning_details: _dropped, ...rest }) => rest),
+        sent.map(({ reasoning_details: _dropped, ...rest }) => rest),
         apiKey,
         { ...opts, omitReasoning: true },
       );
@@ -442,31 +446,13 @@ async function callModel(
     );
   }
   const choice = data.choices?.[0];
-  // A Claude reply OpenRouter paid for out of its own credits is discarded, so
-  // a BYOK misconfiguration costs one request and an error log, not a month of
-  // spend nobody sees. OpenRouter has already billed it; this stops the next.
-  if (claude && data.usage?.is_byok !== true) {
-    const message = `Claude reply was not billed to our Anthropic key (is_byok=${String(data.usage?.is_byok)}); check the Anthropic BYOK key on OpenRouter`;
-    record({ error: message, httpStatus: response.status });
-    throw new Error(message);
-  }
-  // Refusals come back as a normal reply with this reason and no usable text.
-  if (claude && choice?.finish_reason === "content_filter") {
-    const message = "Claude declined the request";
-    record({ error: message, httpStatus: response.status });
-    throw new Error(message);
-  }
   record({
     model: servedModel,
     ...(typeof data.provider === "string" && { host: data.provider }),
     output: choice?.message ? [choice.message] : [],
     inputTokens: data.usage?.prompt_tokens,
     outputTokens: data.usage?.completion_tokens,
-    // Under BYOK `cost` is OpenRouter's fee (nothing, below its allowance) and
-    // Anthropic bills the tokens; the trace records what the answer cost us.
-    costUsd: [claude ? data.usage?.cost_details?.upstream_inference_cost : undefined, data.usage?.cost].find(
-      (c): c is number => typeof c === "number",
-    ),
+    costUsd: typeof data.usage?.cost === "number" ? data.usage.cost : undefined,
     httpStatus: response.status,
   });
   // finish_reason was never read, so a completion cut off at max_tokens was
@@ -478,21 +464,59 @@ async function callModel(
 }
 
 /**
- * The fallback lookup (spec §3.2). A SEPARATE request rather than OpenRouter's
- * server-side web tool: their schema cannot make `reason` a required argument,
- * and the model must not search without telling the reader why.
+ * The fallback lookup (spec §3.2). A SEPARATE request from the answer loop
+ * rather than a web tool handed to the answer model: the model must not search
+ * without telling the reader why, and only our own `search_web` tool can make
+ * `reason` a required argument.
+ *
+ * Claude with Anthropic's server-side web search first (searchWebClaude, on
+ * our key); on any failure there, gpt-oss with OpenRouter's Exa plugin. Either
+ * way the reader sees the same thing: up to WEB_MAX_RESULTS sources, each a
+ * link, a title and an excerpt, under the model's one-sentence `reason`.
  */
 async function searchWeb(
   query: string,
-  apiKey: string,
+  keys: ModelKeys,
+  trace?: AnswerTrace,
+  onBackup?: () => void,
+): Promise<{ hits: WebSource[]; engine: WebEngine }> {
+  for (const model of keys.anthropic ? claudeWebModels() : []) {
+    try {
+      const hits = await searchWebClaude({
+        apiKey: keys.anthropic!,
+        model,
+        query,
+        maxResults: WEB_MAX_RESULTS,
+        effort: claudeEffort(reasoningConfig(process.env.OPENROUTER_REASONING)),
+        trace,
+      });
+      return { hits: hits.map((h, i) => ({ handle: `web:${i + 1}`, ...h })), engine: "anthropic" };
+    } catch (error) {
+      console.error(`Claude web search on ${model} failed; trying the next search:`, error);
+      // Restarts the reader's 45 s stall watchdog for the next call, as the
+      // answer chain does before a backup model.
+      onBackup?.();
+      // The other Claude model would fail the same way: go straight to Exa.
+      if (claudeServiceDown(error)) break;
+    }
+  }
+  return { hits: await searchWebExa(query, keys.openrouter, trace), engine: "exa" };
+}
+
+/** The web lookup on OpenRouter: gpt-oss with the Exa plugin, which cites as annotations. */
+async function searchWebExa(
+  query: string,
+  apiKey: string | undefined,
   trace?: AnswerTrace,
 ): Promise<WebSource[]> {
+  if (!apiKey) return [];
   const model = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
   const started = Date.now();
   const record = (g: Partial<GenerationRecord>) =>
     trace?.generation({
       name: "web_search",
       model,
+      provider: "openrouter",
       input: [{ role: "user", content: query }],
       latencyMs: Date.now() - started,
       maxTokens: 512,
@@ -513,6 +537,8 @@ async function searchWeb(
       plugins: [{ id: "web", engine: WEB_ENGINE, max_results: WEB_MAX_RESULTS }],
       provider: providerConfig(),
     }),
+    // Inside the reader's 45 s stall watchdog, which the step before it restarted.
+    signal: AbortSignal.timeout(EXA_TIMEOUT_MS),
   }).catch((error: unknown) => {
     record({ error: String(error) });
     throw error;
@@ -554,7 +580,8 @@ async function searchWeb(
       handle: `web:${i + 1}`,
       url: a.url_citation?.url ?? a.url ?? "",
       title: a.url_citation?.title ?? a.title ?? "",
-      excerpt: (a.url_citation?.content ?? a.content ?? "").slice(0, 500),
+      // Cut on a word with the cut marked, never mid-word: see CUT_OFF_NOTE.
+      excerpt: clipExcerpt(a.url_citation?.content ?? a.content ?? "", 500),
     }))
     .filter((s: WebSource) => s.url !== "");
 }
@@ -566,6 +593,9 @@ async function searchWeb(
  * reach a log line. The full message still goes to console.error.
  */
 export function errorKind(error: unknown): string {
+  if (error instanceof Anthropic.APIError && typeof error.status === "number") {
+    return `anthropic_${error.status}`;
+  }
   const message = error instanceof Error ? error.message : "";
   const status = /^OpenRouter (\d{3})\b/.exec(message);
   if (status) return `openrouter_${status[1]}`;
@@ -599,7 +629,7 @@ async function runLoop(
     question: string;
     pageContext?: PageContext | null;
     history: Array<{ role: "user" | "assistant"; content: string }>;
-    apiKey: string;
+    keys: ModelKeys;
     scope?: AnswerScope;
     onWork?: (entry: WorkLogEntry) => void;
     /** Records this turn for PostHog AI Observability. Absent on the CLI path. */
@@ -628,6 +658,9 @@ async function runLoop(
   const display = new Map<string, Record<string, unknown>>();
   const workLog: WorkLogEntry[] = [];
   let webReason = "";
+  let webEngine: WebEngine | undefined;
+  // Set by answerRound to the model of each reply; the last one wrote the answer.
+  let answeredBy: string | undefined;
   const webSources: WebSource[] = [];
   const note = (entry: WorkLogEntry) => {
     workLog.push(entry);
@@ -684,6 +717,7 @@ async function runLoop(
           label: row.label,
           title: row.title,
           sponsor: row.sponsor,
+          sponsorLastName: row.sponsorLastName,
           sponsorParty: row.sponsorParty,
           progressStage: row.progressStage,
         });
@@ -788,6 +822,8 @@ async function runLoop(
       webReason,
       webSources,
       ...(truncatedByLength ? { truncatedByLength: true } : {}),
+      ...(answeredBy ? { answeredBy } : {}),
+      ...(webEngine ? { webEngine } : {}),
       ...extra,
     };
   };
@@ -801,25 +837,64 @@ async function runLoop(
   // leaves it out, so a persistent refusal costs one extra request, not one a round.
   let omitReasoning = false;
 
-  // Claude first (DEFAULT_CLAUDE_MODEL). Once a Claude call fails — an error,
-  // a refusal, or a reply not billed to our key — the rest of the turn runs on
-  // DEFAULT_MODEL, so a broken Claude route costs a reader one request, not one
-  // a round, and never costs them the answer. The transcript is plain content
-  // and tool calls (no reasoning is handed back), so either model can pick it up.
-  let claude = claudeModel() !== "";
+  // The chain, per round: Claude Sonnet 5.5, then Claude Haiku 5.5 (both on our
+  // own Anthropic key, convex/claude.ts), then gpt-oss on OpenRouter. Once a
+  // model fails — an error, a timeout, a refusal, a model with no price on file
+  // — the rest of the turn runs on the next one, so a broken route costs a
+  // reader one request, not one a round, and never costs them the answer. When
+  // the Claude API itself is down (claudeServiceDown), Haiku is skipped.
+  // Claude's replies carry their own blocks (ChatMessage.claude): Haiku cannot
+  // read Sonnet's thinking, so the API drops it, and gpt-oss gets plain content
+  // and tool calls.
+  const claudeChain = opts.keys.anthropic ? claudeAnswerModels() : [];
+  const effort = claudeEffort(reasoningConfig(process.env.OPENROUTER_REASONING));
+  let link = 0;
   const answerRound = async (
     roundMessages: ChatMessage[],
     roundOpts: { withTools: boolean; omitReasoning: boolean },
-  ) => {
-    if (claude) {
+  ): Promise<{ message: any; lengthCapped: boolean; reasoningRefused?: boolean }> => {
+    while (link < claudeChain.length) {
+      const model = claudeChain[link];
       try {
-        return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace, claude: true });
+        const reply = await callClaude({
+          apiKey: opts.keys.anthropic!,
+          model,
+          messages: roundMessages,
+          withTools: roundOpts.withTools,
+          effort,
+          // Thinking counts toward max_tokens, so it gets the same headroom.
+          maxTokens: ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS,
+          trace: opts.trace,
+        });
+        answeredBy = model;
+        return reply;
       } catch (error) {
-        console.error("Claude failed; answering the rest of this turn on the default model:", error);
-        claude = false;
+        if (claudeServiceDown(error)) {
+          // The Claude API itself is unreachable: the other Claude model would
+          // fail the same way, so go straight to the last resort.
+          console.error(`CLAUDE API UNREACHABLE (${model}); answering the rest of this turn on the last-resort model:`, error);
+          link = claudeChain.length;
+        } else if (error instanceof Anthropic.BadRequestError) {
+          // A 400 is usually about the request, which Haiku gets unchanged, but
+          // not always (a parameter one model does not take): Haiku is still
+          // tried, at the cost of one more refused request. Logged loudly,
+          // because a request every Claude model rejects sends every answer to
+          // the last resort.
+          console.error(`CLAUDE REQUEST REJECTED (400) by ${model}. Fix the request:`, error);
+          link += 1;
+        } else {
+          const next = claudeChain[link + 1] ?? "the last-resort model on OpenRouter";
+          console.error(`${model} failed; answering the rest of this turn on ${next}:`, error);
+          link += 1;
+        }
+        // A visible step, so the reader's stall watchdog (45 s, reset by each
+        // work entry) restarts for the backup model's call.
+        note({ tool: "retry", detail: "trying a backup model" });
       }
     }
-    return await callModel(roundMessages, opts.apiKey, { ...roundOpts, trace: opts.trace });
+    const reply = await callModel(roundMessages, opts.keys.openrouter, { ...roundOpts, trace: opts.trace });
+    answeredBy = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
+    return reply;
   };
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -896,15 +971,25 @@ async function runLoop(
         if (wroteCallAsText) {
           messages.push({ role: "user", content: TEXT_TOOL_CALL_NUDGE });
         } else {
-          if (text.trim().length > 0) messages.push({ role: "assistant", content: text });
+          // Claude's own blocks go back with it (convex/claude.ts, rule 2).
+          if (text.trim().length > 0) {
+            messages.push({ role: "assistant", content: text, ...(message?.claude && { claude: message.claude }) });
+          }
           messages.push({ role: "user", content: NO_ANSWER_NUDGE });
         }
       }
       continue;
     }
 
-    // Content and tool calls only: the reasoning is not handed back (see ChatMessage).
-    messages.push({ role: "assistant", content: message.content ?? null, tool_calls: toolCalls });
+    // Content and tool calls only for OpenRouter: its reasoning is not handed
+    // back (see ChatMessage). A Claude reply also keeps its own blocks, thinking
+    // included, which go back to Claude unchanged (convex/claude.ts, rule 2).
+    messages.push({
+      role: "assistant",
+      content: message.content ?? null,
+      tool_calls: toolCalls,
+      ...(message.claude && { claude: message.claude }),
+    });
 
     // ask_reader ends the turn. Handled before the tool loop because there is
     // nothing to append to the transcript — the reader's reply is the next turn.
@@ -972,6 +1057,7 @@ async function runLoop(
                 label: row.label,
                 title: row.title,
                 sponsor: row.sponsor,
+                sponsorLastName: row.sponsorLastName,
                 sponsorParty: row.sponsorParty,
                 progressStage: row.progressStage,
               });
@@ -1010,19 +1096,29 @@ async function runLoop(
             // Filtered before the span is recorded, so the trace shows what the
             // model saw. See convex/catalog/webResults.ts.
             const scope = billsInScope(query, opts.pageContext?.billId, reason);
-            const { kept, removed } = keepWebResultsForBill(
-              await searchWeb(query, opts.apiKey, opts.trace),
-              scope,
+            // A step before the lookup, so the reader's 45 s stall watchdog
+            // restarts: the round that asked for it may have used most of the
+            // window already. A progress step reads "Searching the web" and is
+            // not counted as a lookup (components/answers/work-log.tsx).
+            note({ tool: "progress", detail: "the web" });
+            const web = await searchWeb(query, opts.keys, opts.trace, () =>
+              note({ tool: "progress", detail: "the web again" }),
             );
+            const { kept, removed } = keepWebResultsForBill(web.hits, scope);
             const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));
+            if (hits.length > 0) webEngine = web.engine;
             for (const h of hits) {
               allowed.add(h.handle);
               webSources.push(h);
             }
             webReason = reason;
+            const notes = [
+              ...(removed.length > 0 ? [withheldNote(scope, removed.length)] : []),
+              ...(hits.some((h) => h.excerpt.includes(CUT_OFF)) ? [CUT_OFF_NOTE] : []),
+            ];
             result = JSON.stringify({
               results: hits.map((h) => ({ _cite: h.handle, url: h.url, excerpt: h.excerpt })),
-              ...(removed.length > 0 && { note: withheldNote(scope, removed.length) }),
+              ...(notes.length > 0 && { note: notes.join(" ") }),
             });
             note({ tool: "web", detail: reason });
           }
@@ -1066,7 +1162,7 @@ async function runLoop(
  *
  * INTERNAL on purpose: this path has no rate limiter — the daily spend cap
  * lives in `stream` below — so a public export would be an unmetered door to
- * OpenRouter for anyone holding the deployment URL. `convex run` calls internal
+ * our Anthropic key and OpenRouter for anyone holding the deployment URL. `convex run` calls internal
  * functions as admin, so CLI testing is unaffected.
  */
 export const ask = internalAction({
@@ -1103,8 +1199,11 @@ export const ask = internalAction({
     if (args.question.trim().length === 0 || args.question.length > MAX_QUESTION_LENGTH) {
       return { text: "", ...empty, error: "Question must be between 1 and 2000 characters." };
     }
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) return { text: "", ...empty, error: "AI chat is not configured." };
+    const keys = modelKeys();
+    if (!keys.anthropic && !keys.openrouter) {
+      return { text: "", ...empty, error: "AI chat is not configured." };
+    }
+    if (!keys.anthropic) warnNoAnthropicKey();
 
     try {
       return await runLoop(ctx, {
@@ -1112,7 +1211,7 @@ export const ask = internalAction({
         pageContext: readContext(args.context, args.focusBillId),
         scope: args.scope as AnswerScope | undefined,
         history: args.history ?? [],
-        apiKey,
+        keys,
         promptVersion: args.promptVersion,
       });
     } catch (error) {
@@ -1131,7 +1230,10 @@ export const ask = internalAction({
 export const stream = httpAction(async (ctx, request) => {
   const body = await request.json().catch(() => ({}));
   const question = typeof body.question === "string" ? body.question : "";
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  // Either key is enough to answer: Claude on ANTHROPIC_API_KEY, or gpt-oss on
+  // OPENROUTER_API_KEY. A missing Anthropic key is an outage of Claude, not of
+  // chat, so it is logged loudly below and the turn runs on gpt-oss.
+  const keys = modelKeys();
 
   // Read identity outside the stream so a rejection can still be reported.
   const userId = await getAuthUserId(ctx);
@@ -1174,7 +1276,7 @@ export const stream = httpAction(async (ctx, request) => {
       const send = (event: string, data: unknown) =>
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
 
-      if (!apiKey) {
+      if (!keys.anthropic && !keys.openrouter) {
         send("error", { message: "AI chat is not configured." });
         controller.close();
         return;
@@ -1210,6 +1312,7 @@ export const stream = httpAction(async (ctx, request) => {
         return;
       }
 
+      if (!keys.anthropic) warnNoAnthropicKey();
       const startedAt = Date.now();
       try {
         const result = await runLoop(ctx, {
@@ -1220,7 +1323,7 @@ export const stream = httpAction(async (ctx, request) => {
               ? (body.scope as AnswerScope)
               : undefined,
           history: Array.isArray(body.history) ? body.history : [],
-          apiKey,
+          keys,
           onWork: (entry) => send("work", entry),
           trace,
           promptVersion: readPromptVersion(body.prompt),
@@ -1313,6 +1416,10 @@ export const stream = httpAction(async (ctx, request) => {
           // rate is visible: an answer cut off here loses whatever qualification
           // was still to come.
           truncatedByLength: result.truncatedByLength ?? false,
+          // For analytics only: which model wrote this answer, and who ran its
+          // web lookup. Never shown to the reader.
+          model: result.answeredBy ?? null,
+          webEngine: result.webEngine ?? null,
           chatId: savedChatId ?? null,
           traceId: trace.traceId,
         });

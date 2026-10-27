@@ -235,13 +235,38 @@ Patterns that appear on more than one page:
 
 - **Ask composer**: 60px tall, `rounded-lg`, raised, `line-strong` edge; the
   send button is a 40px ink circle. Starter questions are `rounded-full`
-  outline pills in `ink-2`, each written from a live figure.
+  outline pills in `ink-2`, each written from a live figure. The reader never
+  has to click into it to type: the home page's box is focused on arrival (on a
+  computer; on a phone that would throw the keyboard over the page), the
+  panel's composer is focused when the panel opens and stays usable while an
+  answer is written (Enter there sends the follow-up once the answer is done), and a key typed with no text box focused goes to
+  whichever ask box is on screen, opening the panel if none is
+  (`lib/type-to-ask.ts`).
 - **Answer reveal**: a new answer is written onto the page word by word, each
   word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
   words a second, faster for a long answer so none takes more than five
   seconds. Bill cards rise in when the text reaches them; the sources wait
-  for the last word. It plays once, for the answer being written — a resumed
+  for the last word. While an answer's sources are still arriving, the
+  reveal pauses at the start of a list and carries on from there once they
+  have, so a list never shows as bullets that turn into cards. It plays once, for the answer being written — a resumed
   conversation, and anyone under `prefers-reduced-motion`, sees it whole.
+- **Bills in an answer**: a bill is clickable where the answer names it, never
+  only further down. When an answer lists bills, each item is drawn as that
+  bill's compact card (number, title, party dot and sponsor, stage) in place of
+  the bullet, without the item's sentence: a sentence in every card made the
+  list a wall. That happens only for a list OF bills, decided for the whole
+  list: one bill per item, a different bill in each, and nothing in any item
+  beyond what identifies the bill — its title, number, sponsor and their
+  state, dates, policy area and stage. Cosponsors and how a bill passed
+  ("by voice vote") are not on the card, so they keep a list as text. (The card does not show dates, the
+  state or the policy area; the bill page does.) A list of facts about one bill, or one whose items carry
+  the answer ("would require flood alerts", "passed 30 to 1"), stays text. A bill
+  named in running text is underlined in `line-strong`, and its citation
+  number links to it too, in `ink-2`, named for screen readers ("Source 1:
+  open H.R. 7022"). The cards after the prose leave out any
+  bill already shown as a card in a list, so no bill appears twice. The sources
+  print a bill's own number ("H.R. 7022"), not its id ("7022hr119").
+  (`components/answers/bill-mentions.tsx`, `lib/answer-bill-links.ts`.)
 - **Answer check**: under every finished answer, after its sources, one line
   of 13px `ink-3` asks "Was this answer right?" beside two small outline
   buttons, "Yes" and "No" (44px on touch). No icons and no colour: a hue would
