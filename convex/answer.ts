@@ -270,15 +270,18 @@ export function followUpNote(lastAnswer: string): string {
  * was wrong". followUpNote is only for an answer about the bill on screen now.
  */
 export function earlierAnswerNote(lastAnswer: HistoryTurn, billOnScreen: string | undefined): string {
+  const note = followUpNote(lastAnswer.content);
   const askedOn = askedOnBill(lastAnswer.billId);
   const now = billOnScreen ?? null;
-  if (askedOn === undefined || askedOn === now) return followUpNote(lastAnswer.content);
+  if (askedOn === undefined || askedOn === now) return note;
   const page = (billId: string | null) => (billId ? `bill ${billId}` : "a page with no bill open");
+  // Answer cards link to bill pages, so "are you sure?" right after a move is
+  // still a doubt: the rule above stays, and only the re-asked question changes.
   return (
-    `Your previous reply in this conversation was asked on ${page(askedOn)}. The reader is now ` +
-    `on ${page(now)}. A question asked again here is a new question about this page, not a ` +
-    `doubt about that reply: answer it fresh, and do not say that reply was wrong, mistaken ` +
-    `or corrected, because it was about a different page.`
+    `${note} That reply was asked on ${page(askedOn)}; the reader is now on ${page(now)}. ` +
+    `A question about "this bill" is about the page they are on now, so the same question ` +
+    `asked again here is a new question: answer it fresh and do not call that reply wrong. ` +
+    `Use the correction rule above only if the reader clearly doubts that reply itself.`
   );
 }
 

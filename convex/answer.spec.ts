@@ -263,10 +263,29 @@ test("the same question on another bill's page is not answered as a correction",
   expect(note?.role).toBe("system");
   expect(note?.content).toContain("bill 5620s119");
   expect(note?.content).toContain("bill 5622s119");
-  expect(note?.content).toMatch(/do not say that reply was wrong/);
-  expect(note?.content).not.toMatch(/FIRST sentence must say that reply was wrong/);
+  expect(note?.content).toMatch(/do not call that reply wrong/);
   // The tag is for this note only; the model gets the turns as they were.
   expect(sent.some((m) => "billId" in m)).toBe(false);
+});
+
+test("a doubt after moving to another bill's page still owns a correction", async () => {
+  // Answer cards link to bill pages: a reader who clicks a wrong bill's card and
+  // types "are you sure?" must still get the correction rule and the quote.
+  replyWith(["My earlier answer was wrong."]);
+  await convexTest(schema, modules).action(internal.answer.ask, {
+    question: "are you sure",
+    context: { route: "bill", billId: "5622s119" },
+    history: [
+      { role: "user", content: "whats the latest law on lighthouses", billId: null },
+      { role: "assistant", content: "The latest is S. 5622.", billId: null },
+    ],
+  });
+  const sent = requests[0].messages;
+  const note = sent[sent.length - 2]?.content ?? "";
+  expect(note).toMatch(/FIRST sentence must say that reply was wrong/);
+  expect(note).toContain(JSON.stringify("The latest is S. 5622."));
+  expect(note).toContain("a page with no bill open");
+  expect(note).toMatch(/only if the reader clearly doubts that reply/);
 });
 
 test("the same question on the same bill's page still owns a correction", async () => {
