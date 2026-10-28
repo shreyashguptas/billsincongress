@@ -22,7 +22,9 @@
  * removes a leak by deleting the whole paragraph that carries it, so a leak the
  * reader never sees still costs them a paragraph of their answer.
  *
- * Run: OPENROUTER_API_KEY=sk-or-... ./node_modules/.bin/tsx scripts/check-grounding.ts
+ * Run: ANTHROPIC_API_KEY=sk-ant-... ./node_modules/.bin/tsx scripts/check-grounding.ts
+ * (grades Claude Haiku 5.5, the answer model), or with ANTHROPIC_ANSWER_MODEL= (blank)
+ * and OPENROUTER_API_KEY=sk-or-... to grade gpt-oss, the last resort.
  */
 import { ANSWER_TOOLS, buildSystemPrompt, MAX_TOOL_ROUNDS, primedDescriptions } from "../convex/catalog/tools";
 import { ANSWER_MAX_TOKENS, REASONING_HEADROOM_TOKENS, reasoningConfig } from "../convex/reasoning";
@@ -39,6 +41,13 @@ import {
 import type { DatasetName } from "../convex/catalog/types";
 import { validTemplate } from "../convex/catalog/promptTemplate";
 import { readFileSync } from "node:fs";
+import {
+  callClaude,
+  claudeEffort,
+  DEFAULT_ANSWER_MODEL,
+  forOpenRouter,
+  type ChatMessage as TranscriptMessage,
+} from "../convex/claude";
 
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 /**
@@ -55,14 +64,15 @@ export const DEFAULT_PROVIDERS = "cerebras,groq,amazon-bedrock";
 export const DEFAULT_FALLBACK_MODELS = "";
 export const MAX_PRICE = { prompt: 0.5, completion: 1.0 };
 /**
- * Production answers on this first, on the site's own Anthropic key (BYOK), and
- * moves a turn to MODEL only when a Claude call fails. The gate does NOT fall
- * back: a Claude failure here is a finding, and grading the fallback instead
- * would pass a gate on behalf of a model readers mostly do not get. Blank
- * OPENROUTER_CLAUDE_MODEL grades MODEL, as a blank value runs production on it.
+ * Production answers on this first, on the site's own Anthropic key, through
+ * the SAME request code (convex/claude.ts, imported, not copied), and moves a
+ * turn down its chain only when a Claude call fails. The gate does NOT fall
+ * back: a Claude failure here is a finding, and grading the backup or the last
+ * resort instead would pass a gate on behalf of a model readers mostly do not
+ * get. A blank ANTHROPIC_ANSWER_MODEL grades MODEL (gpt-oss on OpenRouter).
  */
-export const DEFAULT_CLAUDE_MODEL = "anthropic/claude-haiku-5.5";
-const CLAUDE_MODEL = (process.env.OPENROUTER_CLAUDE_MODEL ?? DEFAULT_CLAUDE_MODEL).trim();
+export { DEFAULT_ANSWER_MODEL };
+const CLAUDE_MODEL = (process.env.ANTHROPIC_ANSWER_MODEL ?? DEFAULT_ANSWER_MODEL).trim();
 
 const MODEL = process.env.OPENROUTER_MODEL || DEFAULT_MODEL;
 const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || DEFAULT_PROVIDERS)
@@ -775,18 +785,27 @@ export function serveFetch(
 // THE LOOP. Mirrors runLoop in convex/answer.ts.
 // ---------------------------------------------------------------------------
 
-type ChatMessage = {
-  role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
-  tool_calls?: Array<{ id: string; type?: string; function: { name: string; arguments: string } }>;
-  tool_call_id?: string;
-};
+/** The transcript, as convex/answer.ts keeps it: Claude's own reply rides along. */
+type ChatMessage = TranscriptMessage;
 
 const reasoning = reasoningConfig(process.env.OPENROUTER_REASONING);
 const reasoningOn = !("enabled" in reasoning);
 
 async function callModel(messages: ChatMessage[], withTools: boolean) {
-  if (CLAUDE_MODEL) return callClaude(messages, withTools);
+  if (CLAUDE_MODEL) {
+    // Exactly what production sends: US inference, adaptive thinking at the
+    // effort OPENROUTER_REASONING maps to, tool_choice "none" on the last round.
+    const { message } = await callClaude({
+      apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+      model: CLAUDE_MODEL,
+      messages,
+      withTools,
+      effort: claudeEffort(reasoning),
+      maxTokens: ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS,
+    });
+    servedModels.add(`${message.claude?.model ?? CLAUDE_MODEL} (Claude API)`);
+    return message;
+  }
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -796,7 +815,7 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
     body: JSON.stringify({
       model: MODEL,
       ...(FALLBACKS.length > 0 && { models: FALLBACKS }),
-      messages,
+      messages: forOpenRouter(messages),
       // Withheld entirely on the final round, as answer.ts does. Sending the
       // schema and asking the model not to use it is advice; not sending it is a
       // guarantee. Testing the advice version tests a loop we no longer run.
@@ -820,36 +839,7 @@ async function callModel(messages: ChatMessage[], withTools: boolean) {
     throw new Error(`OpenRouter: ${JSON.stringify(data.error ?? res.status).slice(0, 300)}`);
   }
   servedModels.add(String(data.model ?? "unknown"));
-  return data.choices?.[0]?.message;
-}
-
-/** The Claude route as convex/answer.ts sends it: Anthropic's endpoint only, our key only. */
-async function callClaude(messages: ChatMessage[], withTools: boolean) {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      messages,
-      ...(withTools ? { tools: ANSWER_TOOLS } : {}),
-      max_tokens: reasoningOn ? ANSWER_MAX_TOKENS + REASONING_HEADROOM_TOKENS : ANSWER_MAX_TOKENS,
-      reasoning,
-      provider: { only: ["anthropic"], allow_fallbacks: false, data_collection: "deny", max_price: MAX_PRICE },
-      usage: { include: true },
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok || data.error) {
-    throw new Error(`OpenRouter: ${JSON.stringify(data.error ?? res.status).slice(0, 300)}`);
-  }
-  if (data.usage?.is_byok !== true) {
-    throw new Error("Claude was not billed to our Anthropic key: check the BYOK key on OpenRouter");
-  }
-  servedModels.add(`${String(data.model ?? "unknown")} (BYOK)`);
-  return data.choices?.[0]?.message;
+  return data.choices?.[0]?.message as ChatMessage | undefined;
 }
 
 interface Answer {
@@ -901,7 +891,7 @@ async function ask(question: string): Promise<Answer> {
     const isFinalRound = round === MAX_TOOL_ROUNDS;
     const message = await callModel(
       isFinalRound
-        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION }]
+        ? [...messages, { role: "user", content: FINAL_ROUND_INSTRUCTION, instruction: true }]
         : messages,
       !isFinalRound,
     );
@@ -911,9 +901,14 @@ async function ask(question: string): Promise<Answer> {
       if (text.trim().length === 0) break;
       return { ...resolveAnswer(text, allowed), work, allowed, askedReader: false };
     }
-    // Content and tool calls only, exactly as convex/answer.ts: the reasoning is
-    // not handed back (see ChatMessage there for why).
-    messages.push({ role: "assistant", content: message.content ?? null, tool_calls: calls });
+    // Exactly as convex/answer.ts: content and tool calls, plus Claude's own
+    // blocks when Claude wrote it (gpt-oss's reasoning is not handed back).
+    messages.push({
+      role: "assistant",
+      content: message?.content ?? null,
+      tool_calls: calls,
+      ...(message?.claude && { claude: message.claude }),
+    });
 
     // ask_reader ENDS the turn — the reader's reply would be the next turn. Handled
     // before the tool loop because there is nothing to append to the transcript.
@@ -1259,7 +1254,11 @@ function report(title: string, answer: Answer) {
 }
 
 async function main() {
-  if (!process.env.OPENROUTER_API_KEY) {
+  if (CLAUDE_MODEL && !process.env.ANTHROPIC_API_KEY) {
+    console.error("Set ANTHROPIC_API_KEY (or ANTHROPIC_ANSWER_MODEL= and OPENROUTER_API_KEY to grade gpt-oss)");
+    process.exit(1);
+  }
+  if (!CLAUDE_MODEL && !process.env.OPENROUTER_API_KEY) {
     console.error("Set OPENROUTER_API_KEY");
     process.exit(1);
   }

@@ -1,0 +1,1207 @@
+{
+ "captured": "2026-10-26, from the live answer engine via a local dev server",
+ "answers": [
+  {
+   "name": "ca",
+   "question": "bills from California members that became law, as a list",
+   "expect": "cards",
+   "content": "Six measures sponsored by California members have become law in the 119th Congress, as of October 26, 2026. Five are bills and one is a joint resolution.\n\n- H.R. 2481, Romance Scam Prevention Act, by David Valadao (R) [1]\n- H.J.Res. 89, a joint resolution of congressional disapproval of an EPA rule on California motor vehicle and engine standards (the \"Omnibus\" Low NOX Regulation), by Jay Obernolte (R) [2]\n- H.R. 4405, Epstein Files Transparency Act, by Ro Khanna (D) [3]\n- H.R. 227, Clergy Act, by Vince Fong (R) [4]\n- H.R. 5334, Lindsey O. Graham Sanctioning Russia and Iran Act of 2026, by Jimmy Panetta (D) [5]\n- H.R. 952, Reversionary Interest Conveyance Act, by Doris Matsui (D) [6]\n\n[[bills:2481hr119,89hjres119,4405hr119,227hr119,5334hr119,952hr119]]",
+   "sources": [
+    "bills:2481hr119",
+    "bills:89hjres119",
+    "bills:4405hr119",
+    "bills:227hr119",
+    "bills:5334hr119",
+    "bills:952hr119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:2481hr119",
+    "bills:89hjres119",
+    "bills:4405hr119",
+    "bills:227hr119",
+    "bills:5334hr119",
+    "bills:952hr119"
+   ],
+   "entities": {
+    "bills:2481hr119": {
+     "label": "H.R. 2481",
+     "title": "Romance Scam Prevention Act",
+     "sponsor": "David Valadao",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:89hjres119": {
+     "label": "H.J.Res. 89",
+     "title": "Providing congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by the Environmental Protection Agency relating to \"California State Motor Vehicle and Engine and Nonroad Engine Pollution Control Standards; The 'Omnibus' Low NOX Regulation; Waiver of Preemption; Notice of Decision\".",
+     "sponsor": "Jay Obernolte",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:4405hr119": {
+     "label": "H.R. 4405",
+     "title": "Epstein Files Transparency Act",
+     "sponsor": "Ro Khanna",
+     "sponsorParty": "D",
+     "progressStage": 100
+    },
+    "bills:227hr119": {
+     "label": "H.R. 227",
+     "title": "Clergy Act",
+     "sponsor": "Vince Fong",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:5334hr119": {
+     "label": "H.R. 5334",
+     "title": "Lindsey O. Graham Sanctioning Russia and Iran Act of 2026",
+     "sponsor": "Jimmy Panetta",
+     "sponsorParty": "D",
+     "progressStage": 100
+    },
+    "bills:952hr119": {
+     "label": "H.R. 952",
+     "title": "Reversionary Interest Conveyance Act",
+     "sponsor": "Doris Matsui",
+     "sponsorParty": "D",
+     "progressStage": 100
+    }
+   }
+  },
+  {
+   "name": "compare",
+   "question": "compare H.R. 7022 and H.R. 952 in bullets",
+   "expect": "text",
+   "content": "Both bills became law, and both had their last action on October 22, 2026.\n\n**H.R. 7022, Mystic Alerts Act** [1]\n- Sponsor: August Pfluger (R-TX), introduced January 12, 2026.\n- Policy area: Science, Technology, Communications.\n- What it does, per the Congressional Research Service (CRS) summary of the bill as introduced: it provides for wireless emergency alerts to be sent to mobile devices by satellite. Participating providers must tell the Federal Communications Commission (FCC) whether they will send alerts by satellite. The FCC must set the technical standards. Subscribers can opt out of satellite alerts [2].\n\n**H.R. 952, Reversionary Interest Conveyance Act** [3]\n- Sponsor: Doris Matsui (D-CA), introduced February 4, 2025.\n- Policy area: Public Lands and Natural Resources.\n- What it does, per the CRS summary of the bill as introduced: it directs the Bureau of Land Management to offer to sell the federal government's reversionary interest in about 8.43 acres in Sacramento, California. The buyer pays at least fair market value plus the costs of the conveyance. The proceeds go into the Federal Land Disposal Account [4].\n\n**Differences**\n- H.R. 7022 deals with emergency alerts and telecommunications. H.R. 952 is a land conveyance in one city.\n- Their sponsors are from different parties and states.\n- H.R. 952 was introduced about a year earlier than H.R. 7022.\n\n[[bills:7022hr119,952hr119]]",
+   "sources": [
+    "bills:7022hr119",
+    "bill_summaries:7022hr119:Introduced in House",
+    "bills:952hr119",
+    "bill_summaries:952hr119:Introduced in House"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:7022hr119",
+    "bills:952hr119",
+    "bill_summaries:7022hr119:Introduced in House",
+    "bill_summaries:952hr119:Introduced in House"
+   ],
+   "entities": {
+    "bills:7022hr119": {
+     "label": "H.R. 7022",
+     "title": "Mystic Alerts Act",
+     "sponsor": "August Pfluger",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:952hr119": {
+     "label": "H.R. 952",
+     "title": "Reversionary Interest Conveyance Act",
+     "sponsor": "Doris Matsui",
+     "sponsorParty": "D",
+     "progressStage": 100
+    }
+   }
+  },
+  {
+   "name": "cruz",
+   "question": "list 4 bills Ted Cruz introduced recently",
+   "expect": "cards",
+   "content": "I could only find two recent Ted Cruz bills, not the four you asked for. Both were introduced on September 24, 2026, and both are in committee:\n\n- The 529 Retirement Enhancement Act of 2026 (S. 5550) [1]\n- The Responsible Cormorant Management and Control Act of 2026 (S. 5514) [2]\n\n[[bills:5550s119,5514s119]]\n\nThe search only covered part of his bills, so I can't say these are his only recent ones.",
+   "sources": [
+    "bills:5550s119",
+    "bills:5514s119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:5550s119",
+    "bills:5514s119"
+   ],
+   "entities": {
+    "bills:5550s119": {
+     "label": "S. 5550",
+     "title": "529 Retirement Enhancement Act of 2026",
+     "sponsor": "Ted Cruz",
+     "sponsorParty": "R",
+     "progressStage": 40
+    },
+    "bills:5514s119": {
+     "label": "S. 5514",
+     "title": "Responsible Cormorant Management and Control Act of 2026",
+     "sponsor": "Ted Cruz",
+     "sponsorParty": "R",
+     "progressStage": 40
+    }
+   }
+  },
+  {
+   "name": "health",
+   "question": "list the 5 newest health bills",
+   "expect": "text",
+   "content": "These are the five most recently introduced House health bills in the 119th Congress, as of October 26, 2026. All five are in committee.\n\n[[bills:10858hr119,10874hr119,10887hr119,10844hr119,10850hr119]]\n\n- The first three were introduced on October 22, 2026. They are the CARE for Blood Cancer Act of 2026 [1], the Medicare Low Income Subsidy Equality Act of 2026 [2] and the Protecting Consumer Access to Generic Drugs Act of 2026 [3].\n- The other two were introduced on October 19, 2026. They are the Mobile Stroke Units Improve Health Outcomes Act of 2026 [4] and the SCREENS Act [5].",
+   "sources": [
+    "bills:10858hr119",
+    "bills:10874hr119",
+    "bills:10887hr119",
+    "bills:10844hr119",
+    "bills:10850hr119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:10858hr119",
+    "bills:10874hr119",
+    "bills:10887hr119",
+    "bills:10844hr119",
+    "bills:10850hr119"
+   ],
+   "entities": {
+    "bills:10858hr119": {
+     "label": "H.R. 10858",
+     "title": "CARE for Blood Cancer Act of 2026",
+     "sponsor": "Nanette Barrag\u00c3\u00a1n",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:10874hr119": {
+     "label": "H.R. 10874",
+     "title": "Medicare Low Income Subsidy Equality Act of 2026",
+     "sponsor": "Pablo Hern\u00c3\u00a1ndez",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:10887hr119": {
+     "label": "H.R. 10887",
+     "title": "Protecting Consumer Access to Generic Drugs Act of 2026",
+     "sponsor": "Seth Magaziner",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:10844hr119": {
+     "label": "H.R. 10844",
+     "title": "Mobile Stroke Units Improve Health Outcomes Act of 2026",
+     "sponsor": "Steve Cohen",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:10850hr119": {
+     "label": "H.R. 10850",
+     "title": "SCREENS Act",
+     "sponsor": "Ashley Hinson",
+     "sponsorParty": "R",
+     "progressStage": 40
+    }
+   }
+  },
+  {
+   "name": "hr1",
+   "question": "what are the main things H.R. 1 does? bullets",
+   "expect": "text",
+   "content": "H.R. 1 in the 119th Congress became law. The official summary describes it as a budget reconciliation bill, and the House version was called the \"One Big Beautiful Bill Act.\" [1] The summary we hold is only the opening of a much longer text, so these are the main points it covers, not everything in the law. [2]\n\n- **Overall:** It cuts taxes, raises or lowers spending on various federal programs, and raises the statutory debt limit. It also addresses agencies and programs across the federal government. [2]\n- **How it was passed:** It carries out the FY2025 budget resolution (H. Con. Res. 14). Reconciliation bills move under expedited procedures that prevent a filibuster and limit amendments in the Senate. [2]\n- **SNAP (food assistance) work rules:** The work requirements now reach able-bodied adults without dependents up to age 65, up from 55. [2] Parents are exempt only if their child is under 14, where the old cutoff was under 18. [3] Homeless people, veterans and certain former foster youth lose their exemptions. [2]\n- **SNAP state waivers:** States can no longer get a waiver of the time limit because an area has too few jobs. Alaska and Hawaii can qualify at an unemployment rate of 1.5 times the national rate. [2]\n- **SNAP benefit calculations:** Only households with an elderly or disabled member can use energy-assistance participation to qualify for the standard utility allowance. Internet fees can't count toward housing costs. The Thrifty Food Plan can't be raised through a reevaluation of its contents. [2]\n- **SNAP state cost-sharing:** Starting in FY2028, states pay 0% to 15% of benefit costs, depending on their payment error rate. [3]\n\nThe summary also covers the bill's other committee titles, but the text we hold cuts off before them, so I can't list those.\n\n[[bills:1hr119]]",
+   "sources": [
+    "bills:1hr119",
+    "bill_summaries:1hr119:Public Law",
+    "bill_summaries:1hr119:Passed Senate"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:1hr119",
+    "bill_summaries:1hr119:Passed Senate",
+    "bill_summaries:1hr119:Public Law",
+    "bill_summaries:1hr119:Reported to House",
+    "bill_summaries:1hr119:Passed House",
+    "bill_summaries:1hr119:Introduced in House"
+   ],
+   "entities": {
+    "bills:1hr119": {
+     "label": "H.R. 1",
+     "title": "An act to provide for reconciliation pursuant to title II of H. Con. Res. 14.",
+     "sponsor": "Jodey Arrington",
+     "sponsorParty": "R",
+     "progressStage": 100
+    }
+   }
+  },
+  {
+   "name": "immigration",
+   "question": "what immigration bills are moving?",
+   "expect": "text",
+   "content": "As of October 26, 2026, 37 immigration measures in the 119th Congress have made it out of committee. Of those, 30 are bills and 4 are joint resolutions. The other 3 are simple resolutions [1]. These are the ones with the most recent action:\n\n- **Passed the House or Senate (one chamber so far):**\n  - The Northern Border Security Enhancement and Review Act passed one chamber in both versions, H.R. 5517 and S. 850, with the latest action on September 16, 2026 and August 10, 2026 respectively [2] [3].\n  - The PEARL Act, H.R. 9327, passed one chamber [4].\n  - H.R. 9382, which would link family members' applications in the NEXUS trusted-traveler program, also passed one chamber [5].\n- **Out of committee, waiting for a floor vote:**\n  - S.J.Res. 213 would overturn a Department of Homeland Security rule on fixed admission periods for foreign students and exchange visitors [1].\n  - The Senate's PEARL Act, S. 4079, is also out of committee [6].\n- **Became law:** the Secure America Act (S. 2), with its latest action on June 10, 2026 [7].\n\n[[bills:213sjres119,9382hr119,9327hr119,5517hr119,4079s119,850s119,2s119]]",
+   "sources": [
+    "bills:213sjres119",
+    "bills:5517hr119",
+    "bills:850s119",
+    "bills:9327hr119",
+    "bills:9382hr119",
+    "bills:4079s119",
+    "bills:2s119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:213sjres119",
+    "bills:9382hr119",
+    "bills:9327hr119",
+    "bills:5517hr119",
+    "bills:4079s119",
+    "bills:850s119",
+    "bills:190sjres119",
+    "bills:2s119",
+    "bills:99sjres119",
+    "bills:1071hr119"
+   ],
+   "entities": {
+    "bills:213sjres119": {
+     "label": "S.J.Res. 213",
+     "title": "A joint resolution providing for congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by U.S. Immigration and Customs Enforcement of the Department of Homeland Security relating to \"Establishing a Fixed Time Period of Admission and an Extension of Stay Procedure for Nonimmigrant Academic Students, Exchange Visitors, and Representatives of Foreign Information Media\".",
+     "sponsor": "Richard Durbin",
+     "sponsorParty": "D",
+     "progressStage": 50
+    },
+    "bills:9382hr119": {
+     "label": "H.R. 9382",
+     "title": "To require the Commissioner of U.S. Customs and Border Protection to link together applications of family members throughout the NEXUS application process, and for other purposes.",
+     "sponsor": "Timothy Kennedy",
+     "sponsorParty": "D",
+     "progressStage": 60
+    },
+    "bills:9327hr119": {
+     "label": "H.R. 9327",
+     "title": "PEARL Act",
+     "sponsor": "David Joyce",
+     "sponsorParty": "R",
+     "progressStage": 60
+    },
+    "bills:5517hr119": {
+     "label": "H.R. 5517",
+     "title": "Northern Border Security Enhancement and Review Act",
+     "sponsor": "Nicholas Langworthy",
+     "sponsorParty": "R",
+     "progressStage": 60
+    },
+    "bills:4079s119": {
+     "label": "S. 4079",
+     "title": "PEARL Act",
+     "sponsor": "Ruben Gallego",
+     "sponsorParty": "D",
+     "progressStage": 50
+    },
+    "bills:850s119": {
+     "label": "S. 850",
+     "title": "Northern Border Security Enhancement and Review Act",
+     "sponsor": "Maggie Hassan",
+     "sponsorParty": "D",
+     "progressStage": 60
+    },
+    "bills:190sjres119": {
+     "label": "S.J.Res. 190",
+     "title": "A joint resolution providing for congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by the Executive Office for Immigration Review relating to \"Appellate Procedures for the Board of Immigration Appeals\".",
+     "sponsor": "Timothy Kaine",
+     "sponsorParty": "D",
+     "progressStage": 50
+    },
+    "bills:2s119": {
+     "label": "S. 2",
+     "title": "Secure America Act",
+     "sponsor": "Lindsey Graham",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:99sjres119": {
+     "label": "S.J.Res. 99",
+     "title": "A joint resolution providing for congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by U.S. Citizenship and Immigration Services relating to \"Removal of the Automatic Extension of Employment Authorization Documents\".",
+     "sponsor": "Jacky Rosen",
+     "sponsorParty": "D",
+     "progressStage": 50
+    },
+    "bills:1071hr119": {
+     "label": "H.R. 1071",
+     "title": "No Censors on our Shores Act of 2025",
+     "sponsor": "Darrell Issa",
+     "sponsorParty": "R",
+     "progressStage": 50
+    }
+   }
+  },
+  {
+   "name": "newest-laws",
+   "question": "what were the last 5 bills signed into law? use bullets",
+   "expect": "cards",
+   "content": "The five most recent measures to become law in the 119th Congress, as of October 26, 2026, newest first. Each is dated by its latest action:\n\n- **Mystic Alerts Act (H.R. 7022)**, sponsored by August Pfluger (R-TX), October 22, 2026 [1]\n- **Reversionary Interest Conveyance Act (H.R. 952)**, sponsored by Doris Matsui (D-CA), October 22, 2026 [2]\n- **Southcentral Foundation Land Transfer Act of 2025 (H.R. 3620)**, sponsored by Nicholas Begich (R-AK), October 20, 2026 [3]\n- **Romance Scam Prevention Act (H.R. 2481)**, sponsored by David Valadao (R-CA), October 20, 2026 [4]\n- **Lower Elwha Klallam Tribe Project Lands Restoration Act (H.R. 2388)**, sponsored by Emily Randall (D-WA), October 20, 2026 [5]\n\n[[bills:7022hr119,952hr119,3620hr119,2481hr119,2388hr119]]",
+   "sources": [
+    "bills:7022hr119",
+    "bills:952hr119",
+    "bills:3620hr119",
+    "bills:2481hr119",
+    "bills:2388hr119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:7022hr119",
+    "bills:952hr119",
+    "bills:3620hr119",
+    "bills:2481hr119",
+    "bills:2388hr119"
+   ],
+   "entities": {
+    "bills:7022hr119": {
+     "label": "H.R. 7022",
+     "title": "Mystic Alerts Act",
+     "sponsor": "August Pfluger",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:952hr119": {
+     "label": "H.R. 952",
+     "title": "Reversionary Interest Conveyance Act",
+     "sponsor": "Doris Matsui",
+     "sponsorParty": "D",
+     "progressStage": 100
+    },
+    "bills:3620hr119": {
+     "label": "H.R. 3620",
+     "title": "Southcentral Foundation Land Transfer Act of 2025",
+     "sponsor": "Nicholas Begich",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2481hr119": {
+     "label": "H.R. 2481",
+     "title": "Romance Scam Prevention Act",
+     "sponsor": "David Valadao",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2388hr119": {
+     "label": "H.R. 2388",
+     "title": "Lower Elwha Klallam Tribe Project Lands Restoration Act",
+     "sponsor": "Emily Randall",
+     "sponsorParty": "D",
+     "progressStage": 100
+    }
+   }
+  },
+  {
+   "name": "senate",
+   "question": "list the newest Senate bills",
+   "expect": "cards",
+   "content": "Among the newest Senate bills, nine were introduced on October 15, 2026 and the next one on September 30, 2026. All ten are still in committee. These are the first ten in newest-first order.\n\n- S. 5682, Foreign Government-Owned Media FARA Registration Act, from Rick Scott (R-FL) [1]\n- S. 5683, Best Practices for Military Family Child Care Homes Act, from Jacky Rosen (D-NV) [2]\n- S. 5684, No Cash for Incompetent and Malicious Contractors Act, from Rick Scott [3]\n- S. 5685, Epstein Wall Street Records Act of 2026, from Elizabeth Warren (D-MA) [4]\n- S. 5686, No Public Executions in America Act, from Mark Kelly (D-AZ) [5]\n- S. 5687, Presidential Pardon Integrity Act, from Cory Booker (D-NJ) [6]\n- S. 5688, Acquired Lands Revenue Modernization Act, from Bernie Moreno (R-OH) [7]\n- S. 5689, RECLAIM Act, from Bernie Moreno [8]\n- S. 5690, Renewing the Dream Act, from Raphael Warnock (D-GA) [9]\n- S. 5652, Build American Efficiency Act, from Angus King (I-ME), introduced September 30, 2026 [10]\n\n[[bills:5690s119,5689s119,5688s119,5687s119,5686s119,5685s119,5684s119,5683s119,5682s119,5652s119]]",
+   "sources": [
+    "bills:5682s119",
+    "bills:5683s119",
+    "bills:5684s119",
+    "bills:5685s119",
+    "bills:5686s119",
+    "bills:5687s119",
+    "bills:5688s119",
+    "bills:5689s119",
+    "bills:5690s119",
+    "bills:5652s119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:5682s119",
+    "bills:5687s119",
+    "bills:5690s119",
+    "bills:5685s119",
+    "bills:5684s119",
+    "bills:5689s119",
+    "bills:5686s119",
+    "bills:5688s119",
+    "bills:5683s119",
+    "bills:5652s119"
+   ],
+   "entities": {
+    "bills:5682s119": {
+     "label": "S. 5682",
+     "title": "Foreign Government-Owned Media FARA Registration Act",
+     "sponsor": "Rick Scott",
+     "sponsorParty": "R",
+     "progressStage": 40
+    },
+    "bills:5687s119": {
+     "label": "S. 5687",
+     "title": "Presidential Pardon Integrity Act",
+     "sponsor": "Cory Booker",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:5690s119": {
+     "label": "S. 5690",
+     "title": "Renewing the Dream Act",
+     "sponsor": "Raphael Warnock",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:5685s119": {
+     "label": "S. 5685",
+     "title": "Epstein Wall Street Records Act of 2026",
+     "sponsor": "Elizabeth Warren",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:5684s119": {
+     "label": "S. 5684",
+     "title": "No Cash for Incompetent and Malicious Contractors Act",
+     "sponsor": "Rick Scott",
+     "sponsorParty": "R",
+     "progressStage": 40
+    },
+    "bills:5689s119": {
+     "label": "S. 5689",
+     "title": "RECLAIM Act",
+     "sponsor": "Bernie Moreno",
+     "sponsorParty": "R",
+     "progressStage": 40
+    },
+    "bills:5686s119": {
+     "label": "S. 5686",
+     "title": "No Public Executions in America Act",
+     "sponsor": "Mark Kelly",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:5688s119": {
+     "label": "S. 5688",
+     "title": "Acquired Lands Revenue Modernization Act",
+     "sponsor": "Bernie Moreno",
+     "sponsorParty": "R",
+     "progressStage": 40
+    },
+    "bills:5683s119": {
+     "label": "S. 5683",
+     "title": "Best Practices for Military Family Child Care Homes Act",
+     "sponsor": "Jacky Rosen",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:5652s119": {
+     "label": "S. 5652",
+     "title": "Build American Efficiency Act",
+     "sponsor": "Angus King",
+     "sponsorParty": "I",
+     "progressStage": 40
+    }
+   }
+  },
+  {
+   "name": "tea",
+   "question": "what is the tea for today",
+   "expect": "cards",
+   "content": "The most recent activity we hold is from October 22, 2026. Two of the latest laws had their last action that day, and a batch of new measures were filed.\n\nThe Mystic Alerts Act, sponsored by August Pfluger (R-TX), became law, with its last action on October 22 [1]. The Reversionary Interest Conveyance Act, sponsored by Doris Matsui (D-CA), also became law, with its last action that day [2]. The 119th Congress has 138 measures that have become law so far, as of today, October 26, 2026 [1].\n\nAmong the newly filed measures, all of them introduced October 22 and now in committee:\n- The AI Cyber Defense Act, from Pat Harrigan (R-NC) [3].\n- The Disaster Data Protection Act, from Brittany Pettersen (D-CO) [4].\n- The SLOTHS Act of 2026, from Maxwell Frost (D-FL) [5].\n\n[[bills:7022hr119,952hr119,10873hr119,10894hr119,10867hr119]]",
+   "sources": [
+    "bills:7022hr119",
+    "bills:952hr119",
+    "bills:10873hr119",
+    "bills:10894hr119",
+    "bills:10867hr119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:10894hr119",
+    "bills:1635hres119",
+    "bills:1637hres119",
+    "bills:1634hres119",
+    "bills:1636hres119",
+    "bills:1638hres119",
+    "bills:10873hr119",
+    "bills:10867hr119",
+    "bills:7022hr119",
+    "bills:952hr119",
+    "bills:3620hr119"
+   ],
+   "entities": {
+    "bills:10894hr119": {
+     "label": "H.R. 10894",
+     "title": "Disaster Data Protection Act",
+     "sponsor": "Brittany Pettersen",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:1635hres119": {
+     "label": "H.Res. 1635",
+     "title": "Supporting the designation of October 23, 2026, as \"National Marine Sanctuary Day\".",
+     "sponsor": "Jack Bergman",
+     "sponsorParty": "R",
+     "progressStage": 40
+    },
+    "bills:1637hres119": {
+     "label": "H.Res. 1637",
+     "title": "Recognizing the significance of equal pay and the pay disparity between disabled women and nondisabled men.",
+     "sponsor": "Lateefah Simon",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:1634hres119": {
+     "label": "H.Res. 1634",
+     "title": "Expressing support for the recognition of October 26, 2026, as Intersex Awareness Day, and supporting the goals and ideals of Intersex Awareness Day.",
+     "sponsor": "Becca Balint",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:1636hres119": {
+     "label": "H.Res. 1636",
+     "title": "Constituent Casework Continuity Resolution",
+     "sponsor": "Everton Blair",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:1638hres119": {
+     "label": "H.Res. 1638",
+     "title": "Honoring and commemorating United Baptist Church's 100 years of historic contributions to the Akron and surrounding communities.",
+     "sponsor": "Emilia Sykes",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:10873hr119": {
+     "label": "H.R. 10873",
+     "title": "AI Cyber Defense Act",
+     "sponsor": "Pat Harrigan",
+     "sponsorParty": "R",
+     "progressStage": 40
+    },
+    "bills:10867hr119": {
+     "label": "H.R. 10867",
+     "title": "SLOTHS Act of 2026",
+     "sponsor": "Maxwell Frost",
+     "sponsorParty": "D",
+     "progressStage": 40
+    },
+    "bills:7022hr119": {
+     "label": "H.R. 7022",
+     "title": "Mystic Alerts Act",
+     "sponsor": "August Pfluger",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:952hr119": {
+     "label": "H.R. 952",
+     "title": "Reversionary Interest Conveyance Act",
+     "sponsor": "Doris Matsui",
+     "sponsorParty": "D",
+     "progressStage": 100
+    },
+    "bills:3620hr119": {
+     "label": "H.R. 3620",
+     "title": "Southcentral Foundation Land Transfer Act of 2025",
+     "sponsor": "Nicholas Begich",
+     "sponsorParty": "R",
+     "progressStage": 100
+    }
+   }
+  },
+  {
+   "name": "veterans-law",
+   "question": "which bills about veterans became law this Congress? bullet list please",
+   "expect": "cards",
+   "content": "Eight measures with \"veteran\" or \"veterans\" in the title had become law in the 119th Congress as of October 26, 2026. This only catches titles that use the word, so a veterans-related law with a different title would not appear.\n\n- **Veteran Fraud Reimbursement Act of 2025** (H.R. 1912), sponsored by Gerald Connolly [1]\n- **Disabled Veterans Housing Support Act** (H.R. 224), sponsored by Monica De La Cruz [2]\n- **PRO Veterans Act of 2025** (S. 423), sponsored by Dan Sullivan [3]\n- **Veterans' Compensation Cost-of-Living Adjustment Act of 2025** (S. 2392), sponsored by Jerry Moran [4]\n- **Fiscal Year 2025 Veterans Affairs Major Medical Facility Authorization Act** (S. 2393), sponsored by Jerry Moran [5]\n- **Alaska Native Vietnam Era Veterans Land Allotment Extension Act of 2025** (H.R. 410), sponsored by Nicholas Begich [6]\n- **Continuing Appropriations, Agriculture, Legislative Branch, Military Construction and Veterans Affairs, and Extensions Act, 2026** (H.R. 5371), sponsored by Tom Cole [7]\n- **A bill to name the Department of Veterans Affairs clinic in Toms River, New Jersey, the Leonard G. \"Bud\" Lomell VA Clinic** (H.R. 2170), sponsored by Christopher Smith [8]",
+   "sources": [
+    "bills:1912hr119",
+    "bills:224hr119",
+    "bills:423s119",
+    "bills:2392s119",
+    "bills:2393s119",
+    "bills:410hr119",
+    "bills:5371hr119",
+    "bills:2170hr119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:1912hr119",
+    "bills:224hr119",
+    "bills:423s119",
+    "bills:2392s119",
+    "bills:2393s119",
+    "bills:410hr119",
+    "bills:5371hr119",
+    "bills:2170hr119"
+   ],
+   "entities": {
+    "bills:1912hr119": {
+     "label": "H.R. 1912",
+     "title": "Veteran Fraud Reimbursement Act of 2025",
+     "sponsor": "Gerald Connolly",
+     "sponsorParty": "D",
+     "progressStage": 100
+    },
+    "bills:224hr119": {
+     "label": "H.R. 224",
+     "title": "Disabled Veterans Housing Support Act",
+     "sponsor": "Monica De La Cruz",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:423s119": {
+     "label": "S. 423",
+     "title": "PRO Veterans Act of 2025",
+     "sponsor": "Dan Sullivan",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2392s119": {
+     "label": "S. 2392",
+     "title": "Veterans\u00e2\u20ac\u2122 Compensation Cost-of-Living Adjustment Act of 2025",
+     "sponsor": "Jerry Moran",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2393s119": {
+     "label": "S. 2393",
+     "title": "Fiscal Year 2025 Veterans Affairs Major Medical Facility Authorization Act",
+     "sponsor": "Jerry Moran",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:410hr119": {
+     "label": "H.R. 410",
+     "title": "Alaska Native Vietnam Era Veterans Land Allotment Extension Act of 2025",
+     "sponsor": "Nicholas Begich",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:5371hr119": {
+     "label": "H.R. 5371",
+     "title": "Continuing Appropriations, Agriculture, Legislative Branch, Military Construction and Veterans Affairs, and Extensions Act, 2026",
+     "sponsor": "Tom Cole",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2170hr119": {
+     "label": "H.R. 2170",
+     "title": "To name the Department of Veterans Affairs community-based outpatient clinic in Toms River, New Jersey, the Leonard G. 'Bud' Lomell, VA Clinic, and for other purposes.",
+     "sponsor": "Christopher Smith",
+     "sponsorParty": "R",
+     "progressStage": 100
+    }
+   }
+  },
+  {
+   "name": "veterans-law-vet2",
+   "question": "which bills about veterans became law this Congress? bullet list please",
+   "expect": "text",
+   "content": "Eight measures with \"veteran\" in the title have become law in the 119th Congress so far. This is a snapshot as of October 26, 2026, and it only catches bills whose titles mention veterans:\n\n- Veteran Fraud Reimbursement Act of 2025 (H.R. 1912) [1]\n- Disabled Veterans Housing Support Act (H.R. 224) [2]\n- PRO Veterans Act of 2025 (S. 423) [3]\n- Veterans' Compensation Cost-of-Living Adjustment Act of 2025 (S. 2392) [4]\n- Fiscal Year 2025 Veterans Affairs Major Medical Facility Authorization Act (S. 2393) [5]\n- Alaska Native Vietnam Era Veterans Land Allotment Extension Act of 2025 (H.R. 410) [6]\n- Continuing Appropriations, Agriculture, Legislative Branch, Military Construction and Veterans Affairs, and Extensions Act, 2026 (H.R. 5371). This is a broad funding bill that includes Veterans Affairs. [7]\n- A bill naming the Department of Veterans Affairs clinic in Toms River, New Jersey, after Leonard G. \"Bud\" Lomell (H.R. 2170) [8]\n\nA law that deals with veterans but doesn't say so in its title would not appear here.",
+   "sources": [
+    "bills:1912hr119",
+    "bills:224hr119",
+    "bills:423s119",
+    "bills:2392s119",
+    "bills:2393s119",
+    "bills:410hr119",
+    "bills:5371hr119",
+    "bills:2170hr119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:1912hr119",
+    "bills:224hr119",
+    "bills:423s119",
+    "bills:2392s119",
+    "bills:2393s119",
+    "bills:410hr119",
+    "bills:5371hr119",
+    "bills:2170hr119"
+   ],
+   "entities": {
+    "bills:1912hr119": {
+     "label": "H.R. 1912",
+     "title": "Veteran Fraud Reimbursement Act of 2025",
+     "sponsor": "Gerald Connolly",
+     "sponsorParty": "D",
+     "progressStage": 100
+    },
+    "bills:224hr119": {
+     "label": "H.R. 224",
+     "title": "Disabled Veterans Housing Support Act",
+     "sponsor": "Monica De La Cruz",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:423s119": {
+     "label": "S. 423",
+     "title": "PRO Veterans Act of 2025",
+     "sponsor": "Dan Sullivan",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2392s119": {
+     "label": "S. 2392",
+     "title": "Veterans\u00e2\u20ac\u2122 Compensation Cost-of-Living Adjustment Act of 2025",
+     "sponsor": "Jerry Moran",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2393s119": {
+     "label": "S. 2393",
+     "title": "Fiscal Year 2025 Veterans Affairs Major Medical Facility Authorization Act",
+     "sponsor": "Jerry Moran",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:410hr119": {
+     "label": "H.R. 410",
+     "title": "Alaska Native Vietnam Era Veterans Land Allotment Extension Act of 2025",
+     "sponsor": "Nicholas Begich",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:5371hr119": {
+     "label": "H.R. 5371",
+     "title": "Continuing Appropriations, Agriculture, Legislative Branch, Military Construction and Veterans Affairs, and Extensions Act, 2026",
+     "sponsor": "Tom Cole",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2170hr119": {
+     "label": "H.R. 2170",
+     "title": "To name the Department of Veterans Affairs community-based outpatient clinic in Toms River, New Jersey, the Leonard G. 'Bud' Lomell, VA Clinic, and for other purposes.",
+     "sponsor": "Christopher Smith",
+     "sponsorParty": "R",
+     "progressStage": 100
+    }
+   }
+  },
+  {
+   "name": "veterans-law-vet3",
+   "question": "which bills about veterans became law this Congress? bullet list please",
+   "expect": "text",
+   "content": "Eight measures with \"veteran\" or \"veterans\" in the title have become law in the 119th Congress, as of today, October 26, 2026. This search covers titles only, so a law about veterans whose title doesn't use the word would not appear.\n\n- H.R. 1912, Veteran Fraud Reimbursement Act of 2025 [1]\n- H.R. 224, Disabled Veterans Housing Support Act [2]\n- S. 423, PRO Veterans Act of 2025 [3]\n- S. 2392, Veterans' Compensation Cost-of-Living Adjustment Act of 2025 [4]\n- S. 2393, Fiscal Year 2025 Veterans Affairs Major Medical Facility Authorization Act [5]\n- H.R. 410, Alaska Native Vietnam Era Veterans Land Allotment Extension Act of 2025 [6]\n- H.R. 2170, a bill to name the Department of Veterans Affairs clinic in Toms River, New Jersey, the Leonard G. \"Bud\" Lomell VA Clinic [7]\n- H.R. 5371, Continuing Appropriations, Agriculture, Legislative Branch, Military Construction and Veterans Affairs, and Extensions Act, 2026. This is a broad funding bill that includes Veterans Affairs in its title. [8]",
+   "sources": [
+    "bills:1912hr119",
+    "bills:224hr119",
+    "bills:423s119",
+    "bills:2392s119",
+    "bills:2393s119",
+    "bills:410hr119",
+    "bills:2170hr119",
+    "bills:5371hr119"
+   ],
+   "allowed": [
+    "topics:119:Health",
+    "topics:119:Armed Forces and National Security",
+    "topics:119:Government Operations and Politics",
+    "topics:119:International Affairs",
+    "topics:119:Taxation",
+    "topics:119:Crime and Law Enforcement",
+    "topics:119:Agriculture and Food",
+    "topics:119:Transportation and Public Works",
+    "topics:119:Finance and Financial Sector",
+    "topics:119:Education",
+    "topics:119:Immigration",
+    "topics:119:Public Lands and Natural Resources",
+    "topics:119:Congress",
+    "topics:119:Science, Technology, Communications",
+    "topics:119:Environmental Protection",
+    "topics:119:Commerce",
+    "topics:119:Energy",
+    "topics:119:Labor and Employment",
+    "topics:119:Housing and Community Development",
+    "topics:119:Foreign Trade and International Finance",
+    "topics:119:Native Americans",
+    "topics:119:Civil Rights and Liberties, Minority Issues",
+    "topics:119:Emergency Management",
+    "topics:119:Law",
+    "topics:119:Economics and Public Finance",
+    "topics:119:Social Welfare",
+    "topics:119:Sports and Recreation",
+    "topics:119:Families",
+    "topics:119:Arts, Culture, Religion",
+    "topics:119:Water Resources Development",
+    "topics:119:Animals",
+    "bills:1912hr119",
+    "bills:224hr119",
+    "bills:423s119",
+    "bills:2392s119",
+    "bills:2393s119",
+    "bills:410hr119",
+    "bills:5371hr119",
+    "bills:2170hr119"
+   ],
+   "entities": {
+    "bills:1912hr119": {
+     "label": "H.R. 1912",
+     "title": "Veteran Fraud Reimbursement Act of 2025",
+     "sponsor": "Gerald Connolly",
+     "sponsorParty": "D",
+     "progressStage": 100
+    },
+    "bills:224hr119": {
+     "label": "H.R. 224",
+     "title": "Disabled Veterans Housing Support Act",
+     "sponsor": "Monica De La Cruz",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:423s119": {
+     "label": "S. 423",
+     "title": "PRO Veterans Act of 2025",
+     "sponsor": "Dan Sullivan",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2392s119": {
+     "label": "S. 2392",
+     "title": "Veterans\u00e2\u20ac\u2122 Compensation Cost-of-Living Adjustment Act of 2025",
+     "sponsor": "Jerry Moran",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2393s119": {
+     "label": "S. 2393",
+     "title": "Fiscal Year 2025 Veterans Affairs Major Medical Facility Authorization Act",
+     "sponsor": "Jerry Moran",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:410hr119": {
+     "label": "H.R. 410",
+     "title": "Alaska Native Vietnam Era Veterans Land Allotment Extension Act of 2025",
+     "sponsor": "Nicholas Begich",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:5371hr119": {
+     "label": "H.R. 5371",
+     "title": "Continuing Appropriations, Agriculture, Legislative Branch, Military Construction and Veterans Affairs, and Extensions Act, 2026",
+     "sponsor": "Tom Cole",
+     "sponsorParty": "R",
+     "progressStage": 100
+    },
+    "bills:2170hr119": {
+     "label": "H.R. 2170",
+     "title": "To name the Department of Veterans Affairs community-based outpatient clinic in Toms River, New Jersey, the Leonard G. 'Bud' Lomell, VA Clinic, and for other purposes.",
+     "sponsor": "Christopher Smith",
+     "sponsorParty": "R",
+     "progressStage": 100
+    }
+   }
+  }
+ ]
+}

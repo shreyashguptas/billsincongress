@@ -18,9 +18,9 @@ import {
   hubsOfKind,
   type HubDefinition,
   type HubOrder,
-  type HubSortedBy,
 } from '@/lib/hubs';
 import type { Bill } from '@/lib/types/bill';
+import { readHubBills, type HubBills } from '@/lib/hub-bills';
 import { SHARE_CARD_SIZE, SITE_URL, hubShareImagePath, pageTitle } from '@/lib/seo';
 import { HubViewTracker, HubLink, HubOrderSwitch } from './hub-view-tracker';
 import { AskPageContext } from '@/components/answers/ask-page-context';
@@ -38,6 +38,7 @@ const MAX_PAGE = 10;
 function filterFor(hub: HubDefinition) {
   return {
     status: hub.filter.progressStage ?? 'all',
+    introducedDateFilter: hub.filter.introducedWithin ?? 'all',
     policyArea: hub.filter.policyArea ?? 'all',
     chamber: hub.filter.chamber ?? null,
   };
@@ -140,34 +141,13 @@ function hubJsonLd(hub: HubDefinition, exactCount: number | null): object {
   };
 }
 
-/**
- * One page of a hub, in date order.
- *
- * `sortedBy` is null when the sorted read failed and this fell back to the
- * unsorted list — which happens for as long as the site is deployed ahead of
- * the Convex functions (`bills.listSorted` arrives with the same change). The
- * page then shows the bills without claiming an order: no switch, and each
- * row's plain introduction date instead of a labelled one.
- */
-async function hubBills(
-  hub: HubDefinition,
-  page: number,
-  order: HubOrder,
-): Promise<{ data: Bill[]; hasMore: boolean; sortedBy: HubSortedBy | null }> {
-  try {
-    return await billsService.fetchHubBills({
-      scope: hubSortScope(hub),
-      order,
-      page,
-      itemsPerPage: PER_PAGE,
-    });
-  } catch (error) {
-    console.error(`Sorted hub read failed for ${hub.path}; showing it unsorted`, error);
-    const unsorted = await billsService
-      .fetchBills({ ...filterFor(hub), page, itemsPerPage: PER_PAGE })
-      .catch(() => ({ data: [] as Bill[], hasMore: false }));
-    return { data: unsorted.data, hasMore: unsorted.hasMore, sortedBy: null };
-  }
+/** One page of a hub, in date order. Throws when the bills can't be read at all (lib/hub-bills.ts). */
+function hubBills(hub: HubDefinition, page: number, order: HubOrder): Promise<HubBills> {
+  return readHubBills(hub.path, {
+    sorted: () =>
+      billsService.fetchHubBills({ scope: hubSortScope(hub), order, page, itemsPerPage: PER_PAGE }),
+    unsorted: () => billsService.fetchBills({ ...filterFor(hub), page, itemsPerPage: PER_PAGE }),
+  });
 }
 
 /** `?page=N`, clamped to what the backend can actually serve. */
@@ -217,7 +197,11 @@ export async function HubView({
   // The date each row shows is the date the list is ordered by, labelled.
   const dateLabel = bills.sortedBy ? hubDateLabel(hub, bills.sortedBy) : null;
   const dateOf = (bill: Bill) =>
-    bills.sortedBy === 'stageDate' ? bill.stage_date : bill.latest_action_date;
+    bills.sortedBy === 'stageDate'
+      ? bill.stage_date
+      : bills.sortedBy === 'introducedDate'
+        ? bill.introduced_date
+        : bill.latest_action_date;
   // A switch needs something to reorder: more than one bill in the hub.
   const showOrder =
     dateLabel !== null && (bills.data.length > 1 || page > 1 || (total ?? floor ?? 0) > 1);

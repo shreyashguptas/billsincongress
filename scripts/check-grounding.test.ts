@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  DEFAULT_CLAUDE_MODEL,
+  DEFAULT_ANSWER_MODEL,
   DEFAULT_FALLBACK_MODELS,
   DEFAULT_MODEL,
   DEFAULT_PROVIDERS,
@@ -35,6 +35,7 @@ import {
   HEALTH_TOTAL,
 } from "./check-grounding";
 import type { DatasetName } from "../convex/catalog/types";
+import * as claude from "../convex/claude";
 
 let passed = 0;
 const failures: string[] = [];
@@ -316,7 +317,9 @@ function shipped(name: string): string {
 
 it("runs the model configuration production ships", () => {
   assert.equal(JSON.stringify(DEFAULT_MODEL), shipped("DEFAULT_MODEL"));
-  assert.equal(JSON.stringify(DEFAULT_CLAUDE_MODEL), shipped("DEFAULT_CLAUDE_MODEL"));
+  // Imported from convex/claude.ts rather than copied, so it cannot drift; this
+  // only proves the import was not replaced by a copy.
+  assert.equal(DEFAULT_ANSWER_MODEL, claude.DEFAULT_ANSWER_MODEL);
   assert.equal(JSON.stringify(DEFAULT_PROVIDERS), shipped("DEFAULT_PROVIDERS"));
   assert.equal(JSON.stringify(DEFAULT_FALLBACK_MODELS), shipped("DEFAULT_FALLBACK_MODELS"));
   assert.equal(
@@ -335,6 +338,10 @@ it("the other live probes default to the same configuration", () => {
     for (const value of values) {
       assert.ok(source.includes(JSON.stringify(value)), `${file} does not default to ${value}`);
     }
+    // The Claude side is imported, never copied: a probe that hard-coded a
+    // Claude model id would keep probing it after production moved on.
+    assert.ok(source.includes('from "../convex/claude"'), `${file} does not take its Claude setup from convex/claude.ts`);
+    assert.ok(!/["']claude-[a-z0-9-]+["']/.test(source), `${file} hard-codes a Claude model id`);
   }
 });
 

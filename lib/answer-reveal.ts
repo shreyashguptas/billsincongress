@@ -69,6 +69,24 @@ export function revealCount(totalStops: number, elapsedMs: number): number {
 }
 
 /**
+ * How long after the start `count` stops take to reveal: the inverse of
+ * `revealCount`, so a reveal held at `count` can pin its clock there and carry
+ * on from that word when it is let go, rather than jumping ahead by however
+ * long it was held.
+ */
+export function revealElapsedFor(totalStops: number, count: number): number {
+  const perSecond = Math.max(REVEAL_WORDS_PER_SECOND, (totalStops * 1000) / REVEAL_MAX_MS);
+  return (count / perSecond) * 1000;
+}
+
+/** How many of `stops` end at or before `holdAt`: where a held reveal stops. */
+export function heldCount(stops: number[], holdAt: number): number {
+  let n = 0;
+  while (n < stops.length && stops[n] <= holdAt) n++;
+  return n;
+}
+
+/**
  * Close emphasis the cut left open, so a half-revealed `**bold phrase` renders
  * bold rather than as literal asterisks until its closing pair arrives.
  */

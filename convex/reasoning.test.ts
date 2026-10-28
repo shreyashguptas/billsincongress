@@ -15,10 +15,10 @@ function it(name: string, fn: () => void) {
   }
 }
 
-it("reasons at low effort when nothing is set (gpt-oss cannot switch it off)", () => {
-  assert.deepEqual(reasoningConfig(undefined), { effort: "low" });
-  assert.deepEqual(reasoningConfig(""), { effort: "low" });
-  assert.deepEqual(reasoningConfig("  "), { effort: "low" });
+it("reasons at medium effort when nothing is set (gpt-oss cannot switch it off)", () => {
+  assert.deepEqual(reasoningConfig(undefined), { effort: "medium" });
+  assert.deepEqual(reasoningConfig(""), { effort: "medium" });
+  assert.deepEqual(reasoningConfig("  "), { effort: "medium" });
 });
 
 it("turns off with any of the off words, in any case", () => {
@@ -29,6 +29,7 @@ it("turns off with any of the off words, in any case", () => {
 
 it("accepts the four documented efforts", () => {
   assert.deepEqual(reasoningConfig("minimal"), { effort: "minimal" });
+  assert.deepEqual(reasoningConfig("low"), { effort: "low" });
   assert.deepEqual(reasoningConfig("Medium"), { effort: "medium" });
   assert.deepEqual(reasoningConfig("high"), { effort: "high" });
 });
@@ -37,7 +38,7 @@ it("uses the default effort on a typo instead of sending one OpenRouter refuses"
   const original = console.error;
   console.error = () => {};
   try {
-    for (const v of ["lo", "disbled", "max", "yes"]) assert.deepEqual(reasoningConfig(v), { effort: "low" }, v);
+    for (const v of ["lo", "disbled", "max", "yes"]) assert.deepEqual(reasoningConfig(v), { effort: "medium" }, v);
   } finally {
     console.error = original;
   }
