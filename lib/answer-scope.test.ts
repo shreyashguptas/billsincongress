@@ -157,6 +157,21 @@ it('keeps the vetoed list answerable rather than silently unscoped', () => {
   assert.equal(scopeFromFilters({ congress: '119', status: '85' })?.filters.progressStage, 85);
 });
 
+// "Just introduced" scoped the assistant to stage 20: eleven placeholder
+// numbers from January 2025, not the new bills the list shows.
+it('scopes "Just introduced" to the last 30 days, the bills the list shows', () => {
+  const now = Date.parse('2026-10-16T12:00:00Z');
+  const s = scopeFromFilters({ congress: '119', policyArea: 'Health', status: '20' }, now);
+  assert.equal(s?.filters.progressStage, undefined);
+  assert.equal(s?.filters.introducedAfter, '2026-09-16');
+  assert.equal(s?.label, 'health bills introduced in the last 30 days');
+  const past = scopeFromFilters({ congress: '118', status: '20' }, now);
+  assert.equal(past?.filters.progressStage, 20, 'an ended Congress keeps stage 20');
+  assert.equal(past?.filters.introducedAfter, undefined);
+  const hub = scopeFromHub(hubByPath('/bills/introduced')!, now);
+  assert.deepEqual(hub?.filters, { introducedAfter: '2026-09-16' });
+});
+
 console.log(`\nanswer-scope: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import ReactMarkdown, { type Options as MarkdownOptions } from 'react-markdown';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,8 @@ import { WorkLog } from './work-log';
 import { EntityBlock } from './entity-block';
 import { AnswerCheck } from './answer-check';
 import { canRate } from '@/lib/answer-rating';
+import { answerBills, billsNamedIn, cardLists, firstListStart, rehypeBillLinks } from '@/lib/answer-bill-links';
+import { billMarkdownComponents, type BillContext } from './bill-mentions';
 
 /** How close to the bottom still counts as "following along". */
 const PINNED_PX = 72;
@@ -44,8 +46,12 @@ const PROSE = 'font-serif text-reading-sm text-ink';
  * While an answer is being revealed, every word is its own span so it can fade
  * in. `settledBefore` is relative to the markdown the plugin is given.
  */
-function wordSpans(live: boolean, settledBefore: number): MarkdownOptions['rehypePlugins'] {
-  return live ? [[rehypeWordSpans, { settledBefore }]] : undefined;
+function wordSpans(
+  live: boolean,
+  settledBefore: number,
+  before: NonNullable<MarkdownOptions['rehypePlugins']> = [],
+): MarkdownOptions['rehypePlugins'] {
+  return live ? [...before, [rehypeWordSpans, { settledBefore }]] : before;
 }
 
 type OnRevealing = (id: string, active: boolean) => void;
@@ -121,13 +127,46 @@ function AssistantTurn({
   // out word by word here (lib/answer-reveal.ts). Entity cards are held until
   // the reveal reaches them, so they arrive in reading order.
   const { rate } = useAnswers();
+  // Until the sources arrive no list can be judged (cards or text), so the
+  // reveal pauses at the first one (lib/answer-bill-links.ts, firstListStart)
+  // and carries on from there once they have.
+  const listStart = useMemo(() => firstListStart(turn.content), [turn.content]);
   const { visible, live, settledBefore, complete } = useAnswerReveal(
     turn.id,
     turn.content,
     Boolean(turn.done),
     onRevealing,
+    turn.done ? null : listStart,
   );
-  const blocks = splitAnswer(visible, new Set(turn.allowed ?? []));
+  // Bills are clickable where the prose names them (lib/answer-bill-links.ts):
+  // an item of a list of bills is that bill's card, and a name in running text
+  // is a link. Which lists are lists of bills is read from the WHOLE answer,
+  // block by block, so a list never changes shape mid-reveal. A
+  // bill shown as a card in a list is not repeated in the cards after the
+  // prose. Worked out once per answer, not on every frame of the reveal.
+  const { bills, order, cardBills, listsByBlock } = useMemo(() => {
+    const bills = answerBills(turn.sources ?? [], turn.allowed ?? [], turn.entities);
+    const listsByBlock = splitAnswer(turn.content, new Set(turn.allowed ?? [])).map((block) =>
+      block.type === 'prose' ? cardLists(block.text, bills) : [],
+    );
+    return {
+      bills,
+      order: new Map(billsNamedIn(turn.content, bills).map((b, i) => [b.id, i + 1])),
+      cardBills: new Set(listsByBlock.flatMap((lists) => lists.flatMap((l) => l?.ids ?? []))),
+      listsByBlock,
+    };
+  }, [turn.content, turn.sources, turn.allowed, turn.entities]);
+  const billContext = useRef<BillContext>({ bills, order, surface });
+  billContext.current = { bills, order, surface };
+  const [components] = useState(() => billMarkdownComponents(MARKDOWN_COMPONENTS, billContext));
+  // Blocks keep their index even when every card in one was already shown, so
+  // block i here is block i of the full answer, whose lists `listsByBlock`
+  // describes.
+  const blocks = splitAnswer(visible, new Set(turn.allowed ?? [])).map((block) =>
+    block.type === 'entities' && block.kind === 'bill'
+      ? { ...block, refs: block.refs.filter((r) => !cardBills.has(r.id)) }
+      : block,
+  );
   // Where each block starts in `visible`: prose blocks are exact, in-order
   // slices of it, and an entity block starts where the prose before it ended.
   let cursor = 0;
@@ -146,12 +185,14 @@ function AssistantTurn({
           block.type === 'prose' ? (
             <ReactMarkdown
               key={i}
-              components={MARKDOWN_COMPONENTS}
-              rehypePlugins={wordSpans(live, settledBefore - starts[i])}
+              components={components}
+              rehypePlugins={wordSpans(live, settledBefore - starts[i], [
+                [rehypeBillLinks, { bills, lists: listsByBlock[i] }],
+              ])}
             >
               {block.text}
             </ReactMarkdown>
-          ) : (
+          ) : block.refs.length === 0 ? null : (
             <div key={i} className={live && starts[i] >= settledBefore ? 'animate-rise-in' : undefined}>
               <EntityBlock block={block} surface={surface} entities={turn.entities} />
             </div>
@@ -164,6 +205,7 @@ function AssistantTurn({
         <SourceList
           handles={turn.sources ?? []}
           surface={surface}
+          billLabels={bills.byId}
           webReason={turn.webReason}
           webSources={turn.webSources}
           className={live ? 'animate-rise-in' : undefined}
@@ -256,6 +298,23 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
     return () => observer.disconnect();
   }, []);
 
+  // A follow-up sent with Enter while the previous answer was still being
+  // written goes as soon as that answer is done. Emptying the box cancels it.
+  const [queued, setQueued] = useState(false);
+  const send = () => {
+    const q = input;
+    setInput('');
+    setQueued(false);
+    void ask(q, { source: 'typed' });
+  };
+  useEffect(() => {
+    if (!queued) return;
+    if (!input.trim()) setQueued(false);
+    else if (!busy) send();
+    // `send` reads the current draft; it is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued, busy, input]);
+
   const last = turns[turns.length - 1];
   // Only the LAST turn is still waiting on the reader. An earlier question they
   // have already answered keeps its rule and eyebrow, but stops asking again.
@@ -332,9 +391,14 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const q = input;
-            setInput('');
-            void ask(q, { source: 'typed' });
+            if (!input.trim()) return;
+            // The field stays live while an answer is written, so the next
+            // question can be typed; Enter then sends it once this one is done.
+            if (busy) {
+              setQueued(true);
+              return;
+            }
+            send();
           }}
           onAnimationEnd={onNudgeEnd}
           className={cn(
@@ -368,13 +432,17 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
               'h-full min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-base touchable:h-full',
               'focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 lg:text-[15px]',
             )}
-            disabled={busy}
+            // Never disabled, not even while an answer is being written: a
+            // disabled field drops focus, and the reader would have to click
+            // back into it to ask the follow-up.
             aria-describedby={noteId}
           />
           <Button
             type="submit"
             size="icon"
-            disabled={busy || !input.trim()}
+            // Not disabled while busy: a form with a disabled submit button
+            // ignores Enter, and Enter then has to queue the follow-up.
+            disabled={!input.trim()}
             aria-label="Send"
             className="shrink-0 rounded-full disabled:opacity-40 touchable:h-10 touchable:w-10"
           >

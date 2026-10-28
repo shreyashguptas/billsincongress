@@ -18,11 +18,12 @@
     "posthog:self-driving": "tsx scripts/posthog-self-driving-setup.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.1.0",
     "@auth/core": "0.41.3",
     "@convex-dev/aggregate": "0.3.1",
     "@convex-dev/auth": "0.0.96",
     "@convex-dev/rate-limiter": "0.4.0",
-    "@opennextjs/cloudflare": "1.20.8",
+    "@opennextjs/cloudflare": "1.20.12",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "2.1.24",
     "@radix-ui/react-label": "^2.1.15",
@@ -39,15 +40,17 @@
     "convex-helpers": "^0.1.126",
     "date-fns": "^4.4.0",
     "lucide-react": "1.52.0",
-    "next": "16.3.8",
+    "next": "16.4.2",
     "next-themes": "^0.4.6",
     "posthog-js": "^1.435.8",
     "posthog-node": "^5.55.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
+    "remark-parse": "11.0.0",
     "stripe": "23.0.0",
-    "tailwind-merge": "^2.6.1"
+    "tailwind-merge": "^2.6.1",
+    "unified": "11.0.5"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
@@ -64,8 +67,8 @@
     "tailwindcss-animate": "1.0.7",
     "tsx": "^4.23.15",
     "typescript": "7.0.2",
-    "vite": "8.3.2",
+    "vite": "8.3.3",
     "vitest": "^5.0.3",
-    "wrangler": "^4.147.0"
+    "wrangler": "^4.149.0"
   }
 }

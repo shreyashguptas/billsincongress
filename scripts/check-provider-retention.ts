@@ -1,5 +1,15 @@
 /**
- * One-shot probe for spec §12.3.
+ * One-shot probe for spec §12.3, for both providers the answer engine uses.
+ *
+ * CLAUDE (convex/claude.ts, on our own key). Each Claude model the answer
+ * chain and the web lookup would call is asked one tiny question exactly as
+ * production asks: `inference_geo: "us"`. PASS needs the request to succeed,
+ * Anthropic to report `usage.inference_geo` "us" (the owner's rule: AI on US
+ * servers only), and the model to have a price in claudePrices() (otherwise
+ * production refuses to call it). Anthropic's retention terms are account-level,
+ * not per request, so there is nothing to probe for them here.
+ *
+ * OPENROUTER (gpt-oss, the last resort, and the Exa web fallback).
  *
  * `data_collection: "deny"` and `zdr: true` are FILTERS — they narrow the
  * eligible provider set. Combined with our `only` provider pin they can
@@ -20,8 +30,18 @@
  * fallback that fails the retention filters is silently unreachable rather
  * than loudly broken, so it has to be checked before it is relied on.
  *
- * Run: OPENROUTER_API_KEY=sk-or-... pnpm tsx scripts/check-provider-retention.ts
+ * Run: ANTHROPIC_API_KEY=sk-ant-... OPENROUTER_API_KEY=sk-or-... pnpm tsx scripts/check-provider-retention.ts
+ * (either key alone probes that provider alone).
  */
+import Anthropic from "@anthropic-ai/sdk";
+import {
+  ANTHROPIC_BASE_URL,
+  claudePrices,
+  claudeAnswerModels,
+  claudeWebModels,
+  INFERENCE_GEO,
+} from "../convex/claude";
+
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b";
 const PROVIDERS = (process.env.OPENROUTER_PROVIDERS || "cerebras,groq,amazon-bedrock")
@@ -74,10 +94,56 @@ async function probe(
   return { failed, servedBy };
 }
 
+/** One Claude model, asked the way production asks. */
+async function probeClaude(model: string): Promise<boolean> {
+  const priced = model in claudePrices();
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, baseURL: ANTHROPIC_BASE_URL });
+    const response = await client.messages.create({
+      model,
+      max_tokens: 512,
+      messages: [{ role: "user", content: "Reply with the single word: ok" }],
+      thinking: { type: "adaptive" },
+      output_config: { effort: "low" },
+      inference_geo: INFERENCE_GEO,
+    });
+    const geo = response.usage.inference_geo ?? "(not reported)";
+    const ok = geo === INFERENCE_GEO && priced;
+    console.log(
+      `${ok ? "PASS" : "FAIL"}  ${model.padEnd(24)} inference_geo=${geo} priced=${priced} served_by=${response.model}`,
+    );
+    return ok;
+  } catch (error) {
+    console.log(`FAIL  ${model.padEnd(24)} ${String(error).slice(0, 300)}`);
+    return false;
+  }
+}
+
 async function main() {
-  if (!process.env.OPENROUTER_API_KEY) {
-    console.error("Set OPENROUTER_API_KEY (Convex dashboard → Settings → Environment Variables)");
+  const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY);
+  const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY);
+  if (!hasAnthropic && !hasOpenRouter) {
+    console.error(
+      "Set ANTHROPIC_API_KEY and/or OPENROUTER_API_KEY (Convex dashboard → Settings → Environment Variables)",
+    );
     process.exit(1);
+  }
+  if (hasAnthropic) {
+    const models = [...new Set([...claudeAnswerModels(), ...claudeWebModels()].filter(Boolean))];
+    console.log(`--- CLAUDE (US inference): ${models.join(", ") || "(all switched off)"} ---`);
+    let allOk = true;
+    for (const model of models) allOk = (await probeClaude(model)) && allOk;
+    console.log(
+      allOk
+        ? "\nEvery Claude model in the chain answers on US servers and has a price on file.\n"
+        : "\nSTOP. A Claude model above failed: production skips it and moves down the chain.\n",
+    );
+  } else {
+    console.log("(ANTHROPIC_API_KEY not set: Claude not probed)\n");
+  }
+  if (!hasOpenRouter) {
+    console.log("(OPENROUTER_API_KEY not set: the last resort and the Exa fallback not probed)");
+    return;
   }
   console.log(`providers=${PROVIDERS.join(",")}`);
   console.log(`chain=${[MODEL, ...FALLBACKS].join(" -> ")}\n`);

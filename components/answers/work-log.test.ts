@@ -79,6 +79,14 @@ it("does not count a retry as a lookup", () => {
   assert.equal(lookupSummary([retry]), "no lookups");
 });
 
+it("shows a progress step as plain work under way, not a failure, and does not count it", () => {
+  const progress = { tool: "progress", detail: "the web" };
+  assert.equal(workLine(progress).text, "Searching the web");
+  assert.ok(!/no answer/i.test(workLine(progress).text));
+  const fetch = { tool: "fetch", detail: "the bill on screen · 1s119" };
+  assert.equal(lookupSummary([fetch, progress]), "1 lookup");
+});
+
 it("does not count a question to the reader as a lookup", () => {
   const fetch = { tool: "fetch", detail: "the bill on screen · 1s119" };
   const ask = { tool: "ask", detail: "Which Congress do you mean?" };

@@ -18,6 +18,12 @@ function hostOf(url: string): string {
   }
 }
 
+/** "7022hr119 timeline" → "H.R. 7022 timeline", when the answer knows the number. */
+function labelOf(s: { dataset: string; id: string; label: string }, bills?: Map<string, { label: string }>) {
+  const known = ['bills', 'bill_actions', 'bill_summaries'].includes(s.dataset) && bills?.get(s.id);
+  return known ? s.label.replace(s.id, known.label) : s.label;
+}
+
 /** Citations are mono 12 in ink-2 (brand.md, "Show the receipts"). */
 const SOURCE_LINK =
   'focus-ring rounded-xs text-ink-2 underline decoration-line-strong underline-offset-[3px] ' +
@@ -42,8 +48,11 @@ export function SourceList({
   webReason,
   webSources,
   className,
+  billLabels,
 }: {
   handles: string[];
+  /** Print a bill's own number ("H.R. 7022") in place of its id. */
+  billLabels?: Map<string, { label: string }>;
   surface: string;
   webReason?: string;
   webSources?: WebSource[];
@@ -79,7 +88,7 @@ export function SourceList({
                     }
                     className={SOURCE_LINK}
                   >
-                    {s.label}
+                    {labelOf(s, billLabels)}
                   </Link>
                 ) : (
                   <span className="text-ink-3">{s.label}</span>

@@ -102,6 +102,9 @@ function attributesOf(sent: Sent) {
 beforeEach(() => {
   vi.useFakeTimers();
   process.env.OPENROUTER_API_KEY = "sk-or-test-not-real";
+  // The log line of the OpenRouter path, whose errors reach it; Claude's are
+  // caught by the answer chain (convex/answerClaude.spec.ts).
+  process.env.ANTHROPIC_API_KEY = "";
   process.env.POSTHOG_KEY = "phc_test_not_real";
   delete process.env.POSTHOG_HOST;
 });
@@ -109,6 +112,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
   delete process.env.POSTHOG_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
 });
 
 describe("the answer's PostHog log line", () => {
