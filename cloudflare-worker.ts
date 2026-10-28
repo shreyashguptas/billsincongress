@@ -5,8 +5,8 @@
  * A Worker on a Custom Domain runs in front of Cloudflare's cache, so nothing
  * the app returns is cached unless the Worker stores it. This file does that,
  * for exactly the requests `lib/edge-cache.ts` allows and the responses the
- * app itself marked `public, s-maxage=…`. Everything else goes straight to
- * OpenNext, untouched, as it did before.
+ * app itself marked `CDN-Cache-Control: public, max-age=…`. Everything else
+ * goes straight to OpenNext, untouched, as it did before.
  *
  * `x-edge-cache: HIT | MISS` on a response says which happened. Requests the
  * cache does not handle carry no such header.
@@ -57,7 +57,8 @@ export default {
     const vary = response.headers.get('vary');
     if (vary) stored.headers.set(ORIGINAL_VARY, vary);
     stored.headers.delete('vary');
-    stored.headers.set('cache-control', `public, max-age=${sharedMaxAge(cacheControl)}`);
+    const maxAge = sharedMaxAge(response.headers.get('cdn-cache-control'));
+    stored.headers.set('cache-control', `public, max-age=${maxAge}`);
     ctx.waitUntil(cache.put(key, stored));
 
     return label(response, 'MISS');

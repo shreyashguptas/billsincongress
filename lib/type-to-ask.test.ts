@@ -85,6 +85,10 @@ it('leaves Space alone, so it still scrolls the page', () => {
   assert.equal(typesCharacter(key(' ')), false);
 });
 
+it('leaves an autofill keydown alone, which carries no key', () => {
+  assert.equal(typesCharacter(key(undefined as unknown as string)), false);
+});
+
 it('leaves a key another handler already used, and one mid-composition', () => {
   assert.equal(typesCharacter(key('a', { defaultPrevented: true })), false);
   assert.equal(typesCharacter(key('a', { isComposing: true })), false);

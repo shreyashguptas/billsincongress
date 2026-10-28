@@ -35,6 +35,8 @@ const QUICK_FIND_KEYS = new Set(['/', "'"]);
  * AltGr, which is how "@" or "€" is typed on many European layouts.
  */
 export function typesCharacter(e: KeyLike): boolean {
+  // Autofill sends a keydown with no key.
+  if (typeof e.key !== 'string') return false;
   if (e.defaultPrevented || e.isComposing) return false;
   if (e.metaKey) return false;
   if ((e.ctrlKey || e.altKey) && !e.altGraph) return false;
