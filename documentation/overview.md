@@ -676,6 +676,18 @@ the most bills, then the newer one. Two members who would show one name get thei
 (Senate)" (75 bills) and "Robert Menendez (House)" (14), where they were one "Robert Menendez"
 with 89. Party and state are those on the member's latest bill.
 
+Each row also stores its member's `chamber` (`house` or `senate`): the chamber most of their bills
+started in. The answer engine's `sponsors` dataset shows it on every row and takes it as a filter,
+so "which representative introduced the most bills" is ranked over the House alone. Ranked over
+both chambers it named a senator (Mike Lee, 2026-10-07). Rows counted before the field existed have
+no chamber; a chamber filter on such a Congress is refused rather than answered from both chambers.
+The current Congress is recounted after every sync that stores bills, so it gains the field the
+first night after the deploy. The 117th and 118th keep the old rows until someone runs:
+
+```bash
+pnpm exec convex run --prod congressApi:recomputeAllSponsors '{}'
+```
+
 Every reader still goes through `mergeSponsorRows`, which now joins rows by member id (and by
 name and state for rows counted before ids): the sponsor picker, the sponsor count on `/bills`,
 the home page's leading sponsors and the answer engine's `sponsors` dataset. A sponsor filter is

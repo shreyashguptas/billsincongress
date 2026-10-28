@@ -392,6 +392,10 @@ export default defineSchema({
     // absent on rows counted from bills without ids.
     sponsorBioguideId: v.optional(v.string()),
     spellings: v.optional(v.array(v.string())),
+    // The chamber most of the member's bills started in (buildSponsorRows), so
+    // "which representative" can be asked of the House alone. Absent on rows
+    // counted before it was stored, until the next recount of that Congress.
+    chamber: v.optional(v.union(v.literal("house"), v.literal("senate"))),
   })
     .index("by_congress", ["congress"])
     .index("by_congress_and_count", ["congress", "billCount"])

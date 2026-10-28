@@ -175,10 +175,12 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "billCount", type: "number", meaning: "Bills introduced in this Congress." },
       { name: "sponsorParty", type: "string", meaning: "'D', 'R' or 'I'." },
       { name: "sponsorState", type: "string", meaning: "Two-letter state." },
+      { name: "chamber", type: "string", meaning: "'house' (a representative) or 'senate' (a senator): the chamber most of their bills started in." },
     ],
     filters: [
       { name: "congress", type: "number", allowed: "A Congress number.", example: "$CONGRESS" },
       { name: "sponsorState", type: "string", allowed: "Two-letter state code.", example: "MD" },
+      { name: "chamber", type: "string", allowed: "'house' or 'senate'. REQUIRED when the reader says representative, congressman, congresswoman, House member, or senator.", example: "house" },
       { name: "sort", type: "string", allowed: "most_bills (default) or fewest_bills. REQUIRED for any 'fewest' question — the default page hides the bottom of the ranking.", example: "fewest_bills" },
     ],
     gotchas: [
@@ -186,6 +188,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "Reflects PRIMARY sponsorship only — a member who co-sponsors heavily but introduces little will look inactive here, and is not.",
       "There is NO name filter here — this dataset lists members, it does not look one up. To count what ONE named member introduced, fetch `bills` with sponsorFilter and limit 0. Being refused a name filter here says nothing about whether we hold that member; asked how many bills Monica De La Cruz introduced, the assistant tried this dataset, was refused, and told the reader it could not find out, though `bills` had her exact count.",
       "Use the exact sponsorName from this dataset in the `bills` sponsorFilter. Reformatting the name will match nothing.",
+      "Without chamber the ranking mixes both chambers. Asked for the representative with the most bills, the assistant named a senator. A 'representative' or 'senator' question passes chamber; never pick the top row of a mixed list and assume its chamber.",
       "Before any 'most' or 'fewest' claim, check `complete` — and then check the ORDER, because a complete total does not make the page complete. Filtering by sponsorState reads that state's members directly, so the total is exact; but the rows are still one page of it, ordered most-first by default. A big state has more members than one page shows, so the fewest is NOT the last row you can see. For 'who introduced the fewest' pass sort 'fewest_bills'; for 'the most', 'most_bills'. Never read a minimum off a page. When the result carries tied_with_row_1, several members share first place: name every one it lists, never the first row alone.",
     ],
     notCovered: ["Committee membership", "Voting records", "Seniority, leadership roles, or district", "Co-sponsorship counts"],
@@ -193,6 +196,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       '{ "congress": $CONGRESS }',
       '{ "congress": $CONGRESS, "sponsorState": "MD" }',
       '{ "congress": $CONGRESS, "sponsorState": "CA", "sort": "fewest_bills" } — who introduced the fewest',
+      '{ "congress": $CONGRESS, "chamber": "house" } — which representative introduced the most',
     ],
   },
 
