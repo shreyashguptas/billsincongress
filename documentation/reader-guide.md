@@ -211,7 +211,7 @@ The question panel is the only place in the interface where a machine writes pro
 
 **Its instructions are versioned and tested.** The wording that tells the model how to answer lives in PostHog's prompt management, where every change is a numbered version. Every answer is recorded with the version that wrote it, so a wrong answer can be traced to the exact instructions behind it, and two versions can be compared on real questions before one replaces the other. What has to be right (the list of data the model can read, today's date, which Congresses have ended) is filled in by the site's code, not by the editable wording, and a version that breaks the expected format is ignored in favour of the copy built into the site. Each answer is also checked automatically afterwards for internal jargon, leftover formatting and visible "thinking out loud", and by a second AI model for statements the records it looked up do not support.
 
-**It owns its mistakes.** If you question an answer ("are you sure?"), it looks again, and if its earlier answer was wrong it says so in its first sentence before giving the corrected one. If the earlier answer holds, it says so.
+**It owns its mistakes.** If you question an answer ("are you sure?"), it looks again, and if its earlier answer was wrong it says so in its first sentence before giving the corrected one. If the earlier answer holds, it says so. If you ask the same question again on a different bill's page, it answers about the bill now on screen and does not call the earlier answer wrong.
 
 **Answers are short on purpose.** The model is told to put the answer in the first sentence, keep most answers to one to three sentences plus bill cards, and stop: no closing summary or offer to help further.
 
