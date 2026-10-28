@@ -162,7 +162,7 @@ lib/                       Pure client/shared modules — 43 modules + 41 test f
   sponsor-match.ts         A member's name typed into the /bills title search, for the empty state
   text-limit.ts            Text boxes with a length limit: the cut, the count, the message, the 2,000 question cap
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
-  chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
+  chunk-error.ts use-chunk-error-recovery.ts   Recovery from stale-asset chunk failures (boundaries + window listener)
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
   icon-alignment.ts        Measures the page for icons that do not line up with their label (dev only)
   avatar-image.ts          Profile photos in the browser: decode, crop geometry, WebP encode
@@ -349,6 +349,18 @@ the new deploy no longer serves — through `lib/chunk-error.ts`, and do one gua
 a second reload inside a short window, so a genuinely broken deploy shows a retry control
 instead of looping. Both report the error through `analytics.captureException`, because a
 boundary catches the error before PostHog's window-level capture would see it.
+A chunk fetched outside render — a `next/dynamic` feature preloaded in an effect or a click
+handler, a prefetch — never reaches a boundary: it rejects as an unhandled promise rejection
+and the feature silently does nothing (8 such failures in 30 days to Oct 2026, all Safari, on
+bill pages and `/`). So `instrumentation-client.ts` also registers window `unhandledrejection`
+and `error` listeners (`installChunkErrorRecovery`) that run the same guarded reload for a
+chunk failure. They share the boundaries' sessionStorage guard, so a listener and a boundary
+firing for one failure still reload once, and they do not `preventDefault()`, so PostHog still
+records the `$exception`. They do nothing while the browser reports itself offline: Safari and
+Firefox word a dynamic import that failed for lack of network like a stale chunk, and reloading
+a page that still reads fine would replace it with the service worker's offline page. Old HTML naming old chunks is mostly the anonymous-page cache above
+(`stale-while-revalidate=86400`), which can serve a day-old page from a deploy whose chunks are
+gone.
 `next.config.mjs` sets a per-deploy `deploymentId` (the git commit) so Next.js skew protection
 can force a full reload on navigation when a tab is out of date, avoiding the failure up front.
 
