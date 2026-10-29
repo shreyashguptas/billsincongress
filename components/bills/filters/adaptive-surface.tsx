@@ -104,12 +104,13 @@ export function AdaptiveSurface({
     if (!wasOpen.current) return;
     wasOpen.current = false;
     const focused = document.activeElement;
-    const focusLeft =
+    if (
       focused &&
       focused !== document.body &&
       !popoverRef.current?.contains(focused) &&
-      !sheetRef.current?.contains(focused);
-    if (focusLeft) return;
+      !sheetRef.current?.contains(focused)
+    )
+      return;
     document.getElementById(triggerId)?.focus();
   }, [open, triggerId]);
 
