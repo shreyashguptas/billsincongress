@@ -501,7 +501,12 @@ export default function BillsClient({
                   ("removeChild … not a child of this node") when it removes or
                   inserts next to a node that is no longer there. */}
               <p className="text-sm text-ink-2">
-                {bills.length > 0 ? (
+                {/* Loading comes first, the same as the list below: during a
+                    refetch `bills` still holds the previous result, and its
+                    count over skeleton rows describes a list that is gone. */}
+                {isLoading ? (
+                  <span key="loading">Loading…</span>
+                ) : bills.length > 0 ? (
                   <span key="results">
                     Showing{' '}
                     <span className="font-mono font-medium text-ink tabular">
@@ -554,8 +559,6 @@ export default function BillsClient({
                       </span>
                     )}
                   </span>
-                ) : isLoading ? (
-                  <span key="loading">Loading…</span>
                 ) : error ? (
                   <span key="error">Bills did not load</span>
                 ) : (
