@@ -86,8 +86,16 @@ export function AdaptiveSurface({
    *
    * `wasOpen` keeps it from firing on mount, when nothing has closed and focus
    * belongs wherever the reader left it.
+   *
+   * It only takes focus back from `<body>` or from the closing shell (which
+   * stays mounted while it animates out). A click on another pill can close
+   * this picker after the other one has opened and focused its search field;
+   * pulling focus back here then counts as focus leaving the new picker, and
+   * Radix closes it again at once.
    */
   const wasOpen = useRef(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open) {
       wasOpen.current = true;
@@ -95,6 +103,13 @@ export function AdaptiveSurface({
     }
     if (!wasOpen.current) return;
     wasOpen.current = false;
+    const focused = document.activeElement;
+    const focusLeft =
+      focused &&
+      focused !== document.body &&
+      !popoverRef.current?.contains(focused) &&
+      !sheetRef.current?.contains(focused);
+    if (focusLeft) return;
     document.getElementById(triggerId)?.focus();
   }, [open, triggerId]);
 
@@ -105,6 +120,7 @@ export function AdaptiveSurface({
       <Popover open={open && layout === 'pointer'} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>{anchoredTrigger}</PopoverTrigger>
         <PopoverContent
+          ref={popoverRef}
           className={cn(
             'flex max-h-[min(24rem,var(--radix-popover-content-available-height))] w-[min(22rem,calc(100vw_-_2rem))] flex-col overflow-hidden p-0',
             popoverClassName
@@ -119,6 +135,7 @@ export function AdaptiveSurface({
 
       <Sheet open={open && layout === 'touch'} onOpenChange={handleOpenChange}>
         <SheetContent
+          ref={sheetRef}
           side="bottom"
           hideClose
           // Deliberately unnamed here: the body renders a real dialog title (see
