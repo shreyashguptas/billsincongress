@@ -95,3 +95,19 @@ export function launcherVisible(phase: AskPhase): boolean {
 export function panelInert(phase: AskPhase): boolean {
   return phase !== 'open';
 }
+
+/**
+ * What an internal link points at when it points at the page the reader is on:
+ * the id after its `#`, or '' for the top of the page. null for a link to any
+ * other page, and for a link with a query, which the router must handle.
+ *
+ * The router does nothing for a link to the current path, so the panel scrolls
+ * to the target itself.
+ */
+export function inPageTarget(href: string, pathname: string): string | null {
+  const hashAt = href.indexOf('#');
+  const path = hashAt === -1 ? href : href.slice(0, hashAt);
+  if (path.includes('?')) return null;
+  if (path !== '' && path !== pathname) return null;
+  return hashAt === -1 ? '' : href.slice(hashAt + 1);
+}

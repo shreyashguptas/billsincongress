@@ -790,6 +790,11 @@ export const analytics = {
     surface: string;
     source_kind: 'db' | 'web';
     position: number;
+    /**
+     * The source is the bill whose page the reader is on, so the click scrolls
+     * that page (to the timeline, the summary or the top) and opens nothing.
+     */
+    in_page: boolean;
   }) => capture('answer_source_clicked', props),
 
   /**
