@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { printedSources } from '@/lib/answer-format';
+import { usePathname } from 'next/navigation';
+import { printedSources, sourceHref } from '@/lib/answer-format';
 import type { WebSource } from '@/lib/answer-format';
 import { analytics } from '@/lib/analytics';
+import { billIdFor } from '@/lib/page-context';
 import { cn } from '@/lib/utils';
 
 /** Re-exported so this component's existing importers keep their import path. */
@@ -59,6 +61,9 @@ export function SourceList({
   className?: string;
 }) {
   const { db, web } = printedSources(handles, webSources ?? []);
+  // On a bill's page, its own citations point at the page's sections, and the
+  // panel scrolls to them (components/answers/answer-panel.tsx).
+  const currentBillId = billIdFor(usePathname());
   if (db.length === 0 && web.length === 0) return null;
 
   return (
@@ -69,32 +74,36 @@ export function SourceList({
             <span aria-hidden="true">■</span> From our database
           </p>
           <ol className="space-y-1">
-            {db.map(({ number, source: s }) => (
-              <li key={s.handle} className="flex gap-2.5 font-mono text-xs leading-5">
-                <span className="w-4 shrink-0 text-right text-ink-3 tabular">
-                  {number}
-                </span>
-                {s.href ? (
-                  <Link
-                    href={s.href}
-                    onClick={() =>
-                      // `position` is the number printed beside the source and
-                      // written into the prose, not its row in this block.
-                      analytics.answerSourceClicked({
-                        surface,
-                        source_kind: 'db',
-                        position: number,
-                      })
-                    }
-                    className={SOURCE_LINK}
-                  >
-                    {labelOf(s, billLabels)}
-                  </Link>
-                ) : (
-                  <span className="text-ink-3">{s.label}</span>
-                )}
-              </li>
-            ))}
+            {db.map(({ number, source: s }) => {
+              const href = sourceHref(s, currentBillId);
+              return (
+                <li key={s.handle} className="flex gap-2.5 font-mono text-xs leading-5">
+                  <span className="w-4 shrink-0 text-right text-ink-3 tabular">
+                    {number}
+                  </span>
+                  {href ? (
+                    <Link
+                      href={href}
+                      onClick={() =>
+                        // `position` is the number printed beside the source and
+                        // written into the prose, not its row in this block.
+                        analytics.answerSourceClicked({
+                          surface,
+                          source_kind: 'db',
+                          position: number,
+                          in_page: s.id === currentBillId,
+                        })
+                      }
+                      className={SOURCE_LINK}
+                    >
+                      {labelOf(s, billLabels)}
+                    </Link>
+                  ) : (
+                    <span className="text-ink-3">{s.label}</span>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </div>
       )}
@@ -131,6 +140,7 @@ export function SourceList({
                         surface,
                         source_kind: 'web',
                         position: number ?? 0,
+                        in_page: false,
                       })
                     }
                     className={SOURCE_LINK}

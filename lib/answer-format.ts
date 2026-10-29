@@ -93,6 +93,23 @@ export function toSource(handle: string): Source {
   }
 }
 
+/** Ids of the bill page's sections that a citation of that bill can point at. */
+export const BILL_SECTION = { timeline: 'timeline', summary: 'summary' } as const;
+
+/**
+ * Where a source links when the reader is on the page of the bill
+ * `currentBillId`. A citation of that bill's timeline or summary points at
+ * the section, not at the page: a link to the page the reader is already on
+ * goes nowhere, so readers who clicked it to check the answer got no response.
+ * Every other source keeps its own href.
+ */
+export function sourceHref(source: Source, currentBillId?: string): string | null {
+  if (!source.href || source.id !== currentBillId) return source.href;
+  if (source.dataset === 'bill_actions') return `${source.href}#${BILL_SECTION.timeline}`;
+  if (source.dataset === 'bill_summaries') return `${source.href}#${BILL_SECTION.summary}`;
+  return source.href;
+}
+
 export function toSources(handles: string[]): Source[] {
   return handles.map(toSource);
 }

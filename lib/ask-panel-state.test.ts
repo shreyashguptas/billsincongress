@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import type { PanelMode } from './ask-panel';
 import {
   INITIAL_ASK_STATE,
+  inPageTarget,
   launcherVisible,
   nextAskState,
   panelInert,
@@ -113,6 +114,18 @@ it('hides the off-screen panel from assistive technology and the tab order', () 
   assert.equal(panelInert('closed'), true);
   assert.equal(panelInert('minimized'), true);
   assert.equal(panelInert('open'), false);
+});
+
+it('treats a link to the current page as a scroll to its section, or to the top', () => {
+  assert.equal(inPageTarget('/bills/6079hr119#timeline', '/bills/6079hr119'), 'timeline');
+  assert.equal(inPageTarget('/bills/6079hr119', '/bills/6079hr119'), '');
+  assert.equal(inPageTarget('#summary', '/bills/6079hr119'), 'summary');
+});
+
+it('leaves a link to another page, or to a query, to the router', () => {
+  assert.equal(inPageTarget('/bills/10908hr118', '/bills/6079hr119'), null);
+  assert.equal(inPageTarget('/bills/10908hr118#timeline', '/bills/6079hr119'), null);
+  assert.equal(inPageTarget('/bills?sponsor=Smith', '/bills'), null);
 });
 
 console.log(`\nask-panel-state: ${passed} passed, ${failures.length} failed`);
