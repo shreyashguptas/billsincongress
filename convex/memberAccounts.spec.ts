@@ -156,6 +156,68 @@ describe("memberAccounts.recordSiteChecks", () => {
   });
 });
 
+describe("confirmations never outlive their check", () => {
+  async function row(t: ReturnType<typeof newTest>, id = "M000000") {
+    return await t.run((ctx) =>
+      ctx.db.query("memberAccounts").withIndex("by_bioguideId", (q) => q.eq("bioguideId", id)).unique(),
+    );
+  }
+
+  test("a member whose website disappears loses every confirmation at the next check", async () => {
+    const t = newTest();
+    await t.mutation(internal.memberAccounts.apply, { records: congress(539), force: false, now: "2027-01-01T00:00:00Z" });
+    await t.mutation(internal.memberAccounts.recordSiteChecks, {
+      results: [{ bioguideId: "M000000", status: "ok", links: ["x:m0", "facebook:m0"] }],
+      now: "2027-01-01T08:10:00Z",
+    });
+    // A new term arrives in the file without a website.
+    const records = congress(539);
+    delete records[0].officialWebsiteUrl;
+    await t.mutation(internal.memberAccounts.apply, { records, force: false, now: "2027-01-04T07:40:00Z" });
+    expect((await row(t))!.accounts.filter((a) => a.confirmedAt)).toEqual([]);
+    // And the start-of-check sweep agrees, in case anything carried over.
+    await t.mutation(internal.memberAccounts.lapseStale, { now: "2027-01-04T08:10:00Z" });
+    expect((await row(t))!.accounts.filter((a) => a.confirmedAt)).toEqual([]);
+  });
+
+  test("a member the check stops reaching lapses after 30 days", async () => {
+    const t = newTest();
+    await t.mutation(internal.memberAccounts.apply, { records: congress(539), force: false, now: "2026-11-01T00:00:00Z" });
+    await t.mutation(internal.memberAccounts.recordSiteChecks, {
+      results: [{ bioguideId: "M000000", status: "ok", links: ["x:m0"] }],
+      now: "2026-11-01T08:10:00Z",
+    });
+    expect(await t.mutation(internal.memberAccounts.lapseStale, { now: "2026-11-20T08:10:00Z" })).toBe(0);
+    expect(await t.mutation(internal.memberAccounts.lapseStale, { now: "2026-12-05T08:10:00Z" })).toBe(1);
+    expect((await row(t))!.accounts.filter((a) => a.confirmedAt)).toEqual([]);
+  });
+
+  test("a confirmation carried over from an earlier look is not shown until re-checked", async () => {
+    const t = newTest();
+    await t.mutation(internal.memberAccounts.apply, { records: congress(539), force: false, now: "2026-11-01T00:00:00Z" });
+    await t.mutation(internal.memberAccounts.recordSiteChecks, {
+      results: [{ bioguideId: "M000000", status: "ok", links: ["x:m0"] }],
+      now: "2026-11-01T08:10:00Z",
+    });
+    // Forge an older confirmation, as a returning member's row might carry.
+    await t.run(async (ctx) => {
+      const r = (await ctx.db.query("memberAccounts").withIndex("by_bioguideId", (q) => q.eq("bioguideId", "M000000")).unique())!;
+      await ctx.db.patch(r._id, {
+        accounts: r.accounts.map((a) => (a.confirmedAt ? { ...a, confirmedAt: "2026-10-01T08:10:00Z" } : a)),
+      });
+    });
+    const shown = await t.run((ctx) =>
+      ctx.db.query("memberAccounts").withIndex("by_bioguideId", (q) => q.eq("bioguideId", "M000000")).unique(),
+    );
+    expect(shown!.siteCheck!.lastOkAt).toBe("2026-11-01T08:10:00Z");
+    const t2 = await t.run(async (ctx) => {
+      const { officialAccounts } = await import("./memberAccounts");
+      return officialAccounts(ctx as never, "M000000");
+    });
+    expect(t2!.accounts).toEqual([]);
+  });
+});
+
 describe("bills.getPage sponsor accounts", () => {
   function setup() {
     const t = convexTest(schema, modules);

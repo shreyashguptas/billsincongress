@@ -142,10 +142,10 @@ Every bill record on this site comes from one place: the **[official Congress.go
 No government source lists members' social media: Congress.gov, the House Clerk's member list and the Senate's member list carry none. The most official source is each member's own website, so that is what decides.
 
 1. **Suggested** by the [congress-legislators](https://github.com/unitedstates/congress-legislators) project, a volunteer-kept, public-domain file whose policy is official, taxpayer-funded accounts only. It is copied once a day.
-2. **Confirmed** by the member's own .house.gov or .senate.gov home page, fetched once a day. An account is shown only while that page links that exact account.
+2. **Confirmed** by the member's own .house.gov or .senate.gov home page, fetched once a day. An account is shown only while that page links that exact account, and the link takes you to the address that page uses. A link to a post or a tweet does not count, since a page can embed other people's.
 3. **Corrected** by hand where the member's own site links a different account from the file: a renamed account, a typo, or (in one case) the House's own office accounts listed as a member's. Each correction names the member's page that proves it, is checked the same way every day, and is sent back to the volunteer project.
 
-When we started on 1 November 2026 the member's own site confirmed 1,348 of the 1,424 House accounts the file and our corrections suggested, and 433 of 439 House members had at least one. Accounts a member's home page does not link are not shown.
+When we started on 1 November 2026 the member's own site confirmed 1,347 of the 1,423 House accounts the file and our corrections suggested, and 433 of 439 House members had at least one. Accounts a member's home page does not link are not shown.
 
 ### How it stays current
 
@@ -298,6 +298,7 @@ Stated plainly, because they affect what you can trust:
 - **Bill alerts trail Congress.gov.** They go out once a day, after the overnight sync, and Congress.gov itself can post an action a day or more after it happens. An alert says what the record shows, not what happened on the floor an hour ago.
 - **Alerts cover actions and status only** — not new cosponsors, amendments, text versions or hearings, which this site does not store.
 - **Senators' social accounts are not shown yet.** senate.gov refuses automated visits from the networks we tried, so a senator's accounts cannot be confirmed against their own site; their box shows only their official website until that check works.
+- **A member's own site can link a dead account.** Two did on 1 November 2026 (YouTube addresses that no longer exist); those were corrected or hidden by hand. X, Facebook and Instagram turn away automated visits, so the site cannot tell whether an account the member links still exists.
 - **An account is confirmed from the member's home page only.** A member whose home page links an account only on a deeper page (their contact page, say) shows no account for that platform. It is hidden, never guessed.
 - **New members can take a day or more to show accounts.** A member appears once the volunteer file or our corrections suggest an account and their own site links it.
 - **Bill alerts are paid; saving a bill is not.** Saving bookmarks a bill for free; it does not email you.

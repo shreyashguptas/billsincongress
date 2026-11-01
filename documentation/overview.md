@@ -557,8 +557,13 @@ page links that exact account.** Two daily jobs and one reviewed file implement 
 | --- | --- | --- |
 | Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.json` and `legislators-social-media.json` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) GitHub Pages mirror (CC0, volunteer-kept; its policy is official accounts only), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
 | Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page and the date a person checked it: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Send each upstream as a pull request and delete it here once merged |
-| Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | Fetches each in-office member's home page (8 at a time, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads its social links, and stamps `confirmedAt` on each account the page links. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing; a confirmation not renewed by a successful check for 30 days lapses |
-| Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only confirmed accounts, plus the website. Nothing for a member out of office or a bill without a sponsor id |
+| Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | First lapses every confirmation not renewed by a successful check in 30 days, or of a member with no website (`lapseStale`). Then fetches each in-office member's home page, 120 per run with the next run scheduled after the writes (8 at a time, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads the links to accounts (never to posts, tweets or photos, which a page can embed from anyone), and stamps `confirmedAt` plus `shown` (the exact address the page linked, and its label) on each account it links. A page that redirects off house.gov/senate.gov counts as failed. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing |
+| Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only accounts confirmed by the member's latest successful site check (`confirmedAt === siteCheck.lastOkAt`), with the `shown` address, plus the website. Nothing for a member out of office or a bill without a sponsor id |
+
+YouTube has four kinds of address (@handle, `/user/`, `/c/`, a bare custom name) in separate
+namespaces, and the file can carry a channel id and a name. `confirmOnPage` confirms the account
+by whichever the member's site links and sends the reader to that exact form; it prints the name
+only when the site linked that name, so a stale channel id never rides on a confirmed name.
 
 Safety: a download with fewer than 480 or more than 560 members, or one that would drop more
 than 40 accounts from members who stay in office, is not written (`safetyProblem`), and the run
@@ -576,7 +581,7 @@ into the overrides file:
 pnpm exec convex run --prod memberAccounts:reviewList '{}'
 ```
 
-At launch (1 Nov 2026), measured against every House member's home page: 1,348 of 1,424
+At launch (1 Nov 2026), measured against every House member's home page: 1,347 of 1,423
 suggested House accounts confirmed, 433 of 439 House members with at least one. **senate.gov
 refused automated visits** from the networks tried ("Senate.gov - Unauthorized"), so senators
 show only their website until `checkSites` succeeds for them from Convex; if it is refused there

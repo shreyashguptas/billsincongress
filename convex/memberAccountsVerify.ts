@@ -13,14 +13,22 @@
  */
 import type { Platform } from "./memberAccountsParse";
 
-/** "x:senschumer", "youtube:channel:uc…": one key per account a page links. */
+/**
+ * One key per account a page links: "x:senschumer", "youtube:handle:repfine",
+ * "youtube:channel:UC-ABttxh8uQv_10qmwGaidw". Names are lower-cased because
+ * those platforms ignore case; a YouTube channel id keeps its case because
+ * YouTube does not. YouTube's @handles, /user/ names, /c/ names and bare
+ * custom addresses are separate namespaces (the same word can be two
+ * different channels), so each has its own key.
+ */
 export type LinkKey = string;
 
 const HREF = /href\s*=\s*["']([^"'\s>]+)["']/gi;
 
 /**
- * Every social link in a page's HTML, as keys. Share and intent links
- * ("x.com/intent/…", "facebook.com/sharer…") are not accounts and are skipped.
+ * Every account a page's HTML links, as keys. Only links to an account itself
+ * count: a link to a post, a tweet, a photo or a share box names someone, but
+ * a page can embed or mention other people's posts.
  */
 export function linkedAccounts(html: string): Set<LinkKey> {
   const keys = new Set<LinkKey>();
@@ -34,71 +42,124 @@ export function linkedAccounts(html: string): Set<LinkKey> {
 const NOT_ACCOUNTS = new Set([
   "share", "sharer", "sharer.php", "intent", "home", "search", "hashtag", "i", "tr", "plugins",
   "dialog", "embed", "watch", "p", "reel", "reels", "explore", "privacy", "policies", "about", "login", "signup",
-  "photo.php", "playlist", "results", "shorts", "events", "groups", "story.php", "permalink.php",
+  "photo.php", "playlist", "results", "shorts", "events", "groups", "story.php", "permalink.php", "tv", "stories",
 ]);
+
+/** Pages of a YouTube channel ("/videos") still point at that channel. */
+const YOUTUBE_TABS = new Set(["videos", "featured", "streams", "shorts", "playlists", "community", "about", "live", "podcasts"]);
 
 /** The key for one link, or null when it is not a link to an account. */
 export function linkKey(href: string): LinkKey | null {
   let url: URL;
   try {
-    url = new URL(href);
+    url = new URL(href.startsWith("//") ? `https:${href}` : href);
   } catch {
     return null;
   }
   const host = url.hostname.toLowerCase().replace(/^(www|m|mobile)\./, "");
   const parts = url.pathname.split("/").filter(Boolean);
-  const first = (parts[0] ?? "").replace(/^@/, "");
+  const first = parts[0] ?? "";
+  const ok = (name: string) => name !== "" && !NOT_ACCOUNTS.has(name.toLowerCase());
+
   if (host === "x.com" || host === "twitter.com") {
+    // twitter.com/intent/follow?screen_name=Handle is a follow button: an account.
+    if (first === "intent" && parts[1] === "follow") {
+      const name = url.searchParams.get("screen_name") ?? "";
+      return /^[A-Za-z0-9_]{1,15}$/.test(name) ? `x:${name.toLowerCase()}` : null;
+    }
     // Old sites link "twitter.com/#!/Handle", which puts the handle in the hash.
-    const handle = first || (url.hash.startsWith("#!/") ? url.hash.slice(3).split("/")[0].replace(/^@/, "") : "");
-    return handle && !NOT_ACCOUNTS.has(handle.toLowerCase()) ? `x:${handle.toLowerCase()}` : null;
+    const path = parts.length > 0 ? parts : url.hash.startsWith("#!/") ? url.hash.slice(3).split("/").filter(Boolean) : [];
+    // x.com/Someone/status/123 is a tweet, not an account.
+    if (path.length !== 1) return null;
+    const handle = path[0].replace(/^@/, "");
+    return ok(handle) && /^[A-Za-z0-9_]{1,15}$/.test(handle) ? `x:${handle.toLowerCase()}` : null;
   }
   if (host === "facebook.com" || host === "fb.com") {
-    if (first === "profile.php") {
+    if (first === "profile.php" && parts.length === 1) {
       const id = url.searchParams.get("id");
       return id && /^\d+$/.test(id) ? `facebook:${id}` : null;
     }
     // facebook.com/people/Rep-Clay-Fuller/61570681866170 and the older
     // facebook.com/pages/Tom-McClintock/81125319109: the number is the page.
     if (first === "people" || first === "pages") {
-      return parts[2] && /^\d+$/.test(parts[2]) ? `facebook:${parts[2]}` : null;
+      return parts.length === 3 && /^\d+$/.test(parts[2]) ? `facebook:${parts[2]}` : null;
     }
-    const name = first === "pg" ? (parts[1] ?? "") : first;
-    // A post ("1350313_16293265") or anything else with an underscore is not a
-    // page: Facebook usernames cannot contain one.
-    if (!name || name.includes("_") || NOT_ACCOUNTS.has(name.toLowerCase())) return null;
+    // facebook.com/pg/Page/posts is the page's own posts tab: still the page.
+    const path = first === "pg" ? parts.slice(1, 2) : parts;
+    // facebook.com/Page/posts/123 is a post on a page.
+    if (path.length !== 1) return null;
+    const name = path[0];
+    // Facebook usernames cannot contain an underscore; post ids do.
+    if (!ok(name) || name.includes("_")) return null;
     return `facebook:${name.toLowerCase()}`;
   }
   if (host === "instagram.com") {
-    return first && !NOT_ACCOUNTS.has(first.toLowerCase()) ? `instagram:${first.toLowerCase()}` : null;
+    return parts.length === 1 && ok(first) ? `instagram:${first.toLowerCase()}` : null;
   }
   if (host === "youtube.com") {
-    if (parts[0] === "channel" && parts[1]) return `youtube:channel:${parts[1].toLowerCase()}`;
-    if (parts[0]?.startsWith("@")) return `youtube:name:${first.toLowerCase()}`;
-    if ((parts[0] === "user" || parts[0] === "c") && parts[1]) return `youtube:name:${parts[1].toLowerCase()}`;
+    const tabOnly = (rest: string[]) => rest.every((p) => YOUTUBE_TABS.has(p.toLowerCase()));
+    if (first === "channel" && parts[1] && tabOnly(parts.slice(2))) return `youtube:channel:${parts[1]}`;
+    if (first.startsWith("@") && tabOnly(parts.slice(1))) return `youtube:handle:${first.slice(1).toLowerCase()}`;
+    if ((first === "user" || first === "c") && parts[1] && tabOnly(parts.slice(2))) {
+      return `youtube:${first}:${parts[1].toLowerCase()}`;
+    }
     // youtube.com/housedems: an old-style custom address.
-    if (parts.length === 1 && !NOT_ACCOUNTS.has(first.toLowerCase())) return `youtube:name:${first.toLowerCase()}`;
+    if (parts.length >= 1 && ok(first) && tabOnly(parts.slice(1))) return `youtube:custom:${first.toLowerCase()}`;
     return null;
   }
   return null;
 }
 
+/** What a confirmed account shows the reader: where it goes, and what it says. */
+export interface ShownAccount {
+  url: string;
+  label: string;
+}
+
+/** YouTube's name namespaces, in the order a name is looked for, and each one's address. */
+const YOUTUBE_NAMES: Array<[string, (name: string) => string]> = [
+  ["handle", (n) => `https://www.youtube.com/@${n}`],
+  ["user", (n) => `https://www.youtube.com/user/${n}`],
+  ["c", (n) => `https://www.youtube.com/c/${n}`],
+  ["custom", (n) => `https://www.youtube.com/${n}`],
+];
+
 /**
- * The keys that would show a given account is linked: its handle, and for
- * YouTube either its channel id or its name. Built from the account's own URL
- * and label, so it matches exactly what the reader would be sent to.
+ * Whether the member's own site links this account, and if so exactly what to
+ * show. The reader is only ever sent to an address the site itself linked.
+ *
+ * YouTube needs care: the file can carry a channel id and a name, and a
+ * member's site may link either, in any of YouTube's four address forms
+ * (@handle, /user/, /c/, or a bare custom address), which are separate
+ * namespaces. So the account is confirmed by whichever the site links, and
+ * the reader goes to that exact form; a name is printed only when the site
+ * linked that name, so a stale channel id can never ride on a confirmed name.
  */
-export function accountKeys(platform: Platform, url: string, label: string): LinkKey[] {
-  const keys: LinkKey[] = [];
-  const own = linkKey(url);
-  if (own) keys.push(own);
-  if (platform === "youtube" && label.startsWith("@")) keys.push(`youtube:name:${label.slice(1).toLowerCase()}`);
-  return keys;
+export function confirmOnPage(
+  page: Set<LinkKey>,
+  account: { platform: Platform; url: string; label: string },
+): ShownAccount | null {
+  const own = linkKey(account.url);
+  if (account.platform !== "youtube") {
+    return own && page.has(own) ? { url: account.url, label: account.label } : null;
+  }
+  const name = account.label === "Channel" ? null : account.label.replace(/^@/, "");
+  if (own && page.has(own)) {
+    if (!own.startsWith("youtube:channel:")) return { url: account.url, label: account.label };
+    return { url: account.url, label: name && page.has(`youtube:handle:${name.toLowerCase()}`) ? `@${name}` : "Channel" };
+  }
+  if (!name) return null;
+  for (const [namespace, address] of YOUTUBE_NAMES) {
+    if (page.has(`youtube:${namespace}:${name.toLowerCase()}`)) {
+      return { url: address(name), label: namespace === "handle" ? `@${name}` : name };
+    }
+  }
+  return null;
 }
 
 /** Whether the member's own site links this account. */
 export function isLinkedFrom(page: Set<LinkKey>, platform: Platform, url: string, label: string): boolean {
-  return accountKeys(platform, url, label).some((key) => page.has(key));
+  return confirmOnPage(page, { platform, url, label }) !== null;
 }
 
 export interface SiteCheck {
@@ -110,8 +171,11 @@ export interface SiteCheck {
 const SITE_TIMEOUT_MS = 20_000;
 /** Larger than any member's home page; a page past this is cut, not refused. */
 const MAX_PAGE_CHARS = 3_000_000;
-/** More than any real footer carries; bounds what a row stores. */
-const MAX_LINKS = 60;
+/**
+ * Far more than any member's home page links once posts are excluded; bounds
+ * what a row stores and what one mutation receives.
+ */
+const MAX_LINKS = 200;
 // Who we are, so a site's operators can see what fetched the page and why.
 const USER_AGENT = "BillsInCongress/1.0 (+https://billsincongress.com/about; checks members' official social links once a day)";
 
@@ -131,6 +195,9 @@ export async function checkOfficialSite(url: string): Promise<SiteCheck> {
     });
     if ([401, 403, 429].includes(response.status)) return { status: "blocked", links: [] };
     if (!response.ok) return { status: "failed", links: [] };
+    // A .gov address that redirects off .gov (to a campaign site, say) is not
+    // the member's official page.
+    if (response.url && !isOfficialHost(response.url)) return { status: "failed", links: [] };
     const html = (await response.text()).slice(0, MAX_PAGE_CHARS);
     if (looksBlocked(html)) return { status: "blocked", links: [] };
     return { status: "ok", links: [...linkedAccounts(html)].sort().slice(0, MAX_LINKS) };
@@ -138,6 +205,20 @@ export async function checkOfficialSite(url: string): Promise<SiteCheck> {
     return { status: "failed", links: [] };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** https on house.gov or senate.gov, the only hosts a member's official page lives on. */
+export function isOfficialHost(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    return (
+      url.protocol === "https:" &&
+      (host === "house.gov" || host.endsWith(".house.gov") || host === "senate.gov" || host.endsWith(".senate.gov"))
+    );
+  } catch {
+    return false;
   }
 }
 

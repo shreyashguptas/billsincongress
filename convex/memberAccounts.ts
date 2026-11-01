@@ -50,7 +50,7 @@ import {
   safetyProblem,
   type MemberAccount,
 } from "./memberAccountsParse";
-import { checkOfficialSite, isLinkedFrom, type SiteCheck } from "./memberAccountsVerify";
+import { checkOfficialSite, confirmOnPage, type SiteCheck } from "./memberAccountsVerify";
 
 const SOURCE_BASE = "https://unitedstates.github.io/congress-legislators";
 const FETCH_TIMEOUT_MS = 30_000;
@@ -58,8 +58,12 @@ const FETCH_TIMEOUT_MS = 30_000;
 const MAX_ROWS = 5000;
 /** Official sites fetched at once by `checkSites`. */
 const SITE_CONCURRENCY = 8;
-/** Results written per mutation by `checkSites`. */
-const RESULTS_PER_WRITE = 60;
+/**
+ * Sites per `checkSites` run, written before the next run is scheduled. At 8
+ * at a time and a 20-second timeout, 120 sites take at most 5 minutes, well
+ * inside an action's 10, even if every site hangs.
+ */
+const SITES_PER_RUN = 120;
 /** A confirmation lapses when no check has succeeded for this long. */
 export const CONFIRMATION_LAPSES_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -170,14 +174,26 @@ type StoredAccount = Doc<"memberAccounts">["accounts"][number];
 
 /**
  * The suggested accounts, keeping a confirmation only for an account whose
- * link is unchanged: a new or changed account waits for the next site check.
+ * link and label are unchanged, on an unchanged official website, confirmed
+ * within the last 30 days. Anything else waits for the next site check.
  */
-function carryConfirmations(next: MemberAccount[], previous: StoredAccount[]): StoredAccount[] {
-  const confirmed = new Map(previous.filter((a) => a.confirmedAt).map((a) => [a.url, a.confirmedAt]));
+function carryConfirmations(
+  next: MemberAccount[],
+  previous: StoredAccount[],
+  sameWebsite: boolean,
+  nowMs: number,
+): StoredAccount[] {
+  if (!sameWebsite) return next;
   return next.map((a) => {
-    const confirmedAt = confirmed.get(a.url);
-    return confirmedAt ? { ...a, confirmedAt } : a;
+    const old = previous.find((p) => p.url === a.url && p.label === a.label);
+    if (!old?.confirmedAt || !old.shown || nowMs - Date.parse(old.confirmedAt) > CONFIRMATION_LAPSES_MS) return a;
+    return { ...a, confirmedAt: old.confirmedAt, shown: old.shown };
   });
+}
+
+/** An account with its confirmation removed. */
+function unconfirmed({ confirmedAt: _c, shown: _s, ...account }: StoredAccount): StoredAccount {
+  return account;
 }
 
 export const apply = internalMutation({
@@ -212,7 +228,12 @@ export const apply = internalMutation({
         await ctx.db.replace("memberAccounts", row._id, {
           bioguideId,
           ...rest,
-          accounts: carryConfirmations(rest.accounts, row.accounts),
+          accounts: carryConfirmations(
+            rest.accounts,
+            row.accounts,
+            row.inOffice && row.officialWebsiteUrl === rest.officialWebsiteUrl,
+            Date.parse(args.now),
+          ),
           inOffice: true,
           ...(row.siteCheck ? { siteCheck: row.siteCheck } : {}),
           fingerprint,
@@ -231,15 +252,44 @@ export const apply = internalMutation({
   },
 });
 
-/** Every in-office member's official website, for `checkSites`. */
+/** One page of in-office members' official websites, in a fixed order, for `checkSites`. */
 export const sitesToCheck = internalQuery({
-  args: {},
-  returns: v.array(v.object({ bioguideId: v.string(), url: v.string() })),
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("memberAccounts").take(MAX_ROWS);
-    return rows
+  args: { offset: v.number(), limit: v.number() },
+  returns: v.object({
+    sites: v.array(v.object({ bioguideId: v.string(), url: v.string() })),
+    total: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db.query("memberAccounts").withIndex("by_bioguideId").take(MAX_ROWS);
+    const all = rows
       .filter((r) => r.inOffice && r.officialWebsiteUrl)
       .map((r) => ({ bioguideId: r.bioguideId, url: r.officialWebsiteUrl as string }));
+    return { sites: all.slice(args.offset, args.offset + args.limit), total: all.length };
+  },
+});
+
+/**
+ * The start of each daily check: a member whose site has not been read
+ * successfully for 30 days, or who has no official website, loses every
+ * confirmation. Without this, a member the check no longer reaches would keep
+ * old confirmations for ever.
+ */
+export const lapseStale = internalMutation({
+  args: { now: v.string() },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const nowMs = Date.parse(args.now);
+    let lapsed = 0;
+    const rows = await ctx.db.query("memberAccounts").take(MAX_ROWS);
+    for (const row of rows) {
+      if (!row.inOffice || !row.accounts.some((a) => a.confirmedAt)) continue;
+      const lastOkAt = row.siteCheck?.lastOkAt;
+      const stale = !row.officialWebsiteUrl || !lastOkAt || nowMs - Date.parse(lastOkAt) > CONFIRMATION_LAPSES_MS;
+      if (!stale) continue;
+      await ctx.db.patch("memberAccounts", row._id, { accounts: row.accounts.map(unconfirmed) });
+      lapsed++;
+    }
+    return lapsed;
   },
 });
 
@@ -263,35 +313,57 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return out;
 }
 
+const totalsValidator = v.object({
+  ok: v.number(),
+  blocked: v.number(),
+  failed: v.number(),
+  confirmed: v.number(),
+  unconfirmed: v.number(),
+});
+
+/**
+ * Check every member's official site, a page of `SITES_PER_RUN` at a time:
+ * each run fetches its page, writes the results, and schedules the next, so
+ * a slow day can never run past an action's time limit with nothing written.
+ */
 export const checkSites = internalAction({
-  args: {},
+  args: { offset: v.optional(v.number()), now: v.optional(v.string()), totals: v.optional(totalsValidator) },
   returns: v.null(),
-  handler: async (ctx): Promise<null> => {
-    const sites = await ctx.runQuery(internal.memberAccounts.sitesToCheck, {});
+  handler: async (ctx, args): Promise<null> => {
+    const offset = args.offset ?? 0;
+    const now = args.now ?? new Date().toISOString();
+    const totals = args.totals ?? { ok: 0, blocked: 0, failed: 0, confirmed: 0, unconfirmed: 0 };
+    if (offset === 0) await ctx.runMutation(internal.memberAccounts.lapseStale, { now });
+
+    const { sites, total } = await ctx.runQuery(internal.memberAccounts.sitesToCheck, {
+      offset,
+      limit: SITES_PER_RUN,
+    });
     const results = await mapLimit(sites, SITE_CONCURRENCY, async (site) => {
       const check: SiteCheck = await checkOfficialSite(site.url);
       return { bioguideId: site.bioguideId, ...check };
     });
-    const now = new Date().toISOString();
-    const totals = { confirmed: 0, unconfirmed: 0 };
-    for (let i = 0; i < results.length; i += RESULTS_PER_WRITE) {
-      const written = await ctx.runMutation(internal.memberAccounts.recordSiteChecks, {
-        results: results.slice(i, i + RESULTS_PER_WRITE),
-        now,
-      });
+    if (results.length > 0) {
+      const written = await ctx.runMutation(internal.memberAccounts.recordSiteChecks, { results, now });
       totals.confirmed += written.confirmed;
       totals.unconfirmed += written.unconfirmed;
     }
-    const count = (status: string) => results.filter((r) => r.status === status).length;
+    for (const r of results) totals[r.status]++;
+
+    if (offset + SITES_PER_RUN < total) {
+      await ctx.scheduler.runAfter(0, internal.memberAccounts.checkSites, { offset: offset + SITES_PER_RUN, now, totals });
+      return null;
+    }
+    const sitesChecked = totals.ok + totals.blocked + totals.failed;
     await scheduleLog(ctx, {
-      level: count("failed") > results.length / 10 ? "warn" : "info",
+      level: totals.failed > sitesChecked / 10 ? "warn" : "info",
       message: "member sites checked",
       timestampMs: Date.now(),
       attributes: {
-        sites: results.length,
-        ok: count("ok"),
-        blocked: count("blocked"),
-        failed: count("failed"),
+        sites: sitesChecked,
+        ok: totals.ok,
+        blocked: totals.blocked,
+        failed: totals.failed,
         accounts_confirmed: totals.confirmed,
         accounts_unconfirmed: totals.unconfirmed,
       },
@@ -316,13 +388,15 @@ export const recordSiteChecks = internalMutation({
       let lastOkAt = row.siteCheck?.lastOkAt;
       if (result.status === "ok") {
         const page = new Set(result.links);
-        accounts = row.accounts.map(({ confirmedAt: _old, ...a }) =>
-          isLinkedFrom(page, a.platform, a.url, a.label) ? { ...a, confirmedAt: args.now } : a,
-        );
+        accounts = row.accounts.map((stored) => {
+          const a = unconfirmed(stored);
+          const shown = confirmOnPage(page, a);
+          return shown ? { ...a, confirmedAt: args.now, shown } : a;
+        });
         lastOkAt = args.now;
       } else if (!lastOkAt || nowMs - Date.parse(lastOkAt) > CONFIRMATION_LAPSES_MS) {
         // No successful look at the site for a month: nothing stays confirmed.
-        accounts = row.accounts.map(({ confirmedAt: _old, ...a }) => a);
+        accounts = row.accounts.map(unconfirmed);
       } else {
         accounts = row.accounts;
       }
@@ -404,11 +478,14 @@ export async function officialAccounts(
     .withIndex("by_bioguideId", (q) => q.eq("bioguideId", bioguideId))
     .unique();
   if (!row?.inOffice) return null;
+  // Only what the latest successful look at the member's site confirmed: a
+  // confirmation from any earlier look is not shown, whatever else happened.
+  const lastOkAt = row.siteCheck?.lastOkAt;
   return {
     bioguideId: row.bioguideId,
     accounts: row.accounts
-      .filter((a) => a.confirmedAt)
-      .map(({ platform, label, url, source }) => ({ platform, label, url, source })),
+      .filter((a) => a.confirmedAt && a.shown && lastOkAt && a.confirmedAt === lastOkAt)
+      .map(({ platform, shown, source }) => ({ platform, label: shown!.label, url: shown!.url, source })),
     officialWebsiteUrl: row.officialWebsiteUrl ?? null,
   };
 }

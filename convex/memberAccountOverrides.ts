@@ -64,7 +64,7 @@ export const ACCOUNT_OVERRIDES: readonly AccountOverride[] = [
   ...fromSite("L000562", "https://lynch.house.gov", { youtube: "CongressmanStephenLynch" }),
   ...fromSite("M001137", "https://meeks.house.gov", { facebook: "repgregorymeeks", youtube: "user/repgregorymeeks" }),
   ...fromSite("P000597", "https://pingree.house.gov", { facebook: "91529332807" }),
-  ...fromSite("S000344", "https://sherman.house.gov", { facebook: "congressmanbradsherman", youtube: "/CongressmanBradShermanCA" }),
+  ...fromSite("S000344", "https://sherman.house.gov", { facebook: "congressmanbradsherman", youtube: "CongressmanBradShermanCA" }),
   ...fromSite("S000510", "https://adamsmith.house.gov", { youtube: "/repadamsmith" }),
   ...fromSite("S000522", "https://chrissmith.house.gov", { facebook: "371621772908416" }),
   ...fromSite("S001156", "https://lindasanchez.house.gov", { facebook: "replindasanchez", youtube: "/RepLindaSanchez" }),
@@ -117,6 +117,20 @@ export const ACCOUNT_OVERRIDES: readonly AccountOverride[] = [
   ...fromSite("G000604", "https://goodlander.house.gov", { facebook: "repgoodlander" }),
   // Nellie Pou: the source lists the House's own accounts (@caohouse, House Creative Services) as hers.
   ...fromSite("P000621", "https://pou.house.gov", { x: "RepNellie", facebook: "congresswomannelliepou", instagram: "RepNellie" }),
+
+  // Dead links on the members' own sites (checked 2026-11-01): Rep. Hurd's
+  // links @RepJeffHurd03, which YouTube answers with a 404, and also
+  // @RepJeffHurd, which works. Rep. Schweikert's links
+  // youtube.com/RepDavidSchweikert, which redirects to a 404.
+  ...fromSite("H001100", "https://hurd.house.gov", { youtube: "RepJeffHurd" }),
+  {
+    bioguideId: "S001183",
+    platform: "youtube",
+    action: "hide",
+    proofUrl: "https://schweikert.house.gov",
+    checked: "2026-11-01",
+    reason: "the YouTube address his site links is a 404",
+  },
 ];
 
 /** One "set" entry per account a member's own site links, all checked the same day. */
