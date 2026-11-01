@@ -142,7 +142,7 @@ Every bill record on this site comes from one place: the **[official Congress.go
 No government source lists members' social media: Congress.gov, the House Clerk's member list and the Senate's member list carry none. The most official source is each member's own website, so that is what decides.
 
 1. **Suggested** by the [congress-legislators](https://github.com/unitedstates/congress-legislators) project, a volunteer-kept, public-domain file whose policy is official, taxpayer-funded accounts only. It is copied once a day.
-2. **Confirmed** by the member's own .house.gov or .senate.gov home page, fetched once a day. An account is shown only while that page links that exact account, and the link takes you to the address that page uses. A link to a post or a tweet does not count, since a page can embed other people's.
+2. **Confirmed** by the member's own .house.gov or .senate.gov home page, fetched once a day. An account is shown only while that page links that exact account. For YouTube, which has several kinds of address for one channel, the link takes you to the exact address that page uses. A link to a post or a tweet does not count, since a page can embed other people's.
 3. **Corrected** by hand where the member's own site links a different account from the file: a renamed account, a typo, or (in one case) the House's own office accounts listed as a member's. Each correction names the member's page that proves it, is checked the same way every day, and is sent back to the volunteer project.
 
 When we started on 1 November 2026 the member's own site confirmed 1,347 of the 1,423 House accounts the file and our corrections suggested, and 433 of 439 House members had at least one. Accounts a member's home page does not link are not shown.
