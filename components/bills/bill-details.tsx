@@ -30,6 +30,7 @@ import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
 import { BillRelatedSection } from './bill-related';
 import { MemberAccounts } from './member-accounts';
+import { BillCosponsors } from './bill-cosponsors';
 import { journeyView } from '@/lib/bill-journey';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -493,6 +494,8 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
           </aside>
         </div>
       </div>
+
+      <BillCosponsors billId={String(bill.id)} noun={noun} cosponsors={extras?.cosponsors} />
 
       {extras?.peers && (
         <BillPeersSection

@@ -130,6 +130,11 @@ export default defineSchema({
     // Rosen), and twice when two members share a name (the Menendezes in the
     // 118th). See convex/sponsorIdentity.ts. Absent on rows not yet backfilled.
     sponsorBioguideId: v.optional(v.string()),
+    // Current cosponsors (withdrawn ones not counted), and a fingerprint of the
+    // stored `billCosponsors` rows so a sync rewrites them only when they
+    // change. Absent until the bill's cosponsors are first fetched.
+    cosponsorCount: v.optional(v.number()),
+    cosponsorsFingerprint: v.optional(v.string()),
     progressStage: v.optional(v.number()), // 20, 40, 50 (out of committee), 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
@@ -278,6 +283,26 @@ export default defineSchema({
     formatsUrlPdf: v.optional(v.string()),
     type: v.optional(v.string()),
   }).index("by_billId", ["billId"]),
+
+  // A bill's cosponsors as Congress.gov lists them (convex/cosponsors.ts),
+  // replaced as a set by the sync (`replaceBillCosponsors`). Withdrawn
+  // cosponsors stay, with `withdrawnDate`. `by_bioguideId_and_congress` is a
+  // member's cosponsored bills, for the member page.
+  billCosponsors: defineTable({
+    billId: v.string(),
+    congress: v.number(),
+    bioguideId: v.string(),
+    firstName: v.string(),
+    lastName: v.string(),
+    party: v.optional(v.string()),
+    state: v.optional(v.string()),
+    district: v.optional(v.number()),
+    sponsorshipDate: v.string(),
+    isOriginal: v.boolean(),
+    withdrawnDate: v.optional(v.string()),
+  })
+    .index("by_billId", ["billId"])
+    .index("by_bioguideId_and_congress", ["bioguideId", "congress"]),
 
   // Detailed legislative subjects (one-to-many: bill -> subjects). Distinct
   // from the single policy area kept in billSubjects — the Library of Congress

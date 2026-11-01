@@ -20,6 +20,9 @@ export const EXTRA_COMPLETE = 3; // all enrichment bits set
 // bit 2: the sponsor's member id and re-cased name fetched (backfillSponsorIdentity).
 // Not part of EXTRA_COMPLETE, which means "subjects and text stored".
 export const EXTRA_SPONSOR_IDENTITY = 4;
+// bit 3: the bill's cosponsors fetched and stored (sync, or backfillCosponsors).
+// Not part of EXTRA_COMPLETE either.
+export const EXTRA_COSPONSORS = 8;
 
 const ENDPOINT_NAMES: Record<number, string> = {
   [SYNC_DETAIL]: "detail",

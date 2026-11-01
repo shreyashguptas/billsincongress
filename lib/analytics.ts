@@ -34,7 +34,7 @@ function capture(event: string, properties?: Record<string, unknown>) {
 }
 
 /** Where a member's official accounts were shown when one was opened. */
-export type MemberAccountSurface = 'bill_sponsor_card';
+export type MemberAccountSurface = 'bill_sponsor_card' | 'bill_cosponsors';
 
 /** sessionStorage key used to attribute Google OAuth completions after the redirect. */
 const PENDING_GOOGLE_AUTH_KEY = 'ph_pending_google_auth';
@@ -587,6 +587,10 @@ export const analytics = {
   }) => capture('bill_peers_viewed', props),
 
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
+
+  /** A reader asked for every cosponsor of a bill beyond the first ten. */
+  billCosponsorsExpanded: (props: { bill_id: string; total: number }) =>
+    capture('bill_cosponsors_expanded', props),
 
   /** A reader opened one of a member's official accounts, or their website. */
   memberAccountClicked: (props: {

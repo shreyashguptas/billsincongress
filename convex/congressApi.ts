@@ -14,7 +14,9 @@ import {
   EXTRA_TEXT_VERSIONS,
   EXTRA_COMPLETE,
   EXTRA_SPONSOR_IDENTITY,
+  EXTRA_COSPONSORS,
 } from "./sync";
+import { cosponsorRows, type CosponsorRow } from "./cosponsors";
 import { calculateBillStage, stageDateFor } from "./billStage";
 import { Id } from "./_generated/dataModel";
 
@@ -162,6 +164,36 @@ async function fetchWithRetry(
     return response;
   }
   return null;
+}
+
+/**
+ * A bill's cosponsors from Congress.gov, every page of them. Null when any page
+ * fails: a partial list would be stored as if it were the whole set, and a
+ * bill page would then show the wrong count. The caller must already have
+ * delayed before the call; page 0 does not delay.
+ */
+async function fetchBillCosponsors(
+  congress: number,
+  billType: string,
+  billNumber: number | string,
+  label: string,
+  pageDelayMs: number,
+): Promise<CosponsorRow[] | null> {
+  const PAGE = 250;
+  const MAX_PAGES = 4; // 1,000: far beyond a whole House plus a Senate
+  const items: unknown[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    if (page > 0) await delay(pageDelayMs);
+    const url = `${BASE_URL}/bill/${congress}/${billType}/${billNumber}/cosponsors?format=json&limit=${PAGE}&offset=${page * PAGE}`;
+    const resp = await fetchWithRetry(url, `${label} offset=${page * PAGE}`);
+    if (!resp || !resp.ok) return null;
+    const data = await resp.json();
+    const batch: unknown[] = Array.isArray(data?.cosponsors) ? data.cosponsors : [];
+    items.push(...batch);
+    if (batch.length < PAGE) break;
+    if (page === MAX_PAGES - 1) return null;
+  }
+  return cosponsorRows(items);
 }
 
 type BillSubjectsResult = {
@@ -426,6 +458,21 @@ async function syncSingleBill(
     }
   } catch {
     // Non-critical
+  }
+
+  // Cosponsors: no call at all when the detail says there are none.
+  try {
+    const listed = Number(billDetail.cosponsors?.countIncludingWithdrawnCosponsors ?? billDetail.cosponsors?.count ?? 0);
+    let cosponsors: CosponsorRow[] | null = [];
+    if (listed > 0) {
+      await delay(DELAY_BETWEEN_REQUESTS_MS);
+      cosponsors = await fetchBillCosponsors(congress, billType, billNumber, `cosponsors ${billId}`, DELAY_BETWEEN_REQUESTS_MS);
+    }
+    if (cosponsors !== null) {
+      await ctx.runMutation(internal.mutations.replaceBillCosponsors, { billId, cosponsors });
+    }
+  } catch {
+    // Non-critical: the backfill picks up a bill whose cosponsors never landed.
   }
 
   await ctx.runMutation(internal.mutations.updateBillSyncStatus, {
@@ -1800,6 +1847,96 @@ export const backfillSponsorIdentity = internalAction({
         }
         console.log("backfillSponsorIdentity: complete; recounting sponsors by member id");
         await ctx.scheduler.runAfter(0, internal.congressApi.recomputeAllSponsors, {});
+        return { done: true, fixedThisRun, pausedForRateLimit: false };
+      }
+      cursor = page.continueCursor;
+    }
+  },
+});
+
+/**
+ * Fetch the cosponsors of every stored bill that does not have them yet (bit
+ * `EXTRA_COSPONSORS`), once, at the enrichment backfill's pace. After the
+ * deploy that adds cosponsors, run once:
+ *
+ *   pnpm exec convex run --prod congressApi:backfillCosponsors '{}'
+ *
+ * One Congress.gov call per bill (about 56,500), so it takes several hours and
+ * continues itself, pausing when the hourly budget runs low. A bill whose call
+ * fails is retried on a further pass; a pass that stores nothing ends it.
+ */
+export const backfillCosponsors = internalAction({
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    passFixed: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ done: boolean; fixedThisRun: number; pausedForRateLimit: boolean }> => {
+    requireApiKey();
+    lastRateLimitRemaining = null;
+    const startedAt = Date.now();
+    let cursor: string | null = args.cursor ?? null;
+    let passFixed = args.passFixed ?? 0;
+    let fixedThisRun = 0;
+
+    for (;;) {
+      const page: BillBackfillPage = await ctx.runQuery(internal.mutations.getBillBackfillPage, {
+        cursor,
+        numItems: ENRICHMENT_PAGE,
+      });
+
+      for (const bill of page.bills) {
+        if ((bill.extraSyncedBits & EXTRA_COSPONSORS) !== 0) continue;
+
+        if (lastRateLimitRemaining !== null && lastRateLimitRemaining < ENRICHMENT_RATE_FLOOR) {
+          console.warn(`backfillCosponsors: rate-limit floor hit (${lastRateLimitRemaining} remaining); cooling down`);
+          await ctx.scheduler.runAfter(ENRICHMENT_COOLDOWN_MS, internal.congressApi.backfillCosponsors, {
+            cursor,
+            passFixed,
+          });
+          return { done: false, fixedThisRun, pausedForRateLimit: true };
+        }
+
+        try {
+          await delay(ENRICHMENT_DELAY_MS);
+          const cosponsors = await fetchBillCosponsors(
+            bill.congress,
+            bill.billType,
+            bill.billNumber,
+            `cosponsors ${bill.billId}`,
+            ENRICHMENT_DELAY_MS,
+          );
+          if (cosponsors !== null) {
+            await ctx.runMutation(internal.mutations.replaceBillCosponsors, { billId: bill.billId, cosponsors });
+            fixedThisRun++;
+            passFixed++;
+          }
+        } catch (err: any) {
+          console.error(`backfillCosponsors: skipping ${bill.billId} after error: ${err?.message ?? err}`);
+        }
+
+        if (Date.now() - startedAt > ENRICHMENT_MAX_RUN_MS) {
+          await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillCosponsors, {
+            cursor,
+            passFixed,
+          });
+          console.log(`backfillCosponsors: time budget reached, ${fixedThisRun} this run (pass ${passFixed}); scheduled continuation`);
+          return { done: false, fixedThisRun, pausedForRateLimit: false };
+        }
+      }
+
+      if (page.isDone) {
+        if (passFixed > 0) {
+          await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillCosponsors, {
+            cursor: null,
+            passFixed: 0,
+          });
+          console.log(`backfillCosponsors: pass complete (${passFixed}); starting another to catch failures`);
+          return { done: false, fixedThisRun, pausedForRateLimit: false };
+        }
+        console.log("backfillCosponsors: complete");
         return { done: true, fixedThisRun, pausedForRateLimit: false };
       }
       cursor = page.continueCursor;

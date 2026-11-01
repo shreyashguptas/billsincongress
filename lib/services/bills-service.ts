@@ -224,6 +224,11 @@ export const billsService = {
    * Everything the bill page draws, in one Convex call (`bills.getPage`): the
    * bill, plus its journey and peer counts. Fails like `fetchBillById`.
    */
+  /** Every current cosponsor of a bill with their accounts: the bill page's "Show all". */
+  async fetchCosponsors(billId: string) {
+    return await queryBills('getCosponsors', { billId });
+  },
+
   async fetchBillPage(id: string): Promise<{ bill: Bill; extras: BillPageExtras }> {
     const client = getConvexHttpClient();
     if (!client) {
