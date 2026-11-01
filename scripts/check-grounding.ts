@@ -620,9 +620,11 @@ function serveBills(f: Filters, limit: number): Served {
   }
 
   // Congress-wide. 18,476 measures overflow both windows, so this read can never
-  // come back complete and a requested sort is REFUSED rather than applied to a
-  // sample — exactly as fetch.ts does when the window fills. That refusal is what
-  // leaves `order: "arbitrary"` on a page whose first row is not the newest.
+  // come back complete. Production serves a requested sort here from an ordering
+  // index (chooseOrderingIndex in fetch.ts); this fixture withholds it ON PURPOSE,
+  // as fetch.ts still must for a title search or reachedStage, so the gate keeps
+  // testing what the model does with `order: "arbitrary"` on a page whose first
+  // row is not the newest.
   return partial(set, page(ARBITRARY_PAGE.map(billRow)), false);
 }
 

@@ -53,7 +53,9 @@ export type RowOrder =
 const ORDER_PROSE: Record<RowOrder, string> = {
   arbitrary:
     "NOT SORTED. Row position means nothing. Never take the first or last row as the largest, " +
-    "smallest, newest or oldest, and never derive a maximum or minimum from these rows.",
+    "smallest, newest or oldest, and never derive a maximum or minimum from these rows, not even " +
+    "'among these' or 'of the ones I saw': the newest row here can be far from the newest in the " +
+    "set, and naming it misleads the reader whatever caveat follows.",
   newest_action_first: "Sorted by most recent action, newest first.",
   oldest_action_first: "Sorted by most recent action, oldest first.",
   newest_introduced_first: "Sorted by introduction date, newest first.",
@@ -63,6 +65,16 @@ const ORDER_PROSE: Record<RowOrder, string> = {
   chronological: "In the order the events actually happened, earliest first.",
   newest_first: "Sorted newest first.",
   largest_first: "Sorted by size, largest first.",
+};
+
+/** What a tie for row 1 is a tie for, in words, keyed by the order it ranks. */
+const TIE_PLACE: Partial<Record<RowOrder, string>> = {
+  fewest_bills_first: "the fewest",
+  most_bills_first: "the most",
+  newest_action_first: "the most recent action",
+  oldest_action_first: "the oldest latest action",
+  newest_introduced_first: "the newest introduction date",
+  oldest_introduced_first: "the earliest introduction date",
 };
 
 export interface CompletenessReport {
@@ -116,12 +128,15 @@ export interface CompletenessReport {
   /**
    * Everyone who shares row 1's place in a ranking, when more than one does.
    * Present ONLY when complete — a tie found in a sample says nothing about the
-   * rows that were never read.
+   * rows that were never read — or when an index produced the order and the
+   * whole tie fell inside the window, which the handler proves before passing it.
    *
    * Row 1 of a sorted page is "the fewest" only when nobody else has its count.
    * On 2026-10-19 Adam Gray and James Gallagher had 8 bills each, the fewest in
    * California, and the page put one of them first by chance: a reader asking
    * "who introduced the fewest?" would have been handed one name as THE answer.
+   * On 2026-11-01 "the measure with the most recent action" was H.R. 10940, one
+   * of 53 acted on that day.
    */
   tiedWithFirst?: Subset;
   /** Present only when incomplete: what was and was not read. */
@@ -176,7 +191,11 @@ export function reportFor(input: {
   rowsAreGroups?: boolean;
   /** An exact partition of the matched set. Dropped unless the read is complete. */
   subsets?: Subset[];
-  /** Everyone sharing row 1's place. Dropped unless complete and more than one. */
+  /**
+   * Everyone sharing row 1's place. Dropped unless more than one, and unless the
+   * read is complete or an index produced the order: then the caller passes it
+   * only when the whole tie was read (see tieWithFirstBill in fetch.ts).
+   */
   tiedWithFirst?: Subset;
   /**
    * Where to get the exact answer instead, appended to the note when the read
@@ -207,6 +226,9 @@ export function reportFor(input: {
     order: input.order,
     ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
     ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
+    ...(input.orderFromIndex && input.tiedWithFirst && input.tiedWithFirst.count > 1
+      ? { tiedWithFirst: input.tiedWithFirst }
+      : {}),
     note:
       (input.filteredInMemory
         ? INCOMPLETE_NOTE +
@@ -288,32 +310,28 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
         `Quote their counts and members exactly. Never split or count the rows yourself, and ` +
         `never infer which part a row belongs to from its number.`;
     }
-    // Only beside a row 1: a count-only lookup is already told to fetch again
-    // with a limit to name anyone, and that fetch carries the tie.
-    if (report.tiedWithFirst && report.shown > 0) {
-      const t = report.tiedWithFirst;
-      const place =
-        report.order === "fewest_bills_first"
-          ? "the fewest"
-          : report.order === "most_bills_first"
-            ? "the most"
-            : "first place";
-      payload.tied_with_row_1 =
-        `Row 1 is NOT alone: ${t.count} are tied for ${place}, ${t.label}` +
-        (t.members ? ` — ${t.members.join(", ")}` : "") +
-        `. This was counted over the whole set, including rows not shown. Never name any one ` +
-        `of them as THE one with ${place}: name all of them, or say that ${t.count} are tied.`;
-    }
   } else {
     payload.note = report.note;
+  }
+  // Only beside a row 1: a count-only lookup is already told to fetch again
+  // with a limit to name anyone, and that fetch carries the tie.
+  if (report.tiedWithFirst && report.shown > 0) {
+    const t = report.tiedWithFirst;
+    const place = TIE_PLACE[report.order] ?? "first place";
+    payload.tied_with_row_1 =
+      `Row 1 is NOT alone: ${t.count} are tied for ${place}, ${t.label}` +
+      (t.members ? ` — ${t.members.join(", ")}` : "") +
+      `. This was counted over the whole set, including rows not shown. Never name any one ` +
+      `of them as THE one with ${place}: name all of them, or say that ${t.count} are tied.`;
   }
   if (report.congressOver) payload.congress_is_over = report.congressOver;
   if (report.orderFromIndex && report.shown > 0) {
     payload.rows_are_the_true_first_rows =
       `The database returned these rows IN THIS ORDER, so they really are the first of the whole ` +
-      `set — row 1 is genuinely the ${report.order.replace(/_/g, " ")}. You may say so, and you ` +
-      `may rank the rows you can see against each other. You still may NOT state how many there ` +
-      `are unless a total is given above.`;
+      `set — row 1 is genuinely the ${report.order.replace(/_/g, " ")}` +
+      (report.tiedWithFirst ? ` (tied: see tied_with_row_1)` : "") +
+      `. You may say so, and you may rank the rows you can see against each other. You still may ` +
+      `NOT state how many there are unless a total is given above.`;
   }
   return JSON.stringify(payload);
 }

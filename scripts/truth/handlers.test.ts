@@ -2080,6 +2080,69 @@ async function main() {
     assert.match(r.rows[0].stage, /117th Congress ended/);
   });
 
+  await it("'the measure with the most recent action' says how many share that date", async () => {
+    // 2026-11-01: named H.R. 10940 as THE most recent; 53 measures shared its date.
+    const in119 = bills.filter((b: any) => b.congress === 119);
+    const latest = in119.reduce((m: string, b: any) => ((b.latestActionDate ?? "") > m ? b.latestActionDate : m), "");
+    const tied = in119.filter((b: any) => b.latestActionDate === latest).length;
+    assert.ok(tied > 1, `sanity: the newest date is shared (${tied} on ${latest})`);
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort: "newest_action" }, 1);
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.rows[0].latestActionDate, latest);
+    assert.equal(r.report.tiedWithFirst?.count, tied, "the whole tie, counted");
+    const said = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(said.tied_with_row_1, new RegExp(`${tied} are tied for the most recent action`));
+    assert.equal(said.total, undefined, "still no total for the Congress");
+  });
+
+  await it("a complete sorted read reports row 1's tie only when there is one", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, reachedStage: 100, sort: "newest_action" }, 3);
+    assert.ok(r.ok && r.rows.length > 0, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, true, "sanity: the laws of a Congress fit the window");
+    assert.equal(r.report.orderFromIndex, undefined, "sanity: sorted in memory, not by an index");
+    const first = r.rows[0].latestActionDate;
+    const laws = truth.laws119.filter((b: any) => b.latestActionDate === first).length;
+    assert.equal(r.report.tiedWithFirst?.count, laws > 1 ? laws : undefined);
+  });
+
+  await it("ranks every state by measures sponsored, exactly, in one lookup", async () => {
+    // 2026-10-28: counted eight states one fetch at a time, could not rank the
+    // rest, and listed Illinois below Pennsylvania "in order".
+    const perState = new Map<string, number>();
+    for (const b of bills) {
+      if (b.congress === 119 && b.sponsorState) perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+    }
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119 });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const counts: Array<{ state: string; count: number }> = r.rows[0].sponsorStateCounts;
+    assert.deepEqual(new Map(counts.map((s) => [s.state, s.count] as [string, number])), perState, "every state, exact");
+    for (let i = 1; i < counts.length; i++) assert.ok(counts[i - 1].count >= counts[i].count, "largest first");
+    // The place comes from the server: asked for the tenth state, the model
+    // counted positions and named the ninth.
+    const ranked: Array<{ rank: number; count: number }> = r.rows[0].sponsorStateCounts;
+    for (const s of ranked) assert.equal(s.rank, 1 + [...perState.values()].filter((n) => n > s.count).length);
+  });
+
+  await it("a whole-Congress groupBy sponsorState that cannot finish points at the exact ranking", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "sponsorState" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, false, "sanity: 18,000 measures do not fit the window");
+    assert.match(r.report.note, /sponsorStateCounts/);
+  });
+
+  await it("a chamber's stats row ranks that chamber's states only", async () => {
+    const perState = new Map<string, number>();
+    for (const b of bills) {
+      if (b.congress === 119 && b.sponsorState && b.billType.startsWith("s")) {
+        perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+      }
+    }
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119, chamber: "senate" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const counts: Array<{ state: string; count: number }> = r.rows[0].sponsorStateCounts;
+    assert.deepEqual(new Map(counts.map((s) => [s.state, s.count] as [string, number])), perState);
+  });
+
 }
 
 main().then(() => {

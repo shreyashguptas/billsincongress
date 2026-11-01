@@ -275,6 +275,24 @@ it("a tie for first place reaches the model only from a complete read", () => {
   assert.match(String(parse([], wide).tied_with_row_1), /40 are tied for the fewest, with 1 bill each\. /);
 });
 
+it("an index-ordered read carries row 1's tie, with no total", () => {
+  // 53 measures shared the newest action date; the handler passes the tie only
+  // when the whole of it fell inside the ordered window.
+  const tiedWithFirst = { label: "all dated 2026-10-29", count: 53 };
+  const base = { set: "s", filteredInMemory: false, matchedCount: 1000, shown: 1, order: "newest_action_first" as const };
+  const said = parse([{}], reportFor({ ...base, windowFilled: true, orderFromIndex: true, tiedWithFirst }));
+  assert.match(String(said.tied_with_row_1), /53 are tied for the most recent action, all dated 2026-10-29/);
+  assert.match(String(said.rows_are_the_true_first_rows), /tied: see tied_with_row_1/);
+  assert.equal(said.total, undefined);
+  // No index, no claim: a sample's tie stays unsaid.
+  assert.equal(parse([{}], reportFor({ ...base, windowFilled: true, tiedWithFirst })).tied_with_row_1, undefined);
+});
+
+it("an unsorted page forbids even a hedged 'newest among these'", () => {
+  const said = parse([{}], reportFor({ set: "s", filteredInMemory: false, matchedCount: 5, shown: 5, order: "arbitrary", windowFilled: true }));
+  assert.match(String(said.order_meaning), /not even 'among these'/);
+});
+
 if (failures.length > 0) {
   console.error(`completeness.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));

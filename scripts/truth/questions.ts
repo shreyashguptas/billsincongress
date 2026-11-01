@@ -234,6 +234,20 @@ export interface TruthQuestion {
  * which is where every defect lives.
  */
 const ONE_NUMBER = " Answer with just the number, in one short sentence.";
+/** The states and the places counted as states, by their two-letter code. */
+const STATE_NAMES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado",
+  CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho",
+  IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+  ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota",
+  MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
+  NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
+  ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas",
+  UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia",
+  WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia", PR: "Puerto Rico", GU: "Guam",
+  VI: "the U.S. Virgin Islands", AS: "American Samoa", MP: "the Northern Mariana Islands",
+};
 const ONE_NAME = " Answer with just the name, in one short sentence.";
 /** For a superlative over members, where two can share first place. */
 const NAMES_IF_TIED =
@@ -270,7 +284,60 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
 
+  {
+    id: "most-recent-action-tie",
+    question:
+      `How many measures in the ${CURRENT_CONGRESS}th Congress share the most recent ` +
+      `action date?` + ONE_NUMBER,
+    defect:
+      "Asked which measure had the most recent action (2026-11-01), named H.R. 10940 as " +
+      "THE one. Its date was right, but 53 measures shared it: the sort said row 1 was " +
+      "the newest and nothing said it was tied.",
+    expect: (db) => {
+      const rows = billsIn(db, CURRENT_CONGRESS);
+      let latest = "";
+      for (const b of rows) if ((b.latestActionDate ?? "") > latest) latest = b.latestActionDate ?? "";
+      return {
+        kind: "number",
+        value: count(rows, (b) => b.latestActionDate === latest),
+        note:
+          `Rows in the ${CURRENT_CONGRESS}th whose latestActionDate equals the maximum ` +
+          `(${latest}). Must reject 1.`,
+      };
+    },
+  },
+
   // --- Set-level counts read off the wrong set ------------------------------
+  {
+    id: "tenth-state-by-measures",
+    question:
+      `Which state's members have sponsored the tenth-most measures in the ` +
+      `${CURRENT_CONGRESS}th Congress? Count D.C. and the territories as states.` + ONE_NAME,
+    defect:
+      "Asked which states' members sponsor the most bills (2026-10-28), counted only eight " +
+      "large states one fetch at a time, said it could not rank the rest, and printed its " +
+      "list 'in order' with Illinois (565) below Pennsylvania (531).",
+    expect: (db) => {
+      const perState = new Map<string, number>();
+      for (const b of billsIn(db, CURRENT_CONGRESS)) {
+        if (!b.sponsorState) continue;
+        perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+      }
+      const ranked = [...perState].sort((a, b) => b[1] - a[1]);
+      const [code, n] = ranked[9];
+      const name = (c: string) => STATE_NAMES[c] ?? c;
+      return {
+        kind: "name",
+        value: name(code),
+        // Ninth and eleventh: the off-by-one a partial ranking produces.
+        rivals: [ranked[8][0], ranked[10][0]].map(name),
+        note:
+          `Measures per sponsorState over every ${CURRENT_CONGRESS}th row, counted here: tenth is ` +
+          `${code} with ${n}; ninth ${ranked[8][0]} ${ranked[8][1]}, eleventh ${ranked[10][0]} ` +
+          `${ranked[10][1]}. Needs every state, not a sample.`,
+      };
+    },
+  },
   {
     id: "house-laws",
     question:

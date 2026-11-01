@@ -1313,7 +1313,7 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
 | `exact_subsets` | A partition of the whole set that the server counted. **Present only when `complete` is true.** A set made up entirely of reserved bill numbers ("Reserved for the Speaker.") is split by whom they were held for, with each part's members. Any other set that mixes kinds of measure is split by kind — bills, joint resolutions, simple resolutions, concurrent resolutions, and reserved numbers as placeholders — with counts only. Added 2026-10-05 after "How many Senate bills have passed the Senate?" was answered 706: the chamber filter counted every Senate measure, and 470 were Senate resolutions. The bills were 213 |
 | `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): it leads with the number ("There are exactly 13.") and says the empty row list is not "none", then how to fetch the rows to **name** one. The number was added after "Have any Texas bills become law?" was answered "No" from a count of 13. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
-| `tied_with_row_1` | On a complete, sorted `sponsors` result where more than one member shares row 1's count: how many share it, at what count, and their names (up to 20; a count alone past that), counted over the whole set rather than the page. **Present only when `complete` is true**, and left off a count-only (`limit: 0`) lookup, which has no row 1 and is already told to fetch again to name anyone. It says "tied for the fewest" or "tied for the most" to match the sort, and tells the model to name every one of them, never row 1 alone. Added 2026-10-19: Adam Gray and James Gallagher had 8 bills each, the fewest in California, and which of them came first on the page was chance. That day seven states and the country as a whole had a tie for the fewest |
+| `tied_with_row_1` | On a complete, sorted `sponsors` result where more than one member shares row 1's count: how many share it, at what count, and their names (up to 20; a count alone past that), counted over the whole set rather than the page. **Present only when `complete` is true**, and left off a count-only (`limit: 0`) lookup, which has no row 1 and is already told to fetch again to name anyone. It says "tied for the fewest" or "tied for the most" to match the sort, and tells the model to name every one of them, never row 1 alone. Added 2026-10-19: Adam Gray and James Gallagher had 8 bills each, the fewest in California, and which of them came first on the page was chance. That day seven states and the country as a whole had a tie for the fewest. **Since 2026-11-01 also on sorted `bills` results** (most recent or oldest action, newest or earliest introduction): bills sharing row 1's date, listed by number up to 20. A complete read counts the tie over the whole set; an index-ordered read (`rows_are_the_true_first_rows`, no total) carries it only when the whole tie fell inside the window, which is true whenever the window did not fill or its last row has a different date. Asked for "the measure with the most recent action", the answer had named H.R. 10940 as THE one when 53 measures were acted on that day |
 | `congress_is_over` | On a `bills` result from an adjourned Congress: that nothing in it is still in committee or pending. On the result, not only on rows, because a count has no rows; a bare count of the 118th's stage-40 bills was answered "yes, still in committee" |
 
 The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
@@ -1411,6 +1411,18 @@ numbers instead of the titles, and said they had no title. So each row now carri
 the result carries the split as `exact_subsets` (counted by the server, only from a complete read),
 and the gotcha says each has a title and an introduction. `scripts/truth/handlers.test.ts` checks
 all three against the data.
+
+**States.** Every `stats` row also carries `sponsorStateCounts`: measures introduced by members
+from each state (D.C. and the territories included), largest first and each with its `rank` (tied
+counts share one), read from the same chamber
+breakdowns the home page's state map uses (both chambers summed on the whole-Congress row, one on a
+chamber row). It counts every measure, resolutions included. A whole-Congress `groupBy:
+"sponsorState"` cannot finish (18,000 measures against a 5,000-row window), and its note now points
+here. Before this, asked which states' members sponsor the most bills (2026-10-28), the model
+counted eight states one fetch at a time, said it could not rank the rest, and listed Illinois
+below Pennsylvania "in order". The rank is the server's because, handed the list alone and asked
+for the tenth state, the model named the ninth in 2 of 3 runs. A truth case checks every state's
+count and rank against the raw bills.
 
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has
