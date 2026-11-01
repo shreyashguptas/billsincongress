@@ -27,7 +27,7 @@ import {
   isAllDeliberation,
   sanitizeAnswer,
 } from "./catalog/answerSanitize";
-import { parsePageContext, type PageContext } from "./catalog/context";
+import { parsePageContext, renderContextBlock, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import { billsInScope, keepWebResultsForBill, withheldNote } from "./catalog/webResults";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
@@ -675,9 +675,9 @@ async function runLoop(
   const messages: ChatMessage[] = [
     {
       role: "system",
+      // No page context here: it goes after the question (pageNote below), so
+      // every reader's request shares this prompt and its cache.
       content: buildSystemPrompt({
-        pageContext: opts.pageContext,
-        scopeLabel: opts.scope?.label,
         // Without this the model dated "recent", "this year" and "how long ago"
         // from its own training cutoff, and had no way to know that two of the
         // three Congresses we hold have already adjourned.
@@ -754,7 +754,17 @@ async function runLoop(
   // model's own opening move in this turn.
   const primed = primedDescriptions(describeVars);
   messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
-  for (const r of primed.results) messages.push({ role: "tool", ...r });
+  // The end of what every first question shares, cached for an hour. Not on a
+  // follow-up: its history sits before this exchange, so nobody else shares
+  // that prefix, and the hour would only double the write (review on #232).
+  const sharesOpening = capHistory(opts.history).length === 0;
+  primed.results.forEach((r, i) =>
+    messages.push({
+      role: "tool",
+      ...r,
+      ...(sharesOpening && i === primed.results.length - 1 ? { sharedPrefixEnd: true as const } : {}),
+    }),
+  );
 
   // The policy-area list, for the same reason: the model fetched it to spell a
   // topic before filtering bills by one, and that cost a second round. Not on a
@@ -801,9 +811,15 @@ async function runLoop(
   // no word that the first answer had been wrong. The rule in the system prompt
   // alone did not do it.
   const lastAnswer = [...capHistory(opts.history)].reverse().find((m) => m.role === "assistant");
-  if (lastAnswer) messages.push({ role: "system", content: followUpNote(lastAnswer.content) });
-
   messages.push({ role: "user", content: opts.question });
+
+  // What the reader has on screen, and the follow-up note: the site speaking,
+  // after the question, so the opening above stays the same for every reader
+  // (claude.ts, SHARED_PREFIX_CACHE). Before 2026-11-01 both sat in the system
+  // prompt, and each page variant cached a prompt of its own.
+  const pageNote = renderContextBlock(opts.pageContext ?? null, opts.scope?.label).trim();
+  if (pageNote) messages.push({ role: "system", content: pageNote });
+  if (lastAnswer) messages.push({ role: "system", content: followUpNote(lastAnswer.content) });
 
   let partial = false;
   let truncatedByLength = false;

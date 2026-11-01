@@ -103,8 +103,10 @@ const ROUTE_SENTENCE: Record<AskRoute, string> = {
 };
 
 /**
- * The CURRENT CONTEXT block appended to the system prompt. Empty string when
- * there is nothing worth saying — the prompt is long enough already.
+ * The CURRENT CONTEXT block. The live answer sends it after the reader's
+ * question, as a system message, so the system prompt stays the same for every
+ * reader (convex/answer.ts); buildSystemPrompt still fills it into {{context}}
+ * for callers that pass a page. Empty string when there is nothing worth saying.
  */
 export function renderContextBlock(ctx: PageContext | null, scopeLabel?: unknown): string {
   const label = sanitizeLabel(scopeLabel);
