@@ -1415,6 +1415,18 @@ the result carries the split as `exact_subsets` (counted by the server, only fro
 and the gotcha says each has a title and an introduction. `scripts/truth/handlers.test.ts` checks
 all three against the data.
 
+**States.** Every `stats` row also carries `sponsorStateCounts`: measures introduced by members
+from each state (D.C. and the territories included), largest first and each with its `rank` (tied
+counts share one), read from the same chamber
+breakdowns the home page's state map uses (both chambers summed on the whole-Congress row, one on a
+chamber row). It counts every measure, resolutions included. A whole-Congress `groupBy:
+"sponsorState"` cannot finish (18,000 measures against a 5,000-row window), and its note now points
+here. Before this, asked which states' members sponsor the most bills (2026-10-28), the model
+counted eight states one fetch at a time, said it could not rank the rest, and listed Illinois
+below Pennsylvania "in order". The rank is the server's because, handed the list alone and asked
+for the tenth state, the model named the ninth in 2 of 3 runs. A truth case checks every state's
+count and rank against the raw bills.
+
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has
 the Senate passed" is the canonical case, and it silently changes the answer by a factor of two.

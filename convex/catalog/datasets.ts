@@ -198,7 +198,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
 
   stats: {
     name: "stats",
-    summary: "Exact precomputed totals per Congress: by stage, by chamber, and bills vs resolutions.",
+    summary: "Exact precomputed totals per Congress: by stage, by chamber, by party, by sponsor state, and bills vs resolutions.",
     grain: "One row per Congress, or per Congress and chamber.",
     fields: [
       { name: "totalMeasures", type: "number", meaning: "All MEASURES in the Congress — bills AND resolutions. Not 'bills'." },
@@ -208,6 +208,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       { name: "chamberMeasures", type: "number", meaning: "Chamber rows only. Measures originating in that chamber." },
       { name: "partyCounts", type: "object", meaning: "Measures introduced by sponsor party: D, R, I, and U = any other value, shown on the home page as 'party not recorded'. Both chambers on the whole-Congress row, one chamber on a chamber row." },
       { name: "partyLawCounts", type: "object", meaning: "Measures that BECAME LAW, split the same way as partyCounts." },
+      { name: "sponsorStateCounts", type: "array", meaning: "Measures introduced by members from each state (D.C. and the territories included), largest first, each with its rank (tied counts share one): the exact per-state ranking. Read a place off `rank`, never by counting entries. Every measure, resolutions too, so say 'measures'. Both chambers on the whole-Congress row, one chamber on a chamber row." },
       { name: "billsOnly", type: "number", meaning: "Measures that are BILLS (H.R. and S.) — what a reader means by 'how many bills'. Whole-Congress rows only." },
       { name: "jointResolutions", type: "number", meaning: "Joint resolutions, which can become law." },
       { name: "otherResolutions", type: "number", meaning: "Concurrent and simple resolutions, which never become law." },

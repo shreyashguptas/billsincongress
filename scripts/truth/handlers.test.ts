@@ -2103,6 +2103,44 @@ async function main() {
     assert.match(r.rows[0].stage, /117th Congress ended/);
   });
 
+  await it("ranks every state by measures sponsored, exactly, in one lookup", async () => {
+    // 2026-10-28: counted eight states one fetch at a time, could not rank the
+    // rest, and listed Illinois below Pennsylvania "in order".
+    const perState = new Map<string, number>();
+    for (const b of bills) {
+      if (b.congress === 119 && b.sponsorState) perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+    }
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119 });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const counts: Array<{ state: string; count: number }> = r.rows[0].sponsorStateCounts;
+    assert.deepEqual(new Map(counts.map((s) => [s.state, s.count] as [string, number])), perState, "every state, exact");
+    for (let i = 1; i < counts.length; i++) assert.ok(counts[i - 1].count >= counts[i].count, "largest first");
+    // The place comes from the server: asked for the tenth state, the model
+    // counted positions and named the ninth.
+    const ranked: Array<{ rank: number; count: number }> = r.rows[0].sponsorStateCounts;
+    for (const s of ranked) assert.equal(s.rank, 1 + [...perState.values()].filter((n) => n > s.count).length);
+  });
+
+  await it("a whole-Congress groupBy sponsorState that cannot finish points at the exact ranking", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "sponsorState" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, false, "sanity: 18,000 measures do not fit the window");
+    assert.match(r.report.note, /sponsorStateCounts/);
+  });
+
+  await it("a chamber's stats row ranks that chamber's states only", async () => {
+    const perState = new Map<string, number>();
+    for (const b of bills) {
+      if (b.congress === 119 && b.sponsorState && b.billType.startsWith("s")) {
+        perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+      }
+    }
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119, chamber: "senate" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const counts: Array<{ state: string; count: number }> = r.rows[0].sponsorStateCounts;
+    assert.deepEqual(new Map(counts.map((s) => [s.state, s.count] as [string, number])), perState);
+  });
+
 }
 
 main().then(() => {
