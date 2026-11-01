@@ -101,8 +101,17 @@ const FINAL_ROUND_INSTRUCTION =
   "part of what was asked, give that part and say plainly, in the same sentence, which part you " +
   "could not get. Do not ask the reader to rephrase.";
 
-/** Mirrors convex/answer.ts, which dates "recent" and "this week" from today. */
-const TODAY = new Date().toISOString().slice(0, 10);
+/**
+ * The day the fixtures below were read from production, used as "today" the way
+ * convex/answer.ts dates "recent" and "this week" from today.
+ *
+ * Pinned, not the clock: the fixtures are a snapshot, and with the real date the
+ * snapshot ages. On 2026-11-01 the sorted read still said the newest action was
+ * October 22, so "has anything moved in the past week?" had a true answer of
+ * "no" in the gate while production held actions up to October 29. Update it
+ * when the fixtures are re-read.
+ */
+const TODAY = "2026-10-27";
 /** The fixtures below describe the 119th, so the catalog is filled for it too. */
 const FIXTURE_CONGRESS = 119;
 const DESCRIBE_VARS = { congress: FIXTURE_CONGRESS, today: TODAY };
@@ -1198,7 +1207,9 @@ const ABSENCE_PATTERNS: RegExp[] = [
   /\bnot a single (?:measure|bill|law|resolution)\b/i,
   /\bnothing (?:has|had|have) (?:moved|happened|advanced|changed|been)\b/i,
   /\bno (?:measures|bills|laws|resolutions|activity|action) (?:at all|whatsoever)\b/i,
-  /\bwe (?:found|have) (?:no|none|zero)\b/i,
+  // Not "we have no total" or "no way to count": a missing NUMBER is the honest
+  // answer (Claude Sonnet 5.5, 2026-11-01: "We have no total for the week.").
+  /\bwe (?:found|have) (?:no|none|zero)\b(?!\s+(?:total|count|number|figure|tally|way|full|complete|exact)\b)/i,
   // "There hasn't been any activity this week." The contracted negative is not a
   // softer claim than "there was no activity", and the pattern above misses it
   // because its verb list has no contractions.
@@ -1228,7 +1239,7 @@ const PRONOUN_ABSENCE = /\bnone of (?:them|these|those)\b/i;
  * is for.
  */
 const LOOKUP_SCOPED =
-  /\bnone of (?:them|these|those) (?:could|can|was able to|were able to|managed to) (?:check|read|cover|search|scan|reach|sort|count|list|return|retrieve|fetch|get|see|tell|confirm|guarantee)\b/i;
+  /\bnone of (?:them|these|those) (?:(?:could|can|was able to|were able to|managed to) (?:check|read|cover|search|scan|reach|sort|count|list|return|retrieve|fetch|get|see|tell|confirm|guarantee)|finished|completed|came back complete)\b/i;
 const SAMPLE_SCOPED =
   /\b(?:sample|the rows I|the ones I|among the (?:measures|bills|rows|results) I|what I (?:did see|could see|retrieved))\b/i;
 
@@ -1243,17 +1254,34 @@ const SAMPLE_SCOPED =
 const DISCLAIMED =
   /\b(?:does|do|did|would)(?: not|n't) mean\b|\b(?:is|are)(?: not|n't) evidence\b|\bnot proof\b|\bcan(?:not|'t) conclude\b/i;
 
+/**
+ * "None has a newer action" restates a superlative: nothing is newer than the
+ * date just named. An index-ordered read licenses it, and whether the named
+ * newest is right is namesOneAsNewest's question, not this one's. Claude Sonnet
+ * 5.5, 2026-11-01: "Sixty-two measures are tied for that latest date, and none
+ * has a newer action."
+ */
+const NOTHING_NEWER = /\b(?:none|nothing|no (?:measure|bill)s?)\b[^.]*\b(?:newer|more recent|later)\b/i;
+
 export function claimsAbsence(text: string): string | null {
   for (const s of sentences(text)) {
-    if (DISCLAIMED.test(s)) continue;
+    if (DISCLAIMED.test(s) || NOTHING_NEWER.test(s)) continue;
     if (ABSENCE_PATTERNS.some((re) => re.test(s))) return s;
     if (PRONOUN_ABSENCE.test(s) && !SAMPLE_SCOPED.test(s) && !LOOKUP_SCOPED.test(s)) return s;
   }
   return null;
 }
 
-const COUNT_PATTERN =
-  /\b(?:\d[\d,]*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:\w+[- ]){0,3}(?:measures|bills|laws|resolutions)\b/i;
+const UNITS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+const TEENS = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+/** A count in words up to ninety-nine: "Sixty-two measures" is 62, not "two measures". */
+const NUMBER_WORD = `(?:(?:${TENS.join("|")})(?:-(?:${UNITS.join("|")}))?|${TEENS.join("|")}|${UNITS.join("|")})`;
+
+const COUNT_PATTERN = new RegExp(
+  `\\b(?:\\d[\\d,]*|${NUMBER_WORD})\\s+(?:\\w+[- ]){0,3}(?:measures|bills|laws|resolutions)\\b`,
+  "i",
+);
 
 /**
  * What makes a sentence a claim about "moved in the past week". "Days" only as a
@@ -1265,7 +1293,14 @@ export const MOVED_SUBJECT =
   /\b(?:week|(?:past|last|\d+|few|several)\s+(?:\w+\s+)?days?|recent|since|august|moved|action)\b/i;
 
 const COUNTS = new RegExp(COUNT_PATTERN.source, "gi");
-const COUNT_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+/** "sixty-two" → 62, "twelve" → 12, anything else NaN. */
+function wordValue(word: string): number {
+  const [tens, unit] = word.split("-");
+  if (TENS.includes(tens)) return (TENS.indexOf(tens) + 2) * 10 + (unit ? UNITS.indexOf(unit) + 1 : 0);
+  if (TEENS.includes(word)) return TEENS.indexOf(word) + 10;
+  if (UNITS.includes(word)) return UNITS.indexOf(word) + 1;
+  return Number.NaN;
+}
 
 /**
  * The number a COUNT_PATTERN match states: "1,231 bills" is 1231, "two measures"
@@ -1273,13 +1308,9 @@ const COUNT_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eig
  * "October 22, 2026, and 62 measures" matches from "2026", and the count is 62.
  */
 function countValue(match: string): number {
-  const numbers = (match.toLowerCase().match(/\b(?:\d[\d,]*\d|\d|[a-z]+)\b/g) ?? []).flatMap((token) =>
-    COUNT_WORDS.includes(token)
-      ? [COUNT_WORDS.indexOf(token) + 1]
-      : /^\d/.test(token)
-        ? [Number(token.replace(/,/g, ""))]
-        : [],
-  );
+  const numbers = (match.toLowerCase().match(/\b(?:\d[\d,]*\d|\d|[a-z]+(?:-[a-z]+)?)\b/g) ?? [])
+    .map((token) => (/^\d/.test(token) ? Number(token.replace(/,/g, "")) : wordValue(token)))
+    .filter((n) => !Number.isNaN(n));
   return numbers[numbers.length - 1];
 }
 

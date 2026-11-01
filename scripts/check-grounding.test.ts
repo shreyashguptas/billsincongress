@@ -269,6 +269,29 @@ it("leaves a count the answer's own lookups reported as exact alone", () => {
   );
 });
 
+it("reads a count in words past twelve", () => {
+  // Claude Sonnet 5.5, 2026-11-01: 62 is the tie its sorted lookup reported.
+  const said = "Sixty-two measures are tied for that latest date, and none has a newer action.";
+  assert.equal(statesCount(said, MOVED_SUBJECT, new Set([62])), null, "sixty-two is 62");
+  assert.ok(statesCount(said, MOVED_SUBJECT, new Set([2])), "and not 2");
+  assert.ok(statesCount("Nineteen bills saw action this week.", MOVED_SUBJECT));
+  assert.equal(claimsAbsence(said), null, "nothing newer than a named date is not 'none exist'");
+});
+
+it("hears a missing total as a missing number, not as 'none moved'", () => {
+  assert.equal(claimsAbsence("We have no total for the week."), null);
+  assert.equal(claimsAbsence("We have no way to count them all."), null);
+  assert.ok(claimsAbsence("We found no measures with action this week."), "still caught");
+  assert.ok(claimsAbsence("We have none from this week."), "still caught");
+});
+
+it("hears 'none of them finished' as the lookups, not the bills", () => {
+  const said =
+    "I tried searches on last action date, on bills that had passed a chamber, and on introduction date, and none of them finished.";
+  assert.equal(claimsAbsence(said), null);
+  assert.ok(claimsAbsence("None of them moved this week."), "the bills, still caught");
+});
+
 it("reads 'days' as a span of time, not a word in a title", () => {
   // Claude Sonnet 5.5, 2026-10-27: four of the five bills it had just listed.
   const listed = "The other four are House simple resolutions, such as [2] on National Marine Sanctuary Day.";
