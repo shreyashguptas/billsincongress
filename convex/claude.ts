@@ -801,7 +801,7 @@ export function markCutOff(quote: string): string {
  * "2481, the Romance Scam Prevention Act" (live check, 2026-10-26).
  */
 const ABBREVIATION =
-  /(?:\b[A-Z](?:\.[A-Z])*|\b(?:Mr|Mrs|Ms|Dr|Sec|Secs|No|Nos|Rep|Reps|Sen|Sens|Jr|Sr|Inc|Co|St|Cong|sess|Stat|Res|Con|Rept|Doc|ed|vol|pp|etc|vs|e\.g|i\.e))$/;
+  /(?:\b[A-Z](?:\.[A-Z])*|\b(?:Mr|Mrs|Ms|Dr|Sec|Secs|No|Nos|Rep|Reps|Sen|Sens|Jr|Sr|Inc|Co|Corp|Ltd|St|Cong|sess|Stat|Res|Con|Rept|Doc|Dept|ed|vol|pp|etc|vs|e\.g|i\.e|Gov|Govs|Lt|Gen|Col|Capt|Sgt|Adm|Rev|Hon|Prof|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec))$/;
 
 /** Where each sentence in `text` ends: the index just past its [.!?]. */
 function sentenceEnds(text: string): number[] {
@@ -812,6 +812,40 @@ function sentenceEnds(text: string): number[] {
     ends.push(i + 1);
   }
   return ends;
+}
+
+/** A date's day closing a sentence: "on Oct. 3.", "on March 12." */
+const MONTH_THEN_DAY =
+  /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|January|February|March|April|June|July|August|September|October|November|December)\.?\s+\d{1,2}\.$/;
+
+/**
+ * An excerpt with each cut-off tail dropped where whole sentences come before
+ * it, so the answer model reads only finished sentences. Marking the cut
+ * (CUT_OFF_NOTE) was not enough: of 50 answers the fact-check judge failed
+ * from 2026-10-23 to 11-01, at least 9 finished a cut sentence ("allocated to
+ * immigration [cut off]" became "immigration enforcement"). A part with no
+ * whole sentence before its cut keeps it, marked: dropping it would leave
+ * nothing.
+ */
+export function dropCutTails(excerpt: string): string {
+  return excerpt
+    .split(" … ")
+    .map((part) => {
+      if (!part.endsWith(CUT_OFF)) return part;
+      const head = part.slice(0, -CUT_OFF.length).trimEnd();
+      // Not the number of a list item ("… 2. Then [cut off]"): that leaves a
+      // stray "2." and drops the marker the fragment needs. A day after a month
+      // ("on Oct. 3.") is a date, so a real end. A number misread as a list
+      // item only keeps the fragment, marked, as before.
+      const last = sentenceEnds(head)
+        .filter((end) => {
+          const upTo = head.slice(0, end);
+          return !/(?:^|\s)\d{1,2}\.$/.test(upTo) || MONTH_THEN_DAY.test(upTo);
+        })
+        .pop();
+      return last === undefined ? part : head.slice(0, last);
+    })
+    .join(" … ");
 }
 
 /**

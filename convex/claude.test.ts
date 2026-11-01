@@ -28,6 +28,7 @@ import {
   markCutOff,
   sentencesAround,
   CUT_OFF,
+  dropCutTails,
   readable,
   clipExcerpt,
   type ChatMessage,
@@ -501,6 +502,32 @@ it("marks where a search quote was cut, without the half word", () => {
 it("clips a long excerpt on a word, and says so", () => {
   assert.equal(clipExcerpt("Tuesday 10:00 AM", 500), "Tuesday 10:00 AM");
   assert.equal(clipExcerpt("an entity owned by, controlled by", 22), `an entity owned by, ${CUT_OFF}`);
+});
+
+it("drops a cut-off tail after whole sentences, and keeps a lone fragment marked", () => {
+  // Live on 2026-10-30: the answer finished "allocated to immigration" as "immigration enforcement".
+  assert.equal(
+    dropCutTails(`The bill repeals DHS's authorities. Funds currently allocated to immigration ${CUT_OFF}`),
+    "The bill repeals DHS's authorities.",
+  );
+  // An abbreviation is not a sentence end, so "H.R." alone keeps the fragment.
+  assert.equal(dropCutTails(`H.R. 10803 abolishes ICE and Customs and ${CUT_OFF}`), `H.R. 10803 abolishes ICE and Customs and ${CUT_OFF}`);
+  // Each part of a joined excerpt on its own; whole parts untouched.
+  assert.equal(
+    dropCutTails(`First part. Then a cut ${CUT_OFF} … Second part is whole.`),
+    "First part. … Second part is whole.",
+  );
+  assert.equal(dropCutTails("Nothing was cut."), "Nothing was cut.");
+  // Review on #234: "Oct." and a list number are not sentence ends, so the
+  // fragment stays, marked, rather than losing its marker.
+  for (const fragment of [
+    `Rep. Smith introduced the bill on Oct. 23 and it would bar funds for ${CUT_OFF}`,
+    `Gov. Moore said the plan would ${CUT_OFF}`,
+    `The bill would: 2. Then ${CUT_OFF}`,
+  ]) {
+    assert.equal(dropCutTails(fragment), fragment);
+  }
+  assert.equal(dropCutTails(`It passed on Oct. 3. Funds for ${CUT_OFF}`), "It passed on Oct. 3.");
 });
 
 it("widens a cut quote to the page's whole sentence", () => {

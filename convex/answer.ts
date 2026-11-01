@@ -42,6 +42,7 @@ import {
   clipExcerpt,
   CUT_OFF,
   CUT_OFF_NOTE,
+  dropCutTails,
   forOpenRouter,
   searchWebClaude,
   type ChatMessage,
@@ -1124,7 +1125,7 @@ async function runLoop(
               note({ tool: "progress", detail: "the web again" }),
             );
             const { kept, removed } = keepWebResultsForBill(web.hits, scope);
-            const hits = kept.map((h, i) => ({ ...h, handle: `web:${i + 1}` }));
+            const hits = kept.map((h, i) => ({ ...h, excerpt: dropCutTails(h.excerpt), handle: `web:${i + 1}` }));
             if (hits.length > 0) webEngine = web.engine;
             for (const h of hits) {
               allowed.add(h.handle);
