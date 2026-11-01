@@ -966,6 +966,8 @@ interface Answer {
   askedReader: boolean;
   /** Every number a lookup in this answer reported as exact (see exactNumbers). */
   exact: Set<number>;
+  /** Row 1's date from a newest-first read an index ordered, when there was one. */
+  newestSeen?: string;
 }
 
 /**
@@ -996,6 +998,7 @@ function exactNumbers(served: Served, into: Set<number>): void {
 export async function ask(question: string): Promise<Answer> {
   const allowed = new Set<string>();
   const exact = new Set<number>();
+  let newestSeen: string | undefined;
   const work: string[] = [];
   const messages: ChatMessage[] = [
     // `today` is passed the way answer.ts passes it: without it the model dates
@@ -1042,7 +1045,7 @@ export async function ask(question: string): Promise<Answer> {
     if (calls.length === 0) {
       const text = message?.content ?? "";
       if (text.trim().length === 0) break;
-      return { ...resolveAnswer(text, allowed), work, allowed, askedReader: false, exact };
+      return { ...resolveAnswer(text, allowed), work, allowed, askedReader: false, exact, newestSeen };
     }
     // Exactly as convex/answer.ts: content and tool calls, plus Claude's own
     // blocks when Claude wrote it (gpt-oss's reasoning is not handed back).
@@ -1071,7 +1074,7 @@ export async function ask(question: string): Promise<Answer> {
       if (asked.trim().length > 0) {
         work.push(`ask · ${why || "needs one detail before answering"}`);
         const prose = why.trim().length > 0 ? `${why.trim()}\n\n${asked.trim()}` : asked.trim();
-        return { ...resolveAnswer(prose, allowed), work, allowed, askedReader: true, exact };
+        return { ...resolveAnswer(prose, allowed), work, allowed, askedReader: true, exact, newestSeen };
       }
       messages.push({
         role: "tool",
@@ -1118,6 +1121,10 @@ export async function ask(question: string): Promise<Answer> {
             } else {
               for (const r of served.rows) allowed.add(r._cite as string);
               exactNumbers(served, exact);
+              const top = served.rows[0]?.latestActionDate;
+              if (served.report.orderFromIndex && served.report.order === "newest_action_first" && typeof top === "string") {
+                if (!newestSeen || top > newestSeen) newestSeen = top;
+              }
               result = payloadFor(served.rows, served.report);
               // The filters as served, so a failing run shows what was asked for.
               work.push(`fetch ${name} ${JSON.stringify(validated.filters)} limit ${limit} · ${workLogLabel(served.report)}, ${served.report.order}`);
@@ -1137,7 +1144,7 @@ export async function ask(question: string): Promise<Answer> {
       messages.push({ role: "tool", tool_call_id: call.id, content: result });
     }
   }
-  return { text: "(gave up)", sources: [], dropped: 0, work, allowed, askedReader: false, exact };
+  return { text: "(gave up)", sources: [], dropped: 0, work, allowed, askedReader: false, exact, newestSeen };
 }
 
 // ---------------------------------------------------------------------------
@@ -1263,9 +1270,25 @@ const DISCLAIMED =
  */
 const NOTHING_NEWER = /\b(?:none|nothing|no (?:measure|bill)s?)\b[^.]*\b(?:newer|more recent|later)\b/i;
 
-export function claimsAbsence(text: string): string | null {
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * "Nothing is dated after October 22" is licensed when October 22 is row 1 of a
+ * newest-first read an index ordered: nothing newer exists. Claude Sonnet 5.5,
+ * 2026-11-01, after answering yes: "Nothing in our data is dated after October
+ * 22, so nothing has moved in the last five days." Only that date: "nothing has
+ * moved after August" with no such read behind it is still the defect.
+ */
+function nothingAfterNewest(sentence: string, newestSeen: string | undefined): boolean {
+  if (!newestSeen) return false;
+  const [, month, day] = newestSeen.split("-").map(Number);
+  const named = new RegExp(`\\b(?:after|since) ${MONTHS[month - 1]} ${day}\\b`, "i");
+  return named.test(sentence);
+}
+
+export function claimsAbsence(text: string, newestSeen?: string): string | null {
   for (const s of sentences(text)) {
-    if (DISCLAIMED.test(s) || NOTHING_NEWER.test(s)) continue;
+    if (DISCLAIMED.test(s) || NOTHING_NEWER.test(s) || nothingAfterNewest(s, newestSeen)) continue;
     if (ABSENCE_PATTERNS.some((re) => re.test(s))) return s;
     if (PRONOUN_ABSENCE.test(s) && !SAMPLE_SCOPED.test(s) && !LOOKUP_SCOPED.test(s)) return s;
   }
@@ -1409,9 +1432,22 @@ export function namesSortedNewest(text: string): boolean {
   return NEWEST_PAGE.some((b) => [b.label, b.billId, b.title].some((r) => text.includes(r)));
 }
 
-/** Says row 1 shares its date: 62 tied, "one of", "also", "the same day". */
-const TIE_WORDS =
-  new RegExp(`\\b${NEWEST_TIED}\\b|\\btied?\\b|\\bshar(?:e|es|ed|ing)\\b|\\bsame (?:day|date)\\b|\\bone of\\b|\\balso\\b|\\bothers?\\b`, "i");
+/**
+ * Says row 1 shares its date: "62", "tied", "share", "the same day", "one of 62".
+ * Tie wording only: a bare "also", "others" or "one of" turns up in answers that
+ * name one bill as THE newest ("…H.R. 10894, which would also protect disaster
+ * data"), the defect this check exists for (review on #229).
+ */
+const TIE_WORDS = new RegExp(
+  [
+    `\\b${NEWEST_TIED}\\b`,
+    "\\btied?\\b",
+    "\\bshar(?:e|es|ed|ing)\\b",
+    "\\bsame (?:[\\w-]+ ){0,2}(?:day|date)\\b",
+    "\\bone of (?:the )?(?:\\d+|several|many|dozens)\\b",
+  ].join("|"),
+  "i",
+);
 
 export function acknowledgesTie(text: string): boolean {
   return TIE_WORDS.test(text);
@@ -1540,7 +1576,7 @@ async function main() {
   const moved = await ask("Has anything in the 119th Congress moved in the past week?");
   answers.push(["recent movement", moved]);
   report("incomplete-result question", moved);
-  const absence = claimsAbsence(moved.text);
+  const absence = claimsAbsence(moved.text, moved.newestSeen);
   check("does NOT claim the set is empty", absence === null, `claimed absence: ${absence}`);
   const counted = statesCount(moved.text, MOVED_SUBJECT, moved.exact);
   check("does NOT state a count it cannot have", counted === null, `stated a count: ${counted}`);

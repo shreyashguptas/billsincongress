@@ -285,6 +285,14 @@ it("hears a missing total as a missing number, not as 'none moved'", () => {
   assert.ok(claimsAbsence("We have none from this week."), "still caught");
 });
 
+it("allows 'nothing after' the newest date a sorted read returned, and only that date", () => {
+  // Claude Sonnet 5.5, 2026-11-01, after answering yes from a newest-first read.
+  const said = "Nothing in our data is dated after October 22, so nothing has moved in the last five days.";
+  assert.equal(claimsAbsence(said, "2026-10-22"), null);
+  assert.ok(claimsAbsence(said), "without a sorted read behind it, it is still an absence claim");
+  assert.ok(claimsAbsence("Nothing has moved since August 24.", "2026-10-22"), "another date is not licensed");
+});
+
 it("hears 'none of them finished' as the lookups, not the bills", () => {
   const said =
     "I tried searches on last action date, on bills that had passed a chamber, and on introduction date, and none of them finished.";
@@ -330,6 +338,22 @@ it("hears the right answer to the sorted question, and whether it names the tie"
   const alone = "The measure with the most recent action is the Disaster Data Protection Act (H.R. 10894).";
   assert.ok(namesSortedNewest(alone));
   assert.equal(acknowledgesTie(alone), false, "production's 2026-10-27 answer: one named as THE newest");
+  // Review on #229: words that turn up without any tie.
+  for (const loose of [
+    "The measure with the most recent action is H.R. 10894, which would also protect disaster data.",
+    "H.R. 10894 is the newest; others in committee include H.Res. 1635.",
+    "H.R. 10894 is one of the bills Brittany Pettersen sponsored, and it has the most recent action.",
+  ]) {
+    assert.equal(acknowledgesTie(loose), false, `passed without a tie: ${loose}`);
+  }
+  for (const tie of [
+    "Several other measures have the same last-action date.",
+    "It is one of 62 measures last acted on that day.",
+    "53 measures are tied for the most recent action.",
+    "Others share that date.",
+  ]) {
+    assert.ok(acknowledgesTie(tie), `missed: ${tie}`);
+  }
 });
 
 it("allows a refusal and a row's own field", () => {
