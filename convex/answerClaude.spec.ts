@@ -311,6 +311,22 @@ test("the reader's page goes after the question, so every reader shares the cach
   expect(body.messages[body.messages.length - 2]).toEqual({ role: "user", content: "Is it law?" });
 });
 
+test("a follow-up keeps the hour-long marker off its own history", async () => {
+  claudeReplies = [message([text(ANSWER)])];
+  await convexTest(schema, modules).action(internal.answer.ask, {
+    question: "are you sure",
+    history: [
+      { role: "user", content: "Is there a bill about lighthouses?" },
+      { role: "assistant", content: ANSWER },
+    ],
+  });
+  const { body } = sent[0];
+  const marked = JSON.stringify(body.messages).match(/"ttl":"1h"/g) ?? [];
+  expect(marked).toHaveLength(0);
+  // The tools and the system prompt are still every reader's, and keep theirs.
+  expect(body.system[0].cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+});
+
 test("the last round keeps the same tools and forbids calling them, rather than withholding them", async () => {
   // A model that looks something up every round until it is out of rounds.
   claudeReplies = [0, 1, 2, 3].map((i) =>

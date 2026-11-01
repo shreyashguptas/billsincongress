@@ -754,12 +754,15 @@ async function runLoop(
   // model's own opening move in this turn.
   const primed = primedDescriptions(describeVars);
   messages.push({ role: "assistant", content: null, tool_calls: primed.toolCalls });
+  // The end of what every first question shares, cached for an hour. Not on a
+  // follow-up: its history sits before this exchange, so nobody else shares
+  // that prefix, and the hour would only double the write (review on #232).
+  const sharesOpening = capHistory(opts.history).length === 0;
   primed.results.forEach((r, i) =>
     messages.push({
       role: "tool",
       ...r,
-      // The end of what every first question shares; cached for an hour.
-      ...(i === primed.results.length - 1 ? { sharedPrefixEnd: true as const } : {}),
+      ...(sharesOpening && i === primed.results.length - 1 ? { sharedPrefixEnd: true as const } : {}),
     }),
   );
 
