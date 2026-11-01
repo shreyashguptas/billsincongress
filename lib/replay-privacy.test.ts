@@ -5,7 +5,8 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from "node:assert/strict";
-import { PRIVATE_TEXT_CLASS, maskReplayText } from "./replay-privacy";
+import { readFileSync } from "node:fs";
+import { PRIVATE_BLOCK_CLASS, PRIVATE_TEXT_CLASS, maskReplayText } from "./replay-privacy";
 
 let passed = 0;
 const failures: string[] = [];
@@ -64,6 +65,34 @@ it("text outside a private element keeps everything but emails", () => {
 
 it("a missing element is handled", () => {
   assert.equal(maskReplayText("Free plan", undefined), "Free plan");
+});
+
+// The mask only protects readers while it is wired in. Each of these is one
+// line that a refactor could drop without any other test noticing.
+const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+// assert.match would print the whole file on failure; say which file and pattern instead.
+function wires(path: string, pattern: RegExp) {
+  assert.ok(pattern.test(source(path)), `${path} no longer matches ${pattern}`);
+}
+
+it("PostHog's init passes the text mask and the block selector to replay", () => {
+  wires("instrumentation-client.ts", /maskTextSelector:\s*'\*'/);
+  wires("instrumentation-client.ts", /maskTextFn:\s*maskReplayText/);
+  wires("instrumentation-client.ts", /blockSelector:\s*`\.\$\{PRIVATE_BLOCK_CLASS\}`/);
+});
+
+it("the avatar, everywhere it appears, is blocked from replay", () => {
+  wires("components/brand/pro-mark.tsx", /cn\(PRIVATE_BLOCK_CLASS,/);
+  wires("components/account/avatar-editor.tsx", /cn\(\s*PRIVATE_BLOCK_CLASS,/);
+});
+
+it("the two places that print the reader's name mask it", () => {
+  wires("components/auth/user-menu.tsx", /cn\(PRIVATE_TEXT_CLASS, "[^"]*"\)\}>\{displayName\}/);
+  wires("app/account/account-view.tsx", /cn\(PRIVATE_TEXT_CLASS, "[^"]*"\)\}>\s*\{displayName\}/);
+});
+
+it("the block class is not one of PostHog's own, so clicks stay autocaptured", () => {
+  assert.notEqual(PRIVATE_BLOCK_CLASS, "ph-no-capture");
 });
 
 if (failures.length) {

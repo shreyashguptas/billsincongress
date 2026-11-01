@@ -7,6 +7,8 @@
  * prints the reader's own address and name: the account menu, the account
  * page, and the "we sent a code to …" lines in sign-up and password reset.
  *
+ * The avatar (photo and initials) is not recorded at all: see PRIVATE_BLOCK_CLASS.
+ *
  * Two rules, applied to every text node replay records:
  * - anything shaped like an email address is starred out, wherever it appears,
  *   so a new screen that shows the address is covered without remembering to;
@@ -18,6 +20,15 @@
 
 /** PostHog's own class for "mask this element's text in replay". */
 export const PRIVATE_TEXT_CLASS = "ph-mask";
+
+/**
+ * Elements replay must not record at all: it stores an empty box the same
+ * size instead. For the reader's avatar, whose photo (often their Google
+ * picture) and initials text masking cannot hide, and the photo crop dialog.
+ * Wired as `session_recording.blockSelector` rather than PostHog's
+ * `ph-no-capture` class, which would also stop autocapture of clicks on them.
+ */
+export const PRIVATE_BLOCK_CLASS = "replay-private";
 
 // Deliberately loose: a false match only stars out some text in a recording.
 // It ends on a letter or digit, so a full stop after the address stays put.

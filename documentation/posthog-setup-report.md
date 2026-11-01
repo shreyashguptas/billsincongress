@@ -25,7 +25,7 @@ Generated for Self-driving / scout context. Project **BillsInCongress** (id `451
 ## Autocapture (project settings, not in repo)
 
 - `$pageview`, `$autocapture`, session replay, web vitals, heatmaps enabled in PostHog UI.
-- Session replay: 30-day retention, 100% sample rate, input values masked; the reader's email and name masked in code (`lib/replay-privacy.ts`).
+- Session replay: 30-day retention, 100% sample rate, input values masked; the reader's email and name masked and their avatar blocked in code (`lib/replay-privacy.ts`).
 
 ## Server-side gaps
 

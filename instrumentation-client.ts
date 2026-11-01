@@ -2,7 +2,7 @@ import posthog from 'posthog-js';
 
 import { shouldDropException } from '@/lib/error-filter';
 import { redactEvent } from '@/lib/redact-secrets';
-import { maskReplayText } from '@/lib/replay-privacy';
+import { maskReplayText, PRIVATE_BLOCK_CLASS } from '@/lib/replay-privacy';
 import { shimBlockedStorage } from '@/lib/safe-storage';
 
 // Before anything else, and before React hydrates: Convex Auth reads
@@ -29,14 +29,16 @@ if (POSTHOG_KEY) {
     capture_exceptions: true,
     debug: process.env.NODE_ENV === 'development',
 
-    // Session replay never records the reader's email address or name: every
-    // text node passes through `maskReplayText`, which stars out anything
-    // shaped like an email and the text of elements marked PRIVATE_TEXT_CLASS
-    // (the name). Typed input stays masked by PostHog's defaults. See
-    // lib/replay-privacy.ts.
+    // Session replay never records the reader's email address, name or
+    // avatar: every text node passes through `maskReplayText`, which stars
+    // out anything shaped like an email and the text of elements marked
+    // PRIVATE_TEXT_CLASS (the name), and elements marked PRIVATE_BLOCK_CLASS
+    // (the avatar's photo and initials) are recorded as empty boxes. Typed
+    // input stays masked by PostHog's defaults. See lib/replay-privacy.ts.
     session_recording: {
       maskTextSelector: '*',
       maskTextFn: maskReplayText,
+      blockSelector: `.${PRIVATE_BLOCK_CLASS}`,
     },
 
     // Drop exceptions raised by software that is not this site — Outlook's link

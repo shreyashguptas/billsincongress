@@ -74,8 +74,8 @@ export default function PrivacyPage() {
           analytics also include session replay — a reconstruction of how
           a page was used (clicks, scrolling, navigation) that helps us
           find confusing design and bugs. Replay hides what you type into
-          form fields, and if you have an account it hides your name and
-          email address wherever the site shows them.
+          form fields, and if you have an account it hides your name, email
+          address and profile photo wherever the site shows them.
         </p>
         <p>
           Some of what you type is included in that analytics data. When
@@ -479,7 +479,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Once you sign in, receives your email address and name, to link your activity to your account; replay hides both on screen. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Once you sign in, receives your email address and name, to link your activity to your account; replay hides both, and your profile photo, on screen. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

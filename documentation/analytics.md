@@ -75,13 +75,21 @@ else in the table below comes from the `defaults: '2026-01-30'` preset plus **Po
 settings** (remote config), which means it can be changed by someone in the PostHog UI with no
 commit here. There is no `autocapture` or `enable_heatmaps` key anywhere in this repository.
 
-**The reader's email and name never reach a replay** (since 1 Nov 2026). `session_recording`
+**The reader's email, name and photo never reach a replay** (since 1 Nov 2026). `session_recording`
 sets `maskTextSelector: '*'` and `maskTextFn: maskReplayText` (`lib/replay-privacy.ts`), so
 every text node replay records passes through one function. It stars out anything shaped like
 an email address, wherever it appears, and the whole text of any element carrying
 `PRIVATE_TEXT_CLASS` (`ph-mask`), which the two places that print the reader's name use (the
 account menu and the `/account` heading). Other text is recorded unchanged. A new screen that
 shows the reader's email is covered automatically; one that shows their name must add the class.
+
+The avatar is not recorded at all. Text masking cannot hide a photo (its `src` is recorded as
+is, and a Google sign-in's photo is the reader's face) or the initials (no `@`). `AvatarMark`
+(`components/brand/pro-mark.tsx`, every place the avatar appears) and the photo crop dialog
+carry `PRIVATE_BLOCK_CLASS` (`replay-private`), wired as `session_recording.blockSelector`, so
+replay stores an empty box of the same size. It is a separate class rather than PostHog's
+`ph-no-capture`, which would also drop autocaptured clicks on the account menu button.
+`lib/replay-privacy.test.ts` fails if either piece of this wiring is removed.
 
 | Capture | What it gives us | Turned on by |
 |---|---|---|
