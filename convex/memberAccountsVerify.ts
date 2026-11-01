@@ -32,11 +32,39 @@ const HREF = /href\s*=\s*["']([^"'\s>]+)["']/gi;
  */
 export function linkedAccounts(html: string): Set<LinkKey> {
   const keys = new Set<LinkKey>();
-  for (const match of html.matchAll(HREF)) {
+  for (const match of withoutEmbeds(html).matchAll(HREF)) {
     const key = linkKey(match[1].replace(/&amp;/g, "&"));
     if (key) keys.add(key);
   }
   return keys;
+}
+
+/**
+ * An embedded tweet, Instagram post or Facebook post quotes someone else's
+ * words, and its markup links whoever it mentions
+ * ("twitter.com/HouseAdmin?ref_src=twsrc%5Etfw"). Those links say nothing about
+ * the member's own accounts, so the embeds are cut out before reading links.
+ * The member's own timeline widget is an <a class="twitter-timeline">, not a
+ * blockquote, and stays. An Instagram embed of a whole profile (its permalink
+ * is the profile, not a post) is the member showing their own account, so it
+ * is kept as one link to that profile; linkKey drops a post's permalink.
+ */
+const EMBEDS = [
+  /<blockquote\b[^>]*class\s*=\s*["'][^"']*\b(?:twitter-tweet|twitter-video|instagram-media|tiktok-embed)\b[^"']*["'][^>]*>[\s\S]*?<\/blockquote>/gi,
+  /<div\b[^>]*class\s*=\s*["'][^"']*\bfb-(?:post|video|comment-embed)\b[^"']*["'][^>]*>[\s\S]*?<\/div>/gi,
+];
+const INSTAGRAM_PERMALINK = /\bclass\s*=\s*["'][^"']*\binstagram-media\b[\s\S]*?data-instgrm-permalink\s*=\s*["']([^"']+)["']|data-instgrm-permalink\s*=\s*["']([^"']+)["'][^>]*\bclass\s*=\s*["'][^"']*\binstagram-media\b/i;
+
+export function withoutEmbeds(html: string): string {
+  return EMBEDS.reduce(
+    (out, pattern) =>
+      out.replace(pattern, (block) => {
+        const permalink = INSTAGRAM_PERMALINK.exec(block.slice(0, block.indexOf(">") + 1));
+        const href = permalink?.[1] ?? permalink?.[2];
+        return href ? ` <a href="${href}"></a> ` : " ";
+      }),
+    html,
+  );
 }
 
 const NOT_ACCOUNTS = new Set([
@@ -164,7 +192,7 @@ export function isLinkedFrom(page: Set<LinkKey>, platform: Platform, url: string
 
 export interface SiteCheck {
   status: "ok" | "blocked" | "failed";
-  /** The social links on the page, sorted; empty unless `ok`. */
+  /** The account links on the page, sorted; empty unless `ok`. */
   links: LinkKey[];
 }
 
@@ -172,10 +200,11 @@ const SITE_TIMEOUT_MS = 20_000;
 /** Larger than any member's home page; a page past this is cut, not refused. */
 const MAX_PAGE_CHARS = 3_000_000;
 /**
- * Far more than any member's home page links once posts are excluded; bounds
- * what a row stores and what one mutation receives.
+ * Far more account links than any member's home page has once posts and
+ * embeds are excluded; it only bounds what one mutation receives. Matching
+ * uses all of them; a row stores fewer (`MAX_STORED_LINKS` in memberAccounts.ts).
  */
-const MAX_LINKS = 200;
+const MAX_LINKS = 2000;
 // Who we are, so a site's operators can see what fetched the page and why.
 const USER_AGENT = "BillsInCongress/1.0 (+https://billsincongress.com/about; checks members' official social links once a day)";
 

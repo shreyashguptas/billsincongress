@@ -72,6 +72,27 @@ it("never counts a link to a post, a tweet or a photo as an account", () => {
   assert.equal(linkKey("https://www.youtube.com/@RepFine/somethingelse"), null);
 });
 
+it("ignores whoever an embedded tweet or post mentions", () => {
+  // Rep. Pou's file entry was the House's own @caohouse; an embed must not
+  // be able to confirm a mix-up like that.
+  const html = `
+    <blockquote class="twitter-tweet"><p>Thanks <a href="https://twitter.com/HouseAdmin?ref_src=twsrc%5Etfw">@HouseAdmin</a></p>
+      &mdash; Someone (@someone) <a href="https://twitter.com/someone/status/1?ref_src=twsrc%5Etfw">Oct 1</a></blockquote>
+    <blockquote class="instagram-media" data-instgrm-permalink="x"><a href="https://www.instagram.com/housecreativeservices/">x</a></blockquote>
+    <a class="twitter-timeline" href="https://twitter.com/RepNellie?ref_src=twsrc%5Etfw">Tweets by RepNellie</a>
+    <a href="https://www.instagram.com/repnellie/">Instagram</a>`;
+  assert.deepEqual([...linkedAccounts(html)].sort(), ["instagram:repnellie", "x:repnellie"]);
+});
+
+it("keeps an embed of the member's whole Instagram profile, but not of a post", () => {
+  // Rep. Tran's home page embeds his own profile; the embed's inner links
+  // are dropped either way.
+  const profile = `<blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/repderektran" data-instgrm-version="14"><a href="https://www.instagram.com/someoneelse">x</a></blockquote>`;
+  assert.deepEqual([...linkedAccounts(profile)], ["instagram:repderektran"]);
+  const post = `<blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/ABC123/"><a href="https://www.instagram.com/someoneelse">x</a></blockquote>`;
+  assert.deepEqual([...linkedAccounts(post)], []);
+});
+
 it("reads protocol-relative links and follow buttons", () => {
   assert.equal(linkKey("//twitter.com/RepA"), "x:repa");
   assert.equal(linkKey("https://twitter.com/intent/follow?screen_name=RepA"), "x:repa");

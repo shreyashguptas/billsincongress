@@ -64,6 +64,8 @@ const SITE_CONCURRENCY = 8;
  * inside an action's 10, even if every site hangs.
  */
 const SITES_PER_RUN = 120;
+/** Links kept on a row for the review list; matching always uses every link. */
+const MAX_STORED_LINKS = 200;
 /** A confirmation lapses when no check has succeeded for this long. */
 export const CONFIRMATION_LAPSES_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -410,7 +412,7 @@ export const recordSiteChecks = internalMutation({
           status: result.status,
           checkedAt: args.now,
           ...(lastOkAt ? { lastOkAt } : {}),
-          links: result.status === "ok" ? result.links : (row.siteCheck?.links ?? []),
+          links: result.status === "ok" ? result.links.slice(0, MAX_STORED_LINKS) : (row.siteCheck?.links ?? []),
         },
       });
     }
