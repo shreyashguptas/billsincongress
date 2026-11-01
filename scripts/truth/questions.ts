@@ -318,7 +318,8 @@ export const QUESTIONS: TruthQuestion[] = [
     id: "tenth-state-by-measures",
     question:
       `Which state's members have sponsored the tenth-most measures in the ` +
-      `${CURRENT_CONGRESS}th Congress? Count D.C. and the territories as states.` + ONE_NAME,
+      `${CURRENT_CONGRESS}th Congress? Count D.C. and the territories as states.` +
+      " Answer with just the state, or every state if several are tied, in one short sentence.",
     defect:
       "Asked which states' members sponsor the most bills (2026-10-28), counted only eight " +
       "large states one fetch at a time, said it could not rank the rest, and printed its " +
@@ -329,18 +330,26 @@ export const QUESTIONS: TruthQuestion[] = [
         if (!b.sponsorState) continue;
         perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
       }
-      const ranked = [...perState].sort((a, b) => b[1] - a[1]);
-      const [code, n] = ranked[9];
+      // Code order breaks ties, as fetch.ts does, so the note reads the same every run.
+      const ranked = [...perState].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      const n = ranked[9][1];
       const name = (c: string) => STATE_NAMES[c] ?? c;
+      // Every state with the tenth state's count is a right answer, and a reply
+      // must name them all; the rivals are the neighbours with other counts,
+      // the off-by-one a partial ranking produces.
+      const tied = ranked.filter(([, c]) => c === n).map(([s]) => name(s));
+      const neighbours = ranked.slice(8, 11).filter(([, c]) => c !== n).map(([s]) => name(s));
       return {
         kind: "name",
-        value: name(code),
-        // Ninth and eleventh: the off-by-one a partial ranking produces.
-        rivals: [ranked[8][0], ranked[10][0]].map(name),
+        value: tied[0],
+        ...(tied.length > 1 ? { names: tied } : {}),
+        rivals: neighbours,
         note:
           `Measures per sponsorState over every ${CURRENT_CONGRESS}th row, counted here: tenth is ` +
-          `${code} with ${n}; ninth ${ranked[8][0]} ${ranked[8][1]}, eleventh ${ranked[10][0]} ` +
-          `${ranked[10][1]}. Needs every state, not a sample.`,
+          `${tied.join(" and ")} with ${n}` +
+          (tied.length > 1 ? ", tied; every one must be named" : "") +
+          `; ninth ${ranked[8][0]} ${ranked[8][1]}, eleventh ${ranked[10][0]} ${ranked[10][1]}. ` +
+          `Needs every state, not a sample.`,
       };
     },
   },
