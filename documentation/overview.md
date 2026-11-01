@@ -1310,8 +1310,8 @@ commentary ("supporters would likely say"), rankings counted off an unsorted lis
 in a speaker's mouth that the excerpt never named. Measured on the production data copy against
 version 7: the grounding gate 20/20 in all three runs (version 7: 20/20 in two); the truth
 questions 25 and 26 of 27, the one difference a "can't say" whose wording the scorer reads
-either way on both versions (1 and 2 of 3 on a rerun); 31 lookups against 36. Until version 8
-is published and labelled `production`, readers keep getting version 7.
+either way on both versions (1 and 2 of 3 on a rerun); 31 lookups against 36. Version 8 is
+labelled `production` since 2026-11-01 22:35 UTC.
 
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
 `POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional
@@ -1452,7 +1452,9 @@ here. Before this, asked which states' members sponsor the most bills (2026-10-2
 counted eight states one fetch at a time, said it could not rank the rest, and listed Illinois
 below Pennsylvania "in order". The rank is the server's because, handed the list alone and asked
 for the tenth state, the model named the ninth in 2 of 3 runs. A truth case checks every state's
-count and rank against the raw bills.
+count and rank against the raw bills. Since 2026-11-01 every `topics` row carries its `rank` the
+same way: asked live for the fourth policy area, the model counted the 31 sorted rows by eye and
+named Taxation (fifth) in 5 of 7 runs, on prompt versions 7 and 8 alike.
 
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has
