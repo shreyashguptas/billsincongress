@@ -1,7 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "billsincongress",
-  "main": ".open-next/worker.js",
+  // cloudflare-worker.ts wraps the OpenNext Worker (.open-next/worker.js) so
+  // signed-out pages are served from the edge cache (lib/edge-cache.ts).
+  "main": "cloudflare-worker.ts",
   // esbuild's keep-names (on by default in Wrangler) injects a `__name` helper
   // into stringified inline scripts (e.g. next-themes' pre-paint theme script),
   // causing "ReferenceError: __name is not defined" in the browser. Disabling it
@@ -31,6 +33,9 @@
     { "binding": "NEXT_INC_CACHE_KV", "id": "27119da2bbef43b0b8a73deb425772a5" },
     { "binding": "NEXT_TAG_CACHE_KV", "id": "b0bc643509234dbb823721087525d9f7" }
   ],
+  // The deploy's version id, part of every edge-cache key, so each deploy
+  // starts with an empty cache (lib/edge-cache.ts).
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "services": [
     { "binding": "WORKER_SELF_REFERENCE", "service": "billsincongress" }
   ]

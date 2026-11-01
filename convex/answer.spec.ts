@@ -40,8 +40,8 @@ function replyWith(contents: string[]) {
 beforeEach(() => {
   requests = [];
   vi.stubEnv("OPENROUTER_API_KEY", "test-key");
-  // The loop on the default model; the Claude route is answerClaude.spec.ts.
-  vi.stubEnv("OPENROUTER_CLAUDE_MODEL", "");
+  // The loop on gpt-oss (no Anthropic key); the Claude route is answerClaude.spec.ts.
+  vi.stubEnv("ANTHROPIC_API_KEY", "");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -170,11 +170,11 @@ type ReasoningRequest = {
   messages: Array<{ role: string; content: string | null; reasoning_details?: unknown }>;
 };
 
-test("by default the model reasons privately at low effort, with room for it and the answer", async () => {
+test("by default the model reasons privately at medium effort, with room for it and the answer", async () => {
   replyWith(["No bill in the 119th Congress matches that."]);
   await ask("Is there a bill about lighthouses?");
   const sent = requests[0] as unknown as ReasoningRequest;
-  expect(sent.reasoning).toEqual({ effort: "low" });
+  expect(sent.reasoning).toEqual({ effort: "medium" });
   expect(sent.max_tokens).toBe(4096);
 });
 

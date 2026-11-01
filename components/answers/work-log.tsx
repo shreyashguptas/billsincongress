@@ -47,6 +47,11 @@ export function workLine(e: WorkEntry): WorkLine {
   if (e.tool === 'ask') return { text: `Asked you a question · ${e.detail}` };
   // The model gave no answer and no lookup, and the server asked it again.
   if (e.tool === 'retry') return { text: `No answer yet · ${e.detail}` };
+  // Work under way, written so the panel's stall watchdog restarts before a
+  // slow call (the web lookup). Neither a lookup's result nor a failure. A
+  // client from before this kind existed reads it as `Searched ${detail}`,
+  // which still says what happened.
+  if (e.tool === 'progress') return { text: `Searching ${e.detail}` };
   if (!e.detail.includes(NO_COUNT)) return { text: `Searched ${e.detail}` };
   // "partial results" is the honest, unalarming half; the missing count is a
   // footnote, not a failure — partial reads are a normal way to answer.
@@ -57,11 +62,11 @@ export function workLine(e: WorkEntry): WorkLine {
 }
 
 /**
- * The collapsed trail's count. A retry and a question to the reader are not
- * lookups, so they are not counted.
+ * The collapsed trail's count. A retry, a progress step and a question to the
+ * reader are not lookups, so they are not counted.
  */
 export function lookupSummary(entries: WorkEntry[]): string {
-  const n = entries.filter((e) => e.tool !== 'retry' && e.tool !== 'ask').length;
+  const n = entries.filter((e) => e.tool !== 'retry' && e.tool !== 'progress' && e.tool !== 'ask').length;
   if (n === 0) return 'no lookups';
   return `${n} lookup${n === 1 ? '' : 's'}`;
 }

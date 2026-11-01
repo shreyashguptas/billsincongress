@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'October 13, 2026';
+const LAST_UPDATED = 'November 1, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -73,7 +73,9 @@ export default function PrivacyPage() {
           performance measurements, and any errors the site throws. Our
           analytics also include session replay — a reconstruction of how
           a page was used (clicks, scrolling, navigation) that helps us
-          find confusing design and bugs.
+          find confusing design and bugs. Replay hides what you type into
+          form fields, and if you have an account it hides your name, email
+          address and profile photo wherever the site shows them.
         </p>
         <p>
           Some of what you type is included in that analytics data. When
@@ -126,17 +128,19 @@ export default function PrivacyPage() {
         <p>
           When you ask a question, your question — together with the public
           bill information the assistant looked up to answer it (title,
-          sponsor, status, official summary) — is sent to{' '}
+          sponsor, status, official summary) — is sent to Anthropic, whose
+          Claude models write the answer. We call Anthropic directly, on our
+          own account, and every request asks for it to run on servers in
+          the United States. Anthropic does not use your question to train
+          models and deletes it within 30 days. If Claude cannot answer, the
+          question goes through{' '}
           <ExternalLink href="https://openrouter.ai">
             OpenRouter
           </ExternalLink>
-          , which routes it to the AI model that writes the answer: Claude
-          Haiku, run on our own account with Anthropic. Anthropic does not
-          use your question to train models and deletes it within 30 days.
-          If Claude cannot answer, the question goes to a backup model,
-          routed only to providers in the United States that do not retain
-          it or train on it. OpenRouter and the model provider receive your
-          question text but not your name or email address.
+          {' '}to a backup model, routed only to providers in the United
+          States that do not retain it or train on it. Anthropic, OpenRouter
+          and the backup provider receive your question text but not your
+          name or email address.
         </p>
         <p>
           If you are signed in, your conversations are saved to your
@@ -157,11 +161,14 @@ export default function PrivacyPage() {
           If our own records cannot answer your question, the assistant
           may look the answer up on the web. When that happens we send a
           rewritten, neutral search phrase — not your question in your own
-          words — to our search provider, and the answer shows you exactly
-          which parts did not come from our database. The
-          no-retention requirement above covers the AI model providers; it
-          does not extend to the search provider, which is why we rewrite
-          the query rather than forwarding it.
+          words — to Anthropic, whose web search tool runs the search, and
+          the answer shows you exactly which parts did not come from our
+          database. If that search fails, the phrase goes through OpenRouter
+          to our backup search provider, Exa, instead. Anthropic keeps the
+          search phrase like the rest of a request (up to 30 days, never
+          used for training), and the backup model&rsquo;s no-retention
+          requirement does not extend to Exa, which is why we rewrite the
+          query rather than forwarding it.
         </p>
         <p>
           The full text of every question you ask is also sent to our
@@ -229,7 +236,7 @@ export default function PrivacyPage() {
           While you use your account, we also store the things you do
           with it: the bills you save and your bill-chat history. Once
           you are signed in, our analytics link your activity to your
-          account (including your email address) so we can understand the
+          account (including your email address and name) so we can understand the
           journey from first visit to sign-up. We send email for three
           reasons only: account emails (sign-up verification and
           password-reset codes),
@@ -248,7 +255,9 @@ export default function PrivacyPage() {
           Reading the site is free. If you subscribe to Pro, the one paid
           plan, payment is handled by{' '}
           <ExternalLink href="https://stripe.com/privacy">Stripe</ExternalLink>:
-          your card details go to Stripe and never reach our servers. We
+          your card details go to Stripe and never reach our servers. When
+          you start checkout we give Stripe your email address and name, so
+          its receipts and billing page are in your name. We
           store your Stripe customer and subscription IDs, which price you
           chose, the subscription&apos;s status, and when it renews or ends
           — enough to know whether you are on Pro, nothing more. Stripe keeps
@@ -402,7 +411,7 @@ const summary = [
   'We never sell your data. No ads, no ad trackers, no data brokers.',
   'You can read every bill without an account.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
-  'AI questions are answered by Claude Haiku on our own Anthropic account, through OpenRouter. Anthropic does not train on them and deletes them within 30 days.',
+  'AI questions are answered by Claude, called directly on our own Anthropic account and run on US servers. Anthropic does not train on them and deletes them within 30 days.',
   'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. Each answer is recorded there too, with the conversation it came from, so we can find and fix wrong ones; that text is deleted after 30 days.',
   'Signed-in conversations are saved to your account and visible only to you; signed-out conversations are never stored on our servers.',
   'We email you only for account reasons and bill alerts you turn on — never marketing.',
@@ -470,19 +479,19 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Once you sign in, receives your email address and name, to link your activity to your account; replay hides both, and your profile photo, on screen. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
-    role: 'Routes your questions to the AI model that generates the answer. Receives your question and the relevant public bill details — not your identity.',
+    role: 'Used only as a backup: when Claude cannot answer, routes your question to a backup AI model on US providers that do not retain it, and when Anthropic’s web search fails, runs the backup web search. Receives your question and the relevant public bill details — not your identity.',
   },
   {
     name: 'Anthropic',
-    role: 'Makes Claude Haiku, the AI model that writes most answers, called on our own account. Receives your question and the relevant public bill details — not your identity. Does not train on them and deletes them within 30 days. When Claude cannot answer, a backup model on US providers that do not retain questions answers instead.',
+    role: 'Makes Claude, the AI models that write the answers and run the web search, called directly on our own account and run on US servers. Receives your question and the relevant public bill details — not your identity. Does not train on them and deletes them within 30 days. When Claude cannot answer, a backup model on US providers that do not retain questions answers instead.',
   },
   {
     name: 'Exa',
-    role: 'Web search, used only when our own records cannot answer. Receives a rewritten neutral search phrase, never your question in your own words and never your identity.',
+    role: 'Backup web search, used only when our own records cannot answer and Anthropic’s web search fails. Receives a rewritten neutral search phrase, never your question in your own words and never your identity.',
   },
   {
     name: 'Stripe',

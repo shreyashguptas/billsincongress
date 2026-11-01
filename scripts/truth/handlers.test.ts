@@ -182,6 +182,22 @@ async function main() {
     assert.equal(r.rows[0].latestActionDate, trueMax, "row 1 must carry the true maximum date");
   });
 
+  await it("'the most recent' names how many share row 1's date, from an index-ordered read", async () => {
+    // Production, 2026-10-27: "The measure with the most recent action is the
+    // Disaster Data Protection Act (H.R. 10894)". 62 measures were last acted on
+    // that day. Row 1 of an ordered read is A newest, not THE newest, and the
+    // model was told nothing that let it say so.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort: "newest_action" }, 1);
+    assert.ok(r.ok);
+    const top = r.rows[0].latestActionDate;
+    const tied = bills.filter((b: any) => b.congress === 119 && b.latestActionDate === top);
+    assert.ok(tied.length > 1, "this case needs a tie in the data");
+    assert.equal(r.report.tiedWithFirst?.count, tied.length, "the tie must be counted, and exactly");
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(payload.tied_with_row_1 ?? "", new RegExp(`\\b${tied.length}\\b`));
+    assert.equal(r.report.total, undefined, "a tie count is not a total of the set");
+  });
+
   await it("the newest bill of a FILTERED set is right too, not just the newest overall", async () => {
     for (const [label, filters, pred] of [
       ["California", { congress: 119, sponsorState: "CA", sort: "newest_action" }, (b: any) => b.sponsorState === "CA"],
@@ -211,6 +227,13 @@ async function main() {
     assert.equal(r.report.order, "arbitrary", "a sorted SAMPLE must never be labelled sorted");
     assert.notEqual(r.report.orderFromIndex, true);
     assert.equal(r.report.total, undefined);
+    // The prompt used to say an arbitrary order meant "the sort did not apply, so
+    // fetch again with sort inside filters". Here it WAS inside filters, so the
+    // retry came back the same, and the grounding gate's answer then named a
+    // sample row "the latest" anyway (4 runs in 6, 2026-10-27). The result has
+    // to say that this sort cannot be had for this set, and what can.
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(payload.sort_not_applied ?? "", /title/i, "must say why the sort was not applied");
   });
 
   // --- D2: sponsors reported a fraction of a state as the whole roster -------

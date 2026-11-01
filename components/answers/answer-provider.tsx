@@ -123,7 +123,7 @@ interface AnswerContextValue {
   /** Open or dismiss. `trigger` names where it came from, for the funnel. */
   setOpen: (open: boolean, trigger?: OpenTrigger | CloseReason) => void;
   /** Bring a set-aside conversation back, thread and draft intact. */
-  restore: () => void;
+  restore: (trigger?: 'launcher' | 'typing') => void;
   /** Step the panel aside so the page it just opened becomes visible. */
   minimize: (reason: CloseReason) => void;
   /** What the current route has open, beyond what the path already says. */
@@ -277,14 +277,14 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     [apply, surfaceNow],
   );
 
-  const restore = useCallback(() => {
+  const restore = useCallback((trigger: 'launcher' | 'typing' = 'launcher') => {
     const wasMinimized = phaseRef.current === 'minimized';
     if (!apply({ type: 'restore' })) return;
     openedAtRef.current = Date.now();
     if (wasMinimized) {
       analytics.answerPanelRestored({
         surface: surfaceNow(),
-        trigger: 'launcher',
+        trigger,
         turn_count: questionCount(),
         away_ms: minimizedAtRef.current ? Date.now() - minimizedAtRef.current : 0,
       });
@@ -292,7 +292,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     }
     analytics.answerPanelOpened({
       surface: surfaceNow(),
-      trigger: 'launcher',
+      trigger,
       has_conversation: turnsRef.current.length > 0,
     });
   }, [apply, surfaceNow]);
@@ -622,9 +622,9 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 analytics.answerCitationUnresolved({
                   surface,
                   marker_count: data.dropped,
-                  // The answer model, not read from the response: a turn that fell back
-                  // to gpt-oss-120b is told apart by the trace's $ai_generation events.
-                  model: 'claude-haiku-5.5',
+                  // The model that wrote this answer, as the server reports it
+                  // (claude-sonnet-5-5, claude-haiku-5-5 or openai/gpt-oss-120b).
+                  model: typeof data.model === 'string' ? data.model : 'unknown',
                 });
               }
               if (webSources.length > 0) {
@@ -632,7 +632,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                   surface,
                   reason: data.webReason ?? '',
                   result_count: webSources.length,
-                  engine: 'exa',
+                  // 'anthropic' (Claude's web search) or 'exa' (its fallback).
+                  engine: typeof data.webEngine === 'string' ? data.webEngine : 'unknown',
                 });
               }
             } else if (event === 'rate_limited') {

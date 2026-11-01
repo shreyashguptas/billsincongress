@@ -39,6 +39,7 @@ import {
 } from '@/lib/constants/filters';
 import { formatCongressPicker } from '@/lib/congress';
 import { topicSlug } from '@/lib/hubs';
+import { JUST_INTRODUCED_LABEL, JUST_INTRODUCED_STATUS } from '@/lib/bills/just-introduced';
 import type { BillsFilterValues } from '@/app/bills/filter-signature';
 
 export interface FilterOption {
@@ -162,7 +163,10 @@ export const FILTERS: FilterDefinition[] = [
       withCurrent(LIVE_STATUS_OPTIONS.slice(), ctx.currentValue, (v) =>
         labelFor(STATUS_OPTIONS, v),
       ),
-    describe: (v) => labelFor(STATUS_OPTIONS, String(v)),
+    describe: (v) =>
+      String(v) === JUST_INTRODUCED_STATUS
+        ? JUST_INTRODUCED_LABEL
+        : labelFor(STATUS_OPTIONS, String(v)),
     hubPath: (v) =>
       ({
         '100': '/bills/enacted',

@@ -11,3 +11,11 @@ allowBuilds:
   # Fetch their platform binaries (the bundler, and Cloudflare's local runtime).
   esbuild: true
   workerd: true
+
+# Security floors for dependencies pinned deep in the tree, where no direct
+# bump reaches them. Each selector matches only the vulnerable versions, so it
+# does nothing once the parent package moves past them; delete it then.
+overrides:
+  # @opennextjs/aws 4.1.11 -> @node-minify/core 9.0.2 pins glob 10.3.3 exactly
+  # (GHSA-5j98-mcp5-4vw2, high, fixed in 10.5.0). Build time only.
+  'glob@>=10.0.0 <10.5.0': 10.5.0

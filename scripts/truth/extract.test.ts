@@ -180,6 +180,20 @@ it("honours a non-default congress", () => {
   assert.equal(found(extractBillId("H.R. 3028 in the 118th Congress", 118)).value, "3028hr118");
 });
 
+it("reads the bill card when the answer names the bill by title", () => {
+  assert.equal(
+    found(
+      extractBillId(
+        "The first one introduced was the Coordinating Care for Senior Veterans and Wounded " +
+          "Warriors Act, filed on January 23, 2025 [1]. [[bills:668hr119]]",
+      ),
+    ).value,
+    "668hr119",
+  );
+  // A printed number still wins over a later card.
+  assert.equal(found(extractBillId("H.R. 6644 is it. [[bills:629s119]]")).value, "6644hr119");
+});
+
 it("refuses when no bill is named", () => {
   const reason = refused(extractBillId("Eleven Texas bills have become law.")).reason;
   assert.ok(reason.includes("no bill"), reason);
@@ -298,6 +312,105 @@ it("still refuses when two real counts genuinely disagree", () => {
   // The guard that matters must survive the loosening above.
   const r = extractNumber("104 House bills became law. The party split is 56 and 8.");
   assert.equal(r.found, false);
+});
+
+// --- Correct answers that scored UNCHECKABLE (Claude Sonnet 5.5, 2026-10-23) --
+
+it("reads a total with a breakdown that sums to it", () => {
+  assert.deepEqual(
+    extractNumber(
+      "As of October 23, 2026, 83 of the laws enacted in the 119th Congress started in " +
+        "the House: 64 bills and 19 joint resolutions.",
+    ),
+    { found: true, value: 83 },
+  );
+  assert.deepEqual(
+    extractNumber(
+      "53 of the laws enacted in the 119th Congress so far started in the Senate, as of " +
+        "today, October 23, 2026. That count includes 47 bills and 6 joint resolutions.",
+    ),
+    { found: true, value: 53 },
+  );
+});
+
+it("reads a breakdown split across an 'includes' and a later sentence", () => {
+  assert.deepEqual(
+    extractNumber(
+      "83 of the laws enacted in the 119th Congress started in the House, as of today, " +
+        "October 23, 2026. That figure includes 19 joint resolutions, which can become law " +
+        "like bills. The other 64 are bills.",
+    ),
+    { found: true, value: 83 },
+  );
+});
+
+it("reads a total with a part it says it includes", () => {
+  assert.deepEqual(
+    extractNumber(
+      "As of October 23, 2026, 53 of the laws enacted in the 119th Congress started in " +
+        "the Senate. That count includes 6 joint resolutions.",
+    ),
+    { found: true, value: 53 },
+  );
+});
+
+it("a breakdown that does not sum is still a contradiction", () => {
+  // 56 + 8 is 64, not 104: the production answer the ambiguity rule exists for.
+  assert.equal(extractNumber("104 House bills became law: 56 Republican and 8 Democratic.").found, false);
+  // A larger second number is never a part.
+  assert.equal(extractNumber("53 started in the Senate. That count includes 60 bills.").found, false);
+});
+
+it("a denominator is not a second claim", () => {
+  assert.deepEqual(
+    extractNumber(
+      "Eight of the 117th Congress's 11 measures with no sponsor party recorded were " +
+        "reserved for the Minority Leader.",
+    ),
+    { found: true, value: 8 },
+  );
+  assert.deepEqual(
+    extractNumber(
+      "Eight of the 117th Congress's measures with no sponsor party recorded were " +
+        "reserved for the Minority Leader (out of 11 in all).",
+    ),
+    { found: true, value: 8 },
+  );
+});
+
+it("'at least one' is the question's threshold, not a count", () => {
+  assert.deepEqual(
+    extractNumber(
+      "54 California members have introduced at least one measure in the 119th Congress, " +
+        "as of today, October 23, 2026.",
+    ),
+    { found: true, value: 54 },
+  );
+});
+
+it("an opening yes is not undone by a clause about something else", () => {
+  assert.deepEqual(
+    extractBoolean(
+      "Yes, H.R. 10326, the PROOF Act, has passed the House, and it has not yet passed the Senate. [1]",
+    ),
+    { found: true, value: true },
+  );
+});
+
+it("a bill number is not a count", () => {
+  // "as H.R. 5193 did" read as "5193 did", an affirmative count.
+  assert.deepEqual(
+    extractBoolean(
+      "No. The 118th Congress ended on January 3, 2025, so any bill that was still in " +
+        "committee died there and can no longer move, as H.R. 5193 did [1].",
+    ),
+    { found: true, value: false },
+  );
+});
+
+it("an opening answer still loses to a full opposite statement", () => {
+  assert.equal(extractBoolean("Yes. There are no Texas bills that became law.").found, false);
+  assert.equal(extractBoolean("Yes and no: it passed the House only.").found, false);
 });
 
 if (failures.length > 0) {

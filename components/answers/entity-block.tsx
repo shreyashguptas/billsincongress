@@ -6,6 +6,7 @@ import { CompactBillCard } from '@/components/bills/bill-card';
 import type { AnswerBlock } from '@/lib/answer-entities';
 import { billTypeOfLabel } from '@/lib/utils/bill-stages';
 import { billNoun } from '@/lib/seo';
+import { sponsorSurname } from '@/lib/answer-bill-links';
 
 /** The per-bill display projection the server echoes back on `done`. */
 export type EntityDisplay = Record<string, Record<string, unknown>>;
@@ -38,6 +39,7 @@ export function EntityBlock({
       entity_kind: block.kind,
       position,
       entity_id: id,
+      placement: 'after_answer',
     });
 
   if (block.kind === 'bill') {
@@ -46,7 +48,6 @@ export function EntityBlock({
       <div className="my-4 space-y-2 font-sans text-base">
         {block.refs.map((ref, i) => {
           const d = entities?.[`bills:${ref.id}`];
-          const sponsor = str(d?.sponsor);
           const billType = billTypeOfLabel(str(d?.label));
           return (
             <CompactBillCard
@@ -54,7 +55,7 @@ export function EntityBlock({
               href={ref.href}
               label={str(d?.label) ?? ref.id}
               title={str(d?.title)}
-              sponsorLastName={sponsor ? sponsor.split(' ').slice(-1)[0] : undefined}
+              sponsorLastName={sponsorSurname(d)}
               sponsorParty={str(d?.sponsorParty)}
               stage={typeof d?.progressStage === 'number' ? d.progressStage : undefined}
               billType={billType}

@@ -6,6 +6,7 @@ import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
 import { AnswerProvider } from '@/components/answers/answer-provider';
 import { AnswerPanel } from '@/components/answers/answer-panel';
+import { TypeToAsk } from '@/components/answers/type-to-ask';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { PwaSetup } from '@/components/pwa/pwa-setup';
@@ -199,6 +200,9 @@ export default function RootLayout({
                   <Footer />
                 </div>
                 <AnswerPanel />
+                {/* After AnswerPanel, always: its effects must run after the
+                    panel's own focus effect (type-to-ask.tsx has why). */}
+                <TypeToAsk />
                 <FoundItPrompt />
                 <WelcomeNewUser />
                 <PostHogAuthSync />

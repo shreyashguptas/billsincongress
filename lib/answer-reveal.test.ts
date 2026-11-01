@@ -12,8 +12,10 @@ import {
   REVEAL_MAX_MS,
   REVEAL_WORDS_PER_SECOND,
   healPartialMarkdown,
+  heldCount,
   rehypeWordSpans,
   revealCount,
+  revealElapsedFor,
   revealStops,
   revealedText,
 } from './answer-reveal';
@@ -122,6 +124,28 @@ it('does not fade again the words a remounted turn already showed', () => {
   const words = para.children as unknown as Array<{ tagName?: string; properties?: { className?: string[] } }>;
   const classes = words.filter((c) => c.tagName).map((c) => (c.properties?.className ?? []).join());
   assert.deepEqual(classes, ['', 'animate-word-in', 'animate-word-in']);
+});
+
+it('a held reveal resumes from where it was held, at the usual pace', () => {
+  // Review on #211: the reveal's clock ran on while it waited at a list, so
+  // when the answer's sources arrived everything up to the clock appeared at once.
+  const total = 60;
+  const hold = 10;
+  // Pinned at the hold, the clock reads exactly the hold…
+  assert.equal(revealCount(total, revealElapsedFor(total, hold)), hold);
+  // …and one word's worth of time later it shows one more word, not a jump.
+  const oneWord = revealElapsedFor(total, 1);
+  assert.equal(revealCount(total, revealElapsedFor(total, hold) + oneWord), hold + 1);
+  // A long answer is paced faster (five-second cap); the inverse still holds.
+  assert.equal(revealCount(1000, revealElapsedFor(1000, 400)), 400);
+});
+
+it('holds at the last word before the list', () => {
+  const text = 'The newest laws:\n\n- H.R. 7022 [1]';
+  const stops = revealStops(text);
+  const n = heldCount(stops, text.indexOf('- H.R.'));
+  assert.equal(revealedText(text, stops, n), 'The newest laws:');
+  assert.equal(heldCount(stops, 0), 0);
 });
 
 console.log(`\nanswer-reveal: ${passed} passed, ${failures.length} failed`);

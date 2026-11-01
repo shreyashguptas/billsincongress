@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  DEFAULT_CLAUDE_MODEL,
+  DEFAULT_ANSWER_MODEL,
   DEFAULT_FALLBACK_MODELS,
   DEFAULT_MODEL,
   DEFAULT_PROVIDERS,
@@ -29,12 +29,17 @@ import {
   claimsAbsence,
   leaksVocabulary,
   namesOneAsNewest,
+  namesSortedNewest,
+  acknowledgesTie,
+  MOVED_SUBJECT,
+  newestOfAll,
   sentences,
   serveFetch,
   statesCount,
   HEALTH_TOTAL,
 } from "./check-grounding";
 import type { DatasetName } from "../convex/catalog/types";
+import * as claude from "../convex/claude";
 
 let passed = 0;
 const failures: string[] = [];
@@ -117,12 +122,38 @@ it("does not invent a total for a filter combination it never counted", () => {
   assert.notEqual(result.report.total, HEALTH_TOTAL);
 });
 
-it("refuses a requested sort when the window filled, as fetch.ts does", () => {
-  // Sorting a sample and labelling it "newest first" named the third-most-recent
-  // law as the most recent. The arbitrary-order check depends on this staying so.
+it("serves a whole-Congress sort in order, as fetch.ts's ordering index does", () => {
+  // This test used to pin the opposite: the fixture refused the sort, a state
+  // production stopped reaching in August, and the gate failed 4 runs in 6 on a
+  // question production answered correctly (2026-10-27).
   const result = served("bills", { congress: 119, sort: "newest_action" }, 5);
+  assert.equal(result.report.complete, false, "18,476 measures are never read whole");
+  assert.equal(result.report.order, "newest_action_first");
+  assert.equal(result.report.orderFromIndex, true);
+  assert.equal(result.rows[0].billId, "10894hr119", "row 1 production returned");
+  assert.equal(result.report.tiedWithFirst?.count, 62, "61 others share its date");
+  assert.equal(result.report.total, undefined);
+});
+
+it("refuses a sort no index can serve, and says why", () => {
+  // Sorting a sample and labelling it "newest first" named the third-most-recent
+  // law as the most recent. A title search is where production still returns an
+  // unsorted page after a sort was asked for; the arbitrary-order check uses it.
+  const result = served("bills", { congress: 119, titleFilter: "Act", sort: "newest_action" }, 5);
   assert.equal(result.report.complete, false);
   assert.equal(result.report.order, "arbitrary");
+  assert.match(result.report.sortNotApplied ?? "", /title search/);
+  assert.ok(result.rows.length > 0, "the page production returns has rows");
+  assert.ok(result.rows.some((r) => r.billId === "10152hr119"), "the newest of the page sits mid-page");
+});
+
+it("returns no unsorted rows for a sort an index would serve", () => {
+  // Production reads Health newest-first through the ordering index. The fixture
+  // does not hold those rows, so it hands back none rather than a page in an
+  // order production would never return.
+  const result = served("bills", { congress: 119, policyArea: "Health", sort: "newest_action" }, 5);
+  assert.equal(result.rows.length, 0);
+  assert.equal(result.report.complete, false);
 });
 
 it("honours a requested sort on a set it holds entirely", () => {
@@ -220,6 +251,80 @@ it("catches a count of an incomplete result, in words or digits", () => {
   for (const claim of claims) assert.ok(statesCount(claim, subject), `missed: ${claim}`);
 });
 
+it("leaves a count the answer's own lookups reported as exact alone", () => {
+  // 2026-10-27: 104 came from a complete count, and the refusal beside it is the
+  // answer the question wants. A count nobody reported still fails.
+  const subject = /\b(?:week|days?|recent|since|august|moved|action)\b/i;
+  const exact = new Set([104, 18476]);
+  const honest = "104 measures had become law as of today, but I couldn't tell which moved this week.";
+  assert.equal(statesCount(honest, subject, exact), null);
+  assert.ok(statesCount("17 bills moved in the past week.", subject, exact), "missed an invented count");
+  // Claude Sonnet 5.5, 2026-10-27, with 62 the tie its sorted lookup reported.
+  // The pattern's match starts at the year; the count is the 62.
+  const tie = "The most recent action we have is dated October 22, 2026, and 62 measures are tied for that date.";
+  assert.equal(statesCount(tie, subject, new Set([62])), null);
+  assert.ok(statesCount(tie, subject, exact), "62 is only allowed when a lookup reported it");
+  assert.ok(
+    statesCount("104 measures became law, and two measures moved this week.", subject, exact),
+    "an exact number must not excuse an invented one in the same sentence",
+  );
+});
+
+it("reads a count in words past twelve", () => {
+  // Claude Sonnet 5.5, 2026-11-01: 62 is the tie its sorted lookup reported.
+  const said = "Sixty-two measures are tied for that latest date, and none has a newer action.";
+  assert.equal(statesCount(said, MOVED_SUBJECT, new Set([62])), null, "sixty-two is 62");
+  assert.ok(statesCount(said, MOVED_SUBJECT, new Set([2])), "and not 2");
+  assert.ok(statesCount("Nineteen bills saw action this week.", MOVED_SUBJECT));
+  assert.equal(claimsAbsence(said), null, "nothing newer than a named date is not 'none exist'");
+});
+
+it("hears a missing total as a missing number, not as 'none moved'", () => {
+  assert.equal(claimsAbsence("We have no total for the week."), null);
+  assert.equal(claimsAbsence("We have no way to count them all."), null);
+  assert.ok(claimsAbsence("We found no measures with action this week."), "still caught");
+  assert.ok(claimsAbsence("We have none from this week."), "still caught");
+});
+
+it("allows 'nothing after' the newest date a sorted read returned, and only that date", () => {
+  // Claude Sonnet 5.5, 2026-11-01, after answering yes from a newest-first read.
+  const said = "Nothing in our data is dated after October 22, so nothing has moved in the last five days.";
+  assert.equal(claimsAbsence(said, "2026-10-22"), null);
+  assert.ok(claimsAbsence(said), "without a sorted read behind it, it is still an absence claim");
+  assert.ok(claimsAbsence("Nothing has moved since August 24.", "2026-10-22"), "another date is not licensed");
+});
+
+it("takes the newest date only from a read of the whole Congress", () => {
+  // Review on #229: row 1 of a filtered read is the newest within the filter only.
+  const whole = { congress: 119, sort: "newest_action" };
+  assert.equal(newestOfAll(whole, served("bills", whole, 5)), "2026-10-22");
+  const dated = { congress: 119, sort: "newest_action", actionAfter: "2026-10-20" };
+  assert.equal(newestOfAll(dated, served("bills", dated, 5)), "2026-10-22", "actionAfter keeps the newest");
+  const ordered = served("bills", whole, 5);
+  for (const filters of [
+    { congress: 119, sort: "newest_action", chamber: "house" },
+    { congress: 119, sort: "newest_action", policyArea: "Health" },
+    { congress: 119, sort: "newest_action", actionBefore: "2026-10-15" },
+  ]) {
+    assert.equal(newestOfAll(filters, ordered), undefined, JSON.stringify(filters));
+  }
+});
+
+it("hears 'none of them finished' as the lookups, not the bills", () => {
+  const said =
+    "I tried searches on last action date, on bills that had passed a chamber, and on introduction date, and none of them finished.";
+  assert.equal(claimsAbsence(said), null);
+  assert.ok(claimsAbsence("None of them moved this week."), "the bills, still caught");
+});
+
+it("reads 'days' as a span of time, not a word in a title", () => {
+  // Claude Sonnet 5.5, 2026-10-27: four of the five bills it had just listed.
+  const listed = "The other four are House simple resolutions, such as [2] on National Marine Sanctuary Day.";
+  assert.equal(statesCount(listed, MOVED_SUBJECT), null);
+  assert.ok(statesCount("Three measures moved in the past few days.", MOVED_SUBJECT));
+  assert.ok(statesCount("In the last 7 days, 12 bills were introduced.", MOVED_SUBJECT));
+});
+
 it("leaves a count about a different set alone", () => {
   // A complete total from another dataset is a legitimate sentence and must not
   // fail a check scoped to the question that was asked.
@@ -240,6 +345,32 @@ it("catches a row named as the newest over an arbitrary page", () => {
     "H.R. 10152 is the latest bill to move; it didn't get a vote.",
   ];
   for (const claim of claims) assert.ok(namesOneAsNewest(claim), `missed: ${claim}`);
+});
+
+it("hears the right answer to the sorted question, and whether it names the tie", () => {
+  const right =
+    "The Disaster Data Protection Act (H.R. 10894) is one of 62 measures last acted on October 22, 2026.";
+  assert.ok(namesSortedNewest(right));
+  assert.ok(acknowledgesTie(right));
+  const alone = "The measure with the most recent action is the Disaster Data Protection Act (H.R. 10894).";
+  assert.ok(namesSortedNewest(alone));
+  assert.equal(acknowledgesTie(alone), false, "production's 2026-10-27 answer: one named as THE newest");
+  // Review on #229: words that turn up without any tie.
+  for (const loose of [
+    "The measure with the most recent action is H.R. 10894, which would also protect disaster data.",
+    "H.R. 10894 is the newest; others in committee include H.Res. 1635.",
+    "H.R. 10894 is one of the bills Brittany Pettersen sponsored, and it has the most recent action.",
+  ]) {
+    assert.equal(acknowledgesTie(loose), false, `passed without a tie: ${loose}`);
+  }
+  for (const tie of [
+    "Several other measures have the same last-action date.",
+    "It is one of 62 measures last acted on that day.",
+    "53 measures are tied for the most recent action.",
+    "Others share that date.",
+  ]) {
+    assert.ok(acknowledgesTie(tie), `missed: ${tie}`);
+  }
 });
 
 it("allows a refusal and a row's own field", () => {
@@ -316,7 +447,9 @@ function shipped(name: string): string {
 
 it("runs the model configuration production ships", () => {
   assert.equal(JSON.stringify(DEFAULT_MODEL), shipped("DEFAULT_MODEL"));
-  assert.equal(JSON.stringify(DEFAULT_CLAUDE_MODEL), shipped("DEFAULT_CLAUDE_MODEL"));
+  // Imported from convex/claude.ts rather than copied, so it cannot drift; this
+  // only proves the import was not replaced by a copy.
+  assert.equal(DEFAULT_ANSWER_MODEL, claude.DEFAULT_ANSWER_MODEL);
   assert.equal(JSON.stringify(DEFAULT_PROVIDERS), shipped("DEFAULT_PROVIDERS"));
   assert.equal(JSON.stringify(DEFAULT_FALLBACK_MODELS), shipped("DEFAULT_FALLBACK_MODELS"));
   assert.equal(
@@ -335,6 +468,10 @@ it("the other live probes default to the same configuration", () => {
     for (const value of values) {
       assert.ok(source.includes(JSON.stringify(value)), `${file} does not default to ${value}`);
     }
+    // The Claude side is imported, never copied: a probe that hard-coded a
+    // Claude model id would keep probing it after production moved on.
+    assert.ok(source.includes('from "../convex/claude"'), `${file} does not take its Claude setup from convex/claude.ts`);
+    assert.ok(!/["']claude-[a-z0-9-]+["']/.test(source), `${file} hard-codes a Claude model id`);
   }
 });
 

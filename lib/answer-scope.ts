@@ -15,6 +15,11 @@
  */
 import type { BillsFilterValues } from '@/app/bills/filter-signature';
 import type { HubDefinition } from './hubs';
+import {
+  JUST_INTRODUCED_STATUS,
+  isJustIntroducedWindow,
+  justIntroducedSince,
+} from './bills/just-introduced';
 
 export interface AnswerScope {
   dataset: 'bills';
@@ -62,7 +67,10 @@ function num(raw: string | undefined): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
-export function scopeFromFilters(input: Partial<BillsFilterValues>): AnswerScope | null {
+export function scopeFromFilters(
+  input: Partial<BillsFilterValues>,
+  now: number = Date.now(),
+): AnswerScope | null {
   const filters: Record<string, unknown> = {};
   const parts: string[] = [];
 
@@ -79,8 +87,15 @@ export function scopeFromFilters(input: Partial<BillsFilterValues>): AnswerScope
   // A stage the catalog will not accept is dropped from the FILTERS but kept in
   // the LABEL, so the reader's words survive while the server is only ever
   // handed a filter set it can actually apply.
+  //
+  // "Just introduced" is a date window, not stage 20 (lib/bills/just-introduced.ts),
+  // so the assistant is handed the bills the list shows, not the stage's
+  // handful of placeholder numbers.
   const stage = num(input.status);
-  if (stage !== undefined) {
+  if (value(input.status) === JUST_INTRODUCED_STATUS && isJustIntroducedWindow(congress, now)) {
+    filters.introducedAfter = justIntroducedSince(now);
+    parts.push('introduced in the last 30 days');
+  } else if (stage !== undefined) {
     if (CATALOG_STAGES.includes(stage)) filters.progressStage = stage;
     parts.push(STAGE_LABEL[stage] ?? '');
   }
@@ -136,8 +151,10 @@ export function scopeFromFilters(input: Partial<BillsFilterValues>): AnswerScope
  * outright rather than coerced — so the coercion here is load-bearing, not
  * tidying.
  */
-export function scopeFromHub(hub: HubDefinition): AnswerScope | null {
+export function scopeFromHub(hub: HubDefinition, now: number = Date.now()): AnswerScope | null {
   const filters: Record<string, unknown> = {};
+
+  if (hub.filter.introducedWithin === 'month') filters.introducedAfter = justIntroducedSince(now);
 
   if (hub.filter.chamber) filters.chamber = hub.filter.chamber;
   if (hub.filter.policyArea) filters.policyArea = hub.filter.policyArea;

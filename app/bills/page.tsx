@@ -152,8 +152,13 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   };
 
   // Server-render the requested page of results so crawlers (and first paint)
-  // get real bill links without JavaScript. On any failure fall back to
-  // null — the client component then fetches exactly as it did pre-SSR.
+  // get real bill links without JavaScript. A failed read is rethrown, so the
+  // reader gets the error page and its "Try again" with a 500. It used to fall
+  // back to an empty shell for the client to fill, but that shell showed
+  // "Congress unavailable" with no page links and handed crawlers an empty list,
+  // and signed-out pages are now cached at the edge (cloudflare-worker.ts), so it
+  // would have been served to everyone at the data centre for five minutes.
+  // Only the count may fail on its own: the page then states no total.
   let initialBills: Bill[] | null = null;
   let initialHasMore = false;
   let initialTruncated = false;
@@ -178,35 +183,36 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
     initialTotal = countResult;
     congressNumbers = availableCongresses;
   } catch (error) {
-    console.error('Server-side bills fetch failed, deferring to client:', error);
+    console.error('Server-side bills fetch failed:', error);
+    throw error;
   }
 
   return (
-    <>
-      <BillsClient
-        initialBills={initialBills}
-        initialHasMore={initialHasMore}
-        initialTruncated={initialTruncated}
-        initialTotal={initialTotal}
-        initialPage={page}
-        urlFilters={urlFilters}
-        serverFilterSignature={filterSignature(applied)}
-        congressNumbers={congressNumbers}
-        browseDirectory={<HubDirectory />}
-      />
-      <div className="container-editorial">
-        {/* Server-rendered page links. The list above is a client component
-            whose "Load more" button a crawler cannot press, which is why depth
-            on this page was unreachable while the hub pages were not. Filters
-            are carried through, so these work as controls and not only as
-            crawl paths. */}
+    <BillsClient
+      initialBills={initialBills}
+      initialHasMore={initialHasMore}
+      initialTruncated={initialTruncated}
+      initialTotal={initialTotal}
+      initialPage={page}
+      urlFilters={urlFilters}
+      serverFilterSignature={filterSignature(applied)}
+      congressNumbers={congressNumbers}
+      browseDirectory={<HubDirectory />}
+      maxPage={MAX_PAGE}
+      serverPagination={
+        /* Server-rendered page links. The list is a client component whose
+           "Load more" button a crawler cannot press, which is why depth on
+           this page was unreachable while the hub pages were not. Filters
+           are carried through, so these work as controls and not only as
+           crawl paths. BillsClient swaps them for links built from its own
+           filters once the reader changes any. */
         <CrawlablePagination
           page={page}
           {...pagesForCount(initialTotal, page, initialHasMore, ITEMS_PER_PAGE, MAX_PAGE)}
           hrefForPage={(n) => hrefForPage(params, n)}
           className="mb-12 justify-center"
         />
-      </div>
-    </>
+      }
+    />
   );
 }
