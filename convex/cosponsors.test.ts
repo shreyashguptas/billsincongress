@@ -2,7 +2,7 @@
  * Run with: `pnpm test`.
  */
 import assert from "node:assert/strict";
-import { cosponsorRows, cosponsorsFingerprint } from "./cosponsors";
+import { cosponsorRows, cosponsorSortKey, cosponsorsFingerprint, sortCosponsors } from "./cosponsors";
 
 let passed = 0;
 const failures: string[] = [];
@@ -79,8 +79,31 @@ it("never keeps a cosponsor without a member id or a date", () => {
   assert.deepEqual(cosponsorRows({ error: "rate limited" }), []);
 });
 
-it("keeps a member listed twice once", () => {
+it("keeps a member listed twice once, preferring their current entry", () => {
   assert.equal(cosponsorRows([connolly, connolly]).length, 1);
+  // Withdrew in June, signed on again in July: the July entry is the one that counts.
+  const rows = cosponsorRows([
+    { ...connolly, sponsorshipWithdrawnDate: "2021-06-01" },
+    { ...connolly, sponsorshipDate: "2021-07-01", isOriginalCosponsor: false },
+  ]);
+  assert.deepEqual(rows.map((r) => [r.sponsorshipDate, r.withdrawnDate]), [["2021-07-01", undefined]]);
+});
+
+it("orders by a key that sorts the same as a string in an index", () => {
+  const rows = cosponsorRows([
+    { ...connolly, bioguideId: "A000001", lastName: "Smithson", isOriginalCosponsor: true },
+    { ...connolly, bioguideId: "A000002", lastName: "Smith", isOriginalCosponsor: true },
+    { ...connolly, bioguideId: "A000003", lastName: "Álvarez", isOriginalCosponsor: true },
+  ]);
+  assert.deepEqual(rows.map((r) => r.lastName), ["Álvarez", "Smith", "Smithson"]);
+  const keys = rows.map(cosponsorSortKey);
+  assert.deepEqual([...keys].sort(), keys);
+  assert.deepEqual(sortCosponsors([...rows].reverse()).map((r) => r.bioguideId), rows.map((r) => r.bioguideId));
+});
+
+it("fingerprints in a few dozen characters, whatever the size of the list", () => {
+  const many = cosponsorRows(Array.from({ length: 400 }, (_, i) => ({ ...connolly, bioguideId: `A${String(i).padStart(6, "0")}` })));
+  assert.ok(cosponsorsFingerprint(many).length < 30);
 });
 
 it("reads an at-large district and a senator's missing one", () => {

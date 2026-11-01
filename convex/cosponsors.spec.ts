@@ -117,6 +117,21 @@ describe("cosponsors on a bill page", () => {
     expect(second.accounts).toBeNull();
   });
 
+  test("the page's ten are exactly the first ten of the full list, even with many originals", async () => {
+    const t = setup();
+    await addBill(t);
+    // H.R. 22 in the 119th: 110 cosponsors, all original, all the same day.
+    const originals = Array.from({ length: 60 }, (_, i) =>
+      cosponsor(i, { isOriginal: true, sponsorshipDate: "2025-01-03", lastName: `Name${String(59 - i).padStart(2, "0")}` }),
+    );
+    await t.mutation(internal.mutations.replaceBillCosponsors, { billId: "1hr119", cosponsors: originals });
+    const page = await t.query(api.bills.getPage, { billId: "1hr119" });
+    const all = await t.query(api.bills.getCosponsors, { billId: "1hr119" });
+    expect(page!.extras.cosponsors.shown.map((c) => c.bioguideId)).toEqual(all!.shown.slice(0, 10).map((c) => c.bioguideId));
+    expect(page!.extras.cosponsors.shown[0].name).toBe("Member Name00");
+    expect(page!.extras.cosponsors.total).toBe(60);
+  });
+
   test("an unchanged set is not rewritten", async () => {
     const t = setup();
     await addBill(t);

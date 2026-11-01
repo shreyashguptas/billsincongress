@@ -115,7 +115,9 @@ export function MemberPage({ page }: { page: MemberPageData }) {
         <aside className="order-first min-w-0 lg:order-last">
           <div className="rounded-md border border-line bg-raised p-6">
             <MemberAccounts data={accounts} surface="member_page" />
-            {!accounts && <p className="text-sm text-ink-2">No official accounts shown.</p>}
+            {(!accounts || (accounts.accounts.length === 0 && !accounts.officialWebsiteUrl)) && (
+              <p className="text-sm text-ink-2">No official accounts shown.</p>
+            )}
           </div>
         </aside>
       </div>

@@ -756,7 +756,8 @@ pnpm exec convex run --prod congressApi:backfillCosponsors '{}'
 One call per stored bill (about 56,500) to `/bill/{congress}/{type}/{number}/cosponsors`, at
 the same pace and with the same budget pause as the sponsor backfill, continuing itself and
 repeating passes until one stores nothing. A bill whose page of cosponsors fails is left unmarked
-rather than stored short. Until a bill is reached, its page says nothing about cosponsors.
+rather than stored short. Until a bill is reached, its page says nothing about cosponsors, and a
+member page's "Newest bills they cosponsored" covers only the bills reached so far.
 
 
 It makes one Congress.gov detail call per bill that has neither an id nor bit 4 of
@@ -788,7 +789,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 | `billLegislativeSubjects` | The long per-bill subject list (HR1/119 has ~239). Stored but not surfaced |
 | `billTitles` | **Unused, and empty** — never written; the only reference is a delete loop in `mutations.ts`. Removing it is left to the owner |
 | `syncSnapshots` | Audit trail of every sync run |
-| `billCosponsors` | One row per (bill, cosponsor): member id, re-cased name, party, state, district, `sponsorshipDate`, `isOriginal`, `withdrawnDate`. Indexes `by_billId` and `by_bioguideId_and_congress_and_sponsorshipDate` (a member's newest cosponsorships) |
+| `billCosponsors` | One row per (bill, cosponsor): member id, re-cased name, party, state, district, `sponsorshipDate`, `isOriginal`, `withdrawnDate`, and `sortKey` (page order: current before withdrawn, original first, then by date and name). Indexes `by_billId_and_sortKey` (a bill page reads exactly the ten it shows; "Show all" reads the rest in the same order) and `by_bioguideId_and_congress_and_sponsorshipDate` (a member's newest cosponsorships). `bills.cosponsorsFingerprint` is a short hash, not a copy of the list: every read of a bill row pays for it |
 | `memberAccounts` | One row per member (index `by_bioguideId`): name, chamber, state, `inOffice`, official website, and up to four suggested accounts, each with `confirmedAt` once the member's own site links it; plus the last site check. See "Members' official accounts" |
 
 Two design decisions worth knowing:

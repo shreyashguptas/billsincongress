@@ -303,7 +303,7 @@ Stated plainly, because they affect what you can trust:
 - **Bill alerts trail Congress.gov.** They go out once a day, after the overnight sync, and Congress.gov itself can post an action a day or more after it happens. An alert says what the record shows, not what happened on the floor an hour ago.
 - **The assistant cannot see cosponsors.** Bill pages and member pages list them; the question panel cannot answer "who cosponsored this" and says so.
 - **Cosponsor lists can trail Congress.gov.** They are refreshed whenever the nightly sync picks a bill up as changed, and every bill in the current Congress at the monthly re-pull.
-- **Alerts cover actions and status only** — not new cosponsors, amendments, text versions or hearings, which this site does not store.
+- **Alerts cover actions and status only** — not new cosponsors (which bill pages show), and not amendments, text versions or hearings, which this site does not store.
 - **Senators' social accounts are not shown yet.** senate.gov refuses automated visits from the networks we tried, so a senator's accounts cannot be confirmed against their own site; their box shows only their official website until that check works.
 - **A member's own site can link a dead account.** Two did on 1 November 2026 (YouTube addresses that no longer exist); those were corrected or hidden by hand. X, Facebook and Instagram turn away automated visits, so the site cannot tell whether an account the member links still exists.
 - **An account is confirmed from the member's home page only.** A member whose home page links an account only on a deeper page (their contact page, say) shows no account for that platform. It is hidden, never guessed.

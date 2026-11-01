@@ -292,8 +292,9 @@ export default defineSchema({
 
   // A bill's cosponsors as Congress.gov lists them (convex/cosponsors.ts),
   // replaced as a set by the sync (`replaceBillCosponsors`). Withdrawn
-  // cosponsors stay, with `withdrawnDate`. The second index is a member's
-  // cosponsorships in a Congress, newest first, for the member page.
+  // cosponsors stay, with `withdrawnDate`. The first index is a bill's
+  // cosponsors in page order; the second is a member's cosponsorships in a
+  // Congress, newest first, for the member page.
   billCosponsors: defineTable({
     billId: v.string(),
     congress: v.number(),
@@ -306,8 +307,11 @@ export default defineSchema({
     sponsorshipDate: v.string(),
     isOriginal: v.boolean(),
     withdrawnDate: v.optional(v.string()),
+    // `cosponsorSortKey`: page order, so a bill page reads exactly its first
+    // ten rows from the index, and they are the same ten "Show all" begins with.
+    sortKey: v.string(),
   })
-    .index("by_billId", ["billId"])
+    .index("by_billId_and_sortKey", ["billId", "sortKey"])
     .index("by_bioguideId_and_congress_and_sponsorshipDate", ["bioguideId", "congress", "sponsorshipDate"]),
 
   // Detailed legislative subjects (one-to-many: bill -> subjects). Distinct

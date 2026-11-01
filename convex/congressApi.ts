@@ -60,6 +60,10 @@ function requireApiKey(): string {
   return apiKey;
 }
 const BATCH_SIZE = 50; // 50 bills per batch keeps well within Convex's 10-min action timeout
+// A batch that runs this long stops and schedules the rest: six calls per bill
+// (with cosponsors) and one 429 backoff could otherwise reach the 10-minute
+// kill, and a killed batch never schedules the next one.
+const SYNC_BATCH_MAX_RUN_MS = 8 * 60 * 1000;
 const DELAY_BETWEEN_REQUESTS_MS = 750; // delay between each API call (not per bill)
 const MAX_RETRIES = 3; // max retries per API call on rate limit
 const RATE_LIMIT_BACKOFF_MS = 10000; // initial backoff on 429 (10s), doubles each retry
@@ -472,7 +476,8 @@ async function syncSingleBill(
       await ctx.runMutation(internal.mutations.replaceBillCosponsors, { billId, cosponsors });
     }
   } catch {
-    // Non-critical: the backfill picks up a bill whose cosponsors never landed.
+    // Non-critical: the bill keeps its previous cosponsors (or, never fetched,
+    // shows none) until its next sync.
   }
 
   await ctx.runMutation(internal.mutations.updateBillSyncStatus, {
@@ -606,13 +611,20 @@ export const syncBillBatch = internalAction({
     }
 
     console.log(`Processing ${bills.length} bills...`);
+    const startedAt = Date.now();
     let successCount = 0;
     let failCount = 0;
     let consecutiveFailures = 0;
     let rateLimitAborted = false;
+    let timeBudgetHit = false;
 
     for (const bill of bills) {
       const billId = `${bill.number}${args.billType}${args.congress}`;
+
+      if (Date.now() - startedAt > SYNC_BATCH_MAX_RUN_MS) {
+        timeBudgetHit = true;
+        break;
+      }
 
       if (consecutiveFailures >= CONSECUTIVE_FAIL_LIMIT) {
         console.error(
@@ -659,6 +671,20 @@ export const syncBillBatch = internalAction({
     console.log(
       `Batch complete: ${successCount} success, ${failCount} failed out of ${bills.length}${rateLimitAborted ? " (aborted by circuit breaker)" : ""}`
     );
+
+    // Out of time: carry on from the first bill not attempted, straight away.
+    if (timeBudgetHit) {
+      const resumeOffset = args.offset + successCount + failCount;
+      console.warn(`Time budget reached for ${args.billType} at offset ${args.offset}; resuming at ${resumeOffset}`);
+      await ctx.scheduler.runAfter(5000, internal.congressApi.syncBillBatch, {
+        congress: args.congress,
+        billType: args.billType,
+        offset: resumeOffset,
+        snapshotId: args.snapshotId,
+        fromDateTime: args.fromDateTime,
+      });
+      return { processed: successCount + failCount, hasMore: true, successCount, failCount };
+    }
 
     // On a circuit-breaker/rate-floor stop, reschedule the SAME offset after a
     // long backoff instead of returning early (that stranded bills at higher

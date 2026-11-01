@@ -20,7 +20,7 @@ import {
 } from "./billStage";
 import { chamberOf } from "./chamber";
 import { EXTRA_COSPONSORS, EXTRA_SPONSOR_IDENTITY } from "./syncStatus";
-import { cosponsorsFingerprint } from "./cosponsors";
+import { cosponsorSortKey, cosponsorsFingerprint } from "./cosponsors";
 import { buildSponsorRows } from "./catalog/sponsorName";
 import type { SponsorBill } from "./catalog/sponsorName";
 import { queueForIndexNow } from "./indexNow";
@@ -341,11 +341,16 @@ export const replaceBillCosponsors = internalMutation({
     }
     const existing = await ctx.db
       .query("billCosponsors")
-      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .withIndex("by_billId_and_sortKey", (q) => q.eq("billId", args.billId))
       .take(MAX_COSPONSORS);
     for (const row of existing) await ctx.db.delete(row._id);
     for (const row of args.cosponsors.slice(0, MAX_COSPONSORS)) {
-      await ctx.db.insert("billCosponsors", { billId: args.billId, congress: bill.congress, ...row });
+      await ctx.db.insert("billCosponsors", {
+        billId: args.billId,
+        congress: bill.congress,
+        ...row,
+        sortKey: cosponsorSortKey(row),
+      });
     }
     await ctx.db.patch(bill._id, { extraSyncedBits: bits, cosponsorCount, cosponsorsFingerprint: fingerprint });
     return null;

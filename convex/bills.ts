@@ -29,7 +29,6 @@ import {
 } from "./catalog/sponsorName";
 import type { SponsorRequest } from "./catalog/sponsorName";
 import { officialAccounts, type OfficialAccounts } from "./memberAccounts";
-import { sortCosponsors } from "./cosponsors";
 import { EXTRA_COSPONSORS } from "./syncStatus";
 
 // Generous safety caps; real bills have only a handful of each.
@@ -279,6 +278,7 @@ async function billJourneyAndPeers(ctx: QueryCtx, bill: Doc<"bills">) {
 
 /** Cosponsors a bill page draws with the page; the rest load when a reader asks. */
 const COSPONSORS_ON_PAGE = 10;
+
 /** Far above any bill's cosponsors (a whole House plus a Senate is 535). */
 const MAX_COSPONSORS = 1000;
 
@@ -309,14 +309,16 @@ async function billCosponsors(
 ): Promise<{ fetched: boolean; total: number; shown: BillCosponsor[] }> {
   const fetched = ((bill.extraSyncedBits ?? 0) & EXTRA_COSPONSORS) !== 0;
   if (!fetched || !bill.cosponsorCount) return { fetched, total: 0, shown: [] };
-  const rows = sortCosponsors(
-    (
-      await ctx.db
-        .query("billCosponsors")
-        .withIndex("by_billId", (q) => q.eq("billId", bill.billId))
-        .take(MAX_COSPONSORS)
-    ).filter((r) => !r.withdrawnDate),
-  );
+  // The index is in page order with withdrawn members last, so a bill page
+  // reads exactly the rows it shows (crawlers read every bill page), and
+  // "Show all" reads the whole set in the same order.
+  const read = Math.min(limit, MAX_COSPONSORS);
+  const rows = (
+    await ctx.db
+      .query("billCosponsors")
+      .withIndex("by_billId_and_sortKey", (q) => q.eq("billId", bill.billId))
+      .take(read)
+  ).filter((r) => !r.withdrawnDate);
   const shown = await Promise.all(
     rows.slice(0, limit).map(async (r) => ({
       bioguideId: r.bioguideId,
@@ -329,7 +331,10 @@ async function billCosponsors(
       accounts: await officialAccounts(ctx, r.bioguideId),
     })),
   );
-  return { fetched, total: rows.length, shown };
+  // The total is the stored count of current cosponsors, written with the
+  // rows in one mutation (replaceBillCosponsors), so it is the whole set even
+  // when the page read only the first rows.
+  return { fetched, total: bill.cosponsorCount, shown };
 }
 
 /**
