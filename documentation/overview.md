@@ -1415,6 +1415,18 @@ the result carries the split as `exact_subsets` (counted by the server, only fro
 and the gotcha says each has a title and an introduction. `scripts/truth/handlers.test.ts` checks
 all three against the data.
 
+**States.** Every `stats` row also carries `sponsorStateCounts`: measures introduced by members
+from each state (D.C. and the territories included), largest first and each with its `rank` (tied
+counts share one), read from the same chamber
+breakdowns the home page's state map uses (both chambers summed on the whole-Congress row, one on a
+chamber row). It counts every measure, resolutions included. A whole-Congress `groupBy:
+"sponsorState"` cannot finish (18,000 measures against a 5,000-row window), and its note now points
+here. Before this, asked which states' members sponsor the most bills (2026-10-28), the model
+counted eight states one fetch at a time, said it could not rank the rest, and listed Illinois
+below Pennsylvania "in order". The rank is the server's because, handed the list alone and asked
+for the tenth state, the model named the ninth in 2 of 3 runs. A truth case checks every state's
+count and rank against the raw bills.
+
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has
 the Senate passed" is the canonical case, and it silently changes the answer by a factor of two.
@@ -1620,6 +1632,15 @@ itself, `scripts/check-grounding.ts` exports `DEFAULT_MODEL`, `DEFAULT_PROVIDERS
 6-digit code emailed through PostHog Workflows (see "Email" below) that expires in 15 minutes. Passwords must be ≥10 characters
 with upper case, lower case and a digit, enforced server-side; they are stored only as a
 scrypt hash by the library.
+
+**An emailed code signs in only the account it was sent to.** The library looks a code up by
+its value alone, across every account, and signs in as its owner; it never compares that owner
+with the email typed beside the code unless the provider has an `authorize` check. Both of our
+code providers (`codeProvider` in `convex/emailCodes.ts`) have one, comparing the typed email
+with the account's, trimmed and lower-cased. Without it, a reader could redeem someone else's
+pending sign-up code under their own email and land in that account (found 27 Oct 2026; the
+password-reset flow had its own check in the library, sign-up verification did not).
+`convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
 
 Sessions last **60 days** (both total and inactive), and the cookie `maxAge` in
 `middleware.ts` must stay ≥ that value.

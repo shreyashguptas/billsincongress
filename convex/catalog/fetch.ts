@@ -539,6 +539,9 @@ function exactGroupSource(f: Row, groupBy: string): string {
     progressStage: "For exact counts per stage, fetch `stats` with only the congress and read stageCounts.",
     sponsorParty: "For exact counts per sponsor party, fetch `stats` with only the congress and read partyCounts.",
     billType: "For exact counts per measure type, fetch `stats` with only the congress and read measuresByType.",
+    sponsorState:
+      "For exact counts per sponsor state, fetch `stats` with only the congress and read " +
+      "sponsorStateCounts (every measure, resolutions included; ranked, largest first).",
   };
   return source[groupBy]
     ? `No count per group is given, because these groups came from a partial read. ${source[groupBy]}`
@@ -1455,7 +1458,32 @@ const PARTY_KEY =
   "bills filter sponsorParty 'none'.";
 
 /**
- * The party split for both chambers together — the numbers the home page seats.
+ * Measures per sponsor state, largest first, from the precomputed chamber rows
+ * (every measure type, as stateCounts is written in mutations.ts).
+ *
+ * Asked which states' members sponsor the most bills (2026-10-28), the model
+ * could only count states one fetch at a time: a whole-Congress groupBy
+ * sponsorState reads 18,000 measures and cannot finish. It counted eight, said it
+ * could not rank the rest, and listed Illinois below Pennsylvania "in order".
+ *
+ * Each entry carries its rank (tied counts share one, as 1, 2, 2, 4): handed
+ * the list alone, asked for the tenth state, the model named the ninth in 2 of
+ * 3 runs (2026-11-01). It reads a field reliably and counts positions badly.
+ */
+function sponsorStateCounts(rows: Array<{ stateCounts: Array<{ state: string; count: number }> }>) {
+  const sum = new Map<string, number>();
+  for (const row of rows) for (const s of row.stateCounts) sum.set(s.state, (sum.get(s.state) ?? 0) + s.count);
+  const sorted = [...sum].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return sorted.map(([state, count]) => ({
+    rank: sorted.findIndex(([, n]) => n === count) + 1,
+    state,
+    count,
+  }));
+}
+
+/**
+ * The party split and the state ranking for both chambers together — the numbers
+ * the home page seats and maps.
  *
  * The page adds the two chamber rows; this does the same. Without it the only
  * party figures were per chamber, and a reader asking about the home page's
@@ -1473,6 +1501,8 @@ async function wholeCongressPartySplit(ctx: QueryCtx, congress: number): Promise
     return {
       partyCounts_unavailable:
         "We hold no party breakdown for both chambers of this Congress, so no party split can be given.",
+      sponsorStateCounts_unavailable:
+        "We hold no per-state breakdown for both chambers of this Congress, so no state split can be given.",
     };
   }
   const add = (key: "partyCounts" | "partyLawCounts") => {
@@ -1486,6 +1516,7 @@ async function wholeCongressPartySplit(ctx: QueryCtx, congress: number): Promise
     partyCounts: add("partyCounts"),
     partyLawCounts: add("partyLawCounts"),
     partyKey: PARTY_KEY,
+    sponsorStateCounts: sponsorStateCounts(chambers),
   };
 }
 
@@ -1576,6 +1607,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     partyCounts: breakdown.partyCounts,
     partyLawCounts: breakdown.partyLawCounts,
     partyKey: PARTY_KEY,
+    sponsorStateCounts: sponsorStateCounts([breakdown]),
     ...freshness,
   };
   if (breakdown.stageCounts) {
