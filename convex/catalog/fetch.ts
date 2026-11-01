@@ -31,7 +31,7 @@ import { validateFilters } from "./filters";
 import { mintHandle } from "./cite";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "../searchQuery";
 import type { DatasetName } from "./types";
-import { NO_PARTY, chooseBillsIndex, countInMemoryFilters } from "./billsIndex";
+import { NO_PARTY, chooseBillsIndex, countInMemoryFilters, sortBlockedBy } from "./billsIndex";
 import {
   completeReport,
   reportFor,
@@ -408,16 +408,7 @@ function chooseOrderingIndex(
   f: Row,
 ): { indexName: "by_congress_and_latest_action" | "by_congress_stage_and_action" | "by_congress_and_introduced"; direction: "asc" | "desc"; order: RowOrder } | null {
   const sort = typeof f.sort === "string" ? SORT_FIELD[f.sort] : undefined;
-  if (!sort) return null;
-  // An exact id needs no ordering, and its own branch is far more selective.
-  if (typeof f.billId === "string") return null;
-  // The search index cannot be combined with an ordering index.
-  if (typeof f.titleFilter === "string" && f.titleFilter !== "") return null;
-  // reachedStage spans several stage buckets, so no single ordered range covers it.
-  if (typeof f.reachedStage === "number") return null;
-  // A handful of rows, all old: the newest-first window would miss every one.
-  // The party index reads them completely and the sort is then done in memory.
-  if (f.sponsorParty === NO_PARTY) return null;
+  if (!sort || sortBlockedBy(f) !== null) return null;
 
   const byIntroduced = f.sort === "newest_introduced" || f.sort === "oldest_introduced";
   if (byIntroduced) {
@@ -963,6 +954,29 @@ async function fetchBills(
     order = requestedSort.order;
   }
 
+  // Row 1 of a date sort is A newest, not THE newest, when others share its
+  // date: 62 measures of the 119th were last acted on 2026-10-22, and the answer
+  // named one of them "the measure with the most recent action" (2026-10-27).
+  // Rows sharing row 1's date sit together at the head of the order, so the count
+  // is exact unless an ordered window filled with nothing past that date.
+  let tiedWithFirst: Subset | undefined;
+  if (requestedSort && order !== "arbitrary" && ordered.length > 1) {
+    const top = requestedSort.key(ordered[0]);
+    const tied = ordered.filter((b) => requestedSort.key(b) === top);
+    const lastRead = candidates[candidates.length - 1];
+    const sawPastTop = !windowFilled || (lastRead !== undefined && requestedSort.key(lastRead) !== top);
+    if (tied.length > 1 && sawPastTop) {
+      const byAction = f.sort === "newest_action" || f.sort === "oldest_action";
+      tiedWithFirst = {
+        label: `${byAction ? "last acted on" : "introduced on"} ${top}`,
+        count: tied.length,
+        ...(tied.length <= TIE_NAMES_LIMIT
+          ? { members: tied.map((b) => `${b.billTypeLabel} ${b.billNumber}`) }
+          : {}),
+      };
+    }
+  }
+
   if (groupBy) {
     const buckets = new Map<string, number>();
     for (const b of matched) {
@@ -1113,6 +1127,12 @@ async function fetchBills(
       // reportFor drops this unless the read was complete. The reserved numbers
       // are all one kind, so the two partitions never compete.
       subsets: reserved.length > 0 ? reserved : measureSubsets(matched),
+      tiedWithFirst,
+      // A count has no rows to put in order, so only a listing is told.
+      sortNotApplied:
+        requestedSort && !countOnly
+          ? (sortBlockedBy(f) ?? "this set is too big to read whole with these filters")
+          : undefined,
     }),
   };
 }

@@ -270,6 +270,35 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
 
+  {
+    id: "most-recent-action",
+    question:
+      `Which measure in the ${CURRENT_CONGRESS}th Congress has had the most recent action?` +
+      ONE_BILL,
+    defect:
+      "The grounding gate, 4 runs in 6 on 2026-10-27: 'Among them, the latest was the " +
+      "Open-Source AI Leadership Act (H.R. 10152)', a row from an unsorted sample, acted on " +
+      "2026-08-27 while dozens of measures had later actions. A whole-Congress read is too " +
+      "big to count, so only an index-backed sort can answer this.",
+    expect: (db) => {
+      const measures = billsIn(db, CURRENT_CONGRESS);
+      let latestDate = "";
+      for (const b of measures) {
+        if ((b.latestActionDate ?? "") > latestDate) latestDate = b.latestActionDate ?? "";
+      }
+      const tied = measures.filter((b) => (b.latestActionDate ?? "") === latestDate);
+      return {
+        kind: "billId",
+        value: tied[0].billId,
+        billIds: tied.map((b) => b.billId),
+        note:
+          `Max latestActionDate over all ${measures.length} measures of the ` +
+          `${CURRENT_CONGRESS}th: ${latestDate}, shared by ${tied.length}; any of them is ` +
+          `right. A measure from an earlier date is the defect.`,
+      };
+    },
+  },
+
   // --- Set-level counts read off the wrong set ------------------------------
   {
     id: "house-laws",
