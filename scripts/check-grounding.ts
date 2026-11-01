@@ -40,6 +40,7 @@ import {
 } from "../convex/catalog/completeness";
 import type { DatasetName } from "../convex/catalog/types";
 import { validTemplate } from "../convex/catalog/promptTemplate";
+import { sortBlockedBy } from "../convex/catalog/billsIndex";
 import { readFileSync } from "node:fs";
 import {
   callClaude,
@@ -100,8 +101,17 @@ const FINAL_ROUND_INSTRUCTION =
   "part of what was asked, give that part and say plainly, in the same sentence, which part you " +
   "could not get. Do not ask the reader to rephrase.";
 
-/** Mirrors convex/answer.ts, which dates "recent" and "this week" from today. */
-const TODAY = new Date().toISOString().slice(0, 10);
+/**
+ * The day the fixtures below were read from production, used as "today" the way
+ * convex/answer.ts dates "recent" and "this week" from today.
+ *
+ * Pinned, not the clock: the fixtures are a snapshot, and with the real date the
+ * snapshot ages. On 2026-11-01 the sorted read still said the newest action was
+ * October 22, so "has anything moved in the past week?" had a true answer of
+ * "no" in the gate while production held actions up to October 29. Update it
+ * when the fixtures are re-read.
+ */
+const TODAY = "2026-10-27";
 /** The fixtures below describe the 119th, so the catalog is filled for it too. */
 const FIXTURE_CONGRESS = 119;
 const DESCRIBE_VARS = { congress: FIXTURE_CONGRESS, today: TODAY };
@@ -199,9 +209,10 @@ const HEALTH_LAW: BillFixture = {
 /**
  * A page of five real 119th-Congress measures in DATABASE order, which is what
  * `order: "arbitrary"` means. Deliberately arranged the way the audit found the
- * rows: the first row is not the newest, and the newest (H.R. 10152, acted on
- * 2026-08-27) sits in the middle, where the model once read a "most recent" off
- * the top of the page while a later row carried a later date.
+ * rows: the first row is not the newest, and the newest of them (H.R. 10152,
+ * acted on 2026-08-27) sits in the middle, where the model once read a "most
+ * recent" off the top of the page while a later row carried a later date. None
+ * of them is the newest measure in the Congress: see NEWEST_PAGE.
  */
 const ARBITRARY_PAGE: BillFixture[] = [
   {
@@ -271,7 +282,36 @@ const ARBITRARY_PAGE: BillFixture[] = [
   },
 ];
 
-const KNOWN_BILLS: BillFixture[] = [HR1, HEALTH_LAW, ...ARBITRARY_PAGE];
+/**
+ * The first five rows of `{congress: 119, sort: "newest_action"}`, exactly as
+ * production's ordering index returned them on 2026-10-27, and how many measures
+ * share row 1's date. That read is never complete (18,476 measures) but its ORDER
+ * is real, so row 1 is genuinely a newest measure; it is not THE newest, because
+ * 61 others were last acted on the same day.
+ */
+const NEWEST_DATE = "2026-10-22";
+const NEWEST_TIED = 62;
+const NEWEST_PAGE: BillFixture[] = [
+  ["10894hr119", "H.R. 10894", "Disaster Data Protection Act", "Brittany Pettersen", "D", "CO", ""],
+  ["1635hres119", "H.Res. 1635", 'Supporting the designation of October 23, 2026, as "National Marine Sanctuary Day".', "Jack Bergman", "R", "MI", ""],
+  ["1637hres119", "H.Res. 1637", "Recognizing the significance of equal pay and the pay disparity between disabled women and nondisabled men.", "Lateefah Simon", "D", "CA", ""],
+  ["1634hres119", "H.Res. 1634", "Expressing support for the recognition of October 26, 2026, as Intersex Awareness Day, and supporting the goals and ideals of Intersex Awareness Day.", "Becca Balint", "D", "VT", "Civil Rights and Liberties, Minority Issues"],
+  ["1636hres119", "H.Res. 1636", "Constituent Casework Continuity Resolution", "Everton Blair", "D", "GA", "Congress"],
+].map(([billId, label, title, sponsor, sponsorParty, sponsorState, policyArea]) => ({
+  billId,
+  label,
+  title,
+  congress: 119,
+  introducedDate: NEWEST_DATE,
+  sponsor,
+  sponsorParty,
+  sponsorState,
+  progressStage: 40,
+  policyArea,
+  latestActionDate: NEWEST_DATE,
+}));
+
+const KNOWN_BILLS: BillFixture[] = [HR1, HEALTH_LAW, ...ARBITRARY_PAGE, ...NEWEST_PAGE];
 
 /** Exact measure counts per policy area, 119th Congress. */
 const TOPIC_COUNTS: Array<[string, number]> = [
@@ -448,7 +488,7 @@ function complete(set: string, total: number, rows: Row[], order: CompletenessRe
 }
 
 /** The window filled: no total, no ranking, and an empty result is not "none". */
-function partial(set: string, rows: Row[], filteredInMemory: boolean): Served {
+function partial(set: string, rows: Row[], filteredInMemory: boolean, sortNotApplied?: string): Served {
   return {
     rows,
     report: reportFor({
@@ -458,6 +498,7 @@ function partial(set: string, rows: Row[], filteredInMemory: boolean): Served {
       matchedCount: rows.length,
       shown: rows.length,
       order: "arbitrary",
+      sortNotApplied,
     }),
   };
 }
@@ -529,8 +570,59 @@ function completeBills(
 /**
  * `bills`, filter-aware. The rules are ordered the way chooseBillsIndex orders
  * its branches, and each reproduces a state the real handler reaches.
+ *
+ * A sort an ordering index can serve (sortBlockedBy in billsIndex.ts, the same
+ * function fetch.ts asks) never comes back as unsorted rows: production reads it
+ * in order, whatever the size of the set. Until 2026-10-27 this fixture refused
+ * every whole-Congress sort, a state production stopped reaching in August, and
+ * the gate failed a question production answered correctly. Where the fixture
+ * does not hold the true first rows of such a read it returns none, unread,
+ * rather than rows in an order production would never hand back.
  */
 function serveBills(f: Filters, limit: number): Served {
+  const served = serveBillsUnordered(f, limit);
+  const indexSort =
+    limit !== 0 && typeof f.sort === "string" && SORT_FIELD[f.sort] && sortBlockedBy(f) === null;
+  if (indexSort && !served.report.complete && served.report.order === "arbitrary" && served.rows.length > 0) {
+    return partial(describeBillSet(f), [], true);
+  }
+  return served;
+}
+
+/**
+ * `{congress, sort: "newest_action"}`, optionally with action dates: the read
+ * production serves from by_congress_and_latest_action, in order, never complete,
+ * with the tie at row 1 counted (fetch.ts). Anything else sorted over the whole
+ * Congress needs rows this fixture does not hold.
+ */
+function newestPage(f: Filters, set: string, page: (rows: Row[]) => Row[]): Served {
+  const introduced = typeof f.introducedAfter === "string" || typeof f.introducedBefore === "string";
+  if (f.sort !== "newest_action" || introduced) return partial(set, [], true);
+  const bills = NEWEST_PAGE.filter(
+    (b) =>
+      (typeof f.actionAfter !== "string" || b.latestActionDate >= f.actionAfter) &&
+      (typeof f.actionBefore !== "string" || b.latestActionDate <= f.actionBefore),
+  );
+  if (bills.length === 0) return partial(set, [], true);
+  const rows = page(bills.map(billRow));
+  return {
+    rows,
+    report: reportFor({
+      set,
+      windowFilled: true,
+      filteredInMemory: hasDateFilter(f),
+      matchedCount: rows.length,
+      shown: rows.length,
+      order: "newest_action_first",
+      orderFromIndex: true,
+      // Every measure sharing row 1's date is on or after any actionAfter that
+      // kept row 1, so the action filters leave the tie as it is.
+      tiedWithFirst: { label: `last acted on ${NEWEST_DATE}`, count: NEWEST_TIED },
+    }),
+  };
+}
+
+function serveBillsUnordered(f: Filters, limit: number): Served {
   const countOnly = limit === 0;
   const ceiling = countOnly ? COUNT_SCAN_LIMIT : SCAN_LIMIT;
   const page = (rows: Row[]) => (countOnly ? [] : rows.slice(0, Math.min(limit || 20, 50)));
@@ -555,6 +647,28 @@ function serveBills(f: Filters, limit: number): Served {
     return byId.length > 0
       ? completeBills(f, set, byId.length, byId, page)
       : partial(set, [], true);
+  }
+
+  const sorted = !countOnly && typeof f.sort === "string" && SORT_FIELD[f.sort] !== undefined;
+  const blocked = sorted ? (sortBlockedBy(f) ?? undefined) : undefined;
+  const wholeCongress = Object.keys(f).every(
+    (k) => k === "congress" || k === "sort" || DATE_FILTERS.includes(k),
+  );
+  if (sorted && blocked === undefined && wholeCongress) return newestPage(f, set, page);
+
+  // A title search. Convex caps a search at 1,024 results, and a word nearly
+  // every title has ("Act": 14,685 titles in the 119th) fills that window, so
+  // production returns a page in relevance order, incomplete, and a sort asked
+  // for is not applied (handlers.test.ts: "a sort with NO index behind it").
+  // Any other search is a size this fixture does not know: unread.
+  if (typeof f.titleFilter === "string") {
+    const words = f.titleFilter.toLowerCase().replace(/"/g, " ").split(/\s+/).filter(Boolean);
+    const onlyTitle = Object.keys(f).every((k) => ["congress", "sort", "titleFilter"].includes(k));
+    if (onlyTitle && words.includes("act")) {
+      const rows = ARBITRARY_PAGE.filter((b) => /\bact\b/i.test(b.title));
+      return partial(set, page(rows.map(billRow)), false, blocked);
+    }
+    return partial(set, [], true, blocked);
   }
 
   // No bills index enforces a DATE — every index is keyed on congress plus a
@@ -619,12 +733,10 @@ function serveBills(f: Filters, limit: number): Served {
     return completeBills(f, set, bucket.count, rows, page);
   }
 
-  // Congress-wide. 18,476 measures overflow both windows, so this read can never
-  // come back complete. Production serves a requested sort here from an ordering
-  // index (chooseOrderingIndex in fetch.ts); this fixture withholds it ON PURPOSE,
-  // as fetch.ts still must for a title search or reachedStage, so the gate keeps
-  // testing what the model does with `order: "arbitrary"` on a page whose first
-  // row is not the newest.
+  // Congress-wide and unsorted (a sort was served above). 18,476 measures
+  // overflow both windows, so this read can never come back complete, and its
+  // rows are in database order: `order: "arbitrary"` on a page whose first row
+  // is not the newest.
   return partial(set, page(ARBITRARY_PAGE.map(billRow)), false);
 }
 
@@ -852,10 +964,56 @@ interface Answer {
   allowed: Set<string>;
   /** The model asked the reader a question instead of answering. */
   askedReader: boolean;
+  /** Every number a lookup in this answer reported as exact (see exactNumbers). */
+  exact: Set<number>;
+  /** Row 1's date from a newest-first read an index ordered, when there was one. */
+  newestSeen?: string;
 }
 
-async function ask(question: string): Promise<Answer> {
+/**
+ * Row 1's date when it is the newest action in the WHOLE Congress: a
+ * newest-first read an index ordered, filtered by nothing that could leave the
+ * newest out. `actionAfter` cannot (row 1 passed it); every other filter can, and
+ * row 1 of "newest House Health bills" says nothing about the rest of the data
+ * (review on #229).
+ */
+export function newestOfAll(filters: Filters, served: Served): string | undefined {
+  const whole = Object.keys(filters).every((k) => ["congress", "sort", "actionAfter"].includes(k));
+  const top = served.rows[0]?.latestActionDate;
+  return whole && served.report.orderFromIndex && served.report.order === "newest_action_first" && typeof top === "string"
+    ? top
+    : undefined;
+}
+
+/**
+ * The numbers a result stands behind: a complete total, the counted parts and
+ * tie beside it, and the count fields of a complete result's rows (a topic's
+ * count, a stats row's stage ladder and party split). Party splits are keyed by
+ * a one-letter code, so a short key takes its parent's name.
+ */
+function exactNumbers(served: Served, into: Set<number>): void {
+  const r = served.report;
+  if (r.complete && typeof r.total === "number") into.add(r.total);
+  if (r.tiedWithFirst) into.add(r.tiedWithFirst.count);
+  for (const part of r.subsets ?? []) into.add(part.count);
+  if (!r.complete) return;
+  const counted = /count|total|measures/i;
+  const walk = (value: unknown, key: string, parent: string): void => {
+    if (typeof value === "number") {
+      if (counted.test(key) || (key.length <= 2 && counted.test(parent))) into.add(value);
+    } else if (Array.isArray(value)) {
+      for (const item of value) walk(item, key, parent);
+    } else if (value !== null && typeof value === "object") {
+      for (const [k, v] of Object.entries(value)) walk(v, k, key);
+    }
+  };
+  walk(served.rows, "", "");
+}
+
+export async function ask(question: string): Promise<Answer> {
   const allowed = new Set<string>();
+  const exact = new Set<number>();
+  let newestSeen: string | undefined;
   const work: string[] = [];
   const messages: ChatMessage[] = [
     // `today` is passed the way answer.ts passes it: without it the model dates
@@ -873,6 +1031,7 @@ async function ask(question: string): Promise<Answer> {
   const topics = serveFetch("topics", { congress: 119 }, 20);
   if (!("ok" in topics)) {
     for (const r of topics.rows) allowed.add(r._cite as string);
+    exactNumbers(topics, exact);
     work.push(`fetch topics · ${workLogLabel(topics.report)}`);
     messages.push({
       role: "assistant",
@@ -901,7 +1060,7 @@ async function ask(question: string): Promise<Answer> {
     if (calls.length === 0) {
       const text = message?.content ?? "";
       if (text.trim().length === 0) break;
-      return { ...resolveAnswer(text, allowed), work, allowed, askedReader: false };
+      return { ...resolveAnswer(text, allowed), work, allowed, askedReader: false, exact, newestSeen };
     }
     // Exactly as convex/answer.ts: content and tool calls, plus Claude's own
     // blocks when Claude wrote it (gpt-oss's reasoning is not handed back).
@@ -930,7 +1089,7 @@ async function ask(question: string): Promise<Answer> {
       if (asked.trim().length > 0) {
         work.push(`ask · ${why || "needs one detail before answering"}`);
         const prose = why.trim().length > 0 ? `${why.trim()}\n\n${asked.trim()}` : asked.trim();
-        return { ...resolveAnswer(prose, allowed), work, allowed, askedReader: true };
+        return { ...resolveAnswer(prose, allowed), work, allowed, askedReader: true, exact, newestSeen };
       }
       messages.push({
         role: "tool",
@@ -976,8 +1135,12 @@ async function ask(question: string): Promise<Answer> {
               work.push(`fetch ${name} · refused`);
             } else {
               for (const r of served.rows) allowed.add(r._cite as string);
+              exactNumbers(served, exact);
+              const top = newestOfAll(validated.filters, served);
+              if (top && (!newestSeen || top > newestSeen)) newestSeen = top;
               result = payloadFor(served.rows, served.report);
-              work.push(`fetch ${name} · ${workLogLabel(served.report)}`);
+              // The filters as served, so a failing run shows what was asked for.
+              work.push(`fetch ${name} ${JSON.stringify(validated.filters)} limit ${limit} · ${workLogLabel(served.report)}, ${served.report.order}`);
             }
           }
         }
@@ -994,7 +1157,7 @@ async function ask(question: string): Promise<Answer> {
       messages.push({ role: "tool", tool_call_id: call.id, content: result });
     }
   }
-  return { text: "(gave up)", sources: [], dropped: 0, work, allowed, askedReader: false };
+  return { text: "(gave up)", sources: [], dropped: 0, work, allowed, askedReader: false, exact, newestSeen };
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,7 +1227,9 @@ const ABSENCE_PATTERNS: RegExp[] = [
   /\bnot a single (?:measure|bill|law|resolution)\b/i,
   /\bnothing (?:has|had|have) (?:moved|happened|advanced|changed|been)\b/i,
   /\bno (?:measures|bills|laws|resolutions|activity|action) (?:at all|whatsoever)\b/i,
-  /\bwe (?:found|have) (?:no|none|zero)\b/i,
+  // Not "we have no total" or "no way to count": a missing NUMBER is the honest
+  // answer (Claude Sonnet 5.5, 2026-11-01: "We have no total for the week.").
+  /\bwe (?:found|have) (?:no|none|zero)\b(?!\s+(?:total|count|number|figure|tally|way|full|complete|exact)\b)/i,
   // "There hasn't been any activity this week." The contracted negative is not a
   // softer claim than "there was no activity", and the pattern above misses it
   // because its verb list has no contractions.
@@ -1094,7 +1259,7 @@ const PRONOUN_ABSENCE = /\bnone of (?:them|these|those)\b/i;
  * is for.
  */
 const LOOKUP_SCOPED =
-  /\bnone of (?:them|these|those) (?:could|can|was able to|were able to|managed to) (?:check|read|cover|search|scan|reach|sort|count|list|return|retrieve|fetch|get|see|tell|confirm|guarantee)\b/i;
+  /\bnone of (?:them|these|those) (?:(?:could|can|was able to|were able to|managed to) (?:check|read|cover|search|scan|reach|sort|count|list|return|retrieve|fetch|get|see|tell|confirm|guarantee)|finished|completed|came back complete)\b/i;
 const SAMPLE_SCOPED =
   /\b(?:sample|the rows I|the ones I|among the (?:measures|bills|rows|results) I|what I (?:did see|could see|retrieved))\b/i;
 
@@ -1109,26 +1274,102 @@ const SAMPLE_SCOPED =
 const DISCLAIMED =
   /\b(?:does|do|did|would)(?: not|n't) mean\b|\b(?:is|are)(?: not|n't) evidence\b|\bnot proof\b|\bcan(?:not|'t) conclude\b/i;
 
-export function claimsAbsence(text: string): string | null {
+/**
+ * "None has a newer action" restates a superlative: nothing is newer than the
+ * date just named. An index-ordered read licenses it, and whether the named
+ * newest is right is namesOneAsNewest's question, not this one's. Claude Sonnet
+ * 5.5, 2026-11-01: "Sixty-two measures are tied for that latest date, and none
+ * has a newer action."
+ */
+const NOTHING_NEWER = /\b(?:none|nothing|no (?:measure|bill)s?)\b[^.]*\b(?:newer|more recent|later)\b/i;
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * "Nothing is dated after October 22" is licensed when October 22 is row 1 of a
+ * newest-first read an index ordered: nothing newer exists. Claude Sonnet 5.5,
+ * 2026-11-01, after answering yes: "Nothing in our data is dated after October
+ * 22, so nothing has moved in the last five days." Only that date: "nothing has
+ * moved after August" with no such read behind it is still the defect.
+ */
+function nothingAfterNewest(sentence: string, newestSeen: string | undefined): boolean {
+  if (!newestSeen) return false;
+  const [, month, day] = newestSeen.split("-").map(Number);
+  const named = new RegExp(`\\b(?:after|since) ${MONTHS[month - 1]} ${day}\\b`, "i");
+  return named.test(sentence);
+}
+
+export function claimsAbsence(text: string, newestSeen?: string): string | null {
   for (const s of sentences(text)) {
-    if (DISCLAIMED.test(s)) continue;
+    if (DISCLAIMED.test(s) || NOTHING_NEWER.test(s) || nothingAfterNewest(s, newestSeen)) continue;
     if (ABSENCE_PATTERNS.some((re) => re.test(s))) return s;
     if (PRONOUN_ABSENCE.test(s) && !SAMPLE_SCOPED.test(s) && !LOOKUP_SCOPED.test(s)) return s;
   }
   return null;
 }
 
-const COUNT_PATTERN =
-  /\b(?:\d[\d,]*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:\w+[- ]){0,3}(?:measures|bills|laws|resolutions)\b/i;
+const UNITS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+const TEENS = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+/** A count in words up to ninety-nine: "Sixty-two measures" is 62, not "two measures". */
+const NUMBER_WORD = `(?:(?:${TENS.join("|")})(?:-(?:${UNITS.join("|")}))?|${TEENS.join("|")}|${UNITS.join("|")})`;
+
+const COUNT_PATTERN = new RegExp(
+  `\\b(?:\\d[\\d,]*|${NUMBER_WORD})\\s+(?:\\w+[- ]){0,3}(?:measures|bills|laws|resolutions)\\b`,
+  "i",
+);
+
+/**
+ * What makes a sentence a claim about "moved in the past week". "Days" only as a
+ * span of time: a bare "day" matched "National Marine Sanctuary Day", the title
+ * of a listed resolution, and failed "The other four are House simple
+ * resolutions, such as [2] on National Marine Sanctuary Day" (2026-10-27).
+ */
+export const MOVED_SUBJECT =
+  /\b(?:week|(?:past|last|\d+|few|several)\s+(?:\w+\s+)?days?|recent|since|august|moved|action)\b/i;
+
+const COUNTS = new RegExp(COUNT_PATTERN.source, "gi");
+/** "sixty-two" → 62, "twelve" → 12, anything else NaN. */
+function wordValue(word: string): number {
+  const [tens, unit] = word.split("-");
+  if (TENS.includes(tens)) return (TENS.indexOf(tens) + 2) * 10 + (unit ? UNITS.indexOf(unit) + 1 : 0);
+  if (TEENS.includes(word)) return TEENS.indexOf(word) + 10;
+  if (UNITS.includes(word)) return UNITS.indexOf(word) + 1;
+  return Number.NaN;
+}
+
+/**
+ * The number a COUNT_PATTERN match states: "1,231 bills" is 1231, "two measures"
+ * 2. The LAST number in the match, because the pattern's lead may be a date:
+ * "October 22, 2026, and 62 measures" matches from "2026", and the count is 62.
+ */
+function countValue(match: string): number {
+  const numbers = (match.toLowerCase().match(/\b(?:\d[\d,]*\d|\d|[a-z]+(?:-[a-z]+)?)\b/g) ?? [])
+    .map((token) => (/^\d/.test(token) ? Number(token.replace(/,/g, "")) : wordValue(token)))
+    .filter((n) => !Number.isNaN(n));
+  return numbers[numbers.length - 1];
+}
 
 /**
  * A count claim ABOUT THE ASKED SET. Scoped by `subject` because a complete total
  * quoted from another dataset ("the 119th Congress holds 18,476 measures") is a
  * legitimate sentence and must not fail a check about a different set.
+ *
+ * A number one of the answer's own lookups reported as exact (`exact`, from
+ * exactNumbers) is not a count it cannot have, wherever it sits: "104 measures
+ * had become law as of today, but I couldn't tell which moved this week" quotes
+ * a complete count beside an honest refusal, and failed this check (2026-10-27).
  */
-export function statesCount(text: string, subject: RegExp): string | null {
+export function statesCount(
+  text: string,
+  subject: RegExp,
+  exact: ReadonlySet<number> = new Set(),
+): string | null {
   for (const s of sentences(text)) {
-    if (subject.test(s) && COUNT_PATTERN.test(s)) return s;
+    if (!subject.test(s)) continue;
+    for (const m of s.matchAll(COUNTS)) {
+      if (!exact.has(countValue(m[0]))) return s;
+    }
   }
   return null;
 }
@@ -1194,6 +1435,35 @@ function negatedWhereRanked(claim: string): boolean {
     .split(CLAUSE_BREAK)
     .filter((clause) => RECENCY_PATTERN.test(clause))
     .every((clause) => NEGATION_PATTERN.test(clause));
+}
+
+/**
+ * Names a measure from the index-ordered read as the newest. That is the right
+ * answer to "which has the most recent action", and it needs the tie beside it.
+ */
+export function namesSortedNewest(text: string): boolean {
+  return NEWEST_PAGE.some((b) => [b.label, b.billId, b.title].some((r) => text.includes(r)));
+}
+
+/**
+ * Says row 1 shares its date: "62", "tied", "share", "the same day", "one of 62".
+ * Tie wording only: a bare "also", "others" or "one of" turns up in answers that
+ * name one bill as THE newest ("…H.R. 10894, which would also protect disaster
+ * data"), the defect this check exists for (review on #229).
+ */
+const TIE_WORDS = new RegExp(
+  [
+    `\\b${NEWEST_TIED}\\b`,
+    "\\btied?\\b",
+    "\\bshar(?:e|es|ed|ing)\\b",
+    "\\bsame (?:[\\w-]+ ){0,2}(?:day|date)\\b",
+    "\\bone of (?:the )?(?:\\d+|several|many|dozens)\\b",
+  ].join("|"),
+  "i",
+);
+
+export function acknowledgesTie(text: string): boolean {
+  return TIE_WORDS.test(text);
 }
 
 /** Names a specific row as the newest — the claim `order: "arbitrary"` forbids. */
@@ -1319,20 +1589,39 @@ async function main() {
   const moved = await ask("Has anything in the 119th Congress moved in the past week?");
   answers.push(["recent movement", moved]);
   report("incomplete-result question", moved);
-  const absence = claimsAbsence(moved.text);
+  const absence = claimsAbsence(moved.text, moved.newestSeen);
   check("does NOT claim the set is empty", absence === null, `claimed absence: ${absence}`);
-  const counted = statesCount(moved.text, /\b(?:week|days?|recent|since|august|moved|action)\b/i);
+  const counted = statesCount(moved.text, MOVED_SUBJECT, moved.exact);
   check("does NOT state a count it cannot have", counted === null, `stated a count: ${counted}`);
 
-  // order: "arbitrary". The rows are a page in database order, the newest sits in
-  // the middle of it, and the audit found the model naming a "most recent" bill
-  // while a later row in its own result carried a later date.
+  // A whole-Congress sort. Production reads it through an ordering index: never
+  // complete, but in true order, so row 1 IS a newest measure, and 61 others
+  // share its date. The right answer names one and says it is not alone.
   const newest = await ask(
     "Which measure in the 119th Congress has had the most recent action? Just name it.",
   );
   answers.push(["most recent", newest]);
-  report("arbitrary-order question", newest);
-  const named = namesOneAsNewest(newest.text);
+  report("sorted-read question", newest);
+  check(
+    "names a measure from the sorted read",
+    namesSortedNewest(newest.text),
+    newest.text.slice(0, 300),
+  );
+  check("says other measures share that date", acknowledgesTie(newest.text), newest.text.slice(0, 300));
+  const unsortedPick = namesOneAsNewest(newest.text);
+  check("does NOT name an unsorted row as the most recent", unsortedPick === null, `named: ${unsortedPick}`);
+
+  // order: "arbitrary" after a sort was asked for. A title search cannot be read
+  // in date order, so the rows come back in relevance order with
+  // `sort_not_applied`, and the audit found the model naming a "most recent"
+  // bill off such a page while a later row in its own result carried a later
+  // date. Production reaches this state; the whole-Congress sort above does not.
+  const unsorted = await ask(
+    'Which bill with "Act" in its title has had the most recent action? Just name it.',
+  );
+  answers.push(["most recent, title search", unsorted]);
+  report("arbitrary-order question", unsorted);
+  const named = namesOneAsNewest(unsorted.text);
   check("does NOT name a row as the most recent", named === null, `named one: ${named}`);
 
   // Our field names are not the reader's vocabulary. Checked on every answer.

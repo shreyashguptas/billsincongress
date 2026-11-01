@@ -285,24 +285,30 @@ export const QUESTIONS: TruthQuestion[] = [
   },
 
   {
-    id: "most-recent-action-tie",
+    id: "most-recent-action",
     question:
-      `How many measures in the ${CURRENT_CONGRESS}th Congress share the most recent ` +
-      `action date?` + ONE_NUMBER,
+      `Which measure in the ${CURRENT_CONGRESS}th Congress has had the most recent action?` +
+      ONE_BILL,
     defect:
-      "Asked which measure had the most recent action (2026-11-01), named H.R. 10940 as " +
-      "THE one. Its date was right, but 53 measures shared it: the sort said row 1 was " +
-      "the newest and nothing said it was tied.",
+      "The grounding gate, 4 runs in 6 on 2026-10-27: 'Among them, the latest was the " +
+      "Open-Source AI Leadership Act (H.R. 10152)', a row from an unsorted sample, acted on " +
+      "2026-08-27 while dozens of measures had later actions. A whole-Congress read is too " +
+      "big to count, so only an index-backed sort can answer this.",
     expect: (db) => {
-      const rows = billsIn(db, CURRENT_CONGRESS);
-      let latest = "";
-      for (const b of rows) if ((b.latestActionDate ?? "") > latest) latest = b.latestActionDate ?? "";
+      const measures = billsIn(db, CURRENT_CONGRESS);
+      let latestDate = "";
+      for (const b of measures) {
+        if ((b.latestActionDate ?? "") > latestDate) latestDate = b.latestActionDate ?? "";
+      }
+      const tied = measures.filter((b) => (b.latestActionDate ?? "") === latestDate);
       return {
-        kind: "number",
-        value: count(rows, (b) => b.latestActionDate === latest),
+        kind: "billId",
+        value: tied[0].billId,
+        billIds: tied.map((b) => b.billId),
         note:
-          `Rows in the ${CURRENT_CONGRESS}th whose latestActionDate equals the maximum ` +
-          `(${latest}). Must reject 1.`,
+          `Max latestActionDate over all ${measures.length} measures of the ` +
+          `${CURRENT_CONGRESS}th: ${latestDate}, shared by ${tied.length}; any of them is ` +
+          `right. A measure from an earlier date is the defect.`,
       };
     },
   },

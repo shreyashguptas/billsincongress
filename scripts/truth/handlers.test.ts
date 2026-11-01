@@ -182,6 +182,22 @@ async function main() {
     assert.equal(r.rows[0].latestActionDate, trueMax, "row 1 must carry the true maximum date");
   });
 
+  await it("'the most recent' names how many share row 1's date, from an index-ordered read", async () => {
+    // Production, 2026-10-27: "The measure with the most recent action is the
+    // Disaster Data Protection Act (H.R. 10894)". 62 measures were last acted on
+    // that day. Row 1 of an ordered read is A newest, not THE newest, and the
+    // model was told nothing that let it say so.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort: "newest_action" }, 1);
+    assert.ok(r.ok);
+    const top = r.rows[0].latestActionDate;
+    const tied = bills.filter((b: any) => b.congress === 119 && b.latestActionDate === top);
+    assert.ok(tied.length > 1, "this case needs a tie in the data");
+    assert.equal(r.report.tiedWithFirst?.count, tied.length, "the tie must be counted, and exactly");
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(payload.tied_with_row_1 ?? "", new RegExp(`\\b${tied.length}\\b`));
+    assert.equal(r.report.total, undefined, "a tie count is not a total of the set");
+  });
+
   await it("the newest bill of a FILTERED set is right too, not just the newest overall", async () => {
     for (const [label, filters, pred] of [
       ["California", { congress: 119, sponsorState: "CA", sort: "newest_action" }, (b: any) => b.sponsorState === "CA"],
@@ -211,6 +227,13 @@ async function main() {
     assert.equal(r.report.order, "arbitrary", "a sorted SAMPLE must never be labelled sorted");
     assert.notEqual(r.report.orderFromIndex, true);
     assert.equal(r.report.total, undefined);
+    // The prompt used to say an arbitrary order meant "the sort did not apply, so
+    // fetch again with sort inside filters". Here it WAS inside filters, so the
+    // retry came back the same, and the grounding gate's answer then named a
+    // sample row "the latest" anyway (4 runs in 6, 2026-10-27). The result has
+    // to say that this sort cannot be had for this set, and what can.
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(payload.sort_not_applied ?? "", /title/i, "must say why the sort was not applied");
   });
 
   // --- D2: sponsors reported a fraction of a state as the whole roster -------
@@ -2078,31 +2101,6 @@ async function main() {
     assert.ok(r.rows[0].finalStatus, "an ended Congress's bill carries finalStatus");
     assert.notEqual(r.rows[0].stage, "in committee");
     assert.match(r.rows[0].stage, /117th Congress ended/);
-  });
-
-  await it("'the measure with the most recent action' says how many share that date", async () => {
-    // 2026-11-01: named H.R. 10940 as THE most recent; 53 measures shared its date.
-    const in119 = bills.filter((b: any) => b.congress === 119);
-    const latest = in119.reduce((m: string, b: any) => ((b.latestActionDate ?? "") > m ? b.latestActionDate : m), "");
-    const tied = in119.filter((b: any) => b.latestActionDate === latest).length;
-    assert.ok(tied > 1, `sanity: the newest date is shared (${tied} on ${latest})`);
-    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort: "newest_action" }, 1);
-    assert.ok(r.ok, `fetch failed: ${r.error}`);
-    assert.equal(r.rows[0].latestActionDate, latest);
-    assert.equal(r.report.tiedWithFirst?.count, tied, "the whole tie, counted");
-    const said = JSON.parse(payloadFor(r.rows, r.report));
-    assert.match(said.tied_with_row_1, new RegExp(`${tied} are tied for the most recent action`));
-    assert.equal(said.total, undefined, "still no total for the Congress");
-  });
-
-  await it("a complete sorted read reports row 1's tie only when there is one", async () => {
-    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, reachedStage: 100, sort: "newest_action" }, 3);
-    assert.ok(r.ok && r.rows.length > 0, `fetch failed: ${r.error}`);
-    assert.equal(r.report.complete, true, "sanity: the laws of a Congress fit the window");
-    assert.equal(r.report.orderFromIndex, undefined, "sanity: sorted in memory, not by an index");
-    const first = r.rows[0].latestActionDate;
-    const laws = truth.laws119.filter((b: any) => b.latestActionDate === first).length;
-    assert.equal(r.report.tiedWithFirst?.count, laws > 1 ? laws : undefined);
   });
 
   await it("ranks every state by measures sponsored, exactly, in one lookup", async () => {

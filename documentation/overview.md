@@ -207,7 +207,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | URL | What it is |
 | --- | --- |
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
-| `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below) |
+| `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs: one per stage a bill can stop at except 20 and 95 (signed, not yet numbered as a law: a day or two), plus `/bills/introduced` (below). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`). **`/bills/introduced` and the picker's "Just introduced" (`status=20`) are not stage 20** since 2026-10-16: they are the bills introduced in the last 30 days, at any stage (`lib/bills/just-introduced.ts`); for a Congress that was not sitting in those 30 days, "Just introduced" keeps the stage-20 meaning, since a date window there is always empty. Bills are referred to committee the day they are introduced, so stage 20 held only 11 numbers in the whole 119th, all reserved for party leaders on 2025-01-03, and "Just introduced" plus any topic said "No bills found" |
@@ -328,10 +328,12 @@ Caching is an **allowlist, not a denylist**, on purpose: a missing public route 
 uncached, whereas a personalised route slipping through a denylist gap would put one
 visitor's page in a shared cache. Signed-out responses on `/`, `/about`, `/learn`,
 `/privacy`, `/pro`, `/terms` and anything under `/bills` get
-`public, max-age=0, s-maxage=300, stale-while-revalidate=86400` (`s-maxage=3600` on a bill
-page), which the Worker uses to keep them in the edge cache (see
-[Hosting](#hosting-and-cloudflare-constraints)); any request carrying an auth cookie gets
-`private, no-store`. The auth cookie names are `AUTH_COOKIE_NAMES` in `lib/edge-cache.ts`,
+`CDN-Cache-Control: public, max-age=300` (`max-age=3600` on a bill page), which the Worker
+uses to keep them in the edge cache (see [Hosting](#hosting-and-cloudflare-constraints)), and
+`Cache-Control: no-cache` for the browser, which must ask again on every load. A copy kept in
+the browser names the script files of the deploy that built it, so after a deploy it loads
+files that are gone; `stale-while-revalidate=86400` let browsers keep one for a day until
+October 2026. Any request carrying an auth cookie gets `private, no-store`. The auth cookie names are `AUTH_COOKIE_NAMES` in `lib/edge-cache.ts`,
 shared by the middleware and the Worker. **New public routes must be added to that file.**
 A route that writes its own `Cache-Control` is listed in `setsOwnCacheControl` in the same
 file, and the middleware leaves it alone — its header would otherwise replace the route's.
@@ -1313,7 +1315,8 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
 | `exact_subsets` | A partition of the whole set that the server counted. **Present only when `complete` is true.** A set made up entirely of reserved bill numbers ("Reserved for the Speaker.") is split by whom they were held for, with each part's members. Any other set that mixes kinds of measure is split by kind — bills, joint resolutions, simple resolutions, concurrent resolutions, and reserved numbers as placeholders — with counts only. Added 2026-10-05 after "How many Senate bills have passed the Senate?" was answered 706: the chamber filter counted every Senate measure, and 470 were Senate resolutions. The bills were 213 |
 | `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): it leads with the number ("There are exactly 13.") and says the empty row list is not "none", then how to fetch the rows to **name** one. The number was added after "Have any Texas bills become law?" was answered "No" from a count of 13. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
-| `tied_with_row_1` | On a complete, sorted `sponsors` result where more than one member shares row 1's count: how many share it, at what count, and their names (up to 20; a count alone past that), counted over the whole set rather than the page. **Present only when `complete` is true**, and left off a count-only (`limit: 0`) lookup, which has no row 1 and is already told to fetch again to name anyone. It says "tied for the fewest" or "tied for the most" to match the sort, and tells the model to name every one of them, never row 1 alone. Added 2026-10-19: Adam Gray and James Gallagher had 8 bills each, the fewest in California, and which of them came first on the page was chance. That day seven states and the country as a whole had a tie for the fewest. **Since 2026-11-01 also on sorted `bills` results** (most recent or oldest action, newest or earliest introduction): bills sharing row 1's date, listed by number up to 20. A complete read counts the tie over the whole set; an index-ordered read (`rows_are_the_true_first_rows`, no total) carries it only when the whole tie fell inside the window, which is true whenever the window did not fill or its last row has a different date. Asked for "the measure with the most recent action", the answer had named H.R. 10940 as THE one when 53 measures were acted on that day |
+| `tied_with_row_1` | On a complete, sorted `sponsors` result where more than one member shares row 1's count: how many share it, at what count, and their names (up to 20; a count alone past that), counted over the whole set rather than the page. **Present only when `complete` is true**, and left off a count-only (`limit: 0`) lookup, which has no row 1 and is already told to fetch again to name anyone. It says "tied for the fewest" or "tied for the most" to match the sort, and tells the model to name every one of them, never row 1 alone. Added 2026-10-19: Adam Gray and James Gallagher had 8 bills each, the fewest in California, and which of them came first on the page was chance. That day seven states and the country as a whole had a tie for the fewest. Since 2026-10-27 also on a date-sorted `bills` result ("newest action first" and the other three sorts): how many measures share row 1's date, on a complete read or one an ordering index put in order, and only when the read reached past that date, so the count is exact. Production had named H.R. 10894 "the measure with the most recent action" when 62 measures were last acted on that day |
+| `sort_not_applied` | On a `bills` listing that asked for a sort and came back `arbitrary`: why that sort cannot be had for those filters (a title search returns matches by relevance; "reached a stage" spans several stages), what to use instead, and that fetching again with the same filters will not help. Which sorts an ordering index can serve is decided once, by `sortBlockedBy` in `convex/catalog/billsIndex.ts`, which the grounding gate's fixture also asks. Added 2026-10-27: told only "the sort did not apply, so fetch again", the model retried the same title search and then named a row of the unsorted page "the latest" |
 | `congress_is_over` | On a `bills` result from an adjourned Congress: that nothing in it is still in committee or pending. On the result, not only on rows, because a count has no rows; a bare count of the 118th's stage-40 bills was answered "yes, still in committee" |
 
 The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
@@ -1611,7 +1614,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for gpt-oss-120b **and every fallback** in `OPENROUTER_FALLBACK_MODELS`. Not the Claude route, which is called directly under Anthropic's standard retention (see Retention above) |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web lookup still returns the citations the code parses |
-| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers. It grades Claude (the production answer model, on `ANTHROPIC_API_KEY`, through the same request code in `convex/claude.ts`) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf |
+| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, reaches for the web when our own data answers, names a row of an unsorted result as the newest, or names one newest measure without saying others share its date. Its fixture serves a sort the way production does (`sortBlockedBy`), so a whole-Congress "most recent" comes back in order. Its "today" is pinned to the day the fixture was read from production (`TODAY` in the script), because a snapshot read against the real date ages: a week on, "has anything moved this week?" had a true answer of no in the gate alone. It grades Claude (the production answer model, on `ANTHROPIC_API_KEY`, through the same request code in `convex/claude.ts`) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf |
 
 Re-run the three manual probes whenever the model or provider pin changes. Their defaults
 cannot drift from production: the Claude models and request come from `convex/claude.ts`
@@ -2695,7 +2698,7 @@ revalidate once a day the memory queue is enough.
 
 **Edge cache for signed-out pages.** A Worker on a Custom Domain runs in front of
 Cloudflare's cache, so nothing it returns is cached unless it stores it, and until October 2026
-nothing did: the middleware's `public, s-maxage=…` headers were ignored, every page view was
+nothing did: the middleware's shared-cache headers were ignored, every page view was
 rendered from scratch with a Convex read, and Cloudflare reported 13% of requests cached (nearly
 all static files) while crawlers made ~100,000 page requests a week. `cloudflare-worker.ts` now
 stores signed-out pages with the Cache API (`caches.default`, per data centre) and answers
@@ -2704,13 +2707,13 @@ repeats from it; `x-edge-cache: HIT | MISS` says which happened. The rules live 
 public route (`lib/cacheable-routes.ts`), carries no auth cookie, and is a document request
 rather than an in-app navigation or prefetch (no `rsc`/`next-router-*` headers, no `_rsc`
 parameter); a response is stored only if it is a 200 HTML page the app marked
-`public, s-maxage=…` that sets no cookie. Because "200" is the only test of a good page, a page
+`CDN-Cache-Control: public, max-age=…` that sets no cookie. Because "200" is the only test of a good page, a page
 whose data read failed must not render as a normal page: bill pages, hub pages, `/bills` and the
 home page throw instead, so the reader gets the error page with a 500 that is never stored
 (`getBillPage`, `lib/hub-bills.ts`, `app/bills/page.tsx`, `app/page.tsx`). Only reads whose
 absence the page states honestly may fail quietly, such as a count, which then shows no total. The cache key is the URL plus the deploy's version id
 (`CF_VERSION_METADATA`), so each deploy starts empty and never serves a page that names the
-previous deploy's script files. Lifetimes come from the middleware's `s-maxage`: an hour for a
+previous deploy's script files. Lifetimes come from the middleware's `CDN-Cache-Control`: an hour for a
 bill page (its data changes with the nightly sync, and it is what crawlers fetch), five minutes
 for everything else. A bill page can therefore be up to an hour behind a change, and its "days
 so far" count up to an hour behind midnight. Measured on a local OpenNext preview against
