@@ -38,7 +38,7 @@ export type PromptSlot = (typeof PROMPT_SLOTS)[number];
  * rewrite groups them, drops repetition, and cuts the length by about a third,
  * which is also a third off the instruction tokens paid on every model call.
  *
- * Revised on 2026-11-01 (PostHog version 8) from the fact-check judge's 50
+ * Revised on 2026-11-01 (for PostHog version 8) from the fact-check judge's 50
  * failures on Claude Sonnet 5.5: no "no official summary" or "its only action"
  * without having looked, nothing of the model's own ("supporters would say"),
  * rankings only from a sorted result, a speaker named only if the excerpt names

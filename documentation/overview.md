@@ -1300,6 +1300,19 @@ production data copy it got 43 of 46 scorable answers (Claude Haiku 5.5, low eff
 the new "student visa" question version 5 could not answer. Version 7 is the one labelled
 `production`.
 
+On 2026-11-01 `DEFAULT_TEMPLATE` moved ahead of version 7, to be published as **8**. It fixes
+three contradictions (the prompt counted bills with two `billType` counts where the docs said
+measure `'bill'`; the bills notes said both "use groupBy" and "one limit-0 fetch per category";
+the web tool and the prompt allowed a lookup on different conditions) and answers the fact-check
+judge's 50 failures out of 273 answers on Claude Sonnet 5.5 (2026-10-23 to 11-01): "no official
+summary yet" or "its only action" said without the lookup that shows it, the model's own
+commentary ("supporters would likely say"), rankings counted off an unsorted list, and quotes put
+in a speaker's mouth that the excerpt never named. Measured on the production data copy against
+version 7: the grounding gate 20/20 in all three runs (version 7: 20/20 in two); the truth
+questions 25 and 26 of 27, the one difference a "can't say" whose wording the scorer reads
+either way on both versions (1 and 2 of 3 on a rerun); 31 lookups against 36. Until version 8
+is published and labelled `production`, readers keep getting version 7.
+
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
 `POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional
 `POSTHOG_APP_HOST` (default `https://us.posthog.com`) and `POSTHOG_PROJECT_ID` (default
