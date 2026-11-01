@@ -154,7 +154,9 @@ const YOUTUBE_NAMES: Array<[string, (name: string) => string]> = [
 
 /**
  * Whether the member's own site links this account, and if so exactly what to
- * show. The reader is only ever sent to an address the site itself linked.
+ * show. X, Facebook and Instagram go to the account's own address (the same
+ * account the site linked, which may write it as twitter.com/… or
+ * profile.php?id=…); YouTube goes to the exact address form the site linked.
  *
  * YouTube needs care: the file can carry a channel id and a name, and a
  * member's site may link either, in any of YouTube's four address forms
