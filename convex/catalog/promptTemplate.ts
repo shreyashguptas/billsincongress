@@ -6,7 +6,10 @@
  * and are filled into named slots: {{datasets}} (the dataset index, generated
  * from convex/catalog/datasets.ts so it cannot drift from the handlers),
  * {{calendar}} (today, and which Congresses have ended) and {{context}} (what
- * the reader has on screen, composed from validated ids in ./context).
+ * the reader has on screen, composed from validated ids in ./context). The live
+ * answer leaves {{context}} empty and sends the page after the question, so the
+ * prompt is the same for every reader and caches once (SHARED_PREFIX_CACHE in
+ * convex/claude.ts).
  *
  * DEFAULT_TEMPLATE is what runs when PostHog has no usable version: no key set,
  * PostHog unreachable, or a version that fails validTemplate. It is also what
