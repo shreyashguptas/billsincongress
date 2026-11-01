@@ -3,14 +3,15 @@
  * under which key. Used by `cloudflare-worker.ts`, which wraps the OpenNext
  * Worker.
  *
- * Why this exists. The middleware has marked signed-out pages
- * `public, s-maxage=…` since September 2026, but nothing ever stored them: a
- * Worker on a Custom Domain runs in front of Cloudflare's cache, so its
- * responses are never cached unless the Worker stores them itself. Every page
- * view was rendered from scratch, with a Convex read, including the ~100,000
- * crawler requests a week (Bing, OpenAI, Anthropic, Apple, Perplexity, Google)
- * that ask for the same bill pages. Cloudflare reported 13% of requests cached
- * on 22 Oct 2026, nearly all of them static files.
+ * Why this exists. The middleware has marked signed-out pages shareable (today
+ * with `CDN-Cache-Control: public, max-age=…`) since September 2026, but
+ * nothing ever stored them: a Worker on a Custom Domain runs in front of
+ * Cloudflare's cache, so its responses are never cached unless the Worker
+ * stores them itself. Every page view was rendered from scratch, with a Convex
+ * read, including the ~100,000 crawler requests a week (Bing, OpenAI,
+ * Anthropic, Apple, Perplexity, Google) that ask for the same bill pages.
+ * Cloudflare reported 13% of requests cached on 22 Oct 2026, nearly all of
+ * them static files.
  *
  * The rules fail closed. A request is cached only when every check passes;
  * anything uncertain is passed straight through, which is what happened to
@@ -77,25 +78,29 @@ export function edgeCacheKey(request: Request, version: string): string | null {
   return url.toString();
 }
 
-/** Seconds from `s-maxage=` in a Cache-Control header, or 0. */
-export function sharedMaxAge(cacheControl: string | null): number {
-  const match = cacheControl?.match(/(?:^|[,\s])s-maxage=(\d+)/i);
+/** Seconds from `max-age=` in a CDN-Cache-Control header, or 0. */
+export function sharedMaxAge(cdnCacheControl: string | null): number {
+  const match = cdnCacheControl?.match(/(?:^|[,\s])max-age=(\d+)/i);
   return match ? Number(match[1]) : 0;
 }
 
+const PRIVATE_DIRECTIVE = /(?:^|[,\s])(?:private|no-store)(?:[,\s]|$)/i;
+
 /**
  * Whether a response the app produced may be stored for everyone. The app has
- * to have said so itself (`public` with an `s-maxage`, which the middleware
- * sets only for signed-out requests on allowlisted routes), it must be a
- * successful HTML page, and it must not set a cookie: a response that sets a
- * cookie belongs to the one visitor who received it.
+ * to have said so itself (`CDN-Cache-Control: public, max-age=…`, which the
+ * middleware sets only for signed-out requests on allowlisted routes), it must
+ * be a successful HTML page, and it must not set a cookie: a response that sets
+ * a cookie belongs to the one visitor who received it. A `private` or
+ * `no-store` in either header wins.
  */
 export function isStorableResponse(response: Response): boolean {
   if (response.status !== 200) return false;
   if (response.headers.has('set-cookie')) return false;
   if (!(response.headers.get('content-type') ?? '').includes('text/html')) return false;
-  const cacheControl = response.headers.get('cache-control') ?? '';
-  if (!/(?:^|[,\s])public(?:[,\s]|$)/i.test(cacheControl)) return false;
-  if (/(?:^|[,\s])(?:private|no-store)(?:[,\s]|$)/i.test(cacheControl)) return false;
-  return sharedMaxAge(cacheControl) > 0;
+  const cdnCacheControl = response.headers.get('cdn-cache-control') ?? '';
+  if (!/(?:^|[,\s])public(?:[,\s]|$)/i.test(cdnCacheControl)) return false;
+  if (PRIVATE_DIRECTIVE.test(cdnCacheControl)) return false;
+  if (PRIVATE_DIRECTIVE.test(response.headers.get('cache-control') ?? '')) return false;
+  return sharedMaxAge(cdnCacheControl) > 0;
 }
