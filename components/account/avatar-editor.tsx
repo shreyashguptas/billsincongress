@@ -22,6 +22,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
+import { PRIVATE_BLOCK_CLASS } from '@/lib/replay-privacy';
+import { cn } from '@/lib/utils';
 
 /** The crop square, in CSS px. Fits a 390px phone inside the dialog's padding. */
 const VIEWPORT = 280;
@@ -188,7 +190,11 @@ export function AvatarEditor({
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           onKeyDown={onKeyDown}
-          className="focus-ring relative mx-auto cursor-grab touch-none select-none overflow-hidden rounded-md bg-sunken active:cursor-grabbing"
+          // PRIVATE_BLOCK_CLASS: session replay never records the photo being cropped.
+          className={cn(
+            PRIVATE_BLOCK_CLASS,
+            'focus-ring relative mx-auto cursor-grab touch-none select-none overflow-hidden rounded-md bg-sunken active:cursor-grabbing',
+          )}
           style={{ width: VIEWPORT, height: VIEWPORT }}
         >
           {image && (
