@@ -1618,6 +1618,15 @@ itself, `scripts/check-grounding.ts` exports `DEFAULT_MODEL`, `DEFAULT_PROVIDERS
 with upper case, lower case and a digit, enforced server-side; they are stored only as a
 scrypt hash by the library.
 
+**An emailed code signs in only the account it was sent to.** The library looks a code up by
+its value alone, across every account, and signs in as its owner; it never compares that owner
+with the email typed beside the code unless the provider has an `authorize` check. Both of our
+code providers (`codeProvider` in `convex/emailCodes.ts`) have one, comparing the typed email
+with the account's, trimmed and lower-cased. Without it, a reader could redeem someone else's
+pending sign-up code under their own email and land in that account (found 27 Oct 2026; the
+password-reset flow had its own check in the library, sign-up verification did not).
+`convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
+
 Sessions last **60 days** (both total and inactive), and the cookie `maxAge` in
 `middleware.ts` must stay ≥ that value.
 

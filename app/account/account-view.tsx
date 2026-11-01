@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ChatUsageResult } from "@/lib/services/bills-service";
 import { BillStageDescriptions } from "@/lib/utils/bill-stages";
+import { PRIVATE_TEXT_CLASS } from "@/lib/replay-privacy";
 
 /**
  * The account page, drawn. Pure presentation: `page.tsx` reads Convex and
@@ -180,7 +181,10 @@ export function AccountView({
                 </Badge>
               )}
             </div>
-            <h1 className="mt-2 text-display-md text-ink [overflow-wrap:anywhere] sm:text-display-lg">{displayName}</h1>
+            {/* The reader's name: kept out of session replay. */}
+            <h1 className={cn(PRIVATE_TEXT_CLASS, "mt-2 text-display-md text-ink [overflow-wrap:anywhere] sm:text-display-lg")}>
+              {displayName}
+            </h1>
             <p className="mt-2 flex flex-wrap items-center gap-2 text-[15px] text-ink-2">
               <span className="[overflow-wrap:anywhere]">{user.email ?? "—"}</span>
               {verified ? <Badge variant="secondary">Verified</Badge> : <Badge variant="outline">Unverified</Badge>}

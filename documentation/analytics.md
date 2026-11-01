@@ -68,13 +68,20 @@ should not exist in the code — and if it's in this file, it must exist in the 
 
 ## What PostHog captures automatically (no code needed)
 
-**Only one of these is configured in code.** `instrumentation-client.ts` sets exactly six
+**Only one of these is configured in code.** `instrumentation-client.ts` sets exactly seven
 keys — `api_host`, `ui_host`, `defaults: '2026-01-30'`, `capture_exceptions: true`,
-`debug`, and `before_send`. Everything else in the table below comes from the
-`defaults: '2026-01-30'` preset plus **PostHog project settings** (remote config), which
-means it can be changed by someone in the PostHog UI with no commit here. There is no
-`session_recording`, `autocapture`, `enable_heatmaps` or masking key anywhere in this
-repository.
+`debug`, `session_recording` (text masking only, see below) and `before_send`. Everything
+else in the table below comes from the `defaults: '2026-01-30'` preset plus **PostHog project
+settings** (remote config), which means it can be changed by someone in the PostHog UI with no
+commit here. There is no `autocapture` or `enable_heatmaps` key anywhere in this repository.
+
+**The reader's email and name never reach a replay** (since 1 Nov 2026). `session_recording`
+sets `maskTextSelector: '*'` and `maskTextFn: maskReplayText` (`lib/replay-privacy.ts`), so
+every text node replay records passes through one function. It stars out anything shaped like
+an email address, wherever it appears, and the whole text of any element carrying
+`PRIVATE_TEXT_CLASS` (`ph-mask`), which the two places that print the reader's name use (the
+account menu and the `/account` heading). Other text is recorded unchanged. A new screen that
+shows the reader's email is covered automatically; one that shows their name must add the class.
 
 | Capture | What it gives us | Turned on by |
 |---|---|---|
@@ -93,7 +100,7 @@ visible in the repo:
 
 | Setting | Value | Consequence |
 |---|---|---|
-| `session_recording_masking_config` | `null` | No masking is configured here — replays fall back to posthog-js defaults, which **mask the value of every input** (the ask box, the auth forms) but do **not** mask ordinary on-page text. So a question is hidden while it is being typed and visible again the moment the transcript renders it back as text. Text masking, not input masking, is what is missing. |
+| `session_recording_masking_config` | `null` | No masking is configured here — replays use posthog-js defaults, which **mask the value of every input** (the ask box, the auth forms), plus the code's text mask above (email addresses and the reader's name). Other on-page text is **not** masked. So a question is hidden while it is being typed and visible again the moment the transcript renders it back as text. |
 | `session_recording_retention_period` | `30d` | Replays are deleted after 30 days; older sessions cannot be reviewed. |
 | `session_recording_sample_rate` | `null` | Every session is recorded, not a sample. |
 | `capture_console_log_opt_in` | `true` | Console output is captured inside replays. |

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'October 22, 2026';
+const LAST_UPDATED = 'November 1, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -73,7 +73,9 @@ export default function PrivacyPage() {
           performance measurements, and any errors the site throws. Our
           analytics also include session replay — a reconstruction of how
           a page was used (clicks, scrolling, navigation) that helps us
-          find confusing design and bugs.
+          find confusing design and bugs. Replay hides what you type into
+          form fields, and if you have an account it hides your name and
+          email address wherever the site shows them.
         </p>
         <p>
           Some of what you type is included in that analytics data. When
@@ -234,7 +236,7 @@ export default function PrivacyPage() {
           While you use your account, we also store the things you do
           with it: the bills you save and your bill-chat history. Once
           you are signed in, our analytics link your activity to your
-          account (including your email address) so we can understand the
+          account (including your email address and name) so we can understand the
           journey from first visit to sign-up. We send email for three
           reasons only: account emails (sign-up verification and
           password-reset codes),
@@ -253,7 +255,9 @@ export default function PrivacyPage() {
           Reading the site is free. If you subscribe to Pro, the one paid
           plan, payment is handled by{' '}
           <ExternalLink href="https://stripe.com/privacy">Stripe</ExternalLink>:
-          your card details go to Stripe and never reach our servers. We
+          your card details go to Stripe and never reach our servers. When
+          you start checkout we give Stripe your email address and name, so
+          its receipts and billing page are in your name. We
           store your Stripe customer and subscription IDs, which price you
           chose, the subscription&apos;s status, and when it renews or ends
           — enough to know whether you are on Pro, nothing more. Stripe keeps
@@ -475,7 +479,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Once you sign in, receives your email address and name, to link your activity to your account; replay hides both on screen. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',
