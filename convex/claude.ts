@@ -815,6 +815,27 @@ function sentenceEnds(text: string): number[] {
 }
 
 /**
+ * An excerpt with each cut-off tail dropped where whole sentences come before
+ * it, so the answer model reads only finished sentences. Marking the cut
+ * (CUT_OFF_NOTE) was not enough: of 50 answers the fact-check judge failed
+ * from 2026-10-23 to 11-01, at least 9 finished a cut sentence ("allocated to
+ * immigration [cut off]" became "immigration enforcement"). A part with no
+ * whole sentence before its cut keeps it, marked: dropping it would leave
+ * nothing.
+ */
+export function dropCutTails(excerpt: string): string {
+  return excerpt
+    .split(" … ")
+    .map((part) => {
+      if (!part.endsWith(CUT_OFF)) return part;
+      const head = part.slice(0, -CUT_OFF.length).trimEnd();
+      const last = sentenceEnds(head).pop();
+      return last === undefined ? part : head.slice(0, last);
+    })
+    .join(" … ");
+}
+
+/**
  * The page's own text around a quote, widened to whole sentences, or null
  * when the quote is not on the page. Every character returned is the page's,
  * which is what lets the answer model read a sentence the search engine only

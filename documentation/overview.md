@@ -1475,7 +1475,12 @@ cut written as `[cut off]` (`markCutOff`), and the model is told, with the resul
 finish a sentence a cut stops (`CUT_OFF_NOTE`). Exa excerpts are cut on a word and marked the
 same way. This came from the fact-check judge: from 2026-10-23 to 26, 6 of 17 answers that used
 the web failed it against 1 of 15 that did not, 5 of them because the answer finished a quote the
-search engine had cut off ("an entity owned by, contr…"). A page Claude found but never quoted is
+search engine had cut off ("an entity owned by, contr…"). The marker was not enough: from
+2026-10-23 to 11-01 at least 9 of the 50 answers the judge failed still finished a cut sentence
+("allocated to immigration [cut off]" became "immigration enforcement"). So since 2026-11-01 a cut
+tail is dropped outright wherever a whole sentence comes before it, for both engines' excerpts
+(`dropCutTails`, applied in `convex/answer.ts`); only a quote with no whole sentence keeps its
+marked fragment. A page Claude found but never quoted is
 left out: its title alone would let the answer cite it for a claim it never showed. An API error,
 a refusal, a search that errored, no search, or no quoted source moves the lookup to Claude Haiku
 5.5 (`ANTHROPIC_WEB_BACKUP_MODEL`, the same tool), then to gpt-oss-120b with OpenRouter's web
