@@ -971,6 +971,21 @@ interface Answer {
 }
 
 /**
+ * Row 1's date when it is the newest action in the WHOLE Congress: a
+ * newest-first read an index ordered, filtered by nothing that could leave the
+ * newest out. `actionAfter` cannot (row 1 passed it); every other filter can, and
+ * row 1 of "newest House Health bills" says nothing about the rest of the data
+ * (review on #229).
+ */
+export function newestOfAll(filters: Filters, served: Served): string | undefined {
+  const whole = Object.keys(filters).every((k) => ["congress", "sort", "actionAfter"].includes(k));
+  const top = served.rows[0]?.latestActionDate;
+  return whole && served.report.orderFromIndex && served.report.order === "newest_action_first" && typeof top === "string"
+    ? top
+    : undefined;
+}
+
+/**
  * The numbers a result stands behind: a complete total, the counted parts and
  * tie beside it, and the count fields of a complete result's rows (a topic's
  * count, a stats row's stage ladder and party split). Party splits are keyed by
@@ -1121,10 +1136,8 @@ export async function ask(question: string): Promise<Answer> {
             } else {
               for (const r of served.rows) allowed.add(r._cite as string);
               exactNumbers(served, exact);
-              const top = served.rows[0]?.latestActionDate;
-              if (served.report.orderFromIndex && served.report.order === "newest_action_first" && typeof top === "string") {
-                if (!newestSeen || top > newestSeen) newestSeen = top;
-              }
+              const top = newestOfAll(validated.filters, served);
+              if (top && (!newestSeen || top > newestSeen)) newestSeen = top;
               result = payloadFor(served.rows, served.report);
               // The filters as served, so a failing run shows what was asked for.
               work.push(`fetch ${name} ${JSON.stringify(validated.filters)} limit ${limit} · ${workLogLabel(served.report)}, ${served.report.order}`);

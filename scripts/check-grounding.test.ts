@@ -32,6 +32,7 @@ import {
   namesSortedNewest,
   acknowledgesTie,
   MOVED_SUBJECT,
+  newestOfAll,
   sentences,
   serveFetch,
   statesCount,
@@ -291,6 +292,22 @@ it("allows 'nothing after' the newest date a sorted read returned, and only that
   assert.equal(claimsAbsence(said, "2026-10-22"), null);
   assert.ok(claimsAbsence(said), "without a sorted read behind it, it is still an absence claim");
   assert.ok(claimsAbsence("Nothing has moved since August 24.", "2026-10-22"), "another date is not licensed");
+});
+
+it("takes the newest date only from a read of the whole Congress", () => {
+  // Review on #229: row 1 of a filtered read is the newest within the filter only.
+  const whole = { congress: 119, sort: "newest_action" };
+  assert.equal(newestOfAll(whole, served("bills", whole, 5)), "2026-10-22");
+  const dated = { congress: 119, sort: "newest_action", actionAfter: "2026-10-20" };
+  assert.equal(newestOfAll(dated, served("bills", dated, 5)), "2026-10-22", "actionAfter keeps the newest");
+  const ordered = served("bills", whole, 5);
+  for (const filters of [
+    { congress: 119, sort: "newest_action", chamber: "house" },
+    { congress: 119, sort: "newest_action", policyArea: "Health" },
+    { congress: 119, sort: "newest_action", actionBefore: "2026-10-15" },
+  ]) {
+    assert.equal(newestOfAll(filters, ordered), undefined, JSON.stringify(filters));
+  }
 });
 
 it("hears 'none of them finished' as the lookups, not the bills", () => {
