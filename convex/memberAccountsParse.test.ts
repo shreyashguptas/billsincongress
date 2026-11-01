@@ -33,8 +33,8 @@ const schumerCurrent = {
   id: { bioguide: "S000148" },
   name: { official_full: "Charles E. Schumer", first: "Charles", last: "Schumer" },
   terms: [
-    { type: "rep", state: "NY", url: "https://schumer.house.gov" },
-    { type: "sen", state: "NY", url: "https://www.schumer.senate.gov" },
+    { type: "rep", state: "NY", district: 9, party: "Democrat", url: "https://schumer.house.gov" },
+    { type: "sen", state: "NY", party: "Democrat", url: "https://www.schumer.senate.gov" },
   ],
 };
 // Values as the source carries them on 2026-11-01.
@@ -52,7 +52,7 @@ const schumerSocial = {
 const newMember = {
   id: { bioguide: "B001328" },
   name: { first: "Everton", last: "Blair" },
-  terms: [{ type: "rep", state: "GA", url: "https://blair.house.gov/" }],
+  terms: [{ type: "rep", state: "GA", district: 13, party: "Democrat", url: "https://blair.house.gov/" }],
 };
 
 it("builds each platform's link from the source's handle", () => {
@@ -63,6 +63,7 @@ it("builds each platform's link from the source's handle", () => {
     name: "Charles E. Schumer",
     chamber: "senate",
     state: "NY",
+    party: "D",
     officialWebsiteUrl: "https://www.schumer.senate.gov",
     accounts: [
       { platform: "x", label: "@SenSchumer", url: "https://x.com/SenSchumer", source: "congress-legislators" },
@@ -91,6 +92,17 @@ it("keeps a member with no social entry, with no accounts, never guessed ones", 
   assert.deepEqual(records[0].accounts, []);
   assert.equal(records[0].name, "Everton Blair");
   assert.equal(records[0].officialWebsiteUrl, "https://blair.house.gov");
+  assert.equal(records[0].district, 13);
+});
+
+it("reads the party as the one-letter code the site uses, from the latest term", () => {
+  const { records } = buildMemberRecords(
+    [{ ...newMember, terms: [{ type: "rep", state: "GA", district: 0, party: "Independent", url: "https://x.house.gov" }] }],
+    [],
+    [],
+  );
+  assert.equal(records[0].party, "I");
+  assert.equal(records[0].district, 0);
 });
 
 it("links a YouTube name without a channel id as an @handle, not /user/", () => {
@@ -178,7 +190,7 @@ it("refuses a download that would quietly empty the site", () => {
 it("fingerprints a row by its content, not by key order", () => {
   const { records } = buildMemberRecords([schumerCurrent], [schumerSocial], []);
   const { bioguideId: _id, ...rest } = records[0];
-  const reordered = { accounts: rest.accounts, state: rest.state, chamber: rest.chamber, name: rest.name, officialWebsiteUrl: rest.officialWebsiteUrl };
+  const reordered = { accounts: rest.accounts, party: rest.party, state: rest.state, chamber: rest.chamber, name: rest.name, officialWebsiteUrl: rest.officialWebsiteUrl };
   assert.equal(recordFingerprint(rest), recordFingerprint(reordered));
   assert.notEqual(recordFingerprint(rest), recordFingerprint({ ...rest, accounts: rest.accounts.slice(1) }));
 });

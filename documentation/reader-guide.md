@@ -55,6 +55,8 @@ Each list is in date order, newest first, and one click turns it around to oldes
 
 Each bill page shows the bill number and Congress, its policy area, the official title, when it was introduced, who sponsored it (with party and state), and a link to the official PDF where one exists.
 
+Under the summary, **the cosponsors**: every member who has signed on, as Congress.gov lists them, original cosponsors first and then by the day they joined, each with their official accounts. The page shows the first ten and a button loads the rest. A member who withdrew is not listed or counted, as on Congress.gov. A bill whose cosponsors the site has not fetched yet shows nothing, rather than "none".
+
 Beside the summary, the sponsor's box lists their **official accounts**: X, Facebook, Instagram and YouTube, and their official website. An account appears only when the member's own .house.gov or .senate.gov website links that exact account; see [Members' official accounts](#members-official-accounts) for how that is checked. A member who has left office shows none, because official accounts are archived or handed on when a member leaves.
 
 Below that:
@@ -65,6 +67,10 @@ Below that:
 - **"At a glance"** — a short plain-language paragraph assembled from the record itself. It contains no invented detail; every clause in it is a field the database actually holds.
 - **The official plain-English summary**, when Congress has published one. Summaries are written some time after a bill is introduced, so coverage depends heavily on age: in a live sample of 120 bill pages, every bill checked from the 117th Congress had one, about 4 in 10 from the 118th did not, and about 7 in 10 from the current 119th did not. Where there is none, the page says so in words rather than leaving a blank.
 - **Historical context for bills stuck in committee** — how long this one has been there, and what share of past bills that sat that long ever left committee. It is labelled as a description of that group of past bills, not a prediction about this one. A bill already out of committee does not show it.
+
+### A page for every member
+
+Each member of Congress in office has a page (`/members/<id>`, reached by clicking a sponsor's or a cosponsor's name): their seat, party, official accounts and website, and their ten newest bills and ten newest cosponsorships in the current Congress, newest first. The page gives no totals; "All of their bills" opens the bill list filtered to them, which counts properly. A member who has left office keeps a page for links already shared, without accounts, and search engines are asked not to list it.
 
 ### Sharing a bill
 
@@ -174,11 +180,10 @@ The `/bills` page carries a live "Updated *n* hours ago" indicator drawn from th
 
 ### What is stored, and what is not
 
-**Held:** a bill's identity and title, its sponsor, the date it was introduced, its action history (up to 2,000 actions), its official Congressional Research Service summary where one exists, its policy area and legislative subjects, and links to the official PDF and text versions. For each current member: their official website and the social media accounts that website links (shown on bill pages; the assistant does not read them).
+**Held:** a bill's identity and title, its sponsor and cosponsors, the date it was introduced, its action history (up to 2,000 actions), its official Congressional Research Service summary where one exists, its policy area and legislative subjects, and links to the official PDF and text versions. For each current member: their official website and the social media accounts that website links (shown on bill pages; the assistant does not read them).
 
 **Not held — and the assistant is instructed never to claim otherwise:**
 
-- Co-sponsors. Only the primary sponsor is stored.
 - Vote tallies and roll-call results.
 - Committee hearing schedules.
 - Member biographies, committee assignments or contact details (beyond the official website and accounts above).
@@ -217,7 +222,7 @@ The question panel is the only place in the interface where a machine writes pro
 
 **Invented citations cannot reach you.** Every record handed to the model carries a reference handle. When the answer comes back, every handle it cited is checked against the exact records it was actually given that turn. Anything it made up is deleted from the text before the answer is displayed, and a bill card for a bill that does not exist simply does not render. The number of fabricated citations caught this way is tracked as a health metric. This filters the *citations*, not the sentences around them — the prose can still get something wrong. Because of this check, the answer is finished and checked before any of it reaches you; the word-by-word writing you see in the panel is the page pacing out that finished text, not the model thinking live.
 
-**It is told to admit what is missing.** When a lookup returns nothing, the model is instructed to say the site does not hold it, or to run the labelled web search, rather than fall back on general knowledge. It is specifically told never to state co-sponsor counts, vote tallies or hearing schedules. These are prompt instructions, not hard blocks — unlike the citation check, nothing inspects the finished answer for them.
+**It is told to admit what is missing.** When a lookup returns nothing, the model is instructed to say the site does not hold it, or to run the labelled web search, rather than fall back on general knowledge. It is specifically told never to state co-sponsor counts, vote tallies or hearing schedules: it cannot look cosponsors up, so it points you to the bill's page, which lists them. These are prompt instructions, not hard blocks — unlike the citation check, nothing inspects the finished answer for them.
 
 **Web search is a labelled exception.** When the answer genuinely is not in this site's data, the model may search the open web. When it does, it must state in one sentence what is missing here, and that sentence is shown to you word for word. Sources are then printed in two separate blocks: *From our database* and *Not from our database*. Before the model reads them, any result that is about a different bill is thrown away: many bills share a short title (there are two "GAP Act"s in this Congress), and the search engine cannot tell them apart. The check reads the bill number and Congress written in each page's address and title, so a page that names no bill at all, such as a sponsor's press release, still gets through. The search also opens the most relevant result and reads it, usually the bill's own text on govinfo.gov, so the model works from whole sentences of the page rather than the search engine's short snippets. Where a snippet is all there is, any place it was cut short is marked, and the model is told never to finish the sentence itself.
 
@@ -296,6 +301,8 @@ Stated plainly, because they affect what you can trust:
 - **Older Congresses are not actively refreshed.** The nightly, weekly and monthly jobs track the current Congress only; the Monday reconciliation adds bills that were never synced but does not re-check ones already stored. An upstream correction to a 2022 bill may not be picked up.
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.
 - **Bill alerts trail Congress.gov.** They go out once a day, after the overnight sync, and Congress.gov itself can post an action a day or more after it happens. An alert says what the record shows, not what happened on the floor an hour ago.
+- **The assistant cannot see cosponsors.** Bill pages and member pages list them; the question panel cannot answer "who cosponsored this" and says so.
+- **Cosponsor lists can trail Congress.gov.** They are refreshed whenever the nightly sync picks a bill up as changed, and every bill in the current Congress at the monthly re-pull.
 - **Alerts cover actions and status only** — not new cosponsors, amendments, text versions or hearings, which this site does not store.
 - **Senators' social accounts are not shown yet.** senate.gov refuses automated visits from the networks we tried, so a senator's accounts cannot be confirmed against their own site; their box shows only their official website until that check works.
 - **A member's own site can link a dead account.** Two did on 1 November 2026 (YouTube addresses that no longer exist); those were corrected or hidden by hand. X, Facebook and Instagram turn away automated visits, so the site cannot tell whether an account the member links still exists.

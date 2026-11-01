@@ -347,6 +347,17 @@ Patterns that appear on more than one page:
   new tab. No brand logos and no brand colours: a platform is not data, so it gets no hue. A
   `SourceLine` under the list says where the accounts come from. Only accounts the member's own
   website confirms appear; with none, only the website row; for a former member, nothing.
+- **Cosponsors** (bill page, `components/bills/bill-cosponsors.tsx`): a section like "Keep
+  reading", eyebrow "Cosponsors" and a headline that states the count ("110 members cosponsor
+  this bill"). A hairline-ruled list, two columns from `md`: each row is the member's `PartyTag`
+  (a link to their member page when they are in office), "Original cosponsor" or "Joined Oct 5,
+  2026" in `ink-3`, and the confirmed accounts as underlined platform names in `ink-2`, 44px tall
+  on touch. Ten rows, then an outline "Show all N cosponsors" button. A `SourceLine` closes it.
+- **Member page** (`/members/<id>`, `components/members/member-page.tsx`): eyebrow with the seat
+  ("Representative · New Jersey's 9th district"), the name at `display-lg`, the party as a dot and
+  a word. Below, the two bill lists in the "Keep reading" row style, and the "Official accounts"
+  card (as on a bill page) in the 360px side column from `lg`; on a phone the card comes first,
+  above the lists, because it is what most readers came for.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the

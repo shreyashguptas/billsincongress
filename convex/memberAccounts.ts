@@ -84,6 +84,8 @@ const recordValidator = v.object({
   name: v.string(),
   chamber: v.union(v.literal("house"), v.literal("senate")),
   state: v.string(),
+  party: v.optional(v.string()),
+  district: v.optional(v.number()),
   officialWebsiteUrl: v.optional(v.string()),
   accounts: v.array(accountValidator),
 });

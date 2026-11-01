@@ -459,7 +459,24 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 Sponsor
               </p>
               <p className="mt-2 font-serif text-display-sm font-semibold text-ink">
-                {sponsorName}
+                {extras?.sponsorAccounts ? (
+                  // A page exists for every member in office (app/members/[id]).
+                  <Link
+                    href={`/members/${extras.sponsorAccounts.bioguideId}`}
+                    className="focus-ring rounded-sm hover:underline"
+                    onClick={() =>
+                      analytics.memberPageLinkClicked({
+                        bioguide_id: extras.sponsorAccounts!.bioguideId,
+                        from: 'bill_sponsor_card',
+                        bill_id: String(bill.id),
+                      })
+                    }
+                  >
+                    {sponsorName}
+                  </Link>
+                ) : (
+                  sponsorName
+                )}
               </p>
               <dl className="mt-5 text-sm">
                 <div className="flex justify-between gap-3 border-t border-line py-3">

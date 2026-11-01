@@ -236,6 +236,12 @@ export default defineSchema({
     // memory — the same class of silent miss as the policyArea note above.
     .index("by_congress_and_sponsor_state", ["congress", "sponsorState"])
     .index("by_congress_and_sponsor_last", ["congress", "sponsorLastName"])
+    // A member's own bills in a Congress, newest first: the member page.
+    .index("by_sponsorBioguideId_and_congress_and_introducedDate", [
+      "sponsorBioguideId",
+      "congress",
+      "introducedDate",
+    ])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["congress", "billType", "progressStage", "sponsorState"],
@@ -286,8 +292,8 @@ export default defineSchema({
 
   // A bill's cosponsors as Congress.gov lists them (convex/cosponsors.ts),
   // replaced as a set by the sync (`replaceBillCosponsors`). Withdrawn
-  // cosponsors stay, with `withdrawnDate`. `by_bioguideId_and_congress` is a
-  // member's cosponsored bills, for the member page.
+  // cosponsors stay, with `withdrawnDate`. The second index is a member's
+  // cosponsorships in a Congress, newest first, for the member page.
   billCosponsors: defineTable({
     billId: v.string(),
     congress: v.number(),
@@ -302,7 +308,7 @@ export default defineSchema({
     withdrawnDate: v.optional(v.string()),
   })
     .index("by_billId", ["billId"])
-    .index("by_bioguideId_and_congress", ["bioguideId", "congress"]),
+    .index("by_bioguideId_and_congress_and_sponsorshipDate", ["bioguideId", "congress", "sponsorshipDate"]),
 
   // Detailed legislative subjects (one-to-many: bill -> subjects). Distinct
   // from the single policy area kept in billSubjects — the Library of Congress
@@ -694,6 +700,8 @@ export default defineSchema({
     name: v.string(),
     chamber: v.union(v.literal("house"), v.literal("senate")),
     state: v.string(),
+    party: v.optional(v.string()),
+    district: v.optional(v.number()),
     inOffice: v.boolean(),
     officialWebsiteUrl: v.optional(v.string()),
     // At most one per platform (four), so the list is bounded.

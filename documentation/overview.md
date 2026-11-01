@@ -177,7 +177,7 @@ lib/                       Pure client/shared modules — 43 modules + 41 test f
   services/bills-service.ts  constants/  types/  utils/
 
 convex/                    Backend — 43 top-level modules + catalog/ + 24 test and spec files (12 more in catalog/)
-  schema.ts                27 application tables (+ 6 from the auth library)
+  schema.ts                28 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
@@ -192,6 +192,7 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
   memberAccounts.ts memberAccountsParse.ts memberAccountsVerify.ts memberAccountOverrides.ts
                            Members' official accounts: suggest, correct, confirm on their own site
+  members.ts cosponsors.ts The member page's query; a bill's cosponsors (parse, order, fingerprint)
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts hubOrder.ts
   billStage.ts billJourney.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts indexNowStatus.ts  Pure, unit-tested
@@ -211,6 +212,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
 | `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
+| `/members/<bioguideId>` | One member: seat, party, confirmed official accounts, ten newest sponsored bills and ten newest cosponsorships in the current Congress (`members.getPage`). Only members in `memberAccounts` have a page; one out of office is `noindex` and shows no accounts. Not in the sitemap; reached from the sponsor's and cosponsors' names on bill pages. Cached at the edge for signed-out readers, like `/bills` (`lib/cacheable-routes.ts`) |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs: one per stage a bill can stop at except 20 and 95 (signed, not yet numbered as a law: a day or two), plus `/bills/introduced` (below). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`). **`/bills/introduced` and the picker's "Just introduced" (`status=20`) are not stage 20** since 2026-10-16: they are the bills introduced in the last 30 days, at any stage (`lib/bills/just-introduced.ts`); for a Congress that was not sitting in those 30 days, "Just introduced" keeps the stage-20 meaning, since a date window there is always empty. Bills are referred to committee the day they are introduced, so stage 20 held only 11 numbers in the whole 119th, all reserved for party leaders on 2025-01-03, and "Just introduced" plus any topic said "No bills found" |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
@@ -220,7 +222,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
-| `/api/bills/query` | POST — runs one of four public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`) on the server, for browsers that cannot reach Convex. See below |
+| `/api/bills/query` | POST — runs one of five public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`, `getCosponsors`) on the server, for browsers that cannot reach Convex. See below |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
 | `/share-image/home?v=` | GET — the home page's share card. A static segment, so it wins over the hub catch-all beside it |
@@ -745,6 +747,17 @@ every Congress, so a name one Congress never uses (Jacky Rosen's 117th-Congress 
 ```bash
 pnpm exec convex run --prod congressApi:backfillSponsorIdentity '{}'
 ```
+**Cosponsors.** After the deploy that added them, run once:
+
+```bash
+pnpm exec convex run --prod congressApi:backfillCosponsors '{}'
+```
+
+One call per stored bill (about 56,500) to `/bill/{congress}/{type}/{number}/cosponsors`, at
+the same pace and with the same budget pause as the sponsor backfill, continuing itself and
+repeating passes until one stores nothing. A bill whose page of cosponsors fails is left unmarked
+rather than stored short. Until a bill is reached, its page says nothing about cosponsors.
+
 
 It makes one Congress.gov detail call per bill that has neither an id nor bit 4 of
 `extraSyncedBits` (`EXTRA_SPONSOR_IDENTITY`), about 57,000, at the enrichment backfill's pace. It
@@ -761,7 +774,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 
 ## The database
 
-27 application tables plus 6 installed by `@convex-dev/auth` (33 in production).
+28 application tables plus 6 installed by `@convex-dev/auth` (34 in production).
 
 ### Bill data
 
@@ -775,6 +788,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 | `billLegislativeSubjects` | The long per-bill subject list (HR1/119 has ~239). Stored but not surfaced |
 | `billTitles` | **Unused, and empty** — never written; the only reference is a delete loop in `mutations.ts`. Removing it is left to the owner |
 | `syncSnapshots` | Audit trail of every sync run |
+| `billCosponsors` | One row per (bill, cosponsor): member id, re-cased name, party, state, district, `sponsorshipDate`, `isOriginal`, `withdrawnDate`. Indexes `by_billId` and `by_bioguideId_and_congress_and_sponsorshipDate` (a member's newest cosponsorships) |
 | `memberAccounts` | One row per member (index `by_bioguideId`): name, chamber, state, `inOffice`, official website, and up to four suggested accounts, each with `confirmedAt` once the member's own site links it; plus the last site check. See "Members' official accounts" |
 
 Two design decisions worth knowing:
@@ -792,8 +806,14 @@ Two design decisions worth knowing:
   not `latestActionDate`: committees act on bills after they are signed, and 5 of 758 laws in
   the production copy had a later latest action (H.R. 1043, 119th: signed 29 Dec 2025, report
   filed 11 Feb 2026). It orders the stage hubs.
-- **Only the primary sponsor is stored.** There are no co-sponsors anywhere in the database,
-  and the answer engine is explicitly instructed never to imply otherwise.
+- **Cosponsors are stored for pages, not for the answer engine.** `billCosponsors` holds each
+  bill's cosponsors as Congress.gov lists them (withdrawn ones with `withdrawnDate`), replaced
+  as a set by `replaceBillCosponsors` only when the set changes, with `bills.cosponsorCount`
+  (current ones) and bit 8 of `extraSyncedBits` (`EXTRA_COSPONSORS`, "fetched"). The sync
+  fetches them after a bill's other endpoints, skipping the call when the detail says there are
+  none; bills stored before that are filled by `backfillCosponsors` (below). No dataset exposes
+  them to the answer engine, which is told it cannot look them up and to point readers to the
+  bill page.
 
 Not held at all: vote tallies and roll calls, committee hearing schedules, member
 biographies or contact details (beyond `memberAccounts`: the official website and the social
@@ -1308,6 +1328,11 @@ against that risk:
   served) and `answer_prompt_source` (`posthog` or `code`), so any answer can be traced to
   the exact wording that produced it, and PostHog compares versions on cost, latency,
   evaluation pass rate and readers' ratings.
+- **Code changes to the wording also need a PostHog version.** The template in PostHog is a
+  copy, so a rule changed in `DEFAULT_TEMPLATE` does not reach readers until a version with the
+  same change is labelled `production`. On 2026-11-01 the cosponsors line changed in code
+  ("You cannot look up co-sponsors… a bill's page on this site lists its cosponsors"); version 7
+  in PostHog still said "We do not hold co-sponsors" until version 8 replaced it.
 - **Test before release.** Export the candidate version's text and run the gates against it:
   `ANSWER_PROMPT_FILE=candidate.txt pnpm check:grounding`. A file that fails `validTemplate`
   stops the gate rather than quietly testing the default.

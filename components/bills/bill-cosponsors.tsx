@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { analytics } from '@/lib/analytics';
 import { billsService, type BillPageExtras } from '@/lib/services/bills-service';
@@ -82,7 +83,19 @@ export function BillCosponsors({
           <ul className="mt-8 grid border-t border-line md:grid-cols-2 md:gap-x-12">
             {rows.map((c) => (
               <li key={c.bioguideId} className="min-w-0 border-b border-line py-4">
-                <PartyTag name={c.name} party={c.party} state={c.state} />
+                {c.accounts ? (
+                  <Link
+                    href={`/members/${c.bioguideId}`}
+                    className="focus-ring inline-flex max-w-full rounded-sm hover:underline"
+                    onClick={() =>
+                      analytics.memberPageLinkClicked({ bioguide_id: c.bioguideId, from: 'bill_cosponsors', bill_id: billId })
+                    }
+                  >
+                    <PartyTag name={c.name} party={c.party} state={c.state} />
+                  </Link>
+                ) : (
+                  <PartyTag name={c.name} party={c.party} state={c.state} />
+                )}
                 <p className="mt-1 text-sm text-ink-3">
                   {c.isOriginal ? 'Original cosponsor' : `Joined ${joined(c.sponsorshipDate)}`}
                 </p>

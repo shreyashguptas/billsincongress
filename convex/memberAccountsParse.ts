@@ -33,8 +33,20 @@ export interface MemberRecord {
   name: string;
   chamber: "house" | "senate";
   state: string;
+  /** "D", "R", "I" or another one-letter code, from the member's latest term. */
+  party?: string;
+  /** House only; 0 for an at-large seat. */
+  district?: number;
   officialWebsiteUrl?: string;
   accounts: MemberAccount[];
+}
+
+const PARTY_CODES: Record<string, string> = { Democrat: "D", Republican: "R", Independent: "I", Libertarian: "L" };
+
+/** The one-letter code the rest of the site uses for a party name. */
+export function partyCode(raw: unknown): string | undefined {
+  if (typeof raw !== "string" || raw.trim() === "") return undefined;
+  return PARTY_CODES[raw.trim()] ?? raw.trim().charAt(0).toUpperCase();
 }
 
 /** A reviewed fix: add or replace one account, or hide one the source lists. */
@@ -204,11 +216,15 @@ export function buildMemberRecords(
       else if (raw !== undefined && raw !== null && raw !== "") rejected++;
     }
 
+    const party = partyCode(term.party);
+    const district = term.type === "rep" && typeof term.district === "number" && term.district >= 0 ? term.district : undefined;
     records.push({
       bioguideId,
       name,
       chamber: term.type === "sen" ? "senate" : "house",
       state: typeof term.state === "string" ? term.state : "",
+      ...(party ? { party } : {}),
+      ...(district !== undefined ? { district } : {}),
       ...(officialWebsite(term.url) ? { officialWebsiteUrl: officialWebsite(term.url) } : {}),
       accounts,
     });
@@ -271,6 +287,8 @@ export function recordFingerprint(record: Omit<MemberRecord, "bioguideId">): str
     record.name,
     record.chamber,
     record.state,
+    record.party ?? "",
+    record.district ?? "",
     record.officialWebsiteUrl ?? "",
     record.accounts.map((a) => [a.platform, a.label, a.url, a.source, a.proofUrl ?? ""]),
   ]);
