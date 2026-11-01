@@ -360,9 +360,11 @@ chunk failure. They share the boundaries' sessionStorage guard, so a listener an
 firing for one failure still reload once, and they do not `preventDefault()`, so PostHog still
 records the `$exception`. They do nothing while the browser reports itself offline: Safari and
 Firefox word a dynamic import that failed for lack of network like a stale chunk, and reloading
-a page that still reads fine would replace it with the service worker's offline page. Old HTML naming old chunks is mostly the anonymous-page cache above
-(`stale-while-revalidate=86400`), which can serve a day-old page from a deploy whose chunks are
-gone.
+a page that still reads fine would replace it with the service worker's offline page. Old HTML
+naming old chunks came mostly from the browser keeping a copy for a day under
+`stale-while-revalidate=86400`, which Safari honours on page loads; since November 2026 the
+browser gets `no-cache` (the anonymous-page cache above). A copy shown by the Back button or a
+restored tab can still be from an older deploy, and this listener recovers that case.
 `next.config.mjs` sets a per-deploy `deploymentId` (the git commit) so Next.js skew protection
 can force a full reload on navigation when a tab is out of date, avoiding the failure up front.
 
