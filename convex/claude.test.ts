@@ -518,6 +518,16 @@ it("drops a cut-off tail after whole sentences, and keeps a lone fragment marked
     "First part. … Second part is whole.",
   );
   assert.equal(dropCutTails("Nothing was cut."), "Nothing was cut.");
+  // Review on #234: "Oct." and a list number are not sentence ends, so the
+  // fragment stays, marked, rather than losing its marker.
+  for (const fragment of [
+    `Rep. Smith introduced the bill on Oct. 23 and it would bar funds for ${CUT_OFF}`,
+    `Gov. Moore said the plan would ${CUT_OFF}`,
+    `The bill would: 2. Then ${CUT_OFF}`,
+  ]) {
+    assert.equal(dropCutTails(fragment), fragment);
+  }
+  assert.equal(dropCutTails(`It passed on Oct. 3. Funds for ${CUT_OFF}`), "It passed on Oct. 3.");
 });
 
 it("widens a cut quote to the page's whole sentence", () => {
