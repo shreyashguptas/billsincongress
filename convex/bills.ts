@@ -28,6 +28,7 @@ import {
   resolveSponsorRequest,
 } from "./catalog/sponsorName";
 import type { SponsorRequest } from "./catalog/sponsorName";
+import { officialAccounts } from "./memberAccounts";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -279,7 +280,8 @@ const RELATED_BILLS = 5;
 
 /**
  * Everything the bill page draws, in one call: the bill (as `getById` returns
- * it) and its journey and peers. One call and one read of the bill row, where
+ * it), its journey and peers, and the sponsor's official accounts (one indexed
+ * read of `memberAccounts`). One call and one read of the bill row, where
  * the page used to make two calls that each read it. Nearly every bill-page
  * render is a crawler, so this is most of the site's database bill.
  */
@@ -291,11 +293,12 @@ export const getPage = query({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
     if (!bill) return null;
-    const [details, extras] = await Promise.all([
+    const [details, extras, sponsorAccounts] = await Promise.all([
       billWithDetails(ctx, bill),
       billJourneyAndPeers(ctx, bill),
+      officialAccounts(ctx, bill.sponsorBioguideId),
     ]);
-    return { bill: details, extras };
+    return { bill: details, extras: { ...extras, sponsorAccounts } };
   },
 });
 

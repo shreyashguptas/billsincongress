@@ -55,6 +55,8 @@ Each list is in date order, newest first, and one click turns it around to oldes
 
 Each bill page shows the bill number and Congress, its policy area, the official title, when it was introduced, who sponsored it (with party and state), and a link to the official PDF where one exists.
 
+Beside the summary, the sponsor's box lists their **official accounts**: X, Facebook, Instagram and YouTube, and their official website. An account appears only when the member's own .house.gov or .senate.gov website links that exact account; see [Members' official accounts](#members-official-accounts) for how that is checked. A member who has left office shows none, because official accounts are archived or handed on when a member leaves.
+
 Below that:
 
 - **A status panel** naming the bill's current stage and how it got there. Its journey is drawn to scale: one bar segment per stage, as long as the bill stayed in it, and under each one the number of days and what happened then — the committee vote, each chamber's passage with its yes and no tally, the signature and the public law number. All of it is read from the bill's official actions on Congress.gov. A bill that has spent time in only one stage shows the seven-step track instead. Resolutions that cannot become law get a shorter track that ends where they are finished: a simple resolution (H.Res., S.Res.) has three steps and ends at "Agreed to by the House" or "by the Senate"; a concurrent resolution (H.Con.Res., S.Con.Res.) has four and ends at "Agreed to by both chambers". A sentence under the track says why: neither ever goes to the President, and neither is a law. The same shorter track and the same words appear wherever the site shows a stage: the bill lists, the bill cards in answers, your account page and the alert emails. A bill still on its way also shows how many days are left in the two-year Congress, because a bill that has not become law when the Congress ends dies with it.
@@ -135,9 +137,19 @@ Every bill record on this site comes from one place: the **[official Congress.go
 | **Data rights** | U.S. government work, public domain |
 | **Affiliation** | Independent. Not affiliated with, endorsed by, or operated by the U.S. government |
 
+### Members' official accounts
+
+No government source lists members' social media: Congress.gov, the House Clerk's member list and the Senate's member list carry none. The most official source is each member's own website, so that is what decides.
+
+1. **Suggested** by the [congress-legislators](https://github.com/unitedstates/congress-legislators) project, a volunteer-kept, public-domain file whose policy is official, taxpayer-funded accounts only. It is copied once a day.
+2. **Confirmed** by the member's own .house.gov or .senate.gov home page, fetched once a day. An account is shown only while that page links that exact account.
+3. **Corrected** by hand where the member's own site links a different account from the file: a renamed account, a typo, or (in one case) the House's own office accounts listed as a member's. Each correction names the member's page that proves it, is checked the same way every day, and is sent back to the volunteer project.
+
+When we started on 1 November 2026 the member's own site confirmed 1,348 of the 1,424 House accounts the file and our corrections suggested, and 433 of 439 House members had at least one. Accounts a member's home page does not link are not shown.
+
 ### How it stays current
 
-Ten scheduled jobs keep the database in step with Congress, an eleventh sends bill-alert emails, a twelfth deletes profile-photo uploads that were never attached to an account, and a thirteenth deletes old feedback pictures:
+Ten scheduled jobs keep the database in step with Congress, an eleventh sends bill-alert emails, a twelfth deletes profile-photo uploads that were never attached to an account, a thirteenth deletes old feedback pictures, and two more keep members' official accounts current:
 
 | When | What it does |
 | --- | --- |
@@ -153,6 +165,8 @@ Ten scheduled jobs keep the database in step with Congress, an eleventh sends bi
 | Daily, 11:00 UTC | Email Pro readers whose followed bills moved since their last alert |
 | Daily, 08:00 UTC | Delete profile-photo uploads that no account uses |
 | Daily, 09:15 UTC | Delete pictures sent with feedback once they are 180 days old |
+| Daily, 07:40 UTC | Copy the suggested social media accounts from the congress-legislators project |
+| Daily, 08:10 UTC | Check each member's own website and confirm only the accounts it links |
 
 The sync throttles itself deliberately — three quarters of a second between calls, backing off on rate limits and pausing when Congress.gov's remaining quota runs low. It also skips the bill-record update when nothing a reader would see has changed, so a routine re-pull does not stamp a fake "updated" date on 18,000 bills or announce fake updates to search engines.
 
@@ -160,14 +174,14 @@ The `/bills` page carries a live "Updated *n* hours ago" indicator drawn from th
 
 ### What is stored, and what is not
 
-**Held:** a bill's identity and title, its sponsor, the date it was introduced, its action history (up to 2,000 actions), its official Congressional Research Service summary where one exists, its policy area and legislative subjects, and links to the official PDF and text versions.
+**Held:** a bill's identity and title, its sponsor, the date it was introduced, its action history (up to 2,000 actions), its official Congressional Research Service summary where one exists, its policy area and legislative subjects, and links to the official PDF and text versions. For each current member: their official website and the social media accounts that website links (shown on bill pages; the assistant does not read them).
 
 **Not held — and the assistant is instructed never to claim otherwise:**
 
 - Co-sponsors. Only the primary sponsor is stored.
 - Vote tallies and roll-call results.
 - Committee hearing schedules.
-- Member biographies, committee assignments or contact details.
+- Member biographies, committee assignments or contact details (beyond the official website and accounts above).
 - Floor speeches and debate transcripts.
 - The full legal text of bills. There is a link to the official PDF, not a copy of it.
 
@@ -283,6 +297,9 @@ Stated plainly, because they affect what you can trust:
 - **There is no documented or supported public API and no bulk download.** The backend does answer read-only bill queries without a key — that is what makes a local clone show real data — but it is not a supported interface and may change without notice. For bulk data, use Congress.gov.
 - **Bill alerts trail Congress.gov.** They go out once a day, after the overnight sync, and Congress.gov itself can post an action a day or more after it happens. An alert says what the record shows, not what happened on the floor an hour ago.
 - **Alerts cover actions and status only** — not new cosponsors, amendments, text versions or hearings, which this site does not store.
+- **Senators' social accounts are not shown yet.** senate.gov refuses automated visits from the networks we tried, so a senator's accounts cannot be confirmed against their own site; their box shows only their official website until that check works.
+- **An account is confirmed from the member's home page only.** A member whose home page links an account only on a deeper page (their contact page, say) shows no account for that platform. It is hidden, never guessed.
+- **New members can take a day or more to show accounts.** A member appears once the volunteer file or our corrections suggest an account and their own site links it.
 - **Bill alerts are paid; saving a bill is not.** Saving bookmarks a bill for free; it does not email you.
 
 If you spot something wrong, that is the most useful thing you can send. See below.

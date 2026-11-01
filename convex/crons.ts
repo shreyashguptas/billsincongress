@@ -126,4 +126,22 @@ crons.interval(
   {},
 );
 
+// Members' official social media accounts (convex/memberAccounts.ts): the
+// volunteer file's suggestions at 07:40 UTC, then each member's own official
+// website confirms them at 08:10. The file changes a few times a month; daily
+// is plenty, and both sit clear of every job above.
+crons.cron(
+  "daily-member-accounts-sync",
+  "40 7 * * *",
+  internal.memberAccounts.sync,
+  {},
+);
+
+crons.cron(
+  "daily-member-sites-check",
+  "10 8 * * *",
+  internal.memberAccounts.checkSites,
+  {},
+);
+
 export default crons;

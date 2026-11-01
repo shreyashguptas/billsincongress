@@ -339,6 +339,14 @@ Patterns that appear on more than one page:
   heading is "More <topic> bills"; a measure with no topic yet shows only the links, under "Where
   this bill sits" ("this resolution" on a resolution, from `billNoun`).
 
+- **Official accounts** (the sponsor's box on a bill page, `components/bills/member-accounts.tsx`):
+  under the sponsor's facts, a "Official accounts" eyebrow and a hairline-ruled list, one row per
+  account: the platform's name in words on the left in `ink-2` ("X", "Facebook", "Instagram",
+  "YouTube", then "Official website"), the handle on the right in `ink` with a 16px Lucide
+  `ArrowUpRight` in `ink-3`, underlined on hover. Every row is at least 44px tall and opens in a
+  new tab. No brand logos and no brand colours: a platform is not data, so it gets no hue. A
+  `SourceLine` under the list says where the accounts come from. Only accounts the member's own
+  website confirms appear; with none, only the website row; for a former member, nothing.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the

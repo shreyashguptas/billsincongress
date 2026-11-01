@@ -657,4 +657,52 @@ export default defineSchema({
     // version being re-fetched on every question (review on #171).
     attemptedAt: v.optional(v.number()),
   }).index("by_name_version", ["name", "version"]),
+
+  // Each member's official social media accounts and website, one row per
+  // member: suggested daily by the congress-legislators project plus our
+  // reviewed fixes, and confirmed against the member's own .gov website
+  // (convex/memberAccounts.ts). A member who leaves office keeps
+  // their row with `inOffice: false`, and no page shows their accounts: official
+  // accounts are archived or handed on when a member leaves.
+  memberAccounts: defineTable({
+    bioguideId: v.string(),
+    name: v.string(),
+    chamber: v.union(v.literal("house"), v.literal("senate")),
+    state: v.string(),
+    inOffice: v.boolean(),
+    officialWebsiteUrl: v.optional(v.string()),
+    // At most one per platform (four), so the list is bounded.
+    accounts: v.array(
+      v.object({
+        platform: v.union(
+          v.literal("x"),
+          v.literal("facebook"),
+          v.literal("instagram"),
+          v.literal("youtube"),
+        ),
+        label: v.string(),
+        url: v.string(),
+        source: v.union(v.literal("congress-legislators"), v.literal("override")),
+        proofUrl: v.optional(v.string()),
+        // When the member's own official website was last seen linking this
+        // exact account. Absent = not confirmed, and no page shows it: the
+        // file suggests accounts, the member's own .gov site confirms them.
+        confirmedAt: v.optional(v.string()),
+      }),
+    ),
+    // The last check of the member's official website (checkSites). `links`
+    // is every social account that page links, kept for the review list.
+    siteCheck: v.optional(
+      v.object({
+        status: v.union(v.literal("ok"), v.literal("blocked"), v.literal("failed")),
+        checkedAt: v.string(),
+        lastOkAt: v.optional(v.string()),
+        links: v.array(v.string()),
+      }),
+    ),
+    // `recordFingerprint` of the suggested accounts, so a sync rewrites only
+    // rows that changed, and `changedAt` says when this member's row last did.
+    fingerprint: v.string(),
+    changedAt: v.string(),
+  }).index("by_bioguideId", ["bioguideId"]),
 });

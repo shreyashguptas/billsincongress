@@ -29,6 +29,7 @@ import PodcastPromo from '@/components/podcast-promo';
 import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
 import { BillRelatedSection } from './bill-related';
+import { MemberAccounts } from './member-accounts';
 import { journeyView } from '@/lib/bill-journey';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -482,6 +483,12 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   </dd>
                 </div>
               </dl>
+              <MemberAccounts
+                data={extras?.sponsorAccounts}
+                surface="bill_sponsor_card"
+                billId={String(bill.id)}
+                className="mt-6"
+              />
             </div>
           </aside>
         </div>

@@ -177,7 +177,7 @@ lib/                       Pure client/shared modules — 43 modules + 41 test f
   services/bills-service.ts  constants/  types/  utils/
 
 convex/                    Backend — 43 top-level modules + catalog/ + 24 test and spec files (12 more in catalog/)
-  schema.ts                26 application tables (+ 6 from the auth library)
+  schema.ts                27 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
@@ -190,6 +190,8 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   posthogEmail.ts billingEmail.ts emailStyle.ts   The hand-off to PostHog Workflows, the plan-change
                            emails, and the shared letterhead
   feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
+  memberAccounts.ts memberAccountsParse.ts memberAccountsVerify.ts memberAccountOverrides.ts
+                           Members' official accounts: suggest, correct, confirm on their own site
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts hubOrder.ts
   billStage.ts billJourney.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts indexNowStatus.ts  Pure, unit-tested
@@ -358,8 +360,9 @@ can force a full reload on navigation when a tab is out of date, avoiding the fa
 
 ### Source
 
-Everything comes from the **official Congress.gov API v3** (`https://api.congress.gov/v3`).
-No scraping, no second provider. The key is sent in an `X-Api-Key` header, never as a query
+Every bill record comes from the **official Congress.gov API v3** (`https://api.congress.gov/v3`).
+No scraping, no second provider. (Members' social media accounts are the one other input, with
+their own pipeline: see "Members' official accounts" below.) The key is sent in an `X-Api-Key` header, never as a query
 string, so it cannot leak into logs or upstream caches.
 
 Eight bill types are pulled: `hr`, `s`, `hjres`, `sjres`, `hconres`, `sconres`, `hres`,
@@ -387,8 +390,8 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 ### The cron jobs
 
 Nine keep the data in step with Congress; a tenth sends bill alerts, an eleventh cleans up
-profile-photo uploads, a twelfth deletes old feedback pictures, and a thirteenth copies the
-answer prompt from PostHog (the last four rows).
+profile-photo uploads, a twelfth deletes old feedback pictures, a thirteenth copies the
+answer prompt from PostHog, and two keep members' official accounts current (the last six rows).
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -405,6 +408,8 @@ answer prompt from PostHog (the last four rows).
 | `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
 | `daily-avatar-orphan-sweep` | 08:00 daily | File storage | Delete profile-photo uploads no account points at and over an hour old (`avatars.sweepOrphans`) |
 | `daily-feedback-picture-purge` | 09:15 daily | `feedbackPictures` | Delete each feedback picture, file and row, 180 days after it arrived (`feedback.purgeOldPictures`), 100 per run, rescheduling itself while more remain. The privacy policy promises the 180 days |
+| `daily-member-accounts-sync` | 07:40 daily | `memberAccounts` | Copy the suggested social media accounts from congress-legislators, apply `memberAccountOverrides.ts`, write the rows that changed (`memberAccounts.sync`). See "Members' official accounts" |
+| `daily-member-sites-check` | 08:10 daily | `memberAccounts` | Fetch each member's own .gov home page and confirm only the accounts it links (`memberAccounts.checkSites`) |
 | `refresh-answer-prompt` | Every 5 minutes | `answerPrompts` | Copy the `answer-system` prompt version labelled `production` in PostHog prompt management (`answerPrompts.refresh`). A no-op until `POSTHOG_PERSONAL_API_KEY` is set. See "Answer prompt" |
 
 ### Throttling
@@ -539,6 +544,51 @@ seed, which would otherwise delay announcements by about two weeks. A promotion 
 The key file published at the domain root is **not a credential** — the protocol requires it
 to be publicly retrievable. `lib/indexnow.test.ts` reads the constant in `convex/indexNow.ts` and the served file and
 fails if they disagree.
+
+### Members' official accounts
+
+The bill page's sponsor box lists the member's official X, Facebook, Instagram and YouTube
+accounts and website. No government source lists members' social media (Congress.gov's member
+endpoint, the House Clerk's `MemberData.xml` and the Senate's `senators_cfm.xml` carry none), so
+the rule is: **an account is shown only while the member's own .house.gov or .senate.gov home
+page links that exact account.** Two daily jobs and one reviewed file implement it.
+
+| Piece | File | What it does |
+| --- | --- | --- |
+| Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.json` and `legislators-social-media.json` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) GitHub Pages mirror (CC0, volunteer-kept; its policy is official accounts only), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
+| Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page and the date a person checked it: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Send each upstream as a pull request and delete it here once merged |
+| Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | Fetches each in-office member's home page (8 at a time, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads its social links, and stamps `confirmedAt` on each account the page links. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing; a confirmation not renewed by a successful check for 30 days lapses |
+| Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only confirmed accounts, plus the website. Nothing for a member out of office or a bill without a sponsor id |
+
+Safety: a download with fewer than 480 or more than 560 members, or one that would drop more
+than 40 accounts from members who stay in office, is not written (`safetyProblem`), and the run
+logs `member accounts sync refused`. A new Congress replacing many members at once passes,
+because leaving members are not counted. When a person has looked and the change is real:
+
+```bash
+pnpm exec convex run --prod memberAccounts:sync '{"force":true}'
+```
+
+What the site check did not confirm, with what each site links instead, for a person to review
+into the overrides file:
+
+```bash
+pnpm exec convex run --prod memberAccounts:reviewList '{}'
+```
+
+At launch (1 Nov 2026), measured against every House member's home page: 1,348 of 1,424
+suggested House accounts confirmed, 433 of 439 House members with at least one. **senate.gov
+refused automated visits** from the networks tried ("Senate.gov - Unauthorized"), so senators
+show only their website until `checkSites` succeeds for them from Convex; if it is refused there
+too, they are checked by hand into the overrides file. The check reads home pages only, so an
+account linked only from a deeper page stays hidden.
+
+After the first deploy, run both once rather than waiting for the morning:
+
+```bash
+pnpm exec convex run --prod memberAccounts:sync '{}'
+pnpm exec convex run --prod memberAccounts:checkSites '{}'
+```
 
 ### Committee base rates
 
@@ -706,7 +756,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 
 ## The database
 
-26 application tables plus 6 installed by `@convex-dev/auth` (32 in production).
+27 application tables plus 6 installed by `@convex-dev/auth` (33 in production).
 
 ### Bill data
 
@@ -720,6 +770,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 | `billLegislativeSubjects` | The long per-bill subject list (HR1/119 has ~239). Stored but not surfaced |
 | `billTitles` | **Unused, and empty** — never written; the only reference is a delete loop in `mutations.ts`. Removing it is left to the owner |
 | `syncSnapshots` | Audit trail of every sync run |
+| `memberAccounts` | One row per member (index `by_bioguideId`): name, chamber, state, `inOffice`, official website, and up to four suggested accounts, each with `confirmedAt` once the member's own site links it; plus the last site check. See "Members' official accounts" |
 
 Two design decisions worth knowing:
 
@@ -740,7 +791,8 @@ Two design decisions worth knowing:
   and the answer engine is explicitly instructed never to imply otherwise.
 
 Not held at all: vote tallies and roll calls, committee hearing schedules, member
-biographies or contact details, floor speeches, and the full text of bills (only a link).
+biographies or contact details (beyond `memberAccounts`: the official website and the social
+accounts it links), floor speeches, and the full text of bills (only a link).
 
 ### Precomputed analytics
 
