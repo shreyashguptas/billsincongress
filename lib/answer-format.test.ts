@@ -4,7 +4,7 @@
  * Run with: `pnpm test`.
  */
 import assert from 'node:assert/strict';
-import { printedSources, toSource, toSources, type WebSource } from './answer-format';
+import { printedSources, sourceHref, toSource, toSources, type WebSource } from './answer-format';
 import { CompactStageLabel, compactStageLabel } from './utils/bill-stages';
 // The prose numbering these tests must agree with, and the stage codes the
 // labels must cover, are imported from their own sources on purpose: a copy of
@@ -267,6 +267,18 @@ it('labels exactly the nine stage codes, no more and no fewer', () => {
 it('names an unrecognised stage instead of guessing a neighbour', () => {
   assert.equal(compactStageLabel(55), 'Stage 55');
   assert.equal(compactStageLabel(Number.NaN), 'Unknown');
+});
+
+it("points a citation of the current bill's timeline and summary at their sections", () => {
+  assert.equal(sourceHref(toSource('bill_actions:6079hr119:2025-11-03'), '6079hr119'), '/bills/6079hr119#timeline');
+  assert.equal(sourceHref(toSource('bill_summaries:6079hr119:00'), '6079hr119'), '/bills/6079hr119#summary');
+  assert.equal(sourceHref(toSource('bills:6079hr119'), '6079hr119'), '/bills/6079hr119');
+});
+
+it('keeps the plain bill link for a citation of any other bill, or off a bill page', () => {
+  assert.equal(sourceHref(toSource('bill_actions:10908hr118:2024-12-01'), '6079hr119'), '/bills/10908hr118');
+  assert.equal(sourceHref(toSource('bill_summaries:6079hr119:00')), '/bills/6079hr119');
+  assert.equal(sourceHref(toSource('stats:119'), '6079hr119'), null);
 });
 
 console.log(`\nanswer-format: ${passed} passed, ${failures.length} failed`);

@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
 import { Button } from '@/components/ui/button';
 import { layoutModeFor, viewportWidth } from '@/lib/ask-panel';
-import { launcherVisible, panelInert } from '@/lib/ask-panel-state';
+import { inPageTarget, launcherVisible, panelInert } from '@/lib/ask-panel-state';
 import { surfaceFor } from '@/lib/page-context';
 import { useAnswers, useNoteNavReason } from './answer-provider';
 import AnswerThread from './answer-thread';
@@ -18,6 +18,14 @@ import { ResizeHandle } from './resize-handle';
 
 /** How far a downward swipe has to travel before it counts as a dismissal. */
 const SWIPE_DISMISS_PX = 96;
+
+/** Scroll the page to the element with this id, or to the top for ''. */
+function scrollToSection(id: string) {
+  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+  const target = id ? document.getElementById(id) : null;
+  if (target) target.scrollIntoView({ behavior, block: 'start' });
+  else window.scrollTo({ top: 0, behavior });
+}
 
 /**
  * The persistent panel (spec §6.2).
@@ -127,6 +135,18 @@ export function AnswerPanel() {
     if (anchor.target && anchor.target !== '_self') return;
     const href = anchor.getAttribute('href') ?? '';
     if (!href.startsWith('/')) return;
+
+    // A link to the page the reader is already on, such as a citation of the
+    // bill they are reading: the router does nothing for it, so a click looked
+    // dead. Scroll to the section it cites, or to the top. The scroll waits a
+    // frame for the sheet's scroll lock to lift.
+    const section = inPageTarget(href, pathname);
+    if (section !== null) {
+      e.preventDefault();
+      minimize('entity_navigation');
+      requestAnimationFrame(() => scrollToSection(section));
+      return;
+    }
 
     noteNavReason('entity_navigation');
     minimize('entity_navigation');

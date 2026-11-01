@@ -993,8 +993,12 @@ makes the next part cheap.
 **Stepping aside.** A bill card inside an answer was always a working link, but on a phone the
 sheet covered the page it opened, so the tap read as doing nothing. `answer-panel.tsx` captures
 the click at the panel boundary and minimises *on the tap*, before the route commits — which
-also catches tapping the bill the reader is already on, where no route change ever fires. A
-`usePathname` effect backstops navigations that never pass through the panel. Because nothing
+also catches tapping the bill the reader is already on, where no route change ever fires. The
+router does nothing for a link to the current page, so the panel scrolls the page itself
+(`inPageTarget` in `lib/ask-panel-state.ts`): to the section after the link's `#`, or to the top.
+On a bill's page its own timeline and summary citations point at `#timeline` (the status panel)
+and `#summary` (`sourceHref` in `lib/answer-format.ts`); citations of other bills keep the plain
+bill link. A `usePathname` effect backstops navigations that never pass through the panel. Because nothing
 unmounts, the thread's scroll position and the composer's draft survive. Focus moves to
 `<main>`, so a keyboard or screen-reader user lands on the page they just opened.
 

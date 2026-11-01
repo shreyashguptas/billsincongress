@@ -30,6 +30,7 @@ import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
 import { BillRelatedSection } from './bill-related';
 import { journeyView } from '@/lib/bill-journey';
+import { BILL_SECTION } from '@/lib/answer-format';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
   ArrowLeft,
@@ -209,6 +210,10 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             ? `from introduction to the end of the ${formatCongressOrdinal(bill.congress)} Congress`
             : 'since it was introduced';
 
+  // Where a citation of this bill in the ask panel scrolls to, clear of the
+  // sticky header (lib/answer-format.ts, sourceHref).
+  const sectionAnchor = 'scroll-mt-[calc(var(--header-h)+1.5rem)]';
+
   const hasBaseRate =
     bill.base_rate_percent !== undefined &&
     bill.base_rate_sample !== undefined &&
@@ -309,11 +314,14 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
         </div>
       </header>
 
-      {/* Status panel — the page's one bold element (brand.md, "Principles" 6). */}
+      {/* Status panel — the page's one bold element (brand.md, "Principles" 6).
+          It is the timeline's anchor, not the journey inside it: the journey
+          is not drawn for every bill, and a timeline citation must land. */}
       <div className="container-editorial mt-10 sm:mt-12">
         <section
+          id={BILL_SECTION.timeline}
           aria-labelledby="bill-status-label"
-          className="rounded-lg border border-line bg-raised p-6 sm:px-8 sm:py-7"
+          className={cn('rounded-lg border border-line bg-raised p-6 sm:px-8 sm:py-7', sectionAnchor)}
         >
           <div
             className={cn(
@@ -430,7 +438,14 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             {/* The one-paragraph answer: what this bill is and where it stands.
                 For bills Congress has not summarised yet this is the page's only
                 substantive prose, so it always renders. */}
-            <p className="label-eyebrow">At a glance</p>
+            {/* With no summary text on the page, a summary citation lands on
+                the paragraph that stands in for it. */}
+            <p
+              id={summary ? undefined : BILL_SECTION.summary}
+              className={cn('label-eyebrow', sectionAnchor)}
+            >
+              At a glance
+            </p>
             <p className="mt-3 font-serif text-[19px] leading-[30px] text-ink sm:text-[22px] sm:leading-[34px]">
               {answer}
             </p>
@@ -438,7 +453,9 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             {summary && (
               <>
                 <hr className="rule my-10" />
-                <p className="label-eyebrow">Summary</p>
+                <p id={BILL_SECTION.summary} className={cn('label-eyebrow', sectionAnchor)}>
+                  Summary
+                </p>
                 <div className="mt-3 whitespace-pre-wrap font-serif text-reading-sm text-ink sm:text-reading">
                   {summary}
                 </div>
