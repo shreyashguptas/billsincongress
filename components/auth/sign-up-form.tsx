@@ -19,7 +19,8 @@ type Step = "credentials" | "verify";
 
 // The verify step's two quiet actions: link Buttons at text height, in ink-2
 // so the submit stays the one strong control.
-const SECONDARY_ACTION = "rounded-xs font-normal text-ink-2 hover:text-ink";
+// touch-hit: text height, but a 44px hit box on a touch screen.
+const SECONDARY_ACTION = "touch-hit rounded-xs font-normal text-ink-2 hover:text-ink";
 
 type ErrorState =
   | null
@@ -226,7 +227,7 @@ export function SignUpForm() {
 
       <p className="text-center text-sm text-ink-3">
         Already have an account?{" "}
-        <Link href="/sign-in" className="link focus-ring rounded-xs font-medium">
+        <Link href="/sign-in" className="link touch-hit focus-ring rounded-xs font-medium">
           Sign in
         </Link>
       </p>

@@ -24,6 +24,16 @@ const slotClass =
   'inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 font-mono text-sm tabular transition-colors focus-ring touchable:h-11 touchable:min-w-11';
 
 /**
+ * Below `sm`, only the current page and its neighbours show, and Previous and
+ * Next shrink to their arrows: the full window (Previous, 1, …, three pages,
+ * …, last, Next) wrapped at 390px and left the last number alone on a second
+ * line. The hidden anchors stay in the HTML (`hidden sm:inline-flex`), so a
+ * crawler still finds every one of them. The narrowest bar, at 320px, is five
+ * 44px targets and an ellipsis.
+ */
+const phoneHidden = 'hidden sm:inline-flex';
+
+/**
  * Page links as real anchors, server-rendered.
  *
  * A server component on purpose: the point is that a crawler with no
@@ -52,10 +62,10 @@ export function CrawlablePagination({
         <Link
           href={hrefForPage(current - 1)}
           rel="prev"
-          className={cn(slotClass, 'gap-1 pl-1.5 pr-3 font-sans font-medium text-ink hover:bg-sunken')}
+          className={cn(slotClass, 'gap-1 font-sans font-medium text-ink hover:bg-sunken sm:pl-1.5 sm:pr-3')}
         >
           <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-          Previous
+          <span className="sr-only sm:not-sr-only">Previous</span>
         </Link>
       )}
 
@@ -64,7 +74,10 @@ export function CrawlablePagination({
           <span
             key={`gap-${i}`}
             aria-hidden="true"
-            className="inline-flex h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11"
+            className={cn(
+              'h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11',
+              phoneHidden
+            )}
           >
             …
           </span>
@@ -75,6 +88,7 @@ export function CrawlablePagination({
             aria-current={slot === current ? 'page' : undefined}
             className={cn(
               slotClass,
+              Math.abs(slot - current) > 1 && phoneHidden,
               slot === current
                 ? 'bg-ink font-medium text-on-ink'
                 : 'text-ink-2 hover:bg-sunken hover:text-ink'
@@ -96,9 +110,9 @@ export function CrawlablePagination({
         <Link
           href={hrefForPage(current + 1)}
           rel="next"
-          className={cn(slotClass, 'gap-1 pl-3 pr-1.5 font-sans font-medium text-ink hover:bg-sunken')}
+          className={cn(slotClass, 'gap-1 font-sans font-medium text-ink hover:bg-sunken sm:pl-3 sm:pr-1.5')}
         >
-          Next
+          <span className="sr-only sm:not-sr-only">Next</span>
           <ChevronRight className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
         </Link>
       )}

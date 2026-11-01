@@ -74,7 +74,8 @@ export function InstallAppButton() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Bills in Congress to your Home Screen</DialogTitle>
+            {/* Clear of the corner close: even padding keeps the phone's centred title centred. */}
+            <DialogTitle className="text-balance px-7 sm:pl-0">Add Bills in Congress to your Home Screen</DialogTitle>
             <DialogDescription>
               It opens full screen like an app, and a bill is one tap from your Home Screen.
             </DialogDescription>

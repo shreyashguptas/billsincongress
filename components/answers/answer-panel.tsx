@@ -15,9 +15,7 @@ import AnswerThread from './answer-thread';
 import { HistoryList } from './history-list';
 import { AskLauncher } from './ask-launcher';
 import { ResizeHandle } from './resize-handle';
-
-/** How far a downward swipe has to travel before it counts as a dismissal. */
-const SWIPE_DISMISS_PX = 96;
+import { resetSwiped, useDragDismiss } from '@/hooks/use-drag-dismiss';
 
 /**
  * The persistent panel (spec §6.2).
@@ -60,8 +58,6 @@ export function AnswerPanel() {
   const panelRef = useRef<HTMLElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const previousPhase = useRef(phase);
-  const swipeFrom = useRef(0);
-  const swipeBy = useRef(0);
 
   const open = phase === 'open';
 
@@ -70,7 +66,9 @@ export function AnswerPanel() {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false, 'escape');
+      // A menu or popover open over the panel takes the Escape for itself
+      // (Radix marks it handled); one key must not close both.
+      if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false, 'escape');
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -132,34 +130,22 @@ export function AnswerPanel() {
     minimize('entity_navigation');
   };
 
-  // Swipe the sheet away. Same pointer discipline as the resize edge: capture
-  // the pointer so the gesture survives leaving the element, write the offset
-  // inline so nothing re-renders per frame.
-  const onGrabDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    swipeFrom.current = e.clientY;
-    swipeBy.current = 0;
-    if (panelRef.current) panelRef.current.dataset.dragging = '1';
-  };
-
-  const onGrabMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId) || !panelRef.current) return;
-    // Downward only. Dragging up would tear the sheet off the bottom edge.
-    swipeBy.current = Math.max(0, e.clientY - swipeFrom.current);
-    panelRef.current.style.transform = `translateY(${swipeBy.current}px)`;
-  };
-
-  const onGrabUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    if (panelRef.current) {
-      delete panelRef.current.dataset.dragging;
-      panelRef.current.style.transform = '';
-    }
-    if (swipeBy.current > SWIPE_DISMISS_PX) setOpen(false, 'swipe');
-    swipeBy.current = 0;
-  };
+  // Drag it away: down on the sheet, right on the floating rail, with a finger
+  // or a mouse, from the grab bar or the title row (hooks/use-drag-dismiss.ts).
+  // Not docked: there the panel is part of the layout and its edge resizes.
+  const drag = useDragDismiss({
+    axis: () => (layoutModeFor(viewportWidth()) === 'sheet' ? 'y' : 'x'),
+    direction: 1,
+    surface: () => panelRef.current,
+    enabled: () => layoutModeFor(viewportWidth()) !== 'dock',
+    onDismiss: () => {
+      setOpen(false, 'swipe');
+      // The drag left the panel parked off screen with an inline transform;
+      // hand it back to the stylesheet once the closed state has landed, or
+      // the next open would stay where the swipe left it.
+      requestAnimationFrame(() => requestAnimationFrame(() => resetSwiped(panelRef.current)));
+    },
+  });
 
   // Ghost icon buttons (brand.md, "Button"): 40px, 44px on touch screens,
   // resting at ink-2.
@@ -200,77 +186,87 @@ export function AnswerPanel() {
         aria-labelledby="ask-title"
         onClickCapture={onClickCapture}
         className={cn(
-          'ask-panel flex flex-col border-line bg-paper',
-          // Sheet: a top edge and rounded top corners. Rail and dock: a left edge.
-          'rounded-t-lg border-t lg:rounded-none lg:border-l lg:border-t-0',
-          // It floats over the page as a sheet and as a rail; docked, it sits
-          // beside the page and a shadow would say otherwise.
-          'shadow-float min-[1344px]:shadow-none',
+          'ask-panel flex flex-col border-line bg-paper focus:outline-none',
+          // Sheet: square and flush under the header, whose bottom rule is its
+          // top edge. Rounded corners there exposed the page behind them as
+          // wedges (black over the home page's dark stage), and a border of its
+          // own doubled the header's line. Rail and dock: a left edge.
+          'lg:border-l',
+          // The rail floats over the page; docked, it sits beside the page and
+          // a shadow would say otherwise. A sheet's shadow would only fall on
+          // the header above it.
+          'lg:shadow-float min-[1344px]:shadow-none',
         )}
       >
         <ResizeHandle surface={surfaceFor(pathname)} />
 
-        {/* Grab bar. Only on the sheet, where a swipe is the natural dismissal. */}
-        <div
-          onPointerDown={onGrabDown}
-          onPointerMove={onGrabMove}
-          onPointerUp={onGrabUp}
-          onPointerCancel={onGrabUp}
-          aria-hidden="true"
-          className="flex shrink-0 cursor-grab touch-none justify-center py-2 active:cursor-grabbing lg:hidden"
-        >
-          <span className="h-1 w-9 rounded-full bg-line-strong" />
-        </div>
-
         {/*
-          From lg up this bar is exactly the site header's height, border
-          included (--header-h), so docked beside it the two bottom rules are
-          one continuous line across the window.
+          The handle: grab bar and title row together, so the whole top of the
+          panel drags (a 20px bar alone was too small a target). Buttons in it
+          still click; a drag only starts once the pointer has moved.
         */}
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pl-4 pr-2 lg:h-[var(--header-h)] lg:py-0 lg:pl-5 lg:pr-3">
-          <h2 id="ask-title" className="label-eyebrow min-w-0 truncate">
-            {showHistory ? 'Your conversations' : 'Ask'}
-          </h2>
-          <div className="flex shrink-0 items-center gap-0.5">
-            {isAuthenticated && (
+        <div
+          {...drag}
+          className="shrink-0 touch-none select-none min-[1344px]:touch-auto min-[1344px]:select-auto"
+        >
+          {/* Grab bar. Only on the sheet, where a swipe is the natural dismissal. */}
+          <div
+            aria-hidden="true"
+            className="group/grab flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing lg:hidden"
+          >
+            <span className="h-1 w-9 rounded-full bg-line-strong transition-[transform,background-color] duration-150 ease-out group-active/grab:scale-x-110 group-active/grab:bg-ink-3" />
+          </div>
+
+          {/*
+            From lg up this bar is exactly the site header's height, border
+            included (--header-h), so docked beside it the two bottom rules are
+            one continuous line across the window.
+          */}
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pl-4 pr-2 lg:h-[var(--header-h)] lg:py-0 lg:pl-5 lg:pr-3">
+            <h2 id="ask-title" className="label-eyebrow min-w-0 truncate">
+              {showHistory ? 'Your conversations' : 'Ask'}
+            </h2>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {isAuthenticated && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowHistory((v) => !v)}
+                  aria-label={showHistory ? 'Back to conversation' : 'Your conversations'}
+                  className={iconButton}
+                >
+                  {showHistory ? (
+                    <MessageSquare className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                  ) : (
+                    <History className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                  )}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={() => setShowHistory((v) => !v)}
-                aria-label={showHistory ? 'Back to conversation' : 'Your conversations'}
+                onClick={() => {
+                  newChat();
+                  setShowHistory(false);
+                }}
+                aria-label="New conversation"
                 className={iconButton}
               >
-                {showHistory ? (
-                  <MessageSquare className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-                ) : (
-                  <History className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-                )}
+                <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                newChat();
-                setShowHistory(false);
-              }}
-              aria-label="New conversation"
-              className={iconButton}
-            >
-              <Plus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setOpen(false, 'manual')}
-              aria-label="Close the ask panel"
-              className={iconButton}
-            >
-              <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(false, 'manual')}
+                aria-label="Close the ask panel"
+                className={iconButton}
+              >
+                <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              </Button>
+            </div>
           </div>
         </div>
 

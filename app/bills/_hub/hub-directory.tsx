@@ -41,7 +41,7 @@ export function HubDirectory(): ReactElement {
   const topics = hubsOfKind('topic');
 
   const linkClass =
-    'flex min-h-10 items-center py-2 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring';
+    'flex min-h-10 items-center py-2 touchable:min-h-11 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring';
 
   return (
     <details className="group mt-4 border-y border-line">

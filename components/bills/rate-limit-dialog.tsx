@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { X } from "lucide-react";
 
 import { analytics } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogTitle,
@@ -58,22 +56,11 @@ export function RateLimitDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        // DialogContent draws its own 16px close glyph as its last child; it is
-        // hidden for the 40px close button below, which sits where this
-        // dialog's always has.
-        hideClose
-        className="block w-[92%] max-w-md rounded-lg border-line p-6 sm:p-7"
+        // The frame's own close button (40px, 44px on touch) stays in the
+        // corner while the body scrolls.
+        className="max-w-md border-line"
+        bodyClassName="block p-6 sm:p-7"
       >
-        <DialogClose asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Close"
-            className="absolute right-3 top-3 text-ink-2 hover:text-ink touchable:h-10 touchable:w-10"
-          >
-            <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-          </Button>
-        </DialogClose>
 
         {kind === "anonymous" ? (
           <>

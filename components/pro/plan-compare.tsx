@@ -177,32 +177,10 @@ export function PlanCompare({
   return (
     <div className={cn('space-y-4', className)}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col rounded-lg border border-line bg-raised p-5 sm:p-6">
-          {/* h-6 matches the Pro card's pill, so the rows line up across the cards. */}
-          <p className="label-eyebrow flex h-6 items-center">Free</p>
-          <p className="mt-3 flex items-baseline gap-2">
-            <span className="font-serif text-display-md font-medium leading-none text-ink tabular">$0</span>
-            <span className="text-[15px] text-ink-2">with a free account</span>
-          </p>
-          <p className="mt-2 text-[13px] text-ink-3">Reading the site is free, always.</p>
-          <Rows rows={FREE_ROWS} />
-          <div className="mt-5">
-            {plan === 'free' ? (
-              <Button variant="outline" className="w-full" disabled>
-                Your current plan
-              </Button>
-            ) : plan === 'signed_out' ? (
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/sign-up">Create a free account</Link>
-              </Button>
-            ) : (
-              // Pro, or still loading: keep the card's height without a button to press.
-              <div aria-hidden="true" className="h-10 touchable:h-11" />
-            )}
-          </div>
-        </div>
-
-        <div className="order-first flex flex-col rounded-lg border border-ink bg-raised p-5 ring-1 ring-ink sm:order-none sm:p-6">
+        {/* Pro comes first in the source, so on a phone, where it is drawn first,
+            keyboard focus reaches Subscribe before "Create a free account".
+            From sm up Free is moved to the left (sm:order-first). */}
+        <div className="flex flex-col rounded-lg border border-ink bg-raised p-5 ring-1 ring-ink sm:p-6">
           <div className="flex h-6 items-center justify-between gap-3">
             <ProPill />
             <span className="text-[13px] text-ink-3 tabular">Cancel any time</span>
@@ -227,15 +205,40 @@ export function PlanCompare({
             </p>
           ) : (
             <div className="mt-5 grid gap-2">
-              <Button className="w-full" disabled={disabled} onClick={() => onChoose?.('year')}>
+              <Button className="w-full transition-[color,background-color,border-color,transform] touchable:active:scale-[.98]" disabled={disabled} onClick={() => onChoose?.('year')}>
                 {busy === 'year' ? 'Opening checkout…' : `Subscribe yearly · $${PRO_PRICE_USD.year}`}
               </Button>
-              <Button variant="outline" className="w-full" disabled={disabled} onClick={() => onChoose?.('month')}>
+              <Button variant="outline" className="w-full transition-[color,background-color,border-color,transform] touchable:active:scale-[.98]" disabled={disabled} onClick={() => onChoose?.('month')}>
                 {busy === 'month' ? 'Opening checkout…' : `Subscribe monthly · $${PRO_PRICE_USD.month}`}
               </Button>
             </div>
           )}
         </div>
+        <div className="flex flex-col rounded-lg border border-line bg-raised p-5 sm:order-first sm:p-6">
+          {/* h-6 matches the Pro card's pill, so the rows line up across the cards. */}
+          <p className="label-eyebrow flex h-6 items-center">Free</p>
+          <p className="mt-3 flex items-baseline gap-2">
+            <span className="font-serif text-display-md font-medium leading-none text-ink tabular">$0</span>
+            <span className="text-[15px] text-ink-2">with a free account</span>
+          </p>
+          <p className="mt-2 text-[13px] text-ink-3">Reading the site is free, always.</p>
+          <Rows rows={FREE_ROWS} />
+          <div className="mt-5">
+            {plan === 'free' ? (
+              <Button variant="outline" className="w-full" disabled>
+                Your current plan
+              </Button>
+            ) : plan === 'signed_out' ? (
+              <Button asChild variant="outline" className="w-full transition-[color,background-color,border-color,transform] touchable:active:scale-[.98]">
+                <Link href="/sign-up">Create a free account</Link>
+              </Button>
+            ) : (
+              // Pro, or still loading: keep the card's height without a button to press.
+              <div aria-hidden="true" className="h-10 touchable:h-11" />
+            )}
+          </div>
+        </div>
+
       </div>
 
       {plan === 'signed_out' && (
