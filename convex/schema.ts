@@ -685,9 +685,9 @@ export default defineSchema({
         source: v.union(v.literal("congress-legislators"), v.literal("override")),
         proofUrl: v.optional(v.string()),
         // When the member's own official website was last seen linking this
-        // exact account, and what to show for it: the address the site
-        // linked (for YouTube, the channel id or the @handle, whichever the
-        // site used) and its label. Absent = not confirmed, and no page shows
+        // exact account, and what to show for it: the account's address (for
+        // YouTube, the exact form the site linked: channel id, @handle, /user/
+        // or /c/) and its label. Absent = not confirmed, and no page shows
         // it: the file suggests accounts, the member's own .gov site confirms.
         confirmedAt: v.optional(v.string()),
         shown: v.optional(v.object({ url: v.string(), label: v.string() })),
