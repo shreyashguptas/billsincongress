@@ -88,6 +88,12 @@ export interface Turn {
   askedReader?: boolean;
   /** Where the question was asked, so a later rating reports the same surface. */
   surface?: string;
+  /**
+   * The bill on screen when the question was asked, null on a page with no
+   * bill. Sent back with the history, so a question asked again on another
+   * bill's page is not answered as a correction of this one.
+   */
+  billId?: string | null;
   /** The reader's answer to "Was this answer right?". One per answer. */
   rating?: AnswerVerdict;
   /** The PostHog trace that recorded this answer (convex/aiTrace.ts). */
@@ -458,8 +464,13 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
         work: [],
         done: false,
         surface,
+        billId: context.billId ?? null,
       };
-      const history = turns.map((t) => ({ role: t.role, content: t.content }));
+      const history = turns.map((t) => ({
+        role: t.role,
+        content: t.content,
+        ...(t.billId !== undefined ? { billId: t.billId } : {}),
+      }));
 
       setTurns((prev) => [...prev, userTurn, botTurn]);
       openPanel('ask');

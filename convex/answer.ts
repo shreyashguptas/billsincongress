@@ -27,7 +27,7 @@ import {
   isAllDeliberation,
   sanitizeAnswer,
 } from "./catalog/answerSanitize";
-import { parsePageContext, type PageContext } from "./catalog/context";
+import { BILL_ID_PATTERN, parsePageContext, type PageContext } from "./catalog/context";
 import { checkSearchQuery } from "../lib/search-query-guard";
 import { billsInScope, keepWebResultsForBill, withheldNote } from "./catalog/webResults";
 import { scheduleLog, type LogAttributes, type LogLevel } from "./posthogLogs";
@@ -263,18 +263,53 @@ export function followUpNote(lastAnswer: string): string {
 }
 
 /**
+ * The note on the reader's last answer, for runLoop. The chat stays open from
+ * one page to the next, so that answer can be about a different bill. Live, a
+ * reader asked "What does this bill actually do?" on S. 5620 and again on
+ * S. 5622, and the correct answer about S. 5622 opened with "My earlier answer
+ * was wrong". followUpNote is only for an answer about the bill on screen now.
+ */
+export function earlierAnswerNote(lastAnswer: HistoryTurn, billOnScreen: string | undefined): string {
+  const note = followUpNote(lastAnswer.content);
+  const askedOn = askedOnBill(lastAnswer.billId);
+  const now = billOnScreen ?? null;
+  if (askedOn === undefined || askedOn === now) return note;
+  const page = (billId: string | null) => (billId ? `bill ${billId}` : "a page with no bill open");
+  // Answer cards link to bill pages, so "are you sure?" right after a move is
+  // still a doubt: the rule above stays, and only the re-asked question changes.
+  return (
+    `${note} That reply was asked on ${page(askedOn)}; the reader is now on ${page(now)}. ` +
+    `A question about "this bill" is about the page they are on now, so the same question ` +
+    `asked again here is a new question: answer it fresh and do not call that reply wrong. ` +
+    `Use the correction rule above only if the reader clearly doubts that reply itself.`
+  );
+}
+
+/**
+ * The bill on screen when an answer was asked: a bill id, null for a page with
+ * no bill, undefined when unknown (an older page, or a resumed thread). Checked
+ * against the bill-id pattern because it goes into a system message.
+ */
+function askedOnBill(raw: unknown): string | null | undefined {
+  if (raw === null) return null;
+  if (typeof raw === "string" && BILL_ID_PATTERN.test(raw)) return raw;
+  return undefined;
+}
+
+/** One turn of client-supplied history. `billId`: see askedOnBill. */
+export type HistoryTurn = { role: "user" | "assistant"; content: string; billId?: string | null };
+
+/**
  * Trim client-supplied history: it arrives from the browser (spec §4.7), so an
  * unbounded transcript is a cost attack. Oldest turns go first.
  */
-export function capHistory(
-  history: Array<{ role: "user" | "assistant"; content: string }>,
-): Array<{ role: "user" | "assistant"; content: string }> {
+export function capHistory(history: HistoryTurn[]): HistoryTurn[] {
   // The browser sends this; its type is not a guarantee. Any other role would
   // reach Claude as a system instruction or an orphan tool result.
   const recent = history
     .filter((t) => (t.role === "user" || t.role === "assistant") && typeof t.content === "string")
     .slice(-MAX_HISTORY_TURNS);
-  const out: Array<{ role: "user" | "assistant"; content: string }> = [];
+  const out: HistoryTurn[] = [];
   let chars = 0;
   for (let i = recent.length - 1; i >= 0; i--) {
     const turn = recent[i];
@@ -631,7 +666,7 @@ async function runLoop(
   opts: {
     question: string;
     pageContext?: PageContext | null;
-    history: Array<{ role: "user" | "assistant"; content: string }>;
+    history: HistoryTurn[];
     keys: ModelKeys;
     scope?: AnswerScope;
     onWork?: (entry: WorkLogEntry) => void;
@@ -799,9 +834,11 @@ async function runLoop(
   // 2026-10-05 it named the wrong "latest law", was asked "are you sure?" and
   // "why did you change your answer?", and gave the right law both times with
   // no word that the first answer had been wrong. The rule in the system prompt
-  // alone did not do it.
+  // alone did not do it. Not when that answer was about another bill.
   const lastAnswer = [...capHistory(opts.history)].reverse().find((m) => m.role === "assistant");
-  if (lastAnswer) messages.push({ role: "system", content: followUpNote(lastAnswer.content) });
+  if (lastAnswer) {
+    messages.push({ role: "system", content: earlierAnswerNote(lastAnswer, opts.pageContext?.billId) });
+  }
 
   messages.push({ role: "user", content: opts.question });
 
@@ -1184,6 +1221,7 @@ export const ask = internalAction({
         v.object({
           role: v.union(v.literal("user"), v.literal("assistant")),
           content: v.string(),
+          billId: v.optional(v.union(v.string(), v.null())),
         }),
       ),
     ),
