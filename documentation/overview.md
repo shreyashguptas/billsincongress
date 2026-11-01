@@ -112,7 +112,7 @@ app/                       Next.js App Router — 21 page.tsx files
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
   sign-in/ sign-up/ forgot-password/
   alerts/unsubscribe/      The page an alert email's unsubscribe link opens (a button, never an action on load)
-  api/                     answer/, bill-chat/usage, alerts/unsubscribe, bills/query
+  api/                     answer/, auth/[...path] (Google sign-in), bill-chat/usage, alerts/unsubscribe, bills/query
   share-image/             Share cards: home/route.tsx (the home page) and [...path]/route.tsx (the hubs)
   robots.ts sitemap-files/[id]/ sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
@@ -218,6 +218,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also offers "Change password" (password accounts only), and shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
+| `/api/auth/signin/<provider>`, `/api/auth/callback/<provider>` | GET (and POST, for form-post providers) — Google sign-in's start and return pages, passed through to Convex so Google shows billsincongress.com (see "Accounts and auth"). `/api/auth` itself is the auth library's sign-in and sign-out proxy, inside the middleware |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
 | `/api/bills/query` | POST — runs one of four public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`) on the server, for browsers that cannot reach Convex. See below |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
@@ -323,7 +324,9 @@ production copy.
 **Middleware** (`middleware.ts`, not `proxy.ts` — see [Hosting](#hosting-and-cloudflare-constraints)):
 301-redirects `www` to the apex, sends signed-out visitors from `/account` to `/sign-in`,
 sends signed-in visitors away from `/sign-in` and `/sign-up`, and sets `Cache-Control` from
-the allowlist in `lib/cacheable-routes.ts`.
+the allowlist in `lib/cacheable-routes.ts`. Through `@convex-dev/auth`'s wrapper it also swaps
+the `?code=` a finished sign-in returns with for session cookies, on every page except the
+`/api/auth/` ones (see "Accounts and auth").
 
 Caching is an **allowlist, not a denylist**, on purpose: a missing public route is merely
 uncached, whereas a personalised route slipping through a denylist gap would put one
@@ -1677,6 +1680,21 @@ pending sign-up code under their own email and land in that account (found 27 Oc
 password-reset flow had its own check in the library, sign-up verification did not).
 `convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
 
+**Google sign-in runs through billsincongress.com.** Google's account picker names the site
+it will send the reader back to, and the library serves that return page, and the page that
+starts the sign-in, on the Convex HTTP address. Readers saw "to continue to
+industrious-llama-331.convex.site". With `CUSTOM_AUTH_SITE_URL=https://billsincongress.com`
+in the Convex environment, the library puts our domain in both links instead, and
+`app/api/auth/[...path]/route.ts` passes `/api/auth/signin/<provider>` and
+`/api/auth/callback/<provider>` through to Convex unchanged: the redirect, its `Set-Cookie`s,
+and on the way in only that provider's own sign-in cookies (`lib/auth-proxy.ts`). The
+middleware must not touch the `code` on those two pages (`shouldHandleCode` in
+`middleware.ts`): it swaps any `?code=` for a session, and Google's reply carries Google's
+code, so taking it ends every Google sign-in with no session. Google Cloud's OAuth client must
+list `https://billsincongress.com/api/auth/callback/google` as an authorized redirect URI;
+the old `https://industrious-llama-331.convex.site/api/auth/callback/google` stays listed so
+removing the variable is an instant rollback. Tested in `lib/auth-proxy.test.ts`.
+
 Sessions last **60 days** (both total and inactive), and the cookie `maxAge` in
 `middleware.ts` must stay ≥ that value.
 
@@ -2367,6 +2385,7 @@ runs on gpt-oss. `OPENROUTER_CLAUDE_MODEL` is no longer read; delete it if it is
 have overridden the new default and kept answers on the slow host. An `ANTHROPIC_*` or
 `OPENROUTER_*` variable set in production silently wins over the code, so check this list after any model change. `CONVEX_SITE_URL` is provided by
 Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
+`CUSTOM_AUTH_SITE_URL` (November 2026) moves Google sign-in onto billsincongress.com.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -2385,6 +2404,7 @@ Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 | `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |
+| `CUSTOM_AUTH_SITE_URL` | Where Google sign-in's start and return pages live: `https://billsincongress.com`, passed through to Convex by `app/api/auth/[...path]` (see "Accounts and auth"). Google's OAuth client must list `<this>/api/auth/callback/google` | The Convex HTTP address, which Google then shows readers |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing | none |
 | `SITE_URL` | Auth redirect base; also the base of Stripe return URLs and alert-email links | library default; billing and alerts fall back to `https://billsincongress.com` |
 | `STRIPE_SECRET_KEY` | Stripe API key (Checkout, portal, webhook re-reads) | Checkout returns `BILLING_NOT_CONFIGURED` |
