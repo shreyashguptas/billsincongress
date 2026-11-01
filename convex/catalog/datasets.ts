@@ -224,7 +224,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
       "totalMeasures is MEASURES, not bills — it includes resolutions, which are not bills. When the reader asks how many BILLS, answer with billsOnly. Do not try to count hr and s from the `bills` dataset: there are far too many to read, so that comes back incomplete and you will end up with no answer at all.",
       "stageCounts are TERMINAL buckets, not milestones. The 'passed one chamber' figure excludes every measure that later became law. To answer 'how many did the Senate pass', use the `bills` dataset with reachedStage, not this ladder.",
       "On a chamber row, read the became-law figure straight off stageCounts. partyLawCounts is the same number split by party, and adding its parts up in front of the reader — 'the row shows X, and Y+Z confirms it' — puts three numbers in one sentence where the answer is one. State the figure; do not show the arithmetic.",
-      "The current Congress is still in progress, so its totals are a snapshot and will grow. Say so when comparing it to a finished Congress.",
+      "The current Congress is still in progress, so its totals are a snapshot and will grow. Say so only when comparing it to a finished Congress.",
       "This is the ONLY place that tells you how fresh our data is. If the reader asks how current it is, or whether something that happened recently is reflected, fetch this and quote dataLastSynced. Never guess at or promise a refresh interval.",
     ],
     notCovered: ["Per-member statistics", "Historical trends within a session", "Anything about individual bills"],

@@ -160,7 +160,8 @@ export function calendarNote(congress: number, asOfIso: string): string {
   return (
     `${today} The ${name} convened ${startDate} and sits until ${endDate}, so it is in ` +
     `progress: every count is a snapshot taken today and will grow as bills are ` +
-    `introduced and acted on. Say when a total was taken rather than presenting it as ` +
-    `the final tally.`
+    `introduced and acted on. Date a total ("as of" today's date) rather than ` +
+    `presenting it as the final tally; that date is enough, so add no sentence about ` +
+    `the count growing unless the reader compares it with a finished Congress.`
   );
 }
