@@ -289,6 +289,23 @@ export function claudeEffort(reasoning: { enabled: false } | { effort: string })
   return reasoning.effort === "medium" || reasoning.effort === "high" ? reasoning.effort : "low";
 }
 
+/**
+ * Adaptive thinking, with its summary returned. The default ("omitted") gives
+ * empty thinking text, so a trace showed what Claude did and never why.
+ * Thinking is billed the same either way. The summary goes on the trace only
+ * (reasoningOf); readers never see it.
+ */
+export const THINKING = { type: "adaptive", display: "summarized" } as const;
+
+/** Claude's reasoning summary for the trace, or "" when it did not think. */
+export function reasoningOf(content: Anthropic.ContentBlock[]): string {
+  return content
+    .filter((b): b is Anthropic.ThinkingBlock => b.type === "thinking")
+    .map((b) => b.thinking.trim())
+    .filter((t) => t !== "")
+    .join("\n\n");
+}
+
 // ---------------------------------------------------------------------------
 // THE TRANSCRIPT. answer.ts keeps it in the OpenAI shape OpenRouter takes, so
 // either route can pick a turn up; Claude's own reply rides along verbatim.
@@ -322,11 +339,18 @@ export type ChatMessage = {
    * sent to OpenRouter (see forOpenRouter) or recorded on a trace.
    */
   claude?: ClaudeTurn;
+  /**
+   * On a user message: the site speaking, not the reader (a nudge, or the last
+   * round's "no lookups left"). Claude gets it as a system message wherever the
+   * API takes one (see toClaudeRequest), so it is never read as the reader's
+   * own words. OpenRouter gets a plain user message.
+   */
+  instruction?: true;
 };
 
 /** The transcript as OpenRouter and the trace see it: without Claude's raw blocks. */
 export function forOpenRouter(messages: ChatMessage[]): ChatMessage[] {
-  return messages.map(({ claude: _raw, ...rest }) => rest);
+  return messages.map(({ claude: _raw, instruction: _ours, ...rest }) => rest);
 }
 
 /** ANSWER_TOOLS in the Claude API's shape. The schemas are passed through untouched. */
@@ -372,6 +396,14 @@ export const OPENING_USER_TURN =
  * - An assistant message Claude wrote goes back as its own content blocks.
  *   One we wrote (a primed or seeded lookup) becomes text and tool_use blocks.
  * - Consecutive tool results become one user message, as the API asks.
+ * - Our own instructions (ChatMessage.instruction) become a system message,
+ *   which the API takes only after a user message (the question, or tool
+ *   results) and before an assistant reply or at the end. Measured live on
+ *   2026-10-27, both Claude models refuse it anywhere else, so there it stays
+ *   user text. Two in a row, which happens when a nudged round is followed by
+ *   the last round, join into one: the only place a longer transcript changes
+ *   the shorter one's output, and only its last message, with no thinking
+ *   block after it to invalidate.
  */
 export function toClaudeRequest(messages: ChatMessage[]): {
   system: Anthropic.TextBlockParam[];
@@ -384,8 +416,10 @@ export function toClaudeRequest(messages: ChatMessage[]): {
     if (toolResults) out.push({ role: "user", content: toolResults });
     toolResults = null;
   };
+  const isInstruction = (m: ChatMessage | undefined) => m?.role === "user" && m.instruction === true;
 
-  for (const m of messages) {
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
     if (m.role === "tool") {
       toolResults ??= [];
       const content = m.content ?? "";
@@ -405,6 +439,12 @@ export function toClaudeRequest(messages: ChatMessage[]): {
           ? { type: "text", text: m.content, cache_control: { type: "ephemeral" } }
           : { type: "text", text: m.content },
       );
+    } else if (isInstruction(m)) {
+      const parts = [m.content ?? ""];
+      while (isInstruction(messages[i + 1])) parts.push(messages[++i].content ?? "");
+      const next = messages[i + 1];
+      const asSystem = out[out.length - 1]?.role === "user" && (next === undefined || next.role === "assistant");
+      out.push({ role: asSystem ? "system" : "user", content: parts.join("\n\n") });
     } else if (m.role === "user") {
       out.push({ role: "user", content: m.content ?? "" });
     } else if (m.claude) {
@@ -539,7 +579,7 @@ export async function callClaude(opts: {
       messages,
       tools: claudeTools(),
       tool_choice: withTools ? { type: "auto" } : { type: "none" },
-      thinking: { type: "adaptive" },
+      thinking: THINKING,
       output_config: { effort },
       inference_geo: INFERENCE_GEO,
       // Caches up to the last block, so the next round of this turn reads
@@ -555,6 +595,7 @@ export async function callClaude(opts: {
   const text = textOf(response.content);
   const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
   const usage = usageRecord(model, response.usage);
+  const reasoning = reasoningOf(response.content);
 
   // A decline arrives as a normal reply. Its content may be empty or cut off
   // mid-sentence, so none of it is used: the next model answers instead.
@@ -586,7 +627,8 @@ export async function callClaude(opts: {
   record({
     ...usage,
     model: response.model,
-    output: [forOpenRouter([message])[0]],
+    // Beside the reply, as gpt-oss's reasoning comes.
+    output: [{ ...forOpenRouter([message])[0], ...(reasoning && { reasoning }) }],
     stopReason: response.stop_reason ?? undefined,
     httpStatus: 200,
   });
@@ -945,6 +987,9 @@ export async function searchWebClaude(opts: {
         },
       ],
       tool_choice: { type: "auto" },
+      // Not THINKING: with the summary on, 2 of 20 lookups came back without a
+      // quoted source against 0 of 15 without it (2026-10-27). Likely chance,
+      // but the lookup gains little from a summary on its trace.
       thinking: { type: "adaptive" },
       output_config: { effort: opts.effort },
       inference_geo: INFERENCE_GEO,

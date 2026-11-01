@@ -28,6 +28,7 @@ async function insert(
     latestActionDate?: string;
     policyAreaName?: string;
     congress?: number;
+    introducedDate?: string;
   }>,
 ) {
   await t.run(async (ctx) => {
@@ -41,7 +42,7 @@ async function insert(
         billNumber,
         billTypeLabel: billType.toUpperCase(),
         title: `Bill ${billNumber}`,
-        introducedDate: "2025-01-03",
+        introducedDate: row.introducedDate ?? "2025-01-03",
         progressStage: row.progressStage ?? 40,
         ...(row.stageDate !== undefined ? { stageDate: row.stageDate } : {}),
         ...(row.latestActionDate !== undefined ? { latestActionDate: row.latestActionDate } : {}),
@@ -55,10 +56,11 @@ async function insert(
 type Scope =
   | { kind: "stage"; progressStage: number }
   | { kind: "topic"; policyArea: string }
-  | { kind: "chamber"; chamber: "house" | "senate" };
+  | { kind: "chamber"; chamber: "house" | "senate" }
+  | { kind: "introduced"; window: "month" };
 
 async function readAll(t: T, scope: Scope, order: "newest" | "oldest", limit = 50) {
-  const rows: Array<{ billId: string; stageDate?: string; latestActionDate?: string; billType: string }> = [];
+  const rows: Array<{ billId: string; stageDate?: string; latestActionDate?: string; billType: string; introducedDate: string }> = [];
   for (let offset = 0; ; offset += limit) {
     const page = await t.query(api.bills.listSorted, { congress: 119, scope, order, offset, limit });
     rows.push(...page.data);
@@ -159,5 +161,31 @@ describe("bills.listSorted", () => {
     });
     expect(first.sortedBy).toBe("latestActionDate");
     expect(first.hasMore).toBe(true);
+  });
+
+  // /bills/introduced was stage 20: eleven numbers reserved on 3 Jan 2025,
+  // because a real bill is sent to committee the day it is introduced.
+  test("the introduced hub is every bill from the last 30 days, at any stage, by introduction", async () => {
+    nextNumber = 1;
+    const t = convexTest(schema, modules);
+    const daysAgo = (n: number) =>
+      new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await insert(t, [
+      { progressStage: 20, introducedDate: "2025-01-03" },
+      { progressStage: 40, introducedDate: daysAgo(3) },
+      { progressStage: 40, introducedDate: daysAgo(20) },
+      { progressStage: 60, introducedDate: daysAgo(1) },
+      { progressStage: 40, introducedDate: daysAgo(45) },
+      { progressStage: 40, introducedDate: daysAgo(2), congress: 118 },
+    ]);
+    const newest = await t.query(api.bills.listSorted, {
+      congress: 119,
+      scope: { kind: "introduced", window: "month" },
+      order: "newest",
+    });
+    expect(newest.sortedBy).toBe("introducedDate");
+    expect(newest.data.map((b) => b.introducedDate)).toEqual([daysAgo(1), daysAgo(3), daysAgo(20)]);
+    const oldest = await readAll(t, { kind: "introduced", window: "month" }, "oldest", 2);
+    expect(oldest.map((b) => b.billId)).toEqual([...newest.data].reverse().map((b) => b.billId));
   });
 });

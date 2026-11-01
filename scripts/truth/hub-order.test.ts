@@ -194,6 +194,26 @@ async function main() {
     }
   });
 
+  // The wrong answer a reader got: /bills/introduced, "Newly introduced bills",
+  // listed H.R. 2, 3, 5 … 19, all "Reserved for the Speaker", introduced on
+  // 3 Jan 2025 — the eleven bills at stage 20, because every real bill is sent
+  // to committee the day it is introduced. It now lists the last 30 days.
+  await it("/bills/introduced is the last 30 days of bills, newest first, none reserved", async () => {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const recent = bills.filter((b) => b.congress === 119 && b.introducedDate >= since);
+    for (const order of ["newest", "oldest"] as const) {
+      const rows = await read({ kind: "introduced", window: "month" }, order);
+      assert.equal(rows.length, recent.length, "every bill in the window, none outside it");
+      assertOrdered(rows, "introducedDate", order);
+    }
+    const newest = await read({ kind: "introduced", window: "month" }, "newest", 50);
+    assert.ok(newest.length > 11, `more than the eleven placeholders: ${newest.length}`);
+    assert.ok(
+      newest.every((r) => !/reserved for the (speaker|minority leader)/i.test(r.title)),
+      "no reserved placeholder numbers",
+    );
+  });
+
   if (failures.length > 0) {
     console.error(`\nhub-order: ${passed} passed, ${failures.length} FAILED\n`);
     console.error(failures.join("\n\n"));

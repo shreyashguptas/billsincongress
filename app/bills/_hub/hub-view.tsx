@@ -38,6 +38,7 @@ const MAX_PAGE = 10;
 function filterFor(hub: HubDefinition) {
   return {
     status: hub.filter.progressStage ?? 'all',
+    introducedDateFilter: hub.filter.introducedWithin ?? 'all',
     policyArea: hub.filter.policyArea ?? 'all',
     chamber: hub.filter.chamber ?? null,
   };
@@ -196,7 +197,11 @@ export async function HubView({
   // The date each row shows is the date the list is ordered by, labelled.
   const dateLabel = bills.sortedBy ? hubDateLabel(hub, bills.sortedBy) : null;
   const dateOf = (bill: Bill) =>
-    bills.sortedBy === 'stageDate' ? bill.stage_date : bill.latest_action_date;
+    bills.sortedBy === 'stageDate'
+      ? bill.stage_date
+      : bills.sortedBy === 'introducedDate'
+        ? bill.introduced_date
+        : bill.latest_action_date;
   // A switch needs something to reorder: more than one bill in the hub.
   const showOrder =
     dateLabel !== null && (bills.data.length > 1 || page > 1 || (total ?? floor ?? 0) > 1);

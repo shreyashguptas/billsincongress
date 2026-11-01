@@ -127,7 +127,7 @@ test("answers on Claude Sonnet over the Claude API, on US servers, with no OpenR
   // The owner's hard rule: AI on US servers only.
   expect(body.inference_geo).toBe("us");
   // Effort is always sent (Haiku 5.5, the backup, would otherwise run at medium).
-  expect(body.thinking).toEqual({ type: "adaptive" });
+  expect(body.thinking).toEqual({ type: "adaptive", display: "summarized" });
   expect(body.output_config).toEqual({ effort: "medium" });
   // Claude 5.5 refuses sampling parameters and forced tool choice.
   expect(body.temperature).toBeUndefined();
@@ -311,7 +311,24 @@ test("the last round keeps the same tools and forbids calling them, rather than 
   const last = calls[4];
   expect(last.tool_choice).toEqual({ type: "none" });
   expect(last.tools).toEqual(calls[0].tools);
-  expect(last.messages[last.messages.length - 1].content).toMatch(/no lookups left/);
+  // The site speaking, not the reader: a system message after the last lookup.
+  expect(last.messages[last.messages.length - 1]).toMatchObject({ role: "system", content: expect.stringMatching(/no lookups left/) });
+});
+
+test("a nudge after an empty round reaches Claude as a system message, and the next round keeps it", async () => {
+  claudeReplies = [
+    message([thinking("sig-0"), toolUse("toolu_0", "describe_dataset", { name: "bills" })], "tool_use"),
+    message([thinking("sig-1")]),
+    message([text(ANSWER)]),
+  ];
+  const result = await ask("How many bills became law?");
+  expect(result.text).toBe(ANSWER);
+  const calls = answerCalls().map((s) => s.body);
+  expect(calls).toHaveLength(3);
+  const nudged = calls[2].messages;
+  expect(nudged[nudged.length - 1]).toMatchObject({ role: "system", content: expect.stringMatching(/not an answer and not a lookup/) });
+  // Append-only: the round before is the start of this one, word for word.
+  expect(nudged.slice(0, calls[1].messages.length)).toEqual(calls[1].messages);
 });
 
 test("a reply cut off at max_tokens is marked truncated", async () => {

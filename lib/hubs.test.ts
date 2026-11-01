@@ -194,7 +194,9 @@ it("builds hub URLs with no parameters for the defaults", () => {
 it("gives every hub a sort scope listSorted can serve", () => {
   for (const hub of ALL_HUBS) {
     const scope = hubSortScope(hub);
-    if (hub.kind === "status") assert.equal(scope.kind, "stage", hub.path);
+    if (hub.kind === "status") {
+      assert.equal(scope.kind, hub.path === "/bills/introduced" ? "introduced" : "stage", hub.path);
+    }
     if (hub.kind === "topic") assert.equal(scope.kind, "topic", hub.path);
     if (hub.kind === "chamber") assert.equal(scope.kind, "chamber", hub.path);
     if (scope.kind === "stage") assert.ok(Number.isInteger(scope.progressStage), hub.path);
@@ -202,11 +204,23 @@ it("gives every hub a sort scope listSorted can serve", () => {
 });
 
 it("labels every stage hub's date with what it is", () => {
-  for (const hub of hubsOfKind("status")) {
+  for (const hub of hubsOfKind("status").filter((h) => h.filter.progressStage !== undefined)) {
     assert.notEqual(hubDateLabel(hub, "stageDate"), "Reached this stage", `${hub.path} has no label`);
   }
   assert.equal(hubDateLabel(hubByPath("/bills/enacted")!, "stageDate"), "Became law");
   assert.equal(hubDateLabel(hubByPath("/bills/house")!, "latestActionDate"), "Latest action");
+  assert.equal(hubDateLabel(hubByPath("/bills/introduced")!, "introducedDate"), "Introduced");
+});
+
+// /bills/introduced was stage 20, which holds only numbers reserved for party
+// leaders on 3 Jan 2025: bills are sent to committee the day they are introduced.
+it("/bills/introduced lists the last 30 days of bills, not stage 20", () => {
+  const hub = hubByPath("/bills/introduced")!;
+  assert.equal(hub.filter.progressStage, undefined);
+  assert.equal(hub.filter.introducedWithin, "month");
+  assert.deepEqual(hubSortScope(hub), { kind: "introduced", window: "month" });
+  assert.match(hub.metaDescription, /last 30 days/);
+  assert.doesNotMatch(hub.metaDescription, /not yet referred/);
 });
 
 it("links a bill to its topic, stage and chamber pages, and a resolution to no stage page", () => {

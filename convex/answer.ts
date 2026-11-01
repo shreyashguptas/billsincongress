@@ -113,6 +113,9 @@ const WEB_ENGINE = "exa";
  * explicitly: the failure it replaces was a full apology delivered on top of 17
  * successful lookups, because nothing told the model that half an answer beats
  * none.
+ *
+ * This and the two nudges below go with `instruction: true`: Claude reads them
+ * as the site speaking, not as the reader (toClaudeRequest in convex/claude.ts).
  */
 const FINAL_ROUND_INSTRUCTION =
   "You have no lookups left. Answer now from what you already retrieved. If that covers only " +
@@ -906,7 +909,7 @@ async function runLoop(
     if (isFinalRound) partial = true;
 
     const finalMessages = isFinalRound
-      ? [...messages, { role: "user" as const, content: FINAL_ROUND_INSTRUCTION }]
+      ? [...messages, { role: "user" as const, content: FINAL_ROUND_INSTRUCTION, instruction: true as const }]
       : messages;
 
     let message;
@@ -969,13 +972,13 @@ async function runLoop(
       } else {
         nudged = true;
         if (wroteCallAsText) {
-          messages.push({ role: "user", content: TEXT_TOOL_CALL_NUDGE });
+          messages.push({ role: "user", content: TEXT_TOOL_CALL_NUDGE, instruction: true });
         } else {
           // Claude's own blocks go back with it (convex/claude.ts, rule 2).
           if (text.trim().length > 0) {
             messages.push({ role: "assistant", content: text, ...(message?.claude && { claude: message.claude }) });
           }
-          messages.push({ role: "user", content: NO_ANSWER_NUDGE });
+          messages.push({ role: "user", content: NO_ANSWER_NUDGE, instruction: true });
         }
       }
       continue;
