@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { GAP, paginationWindow } from '@/lib/pagination';
@@ -24,14 +25,43 @@ const slotClass =
   'inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 font-mono text-sm tabular transition-colors focus-ring touchable:h-11 touchable:min-w-11';
 
 /**
- * Below `sm`, only the current page and its neighbours show, and Previous and
- * Next shrink to their arrows: the full window (Previous, 1, …, three pages,
- * …, last, Next) wrapped at 390px and left the last number alone on a second
- * line. The hidden anchors stay in the HTML (`hidden sm:inline-flex`), so a
- * crawler still finds every one of them. The narrowest bar, at 320px, is five
- * 44px targets and an ellipsis.
+ * Below `sm` the bar keeps the first page, the last page and the current one,
+ * with Previous and Next shrunk to their arrows; the current page's neighbours
+ * join them from 400px. The full window (Previous, 1, …, three pages, …, last,
+ * Next) wrapped at 390px and left the last number alone on a second line, and
+ * dropping the ends lost the jump to the last page. Hidden anchors stay in the
+ * HTML (`hidden sm:inline-flex`), so a crawler still finds every one of them.
+ * The widest phone bar at 320px is five 44px targets and two ellipses.
  */
 const phoneHidden = 'hidden sm:inline-flex';
+const neighbourOnly = 'hidden min-[400px]:inline-flex';
+const gapClass =
+  'h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11';
+
+/** Which phone widths show a page slot. */
+function phoneVisibility(slot: number, current: number, lastPage: number): string | undefined {
+  if (slot === 1 || slot === lastPage || slot === current) return undefined;
+  if (Math.abs(slot - current) === 1) return neighbourOnly;
+  return phoneHidden;
+}
+
+/**
+ * The phone bar's own ellipses, between an end and the current page. Below
+ * 400px the neighbours are hidden, so a gap opens one page sooner than above it.
+ */
+function PhoneGap({ hiddenBelow400, hiddenFrom400 }: { hiddenBelow400: boolean; hiddenFrom400: boolean }) {
+  if (!hiddenBelow400 && !hiddenFrom400) return null;
+  const cls = hiddenBelow400 && hiddenFrom400
+    ? 'inline-flex sm:hidden'
+    : hiddenBelow400
+      ? 'inline-flex min-[400px]:hidden'
+      : 'hidden min-[400px]:inline-flex sm:hidden';
+  return (
+    <span aria-hidden="true" className={cn(gapClass, cls)}>
+      …
+    </span>
+  );
+}
 
 /**
  * Page links as real anchors, server-rendered.
@@ -71,24 +101,20 @@ export function CrawlablePagination({
 
       {slots.map((slot, i) =>
         slot === GAP ? (
-          <span
-            key={`gap-${i}`}
-            aria-hidden="true"
-            className={cn(
-              'h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11',
-              phoneHidden
-            )}
-          >
+          <span key={`gap-${i}`} aria-hidden="true" className={cn(gapClass, phoneHidden)}>
             …
           </span>
         ) : (
+          <Fragment key={slot}>
+          {slot === lastPage && lastPage > 1 && (
+            <PhoneGap hiddenBelow400={current < lastPage - 1} hiddenFrom400={current < lastPage - 2} />
+          )}
           <Link
-            key={slot}
             href={hrefForPage(slot)}
             aria-current={slot === current ? 'page' : undefined}
             className={cn(
               slotClass,
-              Math.abs(slot - current) > 1 && phoneHidden,
+              phoneVisibility(slot, current, lastPage),
               slot === current
                 ? 'bg-ink font-medium text-on-ink'
                 : 'text-ink-2 hover:bg-sunken hover:text-ink'
@@ -96,6 +122,8 @@ export function CrawlablePagination({
           >
             {slot}
           </Link>
+          {slot === 1 && <PhoneGap hiddenBelow400={current > 2} hiddenFrom400={current > 3} />}
+          </Fragment>
         ),
       )}
 

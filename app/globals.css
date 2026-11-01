@@ -440,10 +440,15 @@
 @media (min-width: 640px) { :root { --header-h: 65px; } }   /* sm:h-16 + border */
 
 /* The push. Only the docked band moves the page. */
-/* Same duration and curve as the panel's own slide: with the shell on 220ms and
-   the panel on 260ms, a strip of page showed between them while it docked. */
+/* The same durations and curves as the panel's own slide, in each direction,
+   so the page's edge and the panel's edge move as one: when they differed, a
+   strip of page showed between them while it docked, and closing slid the page
+   under the panel. */
 .ask-shell {
-  transition: padding-right 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: padding-right 220ms cubic-bezier(0.4, 0, 1, 1);
+}
+html[data-ask='open'] .ask-shell {
+  transition: padding-right 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 @media (min-width: 1344px) {
   html[data-ask='open'] .ask-shell { padding-right: var(--ask-w); }

@@ -85,7 +85,13 @@ export function useDragDismiss(opts: DragDismissOptions) {
   } | null>(null);
   const cleanup = useRef<(() => void) | null>(null);
 
-  useEffect(() => () => cleanup.current?.(), []);
+  useEffect(
+    () => () => {
+      cleanup.current?.();
+      unlisten.current?.();
+    },
+    [],
+  );
 
   // The axis and direction of the gesture in flight (or the last one, for the
   // settle/exit animation that follows it).
@@ -143,8 +149,19 @@ export function useDragDismiss(opts: DragDismissOptions) {
     }
   };
 
+  /** Window listeners for the press in flight, removed when it ends. */
+  const unlisten = useRef<(() => void) | null>(null);
+
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
-    if (e.button !== 0 || state.current) return;
+    if (e.button !== 0) return;
+    // A press that never saw its release (a mouse let go outside the handle
+    // before the drag began) must not linger: it would make the next hover
+    // drag the surface with no button down.
+    if (state.current && !state.current.dragging) {
+      state.current = null;
+      unlisten.current?.();
+    }
+    if (state.current) return;
     if (o.current.enabled && !o.current.enabled()) return;
     const target = e.target as HTMLElement;
     if (e.pointerType === 'mouse') {
@@ -172,11 +189,30 @@ export function useDragDismiss(opts: DragDismissOptions) {
       dragging: false,
       samples: [{ t: e.timeStamp, v: along }],
     };
+    // The release is heard on the window, so it is never missed: before the
+    // drag starts there is no pointer capture, and the pointer may be let go
+    // anywhere. (Once captured, the element and the window both hear it; the
+    // second call finds nothing in flight and returns.)
+    const handle = e.currentTarget;
+    const up = (ev: PointerEvent) => finish(ev.pointerId, ev.timeStamp, handle, false);
+    const cancel = (ev: PointerEvent) => finish(ev.pointerId, ev.timeStamp, handle, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', cancel, true);
+    unlisten.current = () => {
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', cancel, true);
+      unlisten.current = null;
+    };
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLElement>) => {
     const s = state.current;
     if (!s || s.id !== e.pointerId) return;
+    // A mouse moving with no button held has already been released.
+    if (e.pointerType === 'mouse' && e.buttons === 0) {
+      finish(e.pointerId, e.timeStamp, e.currentTarget, true);
+      return;
+    }
     const along = s.axis === 'y' ? e.clientY : e.clientX;
     const across = s.axis === 'y' ? e.clientX : e.clientY;
     const raw = (along - s.start) * s.dir;
@@ -213,13 +249,14 @@ export function useDragDismiss(opts: DragDismissOptions) {
     write(s.offset, s.size);
   }, []);
 
-  const end = useCallback((e: React.PointerEvent<HTMLElement>, cancelled: boolean) => {
+  function finish(pointerId: number, timeStamp: number, target: Element | null, cancelled: boolean) {
     const s = state.current;
-    if (!s || s.id !== e.pointerId) return;
+    if (!s || s.id !== pointerId) return;
     state.current = null;
+    unlisten.current?.();
     if (!s.dragging) return;
     try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+      if (target?.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
     } catch {
       /* already released */
     }
@@ -229,7 +266,10 @@ export function useDragDismiss(opts: DragDismissOptions) {
     const first = s.samples[0];
     const last = s.samples[s.samples.length - 1];
     const dt = Math.max(1, last.t - first.t);
-    const velocity = ((last.v - first.v) / dt) * s.dir;
+    // A finger that stopped before letting go is not flicking, however fast
+    // it moved earlier.
+    const stale = timeStamp - last.t > 90;
+    const velocity = stale ? 0 : ((last.v - first.v) / dt) * s.dir;
     const distance = Math.min(140, Math.max(64, s.size * 0.3));
     const dismiss =
       !cancelled && (s.offset > distance || (velocity > FLICK_VELOCITY && s.offset > SLOP_PX * 2));
@@ -246,10 +286,16 @@ export function useDragDismiss(opts: DragDismissOptions) {
     } else {
       animateTo(0, SETTLE_MS, EASE_OUT, () => {}, true);
     }
-  }, []);
+  }
 
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLElement>) => end(e, false), [end]);
-  const onPointerCancel = useCallback((e: React.PointerEvent<HTMLElement>) => end(e, true), [end]);
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => finish(e.pointerId, e.timeStamp, e.currentTarget, false),
+    [],
+  );
+  const onPointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => finish(e.pointerId, e.timeStamp, e.currentTarget, true),
+    [],
+  );
 
   return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel };
 }

@@ -32,6 +32,9 @@ export interface AdaptiveSurfaceProps {
   align?: 'start' | 'end';
 }
 
+/** The shortest list worth showing under a pill: 15rem. */
+const MIN_POPOVER_PX = 15 * 16;
+
 /** The default popover width (22rem) plus the 12px collision padding. */
 const POPOVER_ROOM_PX = 22 * 16 + 12;
 
@@ -75,6 +78,7 @@ export function AdaptiveSurface({
   const [open, setOpen] = useState(false);
   const [layout, setLayout] = useState<SurfaceMode>('touch');
   const [autoAlign, setAutoAlign] = useState<'start' | 'end'>('start');
+  const [side, setSide] = useState<'top' | 'bottom'>('bottom');
   const triggerId = useId();
 
   const handleOpenChange = (next: boolean) => {
@@ -85,6 +89,13 @@ export function AdaptiveSurface({
       // near the right of a narrow window from opening a popover off screen.
       const rect = document.getElementById(triggerId)?.getBoundingClientRect();
       setAutoAlign(rect && rect.left + POPOVER_ROOM_PX > window.innerWidth ? 'end' : 'start');
+      // Below by default, decided once at open. Only when the room under the
+      // pill is less than a usable list (15rem) and there is more above does it
+      // open upward — on a short laptop window, not on a 1280x800 one.
+      if (rect) {
+        const below = window.innerHeight - rect.bottom;
+        setSide(below < MIN_POPOVER_PX && rect.top > below ? 'top' : 'bottom');
+      }
     }
     setOpen(next);
     onOpenChange?.(next, resolved);
@@ -141,16 +152,16 @@ export function AdaptiveSurface({
       <Popover open={open && layout === 'pointer'} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>{anchoredTrigger}</PopoverTrigger>
         <PopoverContent
-          // Always below the bar. Radix measured the list at full height before
-          // the max height below applied, found no room, and flipped it up over
-          // the site header on a 1280x800 laptop. The max height already fits
-          // it to the room below; the min height stops that room shrinking it
-          // to a sliver.
-          side="bottom"
+          // Below the bar unless there is genuinely no room (see handleOpenChange).
+          // Radix's own collision check measured the list at full height before
+          // the max height applied, found no room, and flipped it up over the
+          // site header on a 1280x800 laptop. The max height fits it to the room
+          // on whichever side it opens.
+          side={side}
           avoidCollisions={false}
           align={align ?? autoAlign}
           className={cn(
-            'flex max-h-[min(24rem,var(--radix-popover-content-available-height))] min-h-[min(15rem,calc(100dvh_-_2rem))] w-[min(22rem,calc(100vw_-_2rem))] flex-col overflow-hidden p-0',
+            'flex max-h-[min(24rem,var(--radix-popover-content-available-height))] w-[min(22rem,calc(100vw_-_2rem))] flex-col overflow-hidden p-0',
             popoverClassName
           )}
           onOpenAutoFocus={focusMarked}

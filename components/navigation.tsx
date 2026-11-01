@@ -57,7 +57,7 @@ export function Navigation() {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" hideClose className="flex w-[88%] max-w-sm flex-col border-r border-line p-0">
+            <SheetContent side="left" hideClose className="flex w-[88%] max-w-sm flex-col gap-0 border-r border-line p-0">
               {/*
                 The same row as the header it covers — same height, same padding,
                 the close button exactly where the menu button was and the logo

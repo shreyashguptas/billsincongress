@@ -493,7 +493,7 @@ animation library is bundled: CSS keyframes and transitions do all of it.
 |---|---|---|---|
 | Page change (`app/template.tsx`) | 220ms, fade and 4px rise | — | `cubic-bezier(0.22, 1, 0.36, 1)` |
 | Menu sheet | 280ms slide; links follow 30ms apart, 200ms each | 200ms | out-quint in, ease-in out |
-| Bottom and side sheets | 280ms | 200ms, to 1rem past the edge | same |
+| Bottom and side sheets | 280ms | 200ms (a bottom sheet to 1rem past the edge, so a floating one leaves nothing showing) | same |
 | Dialog | 200ms, fade, 8px rise, from 98.5% | 140ms | same |
 | Popover, account menu | 160ms, fade, 4px, from 98% | 120ms | same |
 | Ask panel | 320ms | 220ms | `cubic-bezier(0.32, 0.72, 0, 1)` in, ease-in out |

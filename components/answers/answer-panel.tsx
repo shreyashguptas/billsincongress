@@ -90,8 +90,11 @@ export function AnswerPanel() {
         mode === 'sheet'
           ? panelRef.current
           : (document.getElementById('ask-composer') as HTMLInputElement | null);
-      target?.focus({ preventScroll: true });
-      return;
+      // One frame later: the panel is `visibility: hidden` until the provider's
+      // own effect (which runs after this child's) marks <html> open, and
+      // focus() on a hidden element silently does nothing.
+      const frame = requestAnimationFrame(() => target?.focus({ preventScroll: true }));
+      return () => cancelAnimationFrame(frame);
     }
     if (from !== 'open') return;
     if (phase === 'minimized') {
