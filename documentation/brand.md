@@ -292,6 +292,11 @@ Patterns that appear on more than one page:
   line floats below it on a `raised` surface. The limits: 2,000 characters for
   a question or feedback, 120 for a bill search. Fixed-length codes (the
   six-digit sign-in code) are not length limits and keep `maxLength`.
+- **Pagination** (`components/bills/crawlable-pagination.tsx`): real links in
+  one row, never wrapping. From `sm` up: Previous, the first page, a window of
+  three around the current one, the last page, Next. On a phone: arrows only,
+  the first, current and last page, with the current page's neighbours from
+  400px; the hidden links stay in the HTML for crawlers.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
 - **Hub order** (`HubOrderSwitch`, the hub pages): "Newest first" and "Oldest

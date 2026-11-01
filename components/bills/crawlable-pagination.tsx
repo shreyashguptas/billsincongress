@@ -31,12 +31,13 @@ const slotClass =
  * Next) wrapped at 390px and left the last number alone on a second line, and
  * dropping the ends lost the jump to the last page. Hidden anchors stay in the
  * HTML (`hidden sm:inline-flex`), so a crawler still finds every one of them.
- * The widest phone bar at 320px is five 44px targets and two ellipses.
+ * The widest phone bar at 320px is five 44px targets and two 16px ellipses,
+ * 264px in all, so it never wraps.
  */
 const phoneHidden = 'hidden sm:inline-flex';
 const neighbourOnly = 'hidden min-[400px]:inline-flex';
 const gapClass =
-  'h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11';
+  'h-9 min-w-4 sm:min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11';
 
 /** Which phone widths show a page slot. */
 function phoneVisibility(slot: number, current: number, lastPage: number): string | undefined {
@@ -87,7 +88,7 @@ export function CrawlablePagination({
   const slots = paginationWindow(current, lastPage);
 
   return (
-    <nav aria-label="Pagination" className={cn('flex flex-wrap items-center gap-1', className)}>
+    <nav aria-label="Pagination" className={cn('flex flex-wrap items-center gap-0.5 sm:gap-1', className)}>
       {current > 1 && (
         <Link
           href={hrefForPage(current - 1)}
