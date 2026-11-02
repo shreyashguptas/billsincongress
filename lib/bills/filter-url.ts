@@ -23,6 +23,7 @@ import {
 } from '@/app/bills/filter-signature';
 import { clampFilterList, clampFilterText } from '@/lib/bill-query';
 import { FILTERS, type FilterDefinition } from './filter-registry';
+import { SORT_PARAM, isBillsSort, sortParamValue } from './sort';
 
 /**
  * Serialise a filter set into a query string, omitting anything still at its
@@ -38,6 +39,8 @@ export function buildFilterQuery(f: BillsFilterValues): string {
       p.set(definition.param, value);
     }
   }
+  const sort = sortParamValue(f);
+  if (sort) p.set(SORT_PARAM, sort);
   const qs = p.toString();
   return qs ? `?${qs}` : '';
 }
@@ -93,5 +96,7 @@ export function filtersFromQuery(search: string): BillsFilterValues {
       if (value !== undefined) (out[definition.field] as string) = value;
     }
   }
+  const sort = p.get(SORT_PARAM);
+  if (isBillsSort(sort)) out.sort = sort;
   return out;
 }

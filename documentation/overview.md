@@ -102,7 +102,7 @@ app/                       Next.js App Router — 21 page.tsx files
     [id]/page.tsx          One bill
     [id]/share-image/      Its share card, drawn on request (next/og)
     [id]/get-bill.ts       The bill lookup the page and the card share
-    _hub/                  Hub view, directory and view-tracker (route-private)
+    _hub/                  Hub view and view-tracker (route-private)
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|to-president|passed-both-chambers|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
@@ -208,7 +208,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | URL | What it is |
 | --- | --- |
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
-| `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
+| `/bills` | Filterable browser — 10 per page, max page 51, in the date order the Sort menu picks (see "/bills sort" below). Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs: one per stage a bill can stop at except 20 and 95 (signed, not yet numbered as a law: a day or two), plus `/bills/introduced` (below). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`). **`/bills/introduced` and the picker's "Just introduced" (`status=20`) are not stage 20** since 2026-10-16: they are the bills introduced in the last 30 days, at any stage (`lib/bills/just-introduced.ts`); for a Congress that was not sitting in those 30 days, "Just introduced" keeps the stage-20 meaning, since a date window there is always empty. Bills are referred to committee the day they are introduced, so stage 20 held only 11 numbers in the whole 119th, all reserved for party leaders on 2025-01-03, and "Just introduced" plus any topic said "No bills found" |
@@ -319,6 +319,24 @@ ordered by, labelled ("Became law", "Vetoed", "Passed a chamber", "Sent to commi
 ahead of Convex — the hub falls back to `list` and shows no order switch and no labelled dates,
 rather than an empty page. `scripts/truth/hub-order.test.ts` runs the real ordering against the
 production copy.
+
+**/bills sort.** `/bills` is in a real date order too, newest first, chosen from a Sort menu
+(`lib/bills/sort.ts`; `?sort=` in the URL only when it is not the filter set's default). The
+default is latest action; with an Outcome filter it is the day bills reached that stage, so
+"Became law" opens with the newest laws; "Just introduced" goes by introduction; a title search
+by best match. `bills.list` takes `sort` (absent: the stored order, as before) and promises an
+order two ways (`sortedMatches` in `convex/bills.ts`): an index range already in that order
+(`by_congress_stage_and_stage_date`, `by_congress_stage_and_action`,
+`by_congress_policy_area_and_latest_action`, `by_congress_type_and_latest_action`, merged per
+chamber, `by_congress_and_latest_action`, `by_congress_and_introduced`), filtered as it streams,
+so the first matches are the newest even if the scan cap stops it; or, when no ordered index
+enforces the narrowest filter (a sponsor's state; "date introduced" under an Outcome), that
+filter's set read whole and sorted in memory, if it fits under the scan cap. A search, a bill
+number or a sponsor reads its set whole already and is sorted in memory; a title search that hit
+its 1,024 ceiling reports `truncated`, since newer matches may be past it. Rows show the sort's
+date, labelled. Until 2 Nov 2026 `/bills` had no order but insertion order: page 1 of "Became
+law" opened with a law signed in June while five were signed on 20 Oct.
+`scripts/truth/list-sort.test.ts` runs it against the production copy.
 
 **Middleware** (`middleware.ts`, not `proxy.ts` — see [Hosting](#hosting-and-cloudflare-constraints)):
 301-redirects `www` to the apex, sends signed-out visitors from `/account` to `/sign-in`,

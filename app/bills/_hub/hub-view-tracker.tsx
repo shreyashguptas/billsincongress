@@ -67,7 +67,7 @@ export function HubLink({
   hubKind: HubKind;
   children: ReactNode;
   className?: string;
-  placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer';
+  placement?: 'filter_panel' | 'hub_siblings' | 'footer';
 }) {
   const pathname = usePathname();
   return (
@@ -106,7 +106,7 @@ export function HubLinkTracker({
   className,
 }: {
   children: ReactNode;
-  placement: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer';
+  placement: 'filter_panel' | 'hub_siblings' | 'footer';
   className?: string;
 }) {
   const pathname = usePathname();
