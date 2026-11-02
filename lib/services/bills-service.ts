@@ -245,6 +245,11 @@ export const billsService = {
     }
   },
 
+  /** Every current cosponsor of a bill with their accounts: the bill page's "Show all". */
+  async fetchCosponsors(billId: string) {
+    return await queryBills('getCosponsors', { billId });
+  },
+
   async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
     const {
       page = 1,

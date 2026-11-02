@@ -34,6 +34,9 @@ function capture(event: string, properties?: Record<string, unknown>) {
   posthog.capture(event, properties);
 }
 
+/** Where a member's official accounts were shown when one was opened. */
+export type MemberAccountSurface = 'bill_sponsor_card' | 'bill_cosponsors' | 'member_page';
+
 /** sessionStorage key used to attribute Google OAuth completions after the redirect. */
 const PENDING_GOOGLE_AUTH_KEY = 'ph_pending_google_auth';
 
@@ -596,6 +599,22 @@ export const analytics = {
   }) => capture('bill_peers_viewed', props),
 
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
+
+  /** A reader opened a member's page from a bill page. */
+  memberPageLinkClicked: (props: { bioguide_id: string; from: 'bill_sponsor_card' | 'bill_cosponsors'; bill_id: string }) =>
+    capture('member_page_link_clicked', props),
+
+  /** A reader asked for every cosponsor of a bill beyond the first ten. */
+  billCosponsorsExpanded: (props: { bill_id: string; total: number }) =>
+    capture('bill_cosponsors_expanded', props),
+
+  /** A reader opened one of a member's official accounts, or their website. */
+  memberAccountClicked: (props: {
+    platform: 'x' | 'facebook' | 'instagram' | 'youtube' | 'website';
+    bioguide_id: string;
+    surface: MemberAccountSurface;
+    bill_id?: string;
+  }) => capture('member_account_clicked', props),
 
   billSaveToggled: (props: {
     bill_id: string;

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'November 1, 2026';
+const LAST_UPDATED = 'November 2, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -57,7 +57,15 @@ export default function PrivacyPage() {
           <ExternalLink href="https://api.congress.gov">
             Congress.gov API
           </ExternalLink>{' '}
-          and is in the public domain. In this policy, &ldquo;we&rdquo;
+          and is in the public domain. Members&rsquo; official social media
+          accounts are suggested by the volunteer{' '}
+          <ExternalLink href="https://unitedstates.github.io/congress-legislators/">
+            congress-legislators
+          </ExternalLink>{' '}
+          project, also in the public domain, plus a few corrections we
+          checked against members&rsquo; own sites, and shown only when the
+          member&rsquo;s own .house.gov or .senate.gov website links them.
+          In this policy, &ldquo;we&rdquo;
           and &ldquo;us&rdquo; refer to the project and OffGrid LLC.
         </p>
       </Section>
@@ -100,6 +108,22 @@ export default function PrivacyPage() {
           question box record only how many characters you typed, unless
           you go on to ask it as a question or open &ldquo;See all
           matching bills&rdquo;.
+        </p>
+        <p>
+          On bill pages and member pages we record a few clicks by name:
+          opening a member&rsquo;s page from a bill, opening one of a
+          member&rsquo;s official accounts or their website, and showing
+          all of a bill&rsquo;s cosponsors. Each records the bill or member
+          involved, where on the page you clicked and, for an account,
+          which one (X, Facebook, Instagram, YouTube or the member&rsquo;s
+          website). They carry nothing else about you.
+        </p>
+        <p>
+          A member&rsquo;s accounts open X, Facebook, Instagram, YouTube or
+          the member&rsquo;s own website in a new tab. Those sites are not
+          ours, and what they collect when you arrive is governed by their
+          own privacy policies. The link adds nothing that identifies you,
+          and it does not tell them which page of ours you came from.
         </p>
         <p>
           Feedback you send is recorded there too. The Feedback button
@@ -321,6 +345,13 @@ export default function PrivacyPage() {
         <p className="mt-4">
           All of these providers process data in the United States.
         </p>
+        <p>
+          Our server also reads public sources that receive nothing about
+          you: the Congress.gov API, the congress-legislators project&rsquo;s
+          files, and each member&rsquo;s official home page, which it visits
+          once a day to check which accounts it links. No reader&rsquo;s
+          data is part of those visits.
+        </p>
       </Section>
 
 
@@ -410,6 +441,7 @@ export default function PrivacyPage() {
 const summary = [
   'We never sell your data. No ads, no ad trackers, no data brokers.',
   'You can read every bill without an account.',
+  'Members’ social media links take you to X, Facebook, Instagram or YouTube, which have their own privacy policies.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered by Claude, called directly on our own Anthropic account and run on US servers. Anthropic does not train on them and deletes them within 30 days.',
   'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. Each answer is recorded there too, with the conversation it came from, so we can find and fix wrong ones; that text is deleted after 30 days.',
@@ -471,7 +503,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts (with your profile photo, if you add one), saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), and the public bill data.',
+    role: 'Our database and authentication backend. Stores accounts (with your profile photo, if you add one), saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), the public bill data, and members’ official accounts.',
   },
   {
     name: 'Cloudflare',

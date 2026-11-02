@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/terms' },
 };
 
-const LAST_UPDATED = 'September 24, 2026';
+const LAST_UPDATED = 'November 2, 2026';
 
 export default function TermsPage() {
   return (
@@ -65,6 +65,16 @@ export default function TermsPage() {
           that answers questions about individual bills.
         </p>
         <p>
+          It also shows members&rsquo; official websites and social media
+          accounts. The accounts are suggested by the volunteer{' '}
+          <ExternalLink href="https://unitedstates.github.io/congress-legislators/">
+            congress-legislators
+          </ExternalLink>{' '}
+          project, plus a few corrections we checked against members&rsquo;
+          own sites, and shown only when the member&rsquo;s own .house.gov or
+          .senate.gov website links them.
+        </p>
+        <p>
           Bills in Congress is <strong>not</strong> affiliated with,
           endorsed by, or operated by the United States government. It is
           an educational and informational resource — nothing on this
@@ -90,6 +100,13 @@ export default function TermsPage() {
           plainly wrong. They are a starting point for understanding a
           bill — not a substitute for reading the bill itself or
           consulting the official record.
+        </p>
+        <p>
+          Members&rsquo; accounts are checked once a day against each
+          member&rsquo;s own website, and only as far as that website is
+          right: it can link an account that has been renamed, handed on or
+          closed, and a change can take a day or more to show here. We do
+          not run, endorse or vouch for anything those accounts post.
         </p>
       </Section>
 
@@ -190,7 +207,8 @@ export default function TermsPage() {
       <Section number={7} title="Content and licenses">
         <p>
           The legislative data on this site comes from the United States
-          government and is in the public domain. The site&rsquo;s source
+          government and is in the public domain, as is the
+          congress-legislators list of suggested accounts. The site&rsquo;s source
           code is open source under the MIT license on{' '}
           <ExternalLink href="https://github.com/shreyashguptas/billsincongress">
             GitHub
@@ -213,7 +231,17 @@ export default function TermsPage() {
       </Section>
 
 
-      <Section number={8} title="No warranty">
+      <Section number={8} title="Links to other sites">
+        <p>
+          Links to a member&rsquo;s accounts, their website, Congress.gov
+          and bill texts take you to sites we do not run. We are not
+          responsible for what they publish or how they treat your data;
+          their own terms and privacy policies apply once you are there.
+        </p>
+      </Section>
+
+
+      <Section number={9} title="No warranty">
         <p>
           The service is provided &ldquo;as is&rdquo; and &ldquo;as
           available,&rdquo; without warranties of any kind, express or
@@ -224,7 +252,7 @@ export default function TermsPage() {
       </Section>
 
 
-      <Section number={9} title="Limitation of liability">
+      <Section number={10} title="Limitation of liability">
         <p>
           To the fullest extent permitted by law, the project and its
           operator are not liable for any indirect, incidental, or
@@ -238,7 +266,7 @@ export default function TermsPage() {
       </Section>
 
 
-      <Section number={10} title="Suspension and termination">
+      <Section number={11} title="Suspension and termination">
         <p>
           We may suspend or close accounts that violate these terms or
           abuse the service. You may delete your account at any time as
@@ -247,7 +275,7 @@ export default function TermsPage() {
       </Section>
 
 
-      <Section number={11} title="Changes to these terms">
+      <Section number={12} title="Changes to these terms">
         <p>
           If we change these terms, we will update this page and the
           &ldquo;last updated&rdquo; date at the top. Continued use of
@@ -260,7 +288,7 @@ export default function TermsPage() {
       </Section>
 
 
-      <Section number={12} title="Governing law and contact">
+      <Section number={13} title="Governing law and contact">
         <p>
           These terms are governed by the laws of the State of Maryland
           and applicable federal law of the United States, without regard
@@ -288,6 +316,7 @@ const summary = [
   'Pro is optional, renews until you cancel, and you can cancel any time.',
   'Not the government, and not legal advice — verify anything important on Congress.gov.',
   'AI answers can be wrong. Read the bill.',
+  'Links to members’ accounts and other sites go to sites we don’t run.',
   'Daily AI-chat limits keep the service running — don’t try to game them.',
   'The data is public domain; the code is open source.',
   'Provided as-is, no warranty.',

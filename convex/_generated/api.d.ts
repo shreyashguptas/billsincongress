@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as afterDeploy from "../afterDeploy.js";
 import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
 import type * as aiTrace from "../aiTrace.js";
@@ -38,10 +39,13 @@ import type * as catalog_sponsorName from "../catalog/sponsorName.js";
 import type * as catalog_stageSemantics from "../catalog/stageSemantics.js";
 import type * as catalog_tools from "../catalog/tools.js";
 import type * as catalog_types from "../catalog/types.js";
+import type * as catalog_webResults from "../catalog/webResults.js";
 import type * as chamber from "../chamber.js";
 import type * as chats from "../chats.js";
+import type * as claude from "../claude.js";
 import type * as codeEmail from "../codeEmail.js";
 import type * as congressApi from "../congressApi.js";
+import type * as cosponsors from "../cosponsors.js";
 import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as emailCodes from "../emailCodes.js";
@@ -53,6 +57,11 @@ import type * as http from "../http.js";
 import type * as hubOrder from "../hubOrder.js";
 import type * as indexNow from "../indexNow.js";
 import type * as indexNowStatus from "../indexNowStatus.js";
+import type * as memberAccountOverrides from "../memberAccountOverrides.js";
+import type * as memberAccounts from "../memberAccounts.js";
+import type * as memberAccountsParse from "../memberAccountsParse.js";
+import type * as memberAccountsVerify from "../memberAccountsVerify.js";
+import type * as members from "../members.js";
 import type * as mutations from "../mutations.js";
 import type * as plan from "../plan.js";
 import type * as policyAreaBackfill from "../policyAreaBackfill.js";
@@ -62,6 +71,7 @@ import type * as rateLimits from "../rateLimits.js";
 import type * as reasoning from "../reasoning.js";
 import type * as savedBills from "../savedBills.js";
 import type * as searchQuery from "../searchQuery.js";
+import type * as sponsorIdentity from "../sponsorIdentity.js";
 import type * as sync from "../sync.js";
 import type * as syncStatus from "../syncStatus.js";
 import type * as users from "../users.js";
@@ -73,6 +83,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  afterDeploy: typeof afterDeploy;
   aggregateBackfill: typeof aggregateBackfill;
   aggregates: typeof aggregates;
   aiTrace: typeof aiTrace;
@@ -103,10 +114,13 @@ declare const fullApi: ApiFromModules<{
   "catalog/stageSemantics": typeof catalog_stageSemantics;
   "catalog/tools": typeof catalog_tools;
   "catalog/types": typeof catalog_types;
+  "catalog/webResults": typeof catalog_webResults;
   chamber: typeof chamber;
   chats: typeof chats;
+  claude: typeof claude;
   codeEmail: typeof codeEmail;
   congressApi: typeof congressApi;
+  cosponsors: typeof cosponsors;
   crons: typeof crons;
   email: typeof email;
   emailCodes: typeof emailCodes;
@@ -118,6 +132,11 @@ declare const fullApi: ApiFromModules<{
   hubOrder: typeof hubOrder;
   indexNow: typeof indexNow;
   indexNowStatus: typeof indexNowStatus;
+  memberAccountOverrides: typeof memberAccountOverrides;
+  memberAccounts: typeof memberAccounts;
+  memberAccountsParse: typeof memberAccountsParse;
+  memberAccountsVerify: typeof memberAccountsVerify;
+  members: typeof members;
   mutations: typeof mutations;
   plan: typeof plan;
   policyAreaBackfill: typeof policyAreaBackfill;
@@ -127,6 +146,7 @@ declare const fullApi: ApiFromModules<{
   reasoning: typeof reasoning;
   savedBills: typeof savedBills;
   searchQuery: typeof searchQuery;
+  sponsorIdentity: typeof sponsorIdentity;
   sync: typeof sync;
   syncStatus: typeof syncStatus;
   users: typeof users;

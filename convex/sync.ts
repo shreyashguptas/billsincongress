@@ -23,6 +23,7 @@ export {
   EXTRA_TEXT_VERSIONS,
   EXTRA_COMPLETE,
   EXTRA_SPONSOR_IDENTITY,
+  EXTRA_COSPONSORS,
   getMissingEndpoints,
 } from "./syncStatus";
 

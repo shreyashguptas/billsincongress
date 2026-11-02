@@ -11,7 +11,7 @@ import {
   type SitemapUrl,
 } from '@/lib/sitemap-ids';
 
-// One sitemap file: id 0 = static pages; ids 1191…1198 = the 119th Congress's
+// One sitemap file: id 0 = static pages, hubs and member pages; ids 1191…1198 = the 119th Congress's
 // eight quarters, and so on (lib/sitemap-ids.ts says why quarters). Crawlers
 // fetch it at /sitemap-<id>.xml (sitemapFileUrl), which next.config.mjs
 // rewrites here; /sitemap_index.xml lists them.
@@ -56,7 +56,7 @@ export async function GET(
   // they were ~40% of each file's bytes. The static pages carry no <lastmod>
   // either: we hold no date they changed, and a made-up one teaches a crawler
   // to distrust the real ones in the bill files.
-  if (raw === '0') return xml(urlsetXml(staticPages()));
+  if (raw === '0') return xml(urlsetXml([...staticPages(), ...(await memberPages())]));
 
   // An id that cannot name a quarter of a Congress that has begun is refused
   // here, before any database call. The ids that pass are a small, fixed set,
@@ -107,6 +107,39 @@ function xml(body: string): Response {
       'Cache-Control': 'public, max-age=0, s-maxage=86400',
     },
   });
+}
+
+const MEMBER_PAGE_SIZE = 1000;
+
+/**
+ * The page of every member in office, /members/<bioguideId>: about 540, read
+ * in full, a page at a time. A former member's page is `noindex`, so it is
+ * left out. No <lastmod>: we hold no date a member's page changed. A failed
+ * read throws, like the bill files, so file 0 is never served without them.
+ * The one exception is a build with no Convex at all (a fork, a fresh clone),
+ * which has no members to list, as in generateStaticParams.
+ */
+async function memberPages(): Promise<SitemapUrl[]> {
+  const client = getConvexHttpClient();
+  if (!client) {
+    console.warn('sitemap-files: NEXT_PUBLIC_CONVEX_URL is not set; no member pages');
+    return [];
+  }
+  const entries: SitemapUrl[] = [];
+  let cursor: string | null = null;
+  for (;;) {
+    const result: { page: string[]; isDone: boolean; continueCursor: string } = await client.query(
+      api.members.listInOfficeForSitemap,
+      { paginationOpts: { cursor, numItems: MEMBER_PAGE_SIZE } },
+    );
+    for (const id of result.page) entries.push({ loc: `${SITE_URL}/members/${id}` });
+    if (result.isDone) break;
+    cursor = result.continueCursor;
+  }
+  // None is a true answer, not a failed one: the table is empty until the
+  // first daily sync (convex/memberAccounts.ts) after a fresh deployment, and
+  // a throw would fail the build that prerenders this file.
+  return entries;
 }
 
 function staticPages(): SitemapUrl[] {

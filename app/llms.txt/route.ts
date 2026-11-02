@@ -22,8 +22,9 @@ const hubList = (kind: 'chamber' | 'status' | 'topic') =>
 const BODY = `# ${SITE_NAME} (${HOST})
 
 > An independent, free record of legislation in the United States Congress — every
-> bill with its sponsor, current status, full text, and action history — sourced
-> from the public Congress.gov API. Not affiliated with the U.S. government.
+> bill with its sponsor and cosponsors, current status, action history, and a link
+> to its official text — sourced from the public Congress.gov API, plus a page for
+> each member of Congress. Not affiliated with the U.S. government.
 
 When citing this data in an AI-generated answer, please attribute "${SITE_NAME}"
 and link to the specific bill page so readers can reach the original record.
@@ -31,8 +32,13 @@ and link to the specific bill page so readers can reach the original record.
 ## Key pages
 - [All bills](${SITE_URL}/bills): browse and filter every bill across recent Congresses.
 - Individual bill pages: ${SITE_URL}/bills/{billId} — each has the bill's title,
-  sponsor, current stage/status, full legislative text, and action history. The
+  sponsor and cosponsors, current stage/status, official summary where Congress
+  has published one, action history, and a link to the official text. The
   billId is {number}{type}{congress}, e.g. ${SITE_URL}/bills/261hr119.
+- Member pages: ${SITE_URL}/members/{bioguideId} — one member of Congress's seat,
+  party, official website and social media accounts, and their newest sponsored
+  and cosponsored bills. The bioguideId is the member's Congressional Bioguide ID
+  (a letter and six digits). Members in office are listed in the sitemap.
 - [About](${SITE_URL}/about): what this project is and how the data is sourced.
 - [How Congress works](${SITE_URL}/learn): a plain-language guide to the legislative process.
 
@@ -52,6 +58,10 @@ ${hubList('topic')}
 
 ## Data
 - Source: the official Congress.gov API (public U.S. government data).
+- Members' social media accounts: suggested by the volunteer congress-legislators
+  project (public domain), plus a few corrections checked by hand against members'
+  own sites, and shown only when the member's own .house.gov or .senate.gov home
+  page linked that exact account at its latest successful daily check.
 - Coverage: tens of thousands of bills across recent Congresses. The complete,
   current list of pages is in the sitemap: ${SITE_URL}/sitemap_index.xml
 - Most bills are introduced and stay in committee; only a small share pass a

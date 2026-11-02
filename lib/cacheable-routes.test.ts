@@ -147,7 +147,7 @@ it("every page route is a deliberate yes or no, none forgotten", () => {
   ]);
 
   const undecided = concrete.filter(
-    (r) => !KNOWN_PUBLIC.has(r) && !KNOWN_PRIVATE.has(r) && !r.startsWith("/bills"),
+    (r) => !KNOWN_PUBLIC.has(r) && !KNOWN_PRIVATE.has(r) && !r.startsWith("/bills") && !r.startsWith("/members"),
   );
   assert.deepEqual(
     undecided,
@@ -159,7 +159,7 @@ it("every page route is a deliberate yes or no, none forgotten", () => {
   );
 
   for (const r of concrete) {
-    if (KNOWN_PUBLIC.has(r) || r.startsWith("/bills")) {
+    if (KNOWN_PUBLIC.has(r) || r.startsWith("/bills") || r.startsWith("/members")) {
       assert.equal(isPubliclyCacheable(r), true, `${r} should be cacheable`);
     } else {
       assert.equal(isPubliclyCacheable(r), false, `${r} must not be cacheable`);

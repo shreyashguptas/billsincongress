@@ -28,6 +28,8 @@ import {
   resolveSponsorRequest,
 } from "./catalog/sponsorName";
 import type { SponsorRequest } from "./catalog/sponsorName";
+import { officialAccounts, type OfficialAccounts } from "./memberAccounts";
+import { EXTRA_COSPONSORS } from "./syncStatus";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -274,12 +276,91 @@ async function billJourneyAndPeers(ctx: QueryCtx, bill: Doc<"bills">) {
   return { journey, peers, related, billUpdatedAt: bill.updatedAt };
 }
 
+/** Cosponsors a bill page draws with the page; the rest load when a reader asks. */
+const COSPONSORS_ON_PAGE = 10;
+
+/** Far above any bill's cosponsors (a whole House plus a Senate is 535). */
+const MAX_COSPONSORS = 1000;
+
+export interface BillCosponsor {
+  bioguideId: string;
+  name: string;
+  party: string | null;
+  state: string | null;
+  district: number | null;
+  sponsorshipDate: string;
+  isOriginal: boolean;
+  /** The member's confirmed official accounts, or null for a former member. */
+  accounts: OfficialAccounts | null;
+}
+
+/**
+ * A bill's current cosponsors in page order (original first, then by the day
+ * they joined), the first `limit` with their confirmed accounts, and how many
+ * there are. Withdrawn cosponsors are not listed or counted, as on
+ * Congress.gov. `fetched` is false until the bill's cosponsors have been read
+ * from Congress.gov at all, so a page never says "no cosponsors" for a bill it
+ * has simply not checked yet.
+ */
+async function billCosponsors(
+  ctx: QueryCtx,
+  bill: Doc<"bills">,
+  limit: number,
+): Promise<{ fetched: boolean; total: number; shown: BillCosponsor[] }> {
+  const fetched = ((bill.extraSyncedBits ?? 0) & EXTRA_COSPONSORS) !== 0;
+  if (!fetched || !bill.cosponsorCount) return { fetched, total: 0, shown: [] };
+  // The index is in page order with withdrawn members last, so a bill page
+  // reads exactly the rows it shows (crawlers read every bill page), and
+  // "Show all" reads the whole set in the same order.
+  const read = Math.min(limit, MAX_COSPONSORS);
+  const rows = (
+    await ctx.db
+      .query("billCosponsors")
+      .withIndex("by_billId_and_sortKey", (q) => q.eq("billId", bill.billId))
+      .take(read)
+  ).filter((r) => !r.withdrawnDate);
+  const shown = await Promise.all(
+    rows.slice(0, limit).map(async (r) => ({
+      bioguideId: r.bioguideId,
+      name: `${r.firstName} ${r.lastName}`.trim(),
+      party: r.party ?? null,
+      state: r.state ?? null,
+      district: r.district ?? null,
+      sponsorshipDate: r.sponsorshipDate,
+      isOriginal: r.isOriginal,
+      accounts: await officialAccounts(ctx, r.bioguideId),
+    })),
+  );
+  // The total is the stored count of current cosponsors, written with the
+  // rows in one mutation (replaceBillCosponsors), so it is the whole set even
+  // when the page read only the first rows.
+  return { fetched, total: bill.cosponsorCount, shown };
+}
+
+/**
+ * Every current cosponsor of a bill, with their accounts: what "Show all"
+ * loads on a bill page. Bounded by the size of Congress.
+ */
+export const getCosponsors = query({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (!bill) return null;
+    return await billCosponsors(ctx, bill, MAX_COSPONSORS);
+  },
+});
+
 /** How many same-topic bills a bill page links to. */
 const RELATED_BILLS = 5;
 
 /**
  * Everything the bill page draws, in one call: the bill (as `getById` returns
- * it) and its journey and peers. One call and one read of the bill row, where
+ * it), its journey and peers, the sponsor's official accounts (one indexed
+ * read of `memberAccounts`), and the first cosponsors with theirs (one read
+ * of the bill's cosponsors, and one of `memberAccounts` for each shown). One call and one read of the bill row, where
  * the page used to make two calls that each read it. Nearly every bill-page
  * render is a crawler, so this is most of the site's database bill.
  */
@@ -291,11 +372,13 @@ export const getPage = query({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
     if (!bill) return null;
-    const [details, extras] = await Promise.all([
+    const [details, extras, sponsorAccounts, cosponsors] = await Promise.all([
       billWithDetails(ctx, bill),
       billJourneyAndPeers(ctx, bill),
+      officialAccounts(ctx, bill.sponsorBioguideId),
+      billCosponsors(ctx, bill, COSPONSORS_ON_PAGE),
     ]);
-    return { bill: details, extras };
+    return { bill: details, extras: { ...extras, sponsorAccounts, cosponsors } };
   },
 });
 

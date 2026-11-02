@@ -1,6 +1,7 @@
 /**
- * Which sitemap files exist: 0 for the static pages and hubs, then eight per
- * Congress, one for each quarter of its two years. Shared by
+ * Which sitemap files exist: 0 for the static pages, hubs and the pages of
+ * members in office, then eight per Congress, one for each quarter of its two
+ * years. Shared by
  * `app/sitemap-files/[id]/route.ts` (which builds the files) and `app/sitemap_index.xml/route.ts` (which lists
  * them), so the two cannot drift.
  *

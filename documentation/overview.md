@@ -178,7 +178,7 @@ lib/                       Pure client/shared modules — 43 modules + 41 test f
   services/bills-service.ts  constants/  types/  utils/
 
 convex/                    Backend — 43 top-level modules + catalog/ + 24 test and spec files (12 more in catalog/)
-  schema.ts                26 application tables (+ 6 from the auth library)
+  schema.ts                28 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
@@ -191,6 +191,9 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   posthogEmail.ts billingEmail.ts emailStyle.ts   The hand-off to PostHog Workflows, the plan-change
                            emails, and the shared letterhead
   feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
+  memberAccounts.ts memberAccountsParse.ts memberAccountsVerify.ts memberAccountOverrides.ts
+                           Members' official accounts: suggest, correct, confirm on their own site
+  members.ts cosponsors.ts The member page's query; a bill's cosponsors (parse, order, fingerprint)
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts hubOrder.ts
   billStage.ts billJourney.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts indexNowStatus.ts  Pure, unit-tested
@@ -210,6 +213,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
 | `/bills` | Filterable browser — 10 per page, max page 51, in the date order the Sort menu picks (see "/bills sort" below). Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
+| `/members/<bioguideId>` | One member: seat, party, confirmed official accounts, ten newest sponsored bills and ten newest cosponsorships in the current Congress (`members.getPage`). Only members in `memberAccounts` have a page; one out of office is `noindex` and shows no accounts. Every in-office member's page is in `/sitemap-0.xml` (`members.listInOfficeForSitemap`; on the deploy that first fills `memberAccounts` the file is built before the sync runs and is cached for a day, so the members join it the next day); readers reach it from the sponsor's and cosponsors' names on bill pages. Cached at the edge for signed-out readers, like `/bills` (`lib/cacheable-routes.ts`) |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs: one per stage a bill can stop at except 20 and 95 (signed, not yet numbered as a law: a day or two), plus `/bills/introduced` (below). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`). **`/bills/introduced` and the picker's "Just introduced" (`status=20`) are not stage 20** since 2026-10-16: they are the bills introduced in the last 30 days, at any stage (`lib/bills/just-introduced.ts`); for a Congress that was not sitting in those 30 days, "Just introduced" keeps the stage-20 meaning, since a date window there is always empty. Bills are referred to committee the day they are introduced, so stage 20 held only 11 numbers in the whole 119th, all reserved for party leaders on 2025-01-03, and "Just introduced" plus any topic said "No bills found" |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
@@ -220,7 +224,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
 | `/api/auth/signin/<provider>`, `/api/auth/callback/<provider>` | GET (and POST, for form-post providers) — Google sign-in's start and return pages, passed through to Convex so Google shows billsincongress.com (see "Accounts and auth"). `/api/auth` itself is the auth library's sign-in and sign-out proxy, inside the middleware |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
-| `/api/bills/query` | POST — runs one of four public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`) on the server, for browsers that cannot reach Convex. See below |
+| `/api/bills/query` | POST — runs one of five public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`, `getCosponsors`) on the server, for browsers that cannot reach Convex. See below |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
 | `/share-image/home?v=` | GET — the home page's share card. A static segment, so it wins over the hub catch-all beside it |
@@ -251,7 +255,8 @@ hand-edited URL can no longer make the page show "Server Error". `billsService` 
 cut for every other caller.
 
 **Sitemaps** are `/sitemap_index.xml` (a route handler) listing `/sitemap-0.xml` (the home
-page, `/bills`, the hubs, `/learn`, `/about`, `/pro`, `/privacy` and `/terms`) plus eight files
+page, `/bills`, the hubs, `/learn`, `/about`, `/pro`, `/privacy`, `/terms` and every in-office
+member's page, about 540) plus eight files
 per Congress from `app/sitemap-files/[id]/route.ts`, one for each quarter of its two years (`/sitemap-1191.xml` is
 the 119th's first quarter), about 56,000 URLs in all. They were one file per Congress (17,828 to
 19,649 URLs, 1.7 to 1.9 MB) until 15 Oct 2026: Google read the small files within seconds but
@@ -399,8 +404,9 @@ can force a full reload on navigation when a tab is out of date, avoiding the fa
 
 ### Source
 
-Everything comes from the **official Congress.gov API v3** (`https://api.congress.gov/v3`).
-No scraping, no second provider. The key is sent in an `X-Api-Key` header, never as a query
+Every bill record comes from the **official Congress.gov API v3** (`https://api.congress.gov/v3`).
+No scraping, no second provider. (Members' social media accounts are the one other input, with
+their own pipeline: see "Members' official accounts" below.) The key is sent in an `X-Api-Key` header, never as a query
 string, so it cannot leak into logs or upstream caches.
 
 Eight bill types are pulled: `hr`, `s`, `hjres`, `sjres`, `hconres`, `sconres`, `hres`,
@@ -428,8 +434,8 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 ### The cron jobs
 
 Nine keep the data in step with Congress; a tenth sends bill alerts, an eleventh cleans up
-profile-photo uploads, a twelfth deletes old feedback pictures, and a thirteenth copies the
-answer prompt from PostHog (the last four rows).
+profile-photo uploads, a twelfth deletes old feedback pictures, a thirteenth copies the
+answer prompt from PostHog, and two keep members' official accounts current (the last six rows).
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -446,6 +452,9 @@ answer prompt from PostHog (the last four rows).
 | `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
 | `daily-avatar-orphan-sweep` | 08:00 daily | File storage | Delete profile-photo uploads no account points at and over an hour old (`avatars.sweepOrphans`) |
 | `daily-feedback-picture-purge` | 09:15 daily | `feedbackPictures` | Delete each feedback picture, file and row, 180 days after it arrived (`feedback.purgeOldPictures`), 100 per run, rescheduling itself while more remain. The privacy policy promises the 180 days |
+| `daily-member-accounts-sync` | 07:40 daily | `memberAccounts` | Copy the suggested social media accounts from congress-legislators, apply `memberAccountOverrides.ts`, write the rows that changed (`memberAccounts.sync`). See "Members' official accounts" |
+| `daily-member-sites-check` | 08:10 daily | `memberAccounts` | Fetch each member's own .gov home page and confirm only the accounts it links (`memberAccounts.checkSites`) |
+| `resume-background-jobs` | Hourly at :23 | `backgroundJobs` | Runs `afterDeploy:run`, which restarts a one-off job whose chain died (heartbeat two hours old) and starts the first members' accounts sync if that table is empty. Two indexed reads when there is nothing to do. See "After-deploy jobs" |
 | `refresh-answer-prompt` | Every 5 minutes | `answerPrompts` | Copy the `answer-system` prompt version labelled `production` in PostHog prompt management (`answerPrompts.refresh`). A no-op until `POSTHOG_PERSONAL_API_KEY` is set. See "Answer prompt" |
 
 ### Throttling
@@ -580,6 +589,59 @@ seed, which would otherwise delay announcements by about two weeks. A promotion 
 The key file published at the domain root is **not a credential** — the protocol requires it
 to be publicly retrievable. `lib/indexnow.test.ts` reads the constant in `convex/indexNow.ts` and the served file and
 fails if they disagree.
+
+### Members' official accounts
+
+The bill page's sponsor box lists the member's official X, Facebook, Instagram and YouTube
+accounts and website. No government source lists members' social media (Congress.gov's member
+endpoint, the House Clerk's `MemberData.xml` and the Senate's `senators_cfm.xml` carry none), so
+the rule is: **an account is shown only while the member's own .house.gov or .senate.gov home
+page links that exact account.** Two daily jobs and one reviewed file implement it.
+
+| Piece | File | What it does |
+| --- | --- | --- |
+| Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.json` and `legislators-social-media.json` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) GitHub Pages mirror (CC0, volunteer-kept; its policy is official accounts only), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
+| Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page and the date a person checked it: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Send each upstream as a pull request and delete it here once merged |
+| Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | First lapses every confirmation not renewed by a successful check in 30 days, or of a member with no website (`lapseStale`). Then fetches each in-office member's home page, 120 per run with the next run scheduled after the writes (8 at a time, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads the links to accounts (never to posts, tweets or photos, and nothing inside an embedded tweet or post, which can quote anyone), and stamps `confirmedAt` plus `shown` (the account's address, for YouTube the exact form the page linked, and its label) on each account it links. A page that redirects off house.gov/senate.gov counts as failed. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing |
+| Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only accounts confirmed by the member's latest successful site check (`confirmedAt === siteCheck.lastOkAt`), with the `shown` address, plus the website. Nothing for a member out of office or a bill without a sponsor id |
+
+YouTube has four kinds of address (@handle, `/user/`, `/c/`, a bare custom name) in separate
+namespaces, and the file can carry a channel id and a name. `confirmOnPage` confirms the account
+by whichever the member's site links and sends the reader to that exact form; it prints the name
+only when the site linked that name, so a stale channel id never rides on a confirmed name.
+
+Safety: a download with fewer than 480 or more than 560 members, or one that would drop more
+than 40 accounts from members who stay in office, is not written (`safetyProblem`), and the run
+logs `member accounts sync refused`. A new Congress replacing many members at once passes,
+because leaving members are not counted. When a person has looked and the change is real:
+
+```bash
+pnpm exec convex run --prod memberAccounts:sync '{"force":true}'
+```
+
+What the site check did not confirm, with what each site links instead, for a person to review
+into the overrides file:
+
+```bash
+pnpm exec convex run --prod memberAccounts:reviewList '{}'
+```
+
+At launch (1 Nov 2026), measured against every House member's home page: 1,347 of 1,423
+suggested House accounts confirmed, 433 of 439 House members with at least one. **senate.gov
+refused automated visits** from the networks tried ("Senate.gov - Unauthorized"), so senators
+show only their website until `checkSites` succeeds for them from Convex. If it is refused there
+too, they keep showing only their website: an account no official page could be read for is
+never shown. The check reads home pages only, so an
+account linked only from a deeper page stays hidden.
+
+The first deploy runs both by itself, rather than waiting for the morning: `afterDeploy:run`
+(see "After-deploy jobs" under "Deploying Convex") finds the table empty and starts the sync,
+which starts the site check when it has written. By hand, the same is:
+
+```bash
+pnpm exec convex run --prod memberAccounts:sync '{}'
+pnpm exec convex run --prod memberAccounts:checkSites '{}'
+```
 
 ### Committee base rates
 
@@ -731,6 +793,28 @@ every Congress, so a name one Congress never uses (Jacky Rosen's 117th-Congress 
 ```bash
 pnpm exec convex run --prod congressApi:backfillSponsorIdentity '{}'
 ```
+**Cosponsors.** The deploy that added them starts this by itself (`afterDeploy:run`, see
+"After-deploy jobs" under "Deploying Convex"); by hand, the same is:
+
+```bash
+pnpm exec convex run --prod afterDeploy:run '{}'
+```
+
+(`afterDeploy:run` refuses while a chain is alive; calling `congressApi:backfillCosponsors`
+directly would start a second chain walking the same bills.)
+
+One call per stored bill (about 56,500) to `/bill/{congress}/{type}/{number}/cosponsors`, at
+the same pace and with the same budget pause as the sponsor backfill (it stops at 3,000 calls
+left in the hour, so the daily sync always has room), which makes it about a day and a half. It
+goes newest Congress first, so the bills readers open are reached first, then repeats
+whole-table passes until one stores nothing. A pass that stores nothing while calls failed (an
+outage, a spent budget) is retried an hour later, up to six times, before the job is called done,
+so an outage cannot end it with bills missing. Each run writes the job's heartbeat to
+`backgroundJobs`; a chain silent for two hours is taken for dead and restarted by the hourly
+`resume-background-jobs` cron or the next deploy, whichever comes first. A bill whose page of cosponsors fails is left unmarked
+rather than stored short. Until a bill is reached, its page says nothing about cosponsors, and a
+member page's "Newest bills they cosponsored" covers only the bills reached so far.
+
 
 It makes one Congress.gov detail call per bill that has neither an id nor bit 4 of
 `extraSyncedBits` (`EXTRA_SPONSOR_IDENTITY`), about 57,000, at the enrichment backfill's pace. It
@@ -747,7 +831,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 
 ## The database
 
-26 application tables plus 6 installed by `@convex-dev/auth` (32 in production).
+28 application tables plus 6 installed by `@convex-dev/auth` (34 in production).
 
 ### Bill data
 
@@ -761,6 +845,8 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 | `billLegislativeSubjects` | The long per-bill subject list (HR1/119 has ~239). Stored but not surfaced |
 | `billTitles` | **Unused, and empty** — never written; the only reference is a delete loop in `mutations.ts`. Removing it is left to the owner |
 | `syncSnapshots` | Audit trail of every sync run |
+| `billCosponsors` | One row per (bill, cosponsor): member id, re-cased name, party, state, district, `sponsorshipDate`, `isOriginal`, `withdrawnDate`, and `sortKey` (page order: current before withdrawn, original first, then by date and name). Indexes `by_billId_and_sortKey` (a bill page reads exactly the ten it shows; "Show all" reads the rest in the same order) and `by_bioguideId_and_congress_and_sponsorshipDate` (a member's newest cosponsorships). `bills.cosponsorsFingerprint` is a short hash, not a copy of the list: every read of a bill row pays for it |
+| `memberAccounts` | One row per member (index `by_bioguideId`): name, chamber, state, `inOffice`, official website, and up to four suggested accounts, each with `confirmedAt` once the member's own site links it; plus the last site check. See "Members' official accounts" |
 
 Two design decisions worth knowing:
 
@@ -777,11 +863,18 @@ Two design decisions worth knowing:
   not `latestActionDate`: committees act on bills after they are signed, and 5 of 758 laws in
   the production copy had a later latest action (H.R. 1043, 119th: signed 29 Dec 2025, report
   filed 11 Feb 2026). It orders the stage hubs.
-- **Only the primary sponsor is stored.** There are no co-sponsors anywhere in the database,
-  and the answer engine is explicitly instructed never to imply otherwise.
+- **Cosponsors are stored for pages, not for the answer engine.** `billCosponsors` holds each
+  bill's cosponsors as Congress.gov lists them (withdrawn ones with `withdrawnDate`), replaced
+  as a set by `replaceBillCosponsors` only when the set changes, with `bills.cosponsorCount`
+  (current ones) and bit 8 of `extraSyncedBits` (`EXTRA_COSPONSORS`, "fetched"). The sync
+  fetches them after a bill's other endpoints, skipping the call when the detail says there are
+  none; bills stored before that are filled by `backfillCosponsors` (below). No dataset exposes
+  them to the answer engine, which is told it cannot look them up and to point readers to the
+  bill page.
 
 Not held at all: vote tallies and roll calls, committee hearing schedules, member
-biographies or contact details, floor speeches, and the full text of bills (only a link).
+biographies or contact details (beyond `memberAccounts`: the official website and the social
+accounts it links), floor speeches, and the full text of bills (only a link).
 
 ### Precomputed analytics
 
@@ -802,6 +895,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics. Orphaned the same way since `convex/chatAnalytics.ts` was deleted |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
 | `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days, and (index `by_storageId`) so `avatars.sweepOrphans` does not take them for orphaned photos |
+| `backgroundJobs` | One row per long one-off job that `afterDeploy:run` starts (`name`, `state` running or done, `startedAt`, `heartbeatAt`, `finishedAt`; index `by_name`). Today only `cosponsors-backfill`. A running job whose heartbeat is two hours old is restarted by the next deploy. See "After-deploy jobs" |
 | `answerPrompts` | Copies of the `answer-system` prompt from PostHog prompt management: `name`, `version`, `template`, `isProduction`, `fetchedAt` (index `by_name_version`). Written only by `answerPrompts.store`, read once per answer. At most one row is production, and ten other versions are kept. Empty = the in-code default |
 | `usageEvents` | **Unused, and empty** — zero references outside `schema.ts`. Removing it is left to the owner |
 
@@ -1292,6 +1386,18 @@ against that risk:
   served) and `answer_prompt_source` (`posthog` or `code`), so any answer can be traced to
   the exact wording that produced it, and PostHog compares versions on cost, latency,
   evaluation pass rate and readers' ratings.
+- **Code that makes the published wording wrong also sets a minimum version.** The template in
+  PostHog is a copy, so a rule changed in `DEFAULT_TEMPLATE` reaches no reader while the
+  `production` label points at an older version. `MIN_PROMPT_VERSION`
+  (`convex/catalog/promptTemplate.ts`) is the oldest version whose rules match the code: a
+  version below it is never served, and while the label points below it, `refresh` copies the
+  minimum version as production instead. So publish the matching version in PostHog first
+  (unlabelled), then raise the minimum in the same pull request as the code: the merge releases
+  the wording, and nobody has to remember to move the label. The cost is that moving the label
+  back past the minimum is no longer a rollback; that takes a code change. First used on
+  2026-11-02: version 8 said "We do not hold co-sponsors" when bill pages began listing them, so
+  version 9 (identical to `DEFAULT_TEMPLATE`) was published unlabelled and the minimum set to 9.
+  Move the `production` label to 9 whenever convenient; nothing depends on it.
 - **Test before release.** Export the candidate version's text and run the gates against it:
   `ANSWER_PROMPT_FILE=candidate.txt pnpm check:grounding`. A file that fails `validTemplate`
   stops the gate rather than quietly testing the default.
@@ -1322,8 +1428,8 @@ on Claude Haiku: a claim about a whole set ("all", "none of them", "the exceptio
 phrase goes in double quotes; a bill's place is said with its `stage` words; and what a bill
 does comes only from its official summary or a web excerpt, never from its title. On the
 production data copy it got 43 of 46 scorable answers (Claude Haiku 5.5, low effort), including
-the new "student visa" question version 5 could not answer. Version 7 is the one labelled
-`production`.
+the new "student visa" question version 5 could not answer. Version 7 was labelled `production` until
+2026-11-01.
 
 On 2026-11-01 `DEFAULT_TEMPLATE` moved ahead of version 7, to be published as **8**. It fixes
 three contradictions (the prompt counted bills with two `billType` counts where the docs said
@@ -1335,8 +1441,10 @@ commentary ("supporters would likely say"), rankings counted off an unsorted lis
 in a speaker's mouth that the excerpt never named. Measured on the production data copy against
 version 7: the grounding gate 20/20 in all three runs (version 7: 20/20 in two); the truth
 questions 25 and 26 of 27, the one difference a "can't say" whose wording the scorer reads
-either way on both versions (1 and 2 of 3 on a rerun); 31 lookups against 36. Version 8 is
-labelled `production` since 2026-11-01 22:35 UTC.
+either way on both versions (1 and 2 of 3 on a rerun); 31 lookups against 36. Version 8 was
+labelled `production` on 2026-11-01 at 22:35 UTC. **9** (2026-11-02) changes only the two
+co-sponsor lines, for bill pages that list cosponsors, and is served from the merge of #233 by
+`MIN_PROMPT_VERSION` (above).
 
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
 `POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional
@@ -2386,7 +2494,8 @@ admits `main` only. Two jobs name that environment: `deploy` in `deploy.yml` (to
 backend) and `truth` in `accuracy.yml` (to copy the public tables). A job on any other branch,
 including a pull request that edits a workflow to ask for the secret, gets nothing, because the
 rule lives in repository settings, not in a file a branch can change. Within those jobs the key
-is set on the one step that needs it, never on an install step. A repo-level secret would not
+is set only on the steps that need it (in `deploy.yml`, the backend deploy and the after-deploy
+jobs), never on an install step. A repo-level secret would not
 hold this line: a same-repo pull request runs its own edited workflow and can read any repo
 secret.
 
@@ -2640,8 +2749,10 @@ retriggers itself in a loop.
 ### Deploy
 
 Any push to `main` (or a manual dispatch from `main`) triggers `deploy.yml`, which deploys the
-Convex backend and then runs `pnpm run deploy` for the site. If the backend step fails, the
-site step does not run.
+Convex backend, then runs `pnpm run deploy` for the site, then starts the after-deploy jobs
+(`afterDeploy:run`, see "After-deploy jobs" under "Deploying Convex"). If the backend step fails,
+the site step does not run; if the after-deploy step fails, the site is already out and the run
+goes red.
 
 - **The deploy workflow runs no tests.** Tests gate pull requests only.
 - **It runs from `main` only.** The job has `if: github.ref == 'refs/heads/main'`, because the
@@ -2694,6 +2805,19 @@ Never store it as a repo-level secret (see the environment-variable notes above)
 This replaced a manual step. Production once ran three days behind `main` on the answer engine,
 and for the whole of that time readers on a bill page were told about a different bill,
 confidently and with working citations, because the fix had been merged and never shipped.
+
+**After-deploy jobs.** The workflow's last step, "Start after-deploy jobs", runs
+`convex run afterDeploy:run` with the same key (`convex/afterDeploy.ts`). It starts what a new
+feature needs once, so a merge ships whole instead of waiting on a command someone has to
+remember: the first members' accounts sync and site check when `memberAccounts` is empty, and
+the cosponsors backfill until it has finished. Every step does nothing when its work is done or
+already running, so it runs on every deploy, and two quick merges never start a job twice. The
+hourly `resume-background-jobs` cron runs the same function, so a job whose chain died between
+merges is restarted within the hour. It
+comes after the site so a failure here never holds the site back; the run goes red and the next
+merge retries. Its result (`started`, `running` or `done` for each job) is printed in the step's
+log. A feature that needs a one-time job adds it there, in the same pull request, rather than to
+a list of commands to run after the merge.
 
 **To redeploy without a merge**, re-run the latest Deploy run, or use "Run workflow" on
 `main`, from the Actions tab.
