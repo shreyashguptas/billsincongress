@@ -196,6 +196,8 @@ export interface SiteCheck {
   status: "ok" | "blocked" | "failed";
   /** The account links on the page, sorted; empty unless `ok`. */
   links: LinkKey[];
+  /** Blocked with 429 Too Many Requests: we asked too fast, so asking later can work. */
+  rateLimited?: boolean;
 }
 
 const SITE_TIMEOUT_MS = 20_000;
@@ -224,7 +226,8 @@ export async function checkOfficialSite(url: string): Promise<SiteCheck> {
       redirect: "follow",
       headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     });
-    if ([401, 403, 429].includes(response.status)) return { status: "blocked", links: [] };
+    if (response.status === 429) return { status: "blocked", links: [], rateLimited: true };
+    if ([401, 403].includes(response.status)) return { status: "blocked", links: [] };
     if (!response.ok) return { status: "failed", links: [] };
     // A .gov address that redirects off .gov (to a campaign site, say) is not
     // the member's official page.
