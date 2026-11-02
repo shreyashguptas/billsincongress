@@ -17,6 +17,7 @@ import {
   EXTRA_COSPONSORS,
 } from "./sync";
 import { cosponsorRows, type CosponsorRow } from "./cosponsors";
+import { COSPONSORS_BACKFILL } from "./afterDeploy";
 import { calculateBillStage, stageDateFor } from "./billStage";
 import { Id } from "./_generated/dataModel";
 
@@ -1880,21 +1881,40 @@ export const backfillSponsorIdentity = internalAction({
   },
 });
 
+/** Hour-apart retries of a pass that stored nothing but had failures, before giving up. */
+const COSPONSORS_QUIET_PASSES = 6;
+const COSPONSORS_RETRY_AFTER_MS = 60 * 60 * 1000;
+
 /**
  * Fetch the cosponsors of every stored bill that does not have them yet (bit
- * `EXTRA_COSPONSORS`), once, at the enrichment backfill's pace. After the
- * deploy that adds cosponsors, run once:
+ * `EXTRA_COSPONSORS`), once, at the enrichment backfill's pace. Started by
+ * itself after the deploy that adds cosponsors (convex/afterDeploy.ts); to
+ * start it by hand, never alongside a running chain:
  *
- *   pnpm exec convex run --prod congressApi:backfillCosponsors '{}'
+ *   pnpm exec convex run --prod afterDeploy:run '{}'
  *
- * One Congress.gov call per bill (about 56,500), so it takes several hours and
- * continues itself, pausing when the hourly budget runs low. A bill whose call
- * fails is retried on a further pass; a pass that stores nothing ends it.
+ * One Congress.gov call per bill (about 56,500). It keeps under the hourly
+ * budget the daily sync needs (it pauses below ENRICHMENT_RATE_FLOOR), so it
+ * takes about a day and a half, and goes newest Congress first: the bills
+ * readers open get their cosponsors first. Then whole-table passes retry the
+ * bills whose call failed (and any Congress with no stats row). A pass that
+ * stores nothing ends it, unless calls failed: then it waits an hour and tries
+ * again, up to COSPONSORS_QUIET_PASSES times, so an outage during the last pass
+ * cannot mark the job done with bills missing. Every run writes the job's
+ * heartbeat, and the hourly `resume-background-jobs` cron restarts a chain
+ * that died. Start it by hand with `afterDeploy:run`, which refuses while a
+ * chain is alive; calling this directly starts a second chain.
  */
 export const backfillCosponsors = internalAction({
   args: {
+    // Absent with fullScan unset: the first run, which starts at the newest Congress.
+    congress: v.optional(v.number()),
+    fullScan: v.optional(v.boolean()),
     cursor: v.optional(v.union(v.string(), v.null())),
     passFixed: v.optional(v.number()),
+    passFailed: v.optional(v.number()),
+    // Whole-table passes in a row that stored nothing but still had failures.
+    quietPasses: v.optional(v.number()),
   },
   handler: async (
     ctx,
@@ -1902,26 +1922,34 @@ export const backfillCosponsors = internalAction({
   ): Promise<{ done: boolean; fixedThisRun: number; pausedForRateLimit: boolean }> => {
     requireApiKey();
     lastRateLimitRemaining = null;
+    await ctx.runMutation(internal.afterDeploy.heartbeat, { name: COSPONSORS_BACKFILL });
     const startedAt = Date.now();
+    // Newest first. Only the first pass goes by Congress; retries scan everything.
+    const congresses: number[] = args.fullScan ? [] : await ctx.runQuery(internal.afterDeploy.heldCongresses, {});
+    let congress: number | undefined = args.fullScan ? undefined : (args.congress ?? congresses[0]);
     let cursor: string | null = args.cursor ?? null;
     let passFixed = args.passFixed ?? 0;
+    let passFailed = args.passFailed ?? 0;
+    const quietPasses = args.quietPasses ?? 0;
     let fixedThisRun = 0;
+    const position = () => ({ congress, fullScan: congress === undefined, cursor, passFixed, passFailed, quietPasses });
 
     for (;;) {
-      const page: BillBackfillPage = await ctx.runQuery(internal.mutations.getBillBackfillPage, {
-        cursor,
-        numItems: ENRICHMENT_PAGE,
-      });
+      const page: BillBackfillPage =
+        congress === undefined
+          ? await ctx.runQuery(internal.mutations.getBillBackfillPage, { cursor, numItems: ENRICHMENT_PAGE })
+          : await ctx.runQuery(internal.mutations.getBillBackfillPageByCongress, {
+              congress,
+              cursor,
+              numItems: ENRICHMENT_PAGE,
+            });
 
       for (const bill of page.bills) {
         if ((bill.extraSyncedBits & EXTRA_COSPONSORS) !== 0) continue;
 
         if (lastRateLimitRemaining !== null && lastRateLimitRemaining < ENRICHMENT_RATE_FLOOR) {
           console.warn(`backfillCosponsors: rate-limit floor hit (${lastRateLimitRemaining} remaining); cooling down`);
-          await ctx.scheduler.runAfter(ENRICHMENT_COOLDOWN_MS, internal.congressApi.backfillCosponsors, {
-            cursor,
-            passFixed,
-          });
+          await ctx.scheduler.runAfter(ENRICHMENT_COOLDOWN_MS, internal.congressApi.backfillCosponsors, position());
           return { done: false, fixedThisRun, pausedForRateLimit: true };
         }
 
@@ -1934,38 +1962,84 @@ export const backfillCosponsors = internalAction({
             `cosponsors ${bill.billId}`,
             ENRICHMENT_DELAY_MS,
           );
-          if (cosponsors !== null) {
-            await ctx.runMutation(internal.mutations.replaceBillCosponsors, { billId: bill.billId, cosponsors });
+          // Fixed only when THIS row got the bit: a row the write did not
+          // reach would otherwise count as fixed on every pass, for ever.
+          const written =
+            cosponsors === null
+              ? null
+              : await ctx.runMutation(internal.mutations.replaceBillCosponsors, { billId: bill.billId, cosponsors });
+          if (written === bill._id) {
             fixedThisRun++;
             passFixed++;
+          } else {
+            passFailed++;
           }
         } catch (err: any) {
+          passFailed++;
           console.error(`backfillCosponsors: skipping ${bill.billId} after error: ${err?.message ?? err}`);
         }
 
         if (Date.now() - startedAt > ENRICHMENT_MAX_RUN_MS) {
-          await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillCosponsors, {
-            cursor,
-            passFixed,
-          });
+          await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillCosponsors, position());
           console.log(`backfillCosponsors: time budget reached, ${fixedThisRun} this run (pass ${passFixed}); scheduled continuation`);
           return { done: false, fixedThisRun, pausedForRateLimit: false };
         }
       }
 
-      if (page.isDone) {
-        if (passFixed > 0) {
-          await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillCosponsors, {
-            cursor: null,
-            passFixed: 0,
-          });
-          console.log(`backfillCosponsors: pass complete (${passFixed}); starting another to catch failures`);
-          return { done: false, fixedThisRun, pausedForRateLimit: false };
-        }
-        console.log("backfillCosponsors: complete");
-        return { done: true, fixedThisRun, pausedForRateLimit: false };
+      if (!page.isDone) {
+        cursor = page.continueCursor;
+        continue;
       }
-      cursor = page.continueCursor;
+      if (congress !== undefined) {
+        // The next older Congress, else a whole-table pass for anything missed.
+        const older = congresses.find((c) => c < congress!);
+        console.log(`backfillCosponsors: Congress ${congress} done (${passFixed} so far this pass)`);
+        cursor = null;
+        if (older !== undefined) {
+          congress = older;
+          continue;
+        }
+        congress = undefined;
+        await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillCosponsors, {
+          fullScan: true,
+          cursor: null,
+          passFixed: 0,
+          passFailed: 0,
+        });
+        return { done: false, fixedThisRun, pausedForRateLimit: false };
+      }
+      if (passFixed > 0) {
+        await ctx.scheduler.runAfter(ENRICHMENT_RESCHEDULE_MS, internal.congressApi.backfillCosponsors, {
+          fullScan: true,
+          cursor: null,
+          passFixed: 0,
+          passFailed: 0,
+        });
+        console.log(`backfillCosponsors: pass complete (${passFixed} stored, ${passFailed} failed); starting another`);
+        return { done: false, fixedThisRun, pausedForRateLimit: false };
+      }
+      if (passFailed > 0 && quietPasses < COSPONSORS_QUIET_PASSES) {
+        // Nothing stored, but calls failed: Congress.gov may be down or the
+        // budget spent. Wait and try again rather than calling it done.
+        await ctx.scheduler.runAfter(COSPONSORS_RETRY_AFTER_MS, internal.congressApi.backfillCosponsors, {
+          fullScan: true,
+          cursor: null,
+          passFixed: 0,
+          passFailed: 0,
+          quietPasses: quietPasses + 1,
+        });
+        console.warn(`backfillCosponsors: a pass stored nothing and ${passFailed} failed; retrying in an hour`);
+        return { done: false, fixedThisRun, pausedForRateLimit: false };
+      }
+      await ctx.runMutation(internal.afterDeploy.finish, { name: COSPONSORS_BACKFILL });
+      if (passFailed > 0) {
+        // The same bills failed for COSPONSORS_QUIET_PASSES hours running: not
+        // an outage. They keep no cosponsors section until a sync re-pulls them.
+        console.warn(`backfillCosponsors: finished with ${passFailed} bills that never fetched`);
+      } else {
+        console.log("backfillCosponsors: complete");
+      }
+      return { done: true, fixedThisRun, pausedForRateLimit: false };
     }
   },
 });

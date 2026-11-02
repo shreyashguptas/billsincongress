@@ -33,6 +33,20 @@ export const PROMPT_SLOTS = ["datasets", "calendar", "context"] as const;
 export type PromptSlot = (typeof PROMPT_SLOTS)[number];
 
 /**
+ * The oldest PostHog version whose rules match this code. A version below it
+ * describes a site that no longer exists, so it is never served, even while
+ * the `production` label still points at it: version 8 told readers "we do
+ * not hold co-sponsors" after bill pages began listing them. When the label
+ * is behind, `answerPrompts.refresh` copies this version instead, so merging
+ * the code is what releases the wording; nobody has to remember to move the
+ * label. Raise it, in the same pull request, whenever a change here makes the
+ * published versions wrong, after publishing the matching version.
+ *
+ * 9: bill pages list cosponsors (#233). Identical to DEFAULT_TEMPLATE.
+ */
+export const MIN_PROMPT_VERSION = 9;
+
+/**
  * Rewritten on 2026-10-05 from the rules that had accumulated one live failure
  * at a time. Every rule kept here traces to a wrong answer a reader got; the
  * rewrite groups them, drops repetition, and cuts the length by about a third,
@@ -44,6 +58,9 @@ export type PromptSlot = (typeof PROMPT_SLOTS)[number];
  * rankings only from a sorted result, a speaker named only if the excerpt names
  * one; and the "two counts" way of counting bills, a day older than measure
  * 'bill', replaced.
+ *
+ * Revised on 2026-11-02 (PostHog version 9, MIN_PROMPT_VERSION): bill pages
+ * list cosponsors, so a co-sponsor question points the reader there.
  */
 export const DEFAULT_TEMPLATE = `You answer questions about the United States Congress for ordinary readers, using ONLY what you look up in the datasets below. What you write is published as it stands, in this site's voice.
 

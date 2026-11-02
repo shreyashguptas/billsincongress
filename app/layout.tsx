@@ -58,7 +58,7 @@ const SITE_GRAPH = {
       '@id': `${SITE_URL}/#dataset`,
       name: 'United States Congressional Bills',
       description:
-        'A structured, continually updated record of every bill introduced in the United States Congress — including sponsor, current status and legislative stage, full text, subjects, and complete action history — covering recent Congresses. Sourced from the official Congress.gov API.',
+        'A structured, continually updated record of every bill introduced in the United States Congress — including sponsor and cosponsors, current status and legislative stage, a link to the full text, subjects, and complete action history — covering recent Congresses. Sourced from the official Congress.gov API.',
       url: `${SITE_URL}/bills`,
       keywords: [
         'United States Congress',
@@ -88,11 +88,12 @@ const SITE_GRAPH = {
       variableMeasured: [
         'bill title',
         'sponsor',
+        'cosponsors',
         'legislative status',
         'progress stage',
         'policy area',
         'actions',
-        'full text',
+        'full text link',
       ],
     },
   ],

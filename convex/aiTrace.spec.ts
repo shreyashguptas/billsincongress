@@ -220,10 +220,10 @@ describe("recording an answer as a PostHog trace", () => {
     }
     sent.length = 0;
     const words = `${"Version seven. ".repeat(20)}\n{{datasets}}{{calendar}}{{context}}`;
-    await t.mutation(internal.answerPrompts.store, { version: 7, template: words, isProduction: true });
+    await t.mutation(internal.answerPrompts.store, { version: 27, template: words, isProduction: true });
     await ask(t);
     for (const e of batches()[0]) {
-      expect(e.properties.$ai_prompt_version).toBe(7);
+      expect(e.properties.$ai_prompt_version).toBe(27);
       expect(e.properties.answer_prompt_source).toBe("posthog");
     }
   });

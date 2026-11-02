@@ -693,6 +693,19 @@ export default defineSchema({
     attemptedAt: v.optional(v.number()),
   }).index("by_name_version", ["name", "version"]),
 
+  // Long one-off jobs that convex/afterDeploy.ts starts by itself after a
+  // merge, so a deploy never waits on someone remembering a command. One row
+  // per job: `heartbeatAt` is written by every run of the job's chain, so a
+  // chain that died (a crash between runs) is restarted by the next deploy
+  // instead of being taken for one still running.
+  backgroundJobs: defineTable({
+    name: v.string(),
+    state: v.union(v.literal("running"), v.literal("done")),
+    startedAt: v.number(),
+    heartbeatAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }).index("by_name", ["name"]),
+
   // Each member's official social media accounts and website, one row per
   // member: suggested daily by the congress-legislators project plus our
   // reviewed fixes, and confirmed against the member's own .gov website

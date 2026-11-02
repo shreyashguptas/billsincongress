@@ -120,4 +120,27 @@ describe("members.getPage", () => {
     expect(page!.member.inOffice).toBe(false);
     expect(page!.accounts).toBeNull();
   });
+
+  test("the sitemap lists every member in office and no former member, across pages", async () => {
+    const t = setup();
+    await seed(t);
+    await t.mutation(internal.memberAccounts.apply, {
+      records: Array.from({ length: 539 }, (_, i) => member(i + 1)),
+      force: false,
+      now: "2026-11-02T07:40:00Z",
+    });
+    const ids: string[] = [];
+    let cursor: string | null = null;
+    for (;;) {
+      const r: { page: string[]; isDone: boolean; continueCursor: string } = await t.query(
+        api.members.listInOfficeForSitemap,
+        { paginationOpts: { numItems: 100, cursor } },
+      );
+      ids.push(...r.page);
+      if (r.isDone) break;
+      cursor = r.continueCursor;
+    }
+    expect(ids).toHaveLength(539);
+    expect(ids).not.toContain("M000000");
+  });
 });

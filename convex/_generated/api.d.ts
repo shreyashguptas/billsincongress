@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as afterDeploy from "../afterDeploy.js";
 import type * as aggregateBackfill from "../aggregateBackfill.js";
 import type * as aggregates from "../aggregates.js";
 import type * as aiTrace from "../aiTrace.js";
@@ -82,6 +83,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  afterDeploy: typeof afterDeploy;
   aggregateBackfill: typeof aggregateBackfill;
   aggregates: typeof aggregates;
   aiTrace: typeof aiTrace;

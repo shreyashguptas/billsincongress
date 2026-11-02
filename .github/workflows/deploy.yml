@@ -123,3 +123,15 @@ jobs:
           NEXT_PUBLIC_CONVEX_SITE_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_SITE_URL }}
           NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
           NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
+
+      # What a merge starts by itself (convex/afterDeploy.ts): the first load
+      # of a new table and long one-off jobs, such as the cosponsors backfill,
+      # which used to be commands someone had to remember after the merge.
+      # Each does nothing when its work is done or already running, so this
+      # runs on every deploy. It is last so a failure here never holds back
+      # the site; the run still goes red, and the next merge tries again.
+      # The key is on this step only, as on the backend step above.
+      - name: Start after-deploy jobs
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: pnpm exec convex run afterDeploy:run '{}'

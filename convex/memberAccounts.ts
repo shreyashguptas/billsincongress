@@ -113,7 +113,9 @@ async function fetchJson(file: string): Promise<unknown> {
 }
 
 export const sync = internalAction({
-  args: { force: v.optional(v.boolean()) },
+  // checkSitesAfter: the first sync after a deploy (convex/afterDeploy.ts)
+  // checks every site straight away instead of at the next 08:10 cron.
+  args: { force: v.optional(v.boolean()), checkSitesAfter: v.optional(v.boolean()) },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     let result: Infer<typeof applyResult>;
@@ -142,6 +144,9 @@ export const sync = internalAction({
     }
 
     if (!result.written) console.warn(`[member accounts] not written: ${result.problem}`);
+    if (result.written && args.checkSitesAfter) {
+      await ctx.scheduler.runAfter(0, internal.memberAccounts.checkSites, {});
+    }
     await scheduleLog(ctx, {
       level: result.written ? "info" : "warn",
       message: result.written ? "member accounts synced" : "member accounts sync refused",

@@ -144,4 +144,15 @@ crons.cron(
   {},
 );
 
+// The safety net for one-off jobs a merge starts (convex/afterDeploy.ts): a
+// chain that died between runs (a crash, a hung fetch) is restarted within the
+// hour instead of waiting for the next merge. It does nothing while a job is
+// alive or once it is done, so most hours it is two indexed reads.
+crons.cron(
+  "resume-background-jobs",
+  "23 * * * *",
+  internal.afterDeploy.run,
+  {},
+);
+
 export default crons;

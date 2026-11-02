@@ -9,6 +9,7 @@
  * one click away on /bills, which counts it properly.
  */
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { officialAccounts } from "./memberAccounts";
@@ -105,6 +106,32 @@ export const getPage = query({
           : null,
       sponsored: sponsored.map(billRow),
       cosponsored,
+    };
+  },
+});
+
+/**
+ * The member pages the sitemap lists (app/sitemap-files/[id]/route.ts, file
+ * 0): members in office only, since a former member's page is `noindex`, and
+ * only ids `getPage` answers. `memberAccounts` holds one row per member in
+ * office since it began, about 540 today and growing by a few dozen a
+ * Congress; the route pages through all of it, so the sitemap never lists a
+ * capped read as the whole set.
+ */
+export const listInOfficeForSitemap = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({ page: v.array(v.string()), isDone: v.boolean(), continueCursor: v.string() }),
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("memberAccounts")
+      .withIndex("by_bioguideId")
+      .paginate(args.paginationOpts);
+    return {
+      page: result.page
+        .filter((m) => m.inOffice && BIOGUIDE.test(m.bioguideId))
+        .map((m) => m.bioguideId),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
     };
   },
 });

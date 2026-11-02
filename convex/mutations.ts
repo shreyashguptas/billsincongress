@@ -323,7 +323,8 @@ export const replaceBillCosponsors = internalMutation({
       }),
     ),
   },
-  returns: v.null(),
+  // The bill row written, so a caller can tell its own row got the bit; null when no bill.
+  returns: v.union(v.id("bills"), v.null()),
   handler: async (ctx, args) => {
     const bill = await ctx.db
       .query("bills")
@@ -337,7 +338,7 @@ export const replaceBillCosponsors = internalMutation({
       if (bits !== bill.extraSyncedBits || bill.cosponsorCount !== cosponsorCount) {
         await ctx.db.patch(bill._id, { extraSyncedBits: bits, cosponsorCount });
       }
-      return null;
+      return bill._id;
     }
     const existing = await ctx.db
       .query("billCosponsors")
@@ -353,7 +354,7 @@ export const replaceBillCosponsors = internalMutation({
       });
     }
     await ctx.db.patch(bill._id, { extraSyncedBits: bits, cosponsorCount, cosponsorsFingerprint: fingerprint });
-    return null;
+    return bill._id;
   },
 });
 
