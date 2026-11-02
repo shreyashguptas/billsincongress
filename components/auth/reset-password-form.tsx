@@ -18,7 +18,8 @@ import { safeRedirect, withRedirect } from "./safe-redirect";
 type Step = "request" | "reset";
 
 // The reset step's two quiet actions, as on the sign-up verify step.
-const SECONDARY_ACTION = "rounded-xs font-normal text-ink-2 hover:text-ink";
+// touch-hit: text height, but a 44px hit box on a touch screen.
+const SECONDARY_ACTION = "touch-hit rounded-xs font-normal text-ink-2 hover:text-ink";
 
 /**
  * Self-serve password reset: email → 6-digit code + new password → signed in.
@@ -275,7 +276,7 @@ export function ResetPasswordForm({
       </p>
 
       <p className="text-center text-sm">
-        <Link href={withRedirect("/sign-in", redirect)} className="link focus-ring rounded-xs">
+        <Link href={withRedirect("/sign-in", redirect)} className="link touch-hit focus-ring rounded-xs">
           ← Back to sign in
         </Link>
       </p>

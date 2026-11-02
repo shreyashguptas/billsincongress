@@ -103,7 +103,7 @@ function UserMenuInner() {
           variant="ghost"
           size="icon"
           aria-label={isPro ? "Account menu, Pro plan" : "Account menu"}
-          className="group h-9 w-9 rounded-full p-0 hover:bg-transparent touchable:h-9 touchable:w-9"
+          className="group relative h-9 w-9 rounded-full p-0 hover:bg-transparent touchable:h-9 touchable:w-9 touchable:before:absolute touchable:before:-inset-1 touchable:before:rounded-full touchable:before:content-['']"
         >
           <AvatarMark initials={initials} src={user?.avatarUrl} pro={isPro} size="sm" />
         </Button>

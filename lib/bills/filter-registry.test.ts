@@ -78,7 +78,10 @@ const SAMPLE: Record<string, string | string[]> = {
 
 it("has exactly one registry entry per BillsFilterValues key, and vice versa", () => {
   const fields = FILTERS.map((f) => f.field).sort();
-  const keys = Object.keys(DEFAULT_FILTER_VALUES).sort();
+  // `sort` is the Sort menu's pick, not a filter (lib/bills/sort.ts).
+  const keys = Object.keys(DEFAULT_FILTER_VALUES)
+    .filter((k) => k !== "sort")
+    .sort();
   assert.deepEqual(
     fields,
     keys,

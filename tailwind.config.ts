@@ -9,6 +9,10 @@ module.exports = {
     './components/**/*.{js,ts,jsx,tsx}',
   ],
   darkMode: 'class',
+  // `hover:` only where a device can actually hover. Without it a tap on a
+  // phone or tablet leaves the tapped control painted in its hover state until
+  // the next tap elsewhere ("sticky hover").
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     container: {
       center: true,
@@ -127,13 +131,21 @@ module.exports = {
         'overlay-in': { from: { opacity: '0' }, to: { opacity: '1' } },
         'overlay-out': { from: { opacity: '1' }, to: { opacity: '0' } },
         'sheet-in-bottom': { from: { transform: 'translateY(100%)' }, to: { transform: 'none' } },
-        'sheet-out-bottom': { from: { transform: 'none' }, to: { transform: 'translateY(100%)' } },
+        'sheet-out-bottom': { from: { transform: 'none' }, to: { transform: 'translateY(calc(100% + 1rem))' } },
         'sheet-in-left': { from: { transform: 'translateX(-100%)' }, to: { transform: 'none' } },
         'sheet-out-left': { from: { transform: 'none' }, to: { transform: 'translateX(-100%)' } },
         'sheet-in-right': { from: { transform: 'translateX(100%)' }, to: { transform: 'none' } },
         'sheet-out-right': { from: { transform: 'none' }, to: { transform: 'translateX(100%)' } },
         'sheet-in-top': { from: { transform: 'translateY(-100%)' }, to: { transform: 'none' } },
         'sheet-out-top': { from: { transform: 'none' }, to: { transform: 'translateY(-100%)' } },
+        'dialog-in': {
+          from: { opacity: '0', transform: 'translateY(8px) scale(0.985)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        'dialog-out': {
+          from: { opacity: '1', transform: 'none' },
+          to: { opacity: '0', transform: 'translateY(4px) scale(0.99)' },
+        },
         'popover-in': {
           from: { opacity: '0', transform: 'translateY(-4px) scale(0.98)' },
           to: { opacity: '1', transform: 'none' },
@@ -155,13 +167,18 @@ module.exports = {
         'sheet-out-right': 'sheet-out-right 0.2s cubic-bezier(0.4, 0, 1, 1)',
         'sheet-in-top': 'sheet-in-top 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
         'sheet-out-top': 'sheet-out-top 0.2s cubic-bezier(0.4, 0, 1, 1)',
+        'dialog-in': 'dialog-in 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+        'dialog-out': 'dialog-out 0.14s cubic-bezier(0.4, 0, 1, 1)',
         'popover-in': 'popover-in 0.16s cubic-bezier(0.22, 1, 0.36, 1)',
         'popover-out': 'popover-out 0.12s ease-in',
       },
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
+    // Class strategy: the base strategy restyled every input and textarea with
+    // a blue focus border (and a white ring in Night) — an accent colour the
+    // brand does not have. Nothing uses the `form-*` classes.
+    require('@tailwindcss/forms')({ strategy: 'class' }),
     // The enter/exit utilities (animate-in, fade-in-0, zoom-in-95…) that
     // shadcn/ui components ship with. Every blanket rule under
     // prefers-reduced-motion in globals.css still applies to them.
@@ -180,6 +197,9 @@ module.exports = {
     // does not fit. Same widths as the screens, so with the panel closed nothing
     // changes.
     plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
+      // xs / sm size the phone logo to the room it actually has (Logo `fit`).
+      addVariant('header-xs', '@container site-header (min-width: 360px)');
+      addVariant('header-sm', '@container site-header (min-width: 400px)');
       addVariant('header-md', '@container site-header (min-width: 768px)');
       addVariant('header-lg', '@container site-header (min-width: 1024px)');
       addVariant('header-xl', '@container site-header (min-width: 1280px)');

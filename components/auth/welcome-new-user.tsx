@@ -53,7 +53,7 @@ export function WelcomeNewUser() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {/* hideClose: Dialog's own close is a bare 16px icon; this one keeps the 40px target below. */}
-      <DialogContent hideClose className="w-[92%] max-w-md rounded-lg border-line bg-raised p-6 sm:p-8">
+      <DialogContent hideClose className="max-w-md border-line bg-raised" bodyClassName="p-6 sm:p-8">
         <DialogClose asChild>
           <Button
             variant="ghost"

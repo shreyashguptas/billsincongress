@@ -144,6 +144,7 @@ export const DATASETS: Record<DatasetName, DatasetDoc> = {
     summary: "Policy areas and how many bills each has, for one Congress.",
     grain: "One row per policy area per Congress, with a precomputed count.",
     fields: [
+      { name: "rank", type: "number", meaning: "Its place by count, largest first; tied counts share one. Read a place ('the fourth-largest') off `rank`, never by counting rows." },
       { name: "policyAreaName", type: "string", meaning: "Exact policy area name, e.g. 'Health'." },
       { name: "count", type: "number", meaning: "How many bills carry it in this Congress." },
       { name: "congress", type: "number", meaning: "Which Congress the count is for." },

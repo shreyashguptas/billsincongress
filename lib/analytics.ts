@@ -3,6 +3,7 @@ import posthog from 'posthog-js';
 import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 import type { SponsorMatchKind } from '@/lib/sponsor-match';
+import type { BillsSort } from '@/lib/bills/sort';
 
 /** Every text box with a length limit, for `text_limit_reached`. */
 export type TextLimitSurface =
@@ -284,6 +285,18 @@ export const analytics = {
     surface?: 'bar' | 'panel' | 'empty_state';
   }) => capture('bills_filters_cleared', props ?? {}),
 
+  /**
+   * The reader picked an order from the Sort menu on /bills. `from_sort` is
+   * the order applied before, which is the filter set's default when they had
+   * not picked one; `is_default` says whether they picked that default back.
+   */
+  billsSortChanged: (props: {
+    from_sort: BillsSort;
+    to_sort: BillsSort;
+    is_default: boolean;
+    active_filter_count: number;
+  }) => capture('bills_sort_changed', props),
+
   /** The header's search field (lg and up). Length, not the text — the same
    *  rule as `bills_no_results`. An empty submit just opens /bills. */
   headerSearchSubmitted: (queryLength: number) =>
@@ -476,20 +489,19 @@ export const analytics = {
   }) => capture('hub_order_changed', props),
 
   /**
-   * A link from one hub to a sibling hub, from /bills into a hub, from the
-   * site footer's three hub links, or from the foot of a bill page
-   * (`bill_page`: its topic, stage and chamber).
+   * A link from one hub to a sibling hub, from a /bills filter picker into a
+   * hub, from the site footer's three hub links, or from the foot of a bill
+   * page (`bill_page`: its topic, stage and chamber).
    *
-   * `placement` distinguishes the browse disclosure on /bills from the
-   * sibling row on a hub page, a picker footer, and the site footer (`footer`). Worth having: this
-   * event had no call site on /bills at all, so "no one uses the category
-   * list" was unfalsifiable from our own data.
+   * `placement` distinguishes the sibling row on a hub page, a picker footer,
+   * the site footer (`footer`) and a bill page. `directory`, the "Guides to
+   * every topic and stage" box on /bills, was removed on 2026-11-02.
    */
   hubLinkClicked: (props: {
     from_path: string;
     to_path: string;
     hub_kind: 'chamber' | 'status' | 'topic';
-    placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer' | 'bill_page';
+    placement?: 'filter_panel' | 'hub_siblings' | 'footer' | 'bill_page';
   }) => capture('hub_link_clicked', props),
 
   /**

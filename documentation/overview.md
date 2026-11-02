@@ -102,7 +102,7 @@ app/                       Next.js App Router — 21 page.tsx files
     [id]/page.tsx          One bill
     [id]/share-image/      Its share card, drawn on request (next/og)
     [id]/get-bill.ts       The bill lookup the page and the card share
-    _hub/                  Hub view, directory and view-tracker (route-private)
+    _hub/                  Hub view and view-tracker (route-private)
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|to-president|passed-both-chambers|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
@@ -112,7 +112,7 @@ app/                       Next.js App Router — 21 page.tsx files
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
   sign-in/ sign-up/ forgot-password/
   alerts/unsubscribe/      The page an alert email's unsubscribe link opens (a button, never an action on load)
-  api/                     answer/, bill-chat/usage, alerts/unsubscribe, bills/query
+  api/                     answer/, auth/[...path] (Google sign-in), bill-chat/usage, alerts/unsubscribe, bills/query
   share-image/             Share cards: home/route.tsx (the home page) and [...path]/route.tsx (the hubs)
   robots.ts sitemap-files/[id]/ sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
@@ -150,6 +150,7 @@ components/                Shared React components
   convex-client-provider.tsx theme-provider.tsx
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
+                           use-drag-dismiss.ts — drag a sheet or panel closed, finger or mouse
 
 lib/                       Pure client/shared modules — 43 modules + 41 test files at the top level, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
@@ -210,7 +211,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | URL | What it is |
 | --- | --- |
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
-| `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
+| `/bills` | Filterable browser — 10 per page, max page 51, in the date order the Sort menu picks (see "/bills sort" below). Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/members/<bioguideId>` | One member: seat, party, confirmed official accounts, ten newest sponsored bills and ten newest cosponsorships in the current Congress (`members.getPage`). Only members in `memberAccounts` have a page; one out of office is `noindex` and shows no accounts. Every in-office member's page is in `/sitemap-0.xml` (`members.listInOfficeForSitemap`; on the deploy that first fills `memberAccounts` the file is built before the sync runs and is cached for a day, so the members join it the next day); readers reach it from the sponsor's and cosponsors' names on bill pages. Cached at the edge for signed-out readers, like `/bills` (`lib/cacheable-routes.ts`) |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
@@ -221,6 +222,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also offers "Change password" (password accounts only), and shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
+| `/api/auth/signin/<provider>`, `/api/auth/callback/<provider>` | GET (and POST, for form-post providers) — Google sign-in's start and return pages, passed through to Convex so Google shows billsincongress.com (see "Accounts and auth"). `/api/auth` itself is the auth library's sign-in and sign-out proxy, inside the middleware |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
 | `/api/bills/query` | POST — runs one of five public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`, `getCosponsors`) on the server, for browsers that cannot reach Convex. See below |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
@@ -324,10 +326,33 @@ ahead of Convex — the hub falls back to `list` and shows no order switch and n
 rather than an empty page. `scripts/truth/hub-order.test.ts` runs the real ordering against the
 production copy.
 
+**/bills sort.** `/bills` is in a real date order too, newest first, chosen from a Sort menu
+(`lib/bills/sort.ts`; `?sort=` in the URL only when it is not the filter set's default). The
+default is latest action; with an Outcome filter it is the day bills reached that stage, so
+"Became law" opens with the newest laws; "Just introduced" goes by introduction; a title search
+by best match. `bills.list` takes `sort` (absent: the stored order, as before) and promises an
+order two ways (`sortedMatches` in `convex/bills.ts`): an index range already in that order
+(`by_congress_stage_and_stage_date`, `by_congress_stage_and_action`,
+`by_congress_policy_area_and_latest_action`, `by_congress_type_and_latest_action`, merged per
+chamber, `by_congress_and_latest_action`, `by_congress_and_introduced`), filtered as it streams,
+so the first matches are the newest even if the scan cap stops it; or, when no ordered index
+enforces the narrowest filter (a sponsor's state; "date introduced" under an Outcome), that
+filter's set read whole and sorted in memory, if it fits under the scan cap. The precomputed
+counts (`congressStats`, `congressPolicyAreas`, `congressChamberBreakdowns`) skip that read for a
+set they already put over the cap, such as California or Health, so one request does not read
+1,201 rows only to fall back to the ordered index. A search, a bill
+number or a sponsor reads its set whole already and is sorted in memory; a title search that hit
+its 1,024 ceiling reports `truncated`, since newer matches may be past it. Rows show the sort's
+date, labelled. Until 2 Nov 2026 `/bills` had no order but insertion order: page 1 of "Became
+law" opened with a law signed in June while five were signed on 20 Oct.
+`scripts/truth/list-sort.test.ts` runs it against the production copy.
+
 **Middleware** (`middleware.ts`, not `proxy.ts` — see [Hosting](#hosting-and-cloudflare-constraints)):
 301-redirects `www` to the apex, sends signed-out visitors from `/account` to `/sign-in`,
 sends signed-in visitors away from `/sign-in` and `/sign-up`, and sets `Cache-Control` from
-the allowlist in `lib/cacheable-routes.ts`.
+the allowlist in `lib/cacheable-routes.ts`. Through `@convex-dev/auth`'s wrapper it also swaps
+the `?code=` a finished sign-in returns with for session cookies, on every page except the
+`/api/auth/` ones (see "Accounts and auth").
 
 Caching is an **allowlist, not a denylist**, on purpose: a missing public route is merely
 uncached, whereas a personalised route slipping through a denylist gap would put one
@@ -1063,9 +1088,9 @@ Three shapes, chosen by media query in `app/globals.css` and described by `lib/a
 
 | Viewport | Shape | Behaviour |
 | --- | --- | --- |
-| `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. |
-| `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. |
-| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
+| `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable, square and flush with the header's bottom rule. Drag the grab bar or title row down, or flick, to close it. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. The on-screen keyboard lifts it (`bottom: var(--ask-kb)`); `--ask-kb` counts only while a text field has focus and the page is not pinch-zoomed, because a zoomed page also has a smaller visual viewport. |
+| `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. Its title row drags it off to the right. |
+| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px (mouse, finger or keyboard; on a touch screen the edge carries a grip and a wider target). A window that shrinks and grows again returns to the reader's saved width, not the narrowest one it passed through. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
 
 **1344 is derived, not chosen.** `container-editorial` at a 1024px viewport gives its `lg:`
 layouts 960px of inner width, so the pushed shell must never fall below 1024px — and the
@@ -1417,7 +1442,7 @@ in a speaker's mouth that the excerpt never named. Measured on the production da
 version 7: the grounding gate 20/20 in all three runs (version 7: 20/20 in two); the truth
 questions 25 and 26 of 27, the one difference a "can't say" whose wording the scorer reads
 either way on both versions (1 and 2 of 3 on a rerun); 31 lookups against 36. Version 8 was
-published and labelled `production` on 2026-11-01. **9** (2026-11-02) changes only the two
+labelled `production` on 2026-11-01 at 22:35 UTC. **9** (2026-11-02) changes only the two
 co-sponsor lines, for bill pages that list cosponsors, and is served from the merge of #233 by
 `MIN_PROMPT_VERSION` (above).
 
@@ -1560,7 +1585,9 @@ here. Before this, asked which states' members sponsor the most bills (2026-10-2
 counted eight states one fetch at a time, said it could not rank the rest, and listed Illinois
 below Pennsylvania "in order". The rank is the server's because, handed the list alone and asked
 for the tenth state, the model named the ninth in 2 of 3 runs. A truth case checks every state's
-count and rank against the raw bills.
+count and rank against the raw bills. Since 2026-11-01 every `topics` row carries its `rank` the
+same way: asked live for the fourth policy area, the model counted the 31 sorted rows by eye and
+named Taxation (fifth) in 5 of 7 runs, on prompt versions 7 and 8 alike.
 
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has
@@ -1781,6 +1808,21 @@ with the account's, trimmed and lower-cased. Without it, a reader could redeem s
 pending sign-up code under their own email and land in that account (found 27 Oct 2026; the
 password-reset flow had its own check in the library, sign-up verification did not).
 `convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
+
+**Google sign-in runs through billsincongress.com.** Google's account picker names the site
+it will send the reader back to, and the library serves that return page, and the page that
+starts the sign-in, on the Convex HTTP address. Readers saw "to continue to
+industrious-llama-331.convex.site". With `CUSTOM_AUTH_SITE_URL=https://billsincongress.com`
+in the Convex environment, the library puts our domain in both links instead, and
+`app/api/auth/[...path]/route.ts` passes `/api/auth/signin/<provider>` and
+`/api/auth/callback/<provider>` through to Convex unchanged: the redirect, its `Set-Cookie`s,
+and on the way in only that provider's own sign-in cookies (`lib/auth-proxy.ts`). The
+middleware must not touch the `code` on those two pages (`shouldHandleCode` in
+`middleware.ts`): it swaps any `?code=` for a session, and Google's reply carries Google's
+code, so taking it ends every Google sign-in with no session. Google Cloud's OAuth client must
+list `https://billsincongress.com/api/auth/callback/google` as an authorized redirect URI;
+the old `https://industrious-llama-331.convex.site/api/auth/callback/google` stays listed so
+removing the variable is an instant rollback. Tested in `lib/auth-proxy.test.ts`.
 
 Sessions last **60 days** (both total and inactive), and the cookie `maxAge` in
 `middleware.ts` must stay ≥ that value.
@@ -2473,6 +2515,7 @@ runs on gpt-oss. `OPENROUTER_CLAUDE_MODEL` is no longer read; delete it if it is
 have overridden the new default and kept answers on the slow host. An `ANTHROPIC_*` or
 `OPENROUTER_*` variable set in production silently wins over the code, so check this list after any model change. `CONVEX_SITE_URL` is provided by
 Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
+`CUSTOM_AUTH_SITE_URL` (November 2026) moves Google sign-in onto billsincongress.com.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -2491,6 +2534,7 @@ Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 | `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |
+| `CUSTOM_AUTH_SITE_URL` | Where Google sign-in's start and return pages live: `https://billsincongress.com`, passed through to Convex by `app/api/auth/[...path]` (see "Accounts and auth"). Google's OAuth client must list `<this>/api/auth/callback/google` | The Convex HTTP address, which Google then shows readers |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing | none |
 | `SITE_URL` | Auth redirect base; also the base of Stripe return URLs and alert-email links | library default; billing and alerts fall back to `https://billsincongress.com` |
 | `STRIPE_SECRET_KEY` | Stripe API key (Checkout, portal, webhook re-reads) | Checkout returns `BILLING_NOT_CONFIGURED` |
@@ -2532,8 +2576,11 @@ Things pnpm 12 does that bite if you do not know them:
 - **Install scripts are opt-in.** `allowBuilds` in `pnpm-workspace.yaml` lists every dependency
   allowed to run one (`true`) or deliberately skipped (`false`). A new dependency with an install
   script that is not listed **fails the install** (`strictDepBuilds`, the default since pnpm 11).
-- **Packages younger than 24 hours do not resolve** (`minimumReleaseAge`), so a release published
-  this morning installs tomorrow.
+- **Packages younger than 3 days do not resolve** (`minimumReleaseAge: 4320` in
+  `pnpm-workspace.yaml`). `pnpm add`/`pnpm update` with no version take the newest release that is
+  old enough. Naming a too-new version fails (`minimumReleaseAgeStrict`) instead of pnpm quietly
+  adding an exception. For an urgent security fix, add that exact version under
+  `minimumReleaseAgeExclude` with a reason, and delete it after 3 days.
 - **Security floors for deep dependencies live in `overrides`** in `pnpm-workspace.yaml` (pnpm 12
   ignores the old `pnpm.overrides` in `package.json`). Each entry selects only the vulnerable
   versions, such as `'glob@>=10.0.0 <10.5.0'`, so it stops doing anything once the parent package

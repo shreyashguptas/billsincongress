@@ -444,10 +444,10 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             // ignores Enter, and Enter then has to queue the follow-up.
             disabled={!input.trim()}
             aria-label="Send"
-            className="shrink-0 rounded-full disabled:opacity-40 touchable:h-10 touchable:w-10"
+            className="shrink-0 rounded-full disabled:opacity-40"
           >
             {busy ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-on-ink border-t-transparent" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-on-ink border-t-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]" />
             ) : (
               <ArrowUp className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             )}

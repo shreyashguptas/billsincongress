@@ -26,7 +26,7 @@ const buttonVariants = cva(
         link: 'h-auto rounded-none p-0 text-foreground underline decoration-input underline-offset-[3px] hover:decoration-foreground',
       },
       size: {
-        sm: 'h-8 px-3 text-[13px]',
+        sm: 'h-8 px-3 text-[13px] touchable:h-11',
         default: 'h-10 px-4 touchable:h-11',
         lg: 'h-11 px-5 text-[15px]',
         icon: 'h-10 w-10 touchable:h-11 touchable:w-11',

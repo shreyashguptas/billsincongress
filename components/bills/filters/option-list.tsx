@@ -73,8 +73,11 @@ export function OptionList({
   const searchId = useId();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  // Whether the marker was last moved by the keyboard. Under a finger the
+  // marker is invisible (see the row classes): a grey first row on open, or a
+  // grey last-tapped row, reads as "selected" on a phone.
+  const [keyboardNav, setKeyboardNav] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
   const searchable = options.length > SEARCHABLE_THRESHOLD;
 
   const selected = useMemo(
@@ -93,25 +96,21 @@ export function OptionList({
   );
 
   /**
-   * Take focus into the picker on open.
+   * Where focus lands on open: the element marked `data-autofocus`, which the
+   * shell (adaptive-surface.tsx) focuses once its focus scope is listening.
    *
-   * The shell deliberately does not do this for us. On a pointer device focus
-   * goes to the search field if there is one, so you can type immediately. On
-   * touch it goes to the LIST rather than the field, because focusing a text
-   * input summons the on-screen keyboard, and a bottom sheet whose height is
-   * measured in dvh does not shrink to make room for it — half the options
-   * would be behind the keyboard before the reader had typed anything.
+   * On a pointer device that is the search field if there is one, so you can
+   * type immediately. On touch it is the LIST rather than the field, because
+   * focusing a text input summons the on-screen keyboard, and a bottom sheet
+   * whose height is measured in dvh does not shrink to make room for it — half
+   * the options would be behind the keyboard before the reader had typed
+   * anything.
    *
    * Focusing the list also matters for short, unsearchable pickers: without it
    * focus stays on the trigger, the listbox's key handler never fires, and
    * Arrow Down does nothing at all.
    */
-  useEffect(() => {
-    if (searchable && layout === 'pointer') searchRef.current?.focus();
-    else listRef.current?.focus();
-    // Run once per open. The picker is unmounted when closed, so mount is open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const focusSearch = searchable && layout === 'pointer';
 
   // Keep the marker inside the list as it shrinks under a query.
   useEffect(() => {
@@ -159,6 +158,7 @@ export function OptionList({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) setKeyboardNav(true);
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActiveIndex((i) => Math.min(items.length - 1, i + 1));
@@ -204,12 +204,10 @@ export function OptionList({
 
   return (
     <>
-      {/* Grab handle — touch only. A sheet with no handle reads as stuck. */}
-      {layout === 'touch' && (
-        <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line-strong" aria-hidden="true" />
-      )}
-
-      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 pb-3 pt-3">
+      {/* Straight under the bottom sheet's own grab bar (SheetContent
+          `grabber`), the header sits closer to the top; under the All filters
+          back bar, it keeps its full padding. */}
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 pb-3 pt-3 [[data-sheet-grab]+&]:pt-1">
         <div className="min-w-0">
           <Heading className="font-serif text-[19px] font-medium leading-snug text-ink">
             {title}
@@ -218,15 +216,17 @@ export function OptionList({
             {helper}
           </Helper>
         </div>
-        {hasValue && (
+        {/* A multi-select with a value has a footer bar carrying its own Clear;
+            one is enough. */}
+        {hasValue && !multi && (
           <Button
             type="button"
             variant="link"
             onClick={() => {
-              onChange(multi ? [] : 'all');
-              if (!multi) close();
+              onChange('all');
+              close();
             }}
-            className="shrink-0 rounded-xs text-[13px] decoration-1"
+            className="touch-hit shrink-0 rounded-xs text-[13px] decoration-1"
           >
             Clear
           </Button>
@@ -244,8 +244,8 @@ export function OptionList({
             aria-hidden="true"
           />
           <Input
-            ref={searchRef}
             id={searchId}
+            data-autofocus={focusSearch ? '' : undefined}
             type="text"
             role="combobox"
             aria-expanded="true"
@@ -278,7 +278,12 @@ export function OptionList({
         aria-activedescendant={activeId}
         // Always focusable and always handling keys: on touch the list takes
         // focus even when a search field exists, so it has to be operable.
-        tabIndex={-1}
+        // A tab stop wherever it is the element that takes focus (always on
+        // touch; on a pointer device when there is no search field to be the
+        // combobox). Without it a short, unset picker in a bottom sheet had
+        // nothing Tab could reach, and Tab left the sheet for the page behind.
+        tabIndex={focusSearch ? -1 : 0}
+        data-autofocus={focusSearch ? undefined : ''}
         onKeyDown={handleKeyDown}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
       >
@@ -294,7 +299,7 @@ export function OptionList({
                 type="button"
                 variant="link"
                 onClick={onRetry}
-                className="mt-1.5 rounded-xs decoration-1"
+                className="touch-hit mt-1.5 rounded-xs decoration-1"
               >
                 Retry
               </Button>
@@ -324,16 +329,25 @@ export function OptionList({
                 role="option"
                 aria-selected={isSelected}
                 data-active={i === activeIndex}
-                onMouseEnter={() => setActiveIndex(i)}
+                onMouseEnter={() => {
+                  setActiveIndex(i);
+                  setKeyboardNav(false);
+                }}
                 onClick={() => commit(option)}
                 className={cn(
-                  'flex h-10 cursor-pointer items-center gap-2.5 px-4 text-sm text-ink transition-colors touchable:h-12',
-                  i === activeIndex ? 'bg-sunken' : 'bg-transparent',
+                  'flex h-10 cursor-pointer items-center gap-2.5 px-4 text-sm text-ink transition-colors active:bg-sunken touchable:h-12',
+                  // The marker shows for the keyboard, and under a mouse (where
+                  // it tracks the pointer). A tap moves it too, but painting it
+                  // there would read as a second selection.
+                  i === activeIndex && (keyboardNav ? 'bg-sunken' : 'fine:bg-sunken'),
                   isSelected && 'font-medium'
                 )}
               >
                 <Check
-                  className={cn('h-4 w-4 shrink-0 text-ink', isSelected ? 'visible' : 'invisible')}
+                  className={cn(
+                    'h-4 w-4 shrink-0 text-ink transition-[opacity,transform] [transition-duration:120ms] ease-out motion-reduce:transition-none',
+                    isSelected ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+                  )}
                   strokeWidth={2}
                   aria-hidden="true"
                 />

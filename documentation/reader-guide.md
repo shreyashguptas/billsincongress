@@ -21,7 +21,7 @@ It is free to read, has no ads, and you do not need an account to read anything 
 
 The home page is a dashboard for a single Congress at a time (by default the newest one we hold bills for; a picker switches between them).
 
-It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover a party to see its own numbers. A small "party not recorded" group counts bill numbers Congress.gov lists with no sponsor at all — in the 117th Congress, eleven House bill numbers held back for the Speaker and the Minority Leader — and the assistant can list them if you ask.
+It opens with **who's writing America's laws**, drawn like a chamber of Congress. The outer seats are every bill introduced, split by the sponsor's party; the inner seats are the bills that became law, one seat each. Hover or tap a party to see its own numbers. A small "party not recorded" group counts bill numbers Congress.gov lists with no sponsor at all — in the 117th Congress, eleven House bill numbers held back for the Speaker and the Minority Leader — and the assistant can list them if you ask.
 
 Right under the chamber is a box for asking a question. As you type, bills whose title or number matches appear under it straight away. Pick one to go straight to its page, or press Enter to ask your question instead. The one exception: if you typed a bill number that matches exactly one bill, Enter opens that bill. Under the box are three quick links built from the live numbers, such as the bills that became law this Congress. Each one opens the full list rather than asking the AI, which cannot read hundreds of bills at once.
 
@@ -31,8 +31,8 @@ Below that, it shows:
 - **Where bills stand** — the bills stuck in committee as one small block, and every bill that got further zoomed in, one square per bill, stage by stage. It is a blunt picture: in the 119th Congress, close to 90% of everything introduced has not made it out of committee. The first row past committee is "Out of committee": bills a committee has approved and sent to the floor, waiting for a vote. The rows for one and both chambers say how many of their measures are resolutions that are already finished there, since a House or Senate resolution only ever needs its own chamber.
 - **What Congress is working on** — a wheel of the biggest policy areas, one dot per group of bills, with full names and counts beside it.
 - **Leading sponsors** — the ten members who introduced the most bills, as a bar chart coloured by party. Members are counted by Congress.gov's own member id, so someone whose bills spell their name two ways ("Jacky" and "Jacklyn" Rosen) is one member, and two members who share a name (the 118th's Senator and Representative Robert Menendez) are two.
-- **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big.
-- **Introductions month by month** — bills introduced growing upward and, growing downward, how many of each month's bills went on to become law, each on its own scale. A written sentence names the busiest month, the quietest full month, and the month whose bills produced the most laws. Laws sit under the month the bill was filed, not the month it was signed.
+- **Where bills come from** — a map of the states shaded by how many bills their members sponsored, with a per-member view so big states don't win just by being big. On a phone, the first tap on a state shows its numbers and a second opens its bills.
+- **Introductions month by month** — hover, tap or drag across it to read any month's counts. Bills introduced growing upward and, growing downward, how many of each month's bills went on to become law, each on its own scale. A written sentence names the busiest month, the quietest full month, and the month whose bills produced the most laws. Laws sit under the month the bill was filed, not the month it was signed.
 - **Volume across recent Congresses** — how this Congress compares with the two before it.
 
 Nearly every number on the page is clickable. Click a stage, a sponsor or a state and you land in the bill list already filtered to it. A policy area on the current Congress takes you somewhere better: that topic's own browse page, which explains what the grouping means before it lists the bills.
@@ -40,6 +40,15 @@ Nearly every number on the page is clickable. Click a stage, a sponsor or a stat
 ### Every bill, browsable
 
 `/bills` is the full browser. You can search by title or bill number, start typing a sponsor's name to pick them from a list, and filter by status, Congress, policy area (33 of them), state, date introduced, date last acted on, and bill type. The status choice "Just introduced" means the bills introduced in the last 30 days, whatever has happened to them since (in an earlier Congress, which has no bills that recent, it still means the bills that never got past introduction): almost every bill is sent to a committee the day it is introduced, so the bills still at the bare "introduced" stage are a handful of numbers reserved for party leaders, not new bills. Bill titles don't name their sponsors, so a member's name typed into the title search finds nothing; when that happens and the name belongs to exactly one member, the empty page offers to show that member's bills instead. A question typed there ("how many bills about school lunch…") finds nothing for the same reason, so the empty page offers to ask it, and the assistant answers it with the list's other filters but not the search words.
+
+The list is in date order, newest first, and a Sort menu above it changes which date. Where it starts depends on what you have chosen:
+
+- **An Outcome** (such as "Became law"): the day each bill reached it, so the newest laws come first.
+- **"Just introduced"**: the day each bill was introduced.
+- **A title search**: best match.
+- **Anything else**: the bill's latest action.
+
+From there you can switch to latest action or date introduced, and back. Each row shows the date the list is sorted on, with a label saying which date it is.
 
 Each filter's own control displays what it is currently set to, with a running "N filters applied · Clear all" line under the row, and every filter is written into the address bar — so a filtered view can be bookmarked, shared, or walked back through with the browser's Back button. The numbered page links at the bottom follow the filters too: page 2 of a search is page 2 of that search. Filters are deliberately *not* remembered between visits, because silently re-applying last week's filters is how people end up staring at an unexplained empty page.
 
@@ -84,7 +93,7 @@ The home page and the status, chamber and topic pages unfurl the same way, into 
 
 A question panel is available from every page — including the topic and status pages and the `/learn` guide — and it follows you as you move around the site, so a conversation survives navigation.
 
-It adapts to the room it has. On a wide screen it docks to the right and you can drag it wider or narrower; the page and the navigation bar reflow beside it rather than being covered, and your chosen width is remembered. On a narrower window it sits alongside the page as a rail. On a phone it is a sheet that rises from the bottom, below the navigation, so you can still move around the site while it is open.
+It adapts to the room it has. On a wide screen it docks to the right and you can drag it wider or narrower; the page and the navigation bar reflow beside it rather than being covered, and your chosen width is remembered. On a narrower window it sits alongside the page as a rail. On a phone it is a sheet that rises from the bottom, below the navigation, so you can still move around the site while it is open. Drag it down (or flick it) to put it away; on a tablet held sideways, drag it off to the right. Menus, filter pickers and other panels that slide in close the same way, with a finger or a mouse.
 
 It also knows what you are looking at. Ask "what does this do?" on a bill page and it knows which bill; ask on a filtered list and it answers about those bills rather than all of them. A bill in an answer is clickable where the answer names it: when the answer lists bills, each one is a card you can tap, and a bill named in a sentence is a link. If you tap a bill inside an answer, the panel steps aside so you can read it, and a bar offers to bring the conversation back exactly as you left it — including anything you had half typed.
 

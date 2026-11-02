@@ -226,7 +226,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
         <div className="flex items-center justify-between gap-4">
           <Link
             href="/bills"
-            className="focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink-2 transition-colors hover:text-ink"
+            className="touch-hit focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink-2 transition-colors hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             All bills
@@ -285,7 +285,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               one row from `sm` up. Wraps so the alert button's error can sit under it. */}
           <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
             {bill.pdf_url && (
-              <Button asChild variant="outline" className="h-11 basis-full sm:h-10 sm:basis-auto">
+              <Button asChild variant="outline" className="basis-full sm:basis-auto">
                 <a
                   href={bill.pdf_url}
                   target="_blank"
@@ -298,12 +298,12 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               </Button>
             )}
             <SaveBillButton
-              className="h-11 flex-1 sm:h-10 sm:flex-none"
+              className="flex-1 sm:flex-none"
               billId={String(bill.id)}
               analyticsProps={actionAnalytics}
             />
             <BillAlertButton
-              className="h-11 flex-1 sm:h-10 sm:flex-none"
+              className="flex-1 sm:flex-none"
               billId={String(bill.id)}
               analyticsProps={actionAnalytics}
             />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, type ReactNode } from 'react';
+import { useId } from 'react';
 import { analytics, type FilterSurface } from '@/lib/analytics';
 import { formatCount } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,12 +17,6 @@ export interface FilterBarProps {
   onClearAll: () => void;
   /** Congresses with data, from the server. */
   congressNumbers: number[];
-  /**
-   * The browse-by-category disclosure. Passed in as already-rendered JSX from a
-   * server component rather than imported, so its hub anchors stay in the
-   * server-rendered HTML instead of becoming client-only markup.
-   */
-  browseDirectory?: ReactNode;
 }
 
 /**
@@ -49,7 +43,6 @@ export function FilterBar({
   onChange,
   onClearAll,
   congressNumbers,
-  browseDirectory,
 }: FilterBarProps) {
   const headingId = useId();
   const count = activeFilterCount(values);
@@ -135,7 +128,7 @@ export function FilterBar({
                   });
                   onClearAll();
                 }}
-                className="rounded-xs text-[13px] decoration-1"
+                className="touch-hit rounded-xs text-[13px] decoration-1"
               >
                 Clear all
               </Button>
@@ -144,9 +137,6 @@ export function FilterBar({
         </div>
       </div>
 
-      {/* Outside role="search": these are navigation, not controls, and a
-          search landmark is the wrong place to put forty links. */}
-      {browseDirectory && <div className="container-editorial">{browseDirectory}</div>}
     </section>
   );
 }

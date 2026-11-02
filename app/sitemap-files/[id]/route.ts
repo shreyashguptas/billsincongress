@@ -151,15 +151,14 @@ function staticPages(): SitemapUrl[] {
     // make them discoverable, and the indexing problem needs both.
     //
     // Hubs link to their own siblings, so a crawler that reaches one topic
-    // reaches all 33 — but it has to reach one first, and only two places
-    // hand it that entry point in server-rendered HTML: the browse
-    // disclosure in the /bills filter band (every hub, the only complete
-    // index) and the homepage policy-area list (the top 8 topics, and the
-    // only hub links on a page Google already indexes). The sitewide footer
-    // links both chambers and /bills/enacted, whose sibling row reaches the
-    // other stage hubs; it has no topics. A filter picker also links the
-    // hub for the value it is set to, but that picker renders nothing until
-    // someone opens it, so the anchor is not in the document a crawler gets.
+    // reaches all 33 — but it has to reach one first. Every bill page links
+    // its own topic, stage and chamber hubs (components/bills/bill-related.tsx),
+    // and the homepage policy-area list links the top 8 topics. The sitewide
+    // footer links both chambers and /bills/enacted, whose sibling row reaches
+    // the other stage hubs. A filter picker also links the hub for the value
+    // it is set to, but that picker renders nothing until someone opens it, so
+    // the anchor is not in the document a crawler gets. (/bills carried a
+    // collapsed list of every hub until 2026-11-02; readers found it noise.)
     ...ALL_HUBS.map((hub) => ({ loc: `${SITE_URL}${hub.path}` })),
     { loc: `${SITE_URL}/learn` },
     { loc: `${SITE_URL}/about` },

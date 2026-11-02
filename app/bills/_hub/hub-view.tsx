@@ -224,9 +224,9 @@ export async function HubView({
       {/* Page head — the breadcrumb sits where /bills has its eyebrow. */}
       <header className="container-editorial pb-8 pt-10 sm:pb-10 sm:pt-16">
         <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
-          <Link href="/" className="rounded-xs hover:text-ink hover:underline focus-ring">Home</Link>
+          <Link href="/" className="touch-hit rounded-xs hover:text-ink hover:underline focus-ring">Home</Link>
           <span className="mx-2" aria-hidden="true">/</span>
-          <Link href="/bills" className="rounded-xs hover:text-ink hover:underline focus-ring">Bills</Link>
+          <Link href="/bills" className="touch-hit rounded-xs hover:text-ink hover:underline focus-ring">Bills</Link>
           <span className="mx-2" aria-hidden="true">/</span>
           <span className="text-ink-2" aria-current="page">{hub.heading}</span>
         </nav>
@@ -317,7 +317,7 @@ export async function HubView({
                     href={sibling.path}
                     hubKind={sibling.kind}
                     placement="hub_siblings"
-                    className="flex min-h-10 items-center py-2 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring"
+                    className="flex min-h-10 items-center py-2 touchable:min-h-11 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring"
                   >
                     {sibling.heading}
                   </HubLink>

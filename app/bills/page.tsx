@@ -3,12 +3,12 @@ import type { ReactElement } from 'react';
 import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import type { Bill } from '@/lib/types/bill';
 import BillsClient, { type UrlFilters } from './bills-client';
-import { HubDirectory } from './_hub/hub-directory';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { pagesForCount } from '@/lib/pagination';
 import { clampFilterList, clampFilterText } from '@/lib/bill-query';
 import { FILTER_BY_FIELD } from '@/lib/bills/filter-registry';
 import { acceptedFilterValue } from '@/lib/bills/filter-url';
+import { SORT_PARAM, effectiveSort, isBillsSort, listSortArg } from '@/lib/bills/sort';
 import {
   DEFAULT_FILTER_VALUES,
   filterSignature,
@@ -59,7 +59,7 @@ function firstValue(v: string | string[] | undefined): string | undefined {
  */
 function filterValue(
   params: SearchParams,
-  field: Exclude<keyof UrlFilters, 'sponsor'>,
+  field: Exclude<keyof UrlFilters, 'sponsor' | 'sort'>,
 ): string | undefined {
   const v = params[FILTER_BY_FIELD[field].param];
   return acceptedFilterValue(FILTER_BY_FIELD[field], Array.isArray(v) ? v[0] : v);
@@ -110,6 +110,8 @@ function parseRequest(params: SearchParams): {
   };
   const sponsor = allValues(params.sponsor);
   if (sponsor.length > 0) urlFilters.sponsor = sponsor;
+  const sort = firstValue(params[SORT_PARAM]);
+  if (isBillsSort(sort)) urlFilters.sort = sort;
 
   const applied: BillsFilterValues = {
     status: urlFilters.status ?? DEFAULT_FILTER_VALUES.status,
@@ -123,6 +125,7 @@ function parseRequest(params: SearchParams): {
     billNumber: urlFilters.billNumber ?? DEFAULT_FILTER_VALUES.billNumber,
     congress: urlFilters.congress ?? DEFAULT_FILTER_VALUES.congress,
     chamber: urlFilters.chamber ?? DEFAULT_FILTER_VALUES.chamber,
+    sort: urlFilters.sort ?? DEFAULT_FILTER_VALUES.sort,
   };
 
   const rawPage = Number.parseInt(firstValue(params.page) ?? '1', 10);
@@ -150,6 +153,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
     // pages — it was only ever missing from the URL parsing here.
     chamber: applied.chamber === 'all' ? null : (applied.chamber as 'house' | 'senate'),
   };
+  const sort = listSortArg(effectiveSort(applied));
 
   // Server-render the requested page of results so crawlers (and first paint)
   // get real bill links without JavaScript. A failed read is rethrown, so the
@@ -171,7 +175,7 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
   let congressNumbers: number[] = [];
   try {
     const [billsResponse, countResult, availableCongresses] = await Promise.all([
-      billsService.fetchBills({ page, itemsPerPage: ITEMS_PER_PAGE, ...serviceArgs }),
+      billsService.fetchBills({ page, itemsPerPage: ITEMS_PER_PAGE, ...serviceArgs, sort }),
       billsService
         .fetchBillsCount(serviceArgs)
         .catch(() => ({ count: null, exact: false })),
@@ -197,7 +201,6 @@ export default async function BillsPage({ searchParams }: PageProps): Promise<Re
       urlFilters={urlFilters}
       serverFilterSignature={filterSignature(applied)}
       congressNumbers={congressNumbers}
-      browseDirectory={<HubDirectory />}
       maxPage={MAX_PAGE}
       serverPagination={
         /* Server-rendered page links. The list is a client component whose

@@ -12,9 +12,16 @@
  *
  * Shading is the one `heat` amber in five equal-count steps (quintiles), with
  * a legend, so it is never mistaken for a party or for "became law".
+ *
+ * Pointing at a state (mouse hover or keyboard focus) fills the readout beside
+ * the map; a click goes to its bills. A tap only selects the state, since a
+ * 22px tile on a phone is easy to miss: the readout names what was hit, and a
+ * second tap on the tile, or the readout's link, goes to its bills. The top
+ * five stays put under the readout either way, so it is always clickable.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
@@ -74,7 +81,11 @@ export function StateMap({
   const perMemberAvailable = congress >= FIRST_CONGRESS_ON_2020_APPORTIONMENT;
   const [metricPick, setMetric] = useState<Metric>('total');
   const metric: Metric = perMemberAvailable ? metricPick : 'total';
+  // `hover`: under the mouse or keyboard focus. `picked`: selected by a tap.
   const [hover, setHover] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  // The pointer that started the current click; keyboard clicks have none.
+  const lastPointer = useRef<string | null>(null);
 
   const rows = useMemo(() => {
     const counts = new Map<string, number>();
@@ -105,7 +116,20 @@ export function StateMap({
 
   const fmtVal = (v: number) => (metric === 'total' ? fmt(Math.round(v)) : v.toFixed(1));
   const unit = metric === 'total' ? 'bills' : 'bills per member';
-  const focus = hover ? byState.get(hover) : null;
+  const active = hover ?? picked;
+  const focus = active ? byState.get(active) : null;
+  const stateHref = (st: string) => `/bills?${new URLSearchParams({ congress: String(congress), state: st })}`;
+
+  const onTileClick = (st: string) => {
+    const pointer = lastPointer.current;
+    lastPointer.current = null;
+    // Mouse and keyboard go straight to the bills; a tap selects first.
+    if ((pointer === 'touch' || pointer === 'pen') && picked !== st) {
+      setPicked(st);
+      return;
+    }
+    onDrillDown('state', st);
+  };
 
   const tile = (st: string, extra?: string) => {
     const r = byState.get(st);
@@ -115,16 +139,23 @@ export function StateMap({
       <button
         key={st}
         type="button"
-        onMouseEnter={() => setHover(st)}
-        onFocus={() => setHover(st)}
-        onClick={() => onDrillDown('state', st)}
+        // Pointer events, not mouse events: a tap fires compatibility
+        // mouseenter too, which would read as a hover.
+        onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(st)}
+        onPointerDown={(e) => {
+          lastPointer.current = e.pointerType;
+        }}
+        // Keyboard focus only; a tap or click focuses the tile too.
+        onFocus={(e) => e.currentTarget.matches(':focus-visible') && setHover(st)}
+        onBlur={() => setHover(null)}
+        onClick={() => onTileClick(st)}
         aria-label={`${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
         className={cn(
           'focus-ring relative flex aspect-square flex-col items-center justify-center rounded-xs transition-[opacity,box-shadow]',
           bin >= 3 ? 'text-on-ink' : 'text-ink',
           bin < 0 && 'bg-sunken',
-          hover === st && 'ring-2 ring-ink',
-          hover && hover !== st && 'opacity-60',
+          active === st && 'ring-2 ring-ink',
+          active && active !== st && 'opacity-60',
           extra,
         )}
         style={bin >= 0 ? { backgroundColor: `hsl(var(--heat) / ${ALPHA[bin]})` } : undefined}
@@ -151,8 +182,13 @@ export function StateMap({
           {perMemberAvailable && ' Big delegations file more bills, so switch to per member for a fairer comparison.'}
         </p>
 
-        <div className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12">
-          <div className="max-w-[36rem] lg:col-span-8" onMouseLeave={() => setHover(null)}>
+        {/* Leaving the map and its readout together clears the hover, so the
+            mouse can travel from a tile to the readout's link. */}
+        <div
+          className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12"
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
+        >
+          <div className="max-w-[36rem] lg:col-span-8">
             {perMemberAvailable && (
               <ToggleGroup
                 type="single"
@@ -214,48 +250,67 @@ export function StateMap({
             </div>
           </div>
 
-          {/* Readout: the hovered state, or the top five */}
-          <div className="lg:col-span-4" onMouseLeave={() => setHover(null)}>
-            {focus ? (
-              <div key={focus.st} className="animate-fade-in border-y border-line py-5">
-                <p className="label-eyebrow">{focus.st}</p>
-                <p className="mt-1 font-serif text-display-sm font-medium text-ink">{focus.name}</p>
-                <p className="mt-4 font-serif text-[44px] font-normal leading-none text-ink tabular">{fmt(focus.bills)}</p>
-                <p className="mt-1 text-sm text-ink-2">bills sponsored</p>
-                {perMemberAvailable && focus.seats > 0 && (
-                  <p className="mt-3 text-sm">
-                    <span className="font-mono text-ink tabular">{focus.perMember.toFixed(1)}</span>{' '}
-                    <span className="text-ink-2">
-                      per member · {focus.seats} {focus.seats === 1 ? 'seat' : 'seats'}
-                    </span>
+          {/* Readout (the state pointed at or tapped), then the top five, which never moves. */}
+          <div className="lg:col-span-4">
+            {/* min-h holds the readout's height, so the list under it stays put. */}
+            <div className="min-h-[11.5rem] border-y border-line py-4">
+              {focus ? (
+                <div key={focus.st} className="animate-in fade-in-0 duration-200">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <p className="min-w-0">
+                      <span className="label-eyebrow block">{focus.st}</span>
+                      <span className="mt-1 block font-serif text-display-sm font-medium text-ink">{focus.name}</span>
+                    </p>
+                    <p className="shrink-0 text-right">
+                      <span className="block font-serif text-display-md font-normal leading-none text-ink tabular">
+                        {fmt(focus.bills)}
+                      </span>
+                      <span className="mt-1 block text-[13px] text-ink-2">bills sponsored</span>
+                    </p>
+                  </div>
+                  <p className="mt-3 font-mono text-xs text-ink-3 tabular">
+                    {perMemberAvailable && focus.seats > 0 && (
+                      <>
+                        <span className="text-ink">{focus.perMember.toFixed(1)}</span> per member · {focus.seats}{' '}
+                        {focus.seats === 1 ? 'seat' : 'seats'} ·{' '}
+                      </>
+                    )}
+                    #{ranked.findIndex((r) => r.st === focus.st) + 1} of {ranked.length} by{' '}
+                    {metric === 'total' ? 'total' : 'per member'}
                   </p>
-                )}
-                <p className="mt-2 font-mono text-xs text-ink-3">
-                  #{ranked.findIndex((r) => r.st === focus.st) + 1} of {ranked.length} by {metric === 'total' ? 'total' : 'per member'}
+                  <Link
+                    href={stateHref(focus.st)}
+                    onClick={() => analytics.dashboardDrilldownClicked('state', focus.st, congress)}
+                    className="link touch-hit focus-ring mt-3 inline-block rounded-sm text-sm"
+                  >
+                    See its bills →
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-sm text-ink-3">
+                  <span className="fine:hidden">Tap a state to see its count, and tap it again to see its bills.</span>
+                  <span className="hidden fine:inline">Hover over a state to see its count. Click it to see its bills.</span>
                 </p>
-                <p className="mt-4 text-sm text-ink-3">Click to see its bills →</p>
-              </div>
-            ) : (
-              <div>
-                <p className="label-eyebrow mb-3">Top five · {metric === 'total' ? 'total bills' : 'per member'}</p>
-                <ol className="border-b border-line">
-                  {ranked.slice(0, 5).map((r, i) => (
-                    <li key={r.st} className="border-t border-line">
-                      <button
-                        type="button"
-                        onMouseEnter={() => setHover(r.st)}
-                        onClick={() => onDrillDown('state', r.st)}
-                        className="focus-ring grid min-h-12 w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm text-left hover:bg-sunken"
-                      >
-                        <span className="font-mono text-xs text-ink-3 tabular">{i + 1}</span>
-                        <span className="text-[15px] text-ink">{r.name}</span>
-                        <span className="font-mono text-sm text-ink tabular">{fmtVal(value(r))}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
+              )}
+            </div>
+            <div className="mt-6">
+              <p className="label-eyebrow mb-3">Top five · {metric === 'total' ? 'total bills' : 'per member'}</p>
+              <ol className="border-b border-line">
+                {ranked.slice(0, 5).map((r, i) => (
+                  <li key={r.st} className="border-t border-line">
+                    <button
+                      type="button"
+                      onClick={() => onDrillDown('state', r.st)}
+                      className="focus-ring grid min-h-12 w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm text-left hover:bg-sunken"
+                    >
+                      <span className="font-mono text-xs text-ink-3 tabular">{i + 1}</span>
+                      <span className="text-[15px] text-ink">{r.name}</span>
+                      <span className="font-mono text-sm text-ink tabular">{fmtVal(value(r))}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </div>
       </div>
