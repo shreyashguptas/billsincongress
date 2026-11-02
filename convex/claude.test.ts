@@ -28,6 +28,7 @@ import {
   markCutOff,
   sentencesAround,
   CUT_OFF,
+  dropCutTails,
   readable,
   clipExcerpt,
   type ChatMessage,
@@ -87,16 +88,40 @@ it("does not add an opening turn when history already starts with the reader", (
   assert.equal(messages[0].content, "earlier question");
 });
 
-it("caches the system prompt and puts a later system note after the cached block", () => {
-  const transcript = opening();
-  transcript.splice(4, 0, { role: "system", content: "FOLLOW-UP NOTE" });
-  const { system, messages } = toClaudeRequest(transcript);
-  assert.deepEqual(system, [
-    { type: "text", text: "SYSTEM PROMPT", cache_control: { type: "ephemeral" } },
-    { type: "text", text: "FOLLOW-UP NOTE" },
+it("caches the system prompt for an hour and sends a later system note after the question", () => {
+  const { system, messages } = toClaudeRequest([
+    ...opening(),
+    { role: "system", content: "PAGE NOTE" },
+    { role: "system", content: "FOLLOW-UP NOTE" },
   ]);
-  // A mid-conversation system message may not precede a user turn; none is sent.
-  assert.ok(messages.every((m) => m.role !== "system"));
+  // Nothing about the reader's page in the shared, cached prompt.
+  assert.deepEqual(system, [{ type: "text", text: "SYSTEM PROMPT", cache_control: { type: "ephemeral", ttl: "1h" } }]);
+  assert.deepEqual(messages.slice(-2), [
+    { role: "user", content: "How many health bills?" },
+    { role: "system", content: "PAGE NOTE\n\nFOLLOW-UP NOTE" },
+  ]);
+});
+
+it("caches the opening every first question shares for an hour, and nothing after it", () => {
+  const transcript = opening();
+  transcript[3] = { ...transcript[3], sharedPrefixEnd: true };
+  const { messages } = toClaudeRequest(transcript);
+  const results = messages[2].content as Anthropic.ToolResultBlockParam[];
+  assert.equal(results[0].cache_control, undefined);
+  assert.deepEqual(results[1].cache_control, { type: "ephemeral", ttl: "1h" });
+  assert.deepEqual(forOpenRouter(transcript)[3], { role: "tool", tool_call_id: "primed_describe_topics", content: "topics described" });
+});
+
+it("prices a one-hour cache write at 2x input, and an unsplit write at the five-minute rate", () => {
+  const usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 1_000_000, inference_geo: "us" };
+  close(claudeCostUsd("claude-sonnet-5-5", usage), 2.5 * 1.1);
+  close(
+    claudeCostUsd("claude-sonnet-5-5", {
+      ...usage,
+      cache_creation: { ephemeral_5m_input_tokens: 250_000, ephemeral_1h_input_tokens: 750_000 },
+    }),
+    (0.25 * 2.5 + 0.75 * 4) * 1.1,
+  );
 });
 
 /** A round of lookups after opening(): the model's call and its result. */
@@ -225,7 +250,7 @@ it("converts every answer tool, unchanged, and caches the list", () => {
   const tools = claudeTools();
   assert.deepEqual(tools.map((t) => t.name), ANSWER_TOOLS.map((t) => t.function.name));
   for (const [i, t] of tools.entries()) assert.deepEqual(t.input_schema, ANSWER_TOOLS[i].function.parameters);
-  assert.deepEqual(tools[tools.length - 1].cache_control, { type: "ephemeral" });
+  assert.deepEqual(tools[tools.length - 1].cache_control, { type: "ephemeral", ttl: "1h" });
   assert.ok(tools.slice(0, -1).every((t) => t.cache_control === undefined));
 });
 
@@ -284,7 +309,7 @@ it("has no price for a model that is not on file", () => {
 
 it("takes a new model's price from CLAUDE_PRICES_JSON, with the usual cache rates by default", () => {
   const prices = claudePrices({ CLAUDE_PRICES_JSON: '{"claude-haiku-6":{"input":0.2,"output":1}}' });
-  assert.deepEqual(prices["claude-haiku-6"], { input: 0.2, output: 1, cacheWrite: 0.25, cacheRead: 0.02 });
+  assert.deepEqual(prices["claude-haiku-6"], { input: 0.2, output: 1, cacheWrite: 0.25, cacheWrite1h: 0.4, cacheRead: 0.02 });
   // The built-in prices are still there.
   assert.deepEqual(prices["claude-sonnet-5-5"], CLAUDE_PRICES["claude-sonnet-5-5"]);
 });
@@ -305,8 +330,9 @@ it("lets CLAUDE_PRICES_JSON override a built-in price, long-context tier include
     input: 0.2,
     output: 1,
     cacheWrite: 0.3,
+    cacheWrite1h: 0.4,
     cacheRead: 0.02,
-    long: { overPromptTokens: 200000, input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
+    long: { overPromptTokens: 200000, input: 1, output: 5, cacheWrite: 1.25, cacheWrite1h: 2, cacheRead: 0.1 },
   });
 });
 
@@ -476,6 +502,32 @@ it("marks where a search quote was cut, without the half word", () => {
 it("clips a long excerpt on a word, and says so", () => {
   assert.equal(clipExcerpt("Tuesday 10:00 AM", 500), "Tuesday 10:00 AM");
   assert.equal(clipExcerpt("an entity owned by, controlled by", 22), `an entity owned by, ${CUT_OFF}`);
+});
+
+it("drops a cut-off tail after whole sentences, and keeps a lone fragment marked", () => {
+  // Live on 2026-10-30: the answer finished "allocated to immigration" as "immigration enforcement".
+  assert.equal(
+    dropCutTails(`The bill repeals DHS's authorities. Funds currently allocated to immigration ${CUT_OFF}`),
+    "The bill repeals DHS's authorities.",
+  );
+  // An abbreviation is not a sentence end, so "H.R." alone keeps the fragment.
+  assert.equal(dropCutTails(`H.R. 10803 abolishes ICE and Customs and ${CUT_OFF}`), `H.R. 10803 abolishes ICE and Customs and ${CUT_OFF}`);
+  // Each part of a joined excerpt on its own; whole parts untouched.
+  assert.equal(
+    dropCutTails(`First part. Then a cut ${CUT_OFF} … Second part is whole.`),
+    "First part. … Second part is whole.",
+  );
+  assert.equal(dropCutTails("Nothing was cut."), "Nothing was cut.");
+  // Review on #234: "Oct." and a list number are not sentence ends, so the
+  // fragment stays, marked, rather than losing its marker.
+  for (const fragment of [
+    `Rep. Smith introduced the bill on Oct. 23 and it would bar funds for ${CUT_OFF}`,
+    `Gov. Moore said the plan would ${CUT_OFF}`,
+    `The bill would: 2. Then ${CUT_OFF}`,
+  ]) {
+    assert.equal(dropCutTails(fragment), fragment);
+  }
+  assert.equal(dropCutTails(`It passed on Oct. 3. Funds for ${CUT_OFF}`), "It passed on Oct. 3.");
 });
 
 it("widens a cut quote to the page's whole sentence", () => {

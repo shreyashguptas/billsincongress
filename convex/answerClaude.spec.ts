@@ -139,8 +139,11 @@ test("answers on Claude Sonnet over the Claude API, on US servers, with no OpenR
     "ask_reader",
   ]);
   // Cached: the tool list, the system prompt, and the transcript so far.
-  expect(body.tools[3].cache_control).toEqual({ type: "ephemeral" });
-  expect(body.system[0].cache_control).toEqual({ type: "ephemeral" });
+  // The shared opening for an hour, the rest of the transcript for five minutes.
+  expect(body.tools[3].cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+  expect(body.system[0].cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
+  const primed = body.messages.find((m: any) => Array.isArray(m.content) && m.content[0]?.type === "tool_result");
+  expect(primed.content.at(-1).cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
   expect(body.cache_control).toEqual({ type: "ephemeral" });
   // The Messages API wants a user turn first; the loop opens with its own lookups.
   expect(body.messages[0].role).toBe("user");
@@ -295,6 +298,33 @@ test("blank Claude models answer on gpt-oss alone", async () => {
   const result = await ask("Is there a bill about lighthouses?");
   expect(result.text).toBe(ANSWER);
   expect(sent.map((s) => s.url)).toEqual([OPENROUTER]);
+});
+
+test("the reader's page goes after the question, so every reader shares the cached opening", async () => {
+  claudeReplies = [message([text(ANSWER)])];
+  await convexTest(schema, modules).action(internal.answer.ask, { question: "Is it law?", focusBillId: "1hr119" });
+  const { body } = sent[0];
+  expect(JSON.stringify(body.system)).not.toMatch(/CURRENT CONTEXT|1hr119/);
+  const last = body.messages[body.messages.length - 1];
+  expect(last.role).toBe("system");
+  expect(last.content).toMatch(/^CURRENT CONTEXT\nThe reader has 1hr119 open/);
+  expect(body.messages[body.messages.length - 2]).toEqual({ role: "user", content: "Is it law?" });
+});
+
+test("a follow-up keeps the hour-long marker off its own history", async () => {
+  claudeReplies = [message([text(ANSWER)])];
+  await convexTest(schema, modules).action(internal.answer.ask, {
+    question: "are you sure",
+    history: [
+      { role: "user", content: "Is there a bill about lighthouses?" },
+      { role: "assistant", content: ANSWER },
+    ],
+  });
+  const { body } = sent[0];
+  const marked = JSON.stringify(body.messages).match(/"ttl":"1h"/g) ?? [];
+  expect(marked).toHaveLength(0);
+  // The tools and the system prompt are still every reader's, and keep theirs.
+  expect(body.system[0].cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
 });
 
 test("the last round keeps the same tools and forbids calling them, rather than withholding them", async () => {

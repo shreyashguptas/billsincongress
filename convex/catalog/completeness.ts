@@ -115,15 +115,27 @@ export interface CompletenessReport {
   subsets?: Subset[];
   /**
    * Everyone who shares row 1's place in a ranking, when more than one does.
-   * Present ONLY when complete — a tie found in a sample says nothing about the
-   * rows that were never read.
+   * Present ONLY when complete or ordered by an index — a tie found in a sample
+   * says nothing about the rows that were never read.
    *
    * Row 1 of a sorted page is "the fewest" only when nobody else has its count.
    * On 2026-10-19 Adam Gray and James Gallagher had 8 bills each, the fewest in
    * California, and the page put one of them first by chance: a reader asking
    * "who introduced the fewest?" would have been handed one name as THE answer.
+   * The same for dates: on 2026-10-27 production named H.R. 10894 "the measure
+   * with the most recent action" when 62 measures were last acted on that day.
    */
   tiedWithFirst?: Subset;
+  /**
+   * Why a sort the caller asked for was not applied, when the rows came back
+   * `arbitrary` anyway. Written for the model.
+   *
+   * The prompt used to read an arbitrary order as a misplaced sort ("fetch again
+   * with sort inside filters"). For a title search the sort WAS inside filters,
+   * the retry came back the same, and with nothing else to go on the model named
+   * a sample row "the latest" (the grounding gate, 4 runs in 6, 2026-10-27).
+   */
+  sortNotApplied?: string;
   /** Present only when incomplete: what was and was not read. */
   note?: string;
   /**
@@ -145,15 +157,37 @@ export interface Subset {
   members?: string[];
 }
 
+/** What row 1 is first FOR, in the tie warning, keyed by the order that ranked it. */
+const TIE_PLACE: Partial<Record<RowOrder, string>> = {
+  fewest_bills_first: "the fewest",
+  most_bills_first: "the most",
+  newest_action_first: "the most recent action",
+  oldest_action_first: "the oldest latest action",
+  newest_introduced_first: "the most recent introduction",
+  oldest_introduced_first: "the earliest introduction",
+};
+
 /** Written FOR THE MODEL — pasted into the tool result verbatim. */
-const INCOMPLETE_NOTE =
+const incompleteNote = (ranking: string) =>
   "INCOMPLETE RESULT. We did not read every row matching these filters, so there is no total " +
   "and there can be no count. An empty or small result here is NOT evidence that few or none " +
   "exist — the rows you cannot see may be exactly the ones you are looking for. Do NOT state a " +
-  "number, do NOT say 'none' or 'no results' or 'we have no data on that', and do NOT claim any " +
-  "row here is the largest, smallest, newest, oldest, first or last of anything. Either narrow " +
-  "the filters until the result comes back complete, use a dataset that reports exact totals, " +
-  "or tell the reader plainly which part of their question you could not answer.";
+  "number, do NOT say 'none' or 'no results' or 'we have no data on that', and " +
+  ranking +
+  " Either narrow the filters until the result comes back complete, use a dataset that reports " +
+  "exact totals, or tell the reader plainly which part of their question you could not answer.";
+const INCOMPLETE_NOTE = incompleteNote(
+  "do NOT claim any row here is the largest, smallest, newest, oldest, first or last of anything.",
+);
+/**
+ * The same note for rows an index put in order. Forbidding "newest" there
+ * contradicted `rows_are_the_true_first_rows` in the same result, and the model
+ * resolved the contradiction by hedging a right answer it was entitled to give.
+ */
+const INCOMPLETE_ORDERED_NOTE = incompleteNote(
+  "do NOT claim any row here is the largest or smallest of anything. The ORDER is real: see " +
+  "order_meaning.",
+);
 
 /**
  * Build the report for a handler that read a bounded window.
@@ -178,6 +212,8 @@ export function reportFor(input: {
   subsets?: Subset[];
   /** Everyone sharing row 1's place. Dropped unless complete and more than one. */
   tiedWithFirst?: Subset;
+  /** Why a requested sort was not applied. Dropped unless the order is arbitrary. */
+  sortNotApplied?: string;
   /**
    * Where to get the exact answer instead, appended to the note when the read
    * is incomplete. Ignored when it is complete.
@@ -185,6 +221,16 @@ export function reportFor(input: {
   incompleteHint?: string;
 }): CompletenessReport {
   const complete = !input.windowFilled;
+  const sortNotApplied =
+    input.sortNotApplied && input.order === "arbitrary" ? { sortNotApplied: input.sortNotApplied } : {};
+  // A tie found in a sample says nothing about the rows never read, so a tie is
+  // kept only over a complete read or an index-ordered one. Over an ordered read
+  // the caller passes it only when the window reached past row 1's value, so
+  // every row sharing that value was in front of it.
+  const tiedWithFirst =
+    input.tiedWithFirst && input.tiedWithFirst.count > 1 && (complete || input.orderFromIndex)
+      ? { tiedWithFirst: input.tiedWithFirst }
+      : {};
   if (complete) {
     return {
       set: input.set,
@@ -195,9 +241,8 @@ export function reportFor(input: {
       ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
       ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
       ...(input.subsets && input.subsets.length > 0 ? { subsets: input.subsets } : {}),
-      ...(input.tiedWithFirst && input.tiedWithFirst.count > 1
-        ? { tiedWithFirst: input.tiedWithFirst }
-        : {}),
+      ...tiedWithFirst,
+      ...sortNotApplied,
     };
   }
   return {
@@ -207,8 +252,12 @@ export function reportFor(input: {
     order: input.order,
     ...(input.orderFromIndex ? { orderFromIndex: true } : {}),
     ...(input.rowsAreGroups ? { rowsAreGroups: true } : {}),
+    ...tiedWithFirst,
+    ...sortNotApplied,
     note:
-      (input.filteredInMemory
+      (input.orderFromIndex
+        ? INCOMPLETE_ORDERED_NOTE
+        : input.filteredInMemory
         ? INCOMPLETE_NOTE +
           " (These filters have no index, so an ARBITRARY sample was examined — ordered by when we " +
           "synced each row, which has nothing to do with dates, size or importance — and the rest " +
@@ -288,24 +337,29 @@ export function payloadFor(rows: unknown[], report: CompletenessReport): string 
         `Quote their counts and members exactly. Never split or count the rows yourself, and ` +
         `never infer which part a row belongs to from its number.`;
     }
-    // Only beside a row 1: a count-only lookup is already told to fetch again
-    // with a limit to name anyone, and that fetch carries the tie.
-    if (report.tiedWithFirst && report.shown > 0) {
-      const t = report.tiedWithFirst;
-      const place =
-        report.order === "fewest_bills_first"
-          ? "the fewest"
-          : report.order === "most_bills_first"
-            ? "the most"
-            : "first place";
-      payload.tied_with_row_1 =
-        `Row 1 is NOT alone: ${t.count} are tied for ${place}, ${t.label}` +
-        (t.members ? ` — ${t.members.join(", ")}` : "") +
-        `. This was counted over the whole set, including rows not shown. Never name any one ` +
-        `of them as THE one with ${place}: name all of them, or say that ${t.count} are tied.`;
-    }
   } else {
     payload.note = report.note;
+  }
+  // Only beside a row 1: a count-only lookup is already told to fetch again
+  // with a limit to name anyone, and that fetch carries the tie.
+  if (report.tiedWithFirst && report.shown > 0) {
+    const t = report.tiedWithFirst;
+    const place = TIE_PLACE[report.order] ?? "first place";
+    payload.tied_with_row_1 =
+      `Row 1 is NOT alone: ${t.count} are tied for ${place}, ${t.label}` +
+      (t.members ? ` — ${t.members.join(", ")}` : "") +
+      `. This was counted over the whole set, including rows not shown` +
+      // Beside an incomplete result whose note forbids "a number": this one is exact.
+      (report.complete ? "" : `, and ${t.count} is exact: you may state it, though no total is known`) +
+      `. Never name any one of them as THE one with ${place}: name all of them, or say that ` +
+      `${t.count} are tied.`;
+  }
+  if (report.sortNotApplied) {
+    payload.sort_not_applied =
+      `The sort you asked for was NOT applied: ${report.sortNotApplied}. Fetching again with ` +
+      `the same filters comes back unsorted again. Until a result says it is sorted, call no ` +
+      `row the newest, latest, oldest or first, not even "among them" or "of those I saw": ` +
+      `say plainly that you could not tell.`;
   }
   if (report.congressOver) payload.congress_is_over = report.congressOver;
   if (report.orderFromIndex && report.shown > 0) {

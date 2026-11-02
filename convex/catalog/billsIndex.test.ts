@@ -8,7 +8,7 @@
  * Run with: `./node_modules/.bin/tsx convex/catalog/billsIndex.test.ts`.
  */
 import assert from "node:assert/strict";
-import { chooseBillsIndex, countInMemoryFilters } from "./billsIndex";
+import { chooseBillsIndex, countInMemoryFilters, sortBlockedBy } from "./billsIndex";
 import type { BillsBranch } from "./billsIndex";
 
 let passed = 0;
@@ -213,6 +213,22 @@ it("hands back a fresh indexed array so a caller cannot rewrite the rule table",
   first.indexed.push("chamber");
   const second = chooseBillsIndex({ congress: 119, policyArea: "Health" });
   assert.deepEqual([...second.indexed].sort(), ["congress", "policyArea"]);
+});
+
+it("names what blocks an index-ordered sort, and nothing for a sort an index serves", () => {
+  // fetch.ts and the grounding gate's fixture both ask this, so they agree.
+  for (const filters of [
+    { congress: 119, sort: "newest_action" },
+    { congress: 119, sort: "newest_action", actionAfter: "2026-10-01" },
+    { congress: 119, policyArea: "Health", sort: "newest_action" },
+    { congress: 119, progressStage: 100, sort: "newest_action" },
+  ]) {
+    assert.equal(sortBlockedBy(filters), null, JSON.stringify(filters));
+  }
+  assert.match(sortBlockedBy({ congress: 119, titleFilter: "Act" }) ?? "", /title search/);
+  assert.match(sortBlockedBy({ congress: 119, reachedStage: 60 }) ?? "", /progressStage/);
+  assert.notEqual(sortBlockedBy({ congress: 117, sponsorParty: "none" }), null);
+  assert.notEqual(sortBlockedBy({ billId: "1hr119" }), null);
 });
 
 if (failures.length > 0) {

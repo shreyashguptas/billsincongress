@@ -37,6 +37,21 @@ function codeProvider(opts: { id: string; purpose: CodePurpose; failure: string 
     async generateVerificationToken() {
       return generateOTP();
     },
+    // The library looks a code up by its value alone, across every account,
+    // and signs in as whoever owns it. This check is what ties the code to the
+    // email typed next to it; without it, a reader could redeem someone else's
+    // pending code under their own email and land in that account. The
+    // library's own Email() provider has the same check; ours must too.
+    // Both sides are normalised the way the forms send the address.
+    async authorize(params, account) {
+      if (
+        typeof params.email !== "string" ||
+        typeof account.providerAccountId !== "string" ||
+        normalizeEmail(params.email) !== normalizeEmail(account.providerAccountId)
+      ) {
+        throw new Error("This code was not sent to that email.");
+      }
+    },
     // @convex-dev/auth passes the action `ctx` as a second argument at
     // runtime (see signIn.js in the library); the Auth.js type leaves it out.
     async sendVerificationRequest(

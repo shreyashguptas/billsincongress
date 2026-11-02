@@ -100,15 +100,22 @@ export default convexAuthNextjsMiddleware(
       // minutes. Bill data changes once a day (the nightly sync), and the bill
       // pages are what crawlers fetch over and over; the home page and hubs
       // carry counts that move with it too, but are few and cheap to rebuild.
-      // cloudflare-worker.ts reads s-maxage to decide how long to keep a page.
+      // cloudflare-worker.ts reads CDN-Cache-Control to decide how long to keep
+      // a page.
+      //
+      // The browser gets `no-cache`: it must ask again on every load. The page
+      // names script files that only the current deploy serves, so a copy kept
+      // in the browser (stale-while-revalidate let it keep one for a day) loads
+      // scripts that are gone and leaves a dead page. Browsers ignore
+      // CDN-Cache-Control, and the edge cache starts empty on every deploy.
       const parts = pathname.split("/").filter(Boolean);
       const isBillPage = parts.length === 2 && parts[0] === "bills" && BILL_ID_PATTERN.test(parts[1]);
-      response.headers.set(
-        "Cache-Control",
-        hasAuthCookie
-          ? "private, no-store"
-          : `public, max-age=0, s-maxage=${isBillPage ? 3600 : 300}, stale-while-revalidate=86400`,
-      );
+      if (hasAuthCookie) {
+        response.headers.set("Cache-Control", "private, no-store");
+      } else {
+        response.headers.set("Cache-Control", "no-cache");
+        response.headers.set("CDN-Cache-Control", `public, max-age=${isBillPage ? 3600 : 300}`);
+      }
     }
 
     return response;

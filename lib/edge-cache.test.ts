@@ -83,33 +83,46 @@ it('caches only GETs of allowlisted public routes', () => {
   assert.equal(edgeCacheKey(get(`/bills?${VERSION_PARAM}=x`), V), null);
 });
 
-const html = (cacheControl: string, extra: Record<string, string> = {}, status = 200) =>
+const PAGE = { 'cache-control': 'no-cache', 'cdn-cache-control': 'public, max-age=300' };
+const html = (headers: Record<string, string> = PAGE, status = 200) =>
   new Response('<html></html>', {
     status,
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': cacheControl, ...extra },
+    headers: { 'content-type': 'text/html; charset=utf-8', ...headers },
   });
 
-it('stores only what the app itself marked public, for a set time', () => {
-  assert.equal(isStorableResponse(html('public, max-age=0, s-maxage=300, stale-while-revalidate=86400')), true);
-  assert.equal(isStorableResponse(html('private, no-store')), false);
-  assert.equal(isStorableResponse(html('public, max-age=0')), false);
-  assert.equal(isStorableResponse(html('public, s-maxage=0')), false);
-  assert.equal(isStorableResponse(html('public, s-maxage=300, no-store')), false);
+it('stores only what the app itself marked public for the edge, for a set time', () => {
+  assert.equal(isStorableResponse(html()), true);
+  assert.equal(isStorableResponse(html({ 'cache-control': 'private, no-store' })), false);
+  // No CDN-Cache-Control: the app did not ask the edge to keep it.
+  assert.equal(isStorableResponse(html({ 'cache-control': 'public, max-age=0, s-maxage=300' })), false);
+  assert.equal(isStorableResponse(html({ 'cdn-cache-control': 'max-age=300' })), false);
+  assert.equal(isStorableResponse(html({ 'cdn-cache-control': 'public, max-age=0' })), false);
+  assert.equal(isStorableResponse(html({ 'cdn-cache-control': 'public, max-age=300, no-store' })), false);
+  assert.equal(isStorableResponse(html({ ...PAGE, 'cache-control': 'private, no-store' })), false);
 });
 
 it('never stores a response that sets a cookie, an error, or a non-page', () => {
-  const pub = 'public, max-age=0, s-maxage=300';
-  assert.equal(isStorableResponse(html(pub, { 'set-cookie': 'a=1' })), false);
-  assert.equal(isStorableResponse(html(pub, {}, 404)), false);
-  assert.equal(isStorableResponse(html(pub, {}, 500)), false);
-  const json = new Response('{}', { headers: { 'content-type': 'application/json', 'cache-control': pub } });
+  assert.equal(isStorableResponse(html({ ...PAGE, 'set-cookie': 'a=1' })), false);
+  assert.equal(isStorableResponse(html(PAGE, 404)), false);
+  assert.equal(isStorableResponse(html(PAGE, 500)), false);
+  const json = new Response('{}', { headers: { ...PAGE, 'content-type': 'application/json' } });
   assert.equal(isStorableResponse(json), false);
 });
 
-it('reads s-maxage, not max-age', () => {
-  assert.equal(sharedMaxAge('public, max-age=0, s-maxage=3600'), 3600);
-  assert.equal(sharedMaxAge('public, max-age=600'), 0);
+it('reads max-age from CDN-Cache-Control', () => {
+  assert.equal(sharedMaxAge('public, max-age=3600'), 3600);
+  assert.equal(sharedMaxAge('public, s-maxage=600'), 0);
   assert.equal(sharedMaxAge(null), 0);
+});
+
+// A browser that keeps the HTML can load a page whose script files the current
+// deploy no longer serves. Only the edge, which starts empty on every deploy,
+// may keep a copy.
+it('tells the browser to ask again on every load', () => {
+  const middleware = readFileSync(new URL('../middleware.ts', import.meta.url), 'utf8');
+  assert.match(middleware, /"Cache-Control", "no-cache"/);
+  assert.match(middleware, /"CDN-Cache-Control", `public, max-age=/);
+  assert.doesNotMatch(middleware, /stale-while-revalidate=/);
 });
 
 // The two halves must stay in step: middleware.ts marks a response public only

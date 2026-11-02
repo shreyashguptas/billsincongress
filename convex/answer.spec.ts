@@ -233,8 +233,9 @@ test("a follow-up reminds the model of its last answer, so it can say that answe
       { role: "assistant", content: "The most recent measure that became law is the Secure America Act [1]" },
     ],
   });
+  // After the question, so the opening before it is the same for every reader.
   const sent = requests[0].messages;
-  const note = sent[sent.length - 2];
+  const note = sent[sent.length - 1];
   expect(note?.role).toBe("system");
   expect(note?.content).toContain("Secure America Act");
   expect(note?.content).toMatch(/FIRST sentence must say that reply was wrong/);
@@ -243,7 +244,7 @@ test("a follow-up reminds the model of its last answer, so it can say that answe
   expect(note?.content).toMatch(/asking something new, answer only the new question/);
   // The earlier reply is quoted as data, not spliced in as instructions.
   expect(note?.content).toContain(JSON.stringify("The most recent measure that became law is the Secure America Act [1]"));
-  expect(sent[sent.length - 1]).toEqual({ role: "user", content: "are you sure" });
+  expect(sent[sent.length - 2]).toEqual({ role: "user", content: "are you sure" });
 });
 
 test("a first question carries no follow-up reminder", async () => {

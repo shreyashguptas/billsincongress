@@ -68,13 +68,28 @@ should not exist in the code — and if it's in this file, it must exist in the 
 
 ## What PostHog captures automatically (no code needed)
 
-**Only one of these is configured in code.** `instrumentation-client.ts` sets exactly six
+**Only one of these is configured in code.** `instrumentation-client.ts` sets exactly seven
 keys — `api_host`, `ui_host`, `defaults: '2026-01-30'`, `capture_exceptions: true`,
-`debug`, and `before_send`. Everything else in the table below comes from the
-`defaults: '2026-01-30'` preset plus **PostHog project settings** (remote config), which
-means it can be changed by someone in the PostHog UI with no commit here. There is no
-`session_recording`, `autocapture`, `enable_heatmaps` or masking key anywhere in this
-repository.
+`debug`, `session_recording` (text masking only, see below) and `before_send`. Everything
+else in the table below comes from the `defaults: '2026-01-30'` preset plus **PostHog project
+settings** (remote config), which means it can be changed by someone in the PostHog UI with no
+commit here. There is no `autocapture` or `enable_heatmaps` key anywhere in this repository.
+
+**The reader's email, name and photo never reach a replay** (since 1 Nov 2026). `session_recording`
+sets `maskTextSelector: '*'` and `maskTextFn: maskReplayText` (`lib/replay-privacy.ts`), so
+every text node replay records passes through one function. It stars out anything shaped like
+an email address, wherever it appears, and the whole text of any element carrying
+`PRIVATE_TEXT_CLASS` (`ph-mask`), which the two places that print the reader's name use (the
+account menu and the `/account` heading). Other text is recorded unchanged. A new screen that
+shows the reader's email is covered automatically; one that shows their name must add the class.
+
+The avatar is not recorded at all. Text masking cannot hide a photo (its `src` is recorded as
+is, and a Google sign-in's photo is the reader's face) or the initials (no `@`). `AvatarMark`
+(`components/brand/pro-mark.tsx`, every place the avatar appears) and the photo crop dialog
+carry `PRIVATE_BLOCK_CLASS` (`replay-private`), wired as `session_recording.blockSelector`, so
+replay stores an empty box of the same size. It is a separate class rather than PostHog's
+`ph-no-capture`, which would also drop autocaptured clicks on the account menu button.
+`lib/replay-privacy.test.ts` fails if either piece of this wiring is removed.
 
 | Capture | What it gives us | Turned on by |
 |---|---|---|
@@ -93,7 +108,7 @@ visible in the repo:
 
 | Setting | Value | Consequence |
 |---|---|---|
-| `session_recording_masking_config` | `null` | No masking is configured here — replays fall back to posthog-js defaults, which **mask the value of every input** (the ask box, the auth forms) but do **not** mask ordinary on-page text. So a question is hidden while it is being typed and visible again the moment the transcript renders it back as text. Text masking, not input masking, is what is missing. |
+| `session_recording_masking_config` | `null` | No masking is configured here — replays use posthog-js defaults, which **mask the value of every input** (the ask box, the auth forms), plus the code's text mask above (email addresses and the reader's name). Other on-page text is **not** masked. So a question is hidden while it is being typed and visible again the moment the transcript renders it back as text. |
 | `session_recording_retention_period` | `30d` | Replays are deleted after 30 days; older sessions cannot be reviewed. |
 | `session_recording_sample_rate` | `null` | Every session is recorded, not a sample. |
 | `capture_console_log_opt_in` | `true` | Console output is captured inside replays. |
@@ -143,6 +158,12 @@ visible in the repo:
 > Two consequences when reading error charts: exception counts before and after
 > 26 Aug 2026 are not comparable, and **only `$exception` is filtered** — every
 > product event in the tables below is sent exactly as it was.
+>
+> A stale-asset `ChunkLoadError` is **not** filtered. Since 16 Oct 2026 an unhandled one
+> also triggers one guarded page reload (window listener in `instrumentation-client.ts`, see
+> "Error boundaries" in `overview.md`); the listener does not suppress the event, so it is
+> still recorded, and a reader who recovered shows a second `$pageview` of the same URL
+> seconds later.
 
 Server-rendered pages with no interactivity (the About page and the legal pages — `/terms`,
 `/privacy`) intentionally have **no custom code** — their clicks are covered by autocapture.
@@ -516,7 +537,7 @@ own id with `$process_person_profile: false`.
 
 | Event | Fired when | Properties | Where (file) | Status |
 |---|---|---|---|---|
-| `$ai_generation` | Each model call: every round of the answer loop, and the web-search call | `$ai_span_name: "answer" \| "web_search"`, `$ai_model` (the model that served it. Since 22 Oct 2026 the Claude API's own id. Since 23 Oct 2026 `claude-sonnet-5-5` for the answer and the web lookup, and `claude-haiku-5-5` once Sonnet has failed in a turn or a lookup (from 22 to 23 Oct it was the other way round: Haiku answered, Sonnet backed it up); `openai/gpt-oss-120b` for the last resort and the Exa web lookup. From 13 to 22 Oct 2026 Claude was `anthropic/claude-haiku-5.5` through OpenRouter), `$ai_provider` (`"anthropic"` for the Claude API, `"openrouter"` for gpt-oss; always `"openrouter"` before 22 Oct 2026), `$ai_base_url` (`https://api.anthropic.com` or `https://openrouter.ai/api/v1`), `openrouter_host` (ours, since 5 Oct 2026, OpenRouter generations only: the host OpenRouter routed to — "Cerebras", "Groq", "Amazon Bedrock" for gpt-oss, which exposes a failover to the same model on a slower host; "Anthropic" on Claude generations from 13 to 22 Oct 2026), `$ai_input` — every message sent, system prompt and tool results included, each clipped at 20,000 characters, `$ai_output_choices` (without Claude's thinking blocks; since 27 Oct 2026 a Claude answer round carries `reasoning`, the summary of its thinking; the web lookup does not), `$ai_input_tokens` (on Claude, the uncached input only), `$ai_output_tokens`, `$ai_cache_read_input_tokens` and `$ai_cache_creation_input_tokens` (Claude), `$ai_total_cost_usd` (what the call cost us: for Claude, computed from the price table `CLAUDE_PRICES` in `convex/claude.ts`, the 1.1x US-inference price and $0.01 a web search included; for gpt-oss, OpenRouter's `usage.cost`), ours on Claude generations: `anthropic_inference_geo` (where Anthropic says it ran; every request asks for `us`), `anthropic_stop_reason` (`end_turn`, `tool_use`, `max_tokens`, `refusal`…), `anthropic_effort`, `web_search_requests` (the web lookup's server-side searches), and `web_fetch_requests` (since 26 Oct 2026: the pages it fetched to read in full; at most one), `$ai_latency` (s), `$ai_http_status`, `$ai_tools`, `$ai_temperature` (OpenRouter generations only: no temperature is sent to Claude), `$ai_max_tokens`, `$ai_is_error`, `$ai_error` — a Claude call that failed, was refused, or names a model with no price on file is its own errored generation, followed by the generation of the next model in the chain that answered the same round | `convex/answer.ts` (`callModel`, `searchWeb`) and `convex/claude.ts` (`callClaude`, `searchWebClaude`) via `convex/aiTrace.ts` | Live (since 30 Sep 2026) |
+| `$ai_generation` | Each model call: every round of the answer loop, and the web-search call | `$ai_span_name: "answer" \| "web_search"`, `$ai_model` (the model that served it. Since 22 Oct 2026 the Claude API's own id. Since 23 Oct 2026 `claude-sonnet-5-5` for the answer and the web lookup, and `claude-haiku-5-5` once Sonnet has failed in a turn or a lookup (from 22 to 23 Oct it was the other way round: Haiku answered, Sonnet backed it up); `openai/gpt-oss-120b` for the last resort and the Exa web lookup. From 13 to 22 Oct 2026 Claude was `anthropic/claude-haiku-5.5` through OpenRouter), `$ai_provider` (`"anthropic"` for the Claude API, `"openrouter"` for gpt-oss; always `"openrouter"` before 22 Oct 2026), `$ai_base_url` (`https://api.anthropic.com` or `https://openrouter.ai/api/v1`), `openrouter_host` (ours, since 5 Oct 2026, OpenRouter generations only: the host OpenRouter routed to — "Cerebras", "Groq", "Amazon Bedrock" for gpt-oss, which exposes a failover to the same model on a slower host; "Anthropic" on Claude generations from 13 to 22 Oct 2026), `$ai_input` — every message sent, system prompt and tool results included, each clipped at 20,000 characters, `$ai_output_choices` (without Claude's thinking blocks; since 27 Oct 2026 a Claude answer round carries `reasoning`, the summary of its thinking; the web lookup does not), `$ai_input_tokens` (on Claude, the uncached input only), `$ai_output_tokens`, `$ai_cache_read_input_tokens` and `$ai_cache_creation_input_tokens` (Claude; the web lookup's are non-zero only since 2026-11-01, when it started caching its own rounds), `$ai_total_cost_usd` (what the call cost us: for Claude, computed from the price table `CLAUDE_PRICES` in `convex/claude.ts`, the 1.1x US-inference price, one-hour cache writes at 2x input since 2026-11-01, and $0.01 a web search included; for gpt-oss, OpenRouter's `usage.cost`), ours on Claude generations: `anthropic_inference_geo` (where Anthropic says it ran; every request asks for `us`), `anthropic_stop_reason` (`end_turn`, `tool_use`, `max_tokens`, `refusal`…), `anthropic_effort`, `web_search_requests` (the web lookup's server-side searches), and `web_fetch_requests` (since 26 Oct 2026: the pages it fetched to read in full; at most one), `$ai_latency` (s), `$ai_http_status`, `$ai_tools`, `$ai_temperature` (OpenRouter generations only: no temperature is sent to Claude), `$ai_max_tokens`, `$ai_is_error`, `$ai_error` — a Claude call that failed, was refused, or names a model with no price on file is its own errored generation, followed by the generation of the next model in the chain that answered the same round | `convex/answer.ts` (`callModel`, `searchWeb`) and `convex/claude.ts` (`callClaude`, `searchWebClaude`) via `convex/aiTrace.ts` | Live (since 30 Sep 2026) |
 | `$ai_span` | Each lookup the model made | `$ai_span_name` (the tool: `describe_dataset`, `fetch_dataset`, `search_web`, `ask_reader`), `$ai_input_state` — its arguments, `$ai_output_state` — what it was handed back, clipped at 20,000, `$ai_latency`, `$ai_is_error` (the call was invalid) | `convex/answer.ts` (tool loop) | Live (since 30 Sep 2026) |
 | `$ai_trace` | The turn ended, answered or failed | `$ai_input_state` — the reader's question, `$ai_output_state` — the answer as shown (after citation resolution), each as a one-message chat list (`[{role, content}]`), the shape PostHog's trace view renders, `$ai_latency`, `$ai_is_error`, `$ai_error`, and ours: `outcome: "answered" \| "asked_reader" \| "failed"`, `dropped`, `partial`, `truncated_by_length`, `db_source_count`, `web_source_count`, `signed_in` | `convex/answer.ts` (`stream`) | Live (since 30 Sep 2026) |
 

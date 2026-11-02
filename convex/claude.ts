@@ -119,8 +119,10 @@ export function claudeServiceDown(error: unknown): boolean {
 interface Rates {
   input: number;
   output: number;
-  /** 5-minute cache write; the only TTL this code asks for. */
+  /** 5-minute cache write. */
   cacheWrite: number;
+  /** 1-hour cache write (SHARED_PREFIX_CACHE): 2x input. */
+  cacheWrite1h: number;
   cacheRead: number;
 }
 export interface ClaudePrice extends Rates {
@@ -133,11 +135,12 @@ export const CLAUDE_PRICES: Readonly<Record<string, ClaudePrice>> = {
     input: 0.1,
     output: 0.5,
     cacheWrite: 0.125,
+    cacheWrite1h: 0.2,
     cacheRead: 0.01,
-    long: { overPromptTokens: 100_000, input: 0.5, output: 2.5, cacheWrite: 0.625, cacheRead: 0.05 },
+    long: { overPromptTokens: 100_000, input: 0.5, output: 2.5, cacheWrite: 0.625, cacheWrite1h: 1, cacheRead: 0.05 },
   },
   // Cache reads on Sonnet 5.5 are 0.05x input, not the usual 0.1x.
-  "claude-sonnet-5-5": { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.1 },
+  "claude-sonnet-5-5": { input: 2, output: 10, cacheWrite: 2.5, cacheWrite1h: 4, cacheRead: 0.1 },
 };
 /** `inference_geo: "us"` multiplies every token price, cache included. */
 export const US_INFERENCE_MULTIPLIER = 1.1;
@@ -148,6 +151,8 @@ export interface ClaudeUsage {
   input_tokens?: number | null;
   output_tokens?: number | null;
   cache_creation_input_tokens?: number | null;
+  /** The same writes split by lifetime; absent on older responses. */
+  cache_creation?: { ephemeral_5m_input_tokens?: number | null; ephemeral_1h_input_tokens?: number | null } | null;
   cache_read_input_tokens?: number | null;
   inference_geo?: string | null;
   server_tool_use?: { web_search_requests?: number | null; web_fetch_requests?: number | null } | null;
@@ -170,7 +175,7 @@ const MODEL_ID = /^claude-[a-z0-9.-]+$/;
  *   ANTHROPIC_ANSWER_MODEL=claude-haiku-6
  *
  * USD per million tokens, before the US 1.1x. `cacheWrite` defaults to 1.25x
- * input and `cacheRead` to 0.1x input (the usual rates; give them when a model
+ * input, `cacheWrite1h` to 2x and `cacheRead` to 0.1x (the usual rates; give them when a model
  * differs, as Sonnet 5.5's 0.05x read does). `long` is optional, as in
  * ClaudePrice. Read strictly: bad JSON drops the whole setting, a bad entry
  * drops that entry, and either is logged; neither ever fails an answer. A model
@@ -217,12 +222,13 @@ function readPrice(value: unknown): ClaudePrice | string {
       if (r[key] == null) return `missing "${key}"`;
     }
     const out: Record<string, number> = {};
-    for (const key of ["input", "output", "cacheWrite", "cacheRead"]) {
+    for (const key of ["input", "output", "cacheWrite", "cacheWrite1h", "cacheRead"]) {
       // Only the cache rates have defaults, and only when left out: a given
       // null or string is a bad entry, never a made-up price.
       const given = r[key];
       const n =
         given === undefined && key === "cacheWrite" ? Number(r.input) * 1.25
+        : given === undefined && key === "cacheWrite1h" ? Number(r.input) * 2
         : given === undefined && key === "cacheRead" ? Number(r.input) / 10
         : given;
       if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return `"${key}" is not a price`;
@@ -250,10 +256,18 @@ export function claudeCostUsd(model: string, usage: ClaudeUsage | null | undefin
   const input = usage.input_tokens ?? 0;
   const output = usage.output_tokens ?? 0;
   const write = usage.cache_creation_input_tokens ?? 0;
+  // Writes for an hour cost more; without the split, all are priced as five-minute ones.
+  const write1h = Math.min(write, usage.cache_creation?.ephemeral_1h_input_tokens ?? 0);
   const read = usage.cache_read_input_tokens ?? 0;
   // The prompt's length counts cached tokens too, and decides the rate card.
   const rates: Rates = price.long && input + write + read > price.long.overPromptTokens ? price.long : price;
-  const tokens = (input * rates.input + output * rates.output + write * rates.cacheWrite + read * rates.cacheRead) / 1e6;
+  const tokens =
+    (input * rates.input +
+      output * rates.output +
+      (write - write1h) * rates.cacheWrite +
+      write1h * rates.cacheWrite1h +
+      read * rates.cacheRead) /
+    1e6;
   // Priced at the US rate unless Anthropic says it ran elsewhere: every request asks for "us".
   const geo = usage.inference_geo ?? INFERENCE_GEO;
   const searches = usage.server_tool_use?.web_search_requests ?? 0;
@@ -346,11 +360,30 @@ export type ChatMessage = {
    * own words. OpenRouter gets a plain user message.
    */
   instruction?: true;
+  /**
+   * On the last message of the opening every first question shares (the system
+   * prompt and the primed describe_dataset exchange): cache up to here for an
+   * hour. See SHARED_PREFIX_CACHE.
+   */
+  sharedPrefixEnd?: true;
 };
+
+/**
+ * The cache marker for what every reader's first round shares: the tools, the
+ * system prompt (which changes once a day, with the calendar) and the primed
+ * describe_dataset exchange, about 9,800 tokens. An hour, not the default five
+ * minutes: measured on 2026-11-01 over 272 questions since 2026-10-23, 157 came
+ * within five minutes of the one before, 73 more within the hour, and 42 after a
+ * longer gap. A one-hour write costs 2x input against 1.25x, and pays from the
+ * second question in that hour. Only the tail of the transcript keeps the
+ * five-minute marker (the top-level cache_control in callClaude); one-hour
+ * markers must come first, as these do.
+ */
+export const SHARED_PREFIX_CACHE = { type: "ephemeral", ttl: "1h" } as const;
 
 /** The transcript as OpenRouter and the trace see it: without Claude's raw blocks. */
 export function forOpenRouter(messages: ChatMessage[]): ChatMessage[] {
-  return messages.map(({ claude: _raw, instruction: _ours, ...rest }) => rest);
+  return messages.map(({ claude: _raw, instruction: _ours, sharedPrefixEnd: _cache, ...rest }) => rest);
 }
 
 /** ANSWER_TOOLS in the Claude API's shape. The schemas are passed through untouched. */
@@ -362,7 +395,7 @@ export function claudeTools(): Anthropic.Tool[] {
   }));
   // Tools render first, so this breakpoint caches them for every request on the
   // site, whatever page or question it carries.
-  tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: { type: "ephemeral" } };
+  tools[tools.length - 1] = { ...tools[tools.length - 1], cache_control: SHARED_PREFIX_CACHE };
   return tools;
 }
 
@@ -388,11 +421,13 @@ export const OPENING_USER_TURN =
  * converting a longer transcript yields the shorter one's output plus more,
  * which is what keeps thinking blocks valid and the cache warm across rounds.
  *
- * - The first system message is the system prompt, cached. A later system
- *   message (the follow-up note) joins it as a second block: the API takes a
- *   mid-conversation system message only before an assistant turn or last, and
- *   this one sits before the reader's question. It is written before the first
- *   round, so the system prompt never changes within a turn.
+ * - A system message before the conversation is the system prompt, cached for
+ *   an hour. It holds nothing about the reader's page or conversation, so every
+ *   reader's request shares it.
+ * - A system message later in the transcript (the page note and the follow-up
+ *   note, after the question) is handled like an instruction, below.
+ * - A message marked sharedPrefixEnd carries the same one-hour marker: the end
+ *   of the opening every first question shares.
  * - An assistant message Claude wrote goes back as its own content blocks.
  *   One we wrote (a primed or seeded lookup) becomes text and tool_use blocks.
  * - Consecutive tool results become one user message, as the API asks.
@@ -416,7 +451,13 @@ export function toClaudeRequest(messages: ChatMessage[]): {
     if (toolResults) out.push({ role: "user", content: toolResults });
     toolResults = null;
   };
-  const isInstruction = (m: ChatMessage | undefined) => m?.role === "user" && m.instruction === true;
+  // The site speaking mid-conversation: an instruction, or a system message
+  // after the conversation has begun.
+  const opening = messages.findIndex((m) => m.role !== "system");
+  const isInstruction = (j: number) => {
+    const m = messages[j];
+    return (m?.role === "user" && m.instruction === true) || (m?.role === "system" && opening >= 0 && j > opening);
+  };
 
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
@@ -428,23 +469,25 @@ export function toClaudeRequest(messages: ChatMessage[]): {
         tool_use_id: m.tool_call_id ?? "",
         content,
         ...(isErrorResult(content) ? { is_error: true } : {}),
+        ...(m.sharedPrefixEnd ? { cache_control: SHARED_PREFIX_CACHE } : {}),
       });
       continue;
     }
     flushResults();
-    if (m.role === "system") {
+    if (isInstruction(i)) {
+      const parts = [m.content ?? ""];
+      while (isInstruction(i + 1)) parts.push(messages[++i].content ?? "");
+      const next = messages[i + 1];
+      const asSystem = out[out.length - 1]?.role === "user" && (next === undefined || next.role === "assistant");
+      const text = parts.filter(Boolean).join("\n\n");
+      if (text) out.push({ role: asSystem ? "system" : "user", content: text });
+    } else if (m.role === "system") {
       if (!m.content) continue;
       system.push(
         system.length === 0
-          ? { type: "text", text: m.content, cache_control: { type: "ephemeral" } }
+          ? { type: "text", text: m.content, cache_control: SHARED_PREFIX_CACHE }
           : { type: "text", text: m.content },
       );
-    } else if (isInstruction(m)) {
-      const parts = [m.content ?? ""];
-      while (isInstruction(messages[i + 1])) parts.push(messages[++i].content ?? "");
-      const next = messages[i + 1];
-      const asSystem = out[out.length - 1]?.role === "user" && (next === undefined || next.role === "assistant");
-      out.push({ role: asSystem ? "system" : "user", content: parts.join("\n\n") });
     } else if (m.role === "user") {
       out.push({ role: "user", content: m.content ?? "" });
     } else if (m.claude) {
@@ -758,7 +801,7 @@ export function markCutOff(quote: string): string {
  * "2481, the Romance Scam Prevention Act" (live check, 2026-10-26).
  */
 const ABBREVIATION =
-  /(?:\b[A-Z](?:\.[A-Z])*|\b(?:Mr|Mrs|Ms|Dr|Sec|Secs|No|Nos|Rep|Reps|Sen|Sens|Jr|Sr|Inc|Co|St|Cong|sess|Stat|Res|Con|Rept|Doc|ed|vol|pp|etc|vs|e\.g|i\.e))$/;
+  /(?:\b[A-Z](?:\.[A-Z])*|\b(?:Mr|Mrs|Ms|Dr|Sec|Secs|No|Nos|Rep|Reps|Sen|Sens|Jr|Sr|Inc|Co|Corp|Ltd|St|Cong|sess|Stat|Res|Con|Rept|Doc|Dept|ed|vol|pp|etc|vs|e\.g|i\.e|Gov|Govs|Lt|Gen|Col|Capt|Sgt|Adm|Rev|Hon|Prof|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec))$/;
 
 /** Where each sentence in `text` ends: the index just past its [.!?]. */
 function sentenceEnds(text: string): number[] {
@@ -769,6 +812,40 @@ function sentenceEnds(text: string): number[] {
     ends.push(i + 1);
   }
   return ends;
+}
+
+/** A date's day closing a sentence: "on Oct. 3.", "on March 12." */
+const MONTH_THEN_DAY =
+  /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|January|February|March|April|June|July|August|September|October|November|December)\.?\s+\d{1,2}\.$/;
+
+/**
+ * An excerpt with each cut-off tail dropped where whole sentences come before
+ * it, so the answer model reads only finished sentences. Marking the cut
+ * (CUT_OFF_NOTE) was not enough: of 50 answers the fact-check judge failed
+ * from 2026-10-23 to 11-01, at least 9 finished a cut sentence ("allocated to
+ * immigration [cut off]" became "immigration enforcement"). A part with no
+ * whole sentence before its cut keeps it, marked: dropping it would leave
+ * nothing.
+ */
+export function dropCutTails(excerpt: string): string {
+  return excerpt
+    .split(" … ")
+    .map((part) => {
+      if (!part.endsWith(CUT_OFF)) return part;
+      const head = part.slice(0, -CUT_OFF.length).trimEnd();
+      // Not the number of a list item ("… 2. Then [cut off]"): that leaves a
+      // stray "2." and drops the marker the fragment needs. A day after a month
+      // ("on Oct. 3.") is a date, so a real end. A number misread as a list
+      // item only keeps the fragment, marked, as before.
+      const last = sentenceEnds(head)
+        .filter((end) => {
+          const upTo = head.slice(0, end);
+          return !/(?:^|\s)\d{1,2}\.$/.test(upTo) || MONTH_THEN_DAY.test(upTo);
+        })
+        .pop();
+      return last === undefined ? part : head.slice(0, last);
+    })
+    .join(" … ");
 }
 
 /**
@@ -987,6 +1064,12 @@ export async function searchWebClaude(opts: {
         },
       ],
       tool_choice: { type: "auto" },
+      // Caches the lookup's own server-side rounds: each search or fetch reads
+      // everything before it again. Measured on 2026-11-01, a lookup of 32,578
+      // input tokens became 16,341 written and 16,506 read, about a third
+      // cheaper; without it the web lookup was the one Claude call with no
+      // cache hits at all, a third of the bill on 2026-10-28.
+      cache_control: { type: "ephemeral" },
       // Not THINKING: with the summary on, 2 of 20 lookups came back without a
       // quoted source against 0 of 15 without it (2026-10-27). Likely chance,
       // but the lookup gains little from a summary on its trace.
