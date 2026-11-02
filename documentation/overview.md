@@ -331,7 +331,10 @@ order two ways (`sortedMatches` in `convex/bills.ts`): an index range already in
 chamber, `by_congress_and_latest_action`, `by_congress_and_introduced`), filtered as it streams,
 so the first matches are the newest even if the scan cap stops it; or, when no ordered index
 enforces the narrowest filter (a sponsor's state; "date introduced" under an Outcome), that
-filter's set read whole and sorted in memory, if it fits under the scan cap. A search, a bill
+filter's set read whole and sorted in memory, if it fits under the scan cap. The precomputed
+counts (`congressStats`, `congressPolicyAreas`, `congressChamberBreakdowns`) skip that read for a
+set they already put over the cap, such as California or Health, so one request does not read
+1,201 rows only to fall back to the ordered index. A search, a bill
 number or a sponsor reads its set whole already and is sorted in memory; a title search that hit
 its 1,024 ceiling reports `truncated`, since newer matches may be past it. Rows show the sort's
 date, labelled. Until 2 Nov 2026 `/bills` had no order but insertion order: page 1 of "Became

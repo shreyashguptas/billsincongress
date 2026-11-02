@@ -128,6 +128,30 @@ async function main() {
     );
   });
 
+  // Sets too big to read whole, which the precomputed counts send straight to
+  // an ordered index instead of reading 1,201 rows first.
+  await it("a big state, by latest action: California, in order", async () => {
+    const ca = bills.filter((b) => b.sponsorState === "CA");
+    assert.ok(ca.length > 1200, `${ca.length} California bills is past the cap`);
+    const page = await run({ congress: 119, sponsorState: "CA", sort: "latestAction", limit: 50 });
+    assert.equal(page.truncated, false);
+    assert.deepEqual(
+      page.data.map((r: Row) => r.latestActionDate ?? ""),
+      newestDates(ca, "latestAction", 50),
+    );
+  });
+
+  await it("a big topic, by date introduced: Health, in order", async () => {
+    const health = bills.filter((b) => b.policyAreaName === "Health");
+    assert.ok(health.length > 1200, `${health.length} Health bills is past the cap`);
+    const page = await run({ congress: 119, policyArea: "Health", sort: "introduced", limit: 50 });
+    assert.equal(page.truncated, false);
+    assert.deepEqual(
+      page.data.map((r: Row) => r.introducedDate),
+      newestDates(health, "introduced", 50),
+    );
+  });
+
   await it("Senate bills, by latest action: four bill types merged in order", async () => {
     const senate = bills.filter((b) => chamberOf(b.billType) === "senate");
     const page = await run({ congress: 119, chamber: "senate", sort: "latestAction", limit: 50 });

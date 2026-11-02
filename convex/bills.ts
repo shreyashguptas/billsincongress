@@ -646,6 +646,32 @@ async function policyAreaSize(
 }
 
 /**
+ * Bills sponsored from one state in one congress, from the precomputed
+ * `congressChamberBreakdowns` rows. Null when neither chamber's row was built;
+ * a state absent from built rows sponsored none.
+ */
+async function sponsorStateSize(
+  ctx: QueryCtx,
+  congress: number,
+  state: string,
+): Promise<number | null> {
+  const [house, senate] = await Promise.all(
+    (["house", "senate"] as const).map((chamber) =>
+      ctx.db
+        .query("congressChamberBreakdowns")
+        .withIndex("by_congress_and_chamber", (q) =>
+          q.eq("congress", congress).eq("chamber", chamber),
+        )
+        .first(),
+    ),
+  );
+  if (!house && !senate) return null;
+  const countForState = (rows: Array<{ state: string; count: number }>) =>
+    rows.find((r) => r.state === state)?.count ?? 0;
+  return countForState(house?.stateCounts ?? []) + countForState(senate?.stateCounts ?? []);
+}
+
+/**
  * Which index `list` should iterate for these filters.
  *
  * Only matters when both a policy area and a progress stage are filtered, since
@@ -964,6 +990,34 @@ function orderedBills(
   };
 }
 
+/**
+ * The size of the set `narrowBills` would read, from the precomputed tables
+ * (congressStats, congressPolicyAreas, congressChamberBreakdowns), or null when
+ * none is built. Only a hint for skipping a read: these rows are rebuilt daily.
+ */
+async function precomputedSize(
+  ctx: QueryCtx,
+  congress: number,
+  args: BillsFilterArgs,
+  iterateBy: NarrowIndex,
+): Promise<number | null> {
+  if (iterateBy === "policyArea" && args.policyArea !== undefined) {
+    return policyAreaSize(ctx, congress, args.policyArea);
+  }
+  if (iterateBy === "sponsorState" && args.sponsorState !== undefined) {
+    return sponsorStateSize(ctx, congress, args.sponsorState);
+  }
+  if (iterateBy === "progressStage" && args.progressStage !== undefined) {
+    const stats = await ctx.db
+      .query("congressStats")
+      .withIndex("by_congress", (q) => q.eq("congress", congress))
+      .first();
+    if (!stats) return null;
+    return stats.stageCounts.find((s) => s.stage === args.progressStage)?.count ?? 0;
+  }
+  return null;
+}
+
 /** The first `needed` rows of `rows` that `match`, read at most MAX_LIST_SCAN deep. */
 async function scanMatches(
   rows: AsyncIterable<Doc<"bills">>,
@@ -992,7 +1046,9 @@ async function scanMatches(
  *  1. The narrowest filtered set, read whole and sorted in memory. Taken when
  *     an ordered index does not enforce that filter itself (a sponsor's state,
  *     or "date introduced" under Outcome: Became law) and the set fits under
- *     the scan cap — Wyoming's 161 bills, a Congress's few hundred laws.
+ *     the scan cap — Wyoming's 161 bills, a Congress's few hundred laws. A set
+ *     the precomputed counts put over the cap (California, Health) skips
+ *     straight to 2 instead of reading 1,201 rows to find that out.
  *  2. An index range already in that order, filtered as it streams. Its first
  *     matches are the newest matches; the cap can only shorten the list,
  *     never reorder it.
@@ -1008,7 +1064,14 @@ async function sortedMatches(
   const iterateBy = await narrowestIndexFor(ctx, congress, args);
   const ordered = orderedBills(ctx, congress, args, sort, iterateBy);
 
-  if (iterateBy !== "congress" && ordered.enforces !== iterateBy) {
+  if (
+    iterateBy !== "congress" &&
+    ordered.enforces !== iterateBy &&
+    // A set the precomputed counts already put over the cap is not read whole
+    // only to be thrown away. Those counts are a day old at most, so this is a
+    // hint, never the guarantee: `takeFirst` below still decides.
+    ((await precomputedSize(ctx, congress, args, iterateBy)) ?? 0) <= MAX_LIST_SCAN
+  ) {
     const set = await takeFirst(narrowBills(ctx, congress, args, iterateBy), MAX_LIST_SCAN + 1);
     if (set.length <= MAX_LIST_SCAN) {
       return { matches: sortRows(set.filter(match), sort), capped: false };
@@ -1515,29 +1578,8 @@ export const listCount = query({
     }
 
     if (activeFilters === 1 && args.sponsorState !== undefined) {
-      const [house, senate] = await Promise.all([
-        ctx.db
-          .query("congressChamberBreakdowns")
-          .withIndex("by_congress_and_chamber", (q) =>
-            q.eq("congress", congressFilter).eq("chamber", "house"),
-          )
-          .first(),
-        ctx.db
-          .query("congressChamberBreakdowns")
-          .withIndex("by_congress_and_chamber", (q) =>
-            q.eq("congress", congressFilter).eq("chamber", "senate"),
-          )
-          .first(),
-      ]);
-      if (!house && !senate) return unknownCount();
-      const countForState = (rows: Array<{ state: string; count: number }>) =>
-        rows.find((r) => r.state === args.sponsorState)?.count ?? 0;
-      return {
-        count:
-          countForState(house?.stateCounts ?? []) +
-          countForState(senate?.stateCounts ?? []),
-        exact: true,
-      };
+      const size = await sponsorStateSize(ctx, congressFilter, args.sponsorState);
+      return size === null ? unknownCount() : { count: size, exact: true };
     }
 
     return unknownCount();
