@@ -45,17 +45,20 @@ export default function WelcomeToPro({
       {open && <Confetti />}
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          className="max-w-md gap-0 overflow-hidden p-0"
+          className="max-w-md"
+          bodyClassName="gap-0 p-0"
           // Focus the way out, not the first next step: a keyboard reader
           // hears the welcome, then chooses.
           onOpenAutoFocus={(e) => {
             e.preventDefault();
-            doneRef.current?.focus();
+            // preventScroll: on a short screen the body scrolls, and focusing
+            // Done must not scroll the welcome itself out of view.
+            doneRef.current?.focus({ preventScroll: true });
           }}
         >
           {/* The spectrum strip opens the card, as it opens the Pro emails. */}
           <div aria-hidden="true" className="spectrum-strip h-1.5 w-full" />
-          <div className="flex flex-col items-center px-6 pb-6 pt-8 text-center">
+          <div className="flex flex-col items-center px-6 pb-6 pt-8 text-center [@media(max-height:600px)]:pt-5">
             <Burst initials={initials} avatarUrl={avatarUrl} />
             <ProPill className="mt-5">Pro is on</ProPill>
             <DialogTitle className="mt-3">Welcome to Pro.</DialogTitle>
@@ -89,7 +92,9 @@ export default function WelcomeToPro({
               }}
             />
           </ul>
-          <div className="border-t border-line p-4">
+          {/* Pinned to the foot of the scrolling body, so Done is on screen
+              however short the screen (a phone held sideways). */}
+          <div className="sticky bottom-0 border-t border-line bg-popover p-4">
             <Button ref={doneRef} className="w-full" onClick={() => onOpenChange(false)}>
               Done
             </Button>
@@ -127,7 +132,7 @@ function Step({
     </>
   );
   const cls =
-    'focus-ring flex w-full items-center gap-3 rounded-md border border-line bg-raised p-3 transition-colors hover:border-line-strong';
+    'focus-ring flex w-full items-center gap-3 rounded-md border border-line bg-raised p-3 transition-[border-color,transform] hover:border-line-strong touchable:active:scale-[.98]';
   return (
     <li>
       {href ? (
@@ -146,7 +151,8 @@ function Step({
 /**
  * The avatar in its Pro ring at the centre of a still burst of spectrum
  * rays. It is the whole celebration when motion is reduced, so it does not
- * move.
+ * move. On a short screen (600px or less: a phone held sideways, a 568px phone) it draws at
+ * 112px rather than 180px, so the next steps and Done fit.
  */
 function Burst({ initials, avatarUrl }: { initials: string; avatarUrl?: string | null }) {
   const rays = Array.from({ length: 18 }, (_, i) => {
@@ -156,7 +162,7 @@ function Burst({ initials, avatarUrl }: { initials: string; avatarUrl?: string |
     return { x1: 90 + Math.cos(a) * r1, y1: 90 + Math.sin(a) * r1, x2: 90 + Math.cos(a) * r2, y2: 90 + Math.sin(a) * r2, n: (i % 6) + 1 };
   });
   return (
-    <div className="relative h-[180px] w-[180px]">
+    <div className="relative h-[180px] w-[180px] [@media(max-height:600px)]:h-28 [@media(max-height:600px)]:w-28">
       <svg viewBox="0 0 180 180" aria-hidden="true" className="absolute inset-0 h-full w-full">
         {rays.map((r, i) => (
           <line
@@ -172,7 +178,14 @@ function Burst({ initials, avatarUrl }: { initials: string; avatarUrl?: string |
         ))}
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <AvatarMark initials={initials} src={avatarUrl} pro size="xl" className="sm:h-28 sm:w-28" />
+        <AvatarMark
+          initials={initials}
+          src={avatarUrl}
+          pro
+          size="xl"
+          // `!`: must beat the size's own sm:h-28, which a sideways phone also matches.
+          className="sm:h-28 sm:w-28 [@media(max-height:600px)]:!h-16 [@media(max-height:600px)]:!w-16"
+        />
       </div>
     </div>
   );

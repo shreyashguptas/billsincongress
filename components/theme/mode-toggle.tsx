@@ -38,7 +38,7 @@ export function ModeToggle() {
           key={opt.value}
           value={opt.value}
           aria-label={opt.label}
-          className="h-8 w-8 min-w-8 rounded-[6px] p-0 text-ink-3 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm [&_svg]:size-3.5"
+          className="h-8 w-8 min-w-8 rounded-[6px] p-0 touchable:h-10 touchable:w-10 text-ink-3 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm [&_svg]:size-3.5"
         >
           {opt.icon}
         </ToggleGroupItem>

@@ -36,8 +36,19 @@ export function Navigation() {
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-line bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75 [container-name:site-header] [container-type:inline-size]">
-      <div className="container-editorial grid h-14 sm:h-16 grid-cols-[1fr_auto_1fr] items-center gap-4">
+    // Solid paper, not translucent: a see-through header turned muddy grey over
+    // the home page's dark stage, and its backdrop blur was repainted on every
+    // scroll frame.
+    <header className="sticky top-0 z-40 w-full border-b border-line bg-paper [container-name:site-header] [container-type:inline-size]">
+      {/*
+        Phones: menu, logo beside it, then search and account at the far edge —
+        auto | minmax(0,1fr) | auto, so nothing can push the row past the screen.
+        A centred logo needs two equal side columns, and the account side (search
+        plus "Sign up") is three times the menu button, so below ~470px it could
+        never actually be centred and overflowed at 320. From header-md the
+        sections take the centre and the two sides are equal again.
+      */}
+      <div className="container-editorial grid h-14 sm:h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 header-md:grid-cols-[1fr_auto_1fr] header-md:gap-4">
         <div className="flex items-center gap-1">
           {/* Mobile menu */}
           <Sheet open={open} onOpenChange={setOpen}>
@@ -46,23 +57,33 @@ export function Navigation() {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" hideClose className="w-[88%] max-w-sm border-r border-line p-0">
-              <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <SheetContent side="left" hideClose className="flex w-[88%] max-w-sm flex-col gap-0 border-r border-line p-0">
+              {/*
+                The same row as the header it covers — same height, same padding,
+                the close button exactly where the menu button was and the logo
+                where it was — so opening the menu changes the icon and nothing
+                else moves. It is also the handle a mouse drags the menu closed by.
+              */}
+              <div
+                data-sheet-grab=""
+                className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-4 sm:h-16 sm:px-6"
+              >
                 <SheetTitle className="sr-only">Menu</SheetTitle>
-                <Logo />
-                <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close menu">
+                <Button variant="ghost" size="icon" className="-ml-2" onClick={() => setOpen(false)} aria-label="Close menu">
                   <X className="h-5 w-5" />
                 </Button>
+                <Logo />
               </div>
               <nav aria-label="Main" className="flex flex-col px-2 py-3">
-                {routes.map((route) => (
+                {routes.map((route, i) => (
                   <Link
                     key={route.href}
                     href={route.href}
                     onClick={() => setOpen(false)}
                     aria-current={isActive(route.href) ? 'page' : undefined}
+                    style={{ animationDelay: `${60 + i * 30}ms` }}
                     className={cn(
-                      'focus-ring flex min-h-11 items-center rounded-md px-3 text-base',
+                      'menu-item-in focus-ring flex min-h-11 items-center rounded-md px-3 text-base',
                       isActive(route.href) ? 'bg-sunken font-medium text-ink' : 'text-ink-2 hover:bg-sunken hover:text-ink',
                     )}
                   >
@@ -71,7 +92,7 @@ export function Navigation() {
                 ))}
               </nav>
               {/* Phones have no room for the header's Feedback button, so it lives here. */}
-              <div className="mx-2 border-t border-line px-0 pt-3">
+              <div className="menu-item-in mx-2 border-t border-line px-0 pt-3" style={{ animationDelay: `${60 + routes.length * 30}ms` }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -89,11 +110,11 @@ export function Navigation() {
           <Logo className="hidden header-md:inline-flex" />
         </div>
 
-        {/* Centre: the logo on phones, the sections from md up. */}
-        <Logo className="header-md:hidden" />
+        {/* Beside the menu on phones; the sections take the centre from md up. */}
+        <Logo fit className="min-w-0 justify-self-start header-md:hidden" />
         <SectionTabs isActive={isActive} />
 
-        <div className="flex items-center justify-end gap-1 sm:gap-2">
+        <div className="flex items-center justify-end gap-1 sm:gap-2 header-lg:gap-3">
           <HeaderFeedback className="hidden header-lg:inline-flex" />
           <HeaderSearch />
           <UserMenu />
@@ -198,7 +219,11 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
             key={route.href}
             href={route.href}
             aria-current={current ? 'page' : undefined}
-            onMouseEnter={() => setHovered(route.href)}
+            // Pointer, mouse only: a tap also fires mouseenter, which would park
+            // the rule on the tapped tab before the page has even changed.
+            onPointerEnter={(e) => {
+              if (e.pointerType === 'mouse') setHovered(route.href);
+            }}
             onFocus={() => setHovered(route.href)}
             onBlur={() => setHovered(null)}
             onClick={(e) => {
@@ -208,7 +233,7 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
               setPending(route.href);
             }}
             className={cn(
-              'focus-ring rounded-sm px-3 py-2.5 text-[15px] font-medium transition-colors duration-200',
+              'focus-ring rounded-sm px-3 py-2.5 text-[15px] font-medium transition-colors duration-200 touchable:py-3',
               current || route.href === target ? 'text-ink' : 'text-ink-2',
             )}
           >
@@ -229,7 +254,7 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
             // 50% + 10px is about 5px under the labels' baseline (none of the four has a descender).
             'pointer-events-none absolute left-0 top-[calc(50%+10px)] h-0.5 rounded-full bg-ink',
             animate &&
-              'transition-[transform,width] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              'transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
           )}
           style={{
             width: drawn.width,

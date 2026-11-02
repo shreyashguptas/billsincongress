@@ -84,11 +84,12 @@ export function SignInForm() {
           />
         </div>
         <div className="space-y-2">
-          <div className="flex items-baseline justify-between">
+          {/* touchable:pb-1.5 keeps the link's 44px hit box (touch-hit) off the field below. */}
+          <div className="flex items-baseline justify-between touchable:pb-1.5">
             <Label htmlFor="password" className="text-ink">Password</Label>
             <Link
               href={withRedirect("/forgot-password", redirect)}
-              className="link focus-ring rounded-xs text-[13px]"
+              className="link touch-hit focus-ring rounded-xs text-[13px]"
             >
               Forgot password?
             </Link>
@@ -118,7 +119,7 @@ export function SignInForm() {
 
       <p className="text-center text-sm text-ink-3">
         Don&apos;t have an account?{" "}
-        <Link href="/sign-up" className="link focus-ring rounded-xs font-medium">
+        <Link href="/sign-up" className="link touch-hit focus-ring rounded-xs font-medium">
           Sign up
         </Link>
       </p>

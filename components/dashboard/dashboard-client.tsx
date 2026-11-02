@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from 'convex/react';
 import type { FunctionReturnType } from 'convex/server';
 import { api } from '@/convex/_generated/api';
@@ -319,7 +319,7 @@ function DashboardInner({
                 }
               />
               <SectionNote>
-                Total bills introduced in each two-year session of Congress on record. Click a bar to switch the view.
+                Total bills introduced in each two-year session of Congress on record. Select a bar to switch the view.
               </SectionNote>
               <HistoricalChart
                 data={allCongressData}
@@ -468,6 +468,19 @@ interface MonthlyCadenceChartProps {
 }
 
 function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartProps) {
+  // One readout line for every month: the column under the mouse (`hover`),
+  // else the one tapped or focused with the keyboard (`picked`). Below lg the
+  // bars are too narrow to carry their counts, so this is where they are read.
+  const [hover, setHover] = useState<number | null>(null);
+  const [picked, setPicked] = useState<number | null>(null);
+  const columnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  // Another Congress has other months: start its readout empty.
+  useEffect(() => {
+    setHover(null);
+    setPicked(null);
+  }, [congress]);
+
   if (!house || !senate) {
     return (
       <div className="border-y border-line py-8">
@@ -503,27 +516,73 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
   // With fewer, label each.
   const labelEvery = months.length > 18 ? 3 : 1;
 
+  const active = hover ?? picked;
+  const shown = active !== null ? months[active] : undefined;
+  // The one column in the tab order: the picked month, else the first.
+  const roving = picked !== null && picked < months.length ? picked : 0;
+
+  // The column under a point, from its x across the chart.
+  const columnAt = (clientX: number) => {
+    const box = overlayRef.current?.getBoundingClientRect();
+    if (!box || box.width === 0) return null;
+    return Math.min(months.length - 1, Math.max(0, Math.floor(((clientX - box.left) / box.width) * months.length)));
+  };
+  const onColumnKey = (e: React.KeyboardEvent, i: number) => {
+    const to =
+      e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? months.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    columnRefs.current[Math.min(months.length - 1, Math.max(0, to))]?.focus();
+  };
+
   return (
     <div className="space-y-5">
       <div className="border-y border-line py-8">
+        {/* The shared readout. One line tall even when empty (it fits one line
+            at 320px), so the chart never moves. */}
+        <p className="mb-5 min-h-5 text-sm text-ink-2">
+          {shown ? (
+            <span key={shown.month} className="animate-in fade-in-0 duration-150">
+              <span className="font-mono text-ink tabular">{formatMonth(shown.month)}</span>
+              {' · '}
+              <span className="font-mono text-ink tabular">{formatCount(shown.count)}</span> introduced
+              {' · '}
+              <span className="font-mono text-status-law tabular">{formatCount(shown.becameLaw)}</span> became law
+            </span>
+          ) : (
+            <span className="text-ink-3">
+              <span className="fine:hidden">Tap a month to read its counts.</span>
+              <span className="hidden fine:inline">Hover over a month to read its counts.</span>
+            </span>
+          )}
+        </p>
+
+        <div className="relative">
         {/* Top track — bills introduced (own scale, grows up) */}
         <div className="flex items-end justify-between gap-[3px] sm:gap-1 h-36">
-          {months.map((m) => {
+          {months.map((m, i) => {
             const introHeightPct = (m.count / introMax) * 100;
             return (
               <div
                 key={`intro-${m.month}`}
-                className="group flex-1 flex flex-col items-center gap-2 min-w-0 h-full"
-                aria-label={`${m.month}: ${formatCount(m.count)} bills introduced, ${m.becameLaw} became law`}
-                title={`${m.month} · ${formatCount(m.count)} introduced · ${m.becameLaw} became law`}
+                aria-hidden="true"
+                className="flex-1 flex flex-col items-center gap-2 min-w-0 h-full"
               >
-                {/* Too narrow to label every bar below lg; the title and label still carry it. */}
-                <span className="hidden font-mono text-[10px] tabular text-ink-3 transition-colors group-hover:text-ink lg:block">
+                {/* Too narrow to label every bar below lg; the readout above carries it. */}
+                <span
+                  className={cn(
+                    'hidden font-mono text-[10px] tabular transition-colors lg:block',
+                    active === i ? 'text-ink' : 'text-ink-3',
+                  )}
+                >
                   {formatCount(m.count)}
                 </span>
                 <div className="flex-1 w-full flex justify-center items-end min-h-0">
                   <div
-                    className="w-full max-w-[40px] rounded-t-xs bg-ink/25 transition-colors group-hover:bg-ink/50"
+                    className={cn(
+                      'w-full max-w-[40px] rounded-t-xs transition-colors',
+                      active === i ? 'bg-ink/60' : 'bg-ink/25',
+                    )}
                     style={{ height: `${Math.max(introHeightPct, 2)}%` }}
                   />
                 </div>
@@ -531,7 +590,6 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
             );
           })}
         </div>
-
         {/* Baseline + month labels */}
         <div className="mt-1 flex items-stretch justify-between gap-[3px] border-y border-line py-2 sm:gap-1">
           {months.map((m, i) => {
@@ -541,6 +599,7 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
             return (
               <div
                 key={`label-${m.month}`}
+                aria-hidden="true"
                 className="flex-1 min-w-0 flex flex-col items-center gap-0.5"
               >
                 {showLabel ? (
@@ -566,14 +625,13 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
             Independent y-scale so single-digit counts are readable next to
             1000+ introductions. */}
         <div className="flex items-start justify-between gap-[3px] sm:gap-1 h-20 mt-1">
-          {months.map((m) => {
+          {months.map((m, i) => {
             const lawHeightPct = (m.becameLaw / lawMax) * 100;
             return (
               <div
                 key={`law-${m.month}`}
-                className="group flex-1 flex flex-col items-center gap-2 min-w-0 h-full"
-                aria-label={`${m.month}: ${m.becameLaw} became law`}
-                title={`${m.month} · ${m.becameLaw} became law`}
+                aria-hidden="true"
+                className="flex-1 flex flex-col items-center gap-2 min-w-0 h-full"
               >
                 <div className="flex-1 w-full flex justify-center items-start min-h-0">
                   {m.becameLaw > 0 && (
@@ -583,12 +641,52 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
                     />
                   )}
                 </div>
-                <span className="font-mono text-[10px] tabular text-ink-3 group-hover:text-ink transition-colors h-3">
+                <span
+                  className={cn(
+                    'font-mono text-[10px] tabular transition-colors h-3',
+                    active === i ? 'text-ink' : 'text-ink-3',
+                  )}
+                >
                   {m.becameLaw > 0 ? m.becameLaw : ''}
                 </span>
               </div>
             );
           })}
+        </div>
+
+        {/* One control per month over all three rows: hover, tap or drag a
+            finger across, or focus one and use the arrow keys. A single tab
+            stop (roving tabindex), not one per month. */}
+        <div
+          ref={overlayRef}
+          role="group"
+          aria-label={`Bills introduced each month of the ${formatCongressOrdinal(congress)} Congress`}
+          className="absolute inset-0 flex touch-pan-y"
+          onPointerMove={(e) => {
+            if (e.pointerType === 'mouse') setHover(columnAt(e.clientX));
+            else if (e.buttons) setPicked(columnAt(e.clientX));
+          }}
+          onPointerDown={(e) => {
+            if (e.pointerType !== 'mouse') setPicked(columnAt(e.clientX));
+          }}
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
+        >
+          {months.map((m, i) => (
+            <button
+              key={`col-${m.month}`}
+              ref={(el) => {
+                columnRefs.current[i] = el;
+              }}
+              type="button"
+              tabIndex={i === roving ? 0 : -1}
+              aria-label={`${formatMonth(m.month)}: ${formatCount(m.count)} bills introduced, ${formatCount(m.becameLaw)} became law`}
+              onFocus={() => setPicked(i)}
+              onClick={() => setPicked(i)}
+              onKeyDown={(e) => onColumnKey(e, i)}
+              className="focus-ring h-full min-w-0 flex-1 rounded-xs"
+            />
+          ))}
+        </div>
         </div>
       </div>
 

@@ -85,7 +85,7 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="focus-ring rounded-xs font-mono text-xs text-ink-3 transition-colors hover:text-ink"
+        className="touch-hit focus-ring rounded-xs font-mono text-xs text-ink-3 transition-colors hover:text-ink"
       >
         ✓ {lookupSummary(entries)} · show
       </button>
@@ -103,12 +103,12 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
           </p>
         );
       })}
-      {!done && <p className="animate-pulse">· Writing answer…</p>}
+      {!done && <p className="animate-pulse motion-reduce:animate-none">· Writing answer…</p>}
       {done && open && (
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="focus-ring rounded-xs transition-colors hover:text-ink"
+          className="touch-hit focus-ring rounded-xs transition-colors hover:text-ink"
         >
           hide
         </button>

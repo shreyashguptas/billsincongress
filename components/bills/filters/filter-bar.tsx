@@ -135,7 +135,7 @@ export function FilterBar({
                   });
                   onClearAll();
                 }}
-                className="rounded-xs text-[13px] decoration-1"
+                className="touch-hit rounded-xs text-[13px] decoration-1"
               >
                 Clear all
               </Button>

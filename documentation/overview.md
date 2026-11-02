@@ -150,6 +150,7 @@ components/                Shared React components
   convex-client-provider.tsx theme-provider.tsx
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
+                           use-drag-dismiss.ts — drag a sheet or panel closed, finger or mouse
 
 lib/                       Pure client/shared modules — 43 modules + 41 test files at the top level, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
@@ -969,9 +970,9 @@ Three shapes, chosen by media query in `app/globals.css` and described by `lib/a
 
 | Viewport | Shape | Behaviour |
 | --- | --- | --- |
-| `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. |
-| `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. |
-| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
+| `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable, square and flush with the header's bottom rule. Drag the grab bar or title row down, or flick, to close it. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. The on-screen keyboard lifts it (`bottom: var(--ask-kb)`); `--ask-kb` counts only while a text field has focus and the page is not pinch-zoomed, because a zoomed page also has a smaller visual viewport. |
+| `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. Its title row drags it off to the right. |
+| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px (mouse, finger or keyboard; on a touch screen the edge carries a grip and a wider target). A window that shrinks and grows again returns to the reader's saved width, not the narrowest one it passed through. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
 
 **1344 is derived, not chosen.** `container-editorial` at a 1024px viewport gives its `lg:`
 layouts 960px of inner width, so the pushed shell must never fall below 1024px — and the

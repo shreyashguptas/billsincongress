@@ -75,7 +75,7 @@ export function EntityBlock({
           key={ref.id}
           href={ref.href}
           onClick={() => track(i + 1, ref.id)}
-          className="focus-ring inline-flex h-8 items-center rounded-sm border border-line-strong bg-raised px-2.5 font-mono text-xs text-ink transition-colors hover:bg-sunken"
+          className="touch-hit focus-ring inline-flex h-8 items-center rounded-sm border border-line-strong bg-raised px-2.5 font-mono text-xs text-ink transition-colors hover:bg-sunken"
         >
           {ref.id}
         </Link>
