@@ -2121,6 +2121,24 @@ async function main() {
     for (const s of ranked) assert.equal(s.rank, 1 + [...perState.values()].filter((n) => n > s.count).length);
   });
 
+  await it("gives every policy area its place, so 'the fourth-most' is read, not counted", async () => {
+    // 2026-11-01, live: "Taxation has the fourth-most", listing the three ahead
+    // and skipping International Affairs (1,376), in 5 of 7 runs.
+    const r = await fetchViaHandlers(ctx, "topics", { congress: 119 });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const rows: Array<{ rank: number; count: number; policyAreaName: string }> = r.rows;
+    const counts = rows.map((t) => t.count);
+    for (const t of rows) assert.equal(t.rank, 1 + counts.filter((n) => n > t.count).length, t.policyAreaName);
+    // The fourth place is every row with the fourth row's count, whatever the
+    // data says today (review on #238: naming the areas would go red the day
+    // Taxation catches up, with rank still right).
+    const fourth = rows.filter((t) => t.rank === 4).map((t) => t.policyAreaName);
+    const tiedWithFourth = rows.filter((t) => t.count === rows[3].count).map((t) => t.policyAreaName);
+    if (rows.slice(0, 3).every((t) => t.count > rows[3].count)) {
+      assert.deepEqual(fourth, tiedWithFourth, "the rows at place 4 are the fourth row and its ties");
+    }
+  });
+
   await it("a whole-Congress groupBy sponsorState that cannot finish points at the exact ranking", async () => {
     const r = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "sponsorState" });
     assert.ok(r.ok, `fetch failed: ${r.error}`);

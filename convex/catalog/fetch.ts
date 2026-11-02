@@ -1298,9 +1298,13 @@ async function fetchTopics(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     .query("congressPolicyAreas")
     .withIndex("by_congress", (q) => q.eq("congress", congress))
     .collect();
-  const sorted = all.sort((a, b) => b.count - a.count);
+  const sorted = all.sort((a, b) => b.count - a.count || a.policyAreaName.localeCompare(b.policyAreaName));
+  // Each row carries its place, as sponsorStateCounts does: asked for the
+  // fourth policy area on 2026-11-01, the model counted 31 sorted rows by eye
+  // and named the fifth in 5 of 7 runs. Tied counts share a place.
   const rows = sorted.map((t) => ({
     _cite: mintHandle("topics", `${congress}:${t.policyAreaName}`),
+    rank: sorted.findIndex((u) => u.count === t.count) + 1,
     policyAreaName: t.policyAreaName,
     count: t.count,
     congress,

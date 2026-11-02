@@ -354,6 +354,35 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
   {
+    id: "fourth-policy-area",
+    question:
+      `Which policy area has the fourth-most bills in the ${CURRENT_CONGRESS}th Congress?` +
+      " Answer with just the policy area, or every one if several are tied, in one short sentence.",
+    defect:
+      "Asked live on 2026-11-01, named Taxation (1,334) fourth and listed Health, Armed " +
+      "Forces and Government Operations as the three ahead, skipping International Affairs " +
+      "(1,376): 5 of 7 runs, on prompt versions 7 and 8 alike. The topics list was sorted " +
+      "but carried no place, so the model counted 31 rows by eye.",
+    expect: (db) => {
+      const ranked = db.congressPolicyAreas
+        .filter((t) => t.congress === CURRENT_CONGRESS)
+        .sort((a, b) => b.count - a.count || a.policyAreaName.localeCompare(b.policyAreaName));
+      const n = ranked[3].count;
+      const tied = ranked.filter((t) => t.count === n).map((t) => t.policyAreaName);
+      const neighbours = ranked.slice(2, 5).filter((t) => t.count !== n).map((t) => t.policyAreaName);
+      return {
+        kind: "name",
+        value: tied[0],
+        ...(tied.length > 1 ? { names: tied } : {}),
+        rivals: neighbours,
+        note:
+          `congressPolicyAreas for the ${CURRENT_CONGRESS}th, largest first: fourth is ` +
+          `${tied.join(" and ")} with ${n}; third ${ranked[2].policyAreaName} ${ranked[2].count}, ` +
+          `fifth ${ranked[4].policyAreaName} ${ranked[4].count}.`,
+      };
+    },
+  },
+  {
     id: "house-laws",
     question:
       `Of the laws enacted in the ${CURRENT_CONGRESS}th Congress, how many started in ` +

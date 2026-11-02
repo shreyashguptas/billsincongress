@@ -19,3 +19,14 @@ overrides:
   # @opennextjs/aws 4.1.11 -> @node-minify/core 9.0.2 pins glob 10.3.3 exactly
   # (GHSA-5j98-mcp5-4vw2, high, fixed in 10.5.0). Build time only.
   'glob@>=10.0.0 <10.5.0': 10.5.0
+
+# Supply-chain wait: pnpm will not install any package version published
+# less than 3 days ago (4320 minutes), so a hijacked or broken release has
+# time to be caught and pulled before it can reach this repo. Without a
+# version, `pnpm add`/`pnpm update` take the newest release that is old
+# enough. Strict makes asking for a too-new version by name fail, instead of
+# pnpm quietly writing an exception here. If a security fix truly cannot wait,
+# add that one exact version under minimumReleaseAgeExclude with a comment
+# saying why, and delete it once it is 3 days old.
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
