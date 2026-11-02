@@ -14,12 +14,14 @@ import {
   getOrCreateAnonymousChatSessionId,
   MAX_QUESTION_LENGTH,
 } from '../bill-chat/_shared';
+import { convexSiteUrl } from '@/lib/convex-site';
 import { withKeepAlive } from '@/lib/sse-keepalive';
 import { POSTHOG_DISTINCT_ID_HEADER, POSTHOG_SESSION_ID_HEADER } from '@/lib/posthog-server';
 
 export async function POST(request: Request) {
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!convexUrl) {
+  // Convex HTTP actions live on .convex.site, not .convex.cloud.
+  const siteUrl = convexSiteUrl();
+  if (!siteUrl) {
     return new Response('AI chat is not configured.', { status: 503 });
   }
 
@@ -33,10 +35,6 @@ export async function POST(request: Request) {
     convexAuthNextjsToken(),
     getOrCreateAnonymousChatSessionId(),
   ]);
-
-  // Convex HTTP actions live on .convex.site, not .convex.cloud.
-  const siteUrl =
-    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? convexUrl.replace('.convex.cloud', '.convex.site');
 
   const upstream = await fetch(`${siteUrl}/answer/stream`, {
     method: 'POST',

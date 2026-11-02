@@ -4,6 +4,7 @@ import {
   createRouteMatcher,
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
+import { middlewareShouldHandleCode } from "./lib/auth-proxy";
 import { isPubliclyCacheable, setsOwnCacheControl } from "./lib/cacheable-routes";
 import { AUTH_COOKIE_NAMES } from "./lib/edge-cache";
 import { BILL_ID_PATTERN } from "./lib/page-context";
@@ -69,8 +70,9 @@ export default convexAuthNextjsMiddleware(
       },
     });
 
-    // The only `/api/*` route the app exposes is `/api/auth/*`, served by
-    // @convex-dev/auth and consumed same-origin from this Next.js app. No
+    // The `/api/auth` routes are served by @convex-dev/auth (and Google
+    // sign-in's two pages, passed through to Convex by app/api/auth/[...path])
+    // and consumed same-origin from this Next.js app. No
     // documented cross-origin caller, so we deliberately don't set any
     // `Access-Control-Allow-*` headers here — adding `Origin: *` would only
     // broaden the surface for any future authenticated `/api/foo` route.
@@ -120,7 +122,12 @@ export default convexAuthNextjsMiddleware(
 
     return response;
   },
-  { cookieConfig: { maxAge: SESSION_COOKIE_MAX_AGE_SECONDS } },
+  {
+    cookieConfig: { maxAge: SESSION_COOKIE_MAX_AGE_SECONDS },
+    // Google sign-in's own pages under /api/auth/ carry a `code` that is not a
+    // sign-in code for this site; see lib/auth-proxy.ts.
+    shouldHandleCode: (request) => middlewareShouldHandleCode(request.nextUrl.pathname),
+  },
 );
 
 // The matcher includes /api/* so /api/auth/* requests reach the proxy and get
