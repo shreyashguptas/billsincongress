@@ -41,7 +41,7 @@ export function ChangePasswordButton({ email }: { email: string }) {
         Change password
       </Button>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[calc(100dvh-1rem)] max-w-sm gap-5 overflow-y-auto">
+        <DialogContent className="max-w-sm" bodyClassName="gap-5">
           <DialogHeader>
             <DialogTitle>{done ? "Password changed" : "Change password"}</DialogTitle>
             <DialogDescription>

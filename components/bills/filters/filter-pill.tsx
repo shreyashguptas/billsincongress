@@ -52,7 +52,7 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
         aria-haspopup="dialog"
         aria-label={describedAs ?? name}
         className={cn(
-          'h-9 shrink-0 gap-1.5 rounded-sm px-3',
+          'group h-9 shrink-0 gap-1.5 rounded-sm px-3',
           active && 'border border-ink',
           className
         )}
@@ -60,8 +60,13 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
       >
         <span className={cn('shrink-0', active && 'font-normal text-on-ink/75')}>{name}</span>
         {active && <span className="max-w-[14ch] truncate">{value}</span>}
+        {/* Turns over while its picker is open (`aria-expanded` comes from the
+            Radix trigger), and back as it closes. */}
         <ChevronDown
-          className={cn('h-4 w-4 shrink-0', active ? 'text-on-ink/75' : 'text-ink-3')}
+          className={cn(
+            'h-4 w-4 shrink-0 transition-transform duration-150 ease-out group-aria-expanded:rotate-180 motion-reduce:transition-none',
+            active ? 'text-on-ink/75' : 'text-ink-3'
+          )}
           strokeWidth={1.75}
           aria-hidden="true"
         />

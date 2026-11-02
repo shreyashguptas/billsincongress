@@ -348,15 +348,29 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     const vv = typeof window === 'undefined' ? null : window.visualViewport;
     if (!vv || askState.phase !== 'open') return;
     const sync = () => {
-      const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      // Only a keyboard counts. A pinch-zoomed page also has a visual viewport
+      // smaller than the window, and reading that as a keyboard opened the
+      // sheet 150px down with its close button off screen. A keyboard leaves
+      // the scale at 1 and needs a text field to have focus.
+      const editing = (document.activeElement as HTMLElement | null)?.matches?.(
+        'input, textarea, [contenteditable="true"]',
+      );
+      const zoomed = Math.abs((vv.scale ?? 1) - 1) > 0.01;
+      const overlap =
+        editing && !zoomed ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
       document.documentElement.style.setProperty('--ask-kb', `${Math.round(overlap)}px`);
     };
     sync();
     vv.addEventListener('resize', sync);
     vv.addEventListener('scroll', sync);
+    // Focus moving in or out of the composer changes the answer too.
+    document.addEventListener('focusin', sync);
+    document.addEventListener('focusout', sync);
     return () => {
       vv.removeEventListener('resize', sync);
       vv.removeEventListener('scroll', sync);
+      document.removeEventListener('focusin', sync);
+      document.removeEventListener('focusout', sync);
       document.documentElement.style.setProperty('--ask-kb', '0px');
     };
   }, [askState.phase]);

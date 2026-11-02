@@ -88,7 +88,8 @@ export function FeedbackDialog({ box }: { box: FeedbackBox }) {
         // Clear of the screen edges on a phone, and of the on-screen keyboard:
         // the box sits high rather than dead centre. Keeps the corner close,
         // since a phone has no Escape key and the scrim is easy to miss.
-        className="top-[max(4.5rem,12%)] w-[calc(100%-2rem)] max-w-md translate-y-0 gap-0 rounded-lg p-0 data-[state=closed]:slide-out-to-top-[2%] data-[state=open]:slide-in-from-top-[2%]"
+        className="mt-[max(4.5rem,12dvh)] max-h-[calc(100dvh-max(4.5rem,12dvh)-1rem)] max-w-md"
+        bodyClassName="gap-0 p-0"
       >
         <DialogTitle className="sr-only">Feedback</DialogTitle>
         {box.panel}

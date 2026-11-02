@@ -68,7 +68,7 @@ export default function PodcastPromo({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackClick('spotify')}
-              className="link focus-ring inline-flex items-center gap-1.5 rounded-sm"
+              className="link touch-hit focus-ring inline-flex items-center gap-1.5 rounded-sm"
             >
               <Headphones className="h-4 w-4" strokeWidth={1.75} />
               Listen on Spotify
@@ -78,7 +78,7 @@ export default function PodcastPromo({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackClick('apple')}
-              className="link focus-ring inline-flex items-center gap-1.5 rounded-sm"
+              className="link touch-hit focus-ring inline-flex items-center gap-1.5 rounded-sm"
             >
               <Podcast className="h-4 w-4" strokeWidth={1.75} />
               Listen on Apple Podcasts

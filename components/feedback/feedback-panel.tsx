@@ -50,6 +50,14 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
   const fileRef = React.useRef<HTMLInputElement>(null);
   const textRef = React.useRef<HTMLTextAreaElement>(null);
   const canSend = React.useMemo(() => analytics.canSendSurveys(), []);
+  // A step after the first rises in, 6px and a fade; the first arrives with
+  // its popover or dialog. The blanket reduced-motion rule stills it.
+  const [moved, setMoved] = React.useState(false);
+  const go = (next: Step) => {
+    setMoved(true);
+    setStep(next);
+  };
+  const enter = moved ? 'animate-in fade-in-0 slide-in-from-bottom-1.5 duration-200' : undefined;
 
   // The preview is an object URL; let it go when the picture is replaced or the box closes.
   React.useEffect(() => () => { if (picture) URL.revokeObjectURL(picture.preview); }, [picture]);
@@ -62,7 +70,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
 
   function choose(next: FeedbackKind) {
     setKind(next);
-    setStep('write');
+    go('write');
     // After the step renders; autoFocus alone misses when the popover animates in.
     requestAnimationFrame(() => textRef.current?.focus());
   }
@@ -124,7 +132,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
     ]);
     setSending(false);
     onSent();
-    setStep('thanks');
+    go('thanks');
   }
 
   if (!canSend) {
@@ -141,7 +149,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
 
   if (step === 'thanks') {
     return (
-      <div role="status" className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+      <div key="thanks" role="status" className={cn('flex flex-col items-center gap-2 px-4 py-8 text-center', enter)}>
         <CircleCheck className="h-6 w-6 text-ink" strokeWidth={1.75} aria-hidden="true" />
         <p className="text-[15px] font-medium text-ink">Thanks — we read every one.</p>
       </div>
@@ -150,7 +158,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
 
   if (step === 'pick') {
     return (
-      <div className="p-4">
+      <div key="pick" className={cn('p-4', enter)}>
         <p className="text-[15px] font-medium text-ink">What would you like to share?</p>
         <div className="mt-3 grid grid-cols-2 gap-3">
           {KINDS.map(({ kind: k, Icon, hint }) => (
@@ -158,7 +166,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
               key={k}
               type="button"
               onClick={() => choose(k)}
-              className="focus-ring flex flex-col items-center gap-1.5 rounded-md border border-line-strong bg-raised px-2 py-5 text-center transition-colors hover:bg-sunken"
+              className="focus-ring flex flex-col items-center gap-1.5 rounded-md border border-line-strong bg-raised px-2 py-5 text-center transition-[background-color,transform] hover:bg-sunken touchable:active:scale-[.98]"
             >
               <Icon className="h-5 w-5 text-ink" strokeWidth={1.75} aria-hidden="true" />
               <span className="text-[15px] font-medium text-ink">{k}</span>
@@ -175,6 +183,8 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
 
   return (
     <form
+      key="write"
+      className={enter}
       onSubmit={(e) => {
         e.preventDefault();
         void send();
@@ -225,7 +235,8 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 touchable:h-9 touchable:w-9"
+                // touch-hit: a 44px hit box on touch without growing the row.
+                className="touch-hit h-8 w-8 touchable:h-9 touchable:w-9"
                 onClick={() => setPicture(null)}
                 aria-label="Remove picture"
                 disabled={sending}
@@ -244,7 +255,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3">
-        <Button type="button" variant="ghost" size="sm" onClick={() => setStep('pick')} disabled={sending}>
+        <Button type="button" variant="ghost" size="sm" onClick={() => go('pick')} disabled={sending}>
           Back
         </Button>
         <div className="flex items-center gap-2">

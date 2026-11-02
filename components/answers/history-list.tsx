@@ -99,7 +99,7 @@ export function HistoryList({
               // where there is no hover to reveal it.
               className={
                 'mt-1 shrink-0 text-ink-3 opacity-0 transition-all hover:text-error focus:opacity-100 ' +
-                'group-hover:opacity-100 touchable:h-10 touchable:w-10 touchable:opacity-100'
+                'group-hover:opacity-100 touchable:h-11 touchable:w-11 touchable:opacity-100'
               }
             >
               <Trash2 className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
@@ -137,7 +137,7 @@ export function HistoryList({
           <button
             type="button"
             onClick={() => setConfirmingAll(true)}
-            className="focus-ring rounded-sm text-[13px] text-ink-2 transition-colors hover:text-error"
+            className="touch-hit focus-ring rounded-sm text-[13px] text-ink-2 transition-colors hover:text-error"
           >
             Delete all conversations
           </button>
