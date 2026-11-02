@@ -6,14 +6,11 @@ import { Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { billsService, type BillsCountResult } from '@/lib/services/bills-service';
 import { analytics, type FilterSurface } from '@/lib/analytics';
 import { formatCount } from '@/lib/utils';
-import {
-  formatCongressOrdinalSpan,
-  formatCongressYearSpan,
-} from '@/lib/congress';
 import type { Bill } from '../../lib/types/bill';
 import { X } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SourceLine } from '@/components/brand/section';
 import BillCard, { BillRowSkeleton } from '@/components/bills/bill-card';
 import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
@@ -34,6 +31,14 @@ import {
   scanLimitedActive,
 } from '@/lib/bills/filter-registry';
 import { billsPageHref, buildFilterQuery, filtersFromQuery } from '@/lib/bills/filter-url';
+import {
+  defaultSort,
+  effectiveSort,
+  isBillsSort,
+  listSortArg,
+  sortDateLabel,
+  sortOptions,
+} from '@/lib/bills/sort';
 import { CrawlablePagination } from '@/components/bills/crawlable-pagination';
 import { pagesForCount } from '@/lib/pagination';
 import { loadSponsors } from '@/components/bills/filters/sponsor-source';
@@ -62,6 +67,8 @@ export interface UrlFilters {
   congress?: string;
   chamber?: string;
   sponsor?: string[];
+  /** The Sort menu's pick (lib/bills/sort.ts), when the URL carries one. */
+  sort?: string;
 }
 
 export interface BillsClientProps {
@@ -81,13 +88,6 @@ export interface BillsClientProps {
   serverFilterSignature: string;
   /** Every Congress with data. Fetched on the server; the client never asks. */
   congressNumbers: number[];
-  /**
-   * The browse-by-category disclosure, rendered by a server component and
-   * passed down as JSX. It must NOT be imported here: importing it would make
-   * it a client module and its forty hub anchors would leave the
-   * server-rendered HTML, which is the only reason they exist.
-   */
-  browseDirectory?: ReactNode;
   /**
    * The page links for the filters the server applied, server-rendered so a
    * crawler with no JavaScript can walk them. Shown only while the list is
@@ -109,7 +109,6 @@ export default function BillsClient({
   urlFilters,
   serverFilterSignature,
   congressNumbers,
-  browseDirectory,
   serverPagination,
   maxPage,
 }: BillsClientProps) {
@@ -154,11 +153,21 @@ export default function BillsClient({
   const currentSignature = filterSignature(filters);
   const chips = activeFilters(filters);
   const filtersActive = chips.length > 0;
-
-  const congressRange =
-    congressNumbers.length > 0
-      ? { oldest: Math.min(...congressNumbers), newest: Math.max(...congressNumbers) }
-      : null;
+  const sort = effectiveSort(filters);
+  // Each row shows the date the list is sorted on, labelled.
+  const rowDateLabel = sortDateLabel(sort, filters.status);
+  const rowDate = (bill: Bill) =>
+    rowDateLabel === null
+      ? undefined
+      : {
+          label: rowDateLabel,
+          value:
+            sort === 'stage'
+              ? bill.stage_date
+              : sort === 'introduced'
+                ? bill.introduced_date
+                : bill.latest_action_date,
+        };
 
   /**
    * The one place a filter changes. Fires the analytics that
@@ -202,6 +211,18 @@ export default function BillsClient({
   const handleClearAllFilters = () => {
     setCurrentPage(1);
     setFilters(DEFAULT_FILTER_VALUES);
+  };
+
+  const handleSortChange = (value: string) => {
+    if (!isBillsSort(value) || value === sort) return;
+    analytics.billsSortChanged({
+      from_sort: sort,
+      to_sort: value,
+      is_default: value === defaultSort(filters),
+      active_filter_count: chips.length,
+    });
+    setCurrentPage(1);
+    setFilters((previous) => ({ ...previous, sort: value }));
   };
 
   // Mirror filter state into the address bar. Uses the History API directly
@@ -287,6 +308,7 @@ export default function BillsClient({
         page: nextPage,
         itemsPerPage: ITEMS_PER_PAGE,
         ...serviceArgs(filters),
+        sort: listSortArg(sort),
       });
       const existing = new Set(bills.map((b) => b.id));
       const newBills = response.data.filter((b) => !existing.has(b.id));
@@ -330,7 +352,7 @@ export default function BillsClient({
     // Fire page + count in parallel. We don't await both together; bills render
     // as soon as the page query resolves, and exact counts fill in when cheap.
     billsService
-      .fetchBills({ page: 1, itemsPerPage: ITEMS_PER_PAGE, ...filterArgs })
+      .fetchBills({ page: 1, itemsPerPage: ITEMS_PER_PAGE, ...filterArgs, sort: listSortArg(sort) })
       .then((response) => {
         if (cancelled) return;
         setBills(response.data);
@@ -471,24 +493,11 @@ export default function BillsClient({
 
   return (
     <div>
-      {/* Page head */}
-      <header className="container-editorial pb-8 pt-10 sm:pb-10 sm:pt-16">
-        <p className="label-eyebrow">The record</p>
-        <h1 className="mt-3 text-display-md text-ink sm:text-display-xl">All bills</h1>
-        <p className="mt-4 max-w-measure text-[17px] leading-[1.6] text-ink-2">
-          Browse legislation introduced in Congress
-          {congressRange && (
-            <>
-              {' '}
-              <span className="whitespace-nowrap font-mono text-[15px] tabular">
-                ({formatCongressYearSpan(congressRange.oldest, congressRange.newest)} ·{' '}
-                {formatCongressOrdinalSpan(congressRange.oldest, congressRange.newest)})
-              </span>
-            </>
-          )}
-          .
-        </p>
-        <SourceLine className="mt-4">
+      {/* Page head: the title and where the data comes from. The Congress
+          switcher in the filter band already says which years are covered. */}
+      <header className="container-editorial pb-6 pt-10 sm:pb-8 sm:pt-14">
+        <h1 className="text-display-md text-ink sm:text-display-xl">All bills</h1>
+        <SourceLine className="mt-3">
           Source: Congress.gov
           <SyncStatus />
         </SourceLine>
@@ -499,7 +508,6 @@ export default function BillsClient({
         onChange={setFilter}
         onClearAll={handleClearAllFilters}
         congressNumbers={congressNumbers}
-        browseDirectory={browseDirectory}
       />
 
       <div className="container-editorial pb-10 pt-8 lg:pt-10">
@@ -582,10 +590,28 @@ export default function BillsClient({
                 more rows than they want to read. Renders nothing on an
                 unfiltered list — "explain all 19,000 bills" is not a question.
               */}
-              <ScopeAskBar
-                scope={scopeFromFilters(filters)}
-                count={totalBills?.count ?? bills.length}
-              />
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <ScopeAskBar
+                  scope={scopeFromFilters(filters)}
+                  count={totalBills?.count ?? bills.length}
+                />
+                <Select value={sort} onValueChange={handleSortChange}>
+                  <SelectTrigger
+                    aria-label="Sort bills"
+                    className="h-9 w-auto gap-1.5 border-line-strong bg-transparent py-0 pl-3 pr-2.5 text-[13px] text-ink hover:border-ink data-[state=open]:border-ink touchable:h-11"
+                  >
+                    <span className="text-ink-3">Sort:</span>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {sortOptions(filters).map((option) => (
+                      <SelectItem key={option.value} value={option.value} className="text-[13px]">
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {/* The same scope, published for questions TYPED into the panel —
                   the reader is looking at these rows either way. */}
               <AskPageContext
@@ -614,7 +640,7 @@ export default function BillsClient({
                     style={{ animationDelay: `${(i % ITEMS_PER_PAGE) * 35}ms` }}
                   >
                     <Suspense fallback={<BillRowSkeleton />}>
-                      <BillCard bill={bill} />
+                      <BillCard bill={bill} date={rowDate(bill)} />
                     </Suspense>
                   </div>
                 ))

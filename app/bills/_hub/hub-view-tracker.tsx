@@ -67,7 +67,7 @@ export function HubLink({
   hubKind: HubKind;
   children: ReactNode;
   className?: string;
-  placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer';
+  placement?: 'filter_panel' | 'hub_siblings' | 'footer';
 }) {
   const pathname = usePathname();
   return (
@@ -91,11 +91,12 @@ export function HubLink({
 /**
  * Reports clicks on any hub link inside it, using one delegated listener.
  *
- * The browse directory holds every hub link (over 40). Making each one a client component would
- * mean 40 hydrated islands and 40 `usePathname()` subscriptions to measure
- * something that happens a handful of times a month. This wraps the whole
- * server-rendered block instead: the anchors stay ordinary server-rendered
- * markup and one handler reads which of them was hit.
+ * Used by the site footer's hub links, on every page. Making each one a client
+ * component would mean a hydrated island and a `usePathname()` subscription
+ * per link to measure something that happens a handful of times a month. This
+ * wraps the whole server-rendered block instead: the anchors stay ordinary
+ * server-rendered markup and one handler reads which of them was hit. (It also
+ * wrapped the "Guides to every topic and stage" box on /bills until 2026-11-02.)
  *
  * `children` is server-rendered JSX passed through as a prop, so nothing inside
  * becomes a client module.
@@ -106,7 +107,7 @@ export function HubLinkTracker({
   className,
 }: {
   children: ReactNode;
-  placement: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer';
+  placement: 'footer';
   className?: string;
 }) {
   const pathname = usePathname();

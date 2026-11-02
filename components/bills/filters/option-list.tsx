@@ -345,7 +345,7 @@ export function OptionList({
               >
                 <Check
                   className={cn(
-                    'h-4 w-4 shrink-0 text-ink transition-[opacity,transform] duration-[120ms] ease-out motion-reduce:transition-none',
+                    'h-4 w-4 shrink-0 text-ink transition-[opacity,transform] [transition-duration:120ms] ease-out motion-reduce:transition-none',
                     isSelected ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
                   )}
                   strokeWidth={2}

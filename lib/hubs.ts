@@ -311,6 +311,14 @@ const STAGE_DATE_LABELS: Record<string, string> = {
 };
 
 /**
+ * What a bill's `stage_date` means at one stage ("Became law"), or null for a
+ * stage it does not name a date for: at Introduced it is just the introduced date.
+ */
+export function stageDateLabel(progressStage: string): string | null {
+  return STAGE_DATE_LABELS[progressStage] ?? null;
+}
+
+/**
  * What the date on each row is, shown beside it. The row's date is always the
  * one the list is ordered by, so it has to say which date that is: on
  * /bills/enacted it is the day the bill became law, where it used to be an
@@ -318,7 +326,7 @@ const STAGE_DATE_LABELS: Record<string, string> = {
  */
 export function hubDateLabel(hub: HubDefinition, sortedBy: HubSortedBy): string {
   if (sortedBy === 'stageDate') {
-    return STAGE_DATE_LABELS[hub.filter.progressStage ?? ''] ?? 'Reached this stage';
+    return stageDateLabel(String(hub.filter.progressStage ?? '')) ?? 'Reached this stage';
   }
   if (sortedBy === 'introducedDate') return 'Introduced';
   return 'Latest action';
