@@ -151,16 +151,18 @@ export function useDragDismiss(opts: DragDismissOptions) {
 
   /** Window listeners for the press in flight, removed when it ends. */
   const unlisten = useRef<(() => void) | null>(null);
+  /** Forget a press that turned out not to be a drag (a scroll, a stale press). */
+  const drop = () => {
+    state.current = null;
+    unlisten.current?.();
+  };
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     // A press that never saw its release (a mouse let go outside the handle
     // before the drag began) must not linger: it would make the next hover
     // drag the surface with no button down.
-    if (state.current && !state.current.dragging) {
-      state.current = null;
-      unlisten.current?.();
-    }
+    if (state.current && !state.current.dragging) drop();
     if (state.current) return;
     if (o.current.enabled && !o.current.enabled()) return;
     const target = e.target as HTMLElement;
@@ -193,6 +195,7 @@ export function useDragDismiss(opts: DragDismissOptions) {
     // drag starts there is no pointer capture, and the pointer may be let go
     // anywhere. (Once captured, the element and the window both hear it; the
     // second call finds nothing in flight and returns.)
+    unlisten.current?.(); // never more than one pair on the window
     const handle = e.currentTarget;
     const up = (ev: PointerEvent) => finish(ev.pointerId, ev.timeStamp, handle, false);
     const cancel = (ev: PointerEvent) => finish(ev.pointerId, ev.timeStamp, handle, true);
@@ -221,11 +224,11 @@ export function useDragDismiss(opts: DragDismissOptions) {
       const crossMoved = Math.abs(across - s.cross);
       if (Math.abs(raw) < SLOP_PX) {
         // Clearly moving the other way first: that is a scroll, not ours.
-        if (crossMoved > SLOP_PX) state.current = null;
+        if (crossMoved > SLOP_PX) drop();
         return;
       }
       if (crossMoved > Math.abs(raw)) {
-        state.current = null;
+        drop();
         return;
       }
       s.dragging = true;
