@@ -2129,9 +2129,14 @@ async function main() {
     const rows: Array<{ rank: number; count: number; policyAreaName: string }> = r.rows;
     const counts = rows.map((t) => t.count);
     for (const t of rows) assert.equal(t.rank, 1 + counts.filter((n) => n > t.count).length, t.policyAreaName);
+    // The fourth place is every row with the fourth row's count, whatever the
+    // data says today (review on #238: naming the areas would go red the day
+    // Taxation catches up, with rank still right).
     const fourth = rows.filter((t) => t.rank === 4).map((t) => t.policyAreaName);
-    assert.ok(fourth.includes("International Affairs"), `fourth is ${fourth.join(", ")}`);
-    assert.ok(!fourth.includes("Taxation"));
+    const tiedWithFourth = rows.filter((t) => t.count === rows[3].count).map((t) => t.policyAreaName);
+    if (rows.slice(0, 3).every((t) => t.count > rows[3].count)) {
+      assert.deepEqual(fourth, tiedWithFourth, "the rows at place 4 are the fourth row and its ties");
+    }
   });
 
   await it("a whole-Congress groupBy sponsorState that cannot finish points at the exact ranking", async () => {
