@@ -1338,7 +1338,9 @@ httpAction with a scripted model and asserts the exact request PostHog would rec
   reader actually got, each scoring the whole trace a minute after it goes quiet. Three are
   free Hog code checks on the model's final raw reply, before `answerSanitize.ts`, so they
   measure the prompt and model rather than the cleanup: **Answer uses internal jargon**
-  ("dataset", `bill_actions`, `billId`, "the result is complete"), **Answer shows raw tags**
+  ("dataset", `bill_actions`, `billId`, "the result is complete"; since 2026-11-02 it skips
+  citation handles such as `[[cite:bill_actions:…]]`, which the page turns into numbered links:
+  all 21 of its fails from 2026-10-23 to 11-01 were one), **Answer shows raw tags**
   (`[[sponsors:…]]`, `【`, `<thinking>`) and **Answer shows its thinking** ("Let me check…",
   "Actually, let…"). A fourth, **Answer states only what the lookups support**, is an LLM
   judge that fails an answer stating a number, bill, date, status, person or what a bill does

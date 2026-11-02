@@ -556,7 +556,8 @@ records PostHog's own `$feature_flag_called` exposure event, and the question re
 
 **Evaluations.** PostHog writes one `$ai_evaluation` event per trace each evaluation scores
 (its own event, not ours): "Answer uses internal jargon", "Answer shows raw tags" and "Answer
-shows its thinking" (Hog, live since 5 Oct 2026) and "Answer states only what the lookups
+shows its thinking" (Hog, live since 5 Oct 2026; the jargon check skips citation handles such as
+`[[cite:bill_actions:…]]` since 2 Nov 2026, so its pass rate across that date is not comparable) and "Answer states only what the lookups
 support" (LLM judge, live; judged by Claude Sonnet 5.5 since 22 Oct 2026, by `openai/gpt-5.6-luna`
 through OpenRouter before; rubric revised 19 Oct 2026; pass rates across either change are not
 comparable). Listed in overview.md under
