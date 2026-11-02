@@ -2424,8 +2424,11 @@ Things pnpm 12 does that bite if you do not know them:
 - **Install scripts are opt-in.** `allowBuilds` in `pnpm-workspace.yaml` lists every dependency
   allowed to run one (`true`) or deliberately skipped (`false`). A new dependency with an install
   script that is not listed **fails the install** (`strictDepBuilds`, the default since pnpm 11).
-- **Packages younger than 24 hours do not resolve** (`minimumReleaseAge`), so a release published
-  this morning installs tomorrow.
+- **Packages younger than 3 days do not resolve** (`minimumReleaseAge: 4320` in
+  `pnpm-workspace.yaml`). `pnpm add`/`pnpm update` with no version take the newest release that is
+  old enough. Naming a too-new version fails (`minimumReleaseAgeStrict`) instead of pnpm quietly
+  adding an exception. For an urgent security fix, add that exact version under
+  `minimumReleaseAgeExclude` with a reason, and delete it after 3 days.
 - **Security floors for deep dependencies live in `overrides`** in `pnpm-workspace.yaml` (pnpm 12
   ignores the old `pnpm.overrides` in `package.json`). Each entry selects only the vulnerable
   versions, such as `'glob@>=10.0.0 <10.5.0'`, so it stops doing anything once the parent package
