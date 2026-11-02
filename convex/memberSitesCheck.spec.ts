@@ -98,3 +98,44 @@ test("never more than two sites at once, and House sites before Senate ones", as
   expect(most).toBeLessThanOrEqual(2);
   expect(order).toEqual(["house", "house", "house", "senate", "senate"]);
 });
+
+test("a page that comes back linking nothing does not hide a member's accounts, and is asked again", async () => {
+  // Rep. Stansbury, first live run: her page came back without its links and
+  // both her accounts were hidden, though her site links them.
+  const t = convexTest(schema, modules);
+  await seed(t, [{ id: "S001218", chamber: "house" }]);
+  let blank = false;
+  vi.stubGlobal("fetch", async () => new Response(blank ? "<html><title>Rep</title></html>" : page("S001218"), { status: 200 }));
+
+  await t.action(internal.memberAccounts.checkSites, {});
+  const confirmed = (await t.run((ctx) => ctx.db.query("memberAccounts").first()))!;
+  expect(confirmed.accounts[0].confirmedAt).toBeDefined();
+
+  blank = true;
+  await t.run(async (ctx) => {
+    for (const f of await ctx.db.system.query("_scheduled_functions").collect()) await ctx.scheduler.cancel(f._id);
+  });
+  await t.action(internal.memberAccounts.checkSites, {});
+  const row = (await t.run((ctx) => ctx.db.query("memberAccounts").first()))!;
+  expect(row.siteCheck?.status).toBe("failed");
+  expect(row.accounts[0].confirmedAt).toBe(confirmed.accounts[0].confirmedAt);
+  const retry = (await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).find(
+    (f) => f.name === "memberAccounts:checkSites" && f.state.kind === "pending",
+  );
+  expect(retry?.args[0]).toEqual({ retry: 1, ids: ["S001218"] });
+});
+
+test("a member we hold no accounts for, whose page links none, is a plain success", async () => {
+  const t = convexTest(schema, modules);
+  await seed(t, [{ id: "W000832", chamber: "house" }]);
+  await t.run(async (ctx) => {
+    const row = (await ctx.db.query("memberAccounts").first())!;
+    await ctx.db.patch(row._id, { accounts: [] });
+  });
+  vi.stubGlobal("fetch", async () => new Response("<html><title>Rep</title></html>", { status: 200 }));
+  await t.action(internal.memberAccounts.checkSites, {});
+  const row = (await t.run((ctx) => ctx.db.query("memberAccounts").first()))!;
+  expect(row.siteCheck?.status).toBe("ok");
+  const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+  expect(scheduled.filter((f) => f.name === "memberAccounts:checkSites")).toHaveLength(0);
+});
