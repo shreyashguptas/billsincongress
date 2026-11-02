@@ -254,7 +254,7 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
             // 50% + 10px is about 5px under the labels' baseline (none of the four has a descender).
             'pointer-events-none absolute left-0 top-[calc(50%+10px)] h-0.5 rounded-full bg-ink',
             animate &&
-              'transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+              'transition-[transform,width] duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
           )}
           style={{
             width: drawn.width,
