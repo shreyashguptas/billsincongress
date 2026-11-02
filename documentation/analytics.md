@@ -604,7 +604,7 @@ line opens its trace.
 | `member accounts synced` | INFO | The daily copy of the suggested accounts was written (`memberAccounts.sync`) | `members`, `accounts`, `added`, `changed`, `left`, `rejected` (values that were not a handle and were dropped), `overrides`, `forced` | `convex/memberAccounts.ts` |
 | `member accounts sync refused` | WARN | The download looked broken (too few or too many members, or more than 40 accounts vanishing from members still in office), so nothing was written. Rerun with `force` once a person has looked | the counts above, `problem` | `convex/memberAccounts.ts` |
 | `member accounts sync failed` | ERROR | A download or parse failed | `error_kind` (a fixed label: `timeout`, `bad_json`, `bad_shape`, `bad_override`, the file and HTTP status, or `other`) | `convex/memberAccounts.ts` |
-| `member sites checked` | INFO, or WARN when more than a tenth of the sites failed | The daily check of members' own websites ended (`memberAccounts.checkSites`) | `sites`, `ok`, `blocked`, `failed`, `accounts_confirmed`, `accounts_unconfirmed` | `convex/memberAccounts.ts` |
+| `member sites checked` | INFO, or WARN when more than a tenth of the sites failed | A pass of the daily check of members' own websites ended (`memberAccounts.checkSites`): the first pass, then up to two retries of the sites that blocked it, one line each | `pass` (`first`, `retry 1`, `retry 2`), `sites`, `ok`, `blocked`, `rate_limited` (of `blocked`, those refused with 429), `failed`, `accounts_confirmed`, `accounts_unconfirmed` | `convex/memberAccounts.ts` |
 
 - `sessionId` and `posthogDistinctId` are the attribute names PostHog uses to link a line to
   the session replay and the person. They come from the browser and are dropped unless

@@ -56,14 +56,28 @@ const SOURCE_BASE = "https://unitedstates.github.io/congress-legislators";
 const FETCH_TIMEOUT_MS = 30_000;
 /** Far above every member who has ever served since this table began. */
 const MAX_ROWS = 5000;
-/** Official sites fetched at once by `checkSites`. */
-const SITE_CONCURRENCY = 8;
 /**
- * Sites per `checkSites` run, written before the next run is scheduled. At 8
- * at a time and a 20-second timeout, 120 sites take at most 5 minutes, well
- * inside an action's 10, even if every site hangs.
+ * Official sites fetched at once by `checkSites`, each fetcher waiting
+ * SITE_SPACING_MS between its sites: about two a second. At eight at a time
+ * house.gov turned the checker away after about 400 sites on the first live
+ * run (2 Nov 2026, every House member from Takano to Zinke), though each of
+ * those sites answered normally one at a time.
  */
-const SITES_PER_RUN = 120;
+const SITE_CONCURRENCY = 2;
+const SITE_SPACING_MS = 1000;
+/**
+ * Sites per `checkSites` run, written before the next run is scheduled. Two
+ * at a time, a 20-second timeout and a second's spacing: 40 sites take at most
+ * 7 minutes, inside an action's 10, even if every site hangs.
+ */
+const SITES_PER_RUN = 40;
+/**
+ * A site that turned the checker away is asked again this long after the
+ * pass ends, at most SITE_RETRIES times: a refusal for asking too fast clears
+ * when the asking stops.
+ */
+const SITE_RETRY_AFTER_MS = 20 * 60 * 1000;
+const SITE_RETRIES = 2;
 /** Links kept on a row for the review list; matching always uses every link. */
 const MAX_STORED_LINKS = 200;
 /** A confirmation lapses when no check has succeeded for this long. */
@@ -263,15 +277,20 @@ export const apply = internalMutation({
 
 /** One page of in-office members' official websites, in a fixed order, for `checkSites`. */
 export const sitesToCheck = internalQuery({
-  args: { offset: v.number(), limit: v.number() },
+  // ids: only these members (a retry of the sites that turned the checker away).
+  args: { offset: v.number(), limit: v.number(), ids: v.optional(v.array(v.string())) },
   returns: v.object({
     sites: v.array(v.object({ bioguideId: v.string(), url: v.string() })),
     total: v.number(),
   }),
   handler: async (ctx, args) => {
     const rows = await ctx.db.query("memberAccounts").withIndex("by_bioguideId").take(MAX_ROWS);
+    const only = args.ids ? new Set(args.ids) : null;
+    // House first: senate.gov refuses every automated visit, and a run of
+    // refusals should never come before the House sites that do answer.
     const all = rows
-      .filter((r) => r.inOffice && r.officialWebsiteUrl)
+      .filter((r) => r.inOffice && r.officialWebsiteUrl && (!only || only.has(r.bioguideId)))
+      .sort((a, b) => (a.chamber === b.chamber ? 0 : a.chamber === "house" ? -1 : 1))
       .map((r) => ({ bioguideId: r.bioguideId, url: r.officialWebsiteUrl as string }));
     return { sites: all.slice(args.offset, args.offset + args.limit), total: all.length };
   },
@@ -308,13 +327,21 @@ const siteResultValidator = v.object({
   links: v.array(v.string()),
 });
 
-/** Run `fn` over `items`, at most `limit` at a time. */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+/** Run `fn` over `items`, at most `limit` at a time, each worker pausing `spacingMs` between items. */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+  spacingMs = 0,
+): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let next = 0;
   async function worker() {
+    let first = true;
     while (next < items.length) {
       const i = next++;
+      if (!first && spacingMs > 0) await new Promise((r) => setTimeout(r, spacingMs));
+      first = false;
       out[i] = await fn(items[i]);
     }
   }
@@ -325,6 +352,8 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 const totalsValidator = v.object({
   ok: v.number(),
   blocked: v.number(),
+  // Of `blocked`, those refused with 429 Too Many Requests.
+  rateLimited: v.optional(v.number()),
   failed: v.number(),
   confirmed: v.number(),
   unconfirmed: v.number(),
@@ -334,33 +363,61 @@ const totalsValidator = v.object({
  * Check every member's official site, a page of `SITES_PER_RUN` at a time:
  * each run fetches its page, writes the results, and schedules the next, so
  * a slow day can never run past an action's time limit with nothing written.
+ *
+ * The sites that turned the checker away are carried along (`blockedIds`) and
+ * asked again SITE_RETRY_AFTER_MS after the pass ends, up to SITE_RETRIES
+ * times (`retry` counts them; a retry pass reads only `ids`).
  */
 export const checkSites = internalAction({
-  args: { offset: v.optional(v.number()), now: v.optional(v.string()), totals: v.optional(totalsValidator) },
+  args: {
+    offset: v.optional(v.number()),
+    now: v.optional(v.string()),
+    totals: v.optional(totalsValidator),
+    retry: v.optional(v.number()),
+    ids: v.optional(v.array(v.string())),
+    blockedIds: v.optional(v.array(v.string())),
+  },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const offset = args.offset ?? 0;
+    const retry = args.retry ?? 0;
     const now = args.now ?? new Date().toISOString();
-    const totals = args.totals ?? { ok: 0, blocked: 0, failed: 0, confirmed: 0, unconfirmed: 0 };
-    if (offset === 0) await ctx.runMutation(internal.memberAccounts.lapseStale, { now });
+    const totals = args.totals ?? { ok: 0, blocked: 0, rateLimited: 0, failed: 0, confirmed: 0, unconfirmed: 0 };
+    const blockedIds = [...(args.blockedIds ?? [])];
+    if (offset === 0 && retry === 0) await ctx.runMutation(internal.memberAccounts.lapseStale, { now });
 
     const { sites, total } = await ctx.runQuery(internal.memberAccounts.sitesToCheck, {
       offset,
       limit: SITES_PER_RUN,
+      ...(args.ids ? { ids: args.ids } : {}),
     });
-    const results = await mapLimit(sites, SITE_CONCURRENCY, async (site) => {
-      const check: SiteCheck = await checkOfficialSite(site.url);
-      return { bioguideId: site.bioguideId, ...check };
-    });
+    const checks = await mapLimit(
+      sites,
+      SITE_CONCURRENCY,
+      async (site) => ({ bioguideId: site.bioguideId, ...(await checkOfficialSite(site.url)) }),
+      SITE_SPACING_MS,
+    );
+    const results = checks.map(({ bioguideId, status, links }) => ({ bioguideId, status, links }));
     if (results.length > 0) {
       const written = await ctx.runMutation(internal.memberAccounts.recordSiteChecks, { results, now });
       totals.confirmed += written.confirmed;
       totals.unconfirmed += written.unconfirmed;
     }
-    for (const r of results) totals[r.status]++;
+    for (const c of checks) {
+      totals[c.status]++;
+      if (c.status === "blocked") blockedIds.push(c.bioguideId);
+      if (c.rateLimited) totals.rateLimited = (totals.rateLimited ?? 0) + 1;
+    }
 
     if (offset + SITES_PER_RUN < total) {
-      await ctx.scheduler.runAfter(0, internal.memberAccounts.checkSites, { offset: offset + SITES_PER_RUN, now, totals });
+      await ctx.scheduler.runAfter(0, internal.memberAccounts.checkSites, {
+        offset: offset + SITES_PER_RUN,
+        now,
+        totals,
+        retry,
+        blockedIds,
+        ...(args.ids ? { ids: args.ids } : {}),
+      });
       return null;
     }
     const sitesChecked = totals.ok + totals.blocked + totals.failed;
@@ -369,14 +426,23 @@ export const checkSites = internalAction({
       message: "member sites checked",
       timestampMs: Date.now(),
       attributes: {
+        pass: retry === 0 ? "first" : `retry ${retry}`,
         sites: sitesChecked,
         ok: totals.ok,
         blocked: totals.blocked,
+        rate_limited: totals.rateLimited ?? 0,
         failed: totals.failed,
         accounts_confirmed: totals.confirmed,
         accounts_unconfirmed: totals.unconfirmed,
       },
     });
+    if (blockedIds.length > 0 && retry < SITE_RETRIES) {
+      // A fresh `now`: a retry's results are dated when it ran.
+      await ctx.scheduler.runAfter(SITE_RETRY_AFTER_MS, internal.memberAccounts.checkSites, {
+        retry: retry + 1,
+        ids: blockedIds,
+      });
+    }
     return null;
   },
 });
