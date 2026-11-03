@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'November 7, 2026';
+const LAST_UPDATED = 'November 8, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -139,6 +139,16 @@ export default function PrivacyPage() {
           what you were looking for; your answer, and anything you type
           about what was missing, is recorded the same way. None of this
           asks for your name or email.
+        </p>
+        <p>
+          If you are a teacher and fill in the form on our For teachers
+          page, we store your email address and school name in our
+          database, with your answers, so we can write to you about class
+          tools. They are not sent to our analytics, they are hidden in
+          session replay, and they are not shared. Our analytics record only
+          the multiple-choice answers. Email hi@billsincongress.com and we
+          will delete yours. The form is for adults; students are never asked
+          to type anything.
         </p>
         <p>
           Your IP address is processed by our hosting provider
@@ -506,6 +516,17 @@ const cookies = [
     lifespan: 'until you close the tab',
   },
   {
+    name: 'bic_school_site, bic_teacher_banner_shown (session storage)',
+    purpose:
+      'Remembers, for this visit, that you arrived from Google Classroom, Canvas, Teams or Schoology, so the “Teaching with this?” line can show, and that it has been shown. Never leaves your browser.',
+    lifespan: 'until you close the tab',
+  },
+  {
+    name: 'bic_teacher_banner_dismissed (local storage)',
+    purpose: 'Remembers that you closed the “Teaching with this?” line, so it stays closed. Holds the value 1 and never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
     name: 'Offline page (service worker cache)',
     purpose:
       'A copy of the site’s one “You’re offline” page, shown if you open the site with no connection. Holds nothing about you and none of the pages you read.',
@@ -516,7 +537,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts (with your profile photo, if you add one), saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), the public bill data, and members’ official accounts.',
+    role: 'Our database and authentication backend. Stores accounts (with your profile photo, if you add one), saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), teachers’ sign-ups from the For teachers page, the public bill data, and members’ official accounts.',
   },
   {
     name: 'Cloudflare',

@@ -136,6 +136,7 @@ it("every page route is a deliberate yes or no, none forgotten", () => {
     "/learn",
     "/privacy",
     "/pro",
+    "/teachers",
     "/terms",
   ]);
   const KNOWN_PRIVATE = new Set([

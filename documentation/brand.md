@@ -432,6 +432,12 @@ Patterns that appear on more than one page:
   line floats below it on a `raised` surface. The limits: 2,000 characters for
   a question or feedback, 120 for a bill search. Fixed-length codes (the
   six-digit sign-in code) are not length limits and keep `maxLength`.
+- **Notice line** (`components/teachers/teacher-banner.tsx`, the "Teaching with
+  this?" line for visits from school sites): a full-width `sunken` band with a
+  `line` rule under it, directly below the header, never over the page. One
+  sentence in 14px `ink-2` led by a few words in `ink`, one small outline button,
+  and a ghost close button. Not a pop-up: it moves nothing out of the way, and
+  closing it is remembered.
 - **Pagination** (`components/bills/crawlable-pagination.tsx`): real links in
   one row, never wrapping. From `sm` up: Previous, the first page, a window of
   three around the current one, the last page, Next. On a phone: arrows only,
