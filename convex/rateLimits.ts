@@ -82,6 +82,14 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: DAY,
   },
+  // Teacher sign-ups, for the whole site at once (key "all"): the form is
+  // public and anonymous. The test hopes for about ten in four weeks, so a day
+  // with more than 50 is a script, and this keeps it from filling the table.
+  teacherSignupsPerDay: {
+    kind: "fixed window",
+    rate: 50,
+    period: DAY,
+  },
 });
 
 // Read-only chat quota status — never consumes a token. The UI calls it after

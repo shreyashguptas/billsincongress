@@ -16,9 +16,11 @@ const linkClass =
 /**
  * The footer carries only what has no other home: who publishes the site and
  * that it is independent, the paid plan (a signed-out reader has no other
- * route to /pro), the legal pages, the source, and the two controls — install
- * and theme. Bills, Learn and About are in the header on every page. Feedback
- * is here only below lg, where the header has no room for its button.
+ * route to /pro), the teachers page (the sign-up test; school visitors also
+ * see a line pointing to it), the legal pages, the source, and the two
+ * controls — install and theme. Bills, Learn and About are in the header on
+ * every page. Feedback is here only below lg, where the header has no room
+ * for its button.
  *
  * Three hubs stay: the two chambers and "became law", the ones readers
  * actually clicked here (House, law and Senate took ~70% of footer hub clicks
@@ -72,6 +74,11 @@ export function Footer() {
               <li>
                 <Link href="/pro" className={linkClass}>
                   Pro
+                </Link>
+              </li>
+              <li>
+                <Link href="/teachers?from=footer" className={linkClass}>
+                  For teachers
                 </Link>
               </li>
               <li>

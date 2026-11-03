@@ -432,6 +432,29 @@ covered by autocapture.
 |---|---|---|---|
 | `learn_state_selected` | User picks their state in the "two rooms" seat pictures | `state`, `representatives` | `app/learn/components/two-rooms.tsx` |
 
+### Teacher sign-up test
+
+Added 2026-11-03. Students reach the site from Google Classroom, Canvas, Teams and
+Schoology, sent by their teachers. Visits that start from one of those sites see a
+"Teaching with this?" line under the header (`components/teachers/teacher-banner.tsx`)
+pointing to `/teachers`, a page whose form asks teachers whether they want class tools
+and would pay $50 a year for them. The funnel is `teacher_banner_shown` →
+`teacher_banner_clicked` → `$pageview` of `/teachers` → `teacher_signup_submitted`. The
+`?from=` on the page's address (`banner`, `footer`, `email`) says how a teacher came.
+
+**The teacher's email and school never reach PostHog.** They are saved in Convex
+(`teacherSignups`) and read only by the owner's scheduled check; the events below carry
+only the multiple-choice answers. Typed text is masked in session replay by PostHog's
+defaults, and the thank-you does not repeat the address.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `teacher_banner_shown` | The "Teaching with this?" line was shown to a visit that came from a school site. Once per visit (session storage `bic_teacher_banner_shown`) | `route` (`home`, `bill`, `list`, `hub`, `learn`, `other`), `school_site` (`google_classroom`, `canvas`, `teams`, `schoology`) | `components/teachers/teacher-banner.tsx` |
+| `teacher_banner_clicked` | The visitor pressed "For teachers" on that line | `route`, `school_site` | same |
+| `teacher_banner_dismissed` | The visitor closed the line. It does not come back on that browser (local storage `bic_teacher_banner_dismissed`) | `route`, `school_site` | same |
+| `teacher_signup_submitted` | The `/teachers` form was saved in Convex | `level`, `students`, `wants` (array), `would_pay` (`yes_myself`, `yes_school`, `no`, `not_sure`), `source` (`banner`, `footer`, `email`, `direct`), `school_site` (or null), `is_new` (false when the same email sent it before) | `components/teachers/teacher-signup-form.tsx` |
+| `teacher_signup_failed` | The form could not be saved | `reason` (our error code: `INVALID_EMAIL`, `SCHOOL_REQUIRED`, `RATE_LIMITED`, `UNKNOWN`) | same |
+
 ### Podcast cross-promotion
 
 The owner's podcast ("The Federalist Papers: Explained") is promoted in three places:
