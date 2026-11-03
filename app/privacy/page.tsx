@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'November 2, 2026';
+const LAST_UPDATED = 'November 3, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -462,6 +462,12 @@ const cookies = [
     purpose:
       'A random ID that enforces the daily AI-chat limit for signed-out visitors. Contains no personal information.',
     lifespan: '60 days',
+  },
+  {
+    name: 'Cloudflare bot check (__cf_bm, cf_clearance)',
+    purpose:
+      'Set by Cloudflare, our host, to tell people apart from automated scrapers. Contains no personal information and is not used for analytics.',
+    lifespan: '30 minutes',
   },
   {
     name: 'PostHog analytics (ph_*)',

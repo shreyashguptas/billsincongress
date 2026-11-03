@@ -15,8 +15,26 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // The site is served only on billsincongress.com (Custom Domains, set in the
+  // dashboard). Without these two lines Wrangler also publishes it at
+  // billsincongress.<account>.workers.dev and at a public preview URL per
+  // version: full copies of the site that skip every zone rule (the firewall,
+  // bot and rate-limit rules all live on the billsincongress.com zone). Both
+  // were on until November 2026; /.env answered 403 on the real domain and 404
+  // from the app on workers.dev.
+  "workers_dev": false,
+  "preview_urls": false,
+  // Written out in full because a deploy applies exactly what is here: a
+  // switch flipped in the dashboard is turned back off by the next deploy.
+  // - logs: every request's console output, kept 7 days.
+  // - issues: Cloudflare groups repeated exceptions and 5xx responses into
+  //   one entry each (open beta, free while in beta).
+  // - traces: a timeline of each request's subrequests (Convex, PostHog).
+  //   Sampled at 10% because traces are billed per span from December 2026.
   "observability": {
-    "enabled": true
+    "logs": { "enabled": true, "invocation_logs": true },
+    "issues": { "enabled": true },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
   },
   // Run the Worker close to Convex (a single-region backend) to cut the latency
   // of the server-side Convex round-trips made on most dynamic pages. mode
