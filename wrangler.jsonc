@@ -32,7 +32,8 @@
   // - traces: a timeline of each request's subrequests (Convex, PostHog).
   //   Sampled at 10% because traces are billed per span from December 2026.
   "observability": {
-    "logs": { "enabled": true, "invocation_logs": true },
+    "enabled": true,
+    "logs":{ "enabled": true, "invocation_logs": true },
     "issues": { "enabled": true },
     "traces": { "enabled": true, "head_sampling_rate": 0.1 }
   },
