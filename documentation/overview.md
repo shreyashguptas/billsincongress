@@ -2901,6 +2901,16 @@ wraps OpenNext's generated `.open-next/worker.js` (see *Edge cache* below); stat
 bound as `ASSETS`. Smart placement is on so the Worker sits near the single-region
 Convex backend; `cpu_ms` is capped at 10,000 as a cost guardrail.
 
+The Worker answers only on `billsincongress.com` and `www` (Custom Domains, set in the
+dashboard). `workers_dev: false` and `preview_urls: false` in `wrangler.jsonc` keep it off
+`*.workers.dev`: until November 2026 the whole site was also public there, outside every zone
+rule below (`/.env` was 403 on the real domain, 404 from the app on workers.dev). Observability
+is written out in full in `wrangler.jsonc` (logs, Issues, traces sampled at 10%) because each
+deploy applies exactly what the file says and turns off any switch flipped only in the dashboard.
+Deploys come only from `deploy.yml`; Cloudflare's own GitHub integration (Workers Builds) is
+deliberately not connected, because it would ship the site without the Convex deploy that must
+go first, or ship it twice.
+
 Page caching uses two KV namespaces — `NEXT_INC_CACHE_KV` (rendered output) and
 `NEXT_TAG_CACHE_KV` (cache-tag mappings) — and OpenNext's memory queue, which revalidates
 through the Worker's own `WORKER_SELF_REFERENCE` service binding. Until October 2026 the queue
@@ -2976,6 +2986,37 @@ rolled in unattended. It is a separate exercise.
 `public/_headers` sets caching only (fingerprinted chunks for a year, `sw.js` and
 `offline.html` `no-cache`), and reaches **only** Cloudflare's static-asset layer —
 anything site-wide must be set in both that file and `next.config.mjs`.
+
+### Zone settings (dashboard only)
+
+These live in the Cloudflare dashboard, not in the repository. Audited and set on 3 Nov 2026
+(Free zone plan, Workers Paid account):
+
+- **Bots.** Bot Fight Mode is on: automated traffic Cloudflare cannot verify, including
+  scrapers posing as Chrome, gets a challenge. It cannot be skipped per path, so anything that
+  needs to reach the site from a script (curl, a monitor) is challenged too; verified search
+  engines and link-preview bots pass. It went on because of a scraper on Alibaba and Tencent
+  Cloud (`47.82.x`, `43.119.x`) making 10,000–17,000 requests an hour, a few hundred per IP.
+  AI Crawler access policies: Search and Agents (assistants fetching a page for a person) are
+  allowed; Training is blocked, enforcing what `app/robots.ts` asks.
+- **Rate limit** (the Free plan's single rule): more than 100 requests in 10 s from one IP, outside
+  `/_next/` and `/cdn-cgi/` and from anything but a verified bot, is blocked for 10 s. The slot
+  previously held a leaked-password rule that could never match (the site has no passwords and
+  the check was off).
+- **Custom rule:** scanner paths (`.php`, `.env`, `.git`, `/wp-` …) are blocked.
+- **SSL/TLS:** Full (strict), always HTTPS, TLS 1.2 minimum, TLS 1.3 with 0-RTT, HTTP/3, ECH,
+  DNSSEC on. HSTS is sent by the app (above), not the zone.
+- **Email:** Email Routing forwards `hi@` (the address on the privacy and terms pages). DMARC
+  is `p=quarantine`, and its aggregate reports go to Cloudflare DMARC Management (Email →
+  DMARC Management); the old `dmarc-reports@` address had no route, so reports bounced. PostHog
+  sends from `mail.billsincongress.com`, which has its own SPF, DKIM and DMARC.
+- **Off on purpose:** Cloudflare Web Analytics (PostHog is the only analytics; the beacon never
+  injected into Worker responses anyway), the Worker "Cache" setting (the Worker caches pages
+  itself; turning it on would cache them twice), Workers Builds.
+- **Alerts:** billing over $1 and over $10, and HTTP DDoS attacks, by email to the account owner.
+- **Early Hints** is on. Cloudflare's own Early Hints fetcher (user agent `nginx-ssl early
+  hints`) logs about 5,000 504s an hour against the Worker; readers get 200s. Expect them in the
+  zone's error counts.
 
 ---
 
