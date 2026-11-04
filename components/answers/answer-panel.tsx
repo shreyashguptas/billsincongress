@@ -7,7 +7,7 @@ import { X, History, Plus, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
 import { Button } from '@/components/ui/button';
-import { layoutModeFor, RAIL_MIN_VIEWPORT_PX, viewportWidth } from '@/lib/ask-panel';
+import { DOCK_MIN_VIEWPORT_PX, layoutModeFor, RAIL_MIN_VIEWPORT_PX, viewportWidth } from '@/lib/ask-panel';
 import { askInHeaderOnly, launcherVisible, panelInert } from '@/lib/ask-panel-state';
 import { surfaceFor } from '@/lib/page-context';
 import { useAnswers, useNoteNavReason } from './answer-provider';
@@ -79,19 +79,37 @@ export function AnswerPanel() {
   // it go `inert`, and Tab stays in the panel and the header (still visible)
   // instead of landing on links the reader cannot see (WCAG 2.4.11). The rail
   // and the dock leave the page in view, so they leave it live.
+  //
+  // In a window under 500px tall the panel starts at the very top, over the
+  // header (app/globals.css): the header goes `inert` too, or Shift+Tab out of
+  // the panel landed on "Sign up" underneath it (844x390). The panel's own
+  // title row has the close button there. Not docked: the dock pushes the
+  // header aside rather than covering it.
   useEffect(() => {
     if (!open) return;
     const sheet = window.matchMedia(`(max-width: ${RAIL_MIN_VIEWPORT_PX - 0.02}px)`);
-    const behind = () =>
+    const short = window.matchMedia(
+      `(max-height: 499.98px) and (max-width: ${DOCK_MIN_VIEWPORT_PX - 0.02}px)`,
+    );
+    const header = () => document.querySelector<HTMLElement>('.ask-shell > header');
+    const page = () =>
       [document.getElementById('main'), document.querySelector<HTMLElement>('.ask-shell > footer')].filter(
         (el): el is HTMLElement => el !== null,
       );
-    const apply = () => behind().forEach((el) => (el.inert = sheet.matches));
+    const apply = () => {
+      page().forEach((el) => (el.inert = sheet.matches));
+      const h = header();
+      if (h) h.inert = short.matches;
+    };
     apply();
     sheet.addEventListener('change', apply);
+    short.addEventListener('change', apply);
     return () => {
       sheet.removeEventListener('change', apply);
-      behind().forEach((el) => (el.inert = false));
+      short.removeEventListener('change', apply);
+      page().forEach((el) => (el.inert = false));
+      const h = header();
+      if (h) h.inert = false;
     };
   }, [open]);
 

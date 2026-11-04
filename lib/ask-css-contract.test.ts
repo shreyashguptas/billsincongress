@@ -298,6 +298,24 @@ it('keeps Ask in the header at every width on a bill page, from the server rende
   assert.ok(nav.includes('<HeaderSearch compact={askHere} />'), 'the header search no longer makes room for Ask on a bill page.');
 });
 
+// 844x390, /bills/131hr119: Ask opened from the header, Shift+Tab out of the
+// panel landed on "Sign up", hidden under the full-height panel (WCAG 2.4.11).
+it('makes the header inert while the panel covers it in a short window', () => {
+  assert.ok(
+    css.includes('@media (max-height: 499.98px) {\n  .ask-panel { top: 0; }'),
+    'the panel no longer starts at the very top in a short window; revisit the inert header.',
+  );
+  assert.ok(
+    panel.includes('`(max-height: 499.98px) and (max-width: ${DOCK_MIN_VIEWPORT_PX - 0.02}px)`'),
+    'answer-panel.tsx no longer watches for a short window where the panel covers the header.',
+  );
+  assert.ok(
+    panel.includes("document.querySelector<HTMLElement>('.ask-shell > header')") && panel.includes('h.inert = short.matches'),
+    'answer-panel.tsx no longer makes the header inert while the panel covers it.',
+  );
+  assert.ok(panel.includes('h.inert = false'), 'answer-panel.tsx leaves the header inert after the panel closes.');
+});
+
 console.log(`\nask-css-contract: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));
