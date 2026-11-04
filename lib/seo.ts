@@ -213,6 +213,184 @@ export function billSummaryText(bill: Bill): string {
 }
 
 /**
+ * A period that does not end a sentence: a single capital ("U.S.", "H.R.",
+ * "John Q."), or a short form CRS summaries use ("Sec.", "No.", "Dept.").
+ */
+const NOT_A_SENTENCE_END =
+  /(?:\b[A-Za-z]|\b(?:Sec|Secs|No|Nos|Mr|Mrs|Ms|Dr|St|Jr|Sr|Inc|Co|Corp|Ltd|Dept|Gov|Gen|Rep|Sen|Res|Con|Stat|Pub|vs|etc|Jan|Feb|Mar|Apr|Aug|Sept|Sep|Oct|Nov|Dec|approx))$/;
+
+/** The text's first sentence, never cut inside an abbreviation. */
+export function firstSentence(text: string): string {
+  const end = /[.?!]["”’)]?(?=\s+["“(]?[A-Z0-9])/g;
+  let m: RegExpExecArray | null;
+  while ((m = end.exec(text))) {
+    const before = text.slice(0, m.index);
+    if (m[0][0] === '.' && NOT_A_SENTENCE_END.test(before)) continue;
+    return text.slice(0, m.index + m[0].length).trim();
+  }
+  return text.trim();
+}
+
+/** Title-opening gerunds and their plain verbs: "Supporting" → "support". */
+const TITLE_GERUNDS: Record<string, string> = {
+  Supporting: 'support',
+  Expressing: 'express',
+  Recognizing: 'recognize',
+  Condemning: 'condemn',
+  Designating: 'designate',
+  Honoring: 'honor',
+  Calling: 'call',
+  Providing: 'provide',
+  Commemorating: 'commemorate',
+  Congratulating: 'congratulate',
+  Celebrating: 'celebrate',
+  Affirming: 'affirm',
+  Reaffirming: 'reaffirm',
+  Urging: 'urge',
+  Encouraging: 'encourage',
+  Acknowledging: 'acknowledge',
+  Authorizing: 'authorize',
+  Directing: 'direct',
+  Requesting: 'request',
+  Electing: 'elect',
+  Amending: 'amend',
+  Establishing: 'establish',
+  Disapproving: 'disapprove',
+  Mourning: 'mourn',
+  Remembering: 'remember',
+  Opposing: 'oppose',
+  Requiring: 'require',
+  Raising: 'raise',
+  Declaring: 'declare',
+  Permitting: 'permit',
+  Approving: 'approve',
+  Commending: 'commend',
+  Demanding: 'demand',
+  Denouncing: 'denounce',
+  Impeaching: 'impeach',
+  Censuring: 'censure',
+};
+
+/** Longer than this, the lead is cut at a word; the full summary follows it. */
+const LEAD_MAX = 320;
+
+/**
+ * Where the measure stands, as the second half of a sentence that starts "It".
+ * Same words as the status panel, on the measure's own road.
+ */
+function standsPhrase(bill: Bill): string {
+  const stage =
+    typeof bill.progress_stage === 'string' ? parseInt(bill.progress_stage, 10) : bill.progress_stage;
+  if (stagePath(bill.bill_type) !== 'law' && isStageOnPath(stage, bill.bill_type)) {
+    const label = measureStageLabel(stage, bill.bill_type);
+    if (label.startsWith('Agreed to')) return `was ${lowerFirst(label)}`;
+  }
+  switch (stage) {
+    case 20:
+      return 'has been introduced';
+    case 40:
+      return 'is in committee';
+    case 50:
+      return 'is out of committee';
+    case 60:
+      return 'has passed one chamber';
+    case 80:
+      return 'has passed both chambers';
+    case 85:
+      return 'was vetoed';
+    case 90:
+      return 'is on the President’s desk';
+    case 95:
+      return 'was signed by the President';
+    case 100:
+      return 'became law';
+    default:
+      return `is ${lowerFirst(billStatusPhrase(bill))}`;
+  }
+}
+
+/**
+ * The bill page's "In short" lead: the answer to "what does it do?" in one
+ * plain sentence, above the status.
+ *
+ * With a CRS summary it is that summary's first sentence, word for word (the
+ * page says so under it): the government wrote it, so it is the one sentence on
+ * the page that describes the bill's content with authority. Without one, the
+ * sentence is built from fields the record holds and claims nothing more: a
+ * title that states a purpose ("To remove restrictions from…") becomes "This
+ * bill sets out to remove restrictions from…", and a name ("Social Security
+ * Guarantee Act of 2025") says plainly that there is no summary yet, because a
+ * name is not a description.
+ */
+export type BillLead = {
+  text: string;
+  from: 'summary' | 'title' | 'status';
+  /**
+   * With a summary: what the page prints under it, so no sentence is read
+   * twice. The summary after the lead sentence when the lead is that sentence
+   * whole (`split`); the whole summary when the lead had to be cut short.
+   * Empty when the lead is all the summary says. '' without a summary.
+   */
+  rest: string;
+  split: boolean;
+};
+
+/** A bold opening paragraph this short with no closing stop is a heading. */
+const SUMMARY_HEADING_MAX = 80;
+
+export function billLead(bill: Bill): BillLead {
+  const summary = billSummaryText(bill);
+  if (summary) {
+    // CRS summaries can open with a short title in bold, in a paragraph of
+    // its own ("<p><strong>Clergy Act</strong></p>"). billSummaryText drops it
+    // when it is the bill's own title; any other one names the bill without
+    // saying what it does, so the lead starts after it.
+    let body = summary;
+    const heading = /^\s*<p>\s*<(strong|b)>([^<]+)<\/\1>\s*<\/p>/i.exec(bill.latest_summary ?? '');
+    const head = heading ? stripHtml(heading[2]) : '';
+    if (
+      head &&
+      head.length <= SUMMARY_HEADING_MAX &&
+      !/[.?!:;]["”’)]?$/.test(head) &&
+      body.startsWith(head)
+    ) {
+      body = body.slice(head.length).trim() || summary;
+    }
+    const sentence = firstSentence(body).replace(/\s+/g, ' ');
+    const text = truncateAtWord(sentence, LEAD_MAX);
+    if (text !== sentence) return { text, from: 'summary', rest: summary, split: false };
+    const end = firstSentence(body).length;
+    return { text, from: 'summary', rest: body.slice(end).trim(), split: true };
+  }
+  const noun = billNoun(bill.bill_type);
+  const title = (bill.title ?? '').trim().replace(/,? and for other purposes\.?$/i, '.');
+  const stands = standsPhrase(bill);
+  const purpose = /^(?:an? (?:bill|joint resolution|concurrent resolution|resolution) )?to (.+)$/i.exec(title);
+  // A resolution's title is a gerund ("Supporting the designation of…"),
+  // which names its purpose as plainly as "To…" does. Only verbs listed here.
+  const gerund = /^([A-Z][a-z]+ing) (.+)$/.exec(title);
+  const aim = purpose
+    ? purpose[1]
+    : gerund && TITLE_GERUNDS[gerund[1]]
+      ? `${TITLE_GERUNDS[gerund[1]]} ${gerund[2]}`
+      : null;
+  if (aim) {
+    return {
+      text: `This ${noun} sets out to ${aim.replace(/[.;:\s]+$/, '')}. It ${stands}.`,
+      from: 'title',
+      rest: '',
+      split: false,
+    };
+  }
+  return {
+    text: `This ${noun} ${stands}. Congress has not published a summary of what it would do yet.`,
+    from: 'status',
+    rest: '',
+    split: false,
+  };
+}
+
+/**
  * The longest <title> we publish. Bing Webmaster Tools flagged 357 of our pages
  * "Title too long" (Oct 2026): bill titles ran 90–140 characters, topic pages
  * up to 106. Bing's guidance is 65, and Google cuts a result's title at about

@@ -123,3 +123,57 @@ export function StageTrack({
     </div>
   );
 }
+
+/**
+ * The same track stood on its end, for a narrow column (the bill page's status
+ * card from `lg` up, where seven step names cannot sit side by side). One row
+ * per step: a segment that fills exactly as `StageTrack` fills, then the step's
+ * name, the current one in `ink` and marked "Now", the rest `ink-3` when not
+ * reached. A list, so a screen reader hears every step and which one it is on.
+ */
+export function StageSteps({
+  stage,
+  billType,
+  className,
+}: {
+  stage: number;
+  billType?: string | null;
+  className?: string;
+}) {
+  const { step, total, isVetoed } = getStageStep(stage, billType);
+  const fill = stageFill(stage, billType);
+  const stepLabels = PATH_LABELS[stagePath(billType)];
+  return (
+    <ol
+      className={cn('grid gap-1', className)}
+      aria-label={
+        isVetoed
+          ? 'Vetoed — reached the President and did not become law'
+          : step
+            ? `Stage ${step} of ${total}`
+            : 'Stage unknown'
+      }
+    >
+      {stepLabels.slice(0, total).map((label, i) => {
+        const reached = i < step;
+        const current = i === step - 1;
+        return (
+          <li key={label} className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-3">
+            <span aria-hidden="true" className={cn('h-6 rounded-xs', reached ? fill : 'bg-sunken')} />
+            <span
+              className={cn(
+                'text-sm leading-5',
+                current ? 'font-medium text-ink' : reached ? 'text-ink-2' : 'text-ink-3',
+              )}
+            >
+              {label}
+            </span>
+            {current && (
+              <span className="meta">{isVetoed ? 'Stopped' : 'Now'}</span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}

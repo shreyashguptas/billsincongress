@@ -294,6 +294,7 @@ These live in `components/brand/` and compose the primitives above.
 | `Logo`, `ChamberMark` | `components/brand/logo.tsx` | See Logo, below |
 | `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `measureStageLabel()` in `lib/utils/bill-stages.ts` ("Agreed to by the House" for an adopted House resolution). Never fill the whole pill with the stage colour |
 | `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
+| `StageSteps` | `components/brand/status.tsx` | The same track stood on its end for a narrow column (the bill page's status card from `lg`): one row per step, an 8px segment filled as `StageTrack` fills, the step's name, the current one in `ink` and marked "Now" in `.meta` |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right. The usual action, `AskAbout`, carries `.touch-hit` (a caption that taps like a 44px button) |
 | `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count. Each link in it gets the `.touch-hit` target, 24px under a mouse and 44px on touch (`.touch-hit-links`) |
@@ -391,24 +392,50 @@ Patterns that appear on more than one page:
   above it in `ink` at `text-meta`, tabular ("Became law" / "Sep 25, 2026"), where other lists
   show the plain introduction date. A row never shows a date other than the one
   its label names; an undated bill shows none.
-- **Status panel** (bill page): `rounded-lg`, raised, the stage in
-  `display-md` with its glyph. Opposite it, the journey's length as a figure
-  (Newsreader at 72px, 56 on phones, "days" in `title` beside it) with what it
-  measures under it: "from introduction to law", "since it was introduced".
-  Under both, the **journey** when the bill has spent time in two stages or
-  more, otherwise a `StageTrack` with labels. For a resolution, one `text-sm`
-  `ink-2` sentence under that track says why the road is short.
+- **Bill page order**: the page tells the story in the order a reader asks it.
+  The title, its byline (introduced, sponsor), then **In short** (its eyebrow
+  is a real h2, so heading navigation lands on it): one sentence in Newsreader
+  at 26/38 (22/32 on phones), `max-w-measure`, under a `line` rule. It is the
+  first sentence of the CRS summary, word for word, or, with no summary, a
+  sentence built from the title and the stage ("This bill sets out to…. It
+  became law.", `billLead` in `lib/seo.ts`). A `.meta` line under it says where
+  it came from. Then the status card, then the actions (PDF, Save, alerts).
+  Below the hero, one hairline-ruled section each, each with an h2: the summary
+  ("What this law does" / "What this bill would do"), which starts after the
+  lead sentence under the eyebrow "More from the summary", so no sentence is
+  printed twice, with the "What does this bill actually do?" starter pill
+  beside it (in the 360px column from `lg`, under it on a phone); the journey,
+  under a headline that states it ("From introduction to law in 575 days");
+  the sponsor; then cosponsors, peers, "Keep reading" and the ask band.
+- **Status panel** (bill page, "Where it stands"): `rounded-lg`, raised, the
+  stage in `display-sm` with its glyph and "Stage n of N" in `text-sm` `ink-2`. Under it the
+  journey's length (Newsreader at 44px, "days" beside it) with what it measures:
+  "from introduction to law", "since it was introduced". Then the road with its
+  step names: a `StageTrack` across the card on phones and tablets, `StageSteps`
+  in the 360px right-hand column of the hero from `lg`, beside the title and
+  lead. For a resolution, one `text-sm` `ink-2` sentence says why the road is
+  short. Then **What happens next** under a hairline: one `text-ui` `ink`
+  sentence that is a rule of the process, never a forecast ("Next on the road:
+  the full House votes on it.", "Nothing more: it is law."; `billNextStep` in
+  `lib/bill-next-step.ts`), and, for a measure that can still move, a `.meta`
+  line with the days left in the Congress. It ends with an underlined link down
+  to the journey. The detailed **journey** sits in its own section below the
+  summary, in a `rounded-lg` raised panel.
 - **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
   scale, a segment per stage in its stage colour, as wide as the days the bill
   stayed there (never under 6px), ending in a dot of the final stage's colour
   when the road is over (law, signature, veto, adoption). Under it, 13px `ink-2` month
-  ticks, only the two ends on a phone. Then one column per stage (stacked on a
-  phone, two up on a tablet): a 3px rule in the stage colour, the days in
+  ticks, only the two ends on a phone. Then one column per stage (two up on a
+  phone and a tablet): a 3px rule in the stage colour, the days in
   `display-md`, the stage named the reader's way ("Passed the House"), and its
   moments, each a 14px `ink` date (`font-medium`, tabular) over a 14px sentence in `ink-2`. A recorded vote adds a
   140px bar: the yes share in ink, the rest `sunken` with a `line-strong` edge,
   and the tally in tabular figures. A vote is neither a stage, a party nor a topic, so it
-  takes no hue. A bill still on its way ends the panel with the **Congress
+  takes no hue. On a phone the columns start folded to their phases (rule,
+  days in `display-sm`, name) with a full-width outline button, "Show every
+  step (n)", that opens the dated moments (`aria-expanded`, `aria-controls`);
+  arriving by the status card's "Every step, with dates" link opens them too.
+  From `sm` up they are always open. A bill still on its way ends the panel with the **Congress
   clock**: the days left in the Congress in `display-md`, why that matters in
   one sentence, and the two-year Congress as a bar, the time gone in `sunken`,
   the time left hatched with an ink edge, an ink tick at the introduction.

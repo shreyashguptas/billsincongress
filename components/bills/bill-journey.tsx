@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn, formatCount } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { StageTrack, stageFill } from '@/components/brand/status';
@@ -19,13 +21,18 @@ import { formatCongressOrdinal } from '@/lib/congress';
 import { BillStages } from '@/lib/utils/bill-stages';
 
 /**
- * The lower half of the bill page's status panel: how the bill got where it is
+ * The bill page's "How it got here" section: how the bill got where it is
  * (documentation/brand.md, "Journey"). A bar drawn to scale, one segment per
  * stage as long as the bill stayed there; under it, each stage's length in
  * days and what happened in it, votes included. A bill still on its way also
  * gets the Congress clock: how long is left before it expires.
  *
- * The panel's top half (the stage, in words, with its glyph) is the caller's.
+ * The stage in words, with its glyph, is the caller's: it sits in the "Where it
+ * stands" card at the top of the page, and this panel below the summary.
+ *
+ * On a phone the stages start collapsed to their phases (the rule, the days,
+ * the name) and "Show every step (n)" opens the dated moments; from `sm` up
+ * they are always open.
  */
 export function BillJourneyPanel({
   billId,
@@ -52,6 +59,22 @@ export function BillJourneyPanel({
   const { step, total } = getStageStep(journey.finalStage, billType);
   const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
   const roadNote = stagePathNote(billType);
+  const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const eventCount = view.chapters.reduce((sum, c) => sum + c.events.length, 0);
+  // Nothing to fold when no stage has a dated moment under it.
+  const collapsed = !expanded && eventCount > 0;
+
+  // "Every step, with dates" in the status card links here: arriving by it
+  // opens the steps, so the link does not land on a folded list.
+  useEffect(() => {
+    const open = () => {
+      if (window.location.hash === '#bill-journey') setExpanded(true);
+    };
+    open();
+    window.addEventListener('hashchange', open);
+    return () => window.removeEventListener('hashchange', open);
+  }, []);
 
   useEffect(() => {
     analytics.billJourneyViewed({
@@ -84,14 +107,51 @@ export function BillJourneyPanel({
       )}
 
       {drawn && (
-        <ol
-          className="mt-8 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-[repeat(var(--chapters),minmax(0,1fr))]"
-          style={{ ['--chapters' as string]: view.chapters.length }}
-        >
-          {view.chapters.map((chapter) => (
-            <ChapterColumn key={`${chapter.stage}-${chapter.start}`} chapter={chapter} />
-          ))}
-        </ol>
+        <>
+          <ol
+            id={listId}
+            className={cn(
+              'mt-8 grid gap-x-6 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-8 lg:grid-cols-[repeat(var(--chapters),minmax(0,1fr))]',
+              // Collapsed on a phone: the phases two up, each a rule, its days and its name.
+              collapsed ? 'grid-cols-2 gap-y-6' : 'gap-y-8',
+            )}
+            style={{ ['--chapters' as string]: view.chapters.length }}
+          >
+            {view.chapters.map((chapter) => (
+              <ChapterColumn
+                key={`${chapter.stage}-${chapter.start}`}
+                chapter={chapter}
+                collapsed={collapsed}
+              />
+            ))}
+          </ol>
+          {eventCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              aria-expanded={expanded}
+              aria-controls={listId}
+              onClick={() => {
+                if (!expanded) {
+                  analytics.billJourneyExpanded({
+                    bill_id: billId,
+                    chapters: view.chapters.length,
+                    events: eventCount,
+                  });
+                }
+                setExpanded(!expanded);
+              }}
+              className="mt-6 w-full sm:hidden"
+            >
+              {expanded ? 'Show the phases only' : `Show every step (${formatCount(eventCount)})`}
+              <ChevronDown
+                className={cn('h-4 w-4 transition-transform motion-reduce:transition-none', expanded && 'rotate-180')}
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+            </Button>
+          )}
+        </>
       )}
 
       {showClock && (
@@ -169,13 +229,18 @@ function JourneyBar({ view, finalStage }: { view: ReturnType<typeof journeyView>
   );
 }
 
-function ChapterColumn({ chapter }: { chapter: Chapter }) {
+function ChapterColumn({ chapter, collapsed }: { chapter: Chapter; collapsed: boolean }) {
   const unit = chapter.days === 1 ? 'day' : 'days';
   return (
     <li className="min-w-0">
       <span aria-hidden="true" className={cn('block h-[3px] rounded-xs', stageFill(chapter.stage))} />
-      <p className="mt-4 flex items-baseline gap-2">
-        <span className="font-serif text-display-md text-ink tabular">
+      <p className={cn('flex items-baseline gap-2 sm:mt-4', collapsed ? 'mt-3' : 'mt-4')}>
+        <span
+          className={cn(
+            'font-serif text-ink tabular sm:text-display-md',
+            collapsed ? 'text-display-sm' : 'text-display-md',
+          )}
+        >
           {chapter.days === 0 ? 'Today' : formatCount(chapter.days)}
         </span>
         {chapter.days > 0 && (
@@ -184,7 +249,7 @@ function ChapterColumn({ chapter }: { chapter: Chapter }) {
       </p>
       <p className="mt-0.5 text-ui font-medium leading-snug text-ink">{chapter.name}</p>
       {chapter.events.length > 0 && (
-        <ul className="mt-4 space-y-3.5">
+        <ul className={cn('mt-4 space-y-3.5 sm:block', collapsed && 'hidden')}>
           {chapter.events.map((e, i) => (
             <EventLine key={`${e.kind}-${e.date}-${i}`} event={e} />
           ))}

@@ -9,7 +9,7 @@ Live at **[billsincongress.com](https://billsincongress.com)**
 ## What it does
 
 - **Browse every bill** from the 117th Congress onward (2021 to today), filtered by status, sponsor, state, topic and date.
-- **Read one bill on one page**: where it stands, how it got there, the official summary, who sponsors and cosponsors it, and how it compares with every other bill on the same topic.
+- **Read one bill on one page**: what it does in one sentence, where it stands, the official summary, how it got there, who sponsors and cosponsors it, and how it compares with every other bill on the same topic.
 - **Look up a member**: their newest bills and their official social media accounts.
 - **Ask questions** about bills in plain English. Answers come from the site's own records, with checked sources.
 - **Follow bills** on the optional Pro plan ($5 a month) and get an email when one moves.

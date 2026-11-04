@@ -660,8 +660,11 @@ entirely unless backed by at least 100 past bills.
 
 ### The bill journey and its peers
 
-The bill page's status panel draws the bill's journey, and below the body sits the
-"Among its peers" dot field. The page makes **one** Convex call, `bills.getPage`, which
+The bill page draws the bill's journey in its own section under the summary (the
+status card beside the title shows only the stage, the days, the road and a "What happens
+next" line, a rule of the process from `lib/bill-next-step.ts` with the days left in the
+Congress), and further down
+sits the "Among its peers" dot field. The page makes **one** Convex call, `bills.getPage`, which
 returns the bill (exactly what `bills.getById` returns, for the share card) together with
 its journey and peers, reading the bill row once. They used to be two calls, `getById` and
 `getJourney`, each reading the bill, and the second read every topic row of the Congress to

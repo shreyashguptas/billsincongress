@@ -25,6 +25,8 @@ import {
   DESCRIPTION_MIN,
   billStatusPhrase,
   billSummaryText,
+  billLead,
+  firstSentence,
 } from "./seo";
 import type { Bill } from "./types/bill";
 import { POLICY_AREAS } from "./constants/filters";
@@ -448,6 +450,69 @@ it("bill descriptions are never shorter than DESCRIPTION_MIN", () => {
     const d = billSeoDescription(bill);
     assert.ok(d.length >= DESCRIPTION_MIN && d.length <= 160, `${d.length} chars: ${d}`);
   }
+});
+
+// The "In short" lead (bill page): what the bill does, before its status.
+
+it("lead is the CRS summary's first sentence, without the title echo", () => {
+  const bill = bareBill({
+    title: "To remove restrictions from a parcel of land in Paducah, Kentucky.",
+    latest_summary:
+      "<p><strong>To remove restrictions from a parcel of land in Paducah, Kentucky.</strong></p><p>This bill directs the Department of the Interior to remove all deed restrictions from approximately 3.62 acres in Paducah, Kentucky. The restrictions include easements.</p>",
+  });
+  const lead = billLead(bill);
+  assert.equal(lead.from, "summary");
+  assert.equal(
+    lead.text,
+    "This bill directs the Department of the Interior to remove all deed restrictions from approximately 3.62 acres in Paducah, Kentucky.",
+  );
+});
+
+it("first sentence is never cut inside U.S., H.R. or Sec.", () => {
+  assert.equal(
+    firstSentence("This bill amends the U.S. Code and H.R. 1 under Sec. 3 of the Act. It also funds it."),
+    "This bill amends the U.S. Code and H.R. 1 under Sec. 3 of the Act.",
+  );
+});
+
+it("a purpose title without a summary becomes a plain sentence with the stage", () => {
+  const lead = billLead(
+    bareBill({
+      title: "To remove restrictions from a parcel of land in Paducah, Kentucky.",
+      progress_stage: 100,
+    }),
+  );
+  assert.equal(lead.from, "title");
+  assert.equal(
+    lead.text,
+    "This bill sets out to remove restrictions from a parcel of land in Paducah, Kentucky. It became law.",
+  );
+});
+
+it("a named bill without a summary says there is none, rather than guessing", () => {
+  const lead = billLead(bareBill());
+  assert.match(lead.text, /^This bill is in committee\. Congress has not published a summary/);
+});
+
+it("a resolution's lead says agreed to, not passed", () => {
+  const lead = billLead(
+    bareBill({ bill_type: "hres", bill_type_label: "H.Res.", progress_stage: 60, title: "Supporting a day." }),
+  );
+  assert.match(lead.text, /It was agreed to by the House\./);
+});
+
+it("a resolution's gerund title reads as its purpose", () => {
+  const lead = billLead(
+    bareBill({
+      bill_type: "hres",
+      bill_type_label: "H.Res.",
+      title: 'Supporting the designation of October 23, 2026, as "National Marine Sanctuary Day".',
+    }),
+  );
+  assert.equal(
+    lead.text,
+    'This resolution sets out to support the designation of October 23, 2026, as "National Marine Sanctuary Day". It is in committee.',
+  );
 });
 
 if (failures.length > 0) {

@@ -86,3 +86,36 @@ export function AskAboutBill({
     </div>
   );
 }
+
+/**
+ * The one starter that answers the reader's first question, set beside the
+ * summary it is about (brand.md, "Bill page order") rather than only in the
+ * closing band. The same question as the band's first starter; its own
+ * `surface` ("bill_summary") so the two placements can be compared.
+ */
+export function AskSummaryChip({ noun, className }: { noun: string; className?: string }) {
+  const { ask, busy } = useAnswers();
+  const q = `What does this ${noun} actually do?`;
+  return (
+    <div className={className}>
+      <p className="label-eyebrow">Still unclear?</p>
+      <p className="mt-2 max-w-[36ch] text-sm leading-relaxed text-ink-2">
+        Ask in your own words. Every answer cites the records it came from.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={busy}
+        onClick={() => {
+          analytics.answerStarterClicked({ surface: 'bill_summary', starter_text: q });
+          void ask(q, { source: 'starter' });
+        }}
+        // A starter pill (brand.md, "Ask composer"), as in the closing band.
+        className="mt-4 h-auto min-h-11 max-w-full justify-start gap-2.5 whitespace-normal rounded-full px-5 py-2.5 text-left text-ui font-normal leading-snug text-ink-2 hover:bg-paper hover:text-ink touchable:h-auto"
+      >
+        <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+        {q}
+      </Button>
+    </div>
+  );
+}

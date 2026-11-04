@@ -587,6 +587,14 @@ export const analytics = {
   }) => capture('bill_journey_viewed', props),
 
   /**
+   * The reader tapped "Show every step" under a bill's journey on a phone,
+   * where the stages start collapsed to their phases (from `sm` up every step
+   * is always shown, so this never fires there). Once per opening.
+   */
+  billJourneyExpanded: (props: { bill_id: string; chapters: number; events: number }) =>
+    capture('bill_journey_expanded', props),
+
+  /**
    * The reader scrolled to the "Among its peers" dot field on a bill page
    * (30% of it on screen). Once per bill view.
    */
