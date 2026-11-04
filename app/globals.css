@@ -235,6 +235,33 @@
     }
   }
 
+  /* The home stat strip's figures (components/dashboard/home/stat-strip.tsx):
+     40px on a phone and 56px from sm, or smaller when the narrowest cell needs
+     it. At a 24px browser font a 390px phone's cell is 122px, and "12,946" at
+     60px ran over the column rule and pushed the page sideways. Five digits
+     and a comma are 2.97em, so a third of the cell always holds them.
+     --cell is the narrowest cell's content: its share of the strip less its
+     padding (pl-4 pr-4, then pl-8 pr-8 from sm). Every cell uses the same
+     size, so the four figures match. */
+  .stat-strip {
+    container-type: inline-size;
+  }
+  .stat-figure {
+    --cell: calc(50cqi - 2rem);
+    font-size: min(2.5rem, calc(var(--cell) * 0.33));
+  }
+  @media (min-width: 640px) {
+    .stat-figure {
+      --cell: calc(50cqi - 4rem);
+      font-size: min(3.5rem, calc(var(--cell) * 0.33));
+    }
+  }
+  @media (min-width: 1024px) {
+    .stat-figure {
+      --cell: calc(25cqi - 4rem);
+    }
+  }
+
   /* Content width — 1200px of content inside the gutters. */
   .container-editorial {
     @apply mx-auto w-full max-w-[1264px] px-4 sm:px-6 lg:px-8;

@@ -216,7 +216,10 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   targets do not overlap. A word inside a sentence (a link, a `Term`) is the exception, as
   in WCAG: it answers over its own line, because a 44px box on a 26px line covers the words
   above and below it. A row of facts must also fit the screen at a 24px font: a value that
-  cannot shrink (`min-w-0`) or wrap pushes the page sideways. See "Input, not width" for
+  cannot shrink (`min-w-0`) or wrap pushes the page sideways. A figure set large in a narrow
+  cell is held to it: the home stat strip's numbers are 40px (56px from `sm`) or a third of
+  the narrowest cell, whichever is smaller (`.stat-figure`, `app/globals.css`), so the four
+  stay one size and never cross the column rule. See "Input, not width" for
   which primitives carry it.
   Never stack an arbitrary media query under it (`touchable:[@media(min-width:18em)]:`):
   Tailwind 3 compiles that to CSS the dev server cannot read, and the whole stylesheet drops.
