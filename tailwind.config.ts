@@ -218,15 +218,31 @@ module.exports = {
     // does not fit. Same widths as the screens, so with the panel closed nothing
     // changes.
     plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
-      // xs / sm size the phone logo to the room it actually has (Logo `fit`).
       // In em, which a container query reads as the browser's default font
-      // size: 440px, 480px… at the default, and proportionally wider when the
-      // reader has asked for larger text, so the header drops to its compact
-      // form before a larger wordmark and nav run into each other. Ask sits in
-      // the phone header beside the search, so the wordmark needs a 440px
-      // header before it fits beside "Sign up" (brand.md, "Header").
-      addVariant('header-xs', '@container site-header (min-width: 27.5em)');
-      addVariant('header-sm', '@container site-header (min-width: 30em)');
+      // size: the px in these comments are at the default, and the steps come
+      // proportionally sooner when the reader has asked for larger text. Below
+      // md the phone row gives way in this order as it narrows (brand.md,
+      // "Header"); each width is what the row needs at that step, measured,
+      // plus room for the logo's 44px tap box.
+      //   header-sm (640px)          "Sign in", the 21px wordmark, wider gaps —
+      //                              the header's own sm, like md / lg / xl. A
+      //                              window `sm:` showed them in a 512px header
+      //                              at a 20px font and ran the logo under Ask.
+      //   header-wordmark-lg (480px) the 18px wordmark
+      //   header-wordmark (440px)    the 16px wordmark; the mark alone below
+      //   header-ask-glyph (<312px)  Ask without its word (also 768–839px,
+      //                              where the four sections take the room)
+      //   header-mark (296px)        the mark; below it the menu carries it
+      //   header-search (256px)      the search icon; below it, the menu's Bills
+      addVariant('header-search', '@container site-header (min-width: 16em)');
+      addVariant('header-mark', '@container site-header (min-width: 18.5em)');
+      addVariant(
+        'header-ask-glyph',
+        '@container site-header ((max-width: 19.49em) or ((min-width: 48em) and (max-width: 52.49em)))',
+      );
+      addVariant('header-wordmark', '@container site-header (min-width: 27.5em)');
+      addVariant('header-wordmark-lg', '@container site-header (min-width: 30em)');
+      addVariant('header-sm', '@container site-header (min-width: 40em)');
       addVariant('header-md', '@container site-header (min-width: 48em)');
       addVariant('header-lg', '@container site-header (min-width: 64em)');
       addVariant('header-xl', '@container site-header (min-width: 80em)');

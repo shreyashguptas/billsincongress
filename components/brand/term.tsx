@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
@@ -25,31 +25,65 @@ import { getTerm, termHref, termify, type TermId } from '@/lib/glossary';
  * full stop after it fell to the next line on its own ("committee / . Here").
  * The span flows like the text it is part of; Enter and Space open it as a
  * button would. It must not sit inside a link or another control.
+ *
+ * Its tap area is its own line (`.term-hit`, app/globals.css): a word in a
+ * sentence is an inline target, and the 44px `.touch-hit` box it once had, on
+ * a 26px line, reached into the next line, so a tap on "119th Congress" in the
+ * home hero opened "Sponsor". `standalone` is for a Term that is the whole of
+ * its label and the only target on its line (a stage's name, the bill number):
+ * that one grows to 44px tall on touch (`.term-hit-solo`).
+ *
+ * The popover is portaled to the end of <body>, so on its own the keyboard
+ * would leave it for the browser chrome (Tab) or skip the word (Shift+Tab).
+ * Tab from its last link closes it and moves on to whatever follows the word;
+ * Shift+Tab from its top closes it and returns to the word.
  */
 export function Term({
   id,
   children,
   className,
+  standalone = false,
 }: {
   id: TermId;
   /** The words as they read in the sentence. Defaults to the dictionary word. */
   children?: ReactNode;
   className?: string;
+  /** The whole of its label, alone on its line: a 44px target on touch. */
+  standalone?: boolean;
 }) {
   const entry = getTerm(id);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const titleId = useId();
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  // Where Tab was headed when it closed the popover; read as it closes.
+  const leaveTo = useRef<HTMLElement | null>(null);
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
     if (next) analytics.termOpened({ term: id, path: pathname ?? '' });
   };
 
+  const onContentKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const trigger = triggerRef.current;
+    if (e.key !== 'Tab' || !trigger) return;
+    const content = e.currentTarget;
+    const inside = tabbables(content);
+    const at = document.activeElement;
+    const leaving = e.shiftKey
+      ? at === content || at === inside[0]
+      : inside.length === 0 || at === inside[inside.length - 1];
+    if (!leaving) return;
+    e.preventDefault();
+    leaveTo.current = e.shiftKey ? trigger : tabbableAfter(trigger, content);
+    setOpen(false);
+  };
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <span
+          ref={triggerRef}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
@@ -60,7 +94,8 @@ export function Term({
           }}
           className={cn(
             // Focus scrolls it clear of the sticky header, so its popover has an anchor.
-            'touch-hit focus-ring cursor-pointer scroll-my-24 rounded-xs',
+            standalone ? 'term-hit-solo' : 'term-hit',
+            'focus-ring cursor-pointer scroll-my-24 rounded-xs',
             'underline decoration-ink-3 decoration-dotted decoration-[1.5px] underline-offset-[0.2em]',
             'transition-colors hover:decoration-ink data-[state=open]:decoration-ink data-[state=open]:decoration-solid',
             className,
@@ -71,6 +106,16 @@ export function Term({
       </PopoverTrigger>
       <PopoverContent
         aria-labelledby={titleId}
+        onKeyDown={onContentKeyDown}
+        // Radix returns focus to the word as it closes; a Tab out goes on instead.
+        onCloseAutoFocus={(e) => {
+          const next = leaveTo.current;
+          leaveTo.current = null;
+          if (next && next !== triggerRef.current) {
+            e.preventDefault();
+            next.focus();
+          }
+        }}
         // Below the word where there is room, above it otherwise (Radix flips).
         side="bottom"
         className="w-[min(320px,calc(100vw-24px))] p-0 font-sans normal-case tracking-normal"
@@ -97,6 +142,33 @@ export function Term({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+const TABBABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), ' +
+  'textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/** What Tab can reach inside `root`, in document order. */
+function tabbables(root: ParentNode): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(TABBABLE)).filter(
+    (el) =>
+      el.tabIndex >= 0 &&
+      el.getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== 'hidden' &&
+      !el.closest('[inert]'),
+  );
+}
+
+/** The first thing Tab would reach after `trigger`, outside the popover. */
+function tabbableAfter(trigger: HTMLElement, popover: HTMLElement): HTMLElement | null {
+  return (
+    tabbables(document).find(
+      (el) =>
+        !popover.contains(el) &&
+        !trigger.contains(el) &&
+        Boolean(trigger.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ) ?? null
   );
 }
 

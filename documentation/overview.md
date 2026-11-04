@@ -1107,12 +1107,18 @@ is the reason `lib/ask-panel.test.ts` sweeps every docked viewport against every
 width rather than spot-checking a few.
 
 **The header is the one place that does measure itself.** It is a CSS container
-(`site-header`), and its md / lg / xl are `header-md:` / `header-lg:` / `header-xl:`
+(`site-header`), and its sm / md / lg / xl are `header-sm:` / `header-md:` / `header-lg:` / `header-xl:`
 (`tailwind.config.ts`), container queries at the same widths as the screens. A floor of 1024px
 protects `lg:` but not `xl:`: on a 1440px window with the panel docked the header was 1024px
 wide while `xl:` still drew the 288px search field, and "Sign up" ended up under the panel.
 Measured on the header, a docked 1440px window gets the same header as a 1024px one. With the
 panel closed the header is the window's width, so nothing changes.
+They are in em, so a larger browser font reaches the compact layouts sooner, and the header row
+uses no window breakpoint for a width (`lib/ask-css-contract.test.ts` checks): at a 20px font a
+640px window's `sm:` showed "Sign in" and the 21px wordmark in what is a 512px header at the
+default size, and ran the logo under Ask. Below `header-sm` the phone row steps down through
+`header-wordmark-lg`, `header-wordmark`, `header-ask-glyph`, `header-mark` and `header-search`
+(brand.md, "Header").
 
 **The mode is never computed during render.** The panel lives in the root layout, so reading
 the viewport while rendering would be a hydration mismatch on every page of the site. CSS owns
@@ -1817,7 +1823,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `scripts/check-type-floor.ts` | `pnpm test` | No text size under 13px (`text-[0.7rem]`, `fontSize: 10`) and no font size or line height in px (`text-[13px]`, `leading-[28px]`) in `app/`, `components/` or `lib/`, so every size follows the reader's browser font setting. The share images in `lib/og/` may use px but not go under the floor. The one sanctioned exception is `.label-eyebrow`'s 0.75rem (12px) capitals, defined once in `app/globals.css` (brand.md, "Type floor") |
-| `pnpm check:touch [url] [/paths] [--width=820] [--shots=dir]` | Manual, needs a running site and Playwright | Every tap target at 390px with touch on is at least 44px either way, measured by hit-testing outwards from its centre (`.touch-hit` counts; a neighbour's target covering it does not). Exempt: links in running text, and charts marked `data-touch-exempt`. `--shots` saves each page with every target outlined. `components/brand/touch-targets.test.ts`, in `pnpm test`, keeps the pieces it relies on in place (`.touch-hit`'s 24px under a mouse and 44px on touch, and the shared links and toggles that carry it). See "Input, not width" in `documentation/brand.md` |
+| `pnpm check:touch [url] [/paths] [--width=820] [--shots=dir]` | Manual, needs a running site and Playwright | Every tap target at 390px with touch on is at least 44px either way, measured by hit-testing outwards from its centre (`.touch-hit` counts; a neighbour's target covering it does not), and no target's centre lands on a different target (that fails even when exempt, and names the one on top). Exempt from the size: links and dotted Terms in running text, and charts marked `data-touch-exempt`. `--shots` saves each page with every target outlined. `components/brand/touch-targets.test.ts`, in `pnpm test`, keeps the pieces it relies on in place (`.touch-hit`'s 24px under a mouse and 44px on touch, and the shared links and toggles that carry it). See "Input, not width" in `documentation/brand.md` |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for gpt-oss-120b **and every fallback** in `OPENROUTER_FALLBACK_MODELS`. Not the Claude route, which is called directly under Anthropic's standard retention (see Retention above) |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web lookup still returns the citations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, reaches for the web when our own data answers, names a row of an unsorted result as the newest, or names one newest measure without saying others share its date. Its fixture serves a sort the way production does (`sortBlockedBy`), so a whole-Congress "most recent" comes back in order. Its "today" is pinned to the day the fixture was read from production (`TODAY` in the script), because a snapshot read against the real date ages: a week on, "has anything moved this week?" had a true answer of no in the gate alone. It grades Claude (the production answer model, on `ANTHROPIC_API_KEY`, through the same request code in `convex/claude.ts`) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf |

@@ -122,10 +122,25 @@ it("lays the header out by its own width, so the docked panel never covers it", 
     `navigation.tsx uses window breakpoints (${viewport?.join(', ')}); use header-md: / header-lg: / ` +
       'header-xl:, or the docked panel covers whatever they lay out.',
   );
+  // `sm:` is a window breakpoint in px, and the header's container variants are
+  // in em. At a 20px browser font a 640px window is a 512px-at-16px header, and
+  // `sm:` there showed "Sign in" and the 21px wordmark, which ran the logo
+  // under Ask. In the header row it may only set the height (which
+  // lib/ask-panel.ts mirrors) and the menu sheet's padding (the sheet is
+  // portaled outside the container, and copies the row's media-query padding).
+  const rowFiles = {
+    'components/navigation.tsx': nav,
+    'components/auth/user-menu.tsx': readFileSync(join(root, 'components/auth/user-menu.tsx'), 'utf8'),
+    'components/answers/header-ask.tsx': readFileSync(join(root, 'components/answers/header-ask.tsx'), 'utf8'),
+  };
+  for (const [file, source] of Object.entries(rowFiles)) {
+    const widths = (source.match(/(?<![\w-])sm:[\w[\]().:-]+/g) ?? []).filter((c) => c !== 'sm:h-16' && c !== 'sm:px-6');
+    assert.deepEqual(widths, [], `${file} lays out the header row with sm: (${widths.join(', ')}); use header-sm:.`);
+  }
   const tw = readFileSync(join(root, 'tailwind.config.ts'), 'utf8');
   // In em (px ÷ 16), so the header goes compact sooner when the reader has a
   // larger browser font; at the default size these are Tailwind's widths.
-  for (const [name, px] of [['md', 768], ['lg', 1024], ['xl', 1280]] as const) {
+  for (const [name, px] of [['sm', 640], ['md', 768], ['lg', 1024], ['xl', 1280]] as const) {
     assert.ok(
       tw.includes(`addVariant('header-${name}', '@container site-header (min-width: ${px / 16}em)')`),
       `tailwind.config.ts does not define header-${name} at ${px / 16}em (${px}px at the default font size), the width of Tailwind's ${name}.`,

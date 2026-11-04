@@ -85,7 +85,24 @@ it('a wrapped row of touch-hit links keeps its lines apart on touch', () => {
 });
 
 it('the theme switch names each theme on touch', () => {
-  assert.match(read('components/theme/mode-toggle.tsx'), /<span className="hidden text-caption touchable:inline">\{opt\.label\}<\/span>/);
+  assert.match(read('components/theme/mode-toggle.tsx'), /<span className="hidden text-caption touchable:\[@media\(min-width:18em\)\]:inline">\{opt\.label\}<\/span>/);
+});
+
+it('a dotted Term answers over its own line, never the next one', () => {
+  // A 44px .touch-hit box on a 26px line covered the line below: a tap on
+  // "119th Congress" in the home hero opened "Sponsor", and on a member page
+  // "Representative" opened "district".
+  const term = read('components/brand/term.tsx');
+  assert.ok(!/['" ]touch-hit['" ]/.test(term), 'components/brand/term.tsx gives the trigger .touch-hit again');
+  assert.match(term, /standalone \? 'term-hit-solo' : 'term-hit'/);
+  const css = read('app/globals.css');
+  assert.match(css, /\.term-hit \{ padding-block: max\(0px, calc\(\(1lh - 1\.3em\) \/ 2\)\); \}/);
+  assert.match(css, /@media \(any-pointer: coarse\) \{\s*\.term-hit-solo \{ --hit-min: 44px; \}/);
+});
+
+it('the logo answers a tap over 44px each way, even as the mark alone', () => {
+  // The mark alone is 25px wide; a box that only grew up and down was 25x42.
+  assert.match(read('components/brand/logo.tsx'), /touchable:before:-inset-y-\[13px\] touchable:before:-left-2 touchable:before:-right-3/);
 });
 
 it('a link\'s arrow is hidden from screen readers', () => {

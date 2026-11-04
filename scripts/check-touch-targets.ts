@@ -14,9 +14,15 @@
  * covers, because a tap there would not reach the control either. So two 44px
  * targets that overlap both fail, which is the point.
  *
+ * It also fails a target whose centre lands on a DIFFERENT control, whatever
+ * its size and even when it is inline or exempt, and names the one on top:
+ * that is a tap that opens the wrong thing. Two dotted Terms on neighbouring
+ * lines did exactly this ("Representative" opened "district") while each
+ * still measured as a fine target.
+ *
  * Two kinds of target are listed but do not fail:
- * - links inside a running sentence (WCAG 2.2, 2.5.8 exempts them, and a 44px
- *   box on a 24px line would cover the lines above and below);
+ * - links and dotted Terms inside a running sentence (WCAG 2.2, 2.5.8 exempts
+ *   them, and a 44px box on a 24px line would cover the lines above and below);
  * - anything inside `data-touch-exempt="<reason>"`, for a chart whose geometry
  *   is the data (the state map's tiles, the month chart's scrub columns). The
  *   reason is printed with `--all`; keep it honest.
@@ -34,7 +40,8 @@
  * it first: `npm i -g playwright@1.56.1 && npx playwright install chromium`
  * (global installs are found through NODE_PATH).
  *
- * Exits 1 when any control's hit area is under 44px either way.
+ * Exits 1 when any control's hit area is under 44px either way, or another
+ * control covers its centre.
  */
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
@@ -74,6 +81,8 @@ export type Target = {
   inline: boolean;
   /** From `data-touch-exempt` on the control or an ancestor. */
   exempt: string | null;
+  /** The control a tap on this one's centre actually reaches, when it is another one. */
+  stolenBy: string | null;
 };
 
 /**
@@ -113,9 +122,10 @@ export function measure(args: { min: number }): Target[] {
     return true;
   };
 
-  /** A link with running text on either side of it in the same block. */
+  /** A link or a Term (an inline `role=button` span) with running text beside it in the same block. */
   const isInline = (el: HTMLElement) => {
-    if (el.tagName !== "A" || getComputedStyle(el).display !== "inline") return false;
+    const kind = el.tagName === "A" || (el.tagName === "SPAN" && el.getAttribute("role") === "button");
+    if (!kind || getComputedStyle(el).display !== "inline") return false;
     let block: HTMLElement | null = el.parentElement;
     while (block && getComputedStyle(block).display === "inline") block = block.parentElement;
     if (!block) return false;
@@ -179,6 +189,8 @@ export function measure(args: { min: number }): Target[] {
     const cx = Math.round(first.left + first.width / 2);
     const cy = Math.round(first.top + first.height / 2);
     const covered = !hits(el, cx, cy);
+    const onTop = covered ? document.elementFromPoint(cx, cy)?.closest<HTMLElement>(SELECTOR) : null;
+    const stolenBy = onTop && onTop !== el && !el.contains(onTop) && !onTop.contains(el) ? describe(onTop) : null;
     const [l, rr] = covered ? [0, 0] : reach(el, cx, cy, 1, 0, first.width / 2);
     const [t, b] = covered ? [0, 0] : reach(el, cx, cy, 0, 1, first.height / 2);
     const w = covered ? 0 : l + rr + 1;
@@ -209,6 +221,9 @@ export function measure(args: { min: number }): Target[] {
       small: w < args.min - 1 || h < args.min - 1,
       inline: isInline(el),
       exempt: el.closest("[data-touch-exempt]")?.getAttribute("data-touch-exempt") ?? null,
+      stolenBy: stolenBy
+        ? `"${(onTop!.innerText || onTop!.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().slice(0, 40)}" (${stolenBy})`
+        : null,
     });
   }
   return out;
@@ -233,7 +248,7 @@ export function paint(targets: Target[]) {
   fixed.style.cssText = "position:fixed;inset:0;overflow:hidden;pointer-events:none";
   layer.appendChild(fixed);
   for (const t of targets) {
-    const fail = t.small && !t.inline && !t.exempt;
+    const fail = Boolean(t.stolenBy) || (t.small && !t.inline && !t.exempt);
     const box = document.createElement("div");
     const [x, y, w, h] = t.rect;
     box.style.cssText =
@@ -318,13 +333,16 @@ async function main() {
     }
     await ctx.close();
 
-    const small = found.filter((t) => t.small && !t.inline && !t.exempt);
-    const inline = found.filter((t) => t.small && t.inline && !t.exempt);
-    const exempt = found.filter((t) => t.small && t.exempt);
-    failing += small.length;
+    const stolen = found.filter((t) => t.stolenBy);
+    const small = found.filter((t) => !t.stolenBy && t.small && !t.inline && !t.exempt);
+    const inline = found.filter((t) => !t.stolenBy && t.small && t.inline && !t.exempt);
+    const exempt = found.filter((t) => !t.stolenBy && t.small && t.exempt);
+    failing += small.length + stolen.length;
     wcag += small.filter((t) => Math.min(...t.hit) < WCAG_MIN).length;
 
-    console.log(`\n${path}  ${small.length ? `${small.length} under ${MIN}px` : "ok"}`);
+    const problems = [small.length && `${small.length} under ${MIN}px`, stolen.length && `${stolen.length} covered by another target`];
+    console.log(`\n${path}  ${problems.filter(Boolean).join(", ") || "ok"}`);
+    for (const t of stolen) console.log(`  covered  "${t.label}"  ${t.path}: a tap on its centre reaches ${t.stolenBy}`);
     for (const t of small) {
       console.log(
         `  ${`${t.hit[0]}×${t.hit[1]}`.padEnd(8)} hit  ${`${t.box[0]}×${t.box[1]}`.padEnd(8)} box  ` +
@@ -341,7 +359,7 @@ async function main() {
   await browser.close();
 
   console.log(
-    `\n${failing} tap target(s) under ${MIN}px at ${width}px` +
+    `\n${failing} tap target(s) under ${MIN}px or covered by another at ${width}px` +
       (wcag ? `, ${wcag} under the WCAG ${WCAG_MIN}px floor` : ""),
   );
   process.exit(failing ? 1 : 0);

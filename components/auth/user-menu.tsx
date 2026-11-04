@@ -164,7 +164,10 @@ function SignedOutActions() {
   const search = searchParams.size ? `?${searchParams}` : "";
 
   return (
-    <div className="flex items-center gap-1 sm:gap-2">
+    // The header's own sm (a container query in em), not the window's: at a
+    // 20px browser font a 640px window is a 512px-at-16px header, and "Sign in"
+    // there ran the logo under Ask (tailwind.config.ts, header-sm).
+    <div className="flex items-center gap-1 header-sm:gap-2">
       {ctas.map((cta) => {
         const primary = cta === "sign_up";
         const hideOnPhone = ctas.length > 1 && !primary;
@@ -174,7 +177,7 @@ function SignedOutActions() {
             asChild
             variant={primary ? "outline" : "ghost"}
             size="sm"
-            className={hideOnPhone ? "hidden sm:inline-flex" : undefined}
+            className={hideOnPhone ? "hidden header-sm:inline-flex" : undefined}
           >
             <Link
               href={authCtaHref(cta, pathname, search)}

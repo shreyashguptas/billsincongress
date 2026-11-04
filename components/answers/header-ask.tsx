@@ -52,16 +52,17 @@ export function HeaderAsk({ className }: { className?: string }) {
       }
       className={cn(
         // Shown by globals.css where the corner pill is not.
-        'ask-header-button gap-1.5 px-2.5 text-sm [@container_site-header_(min-width:48em)_and_(max-width:52.49em)]:w-10 [@container_site-header_(min-width:48em)_and_(max-width:52.49em)]:touchable:w-11 [@container_site-header_(min-width:48em)_and_(max-width:52.49em)]:px-0',
+        'ask-header-button gap-1.5 px-2.5 text-sm header-ask-glyph:w-10 header-ask-glyph:px-0 header-ask-glyph:touchable:w-11',
         open && 'bg-sunken',
         className,
       )}
     >
       <MessageSquare className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-      {/* From 768px the four sections take the header's centre, and until 840px
-          the word no longer fits beside "Sign in" and "Sign up" without pushing
-          the row past the screen: the glyph alone there, named by aria-label. */}
-      <span className="[@container_site-header_(min-width:48em)_and_(max-width:52.49em)]:sr-only">Ask</span>
+      {/* The glyph alone, named by aria-label, where the word would push the row
+          past the screen or under the logo: from 768px, where the four sections
+          take the header's centre, until 840px; and in a header under 312px (a
+          320px phone at a 20px browser font). tailwind.config.ts, header-ask-glyph. */}
+      <span className="header-ask-glyph:sr-only">Ask</span>
     </Button>
   );
 }

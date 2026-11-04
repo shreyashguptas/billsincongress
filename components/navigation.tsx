@@ -116,10 +116,14 @@ export function Navigation() {
         </div>
 
         {/* Beside the menu on phones; the sections take the centre from md up. */}
-        <Logo fit className="min-w-0 justify-self-start header-md:hidden" />
+        {/* Below header-mark (296px, a 320px phone at a 20px font) the row has no
+            room for it beside Ask, the search and "Sign up"; the menu carries
+            the logo and Home. */}
+        <Logo fit className="hidden min-w-0 justify-self-start header-mark:inline-flex header-md:hidden" />
         <SectionTabs isActive={isActive} />
 
-        <div className="flex items-center justify-end gap-1 sm:gap-2 header-lg:gap-3">
+        {/* col-start-3: with the logo hidden it would otherwise slide into the logo's column. */}
+        <div className="col-start-3 flex items-center justify-end gap-1 header-sm:gap-2 header-lg:gap-3">
           <HeaderFeedback className="hidden header-lg:inline-flex" />
           {/* Phones, tablets and short windows; the corner pill everywhere else. */}
           <HeaderAsk />
@@ -322,7 +326,8 @@ function HeaderSearch() {
           shownClassName="rounded-sm border border-line bg-raised px-2 py-1 shadow-float"
         />
       </form>
-      <Button asChild variant="ghost" size="icon" className="header-lg:hidden">
+      {/* Gone below header-search (256px): the menu's Bills page has the search. */}
+      <Button asChild variant="ghost" size="icon" className="hidden header-search:inline-flex header-lg:hidden">
         <Link href="/bills" aria-label="Search bills">
           <Search className="h-5 w-5" />
         </Link>

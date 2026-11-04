@@ -180,9 +180,12 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   does not: mono's wide spaces turn "Nov 2, 2026" into "Nov  2,  2026".
 - **SVG text shrinks with the drawing.** A label inside a scaled chart (the
   topic wheel's hole) is HTML laid over the SVG, so it keeps its size.
-- **Layout follows the font.** The header's container variants (`header-xs`
+- **Layout follows the font.** The header's container variants (`header-search`
   to `header-xl`) are in em, so with a larger font the header drops to its
-  compact form sooner. A row of fixed-size pictures (the Learn page's
+  compact form sooner. Nothing in the header row uses a window breakpoint for a
+  width (`sm:` there only sets the row's height): at a 20px font a 640px window
+  is a 512px header, and a window `sm:` showed "Sign in" and the 21px wordmark
+  that only fit at 640px of 16px text, running the logo under Ask. A row of fixed-size pictures (the Learn page's
   You → Congress → Laws) is capped by the screen width as well as in rem, and
   a legend that cannot fit three across at a large font gets one row per item
   on a phone (the hero's parties). Check a change at a 20px browser font as
@@ -210,7 +213,11 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   with an arrow, a breadcrumb, a name, a footer or source link) keeps its look and line height
   and takes `.touch-hit` instead: it answers a click 24px each way under a mouse and a tap 44px
   each way under a finger. Neighbouring targets sit 44px apart, centre to centre, so their
-  targets do not overlap. See "Input, not width" for which primitives carry it.
+  targets do not overlap. A word inside a sentence (a link, a `Term`) is the exception, as
+  in WCAG: it answers over its own line, because a 44px box on a 26px line covers the words
+  above and below it. A row of facts must also fit the screen at a 24px font: a value that
+  cannot shrink (`min-w-0`) or wrap pushes the page sideways. See "Input, not width" for
+  which primitives carry it.
 - **Nothing floats over the words.** A control pinned over the page never moves
   out of the way, so it sits on whatever is under it: a party's count, the end
   of a title, a date. Where there is no room to float one beside the reading,
@@ -372,7 +379,15 @@ Patterns that appear on more than one page:
   (`TermText` marks the first match of each word in a string, for text held as data, like a
   hub's explainer). The trigger is an inline `span role="button"`, not a `<button>`, so it
   wraps and takes punctuation like the words around it; for the same reason it never sits
-  inside a link or a button, so bill rows and stage pills carry none. Definitions are one or
+  inside a link or a button, so bill rows and stage pills carry none. It answers a tap over
+  its own line and no further: a word in a sentence is an inline target (WCAG 2.2, 2.5.8),
+  and a 44px box on a 26px line reached into the next one, so a tap on "119th Congress"
+  opened "Sponsor". A `standalone` Term, the whole of its label and the only target on its
+  line (a stage's name, the bill number, "Senator"), grows to 44px tall on touch and 24px
+  under a mouse, line by line, so a name that wraps answers on both lines. The keyboard
+  moves through its popover as if it sat right after the word: Tab from "More words in
+  Learn" closes it and goes on to whatever follows the word; Shift+Tab closes it and lands
+  back on the word; Escape closes it. Definitions are one or
   two short sentences at a sixth-grade level, with no word that itself needs defining.
   A popover is never the only way to a meaning that matters: where a finding rests on a
   word, its meaning is also printed in plain `ink-2` text under the headline (the home
@@ -536,16 +551,23 @@ Patterns that appear on more than one page:
   see-through header turned muddy grey over the home page's dark stage. On
   phones it reads menu, logo beside it, then Ask, search and the account slot
   at the far edge; a centred logo would need the two sides to be equal, and the
-  account side is three times the menu button. The logo sizes itself to the
-  header's own width: the mark alone below 440px, a 16px wordmark to 480px, then
-  the usual 18px (`Logo fit`, `header-xs:` and `header-sm:`). Nothing in the
-  header may push the page wider than the screen, down to 320px. Sticky, except
-  under 500px tall.
+  account side is three times the menu button. The row gives way in one order
+  as the header narrows, each step in em of the header's own width (px below
+  are at the default font): the 21px wordmark and "Sign in" from 640px
+  (`header-sm:`); an 18px wordmark from 480px (`header-wordmark-lg:`); a 16px
+  one from 440px (`header-wordmark:`); below that the mark alone; below 312px
+  Ask shows its glyph without the word (`header-ask-glyph:`); below 296px the
+  mark goes too (`header-mark:`; the menu carries the logo and Home); below
+  256px the search icon goes (`header-search:`; the menu's Bills page has the
+  search). So nothing in the header runs under anything else or pushes the page
+  wider than the screen, down to 320px at the default font and at a 20px one,
+  and at 390px with a 24px one. The logo answers a tap over 44px each way even
+  as the mark alone. Sticky, except under 500px tall.
 - **Ask in the header** (below `lg`, and in any window under 500px tall,
   `components/answers/header-ask.tsx`): a `ghost` `sm` button, Lucide
   `MessageSquare` and the word "Ask" in `ink`, just before the search. The
   glyph alone from 768 to 839px, where the four sections leave no room for the
-  word. While the panel is open under it, the button is pressed (`sunken`
+  word, and in a header under 312px (a 320px phone at a 20px font). While the panel is open under it, the button is pressed (`sunken`
   fill, `aria-expanded`), and a second press closes it.
 - **Menu sheet** (phones and tablets): slides in from the left over an 85% paper
   scrim. Its top row is the header row it covers — same height and padding, the
@@ -727,7 +749,8 @@ Two rules come with it:
 
 The theme switch is three 32px icons under a mouse; on touch each segment is
 44px and names its theme beside the icon ("Light", "Dark", "System"), so the
-reader does not have to decode a sun and a moon. The arrow that ends a text link
+reader does not have to decode a sun and a moon. A screen under 18em (a 390px
+phone at a 24px font) has no room for the names, and keeps the 44px icons. The arrow that ends a text link
 ("Browse bills →") is drawn with `Arrow` (`components/brand/arrow.tsx`), which
 hides it from screen readers: the link is named "Browse bills", not "Browse
 bills right arrow".
@@ -740,7 +763,9 @@ every target a finger can hit over less than 44px, measured with real hit
 testing (so overlapping targets fail). It is not in CI; run it before merging
 anything a reader taps. A chart whose geometry is the data (the state map's
 tiles, the month chart's scrub columns) is marked `data-touch-exempt="<why>"`;
-use it for nothing else. Links inside a running sentence are exempt, as in WCAG.
+use it for nothing else. Links and `Term`s inside a running sentence are exempt, as in WCAG.
+A target whose centre lands on a different target fails whatever its size, and the report
+names the one on top: that is a tap that opens the wrong thing.
 
 **Reduced motion.** Under `prefers-reduced-motion` every surface still opens
 and closes, but in 1ms: the slide, rise, zoom and stagger go, the result stays.

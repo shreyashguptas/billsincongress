@@ -316,15 +316,19 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             status card takes the right-hand column beside the title and lead. */}
         <div className="mt-6 grid gap-8 sm:mt-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-x-16 lg:gap-y-8 xl:gap-x-20">
           <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 touchable:gap-y-6">
               {/* The number names the kind of measure: "H.Res." is a resolution
                   that can never become law, and nothing else on the page says
                   so this early. */}
               <span className="font-mono text-sm font-medium text-ink tabular">
-                <Term id={measureTerm}>{billLabel}</Term>
+                <Term id={measureTerm} standalone>
+                  {billLabel}
+                </Term>
               </span>
               <span className="text-sm text-ink-2 tabular">
-                <Term id="congress-number">{formatCongressProse(bill.congress)}</Term>
+                <Term id="congress-number" standalone>
+                  {formatCongressProse(bill.congress)}
+                </Term>
               </span>
               {bill.bill_subjects?.policy_area_name && (
                 <Badge variant="secondary">{bill.bill_subjects.policy_area_name}</Badge>
@@ -356,7 +360,11 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   </span>
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <span>
-                      <Term id="sponsor">Sponsored</Term> by
+                      {/* The only target on its line: the name beside it is not a link. */}
+                      <Term id="sponsor" standalone>
+                        Sponsored
+                      </Term>{' '}
+                      by
                     </span>
                     <PartyTag name={sponsorName} party={bill.sponsor_party} state={bill.sponsor_state} />
                   </span>
@@ -420,7 +428,9 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   </span>
                   <p className="font-serif text-display-sm font-medium text-ink">
                     {stageTerm ? (
-                      <Term id={stageTerm}>{measureStageLabel(stage, billType)}</Term>
+                      <Term id={stageTerm} standalone>
+                        {measureStageLabel(stage, billType)}
+                      </Term>
                     ) : (
                       measureStageLabel(stage, billType)
                     )}
@@ -661,26 +671,29 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               sponsorName
             )}
           </h2>
-          <div className="mt-6 grid gap-8 rounded-md border border-line bg-raised p-6 md:grid-cols-2 md:gap-12">
+          {/* grid-cols-1 is minmax(0,1fr): an implicit column is as wide as its
+              widest unbreakable content, and at a 24px font a member's site
+              address made the whole page scroll sideways on a phone. */}
+          <div className="mt-6 grid grid-cols-1 gap-8 rounded-md border border-line bg-raised p-6 md:grid-cols-2 md:gap-12">
             <dl className="text-sm">
               <div className="flex justify-between gap-3 py-3 first:pt-0">
                 <dt className="text-ink-3">Party</dt>
-                <dd className="inline-flex items-center gap-2 font-medium text-ink">
+                <dd className="inline-flex min-w-0 items-center gap-2 text-right font-medium text-ink">
                   <PartyDot party={bill.sponsor_party} />
                   {partyName}
                 </dd>
               </div>
               <div className="flex justify-between gap-3 border-t border-line py-3">
                 <dt className="text-ink-3">State</dt>
-                <dd className="font-medium text-ink">{stateName}</dd>
+                <dd className="min-w-0 text-right font-medium text-ink">{stateName}</dd>
               </div>
               <div className="flex justify-between gap-3 border-t border-line py-3">
                 <dt className="text-ink-3">Bill number</dt>
-                <dd className="font-mono text-ink tabular">{billLabel}</dd>
+                <dd className="min-w-0 text-right font-mono text-ink tabular">{billLabel}</dd>
               </div>
               <div className="flex justify-between gap-3 border-t border-line pt-3">
                 <dt className="text-ink-3">Congress</dt>
-                <dd className="font-medium text-ink tabular">
+                <dd className="min-w-0 text-right font-medium text-ink tabular">
                   {formatCongressOrdinal(bill.congress)} ({formatCongressYears(bill.congress)})
                 </dd>
               </div>

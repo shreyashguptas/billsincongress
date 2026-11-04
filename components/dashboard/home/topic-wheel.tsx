@@ -200,11 +200,19 @@ export function TopicWheel({
                     onBlur={() => setHover(null)}
                     onClick={() => toggle(i)}
                     aria-pressed={pinned === i}
-                    className="focus-ring grid min-h-[52px] flex-1 grid-cols-[12px_1fr_auto_4rem] items-center gap-x-3 rounded-sm py-2 pl-1 text-left"
+                    // min-w-0 and a minmax(0,1fr) name column: at a 24px browser
+                    // font a 390px row has no room for the names' longest words,
+                    // and as a flex item at its min-content width the row pushed
+                    // the arrow links past the screen. Under 18.5em of screen
+                    // (never at the default font from 320px up) the share column
+                    // goes and the count stays, so "Enforcement" keeps its letters.
+                    className="focus-ring grid min-h-[52px] min-w-0 flex-1 grid-cols-[12px_minmax(0,1fr)_4rem] items-center gap-x-3 rounded-sm py-2 pl-1 text-left [@media(min-width:18.5em)]:grid-cols-[12px_minmax(0,1fr)_auto_4rem]"
                   >
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: w.color }} />
-                    <span className="text-ui leading-5 text-ink">{w.name}</span>
-                    <span className="text-right text-meta text-ink-3 tabular">{(w.share * 100).toFixed(1)}%</span>
+                    <span className="break-words text-ui leading-5 text-ink">{w.name}</span>
+                    <span className="hidden text-right text-meta text-ink-3 tabular [@media(min-width:18.5em)]:block">
+                      {(w.share * 100).toFixed(1)}%
+                    </span>
                     <span className="text-right text-ui font-medium text-ink tabular">{fmt(w.count)}</span>
                   </button>
                   {/* A real link, not a scripted jump: this is the one page search

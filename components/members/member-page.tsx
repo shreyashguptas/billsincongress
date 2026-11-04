@@ -22,22 +22,32 @@ function ordinal(n: number): string {
 /**
  * "Representative · California's 12th district", "Senator · New York". The
  * seat's words are the page's first civics words, so each explains itself.
+ * A seat word alone on the line is `standalone` (a 44px target on touch); with
+ * "district" beside it the two are words in a line, so neither's box can reach
+ * the other when the eyebrow wraps (brand.md, "Term").
  */
 function SeatLine({ member }: { member: MemberPageData['member'] }) {
   const state = STATE_NAMES[member.state] ?? member.state;
   if (member.chamber === 'senate') {
     return (
       <>
-        <Term id="senator">Senator</Term> · {state}
+        <Term id="senator" standalone>
+          Senator
+        </Term>{' '}
+        · {state}
       </>
     );
   }
-  const rep = <Term id="representative">Representative</Term>;
-  if (member.district === null) return <>{rep} · {state}</>;
-  if (member.district === 0) return <>{rep} · {state}, at large</>;
+  const rep = (standalone: boolean) => (
+    <Term id="representative" standalone={standalone}>
+      Representative
+    </Term>
+  );
+  if (member.district === null) return <>{rep(true)} · {state}</>;
+  if (member.district === 0) return <>{rep(true)} · {state}, at large</>;
   return (
     <>
-      {rep} · {state}&rsquo;s {ordinal(member.district)} <Term id="district">district</Term>
+      {rep(false)} · {state}&rsquo;s {ordinal(member.district)} <Term id="district">district</Term>
     </>
   );
 }

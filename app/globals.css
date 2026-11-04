@@ -429,6 +429,31 @@
   .touch-hit-links a { --hit-min: 44px; }
 }
 
+/* A Term's hit area (components/brand/term.tsx). Not `.touch-hit`: a word in a
+   sentence is an inline target (WCAG 2.2, 2.5.8), and a 44px box on a 26px
+   line reached into the lines above and below, so a tap on one dotted word
+   opened the next one's definition. Instead the word answers over its own
+   line and no further: block padding out to the line's edges. An inline box's
+   padding is hit-tested but takes no room, so nothing moves, and it is drawn
+   on every line of a word that wraps (an ::after box collapsed to one square
+   between the two halves). 1.3em is a little more than the content box of
+   the site's fonts, so the padded box stops just short of the line's edge
+   instead of just past it. Where `lh` is unknown the rule drops and the word
+   answers over its glyphs. */
+.term-hit { padding-block: max(0px, calc((1lh - 1.3em) / 2)); }
+/* A Term that is the whole of its label, alone on its line (a stage's name, a
+   bill number): 24px tall under a mouse, 44px on touch, line by line.
+   Positioned so its padding paints, and answers, above the block that follows
+   it: otherwise that block's box takes the lower half of the target. */
+.term-hit-solo {
+  position: relative;
+  --hit-min: 24px;
+  padding-block: max(0px, calc((var(--hit-min) - 1em) / 2));
+}
+@media (any-pointer: coarse) {
+  .term-hit-solo { --hit-min: 44px; }
+}
+
 /* The menu's rows follow the sheet in, a few milliseconds apart (delays are set
    inline per row). `backwards` holds each row hidden until its turn and leaves
    no transform behind once it has arrived. */
