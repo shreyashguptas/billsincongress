@@ -34,7 +34,11 @@ export type OpenTrigger =
   | 'starter'
   | 'ask'
   | 'manual'
-  /** The reader started typing with no field focused (`lib/type-to-ask.ts`). */
+  /**
+   * The keyboard way in (`lib/ask-shortcut.ts`). From 2026-10-23 any printable
+   * key typed with nothing focused; from 2026-11-04 only `/`. The value keeps
+   * its name so saved insights keep counting.
+   */
   | 'typing';
 
 /**

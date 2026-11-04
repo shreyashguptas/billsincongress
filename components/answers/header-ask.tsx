@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAnswers } from './answer-provider';
+import { useAskShortcut } from './ask-shortcut';
 
 /**
  * Ask, in the header.
@@ -27,6 +28,7 @@ export function HeaderAsk({ className }: { className?: string }) {
   const { phase, turns, setOpen, restore } = useAnswers();
   const open = phase === 'open';
   const questions = Math.ceil(turns.length / 2);
+  const shortcut = useAskShortcut();
 
   return (
     <Button
@@ -41,6 +43,7 @@ export function HeaderAsk({ className }: { className?: string }) {
       }}
       aria-expanded={open}
       aria-controls="ask-panel"
+      aria-keyshortcuts={shortcut.enabled ? '/' : undefined}
       // The name stays put; aria-expanded says whether a press opens or closes.
       aria-label={
         questions > 0

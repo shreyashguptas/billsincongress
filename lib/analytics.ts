@@ -883,18 +883,33 @@ export const analytics = {
   }) => capture('answer_panel_restored', props),
 
   /**
-   * The reader started typing with no field focused, and the key was sent to
-   * the ask box (`components/answers/type-to-ask.tsx`). Once per run of typing,
-   * not per key: the next key lands in the focused box and is not seen here.
-   * `target` says where it went — `open_panel` opened (or restored) the panel
-   * for it, which also sends `answer_panel_opened`/`restored` with trigger
-   * `typing`.
+   * The reader used the keyboard way into Ask and focus moved to an ask box
+   * (`components/answers/ask-shortcut.tsx`). Since 2026-11-04 that is the `/`
+   * key only, once per press, and `key` says so; before, any printable key
+   * typed with nothing focused, once per run of typing, with no `key`. The
+   * event keeps its name so saved insights keep counting. `target` says where
+   * it went — `open_panel` opened (or restored) the panel for it, which also
+   * sends `answer_panel_opened`/`restored` with trigger `typing`.
    */
   askTypedAnywhere: (props: {
     surface: string;
     target: 'panel' | 'hero' | 'open_panel';
     panel_phase: 'closed' | 'open' | 'minimized';
+    key: 'slash';
   }) => capture('ask_typed_anywhere', props),
+
+  /**
+   * The reader turned the `/` shortcut off or back on. `placement` is the
+   * switch they used: the line under the panel's composer or the footer's
+   * On/Off control (both computers only, one stored value). The choice is kept
+   * in this browser only. A high `off` rate says the key is getting in
+   * readers' way.
+   */
+  askShortcutToggled: (props: {
+    surface: string;
+    enabled: boolean;
+    placement: 'composer' | 'footer';
+  }) => capture('ask_shortcut_toggled', props),
 
   /**
    * Drag end only, debounced — a capture per pointermove would swamp every

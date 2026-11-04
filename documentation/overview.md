@@ -1150,23 +1150,40 @@ while the reader scrolls down and returns on a scroll up, near the top or the en
 on keyboard focus (`lib/ask-launcher-tuck.ts`, unit-tested; `data-tucked` read by CSS); it
 never tucks under `prefers-reduced-motion`, nor in the minimized phase, where it is the way back.
 
-**Type anywhere to ask.** `components/answers/type-to-ask.tsx`, mounted once in the root layout
-after the panel, listens for keys on the window. A printable key typed with no text box focused
-goes to the open panel's composer, else the home page's ask box if it is on screen, else it
-opens (or restores) the panel and types there. The rules for which keys are left alone — any
-Cmd/Ctrl/Alt shortcut (AltGr excepted), Space (it scrolls), anything inside a menu, listbox, dialog or text
-field, anything while a modal is open — are in `lib/type-to-ask.ts` with their tests. Where the
-box is already on screen only focus moves, in the keydown, so the browser types the character
-itself; when the panel must open first it is still `inert`, so the key is held and typed into
-the composer by an effect once the open phase commits. The composer is never `disabled` while
+**Press / to ask.** `components/answers/ask-shortcut.tsx`, mounted once in the root layout
+after the panel, listens for one key on the window: `/`, the key GitHub, YouTube and Gmail use
+for search. It moves focus to the open panel's composer, else the home page's ask box if it is
+on screen (scrolling it to the middle of the screen when it is below the fold), else it opens
+(or restores) the panel, empty, and focuses its composer once the open phase commits — even at
+phone width, where the panel otherwise focuses itself (it retries for a few frames, because
+under reduced motion the panel's visibility still runs a 1ms transition and the first frame's
+focus() would land on a hidden field). The `/` is never typed, and claiming it stops Firefox's
+quick find. It is left alone with any modifier but Shift — Cmd, Ctrl, Alt and AltGr, which
+Windows reports as Ctrl+Alt — on a held key's repeats, and whenever focus is on a form control
+or a widget with keys of its own: any `<input>` (a ticked filter checkbox included), textarea,
+select, editable region, combobox (the shadcn Select), listbox, menu, tree, grid, slider (the
+panel's resize handle), spin button, or anything in a dialog; also while a modal is open. A
+focused link, button or `<summary>` does not use the key, so `/` works from there, as on GitHub.
+The rules and their tests are in `lib/ask-shortcut.ts`. No other key is ever taken. It replaced
+"type anywhere to ask" (2026-10-23 to 2026-11-04), which sent every printable key there — a
+letter pressed on a focused link included — and could not be turned off (WCAG 2.1.4). A
+single-key shortcut still needs an off switch under 2.1.4, and there are two, sharing one
+setting (`bic_ask_shortcut` in localStorage, absent means on, read through `useAskShortcut`
+and kept in step across tabs by the `storage` event): the line under the panel's composer, and
+an On/Off control in the footer beside the theme control (`AskShortcutSwitch`), for a reader
+who never opens Ask. Both are drawn on computers only (`fine:`), like the key's hints. While it
+is on, the launcher pill and the home page's box (when not focused) show a `/` keycap
+(`components/brand/kbd.tsx`), and the launcher, Ask in the header and the ask fields carry
+`aria-keyshortcuts="/"`. The analytics event keeps its first name, `ask_typed_anywhere`, now
+with `key: "slash"`, and the panel's open trigger stays `typing` (analytics.md).
+The composer is never `disabled` while
 an answer is written (a disabled field drops focus), and nor is its send button (a form with a
 disabled submit button ignores Enter): Enter then queues the follow-up, which is sent the moment
 the answer is done. The home page's `HeroAsk` focuses itself on arrival on a mouse-or-trackpad
 device only, and only if the reader has not already put focus somewhere; until the reader
 chooses the box (clicks or types in it), Space, Page Up/Down and the arrow keys hand focus back
 to `<main>` so they still scroll the page. Its first key
-scrolls it to the middle of the screen, since it sits below the fold on most laptops. Firefox's
-quick-find keys (`/` and `'`) are left alone; AltGr characters are taken.
+scrolls it to the middle of the screen, since it sits below the fold on most laptops.
 
 ### Page context
 

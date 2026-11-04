@@ -20,6 +20,7 @@ import { AnswerCheck } from './answer-check';
 import { canRate } from '@/lib/answer-rating';
 import { answerBills, billsNamedIn, cardLists, firstListStart, rehypeBillLinks } from '@/lib/answer-bill-links';
 import { billMarkdownComponents, type BillContext } from './bill-mentions';
+import { AskShortcutHint, useAskShortcut } from './ask-shortcut';
 
 /** How close to the bottom still counts as "following along". */
 const PINNED_PX = 72;
@@ -238,6 +239,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
   const [input, setInput] = useState('');
   const noteId = useId();
   const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_panel');
+  const shortcut = useAskShortcut();
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // Whether the reader was at the bottom before the content last grew. Tracked
@@ -422,6 +424,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             aria-label={awaitingReply ? 'Answer the question' : 'Ask a question'}
             enterKeyHint="send"
             autoComplete="off"
+            aria-keyshortcuts={shortcut.enabled ? '/' : undefined}
             // 16px on small screens is not a style choice: iOS Safari zooms the
             // whole page in when a focused input is any smaller, and then never
             // zooms back out.
@@ -454,6 +457,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
           </Button>
         </form>
         <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} className="px-1" />
+        {surface === 'panel' && <AskShortcutHint className="mt-2" />}
       </div>
     </div>
   );

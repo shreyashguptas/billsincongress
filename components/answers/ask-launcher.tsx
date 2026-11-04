@@ -3,8 +3,10 @@
 import { forwardRef, useEffect, useState } from 'react';
 import { ArrowUp, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/brand/kbd';
 import type { AskPhase } from '@/lib/ask-panel-state';
 import { INITIAL_TUCK, nextTuck } from '@/lib/ask-launcher-tuck';
+import { useAskShortcut } from './ask-shortcut';
 
 /**
  * The way in, and the way back.
@@ -33,6 +35,10 @@ import { INITIAL_TUCK, nextTuck } from '@/lib/ask-launcher-tuck';
  *
  * Both shapes are the same element; the switch is in app/globals.css so nothing
  * here has to know the viewport.
+ *
+ * On a computer the pill carries a `/` keycap: the key that opens it from
+ * anywhere (`lib/ask-shortcut.ts`). It is the one place the shortcut is always
+ * on screen, so it is where a keyboard reader learns it exists.
  */
 export const AskLauncher = forwardRef<
   HTMLButtonElement,
@@ -41,6 +47,7 @@ export const AskLauncher = forwardRef<
   const resuming = turnCount > 0;
   const questions = Math.ceil(turnCount / 2);
   const tucked = useTuckOnScroll(phase === 'closed');
+  const shortcut = useAskShortcut();
 
   return (
     <Button
@@ -52,6 +59,7 @@ export const AskLauncher = forwardRef<
       onClick={onOpen}
       aria-expanded={false}
       aria-controls="ask-panel"
+      aria-keyshortcuts={shortcut.enabled ? '/' : undefined}
       aria-label={
         resuming
           ? `Continue your conversation about Congress, ${questions} question${questions === 1 ? '' : 's'} so far`
@@ -69,6 +77,7 @@ export const AskLauncher = forwardRef<
       <span className="truncate">
         {resuming ? (phase === 'minimized' ? 'Back to your questions' : 'Continue asking') : 'Ask'}
       </span>
+      {shortcut.enabled && <Kbd className="-mr-1 hidden fine:inline-flex">/</Kbd>}
       {/* Only drawn in the bottom-bar shape, where there is room to spare and the
           bar needs a right-hand terminus to read as a control rather than a note. */}
       <ArrowUp

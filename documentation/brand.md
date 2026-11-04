@@ -300,6 +300,7 @@ These live in `components/brand/` and compose the primitives above.
 | `Arrow` | `components/brand/arrow.tsx` | The → that ends a text link, hidden from screen readers so the link's name is its words |
 | `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials (`AvatarPhoto`, `components/brand/avatar-photo.tsx`) |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
+| `Kbd` | `components/brand/kbd.tsx` | A key on the keyboard: a 20px keycap, mono `text-xs` (13px, the type floor) in `ink-2` on `paper`, a `line-strong` edge with a 2px bottom. Chrome, so never a hue. Hidden from screen readers; say the key in words beside it |
 | `useLengthLimit`, `LengthLimitNote` | `components/brand/length-limit.tsx` | Every text box with a length limit. See "Length limits", below |
 
 Patterns that appear on more than one page:
@@ -310,9 +311,21 @@ Patterns that appear on more than one page:
   has to click into it to type: the home page's box is focused on arrival (on a
   computer; on a phone that would throw the keyboard over the page), the
   panel's composer is focused when the panel opens and stays usable while an
-  answer is written (Enter there sends the follow-up once the answer is done), and a key typed with no text box focused goes to
-  whichever ask box is on screen, opening the panel if none is
-  (`lib/type-to-ask.ts`).
+  answer is written (Enter there sends the follow-up once the answer is done), and `/` —
+  the one keyboard shortcut, never a letter — goes to whichever ask box is on screen,
+  opening the panel if none is (`lib/ask-shortcut.ts`). It is never taken from a form
+  control or a widget with keys of its own, nor with Cmd, Ctrl, Alt or AltGr held. On a
+  computer the key is shown where the box is: a `/` keycap in the launcher pill, "Press /"
+  in `ink-3` at the right of the home page's box while it is not focused, and a 13px
+  `ink-3` line under the panel's composer, "/ opens Ask from any page · Turn off" (the
+  button `ink-2`, underlined). Never on a phone.
+- **The `/` switch** (`AskShortcutSwitch`, `components/answers/ask-shortcut.tsx`): the
+  reader's off switch for that one key (WCAG 2.1.4), in the footer beside the theme
+  control and built the same way — a `/` keycap and "to ask" in 13px `ink-3`, then On and
+  Off in the theme control's track (`sunken`, the chosen side `raised` with `shadow-sm`;
+  32px tall, 44px on touch). Computers only (`fine:`), like every other sign of the key.
+  It and "Turn off" under the composer are one setting. Ink only: it is a setting, not
+  data.
 - **Answer reveal**: a new answer is written onto the page word by word, each
   word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
   words a second, faster for a long answer so none takes more than five
@@ -521,7 +534,8 @@ Patterns that appear on more than one page:
   icon-only X. Once per browser, never on the first two pages of a visit.
 - **Footer**: only what has no other home. The lockup, a one-line serif
   statement of what the site is, and "Not affiliated with the U.S.
-  government"; the install and theme controls opposite. Under that sit three
+  government"; the install control, the `/` switch (computers only) and the theme
+  control opposite. Under that sit three
   hub links (House bills, Senate bills, Bills that became law), then a
   hairline and one row: Pro, Privacy, Terms, Feedback (below `lg` only, where the
   header has no Feedback button), Source (GitHub glyph) on the left, the copyright and Congress.gov credit (`.meta`) on the right. Links are

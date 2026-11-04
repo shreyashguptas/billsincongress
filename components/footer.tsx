@@ -6,6 +6,7 @@ import { InstallAppButton } from '@/components/pwa/install-app-button';
 import { HubLinkTracker } from '@/app/bills/_hub/hub-view-tracker';
 import { hubByPath, type HubDefinition } from '@/lib/hubs';
 import { FooterFeedback } from '@/components/feedback/feedback-box';
+import { AskShortcutSwitch } from '@/components/answers/ask-shortcut';
 
 // `flex w-fit`, not `inline-flex`: a row that starts with an icon, loose in a
 // list item, lines up by the icon's bottom edge and rides above its neighbours
@@ -17,8 +18,9 @@ const linkClass =
 /**
  * The footer carries only what has no other home: who publishes the site and
  * that it is independent, the paid plan (a signed-out reader has no other
- * route to /pro), the legal pages, the source, and the two controls — install
- * and theme. Bills, Learn and About are in the header on every page. Feedback
+ * route to /pro), the legal pages, the source, and the reader's controls —
+ * install, the `/` shortcut's On/Off (computers only; the panel has the same
+ * switch) and theme. Bills, Learn and About are in the header on every page. Feedback
  * is here only below lg, where the header has no room for its button.
  *
  * Three hubs stay: the two chambers and "became law", the ones readers
@@ -65,6 +67,7 @@ export function Footer() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Renders only where installing is possible (see the component). */}
             <InstallAppButton />
+            <AskShortcutSwitch />
             <ModeToggle />
           </div>
         </div>
