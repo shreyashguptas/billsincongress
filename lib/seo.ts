@@ -563,7 +563,13 @@ function composeBillDescription(bill: Bill): string {
  * something true and specific — never filler, and never invented detail: every
  * clause below is a field we hold.
  */
-export function billAnswerParagraph(bill: Bill): string {
+export function billAnswerParagraph(
+  bill: Bill,
+  /** The Congress is over (lib/bill-journey.ts congressClock). An unfinished
+   *  measure then expired: "Its current status is: in committee" and "not
+   *  published … yet" read as if it were still alive (/bills/82sjres118). */
+  opts: { congressEnded?: boolean; finished?: boolean } = {},
+): string {
   const id = billIdentifier(bill);
   const area = bill.bill_subjects?.policy_area_name;
   const sponsor = sponsorPhrase(bill);
@@ -576,7 +582,10 @@ export function billAnswerParagraph(bill: Bill): string {
   if (when) text += `, introduced in the ${chamberName(bill)} on ${when}`;
   else text += ` in the ${chamberName(bill)}`;
   if (sponsor) text += ` by ${sponsor}`;
-  text += `. Its current status is: ${status}.`;
+  const expired = !!opts.congressEnded && !opts.finished;
+  text += expired
+    ? `. It was ${status} when the ${congressOrdinal(bill.congress)} Congress ended, and it expired then.`
+    : `. Its current status is: ${status}.`;
 
   // Gated on the raw field, not on billSummaryText(). Those answer two
   // different questions and this sentence is a claim about the first one.
@@ -584,7 +593,9 @@ export function billAnswerParagraph(bill: Bill): string {
   // when it has published a summary consisting only of the bill's own title —
   // a real pattern for freshly numbered bills — so gating on it stated
   // "Congress has not published…" about bills where Congress had.
-  if (!bill.latest_summary) {
+  if (!bill.latest_summary && expired) {
+    text += ` Congress did not publish a plain-language summary of this ${kind}.`;
+  } else if (!bill.latest_summary) {
     text +=
       ` Congress has not published a plain-language summary of this ${kind} yet;` +
       ' summaries are usually written some time after introduction.';

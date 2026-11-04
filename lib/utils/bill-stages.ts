@@ -151,9 +151,20 @@ const RESOLUTION_STEPS: Record<Exclude<StagePath, 'law'>, Partial<Record<BillSta
  * official title says so in these words; anything else is treated as an
  * ordinary joint resolution.
  */
+/**
+ * Matches every way a proposed amendment's title opens in the record:
+ * "Proposing an amendment to the Constitution…", "A joint resolution proposing
+ * an amendment…", "Proposing a balanced budget amendment to the Constitution…",
+ * "…proposing amendments to the Constitution…", and a stray leading "." (H.J.Res.
+ * 11 in the 119th). Anchored to the opening words, so a resolution that only
+ * mentions an amendment later in its title does not match.
+ */
+const AMENDMENT_TITLE =
+  /^[\s.]*(?:a joint resolution\s+)?proposing\s+(?:an?\s+)?(?:[\w-]+\s+){0,3}amendments?\s+to\s+the\s+constitution/i;
+
 export function proposesAmendment(billType: string | null | undefined, title: string | null | undefined): boolean {
   const type = (billType ?? '').toLowerCase().replace(/[^a-z]/g, '');
-  return (type === 'hjres' || type === 'sjres') && /^\s*proposing an amendment to the constitution/i.test(title ?? '');
+  return (type === 'hjres' || type === 'sjres') && AMENDMENT_TITLE.test(title ?? '');
 }
 
 /**

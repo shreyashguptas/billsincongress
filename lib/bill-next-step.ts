@@ -87,7 +87,7 @@ export function billNextStep({
   // The Congress it was introduced in is over.
   if (clock.ended) {
     if (stage === BillStages.VETOED) {
-      return done(`Nothing more: the ${ordinal} Congress ended without overriding the veto.`);
+      return done(`Nothing more: the ${ordinal} Congress ended, and the veto stands.`);
     }
     if (stage === BillStages.TO_PRESIDENT) {
       return done(
@@ -106,9 +106,14 @@ export function billNextStep({
       // No clock: a veto is not a step on the way. Stage 85 also holds pocket
       // vetoes, which no vote can override, and vetoes whose override already
       // failed (convex/billStage.ts), so the days left would read as time to act.
+      // A pocket veto (the journey labels it, convex/billJourney.ts) has no
+      // override at all; saying "it becomes law only if… two-thirds" there is false.
+      if ((events ?? []).some((e) => e.kind === 'vetoed' && /pocket/i.test(e.label))) {
+        return done('Nothing more: this was a pocket veto, made while Congress was away. No vote can override it.');
+      }
       return done(
         failedOverride(events) ??
-          'It becomes law only if the House and the Senate each vote by two-thirds to override the veto. A pocket veto cannot be overridden.',
+          'A veto can be overridden only if the House and the Senate each vote for it by two-thirds. A pocket veto, made while Congress is away, cannot be.',
       );
     case BillStages.INTRODUCED:
       return open('Next on the road: it is usually sent to a committee.');

@@ -515,6 +515,21 @@ it("a resolution's gerund title reads as its purpose", () => {
   );
 });
 
+// /bills/82sjres118, beside "Expired when the 118th Congress ended": "Its current
+// status is: in committee." and "Congress has not published a plain-language
+// summary of this joint resolution yet".
+it("an unfinished measure from an ended Congress is described as expired, not alive", () => {
+  const bill = bareBill({ congress: 118, latest_summary: undefined });
+  const prose = billAnswerParagraph(bill, { congressEnded: true, finished: false });
+  assert.match(prose, /when the 118th Congress ended, and it expired then\./);
+  assert.ok(!/current status/.test(prose), prose);
+  assert.ok(!/ yet/.test(prose), prose);
+  // A law from an ended Congress is still a law: present tense stays.
+  assert.match(billAnswerParagraph(bill, { congressEnded: true, finished: true }), /Its current status is/);
+  // A live Congress is unchanged.
+  assert.match(billAnswerParagraph(bareBill()), /Its current status is/);
+});
+
 if (failures.length > 0) {
   console.error(`\nseo: ${passed} passed, ${failures.length} FAILED\n`);
   console.error(failures.join("\n\n"));

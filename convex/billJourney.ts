@@ -251,7 +251,12 @@ export function buildJourney(
       continue;
     }
     if ((lower.includes("vetoed") || lower.includes("pocket veto")) && once("vetoed")) {
-      events.push({ date: a.actionDate, kind: "vetoed", label: "Vetoed by the President" });
+      events.push({
+        date: a.actionDate,
+        kind: "vetoed",
+        // A pocket veto cannot be overridden, so the page words its next step differently.
+        label: lower.includes("pocket veto") ? "Pocket vetoed by the President" : "Vetoed by the President",
+      });
       continue;
     }
     if (lower.includes("signed by president") && once("signed")) {

@@ -246,6 +246,26 @@ it("a proposed constitutional amendment is drawn on the road to the states, not 
   assert.deepEqual(roadLabels("hres", true), PATH_LABELS.simple_resolution);
 });
 
+it("every way the record titles a proposed amendment is read as one (20 in the 119th were missed)", () => {
+  // Real 119th-Congress titles that a "Proposing an amendment…" prefix check
+  // drew on the road to law: all S.J.Res. amendments, and the balanced-budget ones.
+  for (const [type, title] of [
+    ["sjres", "A joint resolution proposing an amendment to the Constitution of the United States relative to limiting the number of terms that a Member of Congress may serve."],
+    ["sjres", "A joint resolution proposing a balanced budget amendment to the Constitution of the United States."],
+    ["sjres", "A joint resolution proposing amendments to the Constitution of the United States relative to the line item veto, a limitation on the number of terms that a Member of Congress may serve."],
+    ["hjres", "Proposing a balanced budget amendment to the Constitution of the United States."],
+    ["hjres", ".Proposing a balanced budget amendment to the Constitution requiring that each agency and department's funding is justified."],
+  ] as const) {
+    assert.ok(proposesAmendment(type, title), title);
+  }
+  // Not amendments: a joint resolution that does something else, and an
+  // ordinary bill or simple resolution with the same words.
+  assert.ok(!proposesAmendment("sjres", "A joint resolution directing the removal of United States Armed Forces from hostilities in Ukraine that have not been authorized by Congress."));
+  assert.ok(!proposesAmendment("sjres", "A joint resolution providing for congressional disapproval of the rule submitted by the Department of Labor."));
+  assert.ok(!proposesAmendment("hres", "Proposing an amendment to the Constitution of the United States."));
+  assert.ok(!proposesAmendment("hr", "Proposing a balanced budget amendment to the Constitution of the United States."));
+});
+
 if (failures.length) {
   console.error(`\nbillStages: ${passed} passed, ${failures.length} FAILED\n`);
   console.error(failures.join("\n\n"));

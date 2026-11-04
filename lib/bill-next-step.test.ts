@@ -82,9 +82,29 @@ it('a veto in a live Congress names the override rule, and no clock', () => {
   const next = billNextStep({ ...base, stage: BillStages.VETOED, billType: 'hr' });
   assert.equal(
     next?.text,
-    'It becomes law only if the House and the Senate each vote by two-thirds to override the veto. A pocket veto cannot be overridden.',
+    'A veto can be overridden only if the House and the Senate each vote for it by two-thirds. A pocket veto, made while Congress is away, cannot be.',
   );
   assert.equal(next?.daysLeft, null);
+});
+
+// A pocket-vetoed bill read "It becomes law only if the House and the Senate
+// each vote by two-thirds to override the veto": no vote can override one.
+it('a pocket veto says no vote can override it', () => {
+  const next = billNextStep({
+    ...base,
+    stage: BillStages.VETOED,
+    billType: 'hr',
+    events: [{ date: '2026-10-30', kind: 'vetoed', label: 'Pocket vetoed by the President' }],
+  });
+  assert.equal(next?.text, 'Nothing more: this was a pocket veto, made while Congress was away. No vote can override it.');
+  assert.doesNotMatch(next!.text, /two-thirds/);
+});
+
+// "Ended without overriding the veto" implied an override was possible for a
+// pocket veto too.
+it('a veto from an ended Congress says the veto stands', () => {
+  const next = billNextStep({ ...base, congress: 118, stage: BillStages.VETOED, billType: 'hr' });
+  assert.equal(next?.text, 'Nothing more: the 118th Congress ended, and the veto stands.');
 });
 
 // /bills/131hr119: "It becomes law only if the House and the Senate each vote

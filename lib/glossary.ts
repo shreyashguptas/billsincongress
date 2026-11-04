@@ -37,7 +37,7 @@ export const TERMS = {
     word: 'Congress',
     group: 'people',
     definition:
-      'The 535 people Americans elect to make the country’s laws. They meet in two rooms: the House and the Senate.',
+      'The 535 senators and representatives Americans elect to make the country’s laws, plus six delegates who cannot cast final votes. They meet in two rooms: the House and the Senate.',
   },
   'congress-number': {
     word: 'Congress numbers',
@@ -91,7 +91,7 @@ export const TERMS = {
   floor: {
     word: 'The floor',
     group: 'people',
-    definition: 'The full room, where every member can speak and vote. “Sent to the floor” means it is ready for that vote.',
+    definition: 'The full room, where members debate and vote. “Sent to the floor” means it is ready for that vote.',
     match: ['floor'],
   },
   crs: {
@@ -189,7 +189,7 @@ export const TERMS = {
     group: 'steps',
     stage: BillStages.TO_PRESIDENT,
     definition:
-      'The President has 10 days (not counting Sundays) from its arrival to sign or veto it. If neither happens it becomes law anyway, unless Congress’s session has ended; then it dies.',
+      'The President has 10 days (not counting Sundays) to sign or veto it. If neither happens it becomes law anyway, unless Congress is away so it can’t be sent back; then it dies.',
   },
   veto: {
     word: 'Veto',
@@ -202,7 +202,7 @@ export const TERMS = {
     word: 'Signed by the President',
     group: 'steps',
     stage: BillStages.SIGNED_BY_PRESIDENT,
-    definition: 'The President said yes. The bill is a law now; its official law number follows a few days later.',
+    definition: 'The President said yes. The bill is a law now; its official law number comes later.',
   },
   'became-law': {
     word: 'Became law',
@@ -229,13 +229,13 @@ export const TERMS = {
     word: 'Voice vote',
     group: 'votes',
     definition:
-      'Members call out “yes” or “no” together, and the leader decides which side was louder. No one’s vote is written down.',
+      'Members call out “yes” or “no” together, and the member running the vote decides which side was louder. No one’s vote is written down.',
     match: ['voice vote'],
   },
   'unanimous-consent': {
     word: 'Unanimous consent',
     group: 'votes',
-    definition: 'The leader asks if anyone objects. If no one does, it passes without a vote.',
+    definition: 'The member running the session asks if anyone objects. If no one does, it passes without a vote.',
     match: ['unanimous consent'],
   },
   'recorded-vote': {
@@ -396,14 +396,14 @@ export function statusCardLine(stage: number, billType: string | null | undefine
 
 const STAGE_LINES: Partial<Record<TermId, string>> = {
   introduced: 'A member handed it in. It is the first step for every bill.',
-  'in-committee': 'A small group of members is studying it first. Most bills stop here.',
+  'in-committee': 'It is with a small group of members, who decide whether it moves on. Most bills stop here.',
   'out-of-committee': 'It is out of committee, or never went to one, and is waiting for a vote by the whole room.',
   'passed-one-chamber': 'One room voted yes. The other room has to pass the same words too.',
   'passed-both-chambers':
     'The House and the Senate have each passed it. If their versions differ, they must agree on one text before it can go further.',
   'to-president': 'Both rooms said yes and sent it to the President, who can sign it or veto it.',
   veto: 'The President said no. Congress can overrule a veto only if two in three of the members voting in each room agree.',
-  signed: 'The President signed it, so it is a law. Its law number comes a few days later.',
+  signed: 'The President signed it, so it is a law. Its law number comes later.',
   'became-law': 'It is a law of the United States now.',
 };
 

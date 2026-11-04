@@ -469,8 +469,8 @@ Patterns that appear on more than one page:
 - **Status panel** (bill page, "Where it stands"): `rounded-lg`, raised, the
   stage in `display-sm` with its glyph (its name plain, not a `Term`: the line under it
   explains it), then one always-visible
-  `text-ui` `ink-2` sentence that says what that stage means ("A small group of members
-  is studying it first. Most bills stop here."; `stageLine` in `lib/glossary.ts`), so the
+  `text-ui` `ink-2` sentence that says what that stage means ("It is with a small group
+  of members, who decide whether it moves on. Most bills stop here."; `stageLine` in `lib/glossary.ts`), so the
   page's most important word never waits for a tap. It defines the stage; it never
   forecasts this bill, and it never claims what the record cannot show ("passed both
   chambers" means each passed a version, not the same words). A measure whose Congress

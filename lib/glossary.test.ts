@@ -111,6 +111,16 @@ it('passed both chambers never says the two rooms passed the same words', () => 
   assert.doesNotMatch(TERMS['passed-both-chambers'].definition, /same words/);
 });
 
+// "A small group of members is studying it first" — most referred bills are
+// never worked on at all; and "the leader" reads as the party leader.
+it('committee and floor-vote words claim only what is true', () => {
+  assert.doesNotMatch(statusCardLine(40, 'hr')!, /studying/);
+  assert.match(statusCardLine(40, 'hr')!, /decide whether it moves on/);
+  assert.doesNotMatch(TERMS['voice-vote'].definition, /leader/);
+  assert.doesNotMatch(TERMS['unanimous-consent'].definition, /leader/);
+  assert.doesNotMatch(TERMS.signed.definition, /few days/);
+});
+
 it('a measure from an ended Congress is not described as still moving', () => {
   // /bills/82sjres118: "A small group of members is studying it first", above
   // "it expired when the 118th Congress ended".
@@ -194,7 +204,8 @@ it('a pocket veto needs an adjournment that stops the bill coming back, not any 
   // "it becomes law anyway, unless Congress has adjourned; then it dies":
   // Congress adjourns every day.
   assert.doesNotMatch(TERMS['to-president'].definition, /unless Congress has adjourned;/);
-  assert.match(TERMS['to-president'].definition, /session has ended/);
+  // Same rule as the next step in lib/bill-next-step.ts, in fewer words.
+  assert.match(TERMS['to-president'].definition, /can’t be sent back/);
 });
 
 it('"agreed to" is the finish line only for a simple resolution', () => {

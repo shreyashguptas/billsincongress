@@ -33,7 +33,7 @@ import { BillRelatedSection } from './bill-related';
 import { MemberAccounts } from './member-accounts';
 import { BillCosponsors } from './bill-cosponsors';
 import { BillWords } from './bill-words';
-import { committeeBaseRate, congressClock, journeyView } from '@/lib/bill-journey';
+import { committeeBaseRate, congressClock, finishOf, journeyView } from '@/lib/bill-journey';
 import { billNextStep, daysLeftPhrase } from '@/lib/bill-next-step';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -106,7 +106,6 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   // which is all a crawler without JS ever sees. It also drops the CRS habit of
   // opening with an echo of the bill's own title.
   const summary = billSummaryText(bill);
-  const answer = billAnswerParagraph(bill);
   // "In short": the first sentence of that summary, or a plain one built from
   // the title and the stage when Congress has not written one.
   const lead = billLead(bill);
@@ -178,6 +177,10 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   // The Congress is over: an unfinished measure expired with it, and the
   // card's present-tense lines would be false (lib/glossary.ts, stageLine).
   const congressEnded = congressClock(bill.congress, today, bill.introduced_date || today).ended;
+  const answer = billAnswerParagraph(bill, {
+    congressEnded,
+    finished: finishOf(stage, bill.bill_type ?? '') !== null,
+  });
   // The current stage in one plain sentence, always on screen: the most
   // important word on the page should not wait for a tap. The measure's type
   // picks the line: a concurrent resolution is agreed to by both rooms.
