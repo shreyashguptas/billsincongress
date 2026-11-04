@@ -815,7 +815,14 @@ every target a finger can hit over less than 44px, measured with real hit
 testing (so overlapping targets fail). It is not in CI; run it before merging
 anything a reader taps. A chart whose geometry is the data (the state map's
 tiles, the month chart's scrub columns) is marked `data-touch-exempt="<why>"`;
-use it for nothing else. Links and `Term`s inside a running sentence are exempt, as in WCAG.
+use it for nothing else. The month chart's columns are 16px wide on a 390px phone, under
+WCAG's 24px minimum (2.5.8) as well as the 44px rule, and that is a recorded call, not an
+oversight: for a pointer the chart is one control, like a slider's track. A press anywhere
+on it picks the month under the finger and a drag moves through the months (the
+`role="group"` overlay reads the pointer, not the column), so the target is the whole
+358×288px chart. The per-month buttons are there for the keyboard (one tab stop, arrow
+keys) and screen readers, which name each month's figures. Showing every month of the
+Congress side by side at 24px each would need 576px. Links and `Term`s inside a running sentence are exempt, as in WCAG.
 A target whose centre lands on a different target fails whatever its size, and the report
 names the one on top: that is a tap that opens the wrong thing.
 
