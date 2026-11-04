@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { SectionHeader } from '@/components/brand/section';
 import { stageFill } from '@/components/brand/status';
-import { Term } from '@/components/brand/term';
 import { SectionAsk, fmt, type HomeProps } from './shared';
 
 type SB = HomeProps['dashboard']['statusBreakdown'];
@@ -102,10 +101,11 @@ export function StageZoom({
           eyebrow="Where bills stand"
           finding
           title={
+            // A heading, so no dotted Term (brand.md, "Term"): the line under
+            // it says what a committee is.
             <>
-              {/* The finding rests on "committee", so the word explains itself. */}
-              {((stuckTotal / all) * 100).toFixed(1)}% of bills and resolutions haven&rsquo;t made it out of{' '}
-              <Term id="committee">committee</Term>. Here are the ones that have.
+              {((stuckTotal / all) * 100).toFixed(1)}% of bills and resolutions haven&rsquo;t made it out of
+              committee. Here are the ones that have.
             </>
           }
           action={
@@ -114,8 +114,8 @@ export function StageZoom({
             />
           }
         />
-        {/* The finding rests on one word; say what it means right under it,
-            for the reader who never taps it (brand.md, "Term"). */}
+        {/* The finding rests on one word; say what it means right under it
+            (brand.md, "Term"). */}
         <p className="mt-4 max-w-measure text-reading-sm text-ink-2">
           A committee is a small group of members who study a bill before anyone else votes on it. Most bills never
           get past one.
