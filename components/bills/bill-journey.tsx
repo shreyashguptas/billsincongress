@@ -9,10 +9,11 @@ import { StageTrack, stageFill } from '@/components/brand/status';
 import { SourceLine } from '@/components/brand/section';
 import { Term, TermText } from '@/components/brand/term';
 import { stageTermId, type TermId } from '@/lib/glossary';
-import { getStageStep, PATH_LABELS, stagePath, stagePathNote } from '@/lib/utils/bill-stages';
+import { getStageStep, roadLabels, stagePathNote } from '@/lib/utils/bill-stages';
 import {
   axisTicks,
   congressClock,
+  congressClockRule,
   formatDay,
   journeyView,
   type BillJourney,
@@ -44,6 +45,7 @@ export function BillJourneyPanel({
   journey,
   today,
   noun,
+  amendment = false,
   skipTerm = null,
 }: {
   billId: string;
@@ -53,6 +55,8 @@ export function BillJourneyPanel({
   journey: BillJourney;
   today: string;
   noun: string;
+  /** A proposed constitutional amendment: its road ends at the states, not law. */
+  amendment?: boolean;
   /** A word the page has already explained (the status card's stage). */
   skipTerm?: TermId | null;
 }) {
@@ -62,9 +66,9 @@ export function BillJourneyPanel({
   const showClock = !view.finish;
   // Without a bar, the track is drawn on the measure's own road: a resolution
   // ends at "Agreed to" (documentation/brand.md, "The road a measure travels").
-  const { step, total } = getStageStep(journey.finalStage, billType);
-  const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
-  const roadNote = stagePathNote(billType);
+  const { step, total } = getStageStep(journey.finalStage, billType, amendment);
+  const roadEnd = roadLabels(billType, amendment)[total - 1];
+  const roadNote = stagePathNote(billType, amendment);
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
   const eventCount = view.chapters.reduce((sum, c) => sum + c.events.length, 0);
@@ -101,7 +105,7 @@ export function BillJourneyPanel({
         <JourneyBar view={view} finalStage={journey.finalStage} />
       ) : (
         <>
-          <StageTrack stage={journey.finalStage} billType={billType} labels size="lg" />
+          <StageTrack stage={journey.finalStage} billType={billType} amendment={amendment} labels size="lg" />
           {/* StageTrack drops its step names below `sm`; the two ends still
               say which way the track runs. */}
           <div className="mt-2.5 flex justify-between text-xs font-medium leading-4 sm:hidden" aria-hidden="true">
@@ -169,6 +173,7 @@ export function BillJourneyPanel({
           noun={noun}
           billType={billType}
           stage={journey.finalStage}
+          amendment={amendment}
         />
       )}
 
@@ -412,6 +417,10 @@ function EventLabel({ label, floor, law }: { label: string; floor: boolean; law:
 /**
  * Every bill still pending when a Congress ends dies with it. The bar is the
  * whole two-year Congress, with the bill's introduction marked on it.
+ *
+ * The rule it states is the one that applies: a bill still in Congress dies,
+ * but one already on the President's desk can still be signed in its 10 days;
+ * a proposed amendment both chambers have passed has gone to the states.
  */
 function CongressClock({
   congress,
@@ -420,6 +429,7 @@ function CongressClock({
   noun,
   billType,
   stage,
+  amendment,
 }: {
   congress: number;
   today: string;
@@ -427,12 +437,11 @@ function CongressClock({
   noun: string;
   billType: string;
   stage: number;
+  amendment: boolean;
 }) {
   const clock = congressClock(congress, today, introducedDate);
   const ordinal = formatCongressOrdinal(congress);
-  // The same classification as the track (printed forms like "H.Con.Res." too).
-  const goesToPresident = stagePath(billType) === 'law';
-  const outcome = goesToPresident ? 'become law' : 'been adopted';
+  const rule = congressClockRule({ congress, noun, billType, amendment });
 
   // Presented but neither signed nor vetoed on the record: a pocket veto or
   // an action not yet synced. "Expired" would claim more than the record does.
@@ -466,8 +475,7 @@ function CongressClock({
           left in the {ordinal} Congress
         </p>
         <p className="max-w-[520px] text-sm text-ink-2 sm:text-right">
-          A {noun} that has not {outcome} when it ends on {formatDay(clock.end)} dies, and would have
-          to be introduced again.
+          {rule}
         </p>
       </div>
       <div

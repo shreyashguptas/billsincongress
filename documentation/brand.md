@@ -308,7 +308,7 @@ These live in `components/brand/` and compose the primitives above.
 |---|---|---|
 | `Logo`, `ChamberMark` | `components/brand/logo.tsx` | See Logo, below |
 | `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `measureStageLabel()` in `lib/utils/bill-stages.ts` ("Agreed to by the House" for an adopted House resolution). Never fill the whole pill with the stage colour |
-| `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
+| `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, five for a proposed constitutional amendment, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
 | `StageSteps` | `components/brand/status.tsx` | The same track stood on its end for a narrow column (the bill page's status card from `lg`): one row per step, an 8px segment filled as `StageTrack` fills, the step's name, the current one in `ink` and marked "Now" in `.meta` |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
 | `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right. The usual action, `AskAbout`, carries `.touch-hit` (a caption that taps like a 44px button) |
@@ -449,7 +449,10 @@ Patterns that appear on more than one page:
   **In short** (its eyebrow is a real h2, so heading navigation lands on it): one
   sentence in Newsreader at 26/38 (22/32 on phones), `max-w-measure`, under a `line`
   rule. It is the first sentence of the CRS summary, word for word (`billLead` in
-  `lib/seo.ts`), and a `.meta` line under it says so. With no summary there is no
+  `lib/seo.ts`), and a `.meta` line under it says so. A short title the summary
+  opens with is not part of it. It is a sentence or nothing: a summary that opens
+  with a part's heading ("DIVISION A--…") or a first line with no stop gets no In
+  short, only a `.meta` line under a `line` rule linking down to the summary. With no summary there is no
   In short: a sentence built from the title only said the title again, so a single
   `.meta` line under a `line` rule says there is no plain-language summary yet and
   links down to "What the record says". Then the status card, then the actions (PDF,
@@ -477,16 +480,20 @@ Patterns that appear on more than one page:
   step names: a `StageTrack` across the card on phones and tablets, `StageSteps`
   in the 360px right-hand column of the hero from `lg`, beside the title and
   lead. For a resolution, one `text-sm` `ink-2` sentence says why the road is
-  short. Then **What happens next** under a hairline: one `text-ui` `ink`
+  short; so does a proposed constitutional amendment's. Then **What happens next** under a hairline: one `text-ui` `ink`
   sentence that is a rule of the process, never a forecast ("Next on the road:
   the full House would have to vote on it.", "Nothing more: it is law."; a proposed
   constitutional amendment goes to the states, not the President; `billNextStep` in
-  `lib/bill-next-step.ts`), and, for a measure that can still move, a `.meta`
-  line with the days left in the Congress. It ends with an underlined link down
+  `lib/bill-next-step.ts`). A rule with exceptions says "usually". A vetoed bill
+  gets the override rule, or the failed override vote itself when the record has
+  one, never "still". For a measure that can still move, a `.meta`
+  line with the days left in the Congress; a vetoed bill gets none, since a veto
+  is not a step on the way. It ends with an underlined link down
   to the journey, "How it got here". The detailed **journey** sits in its own section below the
   summary, in a `rounded-lg` raised panel. Under the stage's "Stage n of N",
   one underlined `ink-2` text link with `ArrowRight`: "How a bill becomes law"
-  (`/learn#path`), or for a resolution "What a resolution is" (its word in Learn).
+  (`/learn#path`), or for a resolution "What a resolution is" (its word in Learn),
+  or for a proposed amendment "What a joint resolution is".
 - **Words to know** (`components/bills/bill-words.tsx`, rows from
   `components/brand/word-list.tsx`): the last section of a bill page before the ask band.
   Eyebrow "Words to know", an h2 "The words on this page, in plain English", then the
@@ -688,6 +695,7 @@ step is done, and the next is the floor. The pill, the colour and the label ("Ou
 committee") tell the two apart, on every road.
 | Concurrent resolution (H.Con.Res., S.Con.Res.) | Introduced · Committee · One chamber · Agreed to | "Agreed to by both chambers" |
 | Simple resolution (H.Res., S.Res.) | Introduced · Committee · Agreed to | "Agreed to by the House" or "by the Senate" |
+| Joint resolution proposing a constitutional amendment (title "Proposing an amendment to the Constitution…") | Introduced · Committee · One chamber · Both chambers · To the states | None in the data: ratification is the states', not Congress's |
 
 - **"Agreed to"**, not "passed": it is the word the record uses for a
   resolution, and "passed" invites "…and then what?".
@@ -706,6 +714,15 @@ committee") tell the two apart, on every road.
   past its own last step (a veto, the President) draws as an unrecognised
   stage: "Unknown", `ink-3`, an empty track. A confidently wrong stage is worse
   than none. (None exist in the data today.)
+- **A proposed amendment ends at the states.** It needs two-thirds of each
+  chamber, skips the President and never becomes a law, so it is drawn on its
+  own road (`proposesAmendment()` and `roadLabels()` in `lib/utils/bill-stages.ts`;
+  the type alone cannot tell, its title can): the bill page, its journey and share
+  card, bill rows and the account page. Its sentence under the track: "A change to
+  the Constitution needs two in three votes in each chamber. Then it goes to the
+  states, not the President, and it counts only if three in four states approve
+  it." The alert email and the in-answer card do not yet: they still draw the road
+  to law.
 - **The glyph** for "Agreed to" is the chamber's, `Landmark`.
 - **Every surface passes the type it has.** `StatusPill`, `StageTrack`,
   `stageFill`, `compactStageLabel` and the email's `stageTrack()` all take a

@@ -145,15 +145,53 @@ const RESOLUTION_STEPS: Record<Exclude<StagePath, 'law'>, Partial<Record<BillSta
   },
 };
 
+/**
+ * A joint resolution proposing a constitutional amendment: its road ends at the
+ * states, not the President (Article V), and it never becomes a law. Its
+ * official title says so in these words; anything else is treated as an
+ * ordinary joint resolution.
+ */
+export function proposesAmendment(billType: string | null | undefined, title: string | null | undefined): boolean {
+  const type = (billType ?? '').toLowerCase().replace(/[^a-z]/g, '');
+  return (type === 'hjres' || type === 'sjres') && /^\s*proposing an amendment to the constitution/i.test(title ?? '');
+}
+
+/**
+ * The step names of a proposed amendment's road. Two-thirds of each chamber
+ * pass it, then it goes to the states; three in four must ratify it. No stage
+ * in the data records ratification, so the last step is where Congress's part
+ * ends.
+ */
+export const AMENDMENT_PATH_LABELS = ['Introduced', 'Committee', 'One chamber', 'Both chambers', 'To the states'] as const;
+
+const AMENDMENT_STEPS: Partial<Record<BillStage, number>> = {
+  [BillStages.INTRODUCED]: 1,
+  [BillStages.IN_COMMITTEE]: 2,
+  [BillStages.OUT_OF_COMMITTEE]: 2,
+  [BillStages.PASSED_ONE_CHAMBER]: 3,
+  [BillStages.PASSED_BOTH_CHAMBERS]: 4,
+};
+
+/**
+ * `amendment`: the measure proposes a constitutional amendment
+ * (`proposesAmendment`), so it is drawn on the road to the states, not to law.
+ * Only a joint resolution can be one; for any other type it changes nothing.
+ */
 export function getStageStep(
   stage: number,
   billType?: string | null,
+  amendment = false,
 ): {
   step: number;
   total: number;
   isVetoed: boolean;
 } {
   const path = stagePath(billType);
+  if (amendment && path === 'law') {
+    const total = AMENDMENT_PATH_LABELS.length;
+    const step = isValidStage(stage) ? (AMENDMENT_STEPS[stage] ?? 0) : 0;
+    return { step, total, isVetoed: false };
+  }
   if (path !== 'law') {
     const total = PATH_LABELS[path].length;
     const step = isValidStage(stage) ? (RESOLUTION_STEPS[path][stage] ?? 0) : 0;
@@ -173,8 +211,8 @@ export function getStageStep(
 }
 
 /** True when `stage` is a step on this measure's road — what may take a stage's colour. */
-export function isStageOnPath(stage: number, billType?: string | null): boolean {
-  return getStageStep(stage, billType).step > 0;
+export function isStageOnPath(stage: number, billType?: string | null, amendment = false): boolean {
+  return getStageStep(stage, billType, amendment).step > 0;
 }
 
 /**
@@ -226,6 +264,12 @@ export const PATH_LABELS: Record<StagePath, readonly string[]> = {
   concurrent_resolution: ['Introduced', 'Committee', 'One chamber', 'Agreed to'],
 };
 
+/** The step names for a measure's road, a proposed amendment's included. */
+export function roadLabels(billType?: string | null, amendment = false): readonly string[] {
+  const path = stagePath(billType);
+  return amendment && path === 'law' ? AMENDMENT_PATH_LABELS : PATH_LABELS[path];
+}
+
 /** "House" / "Senate": every Senate type starts with "s" (s, sres, S.Con.Res.). */
 function chamberOf(billType: string): 'House' | 'Senate' {
   return billType.trim().toLowerCase().startsWith('s') ? 'Senate' : 'House';
@@ -254,8 +298,8 @@ export function measureStageLabel(stage: number, billType?: string | null): stri
  * The line under the stage name: "Stage 3 of 7", "Stopped at the President",
  * "Stage unknown". The bill page and its share card both print it.
  */
-export function stageNote(stage: number, billType?: string | null): string {
-  const { step, total, isVetoed } = getStageStep(stage, billType);
+export function stageNote(stage: number, billType?: string | null, amendment = false): string {
+  const { step, total, isVetoed } = getStageStep(stage, billType, amendment);
   if (isVetoed) return 'Stopped at the President';
   return step > 0 ? `Stage ${step} of ${total}` : 'Stage unknown';
 }
@@ -264,8 +308,14 @@ export function stageNote(stage: number, billType?: string | null): string {
  * One sentence on why a resolution's track is short, for under the track on its
  * bill page. Null for the law road, which needs no explaining.
  */
-export function stagePathNote(billType?: string | null): string | null {
+export function stagePathNote(billType?: string | null, amendment = false): string | null {
   const path = stagePath(billType);
+  if (amendment && path === 'law') {
+    return (
+      'A change to the Constitution needs two in three votes in each chamber. ' +
+      'Then it goes to the states, not the President, and it counts only if three in four states approve it.'
+    );
+  }
   if (path === 'concurrent_resolution') {
     return (
       'A concurrent resolution is finished once the House and the Senate both agree to it. ' +

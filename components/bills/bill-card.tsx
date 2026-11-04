@@ -6,7 +6,7 @@ import { PartyDot, PartyTag } from '@/components/brand/party';
 import { StageTrack, StatusPill } from '@/components/brand/status';
 import { Bill } from '@/lib/types/bill';
 import { analytics } from '@/lib/analytics';
-import { compactStageLabel, getStageStep } from '@/lib/utils/bill-stages';
+import { compactStageLabel, getStageStep, proposesAmendment } from '@/lib/utils/bill-stages';
 import { formatCongressProse } from '@/lib/congress';
 import Link from 'next/link';
 
@@ -105,7 +105,9 @@ export default function BillCard({ bill, hideTopic = false, date }: BillCardProp
       progress_stage: stage,
     });
 
-  const { step, total, isVetoed } = getStageStep(stage, bill.bill_type);
+  // A proposed constitutional amendment's road ends at the states, not law.
+  const amendment = proposesAmendment(bill.bill_type, bill.title);
+  const { step, total, isVetoed } = getStageStep(stage, bill.bill_type, amendment);
   const sponsorName = [bill.sponsor_first_name, bill.sponsor_last_name].filter(Boolean).join(' ');
   const policyArea = hideTopic ? undefined : bill.bill_subjects?.policy_area_name;
 
@@ -172,7 +174,7 @@ export default function BillCard({ bill, hideTopic = false, date }: BillCardProp
             </span>
           )}
         </div>
-        <StageTrack stage={stage} billType={bill.bill_type} />
+        <StageTrack stage={stage} billType={bill.bill_type} amendment={amendment} />
       </div>
     </Link>
   );

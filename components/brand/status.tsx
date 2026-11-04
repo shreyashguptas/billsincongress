@@ -5,8 +5,7 @@ import {
   getStageStep,
   isStageOnPath,
   measureStageLabel,
-  PATH_LABELS,
-  stagePath,
+  roadLabels,
   type BillStage,
 } from '@/lib/utils/bill-stages';
 
@@ -37,8 +36,8 @@ const STAGE_FILL: Record<BillStage, string> = {
  * An unrecognised stage takes neutral ink-3, never a stage's hue: the colour is
  * the stage. So does a stage off the measure's road (a resolution "to President").
  */
-export function stageFill(stage: number, billType?: string | null): string {
-  if (billType && !isStageOnPath(stage, billType)) return 'bg-ink-3';
+export function stageFill(stage: number, billType?: string | null, amendment = false): string {
+  if (billType && !isStageOnPath(stage, billType, amendment)) return 'bg-ink-3';
   return STAGE_FILL[stage as BillStage] ?? 'bg-ink-3';
 }
 
@@ -61,11 +60,17 @@ export function StatusPill({
 }
 
 /** One column per step. Literal class names, so Tailwind keeps all three. */
-const GRID_COLS: Record<number, string> = { 3: 'grid-cols-3', 4: 'grid-cols-4', 7: 'grid-cols-7' };
+const GRID_COLS: Record<number, string> = {
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
+  7: 'grid-cols-7',
+};
 
 /**
  * Equal segments from introduced to the end of the measure's road: law for a
- * bill, "Agreed to" for a resolution. Reached segments take the current stage's
+ * bill, "Agreed to" for a resolution, the states for a proposed constitutional
+ * amendment (`amendment`). Reached segments take the current stage's
  * colour; the rest are `sunken`. A vetoed bill fills to "To President" in slate.
  */
 export function StageTrack({
@@ -73,20 +78,23 @@ export function StageTrack({
   billType,
   labels = false,
   size = 'sm',
+  amendment = false,
   className,
 }: {
   stage: number;
   /** "hres", "S.Con.Res." … — picks the road. Omitted, the seven-step road to law. */
   billType?: string | null;
+  /** A joint resolution proposing a constitutional amendment: the road ends at the states. */
+  amendment?: boolean;
   /** The step names underneath — bill pages only. */
   labels?: boolean;
   size?: 'sm' | 'lg';
   className?: string;
 }) {
   // An unrecognised stage is step 0, so it fills nothing.
-  const { step, total, isVetoed } = getStageStep(stage, billType);
-  const fill = stageFill(stage, billType);
-  const stepLabels = PATH_LABELS[stagePath(billType)];
+  const { step, total, isVetoed } = getStageStep(stage, billType, amendment);
+  const fill = stageFill(stage, billType, amendment);
+  const stepLabels = roadLabels(billType, amendment);
   return (
     <div className={className}>
       <div
@@ -134,15 +142,17 @@ export function StageTrack({
 export function StageSteps({
   stage,
   billType,
+  amendment = false,
   className,
 }: {
   stage: number;
   billType?: string | null;
+  amendment?: boolean;
   className?: string;
 }) {
-  const { step, total, isVetoed } = getStageStep(stage, billType);
-  const fill = stageFill(stage, billType);
-  const stepLabels = PATH_LABELS[stagePath(billType)];
+  const { step, total, isVetoed } = getStageStep(stage, billType, amendment);
+  const fill = stageFill(stage, billType, amendment);
+  const stepLabels = roadLabels(billType, amendment);
   return (
     <ol
       className={cn('grid gap-1', className)}

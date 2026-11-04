@@ -7,7 +7,8 @@ import {
   getStageStep,
   isStageOnPath,
   measureStageLabel,
-  PATH_LABELS,
+  proposesAmendment,
+  roadLabels,
   stageNote,
   stagePath,
   stagePathNote,
@@ -32,7 +33,7 @@ import { BillRelatedSection } from './bill-related';
 import { MemberAccounts } from './member-accounts';
 import { BillCosponsors } from './bill-cosponsors';
 import { BillWords } from './bill-words';
-import { congressClock, journeyView } from '@/lib/bill-journey';
+import { committeeBaseRate, congressClock, journeyView } from '@/lib/bill-journey';
 import { billNextStep, daysLeftPhrase } from '@/lib/bill-next-step';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -137,19 +138,19 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bill.id]);
 
+  // The committee base rate, for a bill still in committee in a live
+  // Congress (`committeeBaseRate` in lib/bill-journey.ts).
+  const baseRate = committeeBaseRate(bill, today);
+
   // Passive: record when the committee base-rate context is actually shown.
   useEffect(() => {
-    if (
-      bill.base_rate_percent !== undefined &&
-      bill.base_rate_sample !== undefined &&
-      bill.days_in_committee !== undefined
-    ) {
+    if (baseRate) {
       analytics.billBaseRateViewed({
         bill_id: String(bill.id),
         chamber: bill.bill_type?.startsWith('s') ? 'senate' : 'house',
-        days_in_committee: bill.days_in_committee,
-        base_rate_percent: bill.base_rate_percent,
-        base_rate_sample: bill.base_rate_sample,
+        days_in_committee: baseRate.days,
+        base_rate_percent: baseRate.percent,
+        base_rate_sample: baseRate.sample,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,10 +165,13 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   // travels"), so a stage off that road is unknown too.
   const stage = progressStage;
   const billType = bill.bill_type;
-  const { step, total } = getStageStep(stage, billType);
+  // A proposed constitutional amendment never becomes a law: its road ends at
+  // the states, not the President.
+  const amendment = proposesAmendment(billType, bill.title);
+  const { step, total } = getStageStep(stage, billType, amendment);
   const StageGlyph = isStageOnPath(stage, billType) ? STAGE_GLYPH[stage as BillStage] : CircleHelp;
-  const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
-  const roadNote = stagePathNote(billType);
+  const roadEnd = roadLabels(billType, amendment)[total - 1];
+  const roadNote = stagePathNote(billType, amendment);
   // The civics words this page explains, each the first time it appears.
   const stageTerm = isStageOnPath(stage, billType) ? stageTermId(stage, billType) : null;
   const measureTerm = measureTermId(billType);
@@ -180,8 +184,9 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   const stagePlain = statusCardLine(stage, billType, congressEnded);
   // The status card's way to the whole road: Learn's picture story for a
   // bill, the measure's own word for a resolution (its road is not that one).
-  const roadLink =
-    stagePath(billType) === 'law'
+  const roadLink = amendment
+    ? { href: termHref('joint-resolution'), label: 'What a joint resolution is' }
+    : stagePath(billType) === 'law'
       ? { href: '/learn#path', label: 'How a bill becomes law' }
       : { href: termHref(measureTerm), label: 'What a resolution is' };
 
@@ -235,10 +240,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             ? `from introduction to the end of the ${formatCongressOrdinal(bill.congress)} Congress`
             : 'since it was introduced';
 
-  const hasBaseRate =
-    bill.base_rate_percent !== undefined &&
-    bill.base_rate_sample !== undefined &&
-    bill.days_in_committee !== undefined;
+  const hasBaseRate = baseRate !== null;
 
   // The journey's headline states how the road ended, and when, not that
   // there is one (brand.md, "Headlines state the finding"). Its length is the
@@ -246,8 +248,8 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   const n = view?.totalDays ?? 0;
   const ended = view ? formatDate(view.endDate) : '';
   const journeyTitle = !view
-    ? hasBaseRate
-      ? `In committee for ${formatCount(bill.days_in_committee!)} ${bill.days_in_committee === 1 ? 'day' : 'days'}`
+    ? baseRate
+      ? `In committee for ${formatCount(baseRate.days)} ${baseRate.days === 1 ? 'day' : 'days'}`
       : 'Its journey so far'
     : n === 0 && !view.finish
       ? 'Introduced today'
@@ -274,6 +276,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
     introducedDate: bill.introduced_date,
     today,
     title: bill.title,
+    events: journey?.events,
   });
   const hasJourneySection = Boolean(journey) || hasBaseRate;
 
@@ -386,6 +389,16 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   What the record says
                 </a>
               </p>
+            ) : !lead.text ? (
+              // The summary opens with a heading, not a sentence ("DIVISION
+              // A--INCREASING AMERICAN ENERGY PRODUCTION…"): no In short, only
+              // the way down to it.
+              <p className="meta mt-6 border-t border-line pt-4">
+                This {noun} has a summary by the Congressional Research Service.{' '}
+                <a href="#bill-summary" className="link touch-hit focus-ring whitespace-nowrap rounded-xs">
+                  Read the summary
+                </a>
+              </p>
             ) : (
               <div className="mt-8 border-t border-line pt-6 sm:mt-10 sm:pt-8">
                 <h2 className="label-eyebrow">In short</h2>
@@ -449,7 +462,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 <p className="mt-1.5 text-sm text-ink-2 tabular">
                   {/* A vetoed bill is not "stage 5 of 7": it reached the
                       President and stopped there, off the path to law. */}
-                  {stageNote(stage, billType)}
+                  {stageNote(stage, billType, amendment)}
                 </p>
                 <Link
                   href={roadLink.href}
@@ -478,7 +491,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             {/* The road, with its step names: across the card on phones and
                 tablets, stood on its end in the narrow column from `lg`. */}
             <div className="mt-5 lg:hidden">
-              <StageTrack stage={stage} billType={billType} labels size="lg" />
+              <StageTrack stage={stage} billType={billType} amendment={amendment} labels size="lg" />
               {/* StageTrack drops its step names below `sm`; the two ends
                   still say which way the track runs. */}
               <div
@@ -489,7 +502,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 <span className={step === total ? 'text-ink' : 'text-ink-3'}>{roadEnd}</span>
               </div>
             </div>
-            <StageSteps stage={stage} billType={billType} className="mt-5 hidden lg:grid" />
+            <StageSteps stage={stage} billType={billType} amendment={amendment} className="mt-5 hidden lg:grid" />
 
             {/* Why a resolution's road is short: it ends where it is finished. */}
             {roadNote && <p className="mt-4 text-sm leading-relaxed text-ink-2">{roadNote}</p>}
@@ -617,11 +630,12 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   journey={journey}
                   today={today}
                   noun={noun}
+                  amendment={amendment}
                   skipTerm={stageTerm}
                 />
               )}
 
-              {hasBaseRate && (
+              {baseRate && (
                 <div
                   className={cn(
                     'max-w-measure space-y-1.5',
@@ -631,15 +645,15 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   <p className="text-sm leading-relaxed text-ink-2">
                     In committee for{' '}
                     <span className="font-medium text-ink tabular">
-                      {formatCount(bill.days_in_committee!)} days
+                      {formatCount(baseRate.days)} days
                     </span>
                     . Among {bill.bill_type?.startsWith('s') ? 'Senate' : 'House'} bills and
                     resolutions from past Congresses still in committee this long, about{' '}
-                    <span className="font-medium text-ink tabular">{bill.base_rate_percent}%</span>{' '}
+                    <span className="font-medium text-ink tabular">{baseRate.percent}%</span>{' '}
                     ever advanced further.
                   </p>
                   <p className="meta">
-                    Based on <span className="tabular">{formatCount(bill.base_rate_sample!)}</span>{' '}
+                    Based on <span className="tabular">{formatCount(baseRate.sample)}</span>{' '}
                     past bills and resolutions — a description of that group, not a prediction for
                     this {noun}.
                   </p>

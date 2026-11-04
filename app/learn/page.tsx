@@ -242,7 +242,6 @@ export default function LearnPage() {
             node={ScrollText}
             tone="bg-status-law"
             title="Now it’s a law."
-            sub="Everyone in the country follows it."
             picture={<LawPicture />}
           />
         </ol>

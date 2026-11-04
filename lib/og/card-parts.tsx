@@ -5,9 +5,8 @@ import {
   getStageStep,
   isStageOnPath,
   measureStageLabel,
-  PATH_LABELS,
+  roadLabels,
   stageNote as measureStageNote,
-  stagePath,
   type BillStage,
 } from '@/lib/utils/bill-stages';
 import { geist500, geistMono500, newsreader500, newsreader600 } from './fonts';
@@ -69,8 +68,8 @@ export function stageColours(stage: number, billType?: string | null): { fill: s
 }
 
 /** "Stage 3 of 7", "Stopped at the President", "Stage unknown" — as on the bill page. */
-export function stageNote(stage: number, billType?: string | null): string {
-  return measureStageNote(stage, billType);
+export function stageNote(stage: number, billType?: string | null, amendment = false): string {
+  return measureStageNote(stage, billType, amendment);
 }
 
 /** The chamber mark's geometry (components/brand/logo.tsx), spectrum cut. */
@@ -156,7 +155,15 @@ export function stageHeadlineSize(label: string): number {
  * The stage glyph in its colour, the stage in display type, the note under it.
  * `billType` picks the measure's road: a resolution is "Agreed to", not passed.
  */
-export function StageHeadline({ stage, billType }: { stage: number; billType?: string | null }) {
+export function StageHeadline({
+  stage,
+  billType,
+  amendment = false,
+}: {
+  stage: number;
+  billType?: string | null;
+  amendment?: boolean;
+}) {
   const { fill } = stageColours(stage, billType);
   const label = measureStageLabel(stage, billType);
   return (
@@ -190,7 +197,7 @@ export function StageHeadline({ stage, billType }: { stage: number; billType?: s
           {label}
         </div>
         <div style={{ fontFamily: 'Geist Mono', fontSize: 34, color: C.muted, marginTop: 14 }}>
-          {stageNote(stage, billType)}
+          {stageNote(stage, billType, amendment)}
         </div>
       </div>
     </div>
@@ -204,8 +211,17 @@ export function StageHeadline({ stage, billType }: { stage: number; billType?: s
  * colour, earlier ones ink, later ones ink-3. Page cards pass no `billType` and
  * get the seven-step road to law.
  */
-export function StageTrack({ stage, billType }: { stage: number; billType?: string | null }) {
-  const { step, total } = getStageStep(stage, billType);
+export function StageTrack({
+  stage,
+  billType,
+  amendment = false,
+}: {
+  stage: number;
+  billType?: string | null;
+  /** A proposed constitutional amendment: the road ends at the states. */
+  amendment?: boolean;
+}) {
+  const { step, total } = getStageStep(stage, billType, amendment);
   const { fill, text } = stageColours(stage, billType);
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -225,7 +241,7 @@ export function StageTrack({ stage, billType }: { stage: number; billType?: stri
         ))}
       </div>
       <div style={{ display: 'flex', marginTop: 14 }}>
-        {PATH_LABELS[stagePath(billType)].map((label, i) => (
+        {roadLabels(billType, amendment).map((label, i) => (
           <div
             key={label}
             style={{

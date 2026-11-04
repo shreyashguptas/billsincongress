@@ -323,6 +323,10 @@ function standsPhrase(bill: Bill): string {
  * name is not a description.
  */
 export type BillLead = {
+  /**
+   * '' with a summary that does not open with a sentence (a part's heading, a
+   * fragment): the page prints no In short, only a link down to the summary.
+   */
   text: string;
   from: 'summary' | 'title' | 'status';
   /**
@@ -335,8 +339,29 @@ export type BillLead = {
   split: boolean;
 };
 
-/** A bold opening paragraph this short with no closing stop is a heading. */
-const SUMMARY_HEADING_MAX = 80;
+/**
+ * A bold opening paragraph this short with no closing stop is a heading. Long
+ * enough for a bill with two short titles: "Judicial Understaffing Delays
+ * Getting Emergencies Solved Act of 2024 or the JUDGES Act of 2024" (S. 4199,
+ * 118th) is 95 characters, and at the old 80 it led "In short" with no stop.
+ */
+const SUMMARY_HEADING_MAX = 240;
+
+/**
+ * A short title run into the first sentence with no stop between them:
+ * "Lower Costs Act This bill creates…". A capital "This bill" after a space,
+ * with no stop before it, starts the real sentence.
+ */
+const RUN_ON_TITLE = /^([^.?!]{1,240}?)\s+(?=This (?:bill|joint resolution|concurrent resolution|resolution)\b)/;
+
+/**
+ * A summary that opens with a part's heading, not a sentence: "DIVISION
+ * A--INCREASING AMERICAN ENERGY PRODUCTION…" (H.R. 1, 118th), "TITLE I--…".
+ */
+const PART_HEADING = /^(?:DIVISION|TITLE|SUBTITLE|Subtitle)\s+[A-Z0-9]+\s*(?:--|—|–)/;
+
+/** Ends as a sentence does: a stop, perhaps inside a closing quote or bracket. */
+const SENTENCE_END = /[.?!]["”’)]?$/;
 
 export function billLead(bill: Bill): BillLead {
   const summary = billSummaryText(bill);
@@ -355,6 +380,13 @@ export function billLead(bill: Bill): BillLead {
       body.startsWith(head)
     ) {
       body = body.slice(head.length).trim() || summary;
+    }
+    const runOn = RUN_ON_TITLE.exec(body);
+    if (runOn) body = body.slice(runOn[0].length);
+    // No lead rather than a heading or a fragment printed as a sentence: the
+    // page points to the whole summary instead.
+    if (PART_HEADING.test(body) || !SENTENCE_END.test(firstSentence(body))) {
+      return { text: '', from: 'summary', rest: summary, split: false };
     }
     const sentence = firstSentence(body).replace(/\s+/g, ' ');
     const text = truncateAtWord(sentence, LEAD_MAX);

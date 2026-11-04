@@ -33,6 +33,8 @@ export type JourneyEventKind =
   | "passed"
   | "to_president"
   | "vetoed"
+  | "override_passed"
+  | "override_failed"
   | "signed"
   | "became_law";
 
@@ -65,9 +67,20 @@ const KIND_ORDER: Record<JourneyEventKind, number> = {
   passed: 4,
   to_president: 5,
   vetoed: 6,
-  signed: 7,
-  became_law: 8,
+  override_passed: 7,
+  override_failed: 7,
+  signed: 8,
+  became_law: 9,
 };
+
+/**
+ * A chamber's vote on overriding a veto, as the Library of Congress records it:
+ * "Failed of passage in House over veto On passage, the objections of the
+ * President to the contrary notwithstanding Failed by the Yeas and Nays: (2/3
+ * required): 248 - 177" (H.R. 131, 119th), "Passed Senate over veto by Yea-Nay
+ * Vote. 81 - 13." Checked before passage, which "Passed Senate" also matches.
+ */
+const OVERRIDE_VOTE = /^(passed|failed of passage in) (house|senate) over veto\b/i;
 
 /**
  * "366 - 57" from "On passage Passed by the Yeas and Nays: 366 - 57 (Roll no.
@@ -181,6 +194,25 @@ export function buildJourney(
 
     if (/^reported\b/i.test(text) && lower.includes("by the committee") && once("reported")) {
       events.push({ date: a.actionDate, kind: "reported", label: "Reported to the floor" });
+      continue;
+    }
+
+    const override = OVERRIDE_VOTE.exec(text);
+    if (override) {
+      const overChamber = override[2].toLowerCase() as "house" | "senate";
+      const passed = override[1].toLowerCase() === "passed";
+      if (once(`override:${overChamber}:${a.actionDate}`)) {
+        const tally = parseTally(text);
+        events.push({
+          date: a.actionDate,
+          kind: passed ? "override_passed" : "override_failed",
+          chamber: overChamber,
+          label: passed
+            ? `The ${CHAMBER_NAME[overChamber]} voted to override the veto`
+            : `The ${CHAMBER_NAME[overChamber]} voted on overriding the veto; it fell short of two-thirds`,
+          ...(tally ?? {}),
+        });
+      }
       continue;
     }
 

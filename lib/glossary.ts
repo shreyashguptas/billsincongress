@@ -43,7 +43,7 @@ export const TERMS = {
     word: 'Congress numbers',
     group: 'people',
     definition:
-      'Congress is counted in two-year rounds: the 119th meets in 2025 and 2026. A bill not finished when its round ends has to start over.',
+      'Congress is counted in two-year rounds: the 119th meets in 2025 and 2026. Anything not finished when its round ends has to start over.',
     match: ['119th Congress', '118th Congress', '117th Congress'],
   },
   chamber: {
@@ -67,7 +67,8 @@ export const TERMS = {
   representative: {
     word: 'Representative',
     group: 'people',
-    definition: 'A member of the House. Each one speaks for the people of one district in their state.',
+    definition:
+      'A voting member of the House, elected by one district in a state. Six more members, for D.C. and the territories, can bring in bills but cannot vote on passing them.',
   },
   senator: {
     word: 'Senator',
@@ -78,7 +79,7 @@ export const TERMS = {
     word: 'District',
     group: 'people',
     definition:
-      'The part of a state that one Representative speaks for. Each holds about 760,000 people, so big states have many and small states have one.',
+      'The part of a state that one Representative speaks for. Each holds about 760,000 people, so big states have many and the smallest states have just one.',
   },
   committee: {
     word: 'Committee',
@@ -97,7 +98,7 @@ export const TERMS = {
     word: 'Congressional Research Service',
     group: 'people',
     definition:
-      'A team of experts who work for all of Congress, not for any party. They write the plain summary of each bill.',
+      'A team of experts who work for all of Congress, not for any party. They write plain summaries of bills, often weeks after a bill is introduced.',
     match: ['Congressional Research Service'],
   },
 
@@ -106,7 +107,7 @@ export const TERMS = {
     word: 'Bill',
     group: 'measures',
     definition:
-      'A written idea for a new law. Both rooms must pass the same words; then it becomes law when the President signs it, or if Congress overrides a veto.',
+      'A written idea for a new law. Once both rooms pass the same words, it becomes law if the President signs it, if 10 days pass without a veto while Congress meets, or if Congress overrides a veto.',
   },
   resolution: {
     word: 'Resolution',
@@ -133,19 +134,19 @@ export const TERMS = {
     word: 'Joint resolution',
     group: 'measures',
     definition:
-      'Usually works like a bill: both rooms pass it and the President signs it. One that proposes a change to the Constitution skips the President and goes to the states instead.',
+      'Usually works like a bill: both rooms pass it and the President signs it. One that proposes a change to the Constitution needs two-thirds of each room, then goes to the states instead.',
     match: ['joint resolutions', 'joint resolution'],
   },
   sponsor: {
     word: 'Sponsor',
     group: 'measures',
-    definition: 'The member of Congress who brings a bill in and leads it. Every bill has exactly one.',
+    definition: 'The member of Congress who brings a bill or resolution in and leads it. There is always exactly one.',
   },
   cosponsor: {
     word: 'Cosponsor',
     group: 'measures',
     definition:
-      'A member who signs on to support another member’s bill. A bill can have none or hundreds.',
+      'A member who signs on to support another member’s bill or resolution. There can be none or hundreds.',
   },
 
   // ── Steps on the road ──────────────────────────────────────────────
@@ -153,28 +154,28 @@ export const TERMS = {
     word: 'Introduced',
     group: 'steps',
     stage: BillStages.INTRODUCED,
-    definition: 'A member has formally handed the bill in. It gets a number, like H.R. 1276, and its journey starts.',
+    definition: 'A member has formally handed it in. It gets a number, like H.R. 1276 or H.Res. 5, and its journey starts.',
   },
   'in-committee': {
     word: 'In committee',
     group: 'steps',
     stage: BillStages.IN_COMMITTEE,
     definition:
-      'The bill was sent to a committee, which decides whether the whole room ever votes on it. Most bills never leave this step.',
+      'It was sent to a committee, which usually decides whether the whole room ever votes on it. Most bills and resolutions never leave this step.',
   },
   'out-of-committee': {
     word: 'Out of committee',
     group: 'steps',
     stage: BillStages.OUT_OF_COMMITTEE,
     definition:
-      'The committee voted to send the bill to the floor. It is waiting for the full room to vote.',
+      'It is ready for the full room: it left committee, or never went to one. It is waiting for a vote.',
   },
   'passed-one-chamber': {
     word: 'Passed one chamber',
     group: 'steps',
     stage: BillStages.PASSED_ONE_CHAMBER,
     definition:
-      'One room voted yes. Now the other room has to pass the very same words.',
+      'One room said yes. The other room has to say yes too, and in the end both must agree to the very same words.',
   },
   'passed-both-chambers': {
     word: 'Passed both chambers',
@@ -188,14 +189,14 @@ export const TERMS = {
     group: 'steps',
     stage: BillStages.TO_PRESIDENT,
     definition:
-      'The President has 10 days (not counting Sundays) from its arrival to sign or veto it. If neither happens it becomes law anyway, unless Congress has adjourned; then it dies.',
+      'The President has 10 days (not counting Sundays) from its arrival to sign or veto it. If neither happens it becomes law anyway, unless Congress’s session has ended; then it dies.',
   },
   veto: {
     word: 'Veto',
     group: 'steps',
     stage: BillStages.VETOED,
     definition:
-      'The President says no and sends the bill back. It can still become law if two out of three members in both rooms vote yes again.',
+      'The President says no. Congress can override a veto, making the bill law, if two in three of the members voting in each room agree.',
   },
   signed: {
     word: 'Signed by the President',
@@ -208,7 +209,7 @@ export const TERMS = {
     group: 'steps',
     stage: BillStages.BECAME_LAW,
     definition:
-      'The bill finished the whole road. Now it is a law, and everyone in the country has to follow it.',
+      'The bill finished the whole road. It is a law of the United States now.',
   },
   'public-law': {
     word: 'Public Law',
@@ -220,7 +221,7 @@ export const TERMS = {
     word: 'Agreed to',
     group: 'steps',
     definition:
-      'The word Congress uses when a room approves a resolution. For a resolution, this is the finish line.',
+      'The word Congress uses when a room approves a resolution. For a simple resolution that is the finish line; a concurrent resolution needs both rooms to agree.',
   },
 
   // ── How a room votes ───────────────────────────────────────────────
@@ -267,14 +268,21 @@ export const TERM_GROUPS: { id: TermGroup; title: string }[] = [
 /**
  * The word that explains a stage as the page names it. A resolution that was
  * agreed to is stage 60 or 80 in the data, but the page says "Agreed to", so it
- * takes that word, not "Passed one chamber".
+ * takes that word, not "Passed one chamber": a concurrent resolution one room
+ * agreed to ("Agreed to by one chamber") too, since "Agreed to" says it needs
+ * both rooms (/bills/93hconres119 listed "Passed one chamber" under it).
  */
 export function stageTermId(stage: number, billType?: string | null): TermId | null {
   const path = stagePath(billType);
   if (path === 'simple_resolution' && stage >= BillStages.PASSED_ONE_CHAMBER && stage <= BillStages.PASSED_BOTH_CHAMBERS) {
     return 'agreed-to';
   }
-  if (path === 'concurrent_resolution' && stage === BillStages.PASSED_BOTH_CHAMBERS) return 'agreed-to';
+  if (
+    path === 'concurrent_resolution' &&
+    (stage === BillStages.PASSED_ONE_CHAMBER || stage === BillStages.PASSED_BOTH_CHAMBERS)
+  ) {
+    return 'agreed-to';
+  }
   switch (stage) {
     case BillStages.INTRODUCED:
       return 'introduced';
@@ -378,6 +386,10 @@ export function stageLine(id: TermId, billType?: string | null, congressEnded = 
  */
 export function statusCardLine(stage: number, billType: string | null | undefined, congressEnded = false): string | null {
   if (!isStageOnPath(stage, billType)) return null;
+  // Agreed to by one chamber: its word is "Agreed to", its line half-way.
+  if (stagePath(billType) === 'concurrent_resolution' && stage === BillStages.PASSED_ONE_CHAMBER) {
+    return stageLine('passed-one-chamber', billType, congressEnded);
+  }
   const id = stageTermId(stage, billType);
   return id ? stageLine(id, billType, congressEnded) : null;
 }
@@ -385,14 +397,14 @@ export function statusCardLine(stage: number, billType: string | null | undefine
 const STAGE_LINES: Partial<Record<TermId, string>> = {
   introduced: 'A member handed it in. It is the first step for every bill.',
   'in-committee': 'A small group of members is studying it first. Most bills stop here.',
-  'out-of-committee': 'The committee sent it on. It is waiting for a vote by the whole room.',
+  'out-of-committee': 'It is out of committee, or never went to one, and is waiting for a vote by the whole room.',
   'passed-one-chamber': 'One room voted yes. The other room has to pass the same words too.',
   'passed-both-chambers':
     'The House and the Senate have each passed it. If their versions differ, they must agree on one text before it can go further.',
   'to-president': 'Both rooms said yes and sent it to the President, who can sign it or veto it.',
-  veto: 'The President said no. Two in three members of each room can still overrule that.',
+  veto: 'The President said no. Congress can overrule a veto only if two in three of the members voting in each room agree.',
   signed: 'The President signed it, so it is a law. Its law number comes a few days later.',
-  'became-law': 'It is a law now. Everyone in the country has to follow it.',
+  'became-law': 'It is a law of the United States now.',
 };
 
 /** At most this many words in a bill page's "Words to know" list. */

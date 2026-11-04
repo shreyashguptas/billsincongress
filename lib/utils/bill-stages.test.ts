@@ -20,6 +20,8 @@ import {
   MAIN_PATH_LABELS,
   measureStageLabel,
   PATH_LABELS,
+  proposesAmendment,
+  roadLabels,
   stageLabel,
   stageNote,
   stagePath,
@@ -222,6 +224,26 @@ it("a label that is not a printed number gives no type, so the road to law", () 
   assert.equal(billTypeOfLabel("Resolution 77"), null);
   assert.equal(billTypeOfLabel("H.Res."), null);
   assert.equal(stagePath(billTypeOfLabel("Resolution 77")), "law");
+});
+
+// /bills/221hjres119, a proposed constitutional amendment, read "To President
+// / Signed / Law · Stage 2 of 7": an amendment skips the President, goes to
+// the states and never becomes a law.
+it("a proposed constitutional amendment is drawn on the road to the states, not to law", () => {
+  const title = "Proposing an amendment to the Constitution of the United States relative to the length of terms.";
+  const amendment = proposesAmendment("hjres", title);
+  assert.ok(amendment);
+  assert.deepEqual(roadLabels("hjres", amendment), ["Introduced", "Committee", "One chamber", "Both chambers", "To the states"]);
+  assert.ok(!roadLabels("hjres", amendment).includes("Law"));
+  assert.equal(stageNote(BillStages.IN_COMMITTEE, "hjres", amendment), "Stage 2 of 5");
+  assert.equal(stageNote(BillStages.PASSED_BOTH_CHAMBERS, "hjres", amendment), "Stage 4 of 5");
+  // Off its road: an amendment never goes to the President.
+  assert.equal(getStageStep(BillStages.TO_PRESIDENT, "hjres", amendment).step, 0);
+  assert.match(stagePathNote("hjres", amendment)!, /two in three votes in each chamber/);
+  assert.match(stagePathNote("hjres", amendment)!, /not the President/);
+  // An ordinary joint resolution, and any other type, keeps its road.
+  assert.equal(stageNote(BillStages.IN_COMMITTEE, "hjres"), "Stage 2 of 7");
+  assert.deepEqual(roadLabels("hres", true), PATH_LABELS.simple_resolution);
 });
 
 if (failures.length) {

@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ChatUsageResult } from "@/lib/services/bills-service";
-import { BillStageDescriptions } from "@/lib/utils/bill-stages";
+import { BillStageDescriptions, proposesAmendment } from "@/lib/utils/bill-stages";
 import { PRIVATE_TEXT_CLASS } from "@/lib/replay-privacy";
 
 /**
@@ -246,7 +246,11 @@ export function AccountView({
                     >
                       <BillHeading bill={row.bill} />
                       <div className="flex shrink-0 flex-col gap-2 sm:w-48 sm:items-end">
-                        <BillStage description={row.bill.progressDescription} billType={row.bill.billTypeLabel} />
+                        <BillStage
+                          description={row.bill.progressDescription}
+                          billType={row.bill.billTypeLabel}
+                          title={row.bill.title}
+                        />
                         <span className="text-meta text-ink-2 tabular">Saved {formatShortDate(row.savedAt)}</span>
                       </div>
                     </Link>
@@ -322,18 +326,22 @@ function BillHeading({
 function BillStage({
   description,
   billType,
+  title,
   fallback,
 }: {
   description: string | null;
   billType: string;
+  /** The official title: a proposed constitutional amendment's road ends at the states. */
+  title: string;
   fallback?: string;
 }) {
   const stage = stageFromDescription(description);
+  const amendment = proposesAmendment(billType, title);
   if (stage !== null) {
     return (
       <div className="flex w-full flex-col items-start gap-2 sm:items-end">
         <StatusPill stage={stage} billType={billType} />
-        <StageTrack stage={stage} billType={billType} className="w-full max-w-[12rem]" />
+        <StageTrack stage={stage} billType={billType} amendment={amendment} className="w-full max-w-[12rem]" />
       </div>
     );
   }
@@ -631,6 +639,7 @@ function AlertsSection({
                     <BillStage
                       description={row.bill.progressDescription}
                       billType={row.bill.billTypeLabel}
+                      title={row.bill.title}
                       fallback="Status unknown"
                     />
                   )}

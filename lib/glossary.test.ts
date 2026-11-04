@@ -69,7 +69,9 @@ it('names a stage the way the page does: an agreed resolution is "agreed to"', (
   assert.equal(stageTermId(100, 'hr'), 'became-law');
   assert.equal(stageTermId(60, 'hr'), 'passed-one-chamber');
   assert.equal(stageTermId(60, 'hres'), 'agreed-to');
-  assert.equal(stageTermId(60, 'hconres'), 'passed-one-chamber');
+  // "Agreed to by one chamber" on the page: its word is "Agreed to", not
+  // "Passed one chamber" (/bills/93hconres119).
+  assert.equal(stageTermId(60, 'hconres'), 'agreed-to');
   assert.equal(stageTermId(80, 'sconres'), 'agreed-to');
   assert.equal(stageTermId(55, 'hr'), null);
 });
@@ -150,6 +152,89 @@ it('a law page that uses too many words keeps its stage and its votes, not every
   assert.ok(!words.includes('to-president'));
   // Still in reading order.
   assert.ok(words.indexOf('crs') < words.indexOf('became-law'));
+});
+
+// Each case below is a sentence a reader got, found by the civics fact-check
+// of 2026-11-04, and the rule it broke.
+
+it('a veto line states the rule, not that this bill can "still" be saved', () => {
+  // /bills/131hr119: "Two in three members of each room can still overrule
+  // that", after the House's override had failed. Stage 85 also holds pocket
+  // vetoes, which cannot be overridden.
+  const line = statusCardLine(85, 'hr')!;
+  assert.doesNotMatch(line, /\bstill\b/);
+  assert.equal(line, 'The President said no. Congress can overrule a veto only if two in three of the members voting in each room agree.');
+});
+
+it('the override threshold is two in three of the members voting, not of all members', () => {
+  // "two out of three members in both rooms": Art. I, §7 counts members
+  // present and voting.
+  assert.doesNotMatch(TERMS.veto.definition, /two out of three members in both rooms/);
+  assert.match(TERMS.veto.definition, /two in three of the members voting in each room/);
+  // Not "it can still become law": shown on /bills/131hr119, whose override failed.
+  assert.doesNotMatch(TERMS.veto.definition, /\bstill\b/);
+});
+
+it('out of committee never says a committee sent on a bill that skipped committee', () => {
+  // /bills/6s119 (S. 6, a Rule XIV bill never referred): "The committee sent
+  // it on." and "The committee voted to send the bill to the floor."
+  assert.doesNotMatch(statusCardLine(50, 's')!, /^The committee sent it on/);
+  assert.match(statusCardLine(50, 's')!, /never went to one/);
+  assert.doesNotMatch(TERMS['out-of-committee'].definition, /The committee voted/);
+  assert.match(TERMS['out-of-committee'].definition, /never went to one/);
+});
+
+it('in committee: the committee usually decides, not always', () => {
+  // "which decides whether the whole room ever votes on it": a discharge
+  // petition or a suspension vote can bring a bill to the floor without it.
+  assert.match(TERMS['in-committee'].definition, /which usually decides/);
+});
+
+it('a pocket veto needs an adjournment that stops the bill coming back, not any adjournment', () => {
+  // "it becomes law anyway, unless Congress has adjourned; then it dies":
+  // Congress adjourns every day.
+  assert.doesNotMatch(TERMS['to-president'].definition, /unless Congress has adjourned;/);
+  assert.match(TERMS['to-president'].definition, /session has ended/);
+});
+
+it('"agreed to" is the finish line only for a simple resolution', () => {
+  // "For a resolution, this is the finish line": a concurrent resolution one
+  // room agreed to still needs the other.
+  assert.doesNotMatch(TERMS['agreed-to'].definition, /For a resolution, this is the finish line/);
+  assert.match(TERMS['agreed-to'].definition, /concurrent resolution needs both rooms/);
+});
+
+it('a law is a law of the United States, not a rule everyone has to follow', () => {
+  // /bills/7022hr119, /bills/952hr119: "Everyone in the country has to follow
+  // it." Many laws direct one agency, move land or name a building.
+  assert.doesNotMatch(TERMS['became-law'].definition, /everyone in the country/i);
+  assert.doesNotMatch(statusCardLine(100, 'hr')!, /everyone in the country/i);
+  assert.equal(statusCardLine(100, 'hr'), 'It is a law of the United States now.');
+});
+
+it('a bill has three ways to become law, not two', () => {
+  assert.match(TERMS.bill.definition, /10 days pass without a veto/);
+  assert.match(TERMS.bill.definition, /overrides a veto/);
+});
+
+it('the research service writes summaries of bills, not of each bill', () => {
+  // "They write the plain summary of each bill": many bills have none, and the
+  // rest get one weeks after they are introduced.
+  assert.doesNotMatch(TERMS.crs.definition, /summary of each bill/);
+});
+
+it('a proposed amendment to the Constitution needs two-thirds of each room', () => {
+  assert.match(TERMS['joint-resolution'].definition, /two-thirds of each room/);
+});
+
+it('the stage words on a resolution page do not call it a bill or say "pass"', () => {
+  // /bills/93hconres119, "Agreed to by one chamber": "The bill was sent to a
+  // committee…" and "pass the very same words".
+  for (const id of ['introduced', 'in-committee', 'out-of-committee', 'passed-one-chamber'] as const) {
+    assert.doesNotMatch(TERMS[id].definition, /\bthe bill\b|\bpass\b/i, id);
+  }
+  assert.equal(statusCardLine(60, 'hconres'), 'One room said yes. The other room has to say yes too.');
+  assert.doesNotMatch(TERMS.district.definition, /small states have one/);
 });
 
 if (failures.length > 0) {

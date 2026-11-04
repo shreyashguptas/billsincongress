@@ -11,8 +11,8 @@
  * Pure and date-explicit (`today` is passed in), so the server render and the
  * browser agree and the tests can pin a day.
  */
-import { BillStages, stagePath } from './utils/bill-stages';
-import { congressClock } from './bill-journey';
+import { BillStages, proposesAmendment, stagePath } from './utils/bill-stages';
+import { congressClock, formatDay, type JourneyEvent } from './bill-journey';
 import { formatCongressOrdinal } from './congress';
 import { formatCount } from './utils/format';
 
@@ -22,14 +22,24 @@ export type NextStep = {
   daysLeft: number | null;
 };
 
+export { proposesAmendment };
+
+const CHAMBER = { house: 'House', senate: 'Senate' } as const;
+
 /**
- * A joint resolution proposing a constitutional amendment: its road ends at the
- * states, not the President (Article V). Its official title says so in these
- * words; anything else is treated as an ordinary joint resolution.
+ * A vetoed bill's failed override vote, in words: "The House voted on
+ * overriding the veto on Jan 8, 2026. It fell short of two in three, 248 to
+ * 177." H.R. 131 (119th) read "It becomes law only if the House and the Senate
+ * each vote by two-thirds", with days left on the clock, after the House had
+ * already voted and failed. Null when the record shows no failed override.
  */
-export function proposesAmendment(billType: string | null | undefined, title: string | null | undefined): boolean {
-  const type = (billType ?? '').toLowerCase().replace(/[^a-z]/g, '');
-  return (type === 'hjres' || type === 'sjres') && /^\s*proposing an amendment to the constitution/i.test(title ?? '');
+function failedOverride(events: JourneyEvent[] | null | undefined): string | null {
+  const vote = (events ?? []).find((e) => e.kind === 'override_failed');
+  if (!vote) return null;
+  const chamber = vote.chamber ? `The ${CHAMBER[vote.chamber]}` : 'Congress';
+  const tally =
+    vote.yeas !== undefined && vote.nays !== undefined ? `, ${vote.yeas} to ${vote.nays}` : '';
+  return `${chamber} voted on overriding the veto on ${formatDay(vote.date)}. It fell short of two in three${tally}.`;
 }
 
 export function billNextStep({
@@ -39,6 +49,7 @@ export function billNextStep({
   introducedDate,
   today,
   title,
+  events,
 }: {
   stage: number;
   billType: string | null | undefined;
@@ -47,6 +58,8 @@ export function billNextStep({
   today: string;
   /** The official title, to recognise a proposed constitutional amendment. */
   title?: string | null;
+  /** The journey's moments, to see a failed veto override. */
+  events?: JourneyEvent[] | null;
 }): NextStep | null {
   const type = (billType ?? '').trim().toLowerCase();
   const path = stagePath(billType);
@@ -90,14 +103,21 @@ export function billNextStep({
   const amendment = proposesAmendment(billType, title);
   switch (stage) {
     case BillStages.VETOED:
-      return open(
-        'It becomes law only if the House and the Senate each vote by two-thirds to override the veto.',
+      // No clock: a veto is not a step on the way. Stage 85 also holds pocket
+      // vetoes, which no vote can override, and vetoes whose override already
+      // failed (convex/billStage.ts), so the days left would read as time to act.
+      return done(
+        failedOverride(events) ??
+          'It becomes law only if the House and the Senate each vote by two-thirds to override the veto. A pocket veto cannot be overridden.',
       );
     case BillStages.INTRODUCED:
       return open('Next on the road: it is usually sent to a committee.');
     case BillStages.IN_COMMITTEE:
+      // "Usually": a bill can reach the floor without its committee (a
+      // suspension vote with the committee discharged, a discharge petition,
+      // the Senate's Rule XIV).
       return open(
-        `Next on the road: the committee would have to approve it and send it to the full ${home}. Most bills never get this far.`,
+        `Next on the road: usually the committee has to approve it and send it to the full ${home}. Most bills never get this far.`,
       );
     case BillStages.OUT_OF_COMMITTEE:
       return open(`Next on the road: the full ${home} would have to vote on it.`);
@@ -108,13 +128,17 @@ export function billNextStep({
       // (convex/billStage.ts): a bill in conference is stage 80 too.
       if (amendment) {
         return open(
-          'Next on the road: once both chambers agree on one text, it goes to the states. It joins the Constitution only if three in four states ratify it.',
+          'Next on the road: once both chambers agree on one text, each by two-thirds, it goes to the states. It joins the Constitution only if three in four states ratify it.',
         );
       }
-      return open('Next on the road: both chambers agree on one text, then it goes to the President.');
+      // A condition, not a forecast: on S. 1318 (119th) the Senate refused,
+      // 47-52, to take up the House's version.
+      return open('Next on the road: both chambers would have to agree on one text before it can go to the President.');
     case BillStages.TO_PRESIDENT:
+      // Article I, section 7: it dies only when an adjournment keeps the
+      // President from sending it back. Congress adjourns every day.
       return open(
-        'The President has 10 days (not counting Sundays) from when it arrives to sign or veto it. If the President does neither, it becomes law anyway, unless Congress has adjourned; then it dies (a pocket veto).',
+        'The President has 10 days (not counting Sundays) from when it arrives to sign or veto it. If the President does neither, it becomes law anyway, unless Congress has adjourned in a way that stops the President from sending it back; then it dies (a pocket veto).',
       );
     default:
       // A stage the record does not name: say nothing rather than guess.

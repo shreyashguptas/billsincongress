@@ -655,7 +655,8 @@ prediction about a single bill**, and the bill page says so in those words. "Adv
 left committee: out of committee (50) or any stage beyond, timed from the first floor calendar,
 Senate report or chamber passage. Until 2026-10-06 only a chamber passage counted, which
 understated the share. Only a bill at 40 shows the figure; one out of committee no longer
-does.
+does, and neither does one whose Congress has ended (it expired; the server counts its
+days to today, so the figure described a bill that was no longer waiting).
 
 Computed only from Congresses strictly earlier than the current one, bucketed by days already
 spent in committee (`[0,90)`, `[90,180)`, `[180,365)`, `[365+)`), and a bucket is hidden
@@ -690,7 +691,11 @@ no dot field.
   time "in committee" before the bill existed (S. 2431: 71 days from May 14, introduced
   July 24). It also picks out the moments a reader cares about (the referral, a
   committee's recorded vote, each chamber's passage with its tally or "by unanimous
-  consent", presentation, signature, the public law number) from the action text. A bill
+  consent", presentation, the veto and any vote on overriding it ("Failed of passage in
+  House over veto", with its tally), signature, the public law number) from the action
+  text. A vetoed bill's override votes come after the veto that ends its road, and are
+  kept under its last chapter; a failed one is also what the status card's "What happens
+  next" states, in place of the override rule. A bill
   with more than 1,000 stored actions gets no journey rather than one read from part of the
   record. The page draws the journey only when its last stage equals the bill's stored
   stage; a difference means the two disagree and the page does not pick a side.

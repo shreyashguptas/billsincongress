@@ -191,6 +191,51 @@ it("a resolution is agreed to, not passed", () => {
   assert.equal(j.events.find((e) => e.kind === "passed")?.label, "Agreed to in the Senate");
 });
 
+// H.R. 131 (119th), its record from the veto on, as Congress.gov holds it.
+// The page said "It becomes law only if the House and the Senate each vote by
+// two-thirds to override the veto", with "60 days left", after the House had
+// voted on Jan 8, 2026 and fallen short, 248-177.
+const hr131: JourneyAction[] = [
+  act("2025-01-03", "Introduced in House", { actionCode: "1000", type: "IntroReferral" }),
+  act("2025-01-03", "Referred to the House Committee on Natural Resources.", { actionCode: "H11100", type: "IntroReferral" }),
+  act("2025-07-21", "Passed/agreed to in House: On motion to suspend the rules and pass the bill, as amended Agreed to by voice vote. (text: CR H3497-3498)", { actionCode: "8000", type: "Floor" }),
+  act("2025-12-16", "Passed/agreed to in Senate: Passed Senate without amendment by Voice Vote.", { actionCode: "17000", type: "Floor" }),
+  act("2025-12-18", "Presented to President.", { actionCode: "28000", type: "President" }),
+  act("2025-12-29", "Vetoed by President.", { actionCode: "31000", type: "President" }),
+  act("2026-01-02", "The Chair laid before the House the veto message from the President.", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-08", "Failed of passage in House over veto On passage, the objections of the President to the contrary notwithstanding Failed by the Yeas and Nays: (2/3 required): 248 - 177, 1 Present (Roll no. 9).", { actionCode: "33000", type: "Veto" }),
+  act("2026-01-08", "On passage, the objections of the President to the contrary notwithstanding Failed by the Yeas and Nays: (2/3 required): 248 - 177, 1 Present (Roll no. 9).", { actionCode: "H43410", type: "Veto" }),
+  act("2026-01-08", "On motion to refer the bill and the accompanying veto message to the Committee on Natural Resources. Agreed to without objection.", { actionCode: "H43110", type: "Veto" }),
+];
+
+it("a failed veto override is on the record, with its tally, once", () => {
+  const j = buildJourney(hr131, "2025-01-03", "hr");
+  assert.equal(j.finalStage, BillStages.VETOED);
+  const votes = j.events.filter((e) => e.kind === "override_failed");
+  assert.equal(votes.length, 1);
+  assert.equal(votes[0].chamber, "house");
+  assert.equal(votes[0].date, "2026-01-08");
+  assert.equal(votes[0].yeas, 248);
+  assert.equal(votes[0].nays, 177);
+  assert.ok(!j.events.some((e) => e.kind === "override_passed"));
+});
+
+it("a successful override is an override, not a second passage", () => {
+  const j = buildJourney(
+    [
+      ...hr131.slice(0, 6),
+      act("2026-01-08", "Passed House over veto by the Yeas and Nays: (2/3 required): 300 - 120 (Roll no. 9)."),
+      act("2026-01-09", "Passed Senate over veto by Yea-Nay Vote. 81 - 13."),
+    ],
+    "2025-01-03",
+    "hr",
+  );
+  const overrides = j.events.filter((e) => e.kind === "override_passed");
+  assert.deepEqual(overrides.map((e) => e.chamber), ["house", "senate"]);
+  assert.equal(overrides[1].yeas, 81);
+  assert.equal(j.events.filter((e) => e.kind === "passed").length, 2);
+});
+
 if (failures.length) {
   console.error(`billJourney: ${failures.length} failed, ${passed} passed\n${failures.join("\n")}`);
   process.exit(1);
