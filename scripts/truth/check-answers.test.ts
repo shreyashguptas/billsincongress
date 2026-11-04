@@ -139,6 +139,30 @@ it("scores a different bill WRONG", () => {
   assert.equal(r.got, "6644hr119");
 });
 
+// Ten laws were signed on 2026-10-20; Claude Sonnet 5.5 named H.R. 3620, one of
+// them, and scored WRONG against the first row's H.R. 1721.
+const tiedNewestLaw: Expected = {
+  kind: "billId",
+  value: "1721hr119",
+  billIds: ["1721hr119", "3620hr119", "7831hr119"],
+  note: "",
+};
+
+it("scores any bill in a tie for first place correct", () => {
+  const r = scoreRun(tiedNewestLaw, {
+    text:
+      "The most recent bill to become law is the Southcentral Foundation Land Transfer " +
+      "Act of 2025 (H.R. 3620), whose last action was on October 20, 2026.",
+  });
+  assert.equal(r.outcome, "CORRECT");
+  assert.equal(r.got, "3620hr119");
+});
+
+it("still scores a bill outside the tie WRONG", () => {
+  const r = scoreRun(tiedNewestLaw, { text: "The most recent law is S. 629." });
+  assert.equal(r.outcome, "WRONG");
+});
+
 // --- names ------------------------------------------------------------------
 
 const fewestInCalifornia: Expected = { kind: "name", value: "James Gallagher", note: "" };

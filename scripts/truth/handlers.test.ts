@@ -182,6 +182,22 @@ async function main() {
     assert.equal(r.rows[0].latestActionDate, trueMax, "row 1 must carry the true maximum date");
   });
 
+  await it("'the most recent' names how many share row 1's date, from an index-ordered read", async () => {
+    // Production, 2026-10-27: "The measure with the most recent action is the
+    // Disaster Data Protection Act (H.R. 10894)". 62 measures were last acted on
+    // that day. Row 1 of an ordered read is A newest, not THE newest, and the
+    // model was told nothing that let it say so.
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, sort: "newest_action" }, 1);
+    assert.ok(r.ok);
+    const top = r.rows[0].latestActionDate;
+    const tied = bills.filter((b: any) => b.congress === 119 && b.latestActionDate === top);
+    assert.ok(tied.length > 1, "this case needs a tie in the data");
+    assert.equal(r.report.tiedWithFirst?.count, tied.length, "the tie must be counted, and exactly");
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(payload.tied_with_row_1 ?? "", new RegExp(`\\b${tied.length}\\b`));
+    assert.equal(r.report.total, undefined, "a tie count is not a total of the set");
+  });
+
   await it("the newest bill of a FILTERED set is right too, not just the newest overall", async () => {
     for (const [label, filters, pred] of [
       ["California", { congress: 119, sponsorState: "CA", sort: "newest_action" }, (b: any) => b.sponsorState === "CA"],
@@ -211,6 +227,13 @@ async function main() {
     assert.equal(r.report.order, "arbitrary", "a sorted SAMPLE must never be labelled sorted");
     assert.notEqual(r.report.orderFromIndex, true);
     assert.equal(r.report.total, undefined);
+    // The prompt used to say an arbitrary order meant "the sort did not apply, so
+    // fetch again with sort inside filters". Here it WAS inside filters, so the
+    // retry came back the same, and the grounding gate's answer then named a
+    // sample row "the latest" anyway (4 runs in 6, 2026-10-27). The result has
+    // to say that this sort cannot be had for this set, and what can.
+    const payload = JSON.parse(payloadFor(r.rows, r.report));
+    assert.match(payload.sort_not_applied ?? "", /title/i, "must say why the sort was not applied");
   });
 
   // --- D2: sponsors reported a fraction of a state as the whole roster -------
@@ -2078,6 +2101,62 @@ async function main() {
     assert.ok(r.rows[0].finalStatus, "an ended Congress's bill carries finalStatus");
     assert.notEqual(r.rows[0].stage, "in committee");
     assert.match(r.rows[0].stage, /117th Congress ended/);
+  });
+
+  await it("ranks every state by measures sponsored, exactly, in one lookup", async () => {
+    // 2026-10-28: counted eight states one fetch at a time, could not rank the
+    // rest, and listed Illinois below Pennsylvania "in order".
+    const perState = new Map<string, number>();
+    for (const b of bills) {
+      if (b.congress === 119 && b.sponsorState) perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+    }
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119 });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const counts: Array<{ state: string; count: number }> = r.rows[0].sponsorStateCounts;
+    assert.deepEqual(new Map(counts.map((s) => [s.state, s.count] as [string, number])), perState, "every state, exact");
+    for (let i = 1; i < counts.length; i++) assert.ok(counts[i - 1].count >= counts[i].count, "largest first");
+    // The place comes from the server: asked for the tenth state, the model
+    // counted positions and named the ninth.
+    const ranked: Array<{ rank: number; count: number }> = r.rows[0].sponsorStateCounts;
+    for (const s of ranked) assert.equal(s.rank, 1 + [...perState.values()].filter((n) => n > s.count).length);
+  });
+
+  await it("gives every policy area its place, so 'the fourth-most' is read, not counted", async () => {
+    // 2026-11-01, live: "Taxation has the fourth-most", listing the three ahead
+    // and skipping International Affairs (1,376), in 5 of 7 runs.
+    const r = await fetchViaHandlers(ctx, "topics", { congress: 119 });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const rows: Array<{ rank: number; count: number; policyAreaName: string }> = r.rows;
+    const counts = rows.map((t) => t.count);
+    for (const t of rows) assert.equal(t.rank, 1 + counts.filter((n) => n > t.count).length, t.policyAreaName);
+    // The fourth place is every row with the fourth row's count, whatever the
+    // data says today (review on #238: naming the areas would go red the day
+    // Taxation catches up, with rank still right).
+    const fourth = rows.filter((t) => t.rank === 4).map((t) => t.policyAreaName);
+    const tiedWithFourth = rows.filter((t) => t.count === rows[3].count).map((t) => t.policyAreaName);
+    if (rows.slice(0, 3).every((t) => t.count > rows[3].count)) {
+      assert.deepEqual(fourth, tiedWithFourth, "the rows at place 4 are the fourth row and its ties");
+    }
+  });
+
+  await it("a whole-Congress groupBy sponsorState that cannot finish points at the exact ranking", async () => {
+    const r = await fetchViaHandlers(ctx, "bills", { congress: 119, groupBy: "sponsorState" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    assert.equal(r.report.complete, false, "sanity: 18,000 measures do not fit the window");
+    assert.match(r.report.note, /sponsorStateCounts/);
+  });
+
+  await it("a chamber's stats row ranks that chamber's states only", async () => {
+    const perState = new Map<string, number>();
+    for (const b of bills) {
+      if (b.congress === 119 && b.sponsorState && b.billType.startsWith("s")) {
+        perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+      }
+    }
+    const r = await fetchViaHandlers(ctx, "stats", { congress: 119, chamber: "senate" });
+    assert.ok(r.ok, `fetch failed: ${r.error}`);
+    const counts: Array<{ state: string; count: number }> = r.rows[0].sponsorStateCounts;
+    assert.deepEqual(new Map(counts.map((s) => [s.state, s.count] as [string, number])), perState);
   });
 
 }

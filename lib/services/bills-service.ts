@@ -7,6 +7,7 @@ import {
   parseBillReference,
 } from '@/lib/bill-query';
 import { getConvexHttpClient } from '@/lib/convex-client';
+import { stageAndIntroducedArgs } from '@/lib/bills/just-introduced';
 import {
   BILLS_RELAY_PATH,
   isUnreachable,
@@ -37,6 +38,8 @@ export interface BillQueryParams {
   chamber?: 'house' | 'senate' | null;
   billNumber?: string;
   congress?: string | null;
+  /** A date order, newest first (lib/bills/sort.ts). Absent: stored order, or relevance for a search. */
+  sort?: 'stage' | 'latestAction' | 'introduced';
 }
 
 export interface SponsorOption {
@@ -242,6 +245,11 @@ export const billsService = {
     }
   },
 
+  /** Every current cosponsor of a bill with their accounts: the bill page's "Show all". */
+  async fetchCosponsors(billId: string) {
+    return await queryBills('getCosponsors', { billId });
+  },
+
   async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
     const {
       page = 1,
@@ -257,6 +265,7 @@ export const billsService = {
       chamber = null,
       billNumber = '',
       congress = 'all',
+      sort,
     } = params;
 
     const client = getConvexHttpClient();
@@ -273,18 +282,17 @@ export const billsService = {
 
       const result = await queryBills('list', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
-        progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
+        ...stageAndIntroducedArgs(status, introducedDateFilter, congress),
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
-        introducedDateFilter:
-          introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,
         lastActionDateFilter:
           lastActionDateFilter && lastActionDateFilter !== 'all' ? lastActionDateFilter : undefined,
         offset,
         limit: itemsPerPage,
+        ...(sort ? { sort } : {}),
       });
 
       return {
@@ -353,14 +361,12 @@ export const billsService = {
     try {
       return await queryBills('listCount', {
         congress: congress && congress !== 'all' ? parseInt(congress, 10) : undefined,
-        progressStage: status && status !== 'all' ? parseInt(status, 10) : undefined,
+        ...stageAndIntroducedArgs(status, introducedDateFilter, congress),
         sponsorState: stateFilter && stateFilter !== 'all' ? stateFilter : undefined,
         sponsorFilter: sponsorFilter.length > 0 ? clampFilterList(sponsorFilter) : undefined,
         chamber: chamber ?? undefined,
         ...resolveTextQuery(titleFilter, billNumber, billType),
         policyArea: policyArea && policyArea !== 'all' ? policyArea : undefined,
-        introducedDateFilter:
-          introducedDateFilter && introducedDateFilter !== 'all' ? introducedDateFilter : undefined,
         lastActionDateFilter:
           lastActionDateFilter && lastActionDateFilter !== 'all' ? lastActionDateFilter : undefined,
       });
@@ -417,8 +423,11 @@ export const billsService = {
       const { api } = await import('../../convex/_generated/api');
       return await client.query(api.bills.getCongressNumbers);
     } catch (error) {
+      // Rethrown like fetchBills: an empty list reads as "no Congress", and
+      // /bills would render "Congress unavailable" with a 200 that the edge
+      // cache stores. Callers that can do without it catch it themselves.
       console.error('Error fetching congress numbers from Convex:', error);
-      return [];
+      throw error;
     }
   },
 

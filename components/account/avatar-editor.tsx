@@ -22,9 +22,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Slider } from '@/components/ui/slider';
+import { PRIVATE_BLOCK_CLASS } from '@/lib/replay-privacy';
+import { cn } from '@/lib/utils';
 
-/** The crop square, in CSS px. Fits a 390px phone inside the dialog's padding. */
+/**
+ * The crop square: 280px, but never wider than the dialog's body on a narrow
+ * phone (320px) nor more than half the height of a phone held sideways. The
+ * rendered size is measured and used for every pan, zoom and the crop itself,
+ * so what is saved is what the circle showed at whatever size it drew.
+ */
 const VIEWPORT = 280;
+const VIEWPORT_CSS = `min(${VIEWPORT}px, calc(100vw - 5rem), 50dvh)`;
 const KEY_STEP = 12;
 
 /**
@@ -52,11 +60,13 @@ export function AvatarEditor({
   const pointers = React.useRef(new Map<number, { x: number; y: number }>());
   const pinch = React.useRef<{ distance: number; zoom: number } | null>(null);
   const uploadRef = React.useRef<HTMLButtonElement>(null);
+  // The crop square's measured side, in CSS px (see VIEWPORT_CSS).
+  const [size, setSize] = React.useState(VIEWPORT);
 
   const image = React.useMemo(() => (work ? { w: work.width, h: work.height } : null), [work]);
   // Latest values for the native listeners below, which are bound once.
-  const live = React.useRef({ zoom, offset, image });
-  live.current = { zoom, offset, image };
+  const live = React.useRef({ zoom, offset, image, size });
+  live.current = { zoom, offset, image, size };
 
   // A new photo starts centred, filling the circle.
   React.useEffect(() => {
@@ -77,37 +87,57 @@ export function AvatarEditor({
   );
 
   const zoomTo = React.useCallback((to: number) => {
-    const { zoom: from, offset: o, image: img } = live.current;
+    const { zoom: from, offset: o, image: img, size: side } = live.current;
     if (!img) return;
-    const next = zoomAboutCentre(o, img, VIEWPORT, from, to);
+    const next = zoomAboutCentre(o, img, side, from, to);
     setZoom(next.zoom);
     setOffset(next.offset);
   }, []);
 
   const panBy = React.useCallback((dx: number, dy: number) => {
-    const { zoom: z, offset: o, image: img } = live.current;
+    const { zoom: z, offset: o, image: img, size: side } = live.current;
     if (!img) return;
-    setOffset(clampOffset({ x: o.x + dx, y: o.y + dy }, img, VIEWPORT, z));
+    setOffset(clampOffset({ x: o.x + dx, y: o.y + dy }, img, side, z));
+  }, []);
+
+  // The square changed size (rotation, a resized window): scale the offset
+  // with it, so the same part of the photo stays in the circle.
+  const resizeTo = React.useCallback((next: number) => {
+    const { size: prev, offset: o, zoom: z, image: img } = live.current;
+    if (next <= 0 || next === prev) return;
+    const k = next / prev;
+    setSize(next);
+    setOffset(img ? clampOffset({ x: o.x * k, y: o.y * k }, img, next, z) : o);
   }, []);
 
   // Wheel zoom needs a non-passive listener to keep the page from scrolling.
-  const wheelCleanup = React.useRef<(() => void) | null>(null);
+  // The same callback ref measures the square.
+  const stageCleanup = React.useRef<(() => void) | null>(null);
   const stageRef = React.useCallback(
     (stage: HTMLDivElement | null) => {
-      wheelCleanup.current?.();
-      wheelCleanup.current = null;
+      stageCleanup.current?.();
+      stageCleanup.current = null;
       if (!stage) return;
       function onWheel(e: WheelEvent) {
         e.preventDefault();
         zoomTo(live.current.zoom * Math.exp(-e.deltaY * 0.0015));
       }
       stage.addEventListener('wheel', onWheel, { passive: false });
-      wheelCleanup.current = () => stage.removeEventListener('wheel', onWheel);
+      resizeTo(stage.clientWidth);
+      const observer = new ResizeObserver(() => resizeTo(stage.clientWidth));
+      observer.observe(stage);
+      stageCleanup.current = () => {
+        stage.removeEventListener('wheel', onWheel);
+        observer.disconnect();
+      };
     },
-    [zoomTo],
+    [zoomTo, resizeTo],
   );
 
   function onPointerDown(e: React.PointerEvent) {
+    // Left button only: a right click opens the context menu, and its
+    // pointerup can land outside, leaving a drag stuck on.
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     // Keeps the drag when the pointer leaves the square. Some engines refuse
     // capture for a touch that is already ending; the drag still works without it.
     try {
@@ -123,6 +153,11 @@ export function AvatarEditor({
   function onPointerMove(e: React.PointerEvent) {
     const prev = pointers.current.get(e.pointerId);
     if (!prev) return;
+    // A mouse released where no pointerup reached us: the drag is over.
+    if (e.pointerType === 'mouse' && e.buttons === 0) {
+      onPointerUp(e);
+      return;
+    }
     const next = { x: e.clientX, y: e.clientY };
     pointers.current.set(e.pointerId, next);
     if (pointers.current.size === 2 && pinch.current) {
@@ -158,19 +193,22 @@ export function AvatarEditor({
     }
   }
 
-  const base = image ? coverScale(image, VIEWPORT) : 1;
+  const base = image ? coverScale(image, size) : 1;
 
   return (
     <Dialog open={work !== null} onOpenChange={(open) => !open && !saving && onCancel()}>
       <DialogContent
         // A phone held sideways is shorter than the dialog: it scrolls inside
         // rather than losing its title and buttons off the screen.
-        className="max-h-[calc(100dvh-1rem)] max-w-sm gap-5 overflow-y-auto"
+        className="max-w-sm"
+        bodyClassName="gap-5 p-4 sm:p-6"
         onInteractOutside={(e) => saving && e.preventDefault()}
         // Start on Upload, not the crop area: a keyboard reader tabs back to it.
         onOpenAutoFocus={(e) => {
           e.preventDefault();
-          uploadRef.current?.focus();
+          // preventScroll: on a phone held sideways the body scrolls, and
+          // focusing Upload would open it scrolled past the title and photo.
+          uploadRef.current?.focus({ preventScroll: true });
         }}
       >
         <DialogHeader>
@@ -187,9 +225,16 @@ export function AvatarEditor({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          // Capture can be taken away (the dialog closing, a system gesture)
+          // without a pointerup: end that pointer's drag rather than leave it stuck.
+          onLostPointerCapture={onPointerUp}
           onKeyDown={onKeyDown}
-          className="focus-ring relative mx-auto cursor-grab touch-none select-none overflow-hidden rounded-md bg-sunken active:cursor-grabbing"
-          style={{ width: VIEWPORT, height: VIEWPORT }}
+          // PRIVATE_BLOCK_CLASS: session replay never records the photo being cropped.
+          className={cn(
+            PRIVATE_BLOCK_CLASS,
+            'focus-ring relative mx-auto cursor-grab touch-none select-none overflow-hidden rounded-md bg-sunken active:cursor-grabbing',
+          )}
+          style={{ width: VIEWPORT_CSS, height: VIEWPORT_CSS }}
         >
           {image && (
             <div
@@ -215,6 +260,7 @@ export function AvatarEditor({
             type="button"
             variant="ghost"
             size="icon"
+            className="shrink-0"
             aria-label="Zoom out"
             onClick={() => zoomTo(zoom - 0.25)}
             disabled={zoom <= MIN_ZOOM}
@@ -233,6 +279,7 @@ export function AvatarEditor({
             type="button"
             variant="ghost"
             size="icon"
+            className="shrink-0"
             aria-label="Zoom in"
             onClick={() => zoomTo(zoom + 0.25)}
             disabled={zoom >= MAX_ZOOM}
@@ -248,7 +295,7 @@ export function AvatarEditor({
         )}
 
         <DialogFooter className="gap-2 sm:justify-between">
-          <Button type="button" variant="link" onClick={onPickAnother} disabled={saving} className="self-center">
+          <Button type="button" variant="link" onClick={onPickAnother} disabled={saving} className="touch-hit self-center">
             Choose another photo
           </Button>
           <div className="flex gap-2">
@@ -258,7 +305,7 @@ export function AvatarEditor({
             <Button
               ref={uploadRef}
               type="button"
-              onClick={() => onSave({ viewport: VIEWPORT, zoom, offset })}
+              onClick={() => onSave({ viewport: size, zoom, offset })}
               disabled={saving || !image}
               className="flex-1"
             >

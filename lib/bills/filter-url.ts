@@ -23,6 +23,7 @@ import {
 } from '@/app/bills/filter-signature';
 import { clampFilterList, clampFilterText } from '@/lib/bill-query';
 import { FILTERS, type FilterDefinition } from './filter-registry';
+import { SORT_PARAM, isBillsSort, sortParamValue } from './sort';
 
 /**
  * Serialise a filter set into a query string, omitting anything still at its
@@ -38,8 +39,24 @@ export function buildFilterQuery(f: BillsFilterValues): string {
       p.set(definition.param, value);
     }
   }
+  const sort = sortParamValue(f);
+  if (sort) p.set(SORT_PARAM, sort);
   const qs = p.toString();
   return qs ? `?${qs}` : '';
+}
+
+/**
+ * `/bills` URL for one page of a filter set. Page 1 carries no page parameter,
+ * matching the canonical URL. Used by the page links once the reader changes
+ * filters in the browser: the server-rendered links describe the filters the
+ * page loaded with, so they sent a reader who had searched "veterans" to page
+ * 2 of every bill.
+ */
+export function billsPageHref(f: BillsFilterValues, page: number): string {
+  const query = new URLSearchParams(buildFilterQuery(f));
+  if (page > 1) query.set('page', String(page));
+  const qs = query.toString();
+  return qs ? `/bills?${qs}` : '/bills';
 }
 
 /**
@@ -79,5 +96,7 @@ export function filtersFromQuery(search: string): BillsFilterValues {
       if (value !== undefined) (out[definition.field] as string) = value;
     }
   }
+  const sort = p.get(SORT_PARAM);
+  if (isBillsSort(sort)) out.sort = sort;
   return out;
 }

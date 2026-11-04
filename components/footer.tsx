@@ -11,7 +11,7 @@ import { FooterFeedback } from '@/components/feedback/feedback-box';
 // list item, lines up by the icon's bottom edge and rides above its neighbours
 // (documentation/brand.md, "Icons beside text").
 const linkClass =
-  'focus-ring flex w-fit items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline';
+  'focus-ring flex w-fit items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline touchable:min-h-11';
 
 /**
  * The footer carries only what has no other home: who publishes the site and

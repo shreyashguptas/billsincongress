@@ -27,7 +27,7 @@ import {
   scanLimitedActive,
   type FilterOptionContext,
 } from "./filter-registry";
-import { buildFilterQuery, filtersFromQuery } from "./filter-url";
+import { billsPageHref, buildFilterQuery, filtersFromQuery } from "./filter-url";
 import {
   DEFAULT_FILTER_VALUES,
   filterSignature,
@@ -78,7 +78,10 @@ const SAMPLE: Record<string, string | string[]> = {
 
 it("has exactly one registry entry per BillsFilterValues key, and vice versa", () => {
   const fields = FILTERS.map((f) => f.field).sort();
-  const keys = Object.keys(DEFAULT_FILTER_VALUES).sort();
+  // `sort` is the Sort menu's pick, not a filter (lib/bills/sort.ts).
+  const keys = Object.keys(DEFAULT_FILTER_VALUES)
+    .filter((k) => k !== "sort")
+    .sort();
   assert.deepEqual(
     fields,
     keys,
@@ -154,6 +157,23 @@ it("emits nothing at all for the default filter set", () => {
 it("never emits a page parameter", () => {
   const values = { ...DEFAULT_FILTER_VALUES, policyArea: "Health" };
   assert.equal(buildFilterQuery(values).includes("page="), false);
+});
+
+// Five readers in 14 days searched or filtered /bills, clicked "2" and got
+// page 2 of a different list: the links still carried the first-load filters.
+it("page links carry the filters the reader has now", () => {
+  const values = { ...DEFAULT_FILTER_VALUES, title: "veterans", status: "100" };
+  const href = billsPageHref(values, 2);
+  assert.ok(href.startsWith("/bills?"), href);
+  const query = new URLSearchParams(href.slice("/bills".length));
+  assert.equal(query.get("page"), "2");
+  assert.deepEqual(filtersFromQuery(href.slice("/bills".length)), values);
+});
+
+it("page 1 is the canonical URL, with no page parameter", () => {
+  assert.equal(billsPageHref(DEFAULT_FILTER_VALUES, 1), "/bills");
+  assert.equal(billsPageHref({ ...DEFAULT_FILTER_VALUES, title: "veterans" }, 1), "/bills?title=veterans");
+  assert.equal(billsPageHref(DEFAULT_FILTER_VALUES, 3), "/bills?page=3");
 });
 
 it("de-duplicates repeated sponsor params", () => {

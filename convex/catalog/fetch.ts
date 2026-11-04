@@ -31,7 +31,7 @@ import { validateFilters } from "./filters";
 import { mintHandle } from "./cite";
 import { SEARCH_LIMIT, sanitizeSearchQuery } from "../searchQuery";
 import type { DatasetName } from "./types";
-import { NO_PARTY, chooseBillsIndex, countInMemoryFilters } from "./billsIndex";
+import { NO_PARTY, chooseBillsIndex, countInMemoryFilters, sortBlockedBy } from "./billsIndex";
 import {
   completeReport,
   reportFor,
@@ -408,16 +408,7 @@ function chooseOrderingIndex(
   f: Row,
 ): { indexName: "by_congress_and_latest_action" | "by_congress_stage_and_action" | "by_congress_and_introduced"; direction: "asc" | "desc"; order: RowOrder } | null {
   const sort = typeof f.sort === "string" ? SORT_FIELD[f.sort] : undefined;
-  if (!sort) return null;
-  // An exact id needs no ordering, and its own branch is far more selective.
-  if (typeof f.billId === "string") return null;
-  // The search index cannot be combined with an ordering index.
-  if (typeof f.titleFilter === "string" && f.titleFilter !== "") return null;
-  // reachedStage spans several stage buckets, so no single ordered range covers it.
-  if (typeof f.reachedStage === "number") return null;
-  // A handful of rows, all old: the newest-first window would miss every one.
-  // The party index reads them completely and the sort is then done in memory.
-  if (f.sponsorParty === NO_PARTY) return null;
+  if (!sort || sortBlockedBy(f) !== null) return null;
 
   const byIntroduced = f.sort === "newest_introduced" || f.sort === "oldest_introduced";
   if (byIntroduced) {
@@ -548,6 +539,9 @@ function exactGroupSource(f: Row, groupBy: string): string {
     progressStage: "For exact counts per stage, fetch `stats` with only the congress and read stageCounts.",
     sponsorParty: "For exact counts per sponsor party, fetch `stats` with only the congress and read partyCounts.",
     billType: "For exact counts per measure type, fetch `stats` with only the congress and read measuresByType.",
+    sponsorState:
+      "For exact counts per sponsor state, fetch `stats` with only the congress and read " +
+      "sponsorStateCounts (every measure, resolutions included; ranked, largest first).",
   };
   return source[groupBy]
     ? `No count per group is given, because these groups came from a partial read. ${source[groupBy]}`
@@ -963,6 +957,29 @@ async function fetchBills(
     order = requestedSort.order;
   }
 
+  // Row 1 of a date sort is A newest, not THE newest, when others share its
+  // date: 62 measures of the 119th were last acted on 2026-10-22, and the answer
+  // named one of them "the measure with the most recent action" (2026-10-27).
+  // Rows sharing row 1's date sit together at the head of the order, so the count
+  // is exact unless an ordered window filled with nothing past that date.
+  let tiedWithFirst: Subset | undefined;
+  if (requestedSort && order !== "arbitrary" && ordered.length > 1) {
+    const top = requestedSort.key(ordered[0]);
+    const tied = ordered.filter((b) => requestedSort.key(b) === top);
+    const lastRead = candidates[candidates.length - 1];
+    const sawPastTop = !windowFilled || (lastRead !== undefined && requestedSort.key(lastRead) !== top);
+    if (tied.length > 1 && sawPastTop) {
+      const byAction = f.sort === "newest_action" || f.sort === "oldest_action";
+      tiedWithFirst = {
+        label: `${byAction ? "last acted on" : "introduced on"} ${top}`,
+        count: tied.length,
+        ...(tied.length <= TIE_NAMES_LIMIT
+          ? { members: tied.map((b) => `${b.billTypeLabel} ${b.billNumber}`) }
+          : {}),
+      };
+    }
+  }
+
   if (groupBy) {
     const buckets = new Map<string, number>();
     for (const b of matched) {
@@ -1013,6 +1030,9 @@ async function fetchBills(
         congress: b.congress,
         introducedDate: b.introducedDate,
         sponsor: `${b.sponsorFirstName ?? ""} ${b.sponsorLastName ?? ""}`.trim(),
+        // As stored, so a card can print "Van Drew", not the last word of the
+        // full name ("Drew"): the two-word-surname defect from the 2026-08-30 audit.
+        sponsorLastName: b.sponsorLastName ?? "",
         sponsorParty: b.sponsorParty ?? "",
         sponsorState: b.sponsorState ?? "",
         progressStage: b.progressStage ?? 20,
@@ -1110,6 +1130,12 @@ async function fetchBills(
       // reportFor drops this unless the read was complete. The reserved numbers
       // are all one kind, so the two partitions never compete.
       subsets: reserved.length > 0 ? reserved : measureSubsets(matched),
+      tiedWithFirst,
+      // A count has no rows to put in order, so only a listing is told.
+      sortNotApplied:
+        requestedSort && !countOnly
+          ? (sortBlockedBy(f) ?? "this set is too big to read whole with these filters")
+          : undefined,
     }),
   };
 }
@@ -1272,9 +1298,13 @@ async function fetchTopics(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     .query("congressPolicyAreas")
     .withIndex("by_congress", (q) => q.eq("congress", congress))
     .collect();
-  const sorted = all.sort((a, b) => b.count - a.count);
+  const sorted = all.sort((a, b) => b.count - a.count || a.policyAreaName.localeCompare(b.policyAreaName));
+  // Each row carries its place, as sponsorStateCounts does: asked for the
+  // fourth policy area on 2026-11-01, the model counted 31 sorted rows by eye
+  // and named the fifth in 5 of 7 runs. Tied counts share a place.
   const rows = sorted.map((t) => ({
     _cite: mintHandle("topics", `${congress}:${t.policyAreaName}`),
+    rank: sorted.findIndex((u) => u.count === t.count) + 1,
     policyAreaName: t.policyAreaName,
     count: t.count,
     congress,
@@ -1432,7 +1462,32 @@ const PARTY_KEY =
   "bills filter sponsorParty 'none'.";
 
 /**
- * The party split for both chambers together — the numbers the home page seats.
+ * Measures per sponsor state, largest first, from the precomputed chamber rows
+ * (every measure type, as stateCounts is written in mutations.ts).
+ *
+ * Asked which states' members sponsor the most bills (2026-10-28), the model
+ * could only count states one fetch at a time: a whole-Congress groupBy
+ * sponsorState reads 18,000 measures and cannot finish. It counted eight, said it
+ * could not rank the rest, and listed Illinois below Pennsylvania "in order".
+ *
+ * Each entry carries its rank (tied counts share one, as 1, 2, 2, 4): handed
+ * the list alone, asked for the tenth state, the model named the ninth in 2 of
+ * 3 runs (2026-11-01). It reads a field reliably and counts positions badly.
+ */
+function sponsorStateCounts(rows: Array<{ stateCounts: Array<{ state: string; count: number }> }>) {
+  const sum = new Map<string, number>();
+  for (const row of rows) for (const s of row.stateCounts) sum.set(s.state, (sum.get(s.state) ?? 0) + s.count);
+  const sorted = [...sum].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return sorted.map(([state, count]) => ({
+    rank: sorted.findIndex(([, n]) => n === count) + 1,
+    state,
+    count,
+  }));
+}
+
+/**
+ * The party split and the state ranking for both chambers together — the numbers
+ * the home page seats and maps.
  *
  * The page adds the two chamber rows; this does the same. Without it the only
  * party figures were per chamber, and a reader asking about the home page's
@@ -1450,6 +1505,8 @@ async function wholeCongressPartySplit(ctx: QueryCtx, congress: number): Promise
     return {
       partyCounts_unavailable:
         "We hold no party breakdown for both chambers of this Congress, so no party split can be given.",
+      sponsorStateCounts_unavailable:
+        "We hold no per-state breakdown for both chambers of this Congress, so no state split can be given.",
     };
   }
   const add = (key: "partyCounts" | "partyLawCounts") => {
@@ -1463,6 +1520,7 @@ async function wholeCongressPartySplit(ctx: QueryCtx, congress: number): Promise
     partyCounts: add("partyCounts"),
     partyLawCounts: add("partyLawCounts"),
     partyKey: PARTY_KEY,
+    sponsorStateCounts: sponsorStateCounts(chambers),
   };
 }
 
@@ -1553,6 +1611,7 @@ async function fetchStats(ctx: QueryCtx, f: Row): Promise<FetchResult> {
     partyCounts: breakdown.partyCounts,
     partyLawCounts: breakdown.partyLawCounts,
     partyKey: PARTY_KEY,
+    sponsorStateCounts: sponsorStateCounts([breakdown]),
     ...freshness,
   };
   if (breakdown.stageCounts) {

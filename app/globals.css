@@ -275,11 +275,11 @@
    viewport. `backwards` still holds the start state before the first frame,
    then lets go entirely, so the wrapper ends with no transform at all. */
 @keyframes page-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: none; }
 }
 .animate-page-in {
-  animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: page-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* List item entrance — used for bill cards as a filtered result set comes in.
@@ -368,13 +368,47 @@
 }
 
 @keyframes popover-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  from { opacity: 0; transform: translateY(var(--pop-y, -4px)) scale(0.98); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes popover-out {
   from { opacity: 1; transform: none; }
-  to   { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 0; transform: translateY(var(--pop-y, -4px)) scale(0.98); }
 }
+/* A popover that flipped above its trigger rises out of it, not down into it. */
+[data-side='top'] { --pop-y: 4px; }
+
+/* A 44px hit area for a small control on a touch screen, without moving
+   anything: an invisible box centred on the control, at least 44px each way.
+   Use it where growing the control itself would break a line of text or a row
+   (brand.md: every control is 44px on touch). */
+@media (any-pointer: coarse) {
+  .touch-hit { position: relative; }
+  .touch-hit::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* The menu's rows follow the sheet in, a few milliseconds apart (delays are set
+   inline per row). `backwards` holds each row hidden until its turn and leaves
+   no transform behind once it has arrived. */
+@keyframes menu-item-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+.menu-item-in { animation: menu-item-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+/* A sheet closed by a swipe has already slid out under the reader's finger
+   (hooks/use-drag-dismiss.ts). Its exit keyframe would start again from
+   `transform: none`, so it would jump back into view and leave a second time.
+   With no animation, Radix unmounts it where it is: already off screen. */
+[data-swiped][data-state='closed'] { animation: none !important; }
 
 /* ── The ask panel ─────────────────────────────────────────────────────────
    Geometry for the persistent "Ask" companion. Three shapes, and the mode is
@@ -406,8 +440,15 @@
 @media (min-width: 640px) { :root { --header-h: 65px; } }   /* sm:h-16 + border */
 
 /* The push. Only the docked band moves the page. */
+/* The same durations and curves as the panel's own slide, in each direction,
+   so the page's edge and the panel's edge move as one: when they differed, a
+   strip of page showed between them while it docked, and closing slid the page
+   under the panel. */
 .ask-shell {
-  transition: padding-right 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: padding-right 220ms cubic-bezier(0.4, 0, 1, 1);
+}
+html[data-ask='open'] .ask-shell {
+  transition: padding-right 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 @media (min-width: 1344px) {
   html[data-ask='open'] .ask-shell { padding-right: var(--ask-w); }
@@ -422,20 +463,41 @@ html[data-ask-drag='1'] { cursor: col-resize; user-select: none; }
   z-index: 45;          /* over page content, under every portaled dialog (50) */
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Lifted by the keyboard rather than only shortened by it: shrinking the
+     height alone dropped the TOP edge and left the composer under the keys. */
+  bottom: var(--ask-kb);
   height: calc(100dvh - var(--header-h) - var(--ask-kb));
   overscroll-behavior: contain;
   transform: translateY(100%);
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* Hidden once it is off screen. Without this, a window or iPad crossing
+     1024px with the panel closed animated it from translateX(100%) to
+     translateY(100%) — straight across the page. Visibility flips at the END
+     of a close and at the START of an open, so neither slide is cut short. */
+  visibility: hidden;
+  transition:
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s linear 320ms;
 }
 /* dvh tracks the iOS URL bar; vh is the honest fallback where it is unsupported. */
 @supports not (height: 1dvh) {
   .ask-panel { height: calc(100vh - var(--header-h) - var(--ask-kb)); }
 }
-html[data-ask='open'] .ask-panel { transform: none; }
+html[data-ask='open'] .ask-panel {
+  transform: none;
+  visibility: visible;
+  transition:
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s;
+}
+/* Closing is quicker than opening and accelerates away: it is leaving. */
+html:not([data-ask='open']) .ask-panel {
+  transition:
+    transform 220ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 220ms;
+}
 html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 /* A swipe writes its own transform inline; a transition would fight the finger. */
-.ask-panel[data-dragging='1'] { transition: none; }
+.ask-panel[data-dragging='1'] { transition: none; visibility: visible; }
 
 /* Scroll lock, sheet only, and pure CSS: there is no listener to leak, no
    cleanup path that can strand the page unscrollable, and rotation self-corrects. */
@@ -470,7 +532,10 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 .ask-launcher {
   position: fixed;
   z-index: 40;
-  right: 1rem;
+  /* While a dialog has hidden a classic scrollbar, Radix pads the body by its
+     width and publishes it here; without it the pill jumped 15px sideways on
+     Windows and Linux every time a menu or dialog opened. */
+  right: calc(1rem + var(--removed-body-scroll-bar-size, 0px));
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 @media (max-width: 1023.98px) {
@@ -510,7 +575,7 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 .found-it-prompt {
   position: fixed;
   z-index: 40;
-  right: 1rem;
+  right: calc(1rem + var(--removed-body-scroll-bar-size, 0px));
   bottom: calc(1rem + 3rem + 0.75rem + env(safe-area-inset-bottom, 0px));
   width: 22rem;
 }
@@ -560,4 +625,33 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   .animate-odds-in, .odds-law, .animate-seat-in, .animate-bar-grow { animation-delay: 0s !important; }
   .animate-word-in { animation: none; }
   .animate-nudge { animation: none; }
+}
+
+/* ── Reduced motion: the blanket rule ──────────────────────────────────────
+   Older comments in this file and in app/template.tsx promised this rule
+   before it existed. Movement goes; meaning stays.
+
+   Radix surfaces (sheets, dialogs, popovers, menus) wait for `animationend`
+   before they unmount, so their animations are shortened to 1ms rather than
+   removed — `animation: none` would also work, but 1ms keeps every surface on
+   the same code path. Transitions are cut the same way, except colour fades,
+   which do not move anything. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in,
+  .menu-item-in,
+  .animate-rise-in,
+  .animate-fade-in,
+  [data-state],
+  .ask-launcher {
+    animation-duration: 1ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+  .ask-panel,
+  .ask-shell {
+    transition-duration: 1ms !important;
+  }
+  /* The "became law" glow is the site's one loop; it plays once and stops. */
+  .odds-law { animation-iteration-count: 1 !important; }
+  html:focus-within { scroll-behavior: auto; }
 }

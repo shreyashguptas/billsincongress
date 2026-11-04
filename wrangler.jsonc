@@ -1,7 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "billsincongress",
-  "main": ".open-next/worker.js",
+  // cloudflare-worker.ts wraps the OpenNext Worker (.open-next/worker.js) so
+  // signed-out pages are served from the edge cache (lib/edge-cache.ts).
+  "main": "cloudflare-worker.ts",
   // esbuild's keep-names (on by default in Wrangler) injects a `__name` helper
   // into stringified inline scripts (e.g. next-themes' pre-paint theme script),
   // causing "ReferenceError: __name is not defined" in the browser. Disabling it
@@ -13,8 +15,27 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // The site is served only on billsincongress.com (Custom Domains, set in the
+  // dashboard). Without these two lines Wrangler also publishes it at
+  // billsincongress.<account>.workers.dev and at a public preview URL per
+  // version: full copies of the site that skip every zone rule (the firewall,
+  // bot and rate-limit rules all live on the billsincongress.com zone). Both
+  // were on until November 2026; /.env answered 403 on the real domain and 404
+  // from the app on workers.dev.
+  "workers_dev": false,
+  "preview_urls": false,
+  // Written out in full because a deploy applies exactly what is here: a
+  // switch flipped in the dashboard is turned back off by the next deploy.
+  // - logs: every request's console output, kept 7 days.
+  // - issues: Cloudflare groups repeated exceptions and 5xx responses into
+  //   one entry each (open beta, free while in beta).
+  // - traces: a timeline of each request's subrequests (Convex, PostHog).
+  //   Sampled at 10% because traces are billed per span from December 2026.
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "logs":{ "enabled": true, "invocation_logs": true },
+    "issues": { "enabled": true },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
   },
   // Run the Worker close to Convex (a single-region backend) to cut the latency
   // of the server-side Convex round-trips made on most dynamic pages. mode
@@ -31,6 +52,9 @@
     { "binding": "NEXT_INC_CACHE_KV", "id": "27119da2bbef43b0b8a73deb425772a5" },
     { "binding": "NEXT_TAG_CACHE_KV", "id": "b0bc643509234dbb823721087525d9f7" }
   ],
+  // The deploy's version id, part of every edge-cache key, so each deploy
+  // starts with an empty cache (lib/edge-cache.ts).
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "services": [
     { "binding": "WORKER_SELF_REFERENCE", "service": "billsincongress" }
   ]

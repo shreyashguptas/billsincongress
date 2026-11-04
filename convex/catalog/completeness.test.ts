@@ -275,6 +275,31 @@ it("a tie for first place reaches the model only from a complete read", () => {
   assert.match(String(parse([], wide).tied_with_row_1), /40 are tied for the fewest, with 1 bill each\. /);
 });
 
+it("a tie at row 1 of an index-ordered read reaches the model, worded for a date", () => {
+  // 2026-10-27: "The measure with the most recent action is H.R. 10894", one of 62.
+  const tiedWithFirst = { label: "last acted on 2026-10-22", count: 62 };
+  const base = { set: "s", filteredInMemory: false, matchedCount: 5, shown: 5, order: "newest_action_first" as const, tiedWithFirst };
+  const ordered = reportFor({ ...base, windowFilled: true, orderFromIndex: true });
+  assert.deepEqual(ordered.tiedWithFirst, tiedWithFirst);
+  assert.equal(ordered.total, undefined, "a tie is not a total");
+  assert.match(String(parse([], ordered).tied_with_row_1), /62 are tied for the most recent action, last acted on 2026-10-22/);
+  assert.match(String(parse([], ordered).tied_with_row_1), /62 is exact: you may state it/);
+  // The note no longer forbids the "newest" the order beside it licenses.
+  assert.doesNotMatch(String(ordered.note), /newest/);
+  // Unordered and incomplete: no tie, and the note forbids "newest".
+  const sample = reportFor({ ...base, windowFilled: true });
+  assert.equal(sample.tiedWithFirst, undefined);
+  assert.match(String(sample.note), /newest/);
+});
+
+it("a sort that was not applied says so, and only beside an unsorted result", () => {
+  const base = { set: "s", windowFilled: true, filteredInMemory: false, matchedCount: 5, shown: 5, sortNotApplied: "a title search cannot be read in date order" };
+  const unsorted = parse([], reportFor({ ...base, order: "arbitrary" }));
+  assert.match(String(unsorted.sort_not_applied), /NOT applied: a title search cannot be read in date order/);
+  assert.match(String(unsorted.sort_not_applied), /could not tell/);
+  assert.equal(parse([], reportFor({ ...base, order: "newest_action_first" })).sort_not_applied, undefined);
+});
+
 if (failures.length > 0) {
   console.error(`completeness.test.ts — ${passed} passed, ${failures.length} failed`);
   console.error(failures.join("\n"));

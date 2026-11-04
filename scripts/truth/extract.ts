@@ -156,54 +156,101 @@ function snippet(text: string): string {
 }
 
 /**
- * The single number an answer asserts, or a refusal.
+ * Numbers that sit beside the claim without competing with it, each found in
+ * a correct production answer that scored UNCHECKABLE on 2026-10-23:
  *
- * More than one surviving number is a refusal, not a best guess: the production
- * "104 ... 56 ... 8" answer contradicted itself inside one paragraph, and any
- * pick-one rule would have scored it as a pass.
+ * - "54 California members have introduced at least one measure": a threshold
+ *   in the question's own terms, not a count.
+ * - "Eight of the 117th Congress's 11 measures", "(out of 11 in all)": the
+ *   denominator of the claim, larger than it and introduced by "of".
+ * - "53 ... That count includes 6 joint resolutions": a part of the claim,
+ *   smaller than it and introduced by "includes".
  */
-export function extractNumber(text: string): Extraction {
-  const cleaned = stripNonClaims(text);
-  const values: number[] = [];
+const THRESHOLD = /\bat\s+least\s+(?:one|1)\b/gi;
+const DENOMINATOR_AFTER = /^\s+(?:out\s+)?of\b[^.;:!?\d]{0,60}$/i;
+const DENOMINATOR_BEFORE = /\bout\s+of\s*$/i;
+const PART_BEFORE = /\binclud(?:es|ing|ed)\b[^.;!?]{0,40}$/i;
 
+type NumberToken = { value: number; index: number; end: number };
+
+/** Every candidate count in a cleaned answer, in reading order. */
+function numberTokens(cleaned: string): NumberToken[] | { unparsed: string } {
+  const tokens: NumberToken[] = [];
   for (const m of cleaned.matchAll(/\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?/g)) {
-    values.push(Number(m[0].replace(/,/g, "")));
+    const index = m.index ?? 0;
+    tokens.push({ value: Number(m[0].replace(/,/g, "")), index, end: index + m[0].length });
   }
   for (const m of cleaned.matchAll(WORD_NUMBER)) {
     const trailer = (m[5] ?? "").toLowerCase();
-    if (trailer && trailer !== "of") {
-      return {
-        found: false,
-        reason: `unparsed spelled-out number "${m[0].trim()}" in: "${snippet(text)}"`,
-      };
-    }
+    if (trailer && trailer !== "of") return { unparsed: m[0].trim() };
+    const index = m.index ?? 0;
+    const end = index + m[0].replace(/\s+of$/i, "").length;
     if (m[1]) {
-      values.push(TENS_NUMBERS[m[1].toLowerCase()] + UNIT_NUMBERS[m[2].toLowerCase()]);
+      tokens.push({ value: TENS_NUMBERS[m[1].toLowerCase()] + UNIT_NUMBERS[m[2].toLowerCase()], index, end });
       continue;
     }
     if (m[3]) {
-      values.push(TENS_NUMBERS[m[3].toLowerCase()]);
+      tokens.push({ value: TENS_NUMBERS[m[3].toLowerCase()], index, end });
       continue;
     }
     const word = m[4].toLowerCase();
     // "one of the bills" is a pronoun, not a count.
     if (word === "one" && trailer === "of") continue;
-    values.push(UNIT_NUMBERS[word]);
+    tokens.push({ value: UNIT_NUMBERS[word], index, end });
   }
+  return tokens.sort((a, b) => a.index - b.index);
+}
 
-  const distinct = [...new Set(values)];
-  if (distinct.length === 0) {
+/**
+ * The single number an answer asserts, or a refusal.
+ *
+ * More than one surviving number is a refusal, not a best guess: the production
+ * "104 ... 56 ... 8" answer contradicted itself inside one paragraph, and any
+ * pick-one rule would have scored it as a pass. The exceptions are the shapes
+ * that cannot contradict the claim because they are tied to it arithmetically:
+ * a denominator ("8 of 11"), a part it includes, or a breakdown that sums to it
+ * exactly ("83 ... 64 bills and 19 joint resolutions"). 56 + 8 is not 104, so
+ * the production answer is still refused.
+ */
+export function extractNumber(text: string): Extraction {
+  const cleaned = stripNonClaims(text).replace(THRESHOLD, " ");
+  const all = numberTokens(cleaned);
+  if (!Array.isArray(all)) {
+    return { found: false, reason: `unparsed spelled-out number "${all.unparsed}" in: "${snippet(text)}"` };
+  }
+  if (all.length === 0) {
     return { found: false, reason: `no number in the answer: "${snippet(text)}"` };
   }
-  if (distinct.length > 1) {
-    return {
-      found: false,
-      reason:
-        `ambiguous: ${distinct.length} distinct numbers survive (${distinct.join(", ")}), ` +
-        `so the answer does not assert one value`,
-    };
-  }
-  return { found: true, value: distinct[0] };
+
+  const lead = all[0];
+  const rest = all.slice(1).filter((t) => {
+    if (t.value === lead.value) return true;
+    const before = cleaned.slice(0, t.index);
+    const between = cleaned.slice(lead.end, t.index);
+    if (t.value > lead.value && (DENOMINATOR_AFTER.test(between) || DENOMINATOR_BEFORE.test(before))) {
+      return false;
+    }
+    if (t.value < lead.value && PART_BEFORE.test(before)) return false;
+    return true;
+  });
+
+  // A breakdown is judged on every smaller number, including the parts set
+  // aside above: "83 ... includes 19 joint resolutions ... The other 64 are
+  // bills" sums to 83 only with the 19 counted.
+  const others = rest.filter((t) => t.value !== lead.value);
+  const smaller = all.slice(1).filter((t) => t.value < lead.value);
+  const sum = smaller.reduce((total, t) => total + t.value, 0);
+  const breakdown =
+    smaller.length > 1 && others.every((t) => t.value < lead.value) && sum === lead.value;
+  if (others.length === 0 || breakdown) return { found: true, value: lead.value };
+
+  const distinct = [...new Set([lead, ...rest].map((t) => t.value))];
+  return {
+    found: false,
+    reason:
+      `ambiguous: ${distinct.length} distinct numbers survive (${distinct.join(", ")}), ` +
+      `so the answer does not assert one value`,
+  };
 }
 
 /**
@@ -220,6 +267,12 @@ export function extractBillId(text: string, congress = 119): Extraction {
   BILL_REFERENCE.lastIndex = 0;
 
   if (!match) {
+    // No printed number, but the bill's card: "The most recent law is the
+    // Southcentral Foundation Land Transfer Act of 2025 [1]. [[bills:3620hr119]]"
+    // (Claude Opus 5.5, 2026-10-23). The reader sees that card, number and all,
+    // so the first one is the bill the answer names. A bare link is still not.
+    const card = /\[\[bills:(\d{1,5}[a-z]+\d{3})\]\]/i.exec(text);
+    if (card) return { found: true, value: card[1].toLowerCase() };
     return { found: false, reason: `no bill named in the answer: "${snippet(text)}"` };
   }
 
@@ -299,12 +352,21 @@ export function extractBoolean(text: string): Extraction {
   // data on Texas bills that became law" — the production denial this harness
   // exists to catch, and the form a model actually writes — matches no denial
   // at all and goes unscored.
+  // Bill references go too: "as H.R. 5193 did" read as "5193 did", a count
+  // affirming the very thing the answer had just denied (2026-10-23).
   const cleaned = text
     .replace(/https?:\/\/\S+/g, " ")
     .replace(/\[\[[^\]]*\]\]/g, " ")
     .replace(/\[\s*\d+(?:\s*[,;]\s*\d+)*\s*\]/g, " ")
+    .replace(COMPOSITE_ID, " ")
+    .replace(BILL_REFERENCE, " ")
     .replace(/[‘’]/g, "'")
     .replace(/[*_`#~]/g, "");
+
+  // "Yes and no" answers both ways at once; no opener or count can settle it.
+  if (/\b(?:yes\s*(?:and|or|\/)\s*no|no\s*(?:and|or|\/)\s*yes)\b/i.test(cleaned)) {
+    return { found: false, reason: `hedged both ways: "${snippet(text)}"` };
+  }
 
   const yes = AFFIRMATIVE.filter(([, re]) => re.test(cleaned)).map(([label]) => label);
   const no = NEGATIVE.filter(([, re]) => re.test(cleaned)).map(([label]) => label);
@@ -315,6 +377,18 @@ export function extractBoolean(text: string): Extraction {
     const value = /^\d/.test(raw) ? Number(raw.replace(/,/g, "")) : WORD_NUMBERS[raw];
     // "zero have become law" is the denial, not the affirmative.
     if (value > 0) yes.push(`${count[1]} have`);
+  }
+
+  // An answer that opens with "Yes" or "No" has stated its claim. A later
+  // clause that qualifies it ("Yes, it passed the House, and it has not yet
+  // passed the Senate") is not a denial; only a full opposite statement ("No,
+  // we do not track that. There are 11 ...") contradicts it, so the
+  // clause-level "has not" is set aside for the opener's side to test.
+  const opener = /^\s*(yes|no)\b/i.exec(cleaned);
+  if (opener) {
+    const saysYes = opener[1].toLowerCase() === "yes";
+    const against = saysYes ? no.filter((label) => label !== "has not") : yes;
+    if (against.length === 0) return { found: true, value: saysYes };
   }
 
   if (yes.length > 0 && no.length > 0) {

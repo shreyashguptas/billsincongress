@@ -3,6 +3,7 @@ import posthog from 'posthog-js';
 import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 import type { SponsorMatchKind } from '@/lib/sponsor-match';
+import type { BillsSort } from '@/lib/bills/sort';
 
 /** Every text box with a length limit, for `text_limit_reached`. */
 export type TextLimitSurface =
@@ -32,6 +33,9 @@ function capture(event: string, properties?: Record<string, unknown>) {
   if (!ready()) return;
   posthog.capture(event, properties);
 }
+
+/** Where a member's official accounts were shown when one was opened. */
+export type MemberAccountSurface = 'bill_sponsor_card' | 'bill_cosponsors' | 'member_page';
 
 /** sessionStorage key used to attribute Google OAuth completions after the redirect. */
 const PENDING_GOOGLE_AUTH_KEY = 'ph_pending_google_auth';
@@ -281,6 +285,18 @@ export const analytics = {
     surface?: 'bar' | 'panel' | 'empty_state';
   }) => capture('bills_filters_cleared', props ?? {}),
 
+  /**
+   * The reader picked an order from the Sort menu on /bills. `from_sort` is
+   * the order applied before, which is the filter set's default when they had
+   * not picked one; `is_default` says whether they picked that default back.
+   */
+  billsSortChanged: (props: {
+    from_sort: BillsSort;
+    to_sort: BillsSort;
+    is_default: boolean;
+    active_filter_count: number;
+  }) => capture('bills_sort_changed', props),
+
   /** The header's search field (lg and up). Length, not the text — the same
    *  rule as `bills_no_results`. An empty submit just opens /bills. */
   headerSearchSubmitted: (queryLength: number) =>
@@ -473,20 +489,19 @@ export const analytics = {
   }) => capture('hub_order_changed', props),
 
   /**
-   * A link from one hub to a sibling hub, from /bills into a hub, from the
-   * site footer's three hub links, or from the foot of a bill page
-   * (`bill_page`: its topic, stage and chamber).
+   * A link from one hub to a sibling hub, from a /bills filter picker into a
+   * hub, from the site footer's three hub links, or from the foot of a bill
+   * page (`bill_page`: its topic, stage and chamber).
    *
-   * `placement` distinguishes the browse disclosure on /bills from the
-   * sibling row on a hub page, a picker footer, and the site footer (`footer`). Worth having: this
-   * event had no call site on /bills at all, so "no one uses the category
-   * list" was unfalsifiable from our own data.
+   * `placement` distinguishes the sibling row on a hub page, a picker footer,
+   * the site footer (`footer`) and a bill page. `directory`, the "Guides to
+   * every topic and stage" box on /bills, was removed on 2026-11-02.
    */
   hubLinkClicked: (props: {
     from_path: string;
     to_path: string;
     hub_kind: 'chamber' | 'status' | 'topic';
-    placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer' | 'bill_page';
+    placement?: 'filter_panel' | 'hub_siblings' | 'footer' | 'bill_page';
   }) => capture('hub_link_clicked', props),
 
   /**
@@ -584,6 +599,22 @@ export const analytics = {
   }) => capture('bill_peers_viewed', props),
 
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
+
+  /** A reader opened a member's page from a bill page. */
+  memberPageLinkClicked: (props: { bioguide_id: string; from: 'bill_sponsor_card' | 'bill_cosponsors'; bill_id: string }) =>
+    capture('member_page_link_clicked', props),
+
+  /** A reader asked for every cosponsor of a bill beyond the first ten. */
+  billCosponsorsExpanded: (props: { bill_id: string; total: number }) =>
+    capture('bill_cosponsors_expanded', props),
+
+  /** A reader opened one of a member's official accounts, or their website. */
+  memberAccountClicked: (props: {
+    platform: 'x' | 'facebook' | 'instagram' | 'youtube' | 'website';
+    bioguide_id: string;
+    surface: MemberAccountSurface;
+    bill_id?: string;
+  }) => capture('member_account_clicked', props),
 
   billSaveToggled: (props: {
     bill_id: string;
@@ -813,6 +844,11 @@ export const analytics = {
     entity_kind: 'bill' | 'sponsor' | 'topic' | 'state';
     position: number;
     entity_id: string;
+    /**
+     * Where the bill was: a card after the answer, a card the answer's own
+     * list item became, or a link in its running text.
+     */
+    placement: 'after_answer' | 'in_list' | 'in_text';
   }) => capture('answer_entity_clicked', props),
 
   /**
@@ -822,7 +858,7 @@ export const analytics = {
    */
   answerPanelOpened: (props: {
     surface: string;
-    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual';
+    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
     has_conversation: boolean;
   }) => capture('answer_panel_opened', props),
 
@@ -841,10 +877,24 @@ export const analytics = {
    */
   answerPanelRestored: (props: {
     surface: string;
-    trigger: 'launcher';
+    trigger: 'launcher' | 'typing';
     turn_count: number;
     away_ms: number;
   }) => capture('answer_panel_restored', props),
+
+  /**
+   * The reader started typing with no field focused, and the key was sent to
+   * the ask box (`components/answers/type-to-ask.tsx`). Once per run of typing,
+   * not per key: the next key lands in the focused box and is not seen here.
+   * `target` says where it went — `open_panel` opened (or restored) the panel
+   * for it, which also sends `answer_panel_opened`/`restored` with trigger
+   * `typing`.
+   */
+  askTypedAnywhere: (props: {
+    surface: string;
+    target: 'panel' | 'hero' | 'open_panel';
+    panel_phase: 'closed' | 'open' | 'minimized';
+  }) => capture('ask_typed_anywhere', props),
 
   /**
    * Drag end only, debounced — a capture per pointermove would swamp every

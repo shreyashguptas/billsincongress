@@ -7,7 +7,8 @@
  * value in both themes (documentation/brand.md, "The stage") — the one dark
  * band on the page. Centred. The chart (hemicycle.tsx) is the hero; its hollow
  * holds one big number — laws passed — that swaps to a party's own number on
- * hover. One legend row under the arc carries every party, and the ask box
+ * hover. A legend entry also pins its party when clicked or tapped (a touch
+ * screen has no hover), as the topic wheel pins a topic. One legend row under the arc carries every party, and the ask box
  * (HeroAsk, with its bill suggestions) sits below it with its starters as
  * pills. Browse sits beside the Congress picker.
  */
@@ -42,15 +43,25 @@ export function HomeHero(props: HomeProps) {
   const { bills, laws } = breakdownComplete
     ? combinedParty(house, senate)
     : combinedParty(null, null);
-  const [hover, setHoverState] = useState<PartyKey | null>(null);
+  const [hoverState, setHoverState] = useState<PartyKey | null>(null);
+  const [pinned, setPinned] = useState<PartyKey | null>(null);
   const reported = useRef(new Set<PartyKey>());
+  const report = (p: PartyKey) => {
+    if (reported.current.has(p)) return;
+    reported.current.add(p);
+    analytics.homeChamberPartyFocused(p, congress);
+  };
   const setHover = (p: PartyKey | null) => {
     setHoverState(p);
-    if (p && !reported.current.has(p)) {
-      reported.current.add(p);
-      analytics.homeChamberPartyFocused(p, congress);
-    }
+    if (p) report(p);
   };
+  const togglePin = (p: PartyKey) => {
+    const next = pinned === p ? null : p;
+    setPinned(next);
+    if (next) report(next);
+  };
+  // What the seats and the well show: the party pointed at, else the pinned one.
+  const hover = hoverState ?? pinned;
   const totalBills = PARTIES.reduce((s, p) => s + bills[p.key], 0);
   const totalLaws = PARTIES.reduce((s, p) => s + laws[p.key], 0);
   // When this Congress's counts were last rebuilt from the synced bills.
@@ -90,15 +101,21 @@ export function HomeHero(props: HomeProps) {
         {/* One legend row: every party, same place, hover-linked to the seats. */}
         <div
           className="mx-auto mt-8 grid max-w-md grid-cols-3 gap-x-3 gap-y-5 sm:flex sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-x-14"
-          onMouseLeave={() => setHover(null)}
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
         >
           {PARTIES.filter((p) => bills[p.key] > 0).map((p) => (
             <button
               key={p.key}
               type="button"
-              onMouseEnter={() => setHover(p.key)}
-              onFocus={() => setHover(p.key)}
+              // Mouse only: a tap's compatibility mouseenter would leave a
+              // hover behind that outlives un-pinning.
+              onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(p.key)}
+              // Keyboard focus only: a tap focuses the button too, and that
+              // hover would outlive un-pinning it with a second tap.
+              onFocus={(e) => e.currentTarget.matches(':focus-visible') && setHover(p.key)}
               onBlur={() => setHover(null)}
+              onClick={() => togglePin(p.key)}
+              aria-pressed={pinned === p.key}
               className={cn(
                 'focus-ring rounded-sm text-left transition-opacity sm:text-center',
                 hover && hover !== p.key && 'opacity-35',

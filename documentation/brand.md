@@ -209,8 +209,10 @@ existing brand edits:
 |---|---|
 | `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch; `link` takes no box (no height or padding) |
 | `Badge` | A `<span>` (badges sit inside text and links); 24px tall, sentence case, `rounded-sm`; `secondary` text is `ink-2` for contrast |
-| `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 70% with a slight blur, not black (a dark scrim lightens nothing in Night); `shadow-float` |
-| `Sheet`, `Popover` | Their own enter/exit keyframes, tuned before `tailwindcss-animate` was installed |
+| `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 85% with no blur, not black (a dark scrim lightens nothing in Night, and a blur is repainted every frame on older machines); `shadow-float`; the corner close is a 40px ghost icon button, 44px on touch |
+| `Dialog` | Two layers: a fixed frame (`className`: size, colour) that is never taller than the screen less 1rem all round and never scrolls, and a body inside it (`bodyClassName`: padding, gap) that does. The close button sits on the frame, so it stays in its corner while a long dialog scrolls. A card with a 1rem gutter and rounded corners at every width, phones included, centred on whole pixels (`inset-0 m-auto h-fit`, not a half-pixel translate) |
+| `Sheet` | Drag to close, with a finger or a mouse (see "Motion and gesture"). Side sheets take a finger anywhere and a mouse on the element marked `data-sheet-grab`; a bottom sheet drags from its grab bar, which `grabber` draws |
+| `Sheet`, `Popover`, `Dialog`, `DropdownMenu` | Their own enter/exit keyframes (`tailwind.config.ts`), timed in "Motion and gesture". A popover that opens above its trigger rises out of it instead of dropping |
 | `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
 | `Select` | Item text and the placeholder are wrapped in a `<span>`, so a reader who translates the page (Chrome's "Translate this page") does not crash it when the value changes; `components/ui/select.test.ts` guards this against a re-run of `shadcn add` |
 | `Textarea` | On `card` like `Input`; 15px from `sm` up, 16px on phones, where anything smaller makes iOS zoom the page on focus |
@@ -234,14 +236,39 @@ These live in `components/brand/` and compose the primitives above.
 Patterns that appear on more than one page:
 
 - **Ask composer**: 60px tall, `rounded-lg`, raised, `line-strong` edge; the
-  send button is a 40px ink circle. Starter questions are `rounded-full`
-  outline pills in `ink-2`, each written from a live figure.
+  send button is a 40px ink circle, 44px on touch. Starter questions are `rounded-full`
+  outline pills in `ink-2`, each written from a live figure. The reader never
+  has to click into it to type: the home page's box is focused on arrival (on a
+  computer; on a phone that would throw the keyboard over the page), the
+  panel's composer is focused when the panel opens and stays usable while an
+  answer is written (Enter there sends the follow-up once the answer is done), and a key typed with no text box focused goes to
+  whichever ask box is on screen, opening the panel if none is
+  (`lib/type-to-ask.ts`).
 - **Answer reveal**: a new answer is written onto the page word by word, each
   word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
   words a second, faster for a long answer so none takes more than five
   seconds. Bill cards rise in when the text reaches them; the sources wait
-  for the last word. It plays once, for the answer being written — a resumed
+  for the last word. While an answer's sources are still arriving, the
+  reveal pauses at the start of a list and carries on from there once they
+  have, so a list never shows as bullets that turn into cards. It plays once, for the answer being written — a resumed
   conversation, and anyone under `prefers-reduced-motion`, sees it whole.
+- **Bills in an answer**: a bill is clickable where the answer names it, never
+  only further down. When an answer lists bills, each item is drawn as that
+  bill's compact card (number, title, party dot and sponsor, stage) in place of
+  the bullet, without the item's sentence: a sentence in every card made the
+  list a wall. That happens only for a list OF bills, decided for the whole
+  list: one bill per item, a different bill in each, and nothing in any item
+  beyond what identifies the bill — its title, number, sponsor and their
+  state, dates, policy area and stage. Cosponsors and how a bill passed
+  ("by voice vote") are not on the card, so they keep a list as text. (The card does not show dates, the
+  state or the policy area; the bill page does.) A list of facts about one bill, or one whose items carry
+  the answer ("would require flood alerts", "passed 30 to 1"), stays text. A bill
+  named in running text is underlined in `line-strong`, and its citation
+  number links to it too, in `ink-2`, named for screen readers ("Source 1:
+  open H.R. 7022"). The cards after the prose leave out any
+  bill already shown as a card in a list, so no bill appears twice. The sources
+  print a bill's own number ("H.R. 7022"), not its id ("7022hr119").
+  (`components/answers/bill-mentions.tsx`, `lib/answer-bill-links.ts`.)
 - **Answer check**: under every finished answer, after its sources, one line
   of 13px `ink-3` asks "Was this answer right?" beside two small outline
   buttons, "Yes" and "No" (44px on touch). No icons and no colour: a hue would
@@ -265,6 +292,11 @@ Patterns that appear on more than one page:
   line floats below it on a `raised` surface. The limits: 2,000 characters for
   a question or feedback, 120 for a bill search. Fixed-length codes (the
   six-digit sign-in code) are not length limits and keep `maxLength`.
+- **Pagination** (`components/bills/crawlable-pagination.tsx`): real links in
+  one row, never wrapping. From `sm` up: Previous, the first page, a window of
+  three around the current one, the last page, Next. On a phone: arrows only,
+  the first, current and last page, with the current page's neighbours from
+  400px; the hidden links stay in the HTML for crawlers.
 - **Chart legend**: rows 48px tall with a dot, the full name, the share and
   the count in mono. Names never go on a chart's rim.
 - **Hub order** (`HubOrderSwitch`, the hub pages): "Newest first" and "Oldest
@@ -314,6 +346,25 @@ Patterns that appear on more than one page:
   heading is "More <topic> bills"; a measure with no topic yet shows only the links, under "Where
   this bill sits" ("this resolution" on a resolution, from `billNoun`).
 
+- **Official accounts** (the sponsor's box on a bill page, `components/bills/member-accounts.tsx`):
+  under the sponsor's facts, a "Official accounts" eyebrow and a hairline-ruled list, one row per
+  account: the platform's name in words on the left in `ink-2` ("X", "Facebook", "Instagram",
+  "YouTube", then "Official website"), the handle on the right in `ink` with a 16px Lucide
+  `ArrowUpRight` in `ink-3`, underlined on hover. Every row is at least 44px tall and opens in a
+  new tab. No brand logos and no brand colours: a platform is not data, so it gets no hue. A
+  `SourceLine` under the list says where the accounts come from. Only accounts the member's own
+  website confirms appear; with none, only the website row; for a former member, nothing.
+- **Cosponsors** (bill page, `components/bills/bill-cosponsors.tsx`): a section like "Keep
+  reading", eyebrow "Cosponsors" and a headline that states the count ("110 members cosponsor
+  this bill"). A hairline-ruled list, two columns from `md`: each row is the member's `PartyTag`
+  (a link to their member page when they are in office), "Original cosponsor" or "Joined Oct 5,
+  2026" in `ink-3`, and the confirmed accounts as underlined platform names in `ink-2`, 44px tall
+  on touch. Ten rows, then an outline "Show all N cosponsors" button. A `SourceLine` closes it.
+- **Member page** (`/members/<id>`, `components/members/member-page.tsx`): eyebrow with the seat
+  ("Representative · New Jersey's 9th district"), the name at `display-lg`, the party as a dot and
+  a word. Below, the two bill lists in the "Keep reading" row style, and the "Official accounts"
+  card (as on a bill page) in the 360px side column from `lg`; on a phone the card comes first,
+  above the lists, because it is what most readers came for.
 - **Quiet band**: a `bg-sunken` full-width section for a closing call to action
   ("Ask the record").
 - **Share** (bill page): an outline `Button` with Lucide `Share`, opposite the
@@ -324,11 +375,24 @@ Patterns that appear on more than one page:
 - **Header sections** (md and up): Home, Bills, Learn, About in `ink-2`, the
   current one in `ink`. One 2px ink rule, the label's exact width, sits about
   5px under the labels — never on the header's bottom border. It rests under
-  the current section, glides (420ms, `cubic-bezier(0.22, 1, 0.36, 1)`) to
+  the current section, glides (300ms, `cubic-bezier(0.22, 1, 0.36, 1)`) to
   whichever label is hovered or focused, and returns when the pointer leaves
   the nav. It first appears by growing out from the label's centre, and
   shrinks into its centre on a page with no section. Still under
   `prefers-reduced-motion`.
+- **Header**: solid `paper` with a `line` rule under it — never translucent. A
+  see-through header turned muddy grey over the home page's dark stage. On
+  phones it reads menu, logo beside it, then search and the account slot at the
+  far edge; a centred logo would need the two sides to be equal, and the account
+  side is three times the menu button. The logo sizes itself to the header's
+  own width: the mark alone below 360px, a 16px wordmark to 400px, then the
+  usual 18px (`Logo fit`, `header-xs:` and `header-sm:`). Nothing in the header
+  may push the page wider than the screen, down to 320px.
+- **Menu sheet** (phones and tablets): slides in from the left over an 85% paper
+  scrim. Its top row is the header row it covers — same height and padding, the
+  close X exactly where the menu button was, the logo where the logo was — so
+  opening it swaps one icon and nothing else moves. The links follow it in, 30ms
+  apart. A swipe left closes it.
 - **Header widths**: the header's md, lg and xl (sections, Feedback, the search
   field and its 288px xl size) are the header's own width, not the window's —
   `header-md:`, `header-lg:`, `header-xl:`. With the ask panel docked the header
@@ -336,17 +400,26 @@ Patterns that appear on more than one page:
   would get, so nothing in it ever sits under the panel.
 - **Ask panel title bar**: from `lg` up, exactly the header's height
   (`--header-h`), so docked beside it the two bottom rules are one line.
+- **Ask panel as a sheet** (below `lg`): square and flush under the header, whose
+  bottom rule is its top edge — no rounded corners and no border of its own.
+  Rounded corners there showed the page through two wedges (black over the dark
+  stage), and a second rule doubled the line. The grab bar and the title row
+  together are its handle: drag down to close it, or flick. As a rail
+  (1024–1343px) the same handle drags it off to the right. Docked, it does not
+  drag; its left edge resizes it, and on a touch screen that edge carries a
+  small `line-strong` grip, since a finger cannot hover to find it.
 - **Profile photo** (account page, `components/account/`): the avatar is the
-  control. Hovering or focusing it lays an ink veil (`ink/70` over a photo,
+  control. Hovering it with a mouse, or focusing it, lays an ink veil (`ink/70` over a photo,
   solid over initials) with a Lucide `Camera` and "Upload" (or "Change"); a
   small `raised` circle with the camera sits at its lower right at all times,
   for touch screens. With no photo
   a click opens the device's own picker; with one, a menu offers "Upload a
-  photo", "Use Google photo" and "Remove photo". The crop dialog is a 280px
-  square with the circle drawn in `line-strong` and everything outside it
+  photo", "Use Google photo" and "Remove photo". The crop dialog is a square of
+  up to 280px (smaller on a narrow or sideways phone, so the dialog never
+  scrolls sideways) with the circle drawn in `line-strong` and everything outside it
   dimmed with `paper`, a zoom `Slider` between two ghost icon buttons, and
   "Upload" as the one ink button.
-- **Account slot** (header, right edge): signed in, the 36px avatar (see
+- **Account slot** (header, right edge): signed in, the 36px avatar with a 44px hit area on touch (see
   "Pro"). Signed out, small (`sm`) buttons and never ink: "Sign up" is
   `outline`, "Sign in" is `ghost`. The header is on every page and must not
   compete with the page's one primary action. When both show, "Sign up" sits
@@ -434,6 +507,47 @@ committee") tell the two apart, on every road.
   leaves no room for the "4 of 4" counter, so the counter wraps under the pill,
   still right-aligned, rather than breaking across two lines.
 
+## Motion and gesture
+
+Motion says where something came from and where it went. It is short, it uses
+`transform` and `opacity` only (cheap on old phones and Windows laptops), and no
+animation library is bundled: CSS keyframes and transitions do all of it.
+
+| What | In | Out | Curve |
+|---|---|---|---|
+| Page change (`app/template.tsx`) | 220ms, fade and 4px rise | — | `cubic-bezier(0.22, 1, 0.36, 1)` |
+| Menu sheet | 280ms slide; links follow 30ms apart, 200ms each | 200ms | out-quint in, ease-in out |
+| Bottom and side sheets | 280ms | 200ms (a bottom sheet to 1rem past the edge, so a floating one leaves nothing showing) | same |
+| Dialog | 200ms, fade, 8px rise, from 98.5% | 140ms | same |
+| Popover, account menu | 160ms, fade, 4px, from 98% | 120ms | same |
+| Ask panel | 320ms | 220ms | `cubic-bezier(0.32, 0.72, 0, 1)` in, ease-in out |
+| Header section rule | 300ms glide | — | out-quint |
+
+**Drag to close** (`hooks/use-drag-dismiss.ts`) is the same gesture on every
+sheet and slide-over — the ask panel, the menu, the filter pickers — and works
+the same with a finger, a pen or a mouse:
+
+- The surface follows the pointer one to one toward the edge it leaves by, and
+  resists (a quarter of the travel, at most 24px) the other way.
+- Let go past 30% of its size (between 64 and 140px), or flick faster than
+  0.45px/ms, and it carries on out at the finger's speed. Anything less eases
+  back in 280ms. The scrim fades with the distance.
+- A drag starts only after 6px along its axis, so a tap on a button in the
+  handle is still a click, and a movement that starts across the axis is left to
+  scroll.
+- A mouse drags only from a handle (grab bar, header row), so dragging across
+  text still selects it.
+
+**Input, not width.** `hover:` styles apply only on a device that can hover
+(Tailwind's `hoverOnlyWhenSupported`), so a tapped control never stays painted
+in its hover state. Every control is 44px on a touch screen (`touchable:`),
+including touchscreen laptops; where growing the control would break a line,
+`.touch-hit` adds an invisible 44px target around it instead.
+
+**Reduced motion.** Under `prefers-reduced-motion` every surface still opens
+and closes, but in 1ms: the slide, rise, zoom and stagger go, the result stays.
+The blanket rule is the last block in `app/globals.css`.
+
 ## Charts
 
 - Draw the whole set, one mark per bill or per a fixed number of bills, and
@@ -443,8 +557,8 @@ committee") tell the two apart, on every road.
 - Motion explains, it does not decorate: seats fade in once, bars grow once,
   a text box nudges once when it refuses a keystroke (see "Length limits").
   Nothing loops except the glow on the "became law" squares of the home page's
-  "Where bills stand" chart (`.odds-law`). Everything stops under
-  `prefers-reduced-motion`.
+  "Where bills stand" chart (`.odds-law`), and that glows once and stops under
+  `prefers-reduced-motion`, like everything else.
 
 ## Iconography
 
@@ -689,7 +803,8 @@ to learn how to read them:
   the ink button, "Subscribe monthly" the outline one, each with its price.
 - The whole choice fits on one screen at 1440 × 900 without scrolling. On a
   phone the Pro card comes first, so both buttons are on screen, and Free
-  follows.
+  follows. Pro is also first in keyboard order at every width (Free is moved
+  to the left visually from `sm` up).
 - No spectrum strip or ring: those mean the reader already pays.
 
 The ring and the strip are the only decorative uses of the spectrum on the site
@@ -701,6 +816,9 @@ three seconds of confetti in the six topic colours (rectangles, dots and
 chamber-seat half-rounds, from one canvas, never taking a click) and a dialog
 with the ringed avatar and two next steps. Under `prefers-reduced-motion` there
 is no confetti; the dialog's still ring of spectrum rays is the celebration.
+On a short screen (600px tall or less) the rays shrink to 112px and the "Done"
+button stays pinned at the foot of the dialog while the steps scroll, so it is
+always within reach.
 This is the site's one moment of play. Nothing else gets confetti.
 
 ## Accessibility

@@ -29,6 +29,8 @@ import PodcastPromo from '@/components/podcast-promo';
 import { BillJourneyPanel } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
 import { BillRelatedSection } from './bill-related';
+import { MemberAccounts } from './member-accounts';
+import { BillCosponsors } from './bill-cosponsors';
 import { journeyView } from '@/lib/bill-journey';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -224,7 +226,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
         <div className="flex items-center justify-between gap-4">
           <Link
             href="/bills"
-            className="focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink-2 transition-colors hover:text-ink"
+            className="touch-hit focus-ring inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink-2 transition-colors hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             All bills
@@ -283,7 +285,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               one row from `sm` up. Wraps so the alert button's error can sit under it. */}
           <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
             {bill.pdf_url && (
-              <Button asChild variant="outline" className="h-11 basis-full sm:h-10 sm:basis-auto">
+              <Button asChild variant="outline" className="basis-full sm:basis-auto">
                 <a
                   href={bill.pdf_url}
                   target="_blank"
@@ -296,12 +298,12 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               </Button>
             )}
             <SaveBillButton
-              className="h-11 flex-1 sm:h-10 sm:flex-none"
+              className="flex-1 sm:flex-none"
               billId={String(bill.id)}
               analyticsProps={actionAnalytics}
             />
             <BillAlertButton
-              className="h-11 flex-1 sm:h-10 sm:flex-none"
+              className="flex-1 sm:flex-none"
               billId={String(bill.id)}
               analyticsProps={actionAnalytics}
             />
@@ -457,7 +459,24 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 Sponsor
               </p>
               <p className="mt-2 font-serif text-display-sm font-semibold text-ink">
-                {sponsorName}
+                {extras?.sponsorAccounts ? (
+                  // A page exists for every member in office (app/members/[id]).
+                  <Link
+                    href={`/members/${extras.sponsorAccounts.bioguideId}`}
+                    className="focus-ring rounded-sm hover:underline"
+                    onClick={() =>
+                      analytics.memberPageLinkClicked({
+                        bioguide_id: extras.sponsorAccounts!.bioguideId,
+                        from: 'bill_sponsor_card',
+                        bill_id: String(bill.id),
+                      })
+                    }
+                  >
+                    {sponsorName}
+                  </Link>
+                ) : (
+                  sponsorName
+                )}
               </p>
               <dl className="mt-5 text-sm">
                 <div className="flex justify-between gap-3 border-t border-line py-3">
@@ -482,10 +501,18 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   </dd>
                 </div>
               </dl>
+              <MemberAccounts
+                data={extras?.sponsorAccounts}
+                surface="bill_sponsor_card"
+                billId={String(bill.id)}
+                className="mt-6"
+              />
             </div>
           </aside>
         </div>
       </div>
+
+      <BillCosponsors billId={String(bill.id)} noun={noun} cosponsors={extras?.cosponsors} />
 
       {extras?.peers && (
         <BillPeersSection

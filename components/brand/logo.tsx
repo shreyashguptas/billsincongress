@@ -80,12 +80,31 @@ export function ChamberMark({
  * Mark sizes keep the drawing's 41.34:30.07 aspect and match the old square
  * tile's ink: 28px tile → 18px tall, 32px → 20px, 36px → 22.5px.
  */
-export function Logo({ className, size = 'md' }: { className?: string; size?: 'md' | 'lg' }) {
+export function Logo({
+  className,
+  size = 'md',
+  fit = false,
+}: {
+  className?: string;
+  size?: 'md' | 'lg';
+  /**
+   * Size the wordmark to the site header's own width (container queries, so
+   * only inside the header): the mark alone below 360px, 16px type to 400px,
+   * the usual 18px above. A 320px phone with "Sign up" showing has no room for
+   * the full lockup, and squeezing it made the whole page scroll sideways.
+   */
+  fit?: boolean;
+}) {
   return (
     <Link
       href="/"
       aria-label="Bills in Congress, home"
-      className={cn('focus-ring inline-flex items-baseline gap-2.5 rounded-sm text-ink', className)}
+      className={cn(
+        'focus-ring inline-flex items-baseline gap-2.5 rounded-sm text-ink',
+        // A 44px hit area on touch without changing the row's layout.
+        'relative touchable:before:absolute touchable:before:-inset-y-3 touchable:before:inset-x-0 touchable:before:content-[""]',
+        className,
+      )}
     >
       <ChamberMark
         trim
@@ -94,7 +113,11 @@ export function Logo({ className, size = 'md' }: { className?: string; size?: 'm
       <span
         className={cn(
           'whitespace-nowrap font-serif font-semibold leading-none tracking-[-0.012em]',
-          size === 'lg' ? 'text-2xl' : 'text-lg sm:text-[21px]',
+          size === 'lg'
+            ? 'text-2xl'
+            : fit
+              ? 'hidden text-base header-xs:inline header-sm:text-lg sm:text-[21px]'
+              : 'text-lg sm:text-[21px]',
         )}
       >
         Bills in Congress

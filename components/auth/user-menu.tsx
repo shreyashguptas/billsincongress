@@ -10,6 +10,8 @@ import { Bell, LogOut, User as UserIcon } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { analytics } from "@/lib/analytics";
+import { PRIVATE_TEXT_CLASS } from "@/lib/replay-privacy";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -101,7 +103,7 @@ function UserMenuInner() {
           variant="ghost"
           size="icon"
           aria-label={isPro ? "Account menu, Pro plan" : "Account menu"}
-          className="group h-9 w-9 rounded-full p-0 hover:bg-transparent touchable:h-9 touchable:w-9"
+          className="group relative h-9 w-9 rounded-full p-0 hover:bg-transparent touchable:h-9 touchable:w-9 touchable:before:absolute touchable:before:-inset-1 touchable:before:rounded-full touchable:before:content-['']"
         >
           <AvatarMark initials={initials} src={user?.avatarUrl} pro={isPro} size="sm" />
         </Button>
@@ -109,7 +111,8 @@ function UserMenuInner() {
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="px-2 pb-1 pt-2">
           <div className="space-y-0.5 normal-case tracking-normal">
-            <p className="truncate text-sm font-medium text-ink">{displayName}</p>
+            {/* The reader's name: kept out of session replay. */}
+            <p className={cn(PRIVATE_TEXT_CLASS, "truncate text-sm font-medium text-ink")}>{displayName}</p>
             {user?.email && user.email !== displayName && (
               <p className="truncate font-mono text-xs text-ink-3">{user.email}</p>
             )}

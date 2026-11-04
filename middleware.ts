@@ -4,7 +4,10 @@ import {
   createRouteMatcher,
   nextjsMiddlewareRedirect,
 } from "@convex-dev/auth/nextjs/server";
+import { middlewareShouldHandleCode } from "./lib/auth-proxy";
 import { isPubliclyCacheable, setsOwnCacheControl } from "./lib/cacheable-routes";
+import { AUTH_COOKIE_NAMES } from "./lib/edge-cache";
+import { BILL_ID_PATTERN } from "./lib/page-context";
 
 // Kept as "middleware.ts" (not Next.js 16's "proxy.ts") on purpose, although
 // every build prints Next's deprecation warning for it. proxy.ts is locked to
@@ -67,8 +70,9 @@ export default convexAuthNextjsMiddleware(
       },
     });
 
-    // The only `/api/*` route the app exposes is `/api/auth/*`, served by
-    // @convex-dev/auth and consumed same-origin from this Next.js app. No
+    // The `/api/auth` routes are served by @convex-dev/auth (and Google
+    // sign-in's two pages, passed through to Convex by app/api/auth/[...path])
+    // and consumed same-origin from this Next.js app. No
     // documented cross-origin caller, so we deliberately don't set any
     // `Access-Control-Allow-*` headers here — adding `Origin: *` would only
     // broaden the surface for any future authenticated `/api/foo` route.
@@ -93,22 +97,37 @@ export default convexAuthNextjsMiddleware(
     // A route that sets its own Cache-Control (the share card) keeps it: a
     // header set here would replace the route's.
     if (isPubliclyCacheable(pathname) && !setsOwnCacheControl(pathname)) {
-      const hasAuthCookie =
-        request.cookies.has("__Host-__convexAuthJWT") ||
-        request.cookies.has("__convexAuthJWT") ||
-        request.cookies.has("__Host-__convexAuthRefreshToken") ||
-        request.cookies.has("__convexAuthRefreshToken");
-      response.headers.set(
-        "Cache-Control",
-        hasAuthCookie
-          ? "private, no-store"
-          : "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
-      );
+      const hasAuthCookie = AUTH_COOKIE_NAMES.some((name) => request.cookies.has(name));
+      // A bill page is kept at the edge for an hour, the rest for five
+      // minutes. Bill data changes once a day (the nightly sync), and the bill
+      // pages are what crawlers fetch over and over; the home page and hubs
+      // carry counts that move with it too, but are few and cheap to rebuild.
+      // cloudflare-worker.ts reads CDN-Cache-Control to decide how long to keep
+      // a page.
+      //
+      // The browser gets `no-cache`: it must ask again on every load. The page
+      // names script files that only the current deploy serves, so a copy kept
+      // in the browser (stale-while-revalidate let it keep one for a day) loads
+      // scripts that are gone and leaves a dead page. Browsers ignore
+      // CDN-Cache-Control, and the edge cache starts empty on every deploy.
+      const parts = pathname.split("/").filter(Boolean);
+      const isBillPage = parts.length === 2 && parts[0] === "bills" && BILL_ID_PATTERN.test(parts[1]);
+      if (hasAuthCookie) {
+        response.headers.set("Cache-Control", "private, no-store");
+      } else {
+        response.headers.set("Cache-Control", "no-cache");
+        response.headers.set("CDN-Cache-Control", `public, max-age=${isBillPage ? 3600 : 300}`);
+      }
     }
 
     return response;
   },
-  { cookieConfig: { maxAge: SESSION_COOKIE_MAX_AGE_SECONDS } },
+  {
+    cookieConfig: { maxAge: SESSION_COOKIE_MAX_AGE_SECONDS },
+    // Google sign-in's own pages under /api/auth/ carry a `code` that is not a
+    // sign-in code for this site; see lib/auth-proxy.ts.
+    shouldHandleCode: (request) => middlewareShouldHandleCode(request.nextUrl.pathname),
+  },
 );
 
 // The matcher includes /api/* so /api/auth/* requests reach the proxy and get

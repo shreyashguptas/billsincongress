@@ -20,7 +20,9 @@
 const PUBLIC_EXACT = new Set(['/', '/about', '/learn', '/privacy', '/pro', '/terms']);
 
 /** Route trees whose anonymous responses are identical for every visitor. */
-const PUBLIC_PREFIXES = ['/bills'];
+// `/members/<id>` is the same for every visitor too: its accounts and bills come
+// from Convex, nothing from the reader's session.
+const PUBLIC_PREFIXES = ['/bills', '/members'];
 
 /**
  * Never cacheable, whatever else matches: these are personalised or part of an

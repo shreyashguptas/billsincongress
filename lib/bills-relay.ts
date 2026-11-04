@@ -15,7 +15,7 @@
  * request check can be tested without a server.
  */
 
-export const RELAYED_BILLS_QUERIES = ['list', 'listCount', 'listAllSponsors', 'getSyncStatus'] as const;
+export const RELAYED_BILLS_QUERIES = ['list', 'listCount', 'listAllSponsors', 'getSyncStatus', 'getCosponsors'] as const;
 
 export type RelayedBillsQuery = (typeof RELAYED_BILLS_QUERIES)[number];
 

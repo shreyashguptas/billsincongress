@@ -123,7 +123,7 @@ interface AnswerContextValue {
   /** Open or dismiss. `trigger` names where it came from, for the funnel. */
   setOpen: (open: boolean, trigger?: OpenTrigger | CloseReason) => void;
   /** Bring a set-aside conversation back, thread and draft intact. */
-  restore: () => void;
+  restore: (trigger?: 'launcher' | 'typing') => void;
   /** Step the panel aside so the page it just opened becomes visible. */
   minimize: (reason: CloseReason) => void;
   /** What the current route has open, beyond what the path already says. */
@@ -277,14 +277,14 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     [apply, surfaceNow],
   );
 
-  const restore = useCallback(() => {
+  const restore = useCallback((trigger: 'launcher' | 'typing' = 'launcher') => {
     const wasMinimized = phaseRef.current === 'minimized';
     if (!apply({ type: 'restore' })) return;
     openedAtRef.current = Date.now();
     if (wasMinimized) {
       analytics.answerPanelRestored({
         surface: surfaceNow(),
-        trigger: 'launcher',
+        trigger,
         turn_count: questionCount(),
         away_ms: minimizedAtRef.current ? Date.now() - minimizedAtRef.current : 0,
       });
@@ -292,7 +292,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     }
     analytics.answerPanelOpened({
       surface: surfaceNow(),
-      trigger: 'launcher',
+      trigger,
       has_conversation: turnsRef.current.length > 0,
     });
   }, [apply, surfaceNow]);
@@ -348,15 +348,29 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     const vv = typeof window === 'undefined' ? null : window.visualViewport;
     if (!vv || askState.phase !== 'open') return;
     const sync = () => {
-      const overlap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      // Only a keyboard counts. A pinch-zoomed page also has a visual viewport
+      // smaller than the window, and reading that as a keyboard opened the
+      // sheet 150px down with its close button off screen. A keyboard leaves
+      // the scale at 1 and needs a text field to have focus.
+      const editing = (document.activeElement as HTMLElement | null)?.matches?.(
+        'input, textarea, [contenteditable="true"]',
+      );
+      const zoomed = Math.abs((vv.scale ?? 1) - 1) > 0.01;
+      const overlap =
+        editing && !zoomed ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
       document.documentElement.style.setProperty('--ask-kb', `${Math.round(overlap)}px`);
     };
     sync();
     vv.addEventListener('resize', sync);
     vv.addEventListener('scroll', sync);
+    // Focus moving in or out of the composer changes the answer too.
+    document.addEventListener('focusin', sync);
+    document.addEventListener('focusout', sync);
     return () => {
       vv.removeEventListener('resize', sync);
       vv.removeEventListener('scroll', sync);
+      document.removeEventListener('focusin', sync);
+      document.removeEventListener('focusout', sync);
       document.documentElement.style.setProperty('--ask-kb', '0px');
     };
   }, [askState.phase]);
@@ -622,9 +636,9 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                 analytics.answerCitationUnresolved({
                   surface,
                   marker_count: data.dropped,
-                  // The answer model, not read from the response: a turn that fell back
-                  // to gpt-oss-120b is told apart by the trace's $ai_generation events.
-                  model: 'claude-haiku-5.5',
+                  // The model that wrote this answer, as the server reports it
+                  // (claude-sonnet-5-5, claude-haiku-5-5 or openai/gpt-oss-120b).
+                  model: typeof data.model === 'string' ? data.model : 'unknown',
                 });
               }
               if (webSources.length > 0) {
@@ -632,7 +646,8 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
                   surface,
                   reason: data.webReason ?? '',
                   result_count: webSources.length,
-                  engine: 'exa',
+                  // 'anthropic' (Claude's web search) or 'exa' (its fallback).
+                  engine: typeof data.webEngine === 'string' ? data.webEngine : 'unknown',
                 });
               }
             } else if (event === 'rate_limited') {

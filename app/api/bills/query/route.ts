@@ -18,6 +18,7 @@ const QUERIES = {
   listCount: api.bills.listCount,
   listAllSponsors: api.bills.listAllSponsors,
   getSyncStatus: api.bills.getSyncStatus,
+  getCosponsors: api.bills.getCosponsors,
 } satisfies Record<RelayedBillsQuery, unknown>;
 
 export async function POST(request: Request) {

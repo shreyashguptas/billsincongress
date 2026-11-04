@@ -151,8 +151,8 @@ export const ANSWER_TOOLS = [
     function: {
       name: "search_web",
       description:
-        "Look something up on the open web. ONLY permitted when a fetch_dataset returned " +
-        "no rows, or the question is about something a dataset's 'NOT IN THIS DATASET' " +
+        "Look something up on the open web. ONLY permitted when a complete fetch_dataset came " +
+        "back empty, or the question is about something a dataset's 'NOT IN THIS DATASET' " +
         "list names. Never use it to add colour to something our data already answers.",
       parameters: {
         type: "object",

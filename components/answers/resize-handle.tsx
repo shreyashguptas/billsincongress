@@ -7,6 +7,7 @@ import {
   MIN_PANEL_PX,
   clampPanelWidth,
   isResizable,
+  loadPanelPrefs,
   maxPanelWidth,
   savePanelPrefs,
   viewportWidth,
@@ -59,7 +60,9 @@ export function ResizeHandle({ surface }: { surface: string }) {
       const vw = viewportWidth();
       setMax(maxPanelWidth(vw));
       setEnabled(isResizable(vw));
-      const next = clampPanelWidth(read(), vw);
+      // From the reader's SAVED width, not the current one: clamping the live
+      // value ratcheted it down for good (1440 → 1300 → 1440 left 320px).
+      const next = clampPanelWidth(loadPanelPrefs().widthPx, vw);
       document.documentElement.style.setProperty('--ask-w', `${next}px`);
       setWidth(next);
     };
@@ -187,11 +190,17 @@ export function ResizeHandle({ surface }: { surface: string }) {
         // which is 64px short of where docking actually begins.
         'min-[1344px]:block',
         enabled
-          ? 'cursor-col-resize hover:bg-ink/30 focus-visible:bg-ink/40'
+          ? 'cursor-col-resize transition-colors duration-150 hover:bg-ink/30 hover:delay-150 focus-visible:bg-ink/40 active:bg-ink/40 active:delay-0'
           : 'pointer-events-none',
         // A 1px line is impossible to hit; a padded pseudo-element widens the
-        // target to 20px without widening anything the reader can see.
+        // target to 20px without widening anything the reader can see — 36px
+        // under a finger, mostly on the page side, where a thumb lands.
         'before:absolute before:inset-y-0 before:-left-2.5 before:-right-2.5 before:content-[""]',
+        'touchable:before:-left-7 touchable:before:-right-2',
+        // A finger cannot hover to discover the edge, so on touch screens it
+        // carries a small grip, centred, that says "this moves".
+        enabled &&
+          'touchable:after:absolute touchable:after:left-1/2 touchable:after:top-1/2 touchable:after:h-8 touchable:after:w-1 touchable:after:-translate-x-1/2 touchable:after:-translate-y-1/2 touchable:after:rounded-full touchable:after:bg-line-strong touchable:after:content-[""]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink',
       )}
     />
