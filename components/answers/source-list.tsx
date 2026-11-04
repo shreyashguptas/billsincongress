@@ -70,8 +70,8 @@ export function SourceList({
           </p>
           <ol className="space-y-1 touchable:space-y-3">
             {db.map(({ number, source: s }) => (
-              <li key={s.handle} className="flex gap-2.5 font-mono text-xs leading-5">
-                <span className="w-4 shrink-0 text-right text-ink-3 tabular">
+              <li key={s.handle} className="flex gap-2.5 text-meta">
+                <span className="w-4 shrink-0 text-right text-ink-2 tabular">
                   {number}
                 </span>
                 {s.href ? (
@@ -111,8 +111,8 @@ export function SourceList({
           )}
           <ol className="space-y-1 touchable:space-y-3">
             {web.map(({ number, handle, web: s }, i) => (
-              <li key={`${handle}:${i}`} className="flex gap-2.5 font-mono text-xs leading-5">
-                <span className="w-4 shrink-0 text-right text-ink-3 tabular">
+              <li key={`${handle}:${i}`} className="flex gap-2.5 text-meta">
+                <span className="w-4 shrink-0 text-right text-ink-2 tabular">
                   {/* No number for a result the answer never cited: nothing in
                       the prose points here, and a number would imply it does. */}
                   {number ?? <span aria-hidden="true">·</span>}

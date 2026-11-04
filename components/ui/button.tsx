@@ -26,16 +26,17 @@ const buttonVariants = cva(
         link: 'h-auto rounded-none p-0 text-foreground underline decoration-input underline-offset-[3px] hover:decoration-foreground',
       },
       size: {
-        sm: 'h-8 px-3 text-[13px] touchable:h-11',
+        sm: 'h-8 px-3 text-[0.8125rem] touchable:h-11',
         default: 'h-10 px-4 touchable:h-11',
-        lg: 'h-11 px-5 text-[15px]',
+        lg: 'h-11 px-5 text-[0.9375rem]',
         icon: 'h-10 w-10 touchable:h-11 touchable:w-11',
       },
     },
     // A link is text, not a box: without this the default size's height and
     // padding (applied after the variant) turned every `variant="link"` into a
-    // 40px-tall button with side padding.
-    compoundVariants: [{ variant: 'link', class: 'h-auto px-0 py-0 touchable:h-auto' }],
+    // 40px-tall button with side padding. On a touch screen it keeps its text
+    // height but gets an invisible 44px target (`.touch-hit`, app/globals.css).
+    compoundVariants: [{ variant: 'link', class: 'touch-hit h-auto px-0 py-0 touchable:h-auto' }],
     defaultVariants: {
       variant: 'default',
       size: 'default',

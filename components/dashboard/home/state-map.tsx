@@ -28,6 +28,8 @@ import { formatCongressOrdinal } from '@/lib/congress';
 import { SectionHeader } from '@/components/brand/section';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SectionAsk, fmt, type HomeProps } from './shared';
+import { Arrow } from '@/components/brand/arrow';
+import { HEAT_ALPHA, NIGHT_ON_INK_FROM_BIN } from '@/lib/state-map-tiles';
 
 // [column, row] on an 11 × 8 grid.
 const TILES: Record<string, [number, number]> = {
@@ -112,7 +114,7 @@ export function StateMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, metric]);
   const binOf = (v: number) => breaks.filter((b) => v >= b).length; // 0..4
-  const ALPHA = [0.12, 0.3, 0.5, 0.72, 0.95];
+  const ALPHA = HEAT_ALPHA;
 
   const fmtVal = (v: number) => (metric === 'total' ? fmt(Math.round(v)) : v.toFixed(1));
   const unit = metric === 'total' ? 'bills' : 'bills per member';
@@ -149,10 +151,12 @@ export function StateMap({
         onFocus={(e) => e.currentTarget.matches(':focus-visible') && setHover(st)}
         onBlur={() => setHover(null)}
         onClick={() => onTileClick(st)}
-        aria-label={`${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
+        aria-label={`${st}, ${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
         className={cn(
           'focus-ring relative flex aspect-square flex-col items-center justify-center rounded-xs transition-[opacity,box-shadow]',
-          bin >= 3 ? 'text-on-ink' : 'text-ink',
+          // Ink in Day on every shade; on-ink on Night's two darkest
+          // (lib/state-map-tiles.ts, contrast-checked in its test).
+          bin >= NIGHT_ON_INK_FROM_BIN ? 'text-ink dark:text-on-ink' : 'text-ink',
           bin < 0 && 'bg-sunken',
           active === st && 'ring-2 ring-ink',
           active && active !== st && 'opacity-60',
@@ -160,7 +164,9 @@ export function StateMap({
         )}
         style={bin >= 0 ? { backgroundColor: `hsl(var(--heat) / ${ALPHA[bin]})` } : undefined}
       >
-        <span className="font-mono text-[9px] font-medium leading-none sm:text-xs">{st}</span>
+        {/* A state code is an identifier, so it stays mono, at the 13px floor
+            on every screen: a phone's tile is 29px, room for two 8px figures. */}
+        <span className="font-mono text-xs font-medium leading-none">{st}</span>
       </button>
     );
   };
@@ -177,7 +183,7 @@ export function StateMap({
             />
           }
         />
-        <p className="mt-4 max-w-measure text-[15px] leading-relaxed text-ink-2">
+        <p className="mt-4 max-w-measure text-ui leading-relaxed text-ink-2">
           Bills sponsored by each state&rsquo;s members this Congress.
           {perMemberAvailable && ' Big delegations file more bills, so switch to per member for a fairer comparison.'}
         </p>
@@ -211,7 +217,7 @@ export function StateMap({
                   <ToggleGroupItem
                     key={id}
                     value={id}
-                    className="h-8 rounded-sm px-3 text-[13px] font-medium text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink touchable:h-10"
+                    className="h-8 rounded-sm px-3 text-caption font-medium text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink touchable:h-11"
                   >
                     {label}
                   </ToggleGroupItem>
@@ -219,7 +225,14 @@ export function StateMap({
               </ToggleGroup>
             )}
 
-            <div className="grid grid-cols-11 gap-1 sm:gap-1.5">
+            {/* A map, not a row of buttons: eleven tiles must fit a phone, so a
+                tile is ~29px there (above WCAG's 24px, under the 44px the rest
+                of the site keeps). The Top five list and the state filter on
+                /bills reach the same pages with full-size rows. */}
+            <div
+              className="grid grid-cols-11 gap-1 sm:gap-1.5"
+              data-touch-exempt="state map: geographic tiles, 29px at 390px"
+            >
               {Array.from({ length: 8 * 11 }, (_, i) => {
                 const col = i % 11;
                 const row = Math.floor(i / 11);
@@ -229,24 +242,38 @@ export function StateMap({
             </div>
 
             {TERRITORIES.some((t) => byState.has(t)) && (
-              <div className="mt-3 flex items-center gap-3">
-                <span className="label-eyebrow">Territories</span>
-                <div className="grid grid-cols-11 gap-1 sm:gap-1.5 flex-1">
-                  {TERRITORIES.filter((t) => byState.has(t)).map((t) => tile(t))}
-                </div>
+              // On the map's own eleven-column grid, so a territory is the same
+              // size as a state rather than squeezed beside its label.
+              <div
+                className="mt-3 grid grid-cols-11 items-center gap-1 sm:gap-1.5"
+                data-touch-exempt="state map: geographic tiles, 29px at 390px"
+              >
+                <span className="label-eyebrow col-span-4">Territories</span>
+                {TERRITORIES.filter((t) => byState.has(t)).map((t) => tile(t))}
               </div>
             )}
 
-            {/* Legend */}
-            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-ink-3">
-              <span>fewer</span>
-              {ALPHA.map((a, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5 tabular">
-                  <span className="h-3 w-5 rounded-xs" style={{ backgroundColor: `hsl(var(--heat) / ${a})` }} />
-                  {i === 0 ? `< ${fmtVal(breaks[0])}` : i === 4 ? `≥ ${fmtVal(breaks[3])}` : `${fmtVal(breaks[i - 1])}–${fmtVal(breaks[i])}`}
-                </span>
-              ))}
-              <span>more {unit}</span>
+            {/* Legend: the five shades as one strip, each range under its own
+                shade, so the key is a scale read left to right. */}
+            <div className="meta mt-6">
+              <p className="mb-2 flex justify-between">
+                <span>Fewer {unit}</span>
+                <span>More</span>
+              </p>
+              <ol className="grid grid-cols-5 gap-1 sm:gap-1.5">
+                {ALPHA.map((a, i) => (
+                  <li key={i} className="min-w-0">
+                    <span
+                      aria-hidden="true"
+                      className="block h-3 rounded-xs"
+                      style={{ backgroundColor: `hsl(var(--heat) / ${a})` }}
+                    />
+                    <span className="mt-1.5 block break-words">
+                      {i === 0 ? `< ${fmtVal(breaks[0])}` : i === 4 ? `≥ ${fmtVal(breaks[3])}` : `${fmtVal(breaks[i - 1])}–${fmtVal(breaks[i])}`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
 
@@ -265,13 +292,13 @@ export function StateMap({
                       <span className="block font-serif text-display-md font-normal leading-none text-ink tabular">
                         {fmt(focus.bills)}
                       </span>
-                      <span className="mt-1 block text-[13px] text-ink-2">bills sponsored</span>
+                      <span className="mt-1 block text-meta text-ink-2">bills sponsored</span>
                     </p>
                   </div>
-                  <p className="mt-3 font-mono text-xs text-ink-3 tabular">
+                  <p className="meta mt-3">
                     {perMemberAvailable && focus.seats > 0 && (
                       <>
-                        <span className="text-ink">{focus.perMember.toFixed(1)}</span> per member · {focus.seats}{' '}
+                        <span className="font-medium text-ink">{focus.perMember.toFixed(1)}</span> per member · {focus.seats}{' '}
                         {focus.seats === 1 ? 'seat' : 'seats'} ·{' '}
                       </>
                     )}
@@ -283,11 +310,11 @@ export function StateMap({
                     onClick={() => analytics.dashboardDrilldownClicked('state', focus.st, congress)}
                     className="link touch-hit focus-ring mt-3 inline-block rounded-sm text-sm"
                   >
-                    See its bills →
+                    See its bills <Arrow />
                   </Link>
                 </div>
               ) : (
-                <p className="text-sm text-ink-3">
+                <p className="text-sm text-ink-2">
                   <span className="fine:hidden">Tap a state to see its count, and tap it again to see its bills.</span>
                   <span className="hidden fine:inline">Hover over a state to see its count. Click it to see its bills.</span>
                 </p>
@@ -303,9 +330,9 @@ export function StateMap({
                       onClick={() => onDrillDown('state', r.st)}
                       className="focus-ring grid min-h-12 w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm text-left hover:bg-sunken"
                     >
-                      <span className="font-mono text-xs text-ink-3 tabular">{i + 1}</span>
-                      <span className="text-[15px] text-ink">{r.name}</span>
-                      <span className="font-mono text-sm text-ink tabular">{fmtVal(value(r))}</span>
+                      <span className="text-meta text-ink-3 tabular">{i + 1}</span>
+                      <span className="text-ui text-ink">{r.name}</span>
+                      <span className="text-ui font-medium text-ink tabular">{fmtVal(value(r))}</span>
                     </button>
                   </li>
                 ))}

@@ -9,6 +9,8 @@ import { ChamberMark } from '@/components/brand/logo';
 import { SectionHeader, SourceLine } from '@/components/brand/section';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { WordList } from '@/components/brand/word-list';
+import { TERM_GROUPS, TERM_IDS, TERMS } from '@/lib/glossary';
 import {
   CommitteePicture,
   HouseVotePicture,
@@ -21,17 +23,20 @@ import {
   VotePicture,
 } from './components/pictures';
 import { TwoRooms } from './components/two-rooms';
+import { WordTarget } from './components/word-target';
 
 // How Congress works, in pictures, for a reader as young as eight: one short
 // caption per picture and no paragraphs. The page is server-rendered; the only
-// client JavaScript of its own is the state picker in <TwoRooms>.
+// client JavaScript of its own is the state picker in <TwoRooms> (and the
+// one-effect <WordTarget>). Part 4,
+// "Words you’ll see", lists lib/glossary.ts: where every <Term> popover links.
 
 export const viewport: Viewport = sharedViewport;
 
 export const metadata: Metadata = {
   title: 'How Congress works',
   description:
-    'How Congress works, in pictures: people vote, Congress meets in two rooms, and an idea becomes a law in six steps. A plain-language guide.',
+    'How Congress works, in pictures: people vote, Congress meets in two rooms, and an idea becomes a law in six steps. Plus the words you’ll see, explained.',
   alternates: { canonical: '/learn' },
 };
 
@@ -68,7 +73,7 @@ function Step({
           {Glyph ? (
             <Glyph className="h-5 w-5" strokeWidth={1.75} />
           ) : (
-            <span className="font-mono text-base tabular">{node as number}</span>
+            <span className="text-base font-medium tabular">{node as number}</span>
           )}
         </span>
       </span>
@@ -87,11 +92,25 @@ function Step({
   );
 }
 
-function Part({ id, eyebrow, title, children }: { id: string; eyebrow: string; title: string; children: ReactNode }) {
+function Part({
+  id,
+  eyebrow,
+  title,
+  lead,
+  children,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  /** One line under the headline. */
+  lead?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-24 border-t border-line">
       <div className="container-editorial py-16 sm:py-24">
         <SectionHeader eyebrow={eyebrow} title={<span id={`${id}-title`}>{title}</span>} />
+        {lead && <p className="mt-4 max-w-measure text-lg text-ink-2 [text-wrap:pretty] sm:text-xl">{lead}</p>}
         <div className="mt-12 sm:mt-16">{children}</div>
       </div>
     </section>
@@ -115,18 +134,44 @@ function BigIdea() {
           <div className="flex flex-col items-center gap-3">
             <span
               aria-hidden="true"
-              className={cn('flex h-20 w-20 items-center justify-center rounded-full sm:h-28 sm:w-28', n.tone)}
+              // 5rem, but never more than a fifth of a phone: with a larger
+              // browser font the three circles and two arrows still fit.
+              className={cn('flex size-[min(5rem,21vw)] items-center justify-center rounded-full sm:size-28', n.tone)}
             >
               {n.icon}
             </span>
-            <span className="text-title text-ink">{n.label}</span>
+            {/* Capped by the screen too, so "Congress" is never wider than
+                its share of a phone at a large browser font. */}
+            <span className="text-[min(1.25rem,5.2vw)] leading-[1.35] tracking-[-0.01em] text-ink sm:text-title">{n.label}</span>
           </div>
           {i < nodes.length - 1 && (
-            <ArrowRight aria-hidden="true" className="mt-7 h-6 w-6 text-ink-3 sm:mt-11" strokeWidth={1.75} />
+            <ArrowRight aria-hidden="true" className="mt-[calc(min(5rem,21vw)/2-0.75rem)] h-6 w-6 shrink-0 text-ink-3 sm:mt-11" strokeWidth={1.75} />
           )}
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * Every word in lib/glossary.ts, grouped, each with its own anchor: the
+ * "More words in Learn" link in every `<Term>` popover lands on its row, which
+ * the data-target fill picks out (WordTarget sets it; `:target` does not
+ * update on a client-side jump to the same page).
+ */
+function Words() {
+  return (
+    <div className="grid gap-x-16 gap-y-14 md:grid-cols-2">
+      <WordTarget />
+      {TERM_GROUPS.map((group) => (
+        <section key={group.id} aria-labelledby={`words-${group.id}`}>
+          <h3 id={`words-${group.id}`} className="label-eyebrow">
+            {group.title}
+          </h3>
+          <WordList ids={TERM_IDS.filter((id) => TERMS[id].group === group.id)} anchors className="mt-4" />
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -198,7 +243,6 @@ export default function LearnPage() {
             node={ScrollText}
             tone="bg-status-law"
             title="Now it’s a law."
-            sub="Everyone in the country follows it."
             picture={<LawPicture />}
           />
         </ol>
@@ -226,6 +270,23 @@ export default function LearnPage() {
           </div>
           <HundredBills className="mx-auto w-full max-w-sm md:max-w-md" />
         </div>
+      </Part>
+
+      <Part
+        id="words"
+        eyebrow="Part 4"
+        title="Words you’ll see"
+        lead={
+          <>
+            Tap a{' '}
+            <span className="underline decoration-ink-3 decoration-dotted decoration-[1.5px] underline-offset-[0.2em]">
+              dotted word
+            </span>{' '}
+            anywhere on the site to see what it means. Here they all are.
+          </>
+        }
+      >
+        <Words />
       </Part>
 
       <section className="border-t border-line bg-sunken">

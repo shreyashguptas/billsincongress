@@ -74,15 +74,15 @@ export function LengthLimitNote({
     <p
       id={id}
       aria-live="polite"
-      className={cn('text-[13px] leading-5', className, state !== 'quiet' && cn('mt-1.5', shownClassName))}
+      className={cn('text-caption leading-5', className, state !== 'quiet' && cn('mt-1.5', shownClassName))}
     >
       {state === 'full' ? (
         <span className="text-error">
           {limitMessage(max)}{' '}
-          <span className="font-mono tabular-nums">{limitCount(length, max)}</span>
+          <span className="tabular">{limitCount(length, max)}</span>
         </span>
       ) : state === 'near' ? (
-        <span className="font-mono tabular-nums text-ink-3">{limitCount(length, max)}</span>
+        <span className="tabular text-ink-2">{limitCount(length, max)}</span>
       ) : null}
     </p>
   );

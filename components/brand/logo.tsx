@@ -88,10 +88,13 @@ export function Logo({
   className?: string;
   size?: 'md' | 'lg';
   /**
-   * Size the wordmark to the site header's own width (container queries, so
-   * only inside the header): the mark alone below 360px, 16px type to 400px,
-   * the usual 18px above. A 320px phone with "Sign up" showing has no room for
-   * the full lockup, and squeezing it made the whole page scroll sideways.
+   * Size the wordmark to the site header's own width (container queries in
+   * em, so only inside the header, and sooner at a larger browser font): the
+   * mark alone below 440px, 16px type to 480px, 18px to 640px, then 21px
+   * (`header-wordmark`, `header-wordmark-lg`, `header-sm`). A phone header
+   * carries Ask, the search and "Sign up" on its right; below 440px that
+   * leaves no room for the full lockup, and squeezing it made the whole page
+   * scroll sideways (or ran it under Ask).
    */
   fit?: boolean;
 }) {
@@ -101,8 +104,11 @@ export function Logo({
       aria-label="Bills in Congress, home"
       className={cn(
         'focus-ring inline-flex items-baseline gap-2.5 rounded-sm text-ink',
-        // A 44px hit area on touch without changing the row's layout.
-        'relative touchable:before:absolute touchable:before:-inset-y-3 touchable:before:inset-x-0 touchable:before:content-[""]',
+        // A 44px hit area on touch without changing the row's layout: 13px
+        // above and below the 18px mark, and sideways too, because the mark alone is 25px
+        // wide. 8px on the left is the gap to the menu button, so it meets that
+        // button's box without covering it; header-mark leaves 12px+ on the right.
+        'relative touchable:before:absolute touchable:before:-inset-y-[13px] touchable:before:-left-2 touchable:before:-right-3 touchable:before:content-[""]',
         className,
       )}
     >
@@ -116,8 +122,8 @@ export function Logo({
           size === 'lg'
             ? 'text-2xl'
             : fit
-              ? 'hidden text-base header-xs:inline header-sm:text-lg sm:text-[21px]'
-              : 'text-lg sm:text-[21px]',
+              ? 'hidden text-base header-wordmark:inline header-wordmark-lg:text-lg header-sm:text-[1.3125rem]'
+              : 'text-lg sm:text-[1.3125rem]',
         )}
       >
         Bills in Congress

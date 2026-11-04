@@ -24,7 +24,7 @@ export default function AboutPage() {
         <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">
           A clear, independent view of the U.S. Congress.
         </h1>
-        <p className="mt-5 max-w-[60ch] text-[17px] leading-relaxed text-ink-2 sm:text-lg">
+        <p className="mt-5 max-w-[60ch] text-[1.0625rem] leading-relaxed text-ink-2 sm:text-lg">
           Bills in Congress is a public-interest project that reorganises the
           government&apos;s own data into a calmer, more readable record of the
           laws being made on your behalf.
@@ -46,7 +46,7 @@ export default function AboutPage() {
               </div>
             ))}
           </dl>
-          <p className="mt-4 text-xs leading-relaxed text-ink-3">
+          <p className="mt-4 text-meta text-ink-2">
             Bills in Congress is not affiliated with the United States
             government. Source data, including the congress-legislators
             list of suggested accounts, is in the public domain.
@@ -74,7 +74,7 @@ export default function AboutPage() {
           <ol className="mt-8 border-t border-line">
             {steps.map((step, i) => (
               <li key={step.title} className="flex gap-4 border-b border-line py-5 sm:gap-6">
-                <span className="w-6 shrink-0 pt-1 font-mono text-sm text-ink-3 tabular">0{i + 1}</span>
+                <span className="w-6 shrink-0 pt-1 text-sm font-medium text-ink-3 tabular">0{i + 1}</span>
                 <div className="min-w-0">
                   <h3 className="text-title text-ink">{step.title}</h3>
                   <p className="mt-1.5 text-base leading-relaxed text-ink-2">{step.body}</p>

@@ -124,7 +124,7 @@ const STATUS_HUBS: HubDefinition[] = [
     metaDescription:
       'Bills passed by both chambers of Congress and presented to the President, who has not yet signed or vetoed them. Updated daily.',
     explainer:
-      "Both chambers passed these bills in identical form, and they have been presented to the President. The President has ten days, Sundays excepted, to sign or veto. A bill left unsigned becomes law after that time if Congress is in session, and dies in a pocket veto if Congress has adjourned. The list is short by nature: most bills spend only days here.",
+      "Both chambers passed these bills in identical form, and they have been presented to the President. The President has ten days, Sundays excepted, to sign or veto. A bill left unsigned becomes law after that time, unless Congress has adjourned in a way that stops the President from sending it back; then it dies in a pocket veto. The list is short by nature: most bills spend only days here.",
     filter: { progressStage: '90' },
   },
   {

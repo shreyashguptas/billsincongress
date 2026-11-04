@@ -7,6 +7,7 @@ import { stageFill } from '@/components/brand/status';
 import { billHubs, type HubDefinition } from '@/lib/hubs';
 import { measureStageLabel } from '@/lib/utils/bill-stages';
 import type { BillPageExtras } from '@/lib/services/bills-service';
+import { Arrow } from '@/components/brand/arrow';
 
 type RelatedBill = BillPageExtras['related'][number];
 
@@ -61,7 +62,7 @@ export function BillRelatedSection({
                   }
                   className="focus-ring group flex gap-4 rounded-sm py-4 sm:items-baseline"
                 >
-                  <span className="w-24 shrink-0 font-mono text-[13px] text-ink-2 tabular">
+                  <span className="w-24 shrink-0 font-mono text-xs text-ink-2 tabular">
                     {r.billTypeLabel} {r.billNumber}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -83,7 +84,7 @@ export function BillRelatedSection({
         )}
 
         {hubs.length > 0 && (
-          <nav aria-label={`Pages this ${billNoun(billType)} belongs to`} className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+          <nav aria-label={`Pages this ${billNoun(billType)} belongs to`} className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm touchable:gap-y-0">
             {hubs.map((hub) => (
               <Link
                 key={hub.path}
@@ -96,9 +97,11 @@ export function BillRelatedSection({
                     placement: 'bill_page',
                   })
                 }
-                className="focus-ring rounded-sm text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+                // 44px tall on touch (20px line + 12px each side): the rows sit 44px apart with no gap, so
+                // each link's target is its own row. touch-hit gives 24px under a mouse.
+                className="touch-hit focus-ring inline-block rounded-sm text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink touchable:py-3"
               >
-                {hubLinkLabel(hub)} →
+                {hubLinkLabel(hub)} <Arrow />
               </Link>
             ))}
           </nav>

@@ -91,7 +91,7 @@ export function billMarkdownComponents<T extends object>(base: T, ctx: { current
         // the cards stack in the order the answer gave.
         <ol className="mb-3 list-none space-y-2">{children}</ol>
       ) : (
-        <ol className="mb-3 ml-5 list-decimal space-y-1.5 marker:font-mono marker:text-ink-3">
+        <ol className="mb-3 ml-5 list-decimal space-y-1.5 marker:tabular marker:text-ink-3">
           {children}
         </ol>
       ),

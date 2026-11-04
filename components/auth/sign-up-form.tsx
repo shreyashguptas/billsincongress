@@ -122,7 +122,7 @@ export function SignUpForm() {
   if (step === "verify") {
     return (
       <div className="space-y-6">
-        <p className="text-[15px] leading-relaxed text-ink-2">
+        <p className="text-ui leading-relaxed text-ink-2">
           If this email can be used, we sent a 6-digit code to <span className="font-medium text-ink">{email}</span>.
           It expires in 15 minutes.
         </p>
@@ -215,7 +215,7 @@ export function SignUpForm() {
             disabled={busy}
             aria-describedby="password-rules"
           />
-          <p id="password-rules" className="text-[13px] leading-snug text-ink-3">
+          <p id="password-rules" className="text-caption leading-snug text-ink-2">
             {PASSWORD_RULES}
           </p>
         </div>

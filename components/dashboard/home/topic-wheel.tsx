@@ -23,6 +23,7 @@ import { AskAbout } from '@/components/answers/ask-about';
 import { SectionHeader } from '@/components/brand/section';
 import { Button } from '@/components/ui/button';
 import { SectionAsk, fmt, type HomeProps } from './shared';
+import { Arrow } from '@/components/brand/arrow';
 
 const COLORED = 6;
 const S = 640;
@@ -116,9 +117,13 @@ export function TopicWheel({
 
         <div className="mt-10 grid grid-cols-1 items-center gap-10 sm:mt-12 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-7">
+            {/* The figure in the hole is HTML over the SVG, not SVG text: SVG text
+                shrinks with the drawing (to 6px on a phone), and its label has to
+                hold the 12px eyebrow floor at every width. */}
+            <div className="relative mx-auto max-w-[560px] [container-type:inline-size]">
             <svg
               viewBox={`0 0 ${S} ${S}`}
-              className="w-full max-w-[560px] mx-auto h-auto"
+              className="block h-auto w-full"
               onMouseLeave={() => setHover(null)}
               role="img"
               aria-label={wheel.items.map((w) => `${w.name}: ${fmt(w.count)} bills`).join(', ')}
@@ -150,27 +155,28 @@ export function TopicWheel({
                 );
               })}
               <circle cx={C} cy={C} r={R_IN - 8} fill="hsl(var(--paper))" stroke="hsl(var(--line))" />
-              <text
-                x={C}
-                y={C + 2}
-                textAnchor="middle"
-                className="fill-ink font-serif tabular"
-                style={{ fontSize: 48, fontWeight: 400, letterSpacing: '-0.02em' }}
+            </svg>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center"
+            >
+              {/* 48 drawing units, scaled with the drawing like the dots around it. */}
+              <span
+                className="font-serif font-normal leading-none tracking-[-0.02em] text-ink tabular"
+                style={{ fontSize: `${(48 / S) * 100}cqw` }}
               >
                 {fmt(f ? f.count : dashboard.totalBills)}
-              </text>
-              {/* Set like .label-eyebrow; SVG text cannot take the class's layout rules. */}
-              <text
-                x={C}
-                y={C + 28}
-                textAnchor="middle"
-                className="fill-ink-3 font-sans"
-                style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' }}
-              >
-                {f ? `${(f.share * 100).toFixed(1)}% of bills` : 'Bills · all topics'}
-              </text>
-            </svg>
-            <p className="mt-3 text-center font-mono text-xs text-ink-3">
+              </span>
+              {/* Two short lines, tracked tighter than an eyebrow elsewhere: the
+                  hole is 115px across on a phone, and at a 20px browser font
+                  "ALL TOPICS" would otherwise touch its rim. */}
+              <span className="label-eyebrow mt-1.5 flex flex-col tracking-[0.04em]">
+                <span className="tabular">{f ? `${(f.share * 100).toFixed(1)}%` : 'Bills'}</span>
+                <span>{f ? 'of bills' : 'all topics'}</span>
+              </span>
+            </div>
+            </div>
+            <p className="meta mt-3 text-center">
               each dot ≈ {fmt(wheel.perDot)} bills
             </p>
           </div>
@@ -194,24 +200,32 @@ export function TopicWheel({
                     onBlur={() => setHover(null)}
                     onClick={() => toggle(i)}
                     aria-pressed={pinned === i}
-                    className="focus-ring grid min-h-[52px] flex-1 grid-cols-[12px_1fr_auto_4rem] items-center gap-x-3 rounded-sm py-2 pl-1 text-left"
+                    // min-w-0 and a minmax(0,1fr) name column: at a 24px browser
+                    // font a 390px row has no room for the names' longest words,
+                    // and as a flex item at its min-content width the row pushed
+                    // the arrow links past the screen. Under 18.5em of screen
+                    // (never at the default font from 320px up) the share column
+                    // goes and the count stays, so "Enforcement" keeps its letters.
+                    className="focus-ring grid min-h-[52px] min-w-0 flex-1 grid-cols-[12px_minmax(0,1fr)_4rem] items-center gap-x-3 rounded-sm py-2 pl-1 text-left [@media(min-width:18.5em)]:grid-cols-[12px_minmax(0,1fr)_auto_4rem]"
                   >
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: w.color }} />
-                    <span className="text-[15px] leading-5 text-ink">{w.name}</span>
-                    <span className="text-right font-mono text-[13px] text-ink-3 tabular">{(w.share * 100).toFixed(1)}%</span>
-                    <span className="text-right font-mono text-[15px] font-medium text-ink tabular">{fmt(w.count)}</span>
+                    <span className="break-words text-ui leading-5 text-ink">{w.name}</span>
+                    <span className="hidden text-right text-meta text-ink-3 tabular [@media(min-width:18.5em)]:block">
+                      {(w.share * 100).toFixed(1)}%
+                    </span>
+                    <span className="text-right text-ui font-medium text-ink tabular">{fmt(w.count)}</span>
                   </button>
                   {/* A real link, not a scripted jump: this is the one page search
                       engines index, and these rows are how link equity reaches the
                       topic hubs. The grey "everything else" slice has no hub. */}
                   {w.isRest ? (
-                    <span className="w-10 shrink-0" aria-hidden="true" />
+                    <span className="w-11 shrink-0" aria-hidden="true" />
                   ) : (
                     <Link
                       href={policyAreaHref(w.name)}
                       onClick={() => analytics.dashboardDrilldownClicked('policyArea', w.name, congress)}
                       aria-label={`See the ${w.name.toLowerCase()} bills`}
-                      className="focus-ring flex h-11 w-10 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:text-ink"
+                      className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:text-ink"
                     >
                       →
                     </Link>
@@ -229,22 +243,26 @@ export function TopicWheel({
                     onClick={() => onDrillDown('congress', congress)}
                     className="rounded-sm font-normal decoration-1"
                   >
-                    Browse every bill →
+                    {/* One span: Button is a flex box, which would drop the space before the arrow. */}
+                    <span>
+                      Browse every bill <Arrow />
+                    </span>
                   </Button>
                 ) : (
-                  <div className="flex flex-wrap gap-x-5 gap-y-2">
+                  // 24px between the lines on touch: two 44px targets, no overlap.
+                  <div className="flex flex-wrap gap-x-5 gap-y-2 touchable:gap-y-6">
                     <Link
                       href={policyAreaHref(pinnedItem.name)}
                       onClick={() => analytics.dashboardDrilldownClicked('policyArea', pinnedItem.name, congress)}
-                      className="link focus-ring rounded-sm"
+                      className="link touch-hit focus-ring rounded-sm"
                     >
-                      See the {fmt(pinnedItem.count)} {pinnedItem.name.toLowerCase()} bills →
+                      See the {fmt(pinnedItem.count)} {pinnedItem.name.toLowerCase()} bills <Arrow />
                     </Link>
                     <AskAbout
                       question={`What are the ${pinnedItem.name.toLowerCase()} bills in the ${formatCongressOrdinal(congress)} Congress about?`}
                       className="focus-ring rounded-sm text-sm"
                     >
-                      Ask what they&rsquo;re about →
+                      Ask what they&rsquo;re about <Arrow />
                     </AskAbout>
                   </div>
                 )

@@ -22,7 +22,7 @@ interface CrawlablePaginationProps {
 
 // 36px targets under a mouse, 44px under a finger.
 const slotClass =
-  'inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 font-mono text-sm tabular transition-colors focus-ring touchable:h-11 touchable:min-w-11';
+  'inline-flex h-9 min-w-9 items-center justify-center rounded-md px-2 text-sm tabular transition-colors focus-ring touchable:h-11 touchable:min-w-11';
 
 /**
  * Below `sm` the bar keeps the first page, the last page and the current one,
@@ -37,7 +37,7 @@ const slotClass =
 const phoneHidden = 'hidden sm:inline-flex';
 const neighbourOnly = 'hidden min-[400px]:inline-flex';
 const gapClass =
-  'h-9 min-w-4 sm:min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11';
+  'h-9 min-w-4 sm:min-w-6 items-center justify-center text-sm text-ink-3 touchable:h-11';
 
 /** Which phone widths show a page slot. */
 function phoneVisibility(slot: number, current: number, lastPage: number): string | undefined {
@@ -129,7 +129,7 @@ export function CrawlablePagination({
       )}
 
       {openEnded && (
-        <span className="inline-flex h-9 min-w-6 items-center justify-center font-mono text-sm text-ink-3 touchable:h-11">
+        <span className="inline-flex h-9 min-w-6 items-center justify-center text-sm text-ink-3 touchable:h-11">
           <span aria-hidden="true">…</span>
           <span className="sr-only">and possibly more pages</span>
         </span>

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'November 3, 2026';
+const LAST_UPDATED = 'November 4, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -490,6 +490,12 @@ const cookies = [
     name: 'bic_found_it_seen (local storage)',
     purpose:
       'Remembers that we already asked “Did you find what you were looking for?” on this browser, so we never ask again. Holds the value 1 and never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
+    name: 'bic_ask_shortcut (local storage)',
+    purpose:
+      'Remembers that you turned off the / key that opens Ask. Written only while it is off, holds the value off and nothing else, and never leaves your browser.',
     lifespan: 'until cleared',
   },
   {

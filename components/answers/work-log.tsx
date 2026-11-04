@@ -85,7 +85,7 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="touch-hit focus-ring rounded-xs font-mono text-xs text-ink-3 transition-colors hover:text-ink"
+        className="touch-hit focus-ring rounded-xs text-meta text-ink-2 tabular transition-colors hover:text-ink"
       >
         ✓ {lookupSummary(entries)} · show
       </button>
@@ -93,7 +93,7 @@ export function WorkLog({ entries, done }: { entries: WorkEntry[]; done: boolean
   }
 
   return (
-    <div className="space-y-0.5 font-mono text-xs leading-5 text-ink-3">
+    <div className="space-y-0.5 text-meta text-ink-2 tabular">
       {entries.map((e, i) => {
         const line = workLine(e);
         return (

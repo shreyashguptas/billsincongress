@@ -8,7 +8,7 @@
  * pin a day.
  */
 import type { BillJourney, JourneyEvent } from '../convex/billJourney';
-import { BillStages, measureStageLabel } from './utils/bill-stages';
+import { BillStages, measureStageLabel, stagePath } from './utils/bill-stages';
 import { congressStartYear, formatCongressOrdinal } from './congress';
 import { formatCount } from './utils/format';
 
@@ -18,6 +18,15 @@ const MS_PER_DAY = 86_400_000;
 
 function dayNumber(iso: string): number {
   return Math.floor(Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) / MS_PER_DAY);
+}
+
+/**
+ * Whether the record's veto was a pocket veto: made while Congress was away,
+ * so no vote can override it (convex/billJourney.ts labels the event). Stage 85
+ * holds both kinds, so the stage alone cannot tell.
+ */
+export function isPocketVeto(events: JourneyEvent[] | null | undefined): boolean {
+  return (events ?? []).some((e) => e.kind === 'vetoed' && /pocket/i.test(e.label));
 }
 
 /** Whole days from `from` to `to` (ISO dates), never negative. */
@@ -112,7 +121,8 @@ function chapterName(stage: number, events: JourneyEvent[], billType: string): s
  * introduction-and-referral day) hands its moments to the next chapter rather
  * than drawing a zero-width one. A finished bill's last stage is its end point,
  * not a chapter. Moments after the end (a committee report filed after the
- * signing) are left out: they are not part of the road.
+ * signing) are left out: they are not part of the road, except a vetoed bill's
+ * override votes.
  */
 export function journeyView(input: {
   journey: BillJourney;
@@ -146,7 +156,11 @@ export function journeyView(input: {
   });
 
   for (const event of journey.events) {
-    if (event.date > endDate) continue;
+    // A vote on overriding the veto comes after the veto that ends the road,
+    // and is the last thing a reader needs to see (H.R. 131, 119th: the House
+    // fell short on Jan 8, 2026). It goes under the last chapter.
+    const afterVeto = finish === 'vetoed' && (event.kind === 'override_failed' || event.kind === 'override_passed');
+    if (event.date > endDate && !afterVeto) continue;
     let idx = raw.findIndex((c, i) => event.date >= c.start && (event.date < c.end || i === raw.length - 1));
     if (idx === -1) idx = 0;
     raw[idx].events.push(event);
@@ -224,6 +238,59 @@ export function congressClock(congress: number, today: string, introducedDate: s
     elapsedPct: at(today),
     introducedPct: at(introducedDate),
   };
+}
+
+/**
+ * The rule under a live Congress clock, for the measure it is on: "A bill
+ * still in Congress when it ends on Jan 3, 2027 dies, and would have to be
+ * introduced again."
+ *
+ * Not "a bill that has not become law when it ends dies": a bill presented in
+ * the last days can still be signed in its 10 days after the Congress ends.
+ * And a proposed constitutional amendment never becomes law; it dies only if
+ * both chambers have not passed it by two-thirds (/bills/221hjres119 read "A
+ * joint resolution that has not become law when it ends … dies").
+ */
+export function congressClockRule({
+  congress,
+  noun,
+  billType,
+  amendment = false,
+}: {
+  congress: number;
+  noun: string;
+  billType: string;
+  amendment?: boolean;
+}): string {
+  const endDay = formatDay(congressBounds(congress).end);
+  const subject = amendment
+    ? 'A proposed amendment that both chambers have not passed by two-thirds'
+    : stagePath(billType) === 'law'
+      ? `A ${noun} still in Congress`
+      : `A ${noun} that has not been adopted`;
+  return `${subject} when it ends on ${endDay} dies, and would have to be introduced again.`;
+}
+
+/**
+ * The committee base rate for the bill page: how often past bills still in
+ * committee this long went further. Null unless every figure is there, and
+ * null for a bill whose Congress has ended: it expired, and the server counts
+ * its days to today, so /bills/82sjres118 read "In committee for 903 days …
+ * about 2% ever advanced further" beside "it expired after 233 days".
+ */
+export function committeeBaseRate(
+  bill: { congress: number; base_rate_percent?: number; base_rate_sample?: number; days_in_committee?: number },
+  today: string,
+): { percent: number; sample: number; days: number } | null {
+  if (today >= congressBounds(bill.congress).end) return null;
+  if (
+    bill.base_rate_percent === undefined ||
+    bill.base_rate_sample === undefined ||
+    bill.days_in_committee === undefined
+  ) {
+    return null;
+  }
+  return { percent: bill.base_rate_percent, sample: bill.base_rate_sample, days: bill.days_in_committee };
 }
 
 /** Path order, with Vetoed after the President as on the home page's card. */

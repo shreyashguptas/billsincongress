@@ -26,13 +26,13 @@ export default function Error({
   return (
     <section className="container-editorial flex flex-col items-center py-20 text-center sm:py-28">
       <ChamberMark className="h-12 w-12 text-ink-3" />
-      <p className="mt-6 font-mono text-xs leading-4 text-ink-3 tabular">
+      <p className="mt-6 font-mono text-xs text-ink-2 tabular">
         {chunkError ? 'Update needed' : 'Error'}
       </p>
       <h1 className="mt-3 text-display-md text-ink">
         {chunkError ? 'A new version is available' : 'Something went wrong'}
       </h1>
-      <p className="mt-4 max-w-[48ch] text-[17px] leading-relaxed text-ink-2">
+      <p className="mt-4 max-w-[48ch] text-[1.0625rem] leading-relaxed text-ink-2">
         {chunkError
           ? 'The site updated since you opened this page. Reload to load the latest version.'
           : 'An unexpected error interrupted this page. Try again, or head back home.'}

@@ -180,7 +180,7 @@ export function HubOrderSwitch({
               });
             }}
             className={cn(
-              'inline-flex h-8 items-center rounded-[6px] px-3 text-[13px] transition-colors focus-ring touchable:h-11',
+              'inline-flex h-8 items-center rounded-[6px] px-3 text-caption transition-colors focus-ring touchable:h-11',
               selected
                 ? 'bg-raised font-medium text-ink shadow-sm'
                 : 'text-ink-2 hover:text-ink',

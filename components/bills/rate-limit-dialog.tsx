@@ -67,7 +67,7 @@ export function RateLimitDialog({
             <DialogTitle className={titleClass}>
               You&apos;ve hit the free daily limit
             </DialogTitle>
-            <DialogDescription className="mt-3 text-[15px] leading-relaxed text-ink-2">
+            <DialogDescription className="mt-3 text-ui leading-relaxed text-ink-2">
               Anonymous browsers can ask up to <span className="font-medium text-ink">{max} questions a day</span>.{" "}
               Create a free account and ask up to <span className="font-medium text-ink">{AUTHED_CHAT_DAILY_LIMIT} a day</span>.
             </DialogDescription>
@@ -85,7 +85,7 @@ export function RateLimitDialog({
               </Button>
             </div>
 
-            <p className="mt-4 text-[13px] leading-5 text-ink-3">
+            <p className="mt-4 text-caption leading-5 text-ink-2">
               Or come back after <span className="font-medium text-ink">{resetLabel}</span> when your daily quota resets.
             </p>
           </>
@@ -94,7 +94,7 @@ export function RateLimitDialog({
             <DialogTitle className={titleClass}>
               Daily chat limit reached
             </DialogTitle>
-            <DialogDescription className="mt-3 text-[15px] leading-relaxed text-ink-2">
+            <DialogDescription className="mt-3 text-ui leading-relaxed text-ink-2">
               You&apos;ve asked the maximum of <span className="font-medium text-ink">{max} questions</span> today. Your quota resets at{" "}
               <span className="font-medium text-ink">{resetLabel}</span>.
             </DialogDescription>
@@ -102,7 +102,7 @@ export function RateLimitDialog({
             {/* Free accounts can raise the cap; Pro readers are already at the top. */}
             {max < PRO_CHAT_DAILY_LIMIT ? (
               <>
-                <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+                <p className="mt-3 text-ui leading-relaxed text-ink-2">
                   Pro raises this to <span className="font-medium text-ink">{PRO_CHAT_DAILY_LIMIT} a day</span>{" "}
                   and emails you when bills you follow move.
                 </p>

@@ -587,6 +587,14 @@ export const analytics = {
   }) => capture('bill_journey_viewed', props),
 
   /**
+   * The reader tapped "Show every step" under a bill's journey on a phone,
+   * where the stages start collapsed to their phases (from `sm` up every step
+   * is always shown, so this never fires there). Once per opening.
+   */
+  billJourneyExpanded: (props: { bill_id: string; chapters: number; events: number }) =>
+    capture('bill_journey_expanded', props),
+
+  /**
    * The reader scrolled to the "Among its peers" dot field on a bill page
    * (30% of it on screen). Once per bill view.
    */
@@ -858,7 +866,7 @@ export const analytics = {
    */
   answerPanelOpened: (props: {
     surface: string;
-    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
+    trigger: 'launcher' | 'header' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
     has_conversation: boolean;
   }) => capture('answer_panel_opened', props),
 
@@ -877,24 +885,41 @@ export const analytics = {
    */
   answerPanelRestored: (props: {
     surface: string;
-    trigger: 'launcher' | 'typing';
+    trigger: 'launcher' | 'header' | 'typing';
     turn_count: number;
     away_ms: number;
   }) => capture('answer_panel_restored', props),
 
   /**
-   * The reader started typing with no field focused, and the key was sent to
-   * the ask box (`components/answers/type-to-ask.tsx`). Once per run of typing,
-   * not per key: the next key lands in the focused box and is not seen here.
-   * `target` says where it went — `open_panel` opened (or restored) the panel
-   * for it, which also sends `answer_panel_opened`/`restored` with trigger
-   * `typing`.
+   * The reader used the keyboard way into Ask and focus moved to an ask box
+   * (`components/answers/ask-shortcut.tsx`). Since 2026-11-04 that is the `/`
+   * key only, once per press, and `key` says so; before, any printable key
+   * typed with nothing focused, once per run of typing, with no `key`. The
+   * event keeps its name so saved insights keep counting. `target` says where
+   * it went — `open_panel` opened (or restored) the panel for it, which also
+   * sends `answer_panel_opened`/`restored` with trigger `typing`.
    */
   askTypedAnywhere: (props: {
     surface: string;
     target: 'panel' | 'hero' | 'open_panel';
     panel_phase: 'closed' | 'open' | 'minimized';
+    key: 'slash';
   }) => capture('ask_typed_anywhere', props),
+
+  /**
+   * The reader turned the `/` shortcut off or back on. `placement` is the
+   * switch they used: the line under the panel's composer or the footer's
+   * On/Off control (one stored value). The footer's is on every screen; the
+   * composer line shows with a mouse or trackpad, and on touch once `/` has
+   * been pressed there. The choice is kept
+   * in this browser only. A high `off` rate says the key is getting in
+   * readers' way.
+   */
+  askShortcutToggled: (props: {
+    surface: string;
+    enabled: boolean;
+    placement: 'composer' | 'footer';
+  }) => capture('ask_shortcut_toggled', props),
 
   /**
    * Drag end only, debounced — a capture per pointermove would swamp every
@@ -985,6 +1010,23 @@ export const analytics = {
   /** User picked their state in the "two rooms" seat pictures. */
   learnStateSelected: (state: string, representatives: number) =>
     capture('learn_state_selected', { state, representatives }),
+
+  // Civics words (components/brand/term.tsx, lib/glossary.ts)
+
+  /**
+   * A reader opened a civics word's plain meaning (`<Term>`): a tap, a click
+   * or Enter on the dotted word. `term` is the glossary id ("committee"),
+   * `path` the page it was opened on. "More words in Learn" inside the popover
+   * is autocaptured (`data-ph-capture-attribute-cta="term-more-in-learn"`).
+   */
+  termOpened: (props: { term: string; path: string }) => capture('term_opened', props),
+
+  /**
+   * A reader opened the "Words to know" list at the foot of a bill page on a
+   * phone, where it starts folded (from `sm` up it is always open, so this
+   * never fires there). `words` is how many the list holds. Once per opening.
+   */
+  billWordsExpanded: (props: { bill_id: string; words: number }) => capture('bill_words_expanded', props),
 
   // Feedback and surveys (components/feedback/). PostHog's own survey events,
   // not custom ones: their names and `$survey_*` properties are what fill the

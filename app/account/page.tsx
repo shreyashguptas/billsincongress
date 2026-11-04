@@ -130,7 +130,7 @@ function AccountInner() {
     // Middleware should have redirected, but if a query desync happened, show a hint.
     return (
       <div className="container-editorial py-16">
-        <p className="text-[15px] text-ink-2">
+        <p className="text-ui text-ink-2">
           Not signed in.{" "}
           <Link href="/sign-in" className="link focus-ring rounded-xs">
             Sign in

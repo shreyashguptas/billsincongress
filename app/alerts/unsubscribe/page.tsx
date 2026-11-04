@@ -17,7 +17,7 @@ export default function UnsubscribePage() {
       <header className="pb-12 pt-12 sm:pb-16 sm:pt-16">
         <p className="label-eyebrow">Bill alerts</p>
         <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">Stop bill alert emails</h1>
-        <p className="mt-5 max-w-[60ch] text-[17px] leading-relaxed text-ink-2 sm:text-lg">
+        <p className="mt-5 max-w-[60ch] text-[1.0625rem] leading-relaxed text-ink-2 sm:text-lg">
           This unfollows every bill you get alerts for, so the emails stop. Your plan,
           saved bills and account are not affected, and you can follow bills again at
           any time.

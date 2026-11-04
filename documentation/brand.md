@@ -80,7 +80,7 @@ All colours are HSL triplets in `app/globals.css`, so Tailwind can add an alpha
 | `--sunken` | `bg-sunken` | `#edece6` | `#1b1f24` | Quiet bands, hover fills, unfilled progress |
 | `--ink` | `text-ink` | `#101418` | `#edeeea` | Headlines, body, every primary action |
 | `--ink-2` | `text-ink-2` | `#4a515a` | `#b4b9c0` | Secondary text: standfirsts, labels, legend names (≥7:1) |
-| `--ink-3` | `text-ink-3` | `#666d77` | `#8d949d` | Captions, keys, timestamps, placeholders (≥4.5:1) |
+| `--ink-3` | `text-ink-3` | `#666d77` | `#8d949d` | Placeholders, row numbers, labels of 14px and up (≥4.5:1). Never under 14px |
 | `--on-ink` | `text-on-ink` | `#f6f5f1` | `#0b0d10` | Text and icons on an ink fill |
 | `--line` | `border-line` | `#e2e1db` | `#23272d` | Hairlines between rows and sections |
 | `--line-strong` | `border-line-strong` | `#858a92` | `#5f6670` | The edge of a control (≥3:1). A control never relies on `line` alone |
@@ -96,7 +96,7 @@ are ink with an underline (the `.link` class).
 | Topics | `--topic-1` … `--topic-6` (`bg-topic-1`) | The six largest policy areas in rank order. Everything past six folds into one `ink-3` "Other" slice that says what it holds. Fills only, never text, and always with a legend: four slots are under 3:1 on paper |
 | Parties | `--party-d`, `--party-r`, `--party-i`, `--party-u` | Muted, and only where the data is about party: seats, sponsor dots, party splits. Never for emphasis, alerts or errors. Independents are ochre so they never read as a blend of the other two |
 | Stages | `--status-introduced` … `--status-law`, `--status-vetoed` | A cool-to-warm ramp from introduced to signed, ending in the site's only green, "became law". Out of committee (`--status-out-of-committee`, a clearer blue) sits one step warmer than the committee slate: done with committee, not yet past a chamber. Vetoed is a desaturated slate, because it is a dead end rather than a step forward |
-| State map | `--heat` | One amber, stepped by opacity in five bins, so it is never mistaken for a party or for "became law" |
+| State map | `--heat` | One amber, stepped by opacity in five bins, so it is never mistaken for a party or for "became law". The state codes on it are `ink` on every shade in Day (4.85:1 on the darkest, so Day's amber is 42% light, not darker), and `on-ink` on the two darkest in Night; `lib/state-map-tiles.test.ts` checks each against 4.5:1 |
 
 ### The stage
 
@@ -117,8 +117,8 @@ themes. It is the one dark band on a light page. Use it once per site.
 | Face | Variable | Class | Use |
 |---|---|---|---|
 | **Newsreader** | `--font-serif` | `font-serif` | Headlines, bill titles, summaries, the big figures. It picks its optical size from the font size |
-| **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans |
-| **Geist Mono** | `--font-mono` | `font-mono` | Bill numbers, counts, dates: anything that lines up |
+| **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans, every date and every count (with `.tabular`) |
+| **Geist Mono** | `--font-mono` | `font-mono` | Identifiers only: bill numbers ("H.R. 1276"), party-state codes ("D-MI"), state codes on the map, status codes ("404") |
 
 All three are declared once, in `app/fonts/index.ts`, for the root layout and
 `app/global-error.tsx`. Geist and Geist Mono come through `next/font/google`.
@@ -126,6 +126,11 @@ Newsreader comes through `next/font/local` from `app/fonts/`: Google's files
 with the line box moved to centre on the capitals (see "Icons beside text").
 Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
 `next/font/google`.
+
+Every size is in **rem**, so the site follows the reader's browser font
+setting: a reader who sets 20px instead of the default 16 gets every word,
+label, chart key and state code a quarter larger, not just the paragraphs. The
+pixel figures below are at the default size.
 
 | Class | Size / line | Use |
 |---|---|---|
@@ -135,21 +140,62 @@ Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
 | `text-display-md` | 34 / 39 | A section headline that names a topic |
 | `text-display-sm` | 26 / 31 | Panel titles, the sponsor's name, phone section headlines |
 | `text-title` | 20 / 27 | Bill titles in lists. Clamp to three lines |
-| `text-reading` | 19 / 31 | Bill summaries, Learn articles, at `max-w-measure` (680px) |
+| `text-reading` | 19 / 31 | Bill summaries, Learn articles, at `max-w-measure` (42.5rem, 680px) |
 | `text-reading-sm` | 17 / 27 | Answers in the ask panel, reading on phones |
-| `.label-eyebrow` | 11 / 16, caps, 0.14em | Section eyebrows. The only all-caps text on the site |
-| `font-mono text-sm` / `text-xs` | 14 / 12 | Data and chart keys |
+| `text-ui` | 15 | Controls, list names and secondary copy: nav links, large buttons, chart legend names. Size only: the line height comes from the element |
+| `text-meta` / `.meta` | 14 / 20 | Facts about the thing beside them: dates, counts, chart keys ("each dot ≈ 18 bills"), source lines. `.meta` is the whole style: Geist, tabular, `ink-2` |
+| `text-caption` | 13 | Helper text and small controls: badges, small buttons, breadcrumbs. Size only |
+| `text-xs` | 13 / 18 | The floor: axis ticks, party-state codes, fine print. Tailwind's 12px is raised to 13 |
+| `.label-eyebrow` | 12 / 16, caps, 0.1em, `ink-2` | Section eyebrows. The only all-caps text on the site |
 
 - Headings are Newsreader 500 (`font-medium`), set in `app/globals.css`, with
   `text-wrap: balance`. Use 600 only for the sponsor's name and the wordmark.
 - Every number that sits in a row, a legend or a figure takes the `.tabular`
-  class (lining, tabular figures).
+  class (lining, tabular figures). That is what lines figures up, not mono:
+  Geist's tabular figures are as even as Geist Mono's and read as words.
 - No italics for emphasis in the interface.
+
+### Type floor
+
+Nothing a reader needs is smaller than 13px, at any width, in either theme.
+The words that teach a newcomer to read a chart are body copy, not footnotes.
+
+- **13px is the floor.** `text-xs` (0.8125rem) is 13px; there is no smaller
+  size. `scripts/check-type-floor.ts` fails `pnpm test` on any size under it
+  (`text-[0.7rem]`, `fontSize: 10`) and on any font size or line height in px
+  (`text-[13px]`, `leading-[28px]`): a size the scale does not have is a rem
+  value (`text-[1.0625rem]`), never px. Only the share images in `lib/og/`,
+  drawn at a fixed size, are in px. When a label does not fit, make the room or
+  drop the label on that screen and let a readout carry it, never shrink it.
+- **Eyebrows are the one exception**, at 0.75rem (12px): capitals that size
+  stand as tall as 15px lowercase. Semibold, 0.1em tracking, `ink-2`.
+- **A fact is 14px.** Dates, counts, chart keys and source lines are `.meta`:
+  14px Geist with tabular figures in `ink-2`; the figure itself may step up to
+  `ink` and `font-medium`. A date in a timeline is never smaller or fainter
+  than the action beside it.
+- **`ink-3` is 14px and up.** The faintest grey is for placeholders, row
+  numbers and labels in a key-value list; below 14px use `ink-2`.
+- **Mono is for identifiers.** A bill number or a party-state code is a name
+  to match, so it keeps Geist Mono. A date or a count is a value to read, so it
+  does not: mono's wide spaces turn "Nov 2, 2026" into "Nov  2,  2026".
+- **SVG text shrinks with the drawing.** A label inside a scaled chart (the
+  topic wheel's hole) is HTML laid over the SVG, so it keeps its size.
+- **Layout follows the font.** The header's container variants (`header-search`
+  to `header-xl`) are in em, so with a larger font the header drops to its
+  compact form sooner. Nothing in the header row uses a window breakpoint for a
+  width (`sm:` there only sets the row's height): at a 20px font a 640px window
+  is a 512px header, and a window `sm:` showed "Sign in" and the 21px wordmark
+  that only fit at 640px of 16px text, running the logo under Ask. A row of fixed-size pictures (the Learn page's
+  You → Congress → Laws) is capped by the screen width as well as in rem, and
+  a legend that cannot fit three across at a large font gets one row per item
+  on a phone (the hero's parties). Check a change at a 20px browser font as
+  well as the default.
 
 ## Layout and shape
 
 - **Width**: `.container-editorial` gives 1200px of content with 16/24/32px
-  gutters. `.container-prose` gives 680px for reading.
+  gutters. `.container-prose` gives `max-w-measure` (42.5rem, 680px at the
+  default size) for reading.
 - **Rhythm**: `py-16 sm:py-24` between sections on content pages. Sections are
   divided by a `border-line` hairline, not boxed.
 - **Numbers** sit in a row of four with hairline dividers, not in cards.
@@ -161,7 +207,49 @@ Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
   questions and the send button.
 - **Elevation**: borders carry structure. `shadow-float` is only for things
   that float over the page: the ask panel, menus, popovers.
-- **Touch**: controls are 44px tall on touch screens (the `touchable:` variant).
+- **Touch**: every tap target is 44px on a touch screen, and nothing a mouse clicks is under
+  24px (WCAG 2.2, 2.5.8). A real control (button, pill, toggle, page number, select) is 44px
+  itself on touch, through the `touchable:` variant. A text control that cannot grow (a link
+  with an arrow, a breadcrumb, a name, a footer or source link) keeps its look and line height
+  and takes `.touch-hit` instead: it answers a click 24px each way under a mouse and a tap 44px
+  each way under a finger. Neighbouring targets sit 44px apart, centre to centre, so their
+  targets do not overlap. A word inside a sentence (a link, a `Term`) is the exception, as
+  in WCAG: it answers over its own line, because a 44px box on a 26px line covers the words
+  above and below it. A row of facts must also fit the screen at a 24px font: a value that
+  cannot shrink (`min-w-0`) or wrap pushes the page sideways. A figure set large in a narrow
+  cell is held to it: the home stat strip's numbers are 40px (56px from `sm`) or a third of
+  the narrowest cell, whichever is smaller (`.stat-figure`, `app/globals.css`), so the four
+  stay one size and never cross the column rule. See "Input, not width" for
+  which primitives carry it.
+  Never stack an arbitrary media query under it (`touchable:[@media(min-width:18em)]:`):
+  Tailwind 3 compiles that to CSS the dev server cannot read, and the whole stylesheet drops.
+  Write a named class in `app/globals.css` instead (`.theme-seg-label`);
+  `scripts/check-compiled-css.ts` fails `pnpm test` on it.
+- **Nothing floats over the words.** A control pinned over the page never moves
+  out of the way, so it sits on whatever is under it: a party's count, the end
+  of a title, a date. Where there is no room to float one beside the reading,
+  it goes in the header instead (`app/globals.css`, "Where Ask lives"):
+  - **Below 1024px wide, or under 500px tall**, Ask is a button in the header,
+    beside the search. There is no corner pill.
+  - **From 1024px wide and 500px tall**, the corner pill stays, and the page
+    reserves its height plus a gap (`--ask-reserve`) under the footer, so the
+    end of every page clears it. Mid-page it steps aside: it tucks below the
+    screen's edge while the reader scrolls down, and comes back on a scroll up,
+    near the top or the end of the page, or when it takes keyboard focus
+    (`lib/ask-launcher-tuck.ts`). Under `prefers-reduced-motion` it never
+    moves; it simply stays, and the reserved room keeps the end clear.
+  - **On a bill page, at every width**, Ask is in the header and there is no
+    closed pill: the status card fills the pill's corner on a laptop before any
+    scroll, so the pill either sat on it or, stepped aside, left the first
+    screen with no way to ask. From 1024px up the header's search is its icon
+    there, so the row fits the same width as on every other page. The pill comes back only as the way back
+    to a conversation set aside (`askInHeaderOnly`, `lib/ask-panel-state.ts`;
+    decided from the path, so nothing in the header moves after load).
+  - **Under 500px tall** (a phone on its side, 200% zoom and up) the header is
+    not sticky (`short:`): it scrolls away with the page, and Ask goes with it.
+  - The page scrolls by the header and by the reserve (`scroll-padding-top`,
+    `scroll-padding-bottom` on `html`), so an item reached with Tab or a `#`
+    link never comes to rest under either.
 
 ## Components
 
@@ -207,13 +295,14 @@ existing brand edits:
 
 | Component | Brand edit |
 |---|---|
-| `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch; `link` takes no box (no height or padding) |
+| `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch; `link` takes no box (no height or padding), and gets an invisible target instead (`.touch-hit`: 24px under a mouse, 44px on touch) |
 | `Badge` | A `<span>` (badges sit inside text and links); 24px tall, sentence case, `rounded-sm`; `secondary` text is `ink-2` for contrast |
 | `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 85% with no blur, not black (a dark scrim lightens nothing in Night, and a blur is repainted every frame on older machines); `shadow-float`; the corner close is a 40px ghost icon button, 44px on touch |
 | `Dialog` | Two layers: a fixed frame (`className`: size, colour) that is never taller than the screen less 1rem all round and never scrolls, and a body inside it (`bodyClassName`: padding, gap) that does. The close button sits on the frame, so it stays in its corner while a long dialog scrolls. A card with a 1rem gutter and rounded corners at every width, phones included, centred on whole pixels (`inset-0 m-auto h-fit`, not a half-pixel translate) |
 | `Sheet` | Drag to close, with a finger or a mouse (see "Motion and gesture"). Side sheets take a finger anywhere and a mouse on the element marked `data-sheet-grab`; a bottom sheet drags from its grab bar, which `grabber` draws |
 | `Sheet`, `Popover`, `Dialog`, `DropdownMenu` | Their own enter/exit keyframes (`tailwind.config.ts`), timed in "Motion and gesture". A popover that opens above its trigger rises out of it instead of dropping |
 | `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
+| `Toggle`, `ToggleGroup` | 44px tall and at least 44px wide on touch, at every size |
 | `Select` | Item text and the placeholder are wrapped in a `<span>`, so a reader who translates the page (Chrome's "Translate this page") does not crash it when the value changes; `components/ui/select.test.ts` guards this against a re-run of `shadcn add` |
 | `Textarea` | On `card` like `Input`; 15px from `sm` up, 16px on phones, where anything smaller makes iOS zoom the page on focus |
 
@@ -225,13 +314,17 @@ These live in `components/brand/` and compose the primitives above.
 |---|---|---|
 | `Logo`, `ChamberMark` | `components/brand/logo.tsx` | See Logo, below |
 | `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `measureStageLabel()` in `lib/utils/bill-stages.ts` ("Agreed to by the House" for an adopted House resolution). Never fill the whole pill with the stage colour |
-| `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
+| `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, five for a proposed constitutional amendment, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
+| `StageSteps` | `components/brand/status.tsx` | The same track stood on its end for a narrow column (the bill page's status card from `lg`): one row per step, an 8px segment filled as `StageTrack` fills, the step's name, the current one in `ink` and marked "Now" in `.meta` |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
-| `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
-| `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
+| `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right. The usual action, `AskAbout`, carries `.touch-hit` (a caption that taps like a 44px button) |
+| `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count. Each link in it gets the `.touch-hit` target, 24px under a mouse and 44px on touch (`.touch-hit-links`) |
+| `Arrow` | `components/brand/arrow.tsx` | The → that ends a text link, hidden from screen readers so the link's name is its words |
 | `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials (`AvatarPhoto`, `components/brand/avatar-photo.tsx`) |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
+| `Kbd` | `components/brand/kbd.tsx` | A key on the keyboard: a 20px keycap, mono `text-xs` (13px, the type floor) in `ink-2` on `paper`, a `line-strong` edge with a 2px bottom. Chrome, so never a hue. Hidden from screen readers; say the key in words beside it |
 | `useLengthLimit`, `LengthLimitNote` | `components/brand/length-limit.tsx` | Every text box with a length limit. See "Length limits", below |
+| `Term`, `TermText` | `components/brand/term.tsx` | A civics word with its plain meaning a tap away, from `lib/glossary.ts`. See "Term", below |
 
 Patterns that appear on more than one page:
 
@@ -241,9 +334,24 @@ Patterns that appear on more than one page:
   has to click into it to type: the home page's box is focused on arrival (on a
   computer; on a phone that would throw the keyboard over the page), the
   panel's composer is focused when the panel opens and stays usable while an
-  answer is written (Enter there sends the follow-up once the answer is done), and a key typed with no text box focused goes to
-  whichever ask box is on screen, opening the panel if none is
-  (`lib/type-to-ask.ts`).
+  answer is written (Enter there sends the follow-up once the answer is done), and `/` —
+  the one keyboard shortcut, never a letter — goes to whichever ask box is on screen,
+  opening the panel if none is (`lib/ask-shortcut.ts`). It is never taken from a form
+  control or a widget with keys of its own, nor with Cmd, Ctrl, Alt or AltGr held. On a
+  computer the key is shown where the box is: a `/` keycap in the launcher pill, "Press /"
+  in 13px `ink-2` at the right of the home page's box while it is not focused, and a 13px
+  `ink-2` line under the panel's composer, "/ opens Ask from any page · Turn off" (the
+  button underlined). 13px, so `ink-2`, never `ink-3`. Not on a touch screen, except that line once `/` has been
+  pressed there (a keyboard is attached, so its off switch must show).
+- **The `/` switch** (`AskShortcutSwitch`, `components/answers/ask-shortcut.tsx`): the
+  reader's off switch for that one key (WCAG 2.1.4), in the footer beside the theme
+  control and built the same way — a `/` keycap and "to ask" in 13px `ink-2`, then On and
+  Off (13px, `ink-2`) in the theme control's track (`sunken`, the chosen side `raised` with `shadow-sm`;
+  32px tall, 44px on touch). On every screen, touch ones included: a tablet or a phone
+  with a keyboard can press `/`, and a pointer query cannot tell, so the way to turn the
+  key off is never hidden.
+  It and "Turn off" under the composer are one setting. Ink only: it is a setting, not
+  data.
 - **Answer reveal**: a new answer is written onto the page word by word, each
   word fading up out of a slight blur (`animate-word-in`, 0.45s) at about 40
   words a second, faster for a long answer so none takes more than five
@@ -270,16 +378,48 @@ Patterns that appear on more than one page:
   print a bill's own number ("H.R. 7022"), not its id ("7022hr119").
   (`components/answers/bill-mentions.tsx`, `lib/answer-bill-links.ts`.)
 - **Answer check**: under every finished answer, after its sources, one line
-  of 13px `ink-3` asks "Was this answer right?" beside two small outline
+  of 13px `ink-2` asks "Was this answer right?" beside two small outline
   buttons, "Yes" and "No" (44px on touch). No icons and no colour: a hue would
   be chrome pretending to be data, and a thumbs-up is an emoji in all but name.
   It waits for the last word, like the sources. After a tap the buttons go and
   the line thanks the reader in place; an answer is rated once. A clarifying
   question from the assistant is not an answer and gets no check.
+- **Term** (`components/brand/term.tsx`, words in `lib/glossary.ts`): a civics word
+  ("committee", "cosponsor", "simple resolution", a stage's name) keeps the type of its
+  sentence and gains a dotted `ink-3` underline, 1.5px, offset 0.2em; it turns `ink` on
+  hover and solid while open. A tap, a click, or Enter or Space opens a shadcn `Popover`
+  (320px at most): the word in Newsreader `title`, with its stage's dot when the word names
+  a stage; the definition in `text-ui` `ink-2`; a hairline; then "More words in Learn →", which
+  lands on the word's row in Learn's "Words you'll see" (`/learn#word-<id>`, picked out by a
+  `sunken` fill that `WordTarget` sets, since a client-side navigation never updates `:target`). Never on hover alone: a phone cannot hover, and a definition that appears
+  as a pointer crosses a headline is noise. **Only in a running sentence**: never on a
+  heading, an eyebrow or other small-caps label, a data label (the bill number, its
+  Congress, "Sponsored by"), a source line, or a grid or track label (a stage's name in the
+  status card or the journey). A dotted rule there reads as a broken link, and two side by
+  side read as one rule. About three to a screen at most; the words a page uses but does not
+  mark still go in its **Words to know**. Only the FIRST time a word appears on a page
+  (`TermText` marks the first match of each word in a string, for text held as data, like a
+  hub's explainer). The trigger is an inline `span role="button"`, not a `<button>`, so it
+  wraps and takes punctuation like the words around it; for the same reason it never sits
+  inside a link or a button, so bill rows and stage pills carry none. It answers a tap over
+  its own line and no further: a word in a sentence is an inline target (WCAG 2.2, 2.5.8),
+  and a 44px box on a 26px line reached into the next one, so a tap on "119th Congress"
+  opened "Sponsor". A `standalone` Term, the whole of its line and the only target on it
+  (rare now that labels are never marked), grows to 44px tall on touch and 24px
+  under a mouse, line by line, so a name that wraps answers on both lines. The keyboard
+  moves through its popover as if it sat right after the word: Tab from "More words in
+  Learn" closes it and goes on to whatever follows the word; Shift+Tab closes it and lands
+  back on the word; Escape closes it. Definitions are one or
+  two short sentences at a sixth-grade level, with no word that itself needs defining.
+  A popover is never the only way to a meaning that matters: where a finding rests on a
+  word, its meaning is also printed in plain `ink-2` text under the headline (the home
+  page's "…haven't made it out of committee" says what a committee is), the bill status
+  card prints its stage's meaning under the stage, and every bill page ends with
+  **Words to know**.
 - **Length limits**: every text box with a limit says so the same way
   (`useLengthLimit` and `LengthLimitNote`, `components/brand/length-limit.tsx`).
-  Nothing shows until the text is 90% of the way. From there a 13px `ink-3`
-  count sits under the box in mono ("1,850 / 2,000"). Once the text reaches
+  Nothing shows until the text is 90% of the way. From there a 13px `ink-2`
+  count sits under the box in tabular figures ("1,850 / 2,000"). Once the text reaches
   the limit, the line turns to the limit in words in `error`: "Keep it to 2,000
   characters. 2,000 / 2,000". An edit that would pass the limit, typed or
   pasted, keeps only as much of what it added as fits (the reader's existing
@@ -297,35 +437,101 @@ Patterns that appear on more than one page:
   three around the current one, the last page, Next. On a phone: arrows only,
   the first, current and last page, with the current page's neighbours from
   400px; the hidden links stay in the HTML for crawlers.
-- **Chart legend**: rows 48px tall with a dot, the full name, the share and
-  the count in mono. Names never go on a chart's rim.
+- **Chart legend**: rows 48px tall with a dot, the full name, the share
+  (`text-meta`) and the count (`font-medium`, `ink`), both tabular. Names never
+  go on a chart's rim. The key under a chart ("each dot ≈ 18 bills") is `.meta`.
 - **Hub order** (`HubOrderSwitch`, the hub pages): "Newest first" and "Oldest
   first" at the right of the results bar, above its ink rule, dropping under
   the count on a phone. It looks like the Congress switch on /bills — a
   `sunken` track, the chosen order a `raised` segment with `shadow-sm` — but
   is two links, not a `ToggleGroup`, because each order is its own URL. Every
-  row on a hub then shows the date the list is ordered by, labelled in `ink-3`
-  above it in `ink-2` mono ("Became law" / "Sep 25, 2026"), where other lists
+  row on a hub then shows the date the list is ordered by, labelled in `ink-2`
+  above it in `ink` at `text-meta`, tabular ("Became law" / "Sep 25, 2026"), where other lists
   show the plain introduction date. A row never shows a date other than the one
   its label names; an undated bill shows none.
-- **Status panel** (bill page): `rounded-lg`, raised, the stage in
-  `display-md` with its glyph. Opposite it, the journey's length as a figure
-  (Newsreader at 72px, 56 on phones, "days" in `title` beside it) with what it
-  measures under it: "from introduction to law", "since it was introduced".
-  Under both, the **journey** when the bill has spent time in two stages or
-  more, otherwise a `StageTrack` with labels. For a resolution, one `text-sm`
-  `ink-2` sentence under that track says why the road is short.
+- **Bill page order**: the page tells the story in the order a reader asks it.
+  The title, its byline (introduced, "Sponsored by" and the sponsor; "Sponsored by"
+  never breaks, and a long name drops to its own line rather than being cut), then
+  **In short** (its eyebrow is a real h2, so heading navigation lands on it): one
+  sentence in Newsreader at 26/38 (22/32 on phones), `max-w-measure`, under a `line`
+  rule. It is the first sentence of the CRS summary, word for word (`billLead` in
+  `lib/seo.ts`), and a `.meta` line under it says so. A short title the summary
+  opens with is not part of it. It is a sentence or nothing: a summary that opens
+  with a part's heading ("DIVISION A--…") or a first line with no stop gets no In
+  short, only a `.meta` line under a `line` rule linking down to the summary. With no summary there is no
+  In short: a sentence built from the title only said the title again, so a single
+  `.meta` line under a `line` rule says there is no plain-language summary yet (for
+  a measure that expired with its Congress, that Congress did not publish one) and
+  links down to "What the record says". Then the status card, then the actions (PDF,
+  Save, alerts).
+  Below the hero, one hairline-ruled section each, each with an h2: the summary
+  ("What this law does" / "What this bill would do"), which starts after the
+  lead sentence under the eyebrow "More from the summary", so no sentence is
+  printed twice, with the "What does this bill actually do?" starter pill
+  beside it (in the 360px column from `lg`, under it on a phone); the journey,
+  under a headline that states how it ended and when ("Became law on Sep 25, 2026",
+  "Expired when the 118th Congress ended"), never its length, which is the status
+  card's one number;
+  the sponsor; then cosponsors, peers, "Keep reading", Words to know and the ask band.
+- **Status panel** (bill page, "Where it stands"): `rounded-lg`, raised, the
+  stage in `display-sm` with its glyph (its name plain, not a `Term`: the line under it
+  explains it), then one always-visible
+  `text-ui` `ink-2` sentence that says what that stage means ("It is with a small group
+  of members, who decide whether it moves on. Most bills stop here."; `stageLine` in `lib/glossary.ts`), so the
+  page's most important word never waits for a tap. It defines the stage; it never
+  forecasts this bill, and it never claims what the record cannot show ("passed both
+  chambers" means each passed a version, not the same words). A measure whose Congress
+  has ended without finishing it gets no line: it expired, and "What happens next" says so. Then "Stage n of N" in `text-sm` `ink-2`. Under it the
+  journey's length (Newsreader at 44px, "days" beside it) with what it measures:
+  "from introduction to law", "since it was introduced". Then the road with its
+  step names: a `StageTrack` across the card on phones and tablets, `StageSteps`
+  in the 360px right-hand column of the hero from `lg`, beside the title and
+  lead. For a resolution, one `text-sm` `ink-2` sentence says why the road is
+  short; so does a proposed constitutional amendment's. Then **What happens next** under a hairline: one `text-ui` `ink`
+  sentence that is a rule of the process, never a forecast ("Next on the road:
+  the full House would have to vote on it.", "Nothing more: it is law."; a proposed
+  constitutional amendment goes to the states, not the President; `billNextStep` in
+  `lib/bill-next-step.ts`). A rule with exceptions says "usually". A vetoed bill
+  gets the override rule, or the failed override vote itself when the record has
+  one, never "still". For a measure that can still move, a `.meta`
+  line with the days left in the Congress; a vetoed bill gets none, since a veto
+  is not a step on the way. It ends with an underlined link down
+  to the journey, "How it got here". The detailed **journey** sits in its own section below the
+  summary, in a `rounded-lg` raised panel. Under the stage's "Stage n of N",
+  one underlined `ink-2` text link with `ArrowRight`: "How a bill becomes law"
+  (`/learn#path`), or for a resolution "What a resolution is" (its word in Learn),
+  or for a proposed amendment "What a joint resolution is".
+- **Words to know** (`components/bills/bill-words.tsx`, rows from
+  `components/brand/word-list.tsx`): the last section of a bill page before the ask band.
+  Eyebrow "Words to know", an h2 "The words on this page, in plain English", then the
+  civics words that page uses (marked or not) as a hairline-ruled definition list: the word in
+  Newsreader `title` (with its stage dot when it names a stage), its definition under it in
+  `text-base` `ink-2`. The measure's own kind comes first (so a simple resolution's list
+  opens "A resolution for one room only … It is not a law"), the rest in the order the page
+  uses them, nine at most (`billPageWords` in `lib/glossary.ts`); when a page uses more,
+  the current stage and the words only that page explains (how its votes went, its law
+  number) win the places over the other stage names, which Learn's road already covers. Two columns from `md`,
+  three from `lg`, then "Every word, in Learn →" (`/learn#words`). It is the plain-text
+  fallback for the popovers: nothing in it is a control, so a screen reader, a printout and
+  a reader who never taps all get every definition. On a phone it starts folded under one
+  outline button, "Show the words (n)", so it never adds a screen of text to every bill;
+  from `sm` up, and in print, it is always open. Learn's "Words you'll see" (`/learn#words`)
+  uses the same rows, with an anchor on each.
 - **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
   scale, a segment per stage in its stage colour, as wide as the days the bill
   stayed there (never under 6px), ending in a dot of the final stage's colour
-  when the road is over (law, signature, veto, adoption). Under it, `ink-3` mono month
-  ticks, only the two ends on a phone. Then one column per stage (stacked on a
-  phone, two up on a tablet): a 3px rule in the stage colour, the days in
+  when the road is over (law, signature, veto, adoption). Under it, 13px `ink-2` month
+  ticks, only the two ends on a phone. Then one column per stage (two up on a
+  phone and a tablet): a 3px rule in the stage colour, the days in
   `display-md`, the stage named the reader's way ("Passed the House"), and its
-  moments, each a mono date over a sentence in `ink-2`. A recorded vote adds a
+  moments, each a 14px `ink` date (`font-medium`, tabular) over a 14px sentence in `ink-2`. A recorded vote adds a
   140px bar: the yes share in ink, the rest `sunken` with a `line-strong` edge,
-  and the tally in mono. A vote is neither a stage, a party nor a topic, so it
-  takes no hue. A bill still on its way ends the panel with the **Congress
+  and the tally in tabular figures. A vote is neither a stage, a party nor a topic, so it
+  takes no hue. On a phone the columns start folded to their phases (rule,
+  days in `display-sm`, name) with a full-width outline button, "Show every
+  step (n)", that opens the dated moments (`aria-expanded`, `aria-controls`);
+  arriving by the status card's "How it got here" link opens them too.
+  From `sm` up they are always open. A bill still on its way ends the panel with the **Congress
   clock**: the days left in the Congress in `display-md`, why that matters in
   one sentence, and the two-year Congress as a bar, the time gone in `sunken`,
   the time left hatched with an ink edge, an ink tick at the introduction.
@@ -358,8 +564,8 @@ Patterns that appear on more than one page:
   reading", eyebrow "Cosponsors" and a headline that states the count ("110 members cosponsor
   this bill"). A hairline-ruled list, two columns from `md`: each row is the member's `PartyTag`
   (a link to their member page when they are in office), "Original cosponsor" or "Joined Oct 5,
-  2026" in `ink-3`, and the confirmed accounts as underlined platform names in `ink-2`, 44px tall
-  on touch. Ten rows, then an outline "Show all N cosponsors" button. A `SourceLine` closes it.
+  2026" in `ink-3` at 14px, and the confirmed accounts as underlined platform names in `ink-2`, 44px tall
+  on touch, with a 44px-wide target even for "X". Ten rows, then an outline "Show all N cosponsors" button. A `SourceLine` closes it.
 - **Member page** (`/members/<id>`, `components/members/member-page.tsx`): eyebrow with the seat
   ("Representative · New Jersey's 9th district"), the name at `display-lg`, the party as a dot and
   a word. Below, the two bill lists in the "Keep reading" row style, and the "Official accounts"
@@ -379,15 +585,36 @@ Patterns that appear on more than one page:
   whichever label is hovered or focused, and returns when the pointer leaves
   the nav. It first appears by growing out from the label's centre, and
   shrinks into its centre on a page with no section. Still under
-  `prefers-reduced-motion`.
+  `prefers-reduced-motion`. The four labels sit in the same place on every
+  page: the right-hand cluster reserves the room of the widest one (a signed-out
+  /bills: Feedback, the search field, "Sign in", "Sign up") at each header width,
+  `header-md:min-w-[15.25rem]`, `header-lg:min-w-[29rem]`,
+  `header-xl:min-w-[34rem]`. Without it they jumped up to 170px between the home
+  page, /bills and a bill page.
 - **Header**: solid `paper` with a `line` rule under it — never translucent. A
   see-through header turned muddy grey over the home page's dark stage. On
-  phones it reads menu, logo beside it, then search and the account slot at the
-  far edge; a centred logo would need the two sides to be equal, and the account
-  side is three times the menu button. The logo sizes itself to the header's
-  own width: the mark alone below 360px, a 16px wordmark to 400px, then the
-  usual 18px (`Logo fit`, `header-xs:` and `header-sm:`). Nothing in the header
-  may push the page wider than the screen, down to 320px.
+  phones it reads menu, logo beside it, then Ask, search and the account slot
+  at the far edge; a centred logo would need the two sides to be equal, and the
+  account side is three times the menu button. The row gives way in one order
+  as the header narrows, each step in em of the header's own width (px below
+  are at the default font): the 21px wordmark and "Sign in" from 640px
+  (`header-sm:`); an 18px wordmark from 480px (`header-wordmark-lg:`); a 16px
+  one from 440px (`header-wordmark:`); below that the mark alone; below 312px
+  Ask shows its glyph without the word (`header-ask-glyph:`); below 296px the
+  mark goes too (`header-mark:`; the menu carries the logo and Home); below
+  256px the search icon goes (`header-search:`; the menu's Bills page has the
+  search). So nothing in the header runs under anything else or pushes the page
+  wider than the screen, down to 320px at the default font and at a 20px one,
+  and at 390px with a 24px one. The logo answers a tap over 44px each way even
+  as the mark alone. Sticky, except under 500px tall.
+- **Ask in the header** (below `lg`, in any window under 500px tall, and on a
+  bill page at every width, `components/answers/header-ask.tsx`): a `ghost` `sm` button, Lucide
+  `MessageSquare` and the word "Ask" in `ink`, just before the search. The
+  glyph alone from 768 to 839px, where the four sections leave no room for the
+  word, and in a header under 312px (a 320px phone at a 20px font). On a bill
+  page from `header-lg` up the search is its icon rather than the field, so the
+  row fits the room every page reserves for it (see Header sections). While the panel is open under it, the button is pressed (`sunken`
+  fill, `aria-expanded`), and a second press closes it.
 - **Menu sheet** (phones and tablets): slides in from the left over an 85% paper
   scrim. Its top row is the header row it covers — same height and padding, the
   close X exactly where the menu button was, the logo where the logo was — so
@@ -404,7 +631,10 @@ Patterns that appear on more than one page:
   bottom rule is its top edge — no rounded corners and no border of its own.
   Rounded corners there showed the page through two wedges (black over the dark
   stage), and a second rule doubled the line. The grab bar and the title row
-  together are its handle: drag down to close it, or flick. As a rail
+  together are its handle: drag down to close it, or flick. Under 500px tall
+  the header has scrolled away, so the sheet (and the rail) takes the whole
+  height, over the header, with the composer pinned to its bottom; the grab bar
+  goes there and the title row alone is the handle. As a rail
   (1024–1343px) the same handle drags it off to the right. Docked, it does not
   drag; its left edge resizes it, and on a touch screen that edge carries a
   small `line-strong` grip, since a finger cannot hover to find it.
@@ -435,15 +665,17 @@ Patterns that appear on more than one page:
   anywhere: an issue is not an error state until something failed.
 - **Quick question** ("Did you find what you were looking for?"): a `raised` card with a
   `line-strong` edge, `rounded-md` and `shadow-float`, since it floats over the page. Bottom
-  right, stacked above the Ask launcher (full width minus the gutters below `sm`). Yes and No
+  right, stacked above the Ask pill from `lg` up; in the corner itself below `lg`, where Ask is
+  in the header (full width minus the gutters below `sm`). Yes and No
   are outline buttons with `ThumbsUp` / `ThumbsDown` beside the word; the close is the
   icon-only X. Once per browser, never on the first two pages of a visit.
 - **Footer**: only what has no other home. The lockup, a one-line serif
   statement of what the site is, and "Not affiliated with the U.S.
-  government"; the install and theme controls opposite. Under that sit three
+  government"; the install control, the `/` switch (on every screen) and the theme
+  control opposite. Under that sit three
   hub links (House bills, Senate bills, Bills that became law), then a
   hairline and one row: Pro, Privacy, Terms, Feedback (below `lg` only, where the
-  header has no Feedback button), Source (GitHub glyph) on the left, the mono copyright and Congress.gov credit on the right. Links are
+  header has no Feedback button), Source (GitHub glyph) on the left, the copyright and Congress.gov credit (`.meta`) on the right. Links are
   `ink-2` text, underlined on hover, never pills. Anything in the header is
   not repeated here.
 
@@ -477,6 +709,7 @@ step is done, and the next is the floor. The pill, the colour and the label ("Ou
 committee") tell the two apart, on every road.
 | Concurrent resolution (H.Con.Res., S.Con.Res.) | Introduced · Committee · One chamber · Agreed to | "Agreed to by both chambers" |
 | Simple resolution (H.Res., S.Res.) | Introduced · Committee · Agreed to | "Agreed to by the House" or "by the Senate" |
+| Joint resolution proposing a constitutional amendment (title "Proposing an amendment to the Constitution…") | Introduced · Committee · One chamber · Both chambers · To the states | None in the data: ratification is the states', not Congress's |
 
 - **"Agreed to"**, not "passed": it is the word the record uses for a
   resolution, and "passed" invites "…and then what?".
@@ -495,6 +728,15 @@ committee") tell the two apart, on every road.
   past its own last step (a veto, the President) draws as an unrecognised
   stage: "Unknown", `ink-3`, an empty track. A confidently wrong stage is worse
   than none. (None exist in the data today.)
+- **A proposed amendment ends at the states.** It needs two-thirds of each
+  chamber, skips the President and never becomes a law, so it is drawn on its
+  own road (`proposesAmendment()` and `roadLabels()` in `lib/utils/bill-stages.ts`;
+  the type alone cannot tell, its title can): the bill page, its journey and share
+  card, bill rows and the account page. Its sentence under the track: "A change to
+  the Constitution needs two in three votes in each chamber. Then it goes to the
+  states, not the President, and it counts only if three in four states approve
+  it." The alert email and the in-answer card do not yet: they still draw the road
+  to law.
 - **The glyph** for "Agreed to" is the chamber's, `Landmark`.
 - **Every surface passes the type it has.** `StatusPill`, `StageTrack`,
   `stageFill`, `compactStageLabel` and the email's `stageTrack()` all take a
@@ -542,7 +784,52 @@ the same with a finger, a pen or a mouse:
 (Tailwind's `hoverOnlyWhenSupported`), so a tapped control never stays painted
 in its hover state. Every control is 44px on a touch screen (`touchable:`),
 including touchscreen laptops; where growing the control would break a line,
-`.touch-hit` adds an invisible 44px target around it instead.
+`.touch-hit` adds an invisible target around it instead: 44px on a touch
+screen, and at least 24px under a mouse (WCAG 2.2's minimum), so the text looks
+the same and only where it answers grows. It sets `position: relative` through
+`:where()`, at zero specificity, so a control that is itself `absolute` keeps
+its place. The primitives
+carry it, so a new control gets it by default: `Button`, `Toggle` and
+`SelectTrigger` grow to 44px; `Button variant="link"`, `AskAbout`, `BrowseLink`,
+the footer's links and every link in a `SourceLine` get `.touch-hit`. A row of
+text links that wraps (the hub links under a bill) grows each link to 44px tall
+with no gap between rows, rather than stacking 44px targets on 20px lines.
+Two rules come with it:
+
+- **Neighbours stay apart.** One target's box never reaches into the next one's.
+  A row of them that can wrap keeps 24px between lines on touch
+  (`touchable:gap-y-6`), or grows each link to a 44px row; short words in a row
+  keep 20px or more between them.
+- **Nothing clips it.** An `overflow-hidden` or scrolling parent cuts the box off
+  at its edge; there, grow the control itself (`touchable:h-11`) instead.
+
+The theme switch is three 32px icons under a mouse; on touch each segment is
+44px and names its theme beside the icon ("Light", "Dark", "System", 13px, so
+the segments are `ink-2` rather than `ink-3`), so the
+reader does not have to decode a sun and a moon. A screen under 18em (a 390px
+phone at a 24px font) has no room for the names, and keeps the 44px icons. The arrow that ends a text link
+("Browse bills →") is drawn with `Arrow` (`components/brand/arrow.tsx`), which
+hides it from screen readers: the link is named "Browse bills", not "Browse
+bills right arrow".
+
+`components/brand/touch-targets.test.ts` (in `pnpm test`) fails if a shared
+piece loses its target, the 24/44 rule or its spacing.
+
+`pnpm check:touch` (`scripts/check-touch-targets.ts`) opens the site at 390px with touch on and lists
+every target a finger can hit over less than 44px, measured with real hit
+testing (so overlapping targets fail). It is not in CI; run it before merging
+anything a reader taps. A chart whose geometry is the data (the state map's
+tiles, the month chart's scrub columns) is marked `data-touch-exempt="<why>"`;
+use it for nothing else. The month chart's columns are 16px wide on a 390px phone, under
+WCAG's 24px minimum (2.5.8) as well as the 44px rule, and that is a recorded call, not an
+oversight: for a pointer the chart is one control, like a slider's track. A press anywhere
+on it picks the month under the finger and a drag moves through the months (the
+`role="group"` overlay reads the pointer, not the column), so the target is the whole
+358×288px chart. The per-month buttons are there for the keyboard (one tab stop, arrow
+keys) and screen readers, which name each month's figures. Showing every month of the
+Congress side by side at 24px each would need 576px. Links and `Term`s inside a running sentence are exempt, as in WCAG.
+A target whose centre lands on a different target fails whatever its size, and the report
+names the one on top: that is a tap that opens the wrong thing.
 
 **Reduced motion.** Under `prefers-reduced-motion` every surface still opens
 and closes, but in 1ms: the slide, rise, zoom and stagger go, the result stays.
@@ -553,6 +840,9 @@ The blanket rule is the last block in `app/globals.css`.
 - Draw the whole set, one mark per bill or per a fixed number of bills, and
   put the unit on the chart: "each dot ≈ 17 bills", "outer seat ≈ 44 bills".
 - Label directly or in an adjacent legend. Colour is never the only key.
+- A stepped scale (the state map's five shades) is keyed as one strip, each
+  range printed under its own shade, "Fewer … More" above it, so the key reads
+  left to right as a scale.
 - Hovering a legend row links it to its marks. Everything else drops to 35%.
 - Motion explains, it does not decorate: seats fade in once, bars grow once,
   a text box nudges once when it refuses a keystroke (see "Length limits").
@@ -698,7 +988,9 @@ The cards:
   resolution, or "Stopped at the President", or "Stage unknown") in mono, and
   the track. An agreed resolution's card reads "Agreed to by the Senate,
   Stage 3 of 3" over a full three-step track: finished, not a third of the way
-  to law.
+  to law. A proposed constitutional amendment reads "Stage n of 5" over its own
+  track, which ends at "To the states": Congress passes it, the states ratify
+  it, and no President signs it.
 - **A status page** (`hub-share-card.tsx`): the finding as the headline, "113
   became law" with the figure at 176px, then "Out of 19,067 bills and
   resolutions introduced" (a percentage once it is at least 1%), then the track
@@ -824,7 +1116,8 @@ This is the site's one moment of play. Nothing else gets confetti.
 ## Accessibility
 
 - Focus is visible on every control (`.focus-ring`).
-- Touch targets are 44px.
+- Touch targets are 44px, and nothing a mouse clicks is under 24px (`.touch-hit`).
+- The arrow at the end of a link is hidden from screen readers (`Arrow`).
 - Party and stage are always a word as well as a dot.
 - Every chart has a text alternative that states its totals.
 - Both themes are designed. Neither is an inversion of the other.

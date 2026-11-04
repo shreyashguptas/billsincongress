@@ -72,7 +72,7 @@ function ConvexNotConfigured() {
         </h2>
         <p className="mb-2 leading-relaxed text-ink-2">
           The live dashboard requires a Convex backend. Set the{' '}
-          <code className="rounded-sm bg-sunken px-1.5 py-0.5 font-mono text-[12px]">
+          <code className="rounded-sm bg-sunken px-1.5 py-0.5 font-mono text-xs">
             NEXT_PUBLIC_CONVEX_URL
           </code>{' '}
           environment variable and restart the dev server.
@@ -343,7 +343,7 @@ function DashboardInner({
 
 /** The line under a section header that says how to read its chart. */
 function SectionNote({ children }: { children: React.ReactNode }) {
-  return <p className="mb-10 mt-4 max-w-measure text-[15px] leading-relaxed text-ink-2">{children}</p>;
+  return <p className="mb-10 mt-4 max-w-measure text-ui leading-relaxed text-ink-2">{children}</p>;
 }
 
 // Helpers
@@ -416,8 +416,8 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
             >
               <span
                 className={cn(
-                  'font-mono text-xs tabular',
-                  isSelected ? 'font-medium text-ink' : 'text-ink-3'
+                  'text-meta tabular',
+                  isSelected ? 'font-medium text-ink' : 'text-ink-2'
                 )}
               >
                 {formatCount(item.totalCount)}
@@ -433,8 +433,8 @@ function HistoricalChart({ data, selectedCongress, onCongressClick }: Historical
               />
               <span
                 className={cn(
-                  'font-mono text-xs tabular',
-                  isSelected ? 'font-medium text-ink' : 'text-ink-3'
+                  'text-meta tabular',
+                  isSelected ? 'font-medium text-ink' : 'text-ink-2'
                 )}
               >
                 {formatCongressOrdinal(item.congress)}
@@ -543,14 +543,14 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
         <p className="mb-5 min-h-5 text-sm text-ink-2">
           {shown ? (
             <span key={shown.month} className="animate-in fade-in-0 duration-150">
-              <span className="font-mono text-ink tabular">{formatMonth(shown.month)}</span>
+              <span className="font-medium text-ink tabular">{formatMonth(shown.month)}</span>
               {' · '}
-              <span className="font-mono text-ink tabular">{formatCount(shown.count)}</span> introduced
+              <span className="font-medium text-ink tabular">{formatCount(shown.count)}</span> introduced
               {' · '}
-              <span className="font-mono text-status-law tabular">{formatCount(shown.becameLaw)}</span> became law
+              <span className="font-medium text-status-law tabular">{formatCount(shown.becameLaw)}</span> became law
             </span>
           ) : (
-            <span className="text-ink-3">
+            <span>
               <span className="fine:hidden">Tap a month to read its counts.</span>
               <span className="hidden fine:inline">Hover over a month to read its counts.</span>
             </span>
@@ -571,8 +571,8 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
                 {/* Too narrow to label every bar below lg; the readout above carries it. */}
                 <span
                   className={cn(
-                    'hidden font-mono text-[10px] tabular transition-colors lg:block',
-                    active === i ? 'text-ink' : 'text-ink-3',
+                    'hidden whitespace-nowrap text-xs tabular transition-colors lg:block',
+                    active === i ? 'font-medium text-ink' : 'text-ink-2',
                   )}
                 >
                   {formatCount(m.count)}
@@ -593,28 +593,35 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
         {/* Baseline + month labels */}
         <div className="mt-1 flex items-stretch justify-between gap-[3px] border-y border-line py-2 sm:gap-1">
           {months.map((m, i) => {
-            const showLabel = i % labelEvery === 0 || i === months.length - 1;
+            // The last month is labelled too, unless it would sit against
+            // the label before it ("OctNov").
+            const showLabel =
+              i % labelEvery === 0 || (i === months.length - 1 && i % labelEvery >= 2);
             const [year, month] = m.month.split('-');
             const monthLabel = MONTH_SHORT[parseInt(month, 10) - 1] ?? month;
             return (
               <div
                 key={`label-${m.month}`}
                 aria-hidden="true"
-                className="flex-1 min-w-0 flex flex-col items-center gap-0.5"
+                className={cn(
+                  'flex-1 min-w-0 flex flex-col gap-0.5',
+                  // The end labels sit inside the chart, not past its edges.
+                  i === 0 ? 'items-start' : i === months.length - 1 ? 'items-end' : 'items-center',
+                )}
               >
                 {showLabel ? (
                   <>
-                    <span className="font-mono text-[10px] tabular text-ink-3">
+                    <span className="whitespace-nowrap text-xs text-ink-2">
                       {monthLabel}
                     </span>
                     {(monthLabel === 'Jan' || i === 0) && (
-                      <span className="font-mono text-[10px] tabular text-ink-3">
-                        '{year.slice(2)}
+                      <span className="whitespace-nowrap text-xs tabular text-ink-2">
+                        &rsquo;{year.slice(2)}
                       </span>
                     )}
                   </>
                 ) : (
-                  <span className="font-mono text-[10px] tabular text-transparent">·</span>
+                  <span className="text-xs text-transparent">·</span>
                 )}
               </div>
             );
@@ -643,8 +650,10 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
                 </div>
                 <span
                   className={cn(
-                    'font-mono text-[10px] tabular transition-colors h-3',
-                    active === i ? 'text-ink' : 'text-ink-3',
+                    // 13px needs about 16px a figure; a phone's month is
+                    // 12px wide, so there the readout above carries it.
+                    'hidden h-[18px] whitespace-nowrap text-xs tabular transition-colors sm:block',
+                    active === i ? 'font-medium text-ink' : 'text-ink-2',
                   )}
                 >
                   {m.becameLaw > 0 ? m.becameLaw : ''}
@@ -661,6 +670,9 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
           ref={overlayRef}
           role="group"
           aria-label={`Bills introduced each month of the ${formatCongressOrdinal(congress)} Congress`}
+          // The columns tile the whole chart with no gaps, and a finger drags
+          // across them to scrub, so a column's width is not its target.
+          data-touch-exempt="month chart: a scrub surface, the finger drags across it"
           className="absolute inset-0 flex touch-pan-y"
           onPointerMove={(e) => {
             if (e.pointerType === 'mouse') setHover(columnAt(e.clientX));
@@ -701,21 +713,21 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
             <span className="inline-block h-2.5 w-4 rounded-xs bg-status-law" aria-hidden="true" />
             Became law
           </span>
-          <span className="font-mono text-xs text-ink-3">
+          <span className="text-ink-2">
             each track scaled independently
           </span>
         </div>
         {peak && (
           <p className="max-w-md leading-relaxed sm:text-right">
             Busiest:{' '}
-            <span className="font-mono tabular text-ink">
+            <span className="font-medium tabular text-ink">
               {formatMonth(peak.month)}
             </span>{' '}
             ({formatCount(peak.count)}).{' '}
             {quietest && (
               <>
                 Quietest:{' '}
-                <span className="font-mono tabular text-ink">
+                <span className="font-medium tabular text-ink">
                   {formatMonth(quietest.month)}
                 </span>{' '}
                 ({formatCount(quietest.count)}).{' '}
@@ -728,7 +740,7 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
             {lawPeak && (
               <>
                 , and the bills filed in{' '}
-                <span className="font-mono tabular text-ink">
+                <span className="font-medium tabular text-ink">
                   {formatMonth(lawPeak.month)}
                 </span>{' '}
                 produced the most of them ({lawPeak.becameLaw})
