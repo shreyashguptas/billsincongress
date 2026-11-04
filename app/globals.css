@@ -626,6 +626,10 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
      corner  (>= 1024px wide and >= 500px tall)  The pill, as before. The page
              reserves its height plus a gap under the last row, so the end of
              every page clears it.
+     bill    A bill page keeps Ask in the header at every width
+             (data-everywhere, set from the path by navigation.tsx): its status
+             card fills the pill's corner on a laptop before any scroll. The
+             closed pill is not rendered there at all (answer-panel.tsx).
 
    --ask-reserve is that reserved height. The footer pads by it and the page
    scrolls by it (scroll-padding-bottom), so an item reached with Tab or a
@@ -633,6 +637,7 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
    the same for the sticky header. */
 :root { --ask-reserve: 0px; }
 .ask-header-button { display: none !important; }
+.ask-header-button[data-everywhere='true'] { display: inline-flex !important; }
 @media (max-width: 1023.98px), (max-height: 499.98px) {
   .ask-header-button { display: inline-flex !important; }
   /* The pill only. The phone's minimized bar is handled below. */
@@ -644,6 +649,9 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 }
 @media (min-width: 1024px) and (min-height: 500px) {
   :root { --ask-reserve: calc(1rem + 3rem + 1rem + env(safe-area-inset-bottom, 0px)); }
+  /* A bill page draws no closed pill (Ask is in its header), so nothing floats
+     at its foot until a conversation is set aside there. */
+  html:not([data-ask='minimized']):has(.ask-header-button[data-everywhere='true']) { --ask-reserve: 0px; }
 }
 @media (max-width: 1023.98px) and (min-height: 500px) {
   html[data-ask='minimized'] { --ask-reserve: calc(3.25rem + env(safe-area-inset-bottom, 0px)); }
@@ -720,17 +728,6 @@ html {
     transition:
       transform 200ms cubic-bezier(0.4, 0, 1, 1),
       opacity 160ms ease-in 40ms;
-  }
-}
-/* It also steps aside, at any motion setting, while it would sit on a block
-   marked data-ask-clear (the bill page's status card, which reaches the corner
-   on a laptop before any scroll): data-covering, set by ask-launcher.tsx. It
-   fades in place rather than moving, so reduced motion is respected too, and
-   keyboard focus still brings it back. */
-@media (min-width: 1024px) and (min-height: 500px) {
-  .ask-launcher[data-covering='true']:not(:focus-visible) {
-    opacity: 0;
-    pointer-events: none;
   }
 }
 

@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
 import { Button } from '@/components/ui/button';
 import { layoutModeFor, RAIL_MIN_VIEWPORT_PX, viewportWidth } from '@/lib/ask-panel';
-import { launcherVisible, panelInert } from '@/lib/ask-panel-state';
+import { askInHeaderOnly, launcherVisible, panelInert } from '@/lib/ask-panel-state';
 import { surfaceFor } from '@/lib/page-context';
 import { useAnswers, useNoteNavReason } from './answer-provider';
 import AnswerThread from './answer-thread';
@@ -194,7 +194,7 @@ export function AnswerPanel() {
         />
       )}
 
-      {launcherVisible(phase) && (
+      {launcherVisible(phase, askInHeaderOnly(pathname)) && (
         <AskLauncher
           ref={launcherRef}
           phase={phase}

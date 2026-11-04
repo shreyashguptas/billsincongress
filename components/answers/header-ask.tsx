@@ -21,10 +21,15 @@ import { useAskShortcut } from './ask-shortcut';
  * here, so the server and client renders are the same at every width. Both
  * call the same provider actions; only the analytics trigger differs.
  *
+ * `everywhere`: a page whose status card fills the pill's corner on a laptop
+ * (a bill page, lib/ask-panel-state.ts askInHeaderOnly) shows this button at
+ * every width instead, and draws no closed pill. Decided from the path, so the
+ * server render has it and nothing in the header moves after load.
+ *
  * Under the sheet the header stays live, so the button is also the way to put
  * the panel away: pressed (sunken) while it is open, and a second tap closes it.
  */
-export function HeaderAsk({ className }: { className?: string }) {
+export function HeaderAsk({ className, everywhere = false }: { className?: string; everywhere?: boolean }) {
   const { phase, turns, setOpen, restore } = useAnswers();
   const open = phase === 'open';
   const questions = Math.ceil(turns.length / 2);
@@ -44,6 +49,9 @@ export function HeaderAsk({ className }: { className?: string }) {
       aria-expanded={open}
       aria-controls="ask-panel"
       aria-keyshortcuts={shortcut.enabled ? '/' : undefined}
+      // Read by app/globals.css: shown at every width, not only where the
+      // corner pill is not drawn.
+      data-everywhere={everywhere ? 'true' : undefined}
       // The name stays put; aria-expanded says whether a press opens or closes.
       aria-label={
         questions > 0

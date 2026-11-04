@@ -20,6 +20,7 @@
  */
 import type { PanelMode } from './ask-panel';
 import { coversContent } from './ask-panel';
+import { BILL_ID_PATTERN } from './page-context';
 
 export type AskPhase = 'closed' | 'open' | 'minimized';
 
@@ -27,7 +28,7 @@ export type AskPhase = 'closed' | 'open' | 'minimized';
 export type OpenTrigger =
   /** The corner pill (or a phone's "Back to your questions" bar). */
   | 'launcher'
-  /** Ask in the header: phones, tablets and short windows (components/answers/header-ask.tsx). */
+  /** Ask in the header: phones, tablets, short windows and bill pages (components/answers/header-ask.tsx). */
   | 'header'
   | 'bill_page'
   | 'hero'
@@ -89,9 +90,35 @@ export function nextAskState(state: AskState, action: AskAction): AskState {
   }
 }
 
-/** Whether the launcher (pill or bottom bar) should be on screen. */
-export function launcherVisible(phase: AskPhase): boolean {
-  return phase !== 'open';
+/**
+ * Whether this page keeps Ask in the header at every width, with no corner
+ * pill while the panel is closed. A bill page: its status card fills the
+ * bottom-right corner of a laptop screen before any scroll, so the pill either
+ * sat on the card or, stepped aside, left a laptop reader's first screen with
+ * no way to ask at all. Decided from the path so the server render already has
+ * the header button: nothing in the header moves after the page loads.
+ */
+export function askInHeaderOnly(pathname: string | null | undefined): boolean {
+  const m = /^\/bills\/([^/?#]+)\/?$/.exec(pathname ?? '');
+  if (!m) return false;
+  let id = m[1];
+  try {
+    id = decodeURIComponent(id);
+  } catch {
+    return false;
+  }
+  return BILL_ID_PATTERN.test(id.toLowerCase());
+}
+
+/**
+ * Whether the launcher (pill or bottom bar) should be on screen. On a page
+ * whose Ask lives in the header (askInHeaderOnly) only the minimized phase
+ * draws it: there it is the way back to a conversation set aside, and the
+ * reader has just arrived on a bill page by tapping one inside an answer.
+ */
+export function launcherVisible(phase: AskPhase, headerOnly = false): boolean {
+  if (phase === 'open') return false;
+  return phase === 'minimized' || !headerOnly;
 }
 
 /**

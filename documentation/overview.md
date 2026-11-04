@@ -1169,9 +1169,13 @@ whichever of the two is drawn. In the closed phase the corner pill tucks below t
 while the reader scrolls down and returns on a scroll up, near the top or the end of the page, or
 on keyboard focus (`lib/ask-launcher-tuck.ts`, unit-tested; `data-tucked` read by CSS); it
 never tucks on scroll under `prefers-reduced-motion`, nor in the minimized phase, where it is the
-way back. It also steps aside, at any motion setting, while its corner would sit on a block
-marked `data-ask-clear` (the bill page's status card, which reaches the corner of a laptop
-screen before any scroll); under reduced motion it fades out in place rather than moving.
+way back. A bill page keeps Ask in the header at every width and renders no closed pill
+(`askInHeaderOnly` in `lib/ask-panel-state.ts`, read by `navigation.tsx` and `answer-panel.tsx`
+from the path, so the server render already has it): its status card fills the pill's corner on
+a laptop before any scroll, and a pill that stepped aside there left the first screen with no way
+to ask. From 1024px to 1279px that header shows the search as its icon (`HeaderSearch compact`),
+because the field, Feedback, Ask and the account buttons do not fit beside the four sections.
+The minimized pill still shows there: it is the way back to a conversation set aside.
 
 **Press / to ask.** `components/answers/ask-shortcut.tsx`, mounted once in the root layout
 after the panel, listens for one key on the window: `/`, the key GitHub, YouTube and Gmail use

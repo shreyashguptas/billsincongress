@@ -16,6 +16,7 @@ import { Logo } from '@/components/brand/logo';
 import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/feedback/feedback-box';
 import { HeaderAsk } from '@/components/answers/header-ask';
+import { askInHeaderOnly } from '@/lib/ask-panel-state';
 
 /**
  * The site header: logo, the four sections, a bill search and the account
@@ -39,6 +40,8 @@ export function Navigation() {
   const feedback = useFeedbackBox('menu');
   const pathname = usePathname();
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+  // A bill page keeps Ask in the header at every width (lib/ask-panel-state.ts).
+  const askHere = askInHeaderOnly(pathname);
 
   return (
     // Solid paper, not translucent: a see-through header turned muddy grey over
@@ -125,9 +128,10 @@ export function Navigation() {
         {/* col-start-3: with the logo hidden it would otherwise slide into the logo's column. */}
         <div className="col-start-3 flex items-center justify-end gap-1 header-sm:gap-2 header-lg:gap-3">
           <HeaderFeedback className="hidden header-lg:inline-flex" />
-          {/* Phones, tablets and short windows; the corner pill everywhere else. */}
-          <HeaderAsk />
-          <HeaderSearch />
+          {/* Phones, tablets and short windows, and a bill page at every width;
+              the corner pill everywhere else. */}
+          <HeaderAsk everywhere={askHere} />
+          <HeaderSearch compact={askHere} />
           <UserMenu />
         </div>
       </div>
@@ -281,8 +285,13 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
  * Search from anywhere. A full field from a header-lg width up; an icon that
  * opens /bills below that, where the search box is the first thing on the page. Submitting
  * lands on /bills?title=…, the same URL the bills page's own search writes.
+ *
+ * `compact`: the field only from header-xl. On a bill page Ask is in the header at
+ * every width, and from 1024px to 1279px the field, Feedback, Ask and the account
+ * buttons do not fit in one row beside the four sections (it ran 41px off the
+ * screen at 1024px), so the icon stands in for the field there.
  */
-function HeaderSearch() {
+function HeaderSearch({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = React.useState('');
   const noteId = React.useId();
@@ -302,7 +311,11 @@ function HeaderSearch() {
         role="search"
         onSubmit={onSubmit}
         onAnimationEnd={onNudgeEnd}
-        className={cn('relative hidden header-lg:block', nudging && 'animate-nudge')}
+        className={cn(
+          'relative hidden',
+          compact ? 'header-xl:block' : 'header-lg:block',
+          nudging && 'animate-nudge',
+        )}
       >
         <label htmlFor="header-search" className="sr-only">
           Search bills
@@ -327,7 +340,12 @@ function HeaderSearch() {
         />
       </form>
       {/* Gone below header-search (256px): the menu's Bills page has the search. */}
-      <Button asChild variant="ghost" size="icon" className="hidden header-search:inline-flex header-lg:hidden">
+      <Button
+        asChild
+        variant="ghost"
+        size="icon"
+        className={cn('hidden header-search:inline-flex', compact ? 'header-xl:hidden' : 'header-lg:hidden')}
+      >
         <Link href="/bills" aria-label="Search bills">
           <Search className="h-5 w-5" />
         </Link>

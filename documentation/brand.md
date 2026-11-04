@@ -234,11 +234,14 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
     screen's edge while the reader scrolls down, and comes back on a scroll up,
     near the top or the end of the page, or when it takes keyboard focus
     (`lib/ask-launcher-tuck.ts`). Under `prefers-reduced-motion` it never
-    moves; it simply stays, and the reserved room keeps the end clear. A block
-    tall enough to reach the corner before any scroll (the bill page's status
-    card on a laptop) carries `data-ask-clear`, and while the pill's corner
-    would sit on it the pill steps aside at any motion setting (under reduced
-    motion it fades out in place).
+    moves; it simply stays, and the reserved room keeps the end clear.
+  - **On a bill page, at every width**, Ask is in the header and there is no
+    closed pill: the status card fills the pill's corner on a laptop before any
+    scroll, so the pill either sat on it or, stepped aside, left the first
+    screen with no way to ask. From 1024px to 1279px the header's search is its
+    icon there, so the row still fits. The pill comes back only as the way back
+    to a conversation set aside (`askInHeaderOnly`, `lib/ask-panel-state.ts`;
+    decided from the path, so nothing in the header moves after load).
   - **Under 500px tall** (a phone on its side, 200% zoom and up) the header is
     not sticky (`short:`): it scrolls away with the page, and Ask goes with it.
   - The page scrolls by the header and by the reserve (`scroll-padding-top`,
@@ -596,11 +599,13 @@ Patterns that appear on more than one page:
   wider than the screen, down to 320px at the default font and at a 20px one,
   and at 390px with a 24px one. The logo answers a tap over 44px each way even
   as the mark alone. Sticky, except under 500px tall.
-- **Ask in the header** (below `lg`, and in any window under 500px tall,
-  `components/answers/header-ask.tsx`): a `ghost` `sm` button, Lucide
+- **Ask in the header** (below `lg`, in any window under 500px tall, and on a
+  bill page at every width, `components/answers/header-ask.tsx`): a `ghost` `sm` button, Lucide
   `MessageSquare` and the word "Ask" in `ink`, just before the search. The
   glyph alone from 768 to 839px, where the four sections leave no room for the
-  word, and in a header under 312px (a 320px phone at a 20px font). While the panel is open under it, the button is pressed (`sunken`
+  word, and in a header under 312px (a 320px phone at a 20px font). On a bill
+  page from `header-lg` to `header-xl` the search is its icon rather than the
+  field, so the row still fits. While the panel is open under it, the button is pressed (`sunken`
   fill, `aria-expanded`), and a second press closes it.
 - **Menu sheet** (phones and tablets): slides in from the left over an 85% paper
   scrim. Its top row is the header row it covers — same height and padding, the

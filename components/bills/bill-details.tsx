@@ -428,9 +428,6 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               "Principles" 6), now compact enough to sit beside the lead. */}
           <section
             aria-labelledby="bill-status-label"
-            // Tall enough to reach the corner on a laptop: the Ask pill steps
-            // aside while it would sit on this card (ask-launcher.tsx).
-            data-ask-clear=""
             className="min-w-0 self-start rounded-lg border border-line bg-raised p-5 sm:p-6 lg:col-start-2 lg:row-span-2 lg:row-start-1"
           >
             <h2 id="bill-status-label" className="label-eyebrow">

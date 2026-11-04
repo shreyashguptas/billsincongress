@@ -212,7 +212,7 @@ it('puts Ask in the header exactly where the corner pill is not drawn', () => {
     css.includes('.ask-header-button { display: none !important; }'),
     'the header Ask button is not hidden by default, so a computer would show it beside the pill.',
   );
-  assert.ok(nav.includes('<HeaderAsk />'), 'navigation.tsx no longer mounts <HeaderAsk />.');
+  assert.ok(nav.includes('<HeaderAsk '), 'navigation.tsx no longer mounts <HeaderAsk />.');
   // Under 500px tall the header scrolls away, so the sheet must not start under it.
   assert.ok(nav.includes('short:relative'), 'the header no longer scrolls away under 500px tall.');
   assert.ok(
@@ -275,18 +275,27 @@ it('tucks the corner pill on scroll only where it is drawn, never under reduced 
   );
 });
 
-it('steps the pill aside over a data-ask-clear block by fading in place, never by moving', () => {
-  const launcher = readFileSync(join(root, 'components/answers/ask-launcher.tsx'), 'utf8');
-  const details = readFileSync(join(root, 'components/bills/bill-details.tsx'), 'utf8');
-  const where = `@media (min-width: ${RAIL_MIN_VIEWPORT_PX}px) and (min-height: 500px) {\n  .ask-launcher[data-covering='true']:not(:focus-visible) {`;
-  const at = css.indexOf(where);
-  assert.ok(at >= 0, 'globals.css no longer hides the pill while it covers a data-ask-clear block.');
-  const block = css.slice(at, css.indexOf('\n}', at));
-  assert.ok(!block.includes('transform'), 'the covering rule moves the pill, which reduced motion forbids.');
-  assert.ok(block.includes('pointer-events: none'), 'a hidden pill can still be clicked where it is invisible.');
-  assert.ok(launcher.includes('data-covering='), 'ask-launcher.tsx no longer sets data-covering.');
-  assert.ok(launcher.includes("'[data-ask-clear]'"), 'ask-launcher.tsx no longer looks for data-ask-clear blocks.');
-  assert.ok(details.includes('data-ask-clear'), 'the bill status card is no longer kept clear of the pill.');
+// At 1024x768 and 1440x900 every bill page loaded with the pill faded out over
+// its status card and no Ask in the header: a laptop reader's first screen of a
+// bill had nothing to click to ask.
+it('keeps Ask in the header at every width on a bill page, from the server render', () => {
+  assert.ok(
+    css.includes(".ask-header-button[data-everywhere='true'] { display: inline-flex !important; }"),
+    'globals.css no longer shows the header Ask at every width where data-everywhere is set.',
+  );
+  assert.ok(
+    nav.includes('const askHere = askInHeaderOnly(pathname);') && nav.includes('<HeaderAsk everywhere={askHere} />'),
+    'navigation.tsx no longer decides from the path that a bill page keeps Ask in the header.',
+  );
+  const header = readFileSync(join(root, 'components/answers/header-ask.tsx'), 'utf8');
+  assert.ok(header.includes("data-everywhere={everywhere ? 'true' : undefined}"), 'header-ask.tsx no longer sets data-everywhere.');
+  assert.ok(
+    panel.includes('launcherVisible(phase, askInHeaderOnly(pathname))'),
+    'answer-panel.tsx still draws the closed pill on a page whose Ask is in the header.',
+  );
+  assert.ok(!css.includes('data-covering'), 'the faded-out pill over the status card is back.');
+  // From 1024px to 1279px the row only fits with the search as its icon.
+  assert.ok(nav.includes('<HeaderSearch compact={askHere} />'), 'the header search no longer makes room for Ask on a bill page.');
 });
 
 console.log(`\nask-css-contract: ${passed} passed, ${failures.length} failed`);

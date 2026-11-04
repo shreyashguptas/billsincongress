@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import type { PanelMode } from './ask-panel';
 import {
   INITIAL_ASK_STATE,
+  askInHeaderOnly,
   launcherVisible,
   nextAskState,
   panelInert,
@@ -113,6 +114,35 @@ it('hides the off-screen panel from assistive technology and the tab order', () 
   assert.equal(panelInert('closed'), true);
   assert.equal(panelInert('minimized'), true);
   assert.equal(panelInert('open'), false);
+});
+
+// A bill page's status card fills the pill's corner on a laptop: Ask is in the
+// header there at every width, and the closed pill is not drawn.
+it('keeps Ask in the header on a bill page, and only there', () => {
+  for (const path of ['/bills/131hr119', '/bills/1sjres119/', '/bills/1646HRES119']) {
+    assert.equal(askInHeaderOnly(path), true, path);
+  }
+  for (const path of [
+    '/',
+    '/bills',
+    '/bills/enacted',
+    '/bills/topic/health',
+    '/bills/131hr119/share-image',
+    '/members/A000001',
+    '/bills/%E0%A4%A',
+    null,
+    undefined,
+  ]) {
+    assert.equal(askInHeaderOnly(path), false, String(path));
+  }
+});
+
+it('draws no closed pill where Ask is in the header, but keeps the way back', () => {
+  assert.equal(launcherVisible('closed', true), false);
+  // Tapping a bill inside an answer lands on a bill page: the pill (or the
+  // phone's bar) is how the reader gets back to the conversation.
+  assert.equal(launcherVisible('minimized', true), true);
+  assert.equal(launcherVisible('open', true), false);
 });
 
 console.log(`\nask-panel-state: ${passed} passed, ${failures.length} failed`);
