@@ -306,6 +306,9 @@ export async function HubView({
           </p>
         ) : (
           <div>
+            {/* The cards' titles are h3s: without this the outline jumped from
+                the h1 straight to them, and heading navigation had no "list". */}
+            <h2 className="sr-only">The bills</h2>
             {bills.data.map((bill) => (
               <BillCard
                 key={bill.id}
