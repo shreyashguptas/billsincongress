@@ -233,83 +233,8 @@ export function firstSentence(text: string): string {
   return text.trim();
 }
 
-/** Title-opening gerunds and their plain verbs: "Supporting" → "support". */
-const TITLE_GERUNDS: Record<string, string> = {
-  Supporting: 'support',
-  Expressing: 'express',
-  Recognizing: 'recognize',
-  Condemning: 'condemn',
-  Designating: 'designate',
-  Honoring: 'honor',
-  Calling: 'call',
-  Providing: 'provide',
-  Commemorating: 'commemorate',
-  Congratulating: 'congratulate',
-  Celebrating: 'celebrate',
-  Affirming: 'affirm',
-  Reaffirming: 'reaffirm',
-  Urging: 'urge',
-  Encouraging: 'encourage',
-  Acknowledging: 'acknowledge',
-  Authorizing: 'authorize',
-  Directing: 'direct',
-  Requesting: 'request',
-  Electing: 'elect',
-  Amending: 'amend',
-  Establishing: 'establish',
-  Disapproving: 'disapprove',
-  Mourning: 'mourn',
-  Remembering: 'remember',
-  Opposing: 'oppose',
-  Requiring: 'require',
-  Raising: 'raise',
-  Declaring: 'declare',
-  Permitting: 'permit',
-  Approving: 'approve',
-  Commending: 'commend',
-  Demanding: 'demand',
-  Denouncing: 'denounce',
-  Impeaching: 'impeach',
-  Censuring: 'censure',
-};
-
 /** Longer than this, the lead is cut at a word; the full summary follows it. */
 const LEAD_MAX = 320;
-
-/**
- * Where the measure stands, as the second half of a sentence that starts "It".
- * Same words as the status panel, on the measure's own road.
- */
-function standsPhrase(bill: Bill): string {
-  const stage =
-    typeof bill.progress_stage === 'string' ? parseInt(bill.progress_stage, 10) : bill.progress_stage;
-  if (stagePath(bill.bill_type) !== 'law' && isStageOnPath(stage, bill.bill_type)) {
-    const label = measureStageLabel(stage, bill.bill_type);
-    if (label.startsWith('Agreed to')) return `was ${lowerFirst(label)}`;
-  }
-  switch (stage) {
-    case 20:
-      return 'has been introduced';
-    case 40:
-      return 'is in committee';
-    case 50:
-      return 'is out of committee';
-    case 60:
-      return 'has passed one chamber';
-    case 80:
-      return 'has passed both chambers';
-    case 85:
-      return 'was vetoed';
-    case 90:
-      return 'is on the President’s desk';
-    case 95:
-      return 'was signed by the President';
-    case 100:
-      return 'became law';
-    default:
-      return `is ${lowerFirst(billStatusPhrase(bill))}`;
-  }
-}
 
 /**
  * The bill page's "In short" lead: the answer to "what does it do?" in one
@@ -317,12 +242,10 @@ function standsPhrase(bill: Bill): string {
  *
  * With a CRS summary it is that summary's first sentence, word for word (the
  * page says so under it): the government wrote it, so it is the one sentence on
- * the page that describes the bill's content with authority. Without one, the
- * sentence is built from fields the record holds and claims nothing more: a
- * title that states a purpose ("To remove restrictions from…") becomes "This
- * bill sets out to remove restrictions from…", and a name ("Social Security
- * Guarantee Act of 2025") says plainly that there is no summary yet, because a
- * name is not a description.
+ * the page that describes the bill's content with authority. Without one there
+ * is no lead (`from: 'none'`): a sentence built from the title only said the
+ * title again, so the page prints billNoSummaryLine instead and the status
+ * card follows (documentation/brand.md, "Bill page").
  */
 export type BillLead = {
   /**
@@ -330,7 +253,7 @@ export type BillLead = {
    * fragment): the page prints no In short, only a link down to the summary.
    */
   text: string;
-  from: 'summary' | 'title' | 'status';
+  from: 'summary' | 'none';
   /**
    * With a summary: what the page prints under it, so no sentence is read
    * twice. The summary after the lead sentence when the lead is that sentence
@@ -396,32 +319,24 @@ export function billLead(bill: Bill): BillLead {
     const end = firstSentence(body).length;
     return { text, from: 'summary', rest: body.slice(end).trim(), split: true };
   }
+  return { text: '', from: 'none', rest: '', split: false };
+}
+
+/**
+ * The bill page's line in place of "In short" when there is no summary to lead
+ * with. An unfinished measure from a Congress that has ended expired with it,
+ * so "yet" would promise a summary that is not coming (/bills/82sjres118,
+ * under "Expired when the 118th Congress ended"); billAnswerParagraph says the
+ * same further down.
+ */
+export function billNoSummaryLine(
+  bill: Bill,
+  opts: { congressEnded?: boolean; finished?: boolean } = {},
+): string {
   const noun = billNoun(bill.bill_type);
-  const title = (bill.title ?? '').trim().replace(/,? and for other purposes\.?$/i, '.');
-  const stands = standsPhrase(bill);
-  const purpose = /^(?:an? (?:bill|joint resolution|concurrent resolution|resolution) )?to (.+)$/i.exec(title);
-  // A resolution's title is a gerund ("Supporting the designation of…"),
-  // which names its purpose as plainly as "To…" does. Only verbs listed here.
-  const gerund = /^([A-Z][a-z]+ing) (.+)$/.exec(title);
-  const aim = purpose
-    ? purpose[1]
-    : gerund && TITLE_GERUNDS[gerund[1]]
-      ? `${TITLE_GERUNDS[gerund[1]]} ${gerund[2]}`
-      : null;
-  if (aim) {
-    return {
-      text: `This ${noun} sets out to ${aim.replace(/[.;:\s]+$/, '')}. It ${stands}.`,
-      from: 'title',
-      rest: '',
-      split: false,
-    };
-  }
-  return {
-    text: `This ${noun} ${stands}. Congress has not published a summary of what it would do yet.`,
-    from: 'status',
-    rest: '',
-    split: false,
-  };
+  return opts.congressEnded && !opts.finished
+    ? `Congress did not publish a plain-language summary of this ${noun}.`
+    : `No plain-language summary of this ${noun} yet.`;
 }
 
 /**

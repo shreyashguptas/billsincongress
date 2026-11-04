@@ -454,7 +454,8 @@ Patterns that appear on more than one page:
   with a part's heading ("DIVISION A--…") or a first line with no stop gets no In
   short, only a `.meta` line under a `line` rule linking down to the summary. With no summary there is no
   In short: a sentence built from the title only said the title again, so a single
-  `.meta` line under a `line` rule says there is no plain-language summary yet and
+  `.meta` line under a `line` rule says there is no plain-language summary yet (for
+  a measure that expired with its Congress, that Congress did not publish one) and
   links down to "What the record says". Then the status card, then the actions (PDF,
   Save, alerts).
   Below the hero, one hairline-ruled section each, each with an h2: the summary

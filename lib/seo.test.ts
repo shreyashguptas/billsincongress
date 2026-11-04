@@ -26,6 +26,7 @@ import {
   billStatusPhrase,
   billSummaryText,
   billLead,
+  billNoSummaryLine,
   billShareImagePath,
   SHARE_CARD_VERSION,
   firstSentence,
@@ -477,44 +478,28 @@ it("first sentence is never cut inside U.S., H.R. or Sec.", () => {
   );
 });
 
-it("a purpose title without a summary becomes a plain sentence with the stage", () => {
-  const lead = billLead(
-    bareBill({
-      title: "To remove restrictions from a parcel of land in Paducah, Kentucky.",
-      progress_stage: 100,
-    }),
-  );
-  assert.equal(lead.from, "title");
-  assert.equal(
-    lead.text,
-    "This bill sets out to remove restrictions from a parcel of land in Paducah, Kentucky. It became law.",
-  );
-});
-
-it("a named bill without a summary says there is none, rather than guessing", () => {
-  const lead = billLead(bareBill());
-  assert.match(lead.text, /^This bill is in committee\. Congress has not published a summary/);
-});
-
-it("a resolution's lead says agreed to, not passed", () => {
-  const lead = billLead(
+// Without a summary there is no In short: a sentence built from the title only
+// said the title again (brand.md, "Bill page").
+it("a measure without a summary has no lead", () => {
+  for (const bill of [
+    bareBill({ title: "To remove restrictions from a parcel of land in Paducah, Kentucky.", progress_stage: 100 }),
+    bareBill(),
     bareBill({ bill_type: "hres", bill_type_label: "H.Res.", progress_stage: 60, title: "Supporting a day." }),
-  );
-  assert.match(lead.text, /It was agreed to by the House\./);
+  ]) {
+    assert.deepEqual(billLead(bill), { text: "", from: "none", rest: "", split: false });
+  }
 });
 
-it("a resolution's gerund title reads as its purpose", () => {
-  const lead = billLead(
-    bareBill({
-      bill_type: "hres",
-      bill_type_label: "H.Res.",
-      title: 'Supporting the designation of October 23, 2026, as "National Marine Sanctuary Day".',
-    }),
-  );
-  assert.equal(
-    lead.text,
-    'This resolution sets out to support the designation of October 23, 2026, as "National Marine Sanctuary Day". It is in committee.',
-  );
+// /bills/82sjres118: "No plain-language summary of this joint resolution yet."
+// as the first line under the h1, above "Expired when the 118th Congress ended".
+it("the no-summary line does not promise a summary to a measure that expired", () => {
+  const res = bareBill({ congress: 118, bill_type: "sjres", bill_type_label: "S.J.Res." });
+  const expired = billNoSummaryLine(res, { congressEnded: true, finished: false });
+  assert.equal(expired, "Congress did not publish a plain-language summary of this joint resolution.");
+  assert.ok(!/ yet/.test(expired), expired);
+  // Live, or finished in an ended Congress: still "yet".
+  assert.equal(billNoSummaryLine(res), "No plain-language summary of this joint resolution yet.");
+  assert.match(billNoSummaryLine(res, { congressEnded: true, finished: true }), / yet\.$/);
 });
 
 // /bills/82sjres118, beside "Expired when the 118th Congress ended": "Its current

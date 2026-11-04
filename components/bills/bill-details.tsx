@@ -21,7 +21,7 @@ import {
   formatCongressProse,
   formatCongressYears,
 } from '@/lib/congress';
-import { billAnswerParagraph, billLead, billNoun, billSummaryText } from '@/lib/seo';
+import { billAnswerParagraph, billLead, billNoSummaryLine, billNoun, billSummaryText } from '@/lib/seo';
 import { AskAboutBill, AskSummaryChip } from './ask-about-bill';
 import SaveBillButton from './save-bill-button';
 import BillAlertButton from './bill-alert-button';
@@ -177,10 +177,8 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   // The Congress is over: an unfinished measure expired with it, and the
   // card's present-tense lines would be false (lib/glossary.ts, stageLine).
   const congressEnded = congressClock(bill.congress, today, bill.introduced_date || today).ended;
-  const answer = billAnswerParagraph(bill, {
-    congressEnded,
-    finished: finishOf(stage, bill.bill_type ?? '') !== null,
-  });
+  const lifeOpts = { congressEnded, finished: finishOf(stage, bill.bill_type ?? '') !== null };
+  const answer = billAnswerParagraph(bill, lifeOpts);
   // The current stage in one plain sentence, always on screen: the most
   // important word on the page should not wait for a tap. The measure's type
   // picks the line: a concurrent resolution is agreed to by both rooms.
@@ -383,11 +381,12 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             {/* In short — the answer to "what does it do?", before anything
                 else. Plain first, the record one tap away (brand.md, 5). Only
                 from a summary: built from the title, it only said the title
-                again, so without one a single line says so and the status
-                card follows. */}
+                again, so without one a single line says so (and, for a
+                measure that expired, that none is coming) and the status card
+                follows. */}
             {lead.from !== 'summary' ? (
               <p className="meta mt-6 border-t border-line pt-4">
-                No plain-language summary of this {noun} yet.{' '}
+                {billNoSummaryLine(bill, lifeOpts)}{' '}
                 <a href="#bill-summary" className="link touch-hit focus-ring whitespace-nowrap rounded-xs">
                   What the record says
                 </a>
