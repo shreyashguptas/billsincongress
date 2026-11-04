@@ -75,7 +75,7 @@ export function BillJourneyPanel({
   // Nothing to fold when no stage has a dated moment under it.
   const collapsed = !expanded && eventCount > 0;
 
-  // "Every step, with dates" in the status card links here: arriving by it
+  // "How it got here" in the status card links here: arriving by it
   // opens the steps, so the link does not land on a folded list.
   useEffect(() => {
     const open = () => {

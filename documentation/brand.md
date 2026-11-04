@@ -527,7 +527,7 @@ Patterns that appear on more than one page:
   takes no hue. On a phone the columns start folded to their phases (rule,
   days in `display-sm`, name) with a full-width outline button, "Show every
   step (n)", that opens the dated moments (`aria-expanded`, `aria-controls`);
-  arriving by the status card's "Every step, with dates" link opens them too.
+  arriving by the status card's "How it got here" link opens them too.
   From `sm` up they are always open. A bill still on its way ends the panel with the **Congress
   clock**: the days left in the Congress in `display-md`, why that matters in
   one sentence, and the two-year Congress as a bar, the time gone in `sunken`,
