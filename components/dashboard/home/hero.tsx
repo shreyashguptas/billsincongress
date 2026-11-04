@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { PartyDot } from '@/components/brand/party';
 import { SourceLine } from '@/components/brand/section';
+import { Term } from '@/components/brand/term';
 import { HeroAsk } from '@/components/answers/hero-ask';
 import { Hemicycle, HemicycleKey, PARTIES, WellReadout, type PartyKey } from './hemicycle';
 import { BrowseLink, CongressSelect, combinedParty, fmt, type HomeProps } from './shared';
@@ -84,8 +85,10 @@ export function HomeHero(props: HomeProps) {
           Who&rsquo;s writing America&rsquo;s laws?
         </h1>
         <p className="mx-auto mt-4 max-w-measure text-center text-[1.0625rem] leading-relaxed text-ink-2">
-          A congressional bill tracker: every bill and resolution in the {formatCongressOrdinal(congress)} Congress,
-          seated by the party of its sponsor.
+          {/* The first civics words on the site, each a tap from its meaning. */}
+          A congressional bill tracker: every bill and <Term id="resolution">resolution</Term> in the{' '}
+          <Term id="congress-number">{formatCongressOrdinal(congress)} Congress</Term>, seated by the party of
+          its <Term id="sponsor">sponsor</Term>.
         </p>
 
         <div className="mx-auto mt-8 max-w-[900px] sm:mt-10">

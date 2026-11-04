@@ -436,6 +436,22 @@ covered by autocapture.
 |---|---|---|---|
 | `learn_state_selected` | User picks their state in the "two rooms" seat pictures | `state`, `representatives` | `app/learn/components/two-rooms.tsx` |
 
+### Civics words (`<Term>`)
+
+Added 2026-11-04. A civics word ("committee", "cosponsor", "simple resolution") shows a
+dotted underline where it first appears on a page; a tap, click or Enter opens its plain
+meaning from `lib/glossary.ts`. The popover's "More words in Learn" link carries
+`data-ph-capture-attribute-cta="term-more-in-learn"` and is covered by autocapture, so
+`term_opened` → that click → a `/learn` pageview is the whole funnel. The status card's
+"How a bill becomes law" link is autocaptured too (`cta="bill-status-learn-road"`). The
+plain stage sentence in the status card and the committee line on the home page are text,
+so they send nothing.
+
+| Event | Fired when | Properties | Where (file) |
+|---|---|---|---|
+| `term_opened` | User opens a civics word's definition popover (each open counts, not once per page) | `term` (glossary id, e.g. `committee`, `in-committee`, `simple-resolution`), `path` (the page's pathname) | `components/brand/term.tsx` |
+| `bill_words_expanded` | Reader tapped "Show the words (n)" to open the "Words to know" list at the foot of a bill page on a phone, where it starts folded (from `sm` up the list is always open, so it never fires there). Once per opening. The list's "Every word, in Learn" link is autocaptured (`data-ph-capture-attribute-cta="bill-words-all-in-learn"`) | `bill_id`, `words` (how many the list holds, at most 9) | `components/bills/bill-words.tsx` |
+
 ### Podcast cross-promotion
 
 The owner's podcast ("The Federalist Papers: Explained") is promoted in three places:

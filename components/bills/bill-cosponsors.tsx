@@ -7,6 +7,7 @@ import { billsService, type BillPageExtras } from '@/lib/services/bills-service'
 import { Button } from '@/components/ui/button';
 import { PartyTag } from '@/components/brand/party';
 import { SourceLine } from '@/components/brand/section';
+import { Term } from '@/components/brand/term';
 import type { Platform } from '@/convex/memberAccountsParse';
 
 type Cosponsors = BillPageExtras['cosponsors'];
@@ -72,11 +73,17 @@ export function BillCosponsors({
       <div className="border-t border-line pt-12 sm:pt-16">
         <p className="label-eyebrow">Cosponsors</p>
         <h2 id="bill-cosponsors-title" className="mt-3 font-serif text-display-sm text-ink sm:text-display-lg">
-          {total === 0
-            ? `No other member has cosponsored this ${noun}`
-            : total === 1
-              ? `1 member cosponsors this ${noun}`
-              : `${total.toLocaleString('en-US')} members cosponsor this ${noun}`}
+          {/* The verb is the word a reader may not know, so it explains itself. */}
+          {total === 0 ? (
+            <>
+              No other member has <Term id="cosponsor">cosponsored</Term> this {noun}
+            </>
+          ) : (
+            <>
+              {total === 1 ? '1 member' : `${total.toLocaleString('en-US')} members`}{' '}
+              <Term id="cosponsor">cosponsor{total === 1 ? 's' : ''}</Term> this {noun}
+            </>
+          )}
         </h2>
 
         {rows.length > 0 && (

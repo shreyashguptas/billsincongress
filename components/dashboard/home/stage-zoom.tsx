@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { SectionHeader } from '@/components/brand/section';
 import { stageFill } from '@/components/brand/status';
+import { Term } from '@/components/brand/term';
 import { SectionAsk, fmt, type HomeProps } from './shared';
 
 type SB = HomeProps['dashboard']['statusBreakdown'];
@@ -102,8 +103,9 @@ export function StageZoom({
           finding
           title={
             <>
-              {((stuckTotal / all) * 100).toFixed(1)}% of bills and resolutions haven&rsquo;t made it out of committee. Here are the
-              ones that have.
+              {/* The finding rests on "committee", so the word explains itself. */}
+              {((stuckTotal / all) * 100).toFixed(1)}% of bills and resolutions haven&rsquo;t made it out of{' '}
+              <Term id="committee">committee</Term>. Here are the ones that have.
             </>
           }
           action={
@@ -112,6 +114,12 @@ export function StageZoom({
             />
           }
         />
+        {/* The finding rests on one word; say what it means right under it,
+            for the reader who never taps it (brand.md, "Term"). */}
+        <p className="mt-4 max-w-measure text-reading-sm text-ink-2">
+          A committee is a small group of members who study a bill before anyone else votes on it. Most bills never
+          get past one.
+        </p>
 
         <div className="mt-10 grid grid-cols-1 gap-12 sm:mt-12 lg:grid-cols-12 lg:gap-0">
           {/* Stuck — small squares, many bills each */}

@@ -303,6 +303,7 @@ These live in `components/brand/` and compose the primitives above.
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
 | `Kbd` | `components/brand/kbd.tsx` | A key on the keyboard: a 20px keycap, mono `text-xs` (13px, the type floor) in `ink-2` on `paper`, a `line-strong` edge with a 2px bottom. Chrome, so never a hue. Hidden from screen readers; say the key in words beside it |
 | `useLengthLimit`, `LengthLimitNote` | `components/brand/length-limit.tsx` | Every text box with a length limit. See "Length limits", below |
+| `Term`, `TermText` | `components/brand/term.tsx` | A civics word with its plain meaning a tap away, from `lib/glossary.ts`. See "Term", below |
 
 Patterns that appear on more than one page:
 
@@ -359,6 +360,25 @@ Patterns that appear on more than one page:
   It waits for the last word, like the sources. After a tap the buttons go and
   the line thanks the reader in place; an answer is rated once. A clarifying
   question from the assistant is not an answer and gets no check.
+- **Term** (`components/brand/term.tsx`, words in `lib/glossary.ts`): a civics word
+  ("committee", "cosponsor", "simple resolution", a stage's name) keeps the type of its
+  sentence and gains a dotted `ink-3` underline, 1.5px, offset 0.2em; it turns `ink` on
+  hover and solid while open. A tap, a click, or Enter or Space opens a shadcn `Popover`
+  (320px at most): the word in Newsreader `title`, with its stage's dot when the word names
+  a stage; the definition in `text-ui` `ink-2`; a hairline; then "More words in Learn →", which
+  lands on the word's row in Learn's "Words you'll see" (`/learn#word-<id>`, picked out by a
+  `sunken` fill that `WordTarget` sets, since a client-side navigation never updates `:target`). Never on hover alone: a phone cannot hover, and a definition that appears
+  as a pointer crosses a headline is noise. Only the FIRST time a word appears on a page
+  (`TermText` marks the first match of each word in a string, for text held as data, like a
+  hub's explainer). The trigger is an inline `span role="button"`, not a `<button>`, so it
+  wraps and takes punctuation like the words around it; for the same reason it never sits
+  inside a link or a button, so bill rows and stage pills carry none. Definitions are one or
+  two short sentences at a sixth-grade level, with no word that itself needs defining.
+  A popover is never the only way to a meaning that matters: where a finding rests on a
+  word, its meaning is also printed in plain `ink-2` text under the headline (the home
+  page's "…haven't made it out of committee" says what a committee is), the bill status
+  card prints its stage's meaning under the stage, and every bill page ends with
+  **Words to know**.
 - **Length limits**: every text box with a limit says so the same way
   (`useLengthLimit` and `LengthLimitNote`, `components/brand/length-limit.tsx`).
   Nothing shows until the text is 90% of the way. From there a 13px `ink-2`
@@ -408,7 +428,11 @@ Patterns that appear on more than one page:
   under a headline that states it ("From introduction to law in 575 days");
   the sponsor; then cosponsors, peers, "Keep reading" and the ask band.
 - **Status panel** (bill page, "Where it stands"): `rounded-lg`, raised, the
-  stage in `display-sm` with its glyph and "Stage n of N" in `text-sm` `ink-2`. Under it the
+  stage in `display-sm` with its glyph (its name a `Term`), then one always-visible
+  `text-ui` `ink-2` sentence that says what that stage means ("A small group of members
+  is studying it first. Most bills stop here."; `stageLine` in `lib/glossary.ts`), so the
+  page's most important word never waits for a tap. It defines the stage; it never
+  forecasts this bill. Then "Stage n of N" in `text-sm` `ink-2`. Under it the
   journey's length (Newsreader at 44px, "days" beside it) with what it measures:
   "from introduction to law", "since it was introduced". Then the road with its
   step names: a `StageTrack` across the card on phones and tablets, `StageSteps`
@@ -420,7 +444,25 @@ Patterns that appear on more than one page:
   `lib/bill-next-step.ts`), and, for a measure that can still move, a `.meta`
   line with the days left in the Congress. It ends with an underlined link down
   to the journey. The detailed **journey** sits in its own section below the
-  summary, in a `rounded-lg` raised panel.
+  summary, in a `rounded-lg` raised panel. Under the stage's "Stage n of N",
+  one underlined `ink-2` text link with `ArrowRight`: "How a bill becomes law"
+  (`/learn#path`), or for a resolution "What a resolution is" (its word in Learn).
+- **Words to know** (`components/bills/bill-words.tsx`, rows from
+  `components/brand/word-list.tsx`): the last section of a bill page before the ask band.
+  Eyebrow "Words to know", an h2 "The words on this page, in plain English", then the
+  words that page marked as `Term`s as a hairline-ruled definition list: the word in
+  Newsreader `title` (with its stage dot when it names a stage), its definition under it in
+  `text-base` `ink-2`. The measure's own kind comes first (so a simple resolution's list
+  opens "A resolution for one room only … It is not a law"), the rest in the order the page
+  uses them, nine at most (`billPageWords` in `lib/glossary.ts`); when a page uses more,
+  the current stage and the words only that page explains (how its votes went, its law
+  number) win the places over the other stage names, which Learn's road already covers. Two columns from `md`,
+  three from `lg`, then "Every word, in Learn →" (`/learn#words`). It is the plain-text
+  fallback for the popovers: nothing in it is a control, so a screen reader, a printout and
+  a reader who never taps all get every definition. On a phone it starts folded under one
+  outline button, "Show the words (n)", so it never adds a screen of text to every bill;
+  from `sm` up, and in print, it is always open. Learn's "Words you'll see" (`/learn#words`)
+  uses the same rows, with an anchor on each.
 - **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
   scale, a segment per stage in its stage colour, as wide as the days the bill
   stayed there (never under 6px), ending in a dot of the final stage's colour

@@ -1009,6 +1009,23 @@ export const analytics = {
   learnStateSelected: (state: string, representatives: number) =>
     capture('learn_state_selected', { state, representatives }),
 
+  // Civics words (components/brand/term.tsx, lib/glossary.ts)
+
+  /**
+   * A reader opened a civics word's plain meaning (`<Term>`): a tap, a click
+   * or Enter on the dotted word. `term` is the glossary id ("committee"),
+   * `path` the page it was opened on. "More words in Learn" inside the popover
+   * is autocaptured (`data-ph-capture-attribute-cta="term-more-in-learn"`).
+   */
+  termOpened: (props: { term: string; path: string }) => capture('term_opened', props),
+
+  /**
+   * A reader opened the "Words to know" list at the foot of a bill page on a
+   * phone, where it starts folded (from `sm` up it is always open, so this
+   * never fires there). `words` is how many the list holds. Once per opening.
+   */
+  billWordsExpanded: (props: { bill_id: string; words: number }) => capture('bill_words_expanded', props),
+
   // Feedback and surveys (components/feedback/). PostHog's own survey events,
   // not custom ones: their names and `$survey_*` properties are what fill the
   // Surveys tab, so they must stay exactly as PostHog's SDK would send them.

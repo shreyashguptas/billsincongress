@@ -106,7 +106,8 @@ app/                       Next.js App Router — 21 page.tsx files
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|to-president|passed-both-chambers|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
-    components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
+    components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker,
+                           and word-target.tsx (marks the "Words you'll see" row a <Term> popover linked to)
   about/ privacy/ terms/   Content and legal
   pro/                     The Pro plan page: plan cards first, then pictures (server-rendered; the subscribe panel is the only client code)
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
@@ -129,7 +130,9 @@ components/                Shared React components
   brand/                   The design language in code (documentation/brand.md): logo and
                            chamber mark, stage pill and track, party tag, section header,
                            the picture primitives (pictures.tsx), the Pro mark (pro-mark.tsx) and
-                           the length-limit count and message every limited text box uses (length-limit.tsx);
+                           the length-limit count and message every limited text box uses (length-limit.tsx),
+                           <Term>, a civics word's plain meaning in a popover (term.tsx, words in lib/glossary.ts),
+                           and the plain-text word rows Learn and a bill's "Words to know" share (word-list.tsx);
                            icon-alignment-check.tsx warns in dev about icons off their label
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)

@@ -5,6 +5,8 @@ import { billsService } from '@/lib/services/bills-service';
 import BillCard from '@/components/bills/bill-card';
 import SyncStatus from '@/components/bills/sync-status';
 import { SourceLine } from '@/components/brand/section';
+import { Term, TermText } from '@/components/brand/term';
+import type { TermId } from '@/lib/glossary';
 import { JsonLd } from '@/components/seo/json-ld';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { formatCount } from '@/lib/utils';
@@ -25,6 +27,24 @@ import { SHARE_CARD_SIZE, SITE_URL, hubShareImagePath, pageTitle } from '@/lib/s
 import { HubViewTracker, HubLink, HubOrderSwitch } from './hub-view-tracker';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { scopeFromHub } from '@/lib/answer-scope';
+
+/**
+ * The words a hub's explainer may lean on. Each is marked the first time it
+ * appears, so "Bills in committee" explains "committee" and "Vetoed bills"
+ * explains "veto", without a fixed list per hub.
+ */
+const HUB_TERMS: TermId[] = [
+  'resolution',
+  'simple-resolution',
+  'joint-resolution',
+  'concurrent-resolution',
+  'house',
+  'committee',
+  'chamber',
+  'floor',
+  'veto',
+  'crs',
+];
 
 
 /** Bills per hub page. Larger than /bills' ten, because a hub's job is partly
@@ -234,7 +254,8 @@ export async function HubView({
         <h1 className="mt-3 text-display-md text-ink sm:text-display-xl">{hub.heading}</h1>
 
         <p className="mt-4 max-w-measure text-[1.0625rem] leading-[1.6] text-ink-2">
-          {hub.explainer}
+          {/* The first civics word of each kind becomes a <Term>. */}
+          <TermText text={hub.explainer} terms={HUB_TERMS} />
         </p>
 
         <SourceLine className="mt-4">
@@ -256,7 +277,10 @@ export async function HubView({
                 </span>{' '}
                 {total === 1 ? 'bill' : 'bills'}
                 {congress !== null && (
-                  <> in the {formatCongressOrdinal(congress)} Congress ({formatCongressYears(congress)})</>
+                  <>
+                    {' '}in the <Term id="congress-number">{formatCongressOrdinal(congress)} Congress</Term> (
+                    {formatCongressYears(congress)})
+                  </>
                 )}
                 .
               </>

@@ -7,6 +7,8 @@ import { cn, formatCount } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { StageTrack, stageFill } from '@/components/brand/status';
 import { SourceLine } from '@/components/brand/section';
+import { Term, TermText } from '@/components/brand/term';
+import { stageTermId, type TermId } from '@/lib/glossary';
 import { getStageStep, PATH_LABELS, stagePath, stagePathNote } from '@/lib/utils/bill-stages';
 import {
   axisTicks,
@@ -42,6 +44,7 @@ export function BillJourneyPanel({
   journey,
   today,
   noun,
+  skipTerm = null,
 }: {
   billId: string;
   billType: string;
@@ -50,8 +53,11 @@ export function BillJourneyPanel({
   journey: BillJourney;
   today: string;
   noun: string;
+  /** A word the page has already explained (the status card's stage). */
+  skipTerm?: TermId | null;
 }) {
   const view = journeyView({ journey, billType, congress, today });
+  const terms = journeyTerms(view.chapters, billType, skipTerm);
   const drawn = view.chapters.length >= 2;
   const showClock = !view.finish;
   // Without a bar, the track is drawn on the measure's own road: a resolution
@@ -122,6 +128,7 @@ export function BillJourneyPanel({
                 key={`${chapter.stage}-${chapter.start}`}
                 chapter={chapter}
                 collapsed={collapsed}
+                terms={terms.get(chapter) ?? NO_TERMS}
               />
             ))}
           </ol>
@@ -229,7 +236,78 @@ function JourneyBar({ view, finalStage }: { view: ReturnType<typeof journeyView>
   );
 }
 
-function ChapterColumn({ chapter, collapsed }: { chapter: Chapter; collapsed: boolean }) {
+/** Which words one chapter explains: its own stage, and any first `how` or floor. */
+type ChapterTerms = { stage: TermId | null; how: Set<number>; floor: Set<number>; law: Set<number> };
+const NO_TERMS: ChapterTerms = { stage: null, how: new Set(), floor: new Set(), law: new Set() };
+
+/**
+ * Each civics word once, in reading order: a chapter's stage name, "by voice
+ * vote", "to the floor", "Public Law". Repeating a dotted word on every line
+ * of the timeline would turn help into noise.
+ */
+function journeyTerms(chapters: Chapter[], billType: string, skip: TermId | null) {
+  const used = new Set<string>(skip ? [skip] : []);
+  const out = new Map<Chapter, ChapterTerms>();
+  for (const c of chapters) {
+    const t: ChapterTerms = { stage: null, how: new Set(), floor: new Set(), law: new Set() };
+    const stageTerm = stageTermId(c.stage, billType);
+    if (stageTerm && !used.has(stageTerm)) {
+      used.add(stageTerm);
+      t.stage = stageTerm;
+    }
+    c.events.forEach((e, i) => {
+      if (e.how && !used.has(HOW_TERM[e.how])) {
+        used.add(HOW_TERM[e.how]);
+        t.how.add(i);
+      }
+      if (/\bfloor\b/i.test(e.label) && !used.has('floor')) {
+        used.add('floor');
+        t.floor.add(i);
+      }
+      if (e.kind === 'became_law' && !used.has('public-law')) {
+        used.add('public-law');
+        t.law.add(i);
+      }
+    });
+    out.set(c, t);
+  }
+  return out;
+}
+
+/**
+ * The words a journey explains, in the order it explains them: what the bill
+ * page's "Words to know" list draws on, so it names only words the page shows.
+ */
+export function journeyTermIds(journey: BillJourney, billType: string, congress: number, today: string): TermId[] {
+  const view = journeyView({ journey, billType, congress, today });
+  const terms = journeyTerms(view.chapters, billType, null);
+  const ids: TermId[] = [];
+  for (const c of view.chapters) {
+    const t = terms.get(c) ?? NO_TERMS;
+    if (t.stage) ids.push(t.stage);
+    c.events.forEach((e, i) => {
+      if (t.floor.has(i)) ids.push('floor');
+      if (t.law.has(i) && /Public Law [\d-]+/.test(e.label)) ids.push('public-law');
+      if (t.how.has(i) && e.how) ids.push(HOW_TERM[e.how]);
+    });
+  }
+  return ids;
+}
+
+const HOW_TERM: Record<NonNullable<JourneyEvent['how']>, TermId> = {
+  'voice vote': 'voice-vote',
+  'unanimous consent': 'unanimous-consent',
+};
+
+function ChapterColumn({
+  chapter,
+  collapsed,
+  terms,
+}: {
+  chapter: Chapter;
+  collapsed: boolean;
+  terms: ChapterTerms;
+}) {
   const unit = chapter.days === 1 ? 'day' : 'days';
   return (
     <li className="min-w-0">
@@ -247,11 +325,19 @@ function ChapterColumn({ chapter, collapsed }: { chapter: Chapter; collapsed: bo
           <span className="text-sm text-ink-2">{chapter.ongoing ? `${unit} so far` : unit}</span>
         )}
       </p>
-      <p className="mt-0.5 text-ui font-medium leading-snug text-ink">{chapter.name}</p>
+      <p className="mt-0.5 text-ui font-medium leading-snug text-ink">
+        {terms.stage ? <Term id={terms.stage}>{chapter.name}</Term> : chapter.name}
+      </p>
       {chapter.events.length > 0 && (
         <ul className={cn('mt-4 space-y-3.5 sm:block', collapsed && 'hidden')}>
           {chapter.events.map((e, i) => (
-            <EventLine key={`${e.kind}-${e.date}-${i}`} event={e} />
+            <EventLine
+              key={`${e.kind}-${e.date}-${i}`}
+              event={e}
+              termHow={terms.how.has(i)}
+              termFloor={terms.floor.has(i)}
+              termLaw={terms.law.has(i)}
+            />
           ))}
         </ul>
       )}
@@ -259,15 +345,30 @@ function ChapterColumn({ chapter, collapsed }: { chapter: Chapter; collapsed: bo
   );
 }
 
-function EventLine({ event }: { event: JourneyEvent }) {
+function EventLine({
+  event,
+  termHow,
+  termFloor,
+  termLaw,
+}: {
+  event: JourneyEvent;
+  termHow: boolean;
+  termFloor: boolean;
+  termLaw: boolean;
+}) {
   const hasTally = event.yeas !== undefined && event.nays !== undefined;
   const total = hasTally ? event.yeas! + event.nays! : 0;
   return (
     <li>
       <p className="text-meta font-medium text-ink tabular">{formatDay(event.date)}</p>
       <p className="text-meta text-ink-2">
-        {event.label}
-        {event.how ? `, by ${event.how}` : ''}.
+        <EventLabel label={event.label} floor={termFloor} law={termLaw} />
+        {event.how && (
+          <>
+            , by {termHow ? <Term id={HOW_TERM[event.how]}>{event.how}</Term> : event.how}
+          </>
+        )}
+        .
       </p>
       {hasTally && total > 0 && (
         <div className="mt-2 flex items-center gap-2.5">
@@ -290,6 +391,22 @@ function EventLine({ event }: { event: JourneyEvent }) {
       )}
     </li>
   );
+}
+
+/** "Became Public Law 119-105", with the law's name and "floor" explained. */
+function EventLabel({ label, floor, law }: { label: string; floor: boolean; law: boolean }) {
+  const lawName = law ? /Public Law [\d-]+/.exec(label) : null;
+  if (lawName) {
+    return (
+      <>
+        {label.slice(0, lawName.index)}
+        <Term id="public-law">{lawName[0]}</Term>
+        {label.slice(lawName.index + lawName[0].length)}
+      </>
+    );
+  }
+  if (floor) return <TermText text={label} terms={['floor']} />;
+  return <>{label}</>;
 }
 
 /**

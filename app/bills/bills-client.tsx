@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SourceLine } from '@/components/brand/section';
+import { Term } from '@/components/brand/term';
 import BillCard, { BillRowSkeleton } from '@/components/bills/bill-card';
 import { ScopeAskBar } from '@/components/answers/scope-ask-bar';
 import { AskPageContext } from '@/components/answers/ask-page-context';
@@ -497,6 +498,12 @@ export default function BillsClient({
           switcher in the filter band already says which years are covered. */}
       <header className="container-editorial pb-6 pt-10 sm:pb-8 sm:pt-14">
         <h1 className="text-display-md text-ink sm:text-display-xl">All bills</h1>
+        {/* Most rows are not bills at all, and most of those can never become
+            law: say so, with the two words a tap from their meaning. */}
+        <p className="mt-3 max-w-measure text-[1.0625rem] leading-[1.6] text-ink-2">
+          Every <Term id="bill">bill</Term> and <Term id="resolution">resolution</Term> on the record. Only bills
+          and joint resolutions can become law.
+        </p>
         <SourceLine className="mt-3">
           Source: Congress.gov
           <SyncStatus />

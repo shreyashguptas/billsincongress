@@ -26,17 +26,19 @@ import SaveBillButton from './save-bill-button';
 import BillAlertButton from './bill-alert-button';
 import ShareBillButton from './share-bill-button';
 import PodcastPromo from '@/components/podcast-promo';
-import { BillJourneyPanel } from './bill-journey';
+import { BillJourneyPanel, journeyTermIds } from './bill-journey';
 import { BillPeersSection } from './bill-peers';
 import { BillRelatedSection } from './bill-related';
 import { MemberAccounts } from './member-accounts';
 import { BillCosponsors } from './bill-cosponsors';
+import { BillWords } from './bill-words';
 import { journeyView } from '@/lib/bill-journey';
 import { billNextStep, daysLeftPhrase } from '@/lib/bill-next-step';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowRight,
   Ban,
   CircleHelp,
   FilePlus,
@@ -54,6 +56,8 @@ import { Button } from '@/components/ui/button';
 import { PartyDot, PartyTag } from '@/components/brand/party';
 import { SourceLine } from '@/components/brand/section';
 import { StageSteps, StageTrack, stageFill } from '@/components/brand/status';
+import { Term } from '@/components/brand/term';
+import { billPageWords, measureTermId, stageLine, stageTermId, termHref } from '@/lib/glossary';
 import { STATE_NAMES } from '@/lib/constants/filters';
 
 const PARTY_NAMES: Record<string, string> = {
@@ -165,6 +169,18 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   const StageGlyph = isStageOnPath(stage, billType) ? STAGE_GLYPH[stage as BillStage] : CircleHelp;
   const roadEnd = PATH_LABELS[stagePath(billType)][total - 1];
   const roadNote = stagePathNote(billType);
+  // The civics words this page explains, each the first time it appears.
+  const stageTerm = isStageOnPath(stage, billType) ? stageTermId(stage, billType) : null;
+  const measureTerm = measureTermId(billType);
+  // The current stage in one plain sentence, always on screen: the most
+  // important word on the page should not wait for a tap.
+  const stagePlain = stageTerm ? stageLine(stageTerm) : null;
+  // The status card's way to the whole road: Learn's picture story for a
+  // bill, the measure's own word for a resolution (its road is not that one).
+  const roadLink =
+    stagePath(billType) === 'law'
+      ? { href: '/learn#path', label: 'How a bill becomes law' }
+      : { href: termHref(measureTerm), label: 'What a resolution is' };
 
   const stateName = STATE_NAMES[bill.sponsor_state] || bill.sponsor_state;
   const partyName = PARTY_NAMES[bill.sponsor_party] || bill.sponsor_party;
@@ -256,6 +272,17 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   });
   const hasJourneySection = Boolean(journey) || hasBaseRate;
 
+  // "Words to know" at the foot of the page: the words it marked, in the
+  // order a reader meets them, its own kind of measure first.
+  const pageWords = billPageWords(measureTerm, [
+    'congress-number',
+    Boolean(sponsorName) && 'sponsor',
+    lead.from === 'summary' && 'crs',
+    stageTerm,
+    ...(journey ? journeyTermIds(journey, bill.bill_type, bill.congress, today) : []),
+    extras?.cosponsors?.fetched && 'cosponsor',
+  ], stageTerm);
+
   // A law "does"; anything still on its way, or stopped, "would do".
   const enacted = stage === BillStages.BECAME_LAW || stage === BillStages.SIGNED_BY_PRESIDENT;
   const doesTitle = enacted ? `What this ${noun === 'bill' ? 'law' : noun} does` : `What this ${noun} would do`;
@@ -290,9 +317,14 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
         <div className="mt-6 grid gap-8 sm:mt-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-x-16 lg:gap-y-8 xl:gap-x-20">
           <div className="min-w-0 lg:col-start-1 lg:row-start-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="font-mono text-sm font-medium text-ink tabular">{billLabel}</span>
+              {/* The number names the kind of measure: "H.Res." is a resolution
+                  that can never become law, and nothing else on the page says
+                  so this early. */}
+              <span className="font-mono text-sm font-medium text-ink tabular">
+                <Term id={measureTerm}>{billLabel}</Term>
+              </span>
               <span className="text-sm text-ink-2 tabular">
-                {formatCongressProse(bill.congress)}
+                <Term id="congress-number">{formatCongressProse(bill.congress)}</Term>
               </span>
               {bill.bill_subjects?.policy_area_name && (
                 <Badge variant="secondary">{bill.bill_subjects.policy_area_name}</Badge>
@@ -323,7 +355,9 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                     ·
                   </span>
                   <span className="inline-flex min-w-0 items-center gap-2">
-                    By
+                    <span>
+                      <Term id="sponsor">Sponsored</Term> by
+                    </span>
                     <PartyTag name={sponsorName} party={bill.sponsor_party} state={bill.sponsor_state} />
                   </span>
                 </>
@@ -340,7 +374,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               <p className="meta mt-3">
                 {lead.from === 'summary' ? (
                   <>
-                    From the summary by the Congressional Research Service
+                    From the summary by the <Term id="crs">Congressional Research Service</Term>
                     {lead.rest && (
                       <>
                         {' · '}
@@ -385,14 +419,30 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                     </span>
                   </span>
                   <p className="font-serif text-display-sm font-medium text-ink">
-                    {measureStageLabel(stage, billType)}
+                    {stageTerm ? (
+                      <Term id={stageTerm}>{measureStageLabel(stage, billType)}</Term>
+                    ) : (
+                      measureStageLabel(stage, billType)
+                    )}
                   </p>
                 </div>
+                {/* What the stage means, in one plain sentence, without a tap. */}
+                {stagePlain && (
+                  <p className="mt-2 max-w-measure text-ui leading-snug text-ink-2">{stagePlain}</p>
+                )}
                 <p className="mt-1.5 text-sm text-ink-2 tabular">
                   {/* A vetoed bill is not "stage 5 of 7": it reached the
                       President and stopped there, off the path to law. */}
                   {stageNote(stage, billType)}
                 </p>
+                <Link
+                  href={roadLink.href}
+                  data-ph-capture-attribute-cta="bill-status-learn-road"
+                  className="focus-ring touch-hit mt-2 flex w-fit items-center gap-1.5 rounded-xs text-sm font-medium text-ink-2 underline decoration-line-strong underline-offset-[3px] transition-colors hover:text-ink hover:decoration-ink"
+                >
+                  {roadLink.label}
+                  <ArrowRight className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                </Link>
               </div>
 
               {view && view.totalDays > 0 && (
@@ -551,6 +601,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   journey={journey}
                   today={today}
                   noun={noun}
+                  skipTerm={stageTerm}
                 />
               )}
 
@@ -664,6 +715,10 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
         policyArea={bill.bill_subjects?.policy_area_name ?? null}
         related={extras?.related ?? []}
       />
+
+      {/* Every word the page explained, as plain text: the fallback for the
+          popovers (screen readers, print, readers who never tap). */}
+      <BillWords billId={String(bill.id)} ids={pageWords} />
 
       {/* Ask the record — the page's quiet closing band */}
       <section aria-labelledby="bill-ask-title" className="bg-sunken py-16 sm:py-[72px]">

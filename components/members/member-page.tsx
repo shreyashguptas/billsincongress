@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import type { MemberPageData } from '@/app/members/[id]/page';
 import { STATE_NAMES } from '@/lib/constants/filters';
 import { measureStageLabel } from '@/lib/utils/bill-stages';
@@ -8,6 +9,7 @@ import { SourceLine } from '@/components/brand/section';
 import { stageFill } from '@/components/brand/status';
 import { MemberAccounts } from '@/components/bills/member-accounts';
 import { Arrow } from '@/components/brand/arrow';
+import { Term } from '@/components/brand/term';
 
 const PARTY_NAMES: Record<string, string> = { D: 'Democrat', R: 'Republican', I: 'Independent', L: 'Libertarian' };
 
@@ -17,18 +19,32 @@ function ordinal(n: number): string {
   return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`;
 }
 
-/** "Representative · California's 12th district", "Senator · New York". */
-function seatLine(member: MemberPageData['member']): string {
+/**
+ * "Representative · California's 12th district", "Senator · New York". The
+ * seat's words are the page's first civics words, so each explains itself.
+ */
+function SeatLine({ member }: { member: MemberPageData['member'] }) {
   const state = STATE_NAMES[member.state] ?? member.state;
-  if (member.chamber === 'senate') return `Senator · ${state}`;
-  if (member.district === null) return `Representative · ${state}`;
-  if (member.district === 0) return `Representative · ${state}, at large`;
-  return `Representative · ${state}'s ${ordinal(member.district)} district`;
+  if (member.chamber === 'senate') {
+    return (
+      <>
+        <Term id="senator">Senator</Term> · {state}
+      </>
+    );
+  }
+  const rep = <Term id="representative">Representative</Term>;
+  if (member.district === null) return <>{rep} · {state}</>;
+  if (member.district === 0) return <>{rep} · {state}, at large</>;
+  return (
+    <>
+      {rep} · {state}&rsquo;s {ordinal(member.district)} <Term id="district">district</Term>
+    </>
+  );
 }
 
 type BillRow = MemberPageData['sponsored'][number] & { joined?: string };
 
-function BillList({ title, id, bills, empty }: { title: string; id: string; bills: BillRow[]; empty: string }) {
+function BillList({ title, id, bills, empty }: { title: ReactNode; id: string; bills: BillRow[]; empty: string }) {
   return (
     <section aria-labelledby={id}>
       <h2 id={id} className="font-serif text-display-sm text-ink">
@@ -74,7 +90,9 @@ export function MemberPage({ page }: { page: MemberPageData }) {
   return (
     <article className="container-editorial py-12 sm:py-16">
       <header className="max-w-3xl">
-        <p className="label-eyebrow">{seatLine(member)}</p>
+        <p className="label-eyebrow">
+          <SeatLine member={member} />
+        </p>
         <h1 className="mt-3 font-serif text-display-md text-ink sm:text-display-lg">{member.name}</h1>
         {member.party && (
           <p className="mt-4 inline-flex items-center gap-2 text-ink-2">
@@ -91,7 +109,11 @@ export function MemberPage({ page }: { page: MemberPageData }) {
         <div className="min-w-0 space-y-14">
           <BillList
             id="member-sponsored"
-            title={`Newest bills ${member.name} sponsored`}
+            title={
+              <>
+                Newest bills {member.name} <Term id="sponsor">sponsored</Term>
+              </>
+            }
             bills={sponsored}
             empty={`None yet in ${congressWords}.`}
           />
@@ -107,7 +129,11 @@ export function MemberPage({ page }: { page: MemberPageData }) {
           )}
           <BillList
             id="member-cosponsored"
-            title="Newest bills they cosponsored"
+            title={
+              <>
+                Newest bills they <Term id="cosponsor">cosponsored</Term>
+              </>
+            }
             bills={cosponsored}
             empty={`None recorded yet in ${congressWords}.`}
           />
