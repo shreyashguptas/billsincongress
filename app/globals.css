@@ -392,21 +392,41 @@
 /* A popover that flipped above its trigger rises out of it, not down into it. */
 [data-side='top'] { --pop-y: 4px; }
 
-/* A 44px hit area for a small control on a touch screen, without moving
-   anything: an invisible box centred on the control, at least 44px each way.
-   Use it where growing the control itself would break a line of text or a row
-   (brand.md: every control is 44px on touch). */
+/* The hit area of a small stand-alone control, without moving anything: an
+   invisible box centred on the control, at least 24px each way under a mouse
+   (WCAG 2.2, 2.5.8) and 44px under a finger (brand.md: every control is 44px
+   on touch). The control looks exactly as it did; only where it answers a
+   click grows. Use it where growing the control itself would break a line of
+   text or a row. Text links get it by default through the primitives:
+   Button's `link` variant, AskAbout, BrowseLink, the footer's links, and every
+   link inside a SourceLine (`.touch-hit-links`).
+
+   Two rules keep it honest:
+   - Neighbours stay apart. Two targets need 44px between their centres on
+     touch, or their boxes overlap and the later one wins;
+     `scripts/check-touch-targets.ts` measures what a finger can actually hit.
+   - It is never clipped. An `overflow-hidden` or scrolling parent cuts the box
+     off at its edge; give that parent room (padding) or grow the control.
+
+   `:where()` keeps the `relative` at zero specificity, so a control that is
+   itself `absolute` or `sticky` keeps its own positioning (and still contains
+   the box). `components/brand/touch-targets.test.ts` guards all of this. */
+:where(.touch-hit, .touch-hit-links a) { position: relative; }
+.touch-hit,
+.touch-hit-links a { --hit-min: 24px; }
+.touch-hit::after,
+.touch-hit-links a::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit-min));
+  height: max(100%, var(--hit-min));
+  transform: translate(-50%, -50%);
+}
 @media (any-pointer: coarse) {
-  .touch-hit { position: relative; }
-  .touch-hit::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: max(100%, 44px);
-    height: max(100%, 44px);
-    transform: translate(-50%, -50%);
-  }
+  .touch-hit,
+  .touch-hit-links a { --hit-min: 44px; }
 }
 
 /* The menu's rows follow the sheet in, a few milliseconds apart (delays are set

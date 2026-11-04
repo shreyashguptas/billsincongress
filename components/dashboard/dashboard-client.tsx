@@ -670,6 +670,9 @@ function MonthlyCadenceChart({ house, senate, congress }: MonthlyCadenceChartPro
           ref={overlayRef}
           role="group"
           aria-label={`Bills introduced each month of the ${formatCongressOrdinal(congress)} Congress`}
+          // The columns tile the whole chart with no gaps, and a finger drags
+          // across them to scrub, so a column's width is not its target.
+          data-touch-exempt="month chart: a scrub surface, the finger drags across it"
           className="absolute inset-0 flex touch-pan-y"
           onPointerMove={(e) => {
             if (e.pointerType === 'mouse') setHover(columnAt(e.clientX));

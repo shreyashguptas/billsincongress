@@ -62,7 +62,8 @@ export default function PodcastPromo({
             The ideas behind everything Congress does — each Federalist Paper
             explained in plain English, one short episode at a time.
           </p>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+          {/* 24px between the lines on touch, so the two 44px targets do not overlap. */}
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm touchable:gap-y-6">
             <a
               href={PODCAST.spotifyUrl}
               target="_blank"

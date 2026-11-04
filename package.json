@@ -15,6 +15,7 @@
     "check:retention": "tsx scripts/check-provider-retention.ts",
     "check:web-citations": "tsx scripts/check-web-citations.ts",
     "check:grounding": "tsx scripts/check-grounding.ts",
+    "check:touch": "tsx scripts/check-touch-targets.ts",
     "posthog:self-driving": "tsx scripts/posthog-self-driving-setup.ts"
   },
   "dependencies": {

@@ -75,7 +75,7 @@ export function HomeHero(props: HomeProps) {
             The {formatCongressOrdinal(congress)} Congress · {formatCongressYears(congress)}
           </p>
           <div className="flex items-center gap-5">
-            <BrowseLink label="Browse bills →" />
+            <BrowseLink label="Browse bills" />
             <CongressSelect {...props} />
           </div>
         </div>
@@ -119,7 +119,7 @@ export function HomeHero(props: HomeProps) {
               className={cn(
                 // A phone gives each party a full-width row, name then counts,
                 // rather than a third of the width, so they fit at any font size.
-                'focus-ring flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-sm border-t border-line py-3 text-left transition-opacity sm:block sm:border-0 sm:py-0 sm:text-center',
+                'focus-ring flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-sm border-t border-line py-3 text-left transition-opacity sm:block sm:border-0 sm:py-0 sm:text-center touchable:min-h-11',
                 hover && hover !== p.key && 'opacity-35',
               )}
             >

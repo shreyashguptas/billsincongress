@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { AskAbout } from '@/components/answers/ask-about';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Arrow } from '@/components/brand/arrow';
 
 type Dashboard = NonNullable<FunctionReturnType<typeof api.bills.getCongressDashboard>>;
 type Breakdown = FunctionReturnType<typeof api.bills.getChamberDeepBreakdown>;
@@ -94,17 +95,17 @@ export function CongressSelect({
   );
 }
 
-export function BrowseLink({ className, label = 'Or browse all bills →' }: { className?: string; label?: string }) {
+export function BrowseLink({ className, label = 'Or browse all bills' }: { className?: string; label?: string }) {
   return (
     <Link
       href="/bills"
       data-ph-capture-attribute-cta="home-browse-bills"
       className={cn(
-        'link focus-ring rounded-sm text-sm',
+        'link touch-hit focus-ring rounded-sm text-sm',
         className,
       )}
     >
-      {label}
+      {label} <Arrow />
     </Link>
   );
 }
@@ -116,7 +117,7 @@ export function BrowseLink({ className, label = 'Or browse all bills →' }: { c
 export function SectionAsk({ question }: { question: string }) {
   return (
     <AskAbout question={question} className="focus-ring whitespace-nowrap rounded-sm text-sm font-medium">
-      Ask about this →
+      Ask about this <Arrow />
     </AskAbout>
   );
 }

@@ -44,8 +44,9 @@ export function SectionHeader({
  * Where a view's numbers came from and when they were last read. Every chart
  * and page title that shows a count carries one. Set as `.meta` (14px Geist,
  * tabular, ink-2): it tells the reader how far to trust the figure above it,
- * so it is read, not skimmed past.
+ * so it is read, not skimmed past. Each link in it gets an invisible 44px
+ * target on a touch screen (`.touch-hit-links`).
  */
 export function SourceLine({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('meta', className)}>{children}</p>;
+  return <p className={cn('meta touch-hit-links', className)}>{children}</p>;
 }

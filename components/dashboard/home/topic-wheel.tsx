@@ -23,6 +23,7 @@ import { AskAbout } from '@/components/answers/ask-about';
 import { SectionHeader } from '@/components/brand/section';
 import { Button } from '@/components/ui/button';
 import { SectionAsk, fmt, type HomeProps } from './shared';
+import { Arrow } from '@/components/brand/arrow';
 
 const COLORED = 6;
 const S = 640;
@@ -210,13 +211,13 @@ export function TopicWheel({
                       engines index, and these rows are how link equity reaches the
                       topic hubs. The grey "everything else" slice has no hub. */}
                   {w.isRest ? (
-                    <span className="w-10 shrink-0" aria-hidden="true" />
+                    <span className="w-11 shrink-0" aria-hidden="true" />
                   ) : (
                     <Link
                       href={policyAreaHref(w.name)}
                       onClick={() => analytics.dashboardDrilldownClicked('policyArea', w.name, congress)}
                       aria-label={`See the ${w.name.toLowerCase()} bills`}
-                      className="focus-ring flex h-11 w-10 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:text-ink"
+                      className="focus-ring flex h-11 w-11 shrink-0 items-center justify-center rounded-sm text-ink-3 hover:text-ink"
                     >
                       →
                     </Link>
@@ -234,22 +235,26 @@ export function TopicWheel({
                     onClick={() => onDrillDown('congress', congress)}
                     className="rounded-sm font-normal decoration-1"
                   >
-                    Browse every bill →
+                    {/* One span: Button is a flex box, which would drop the space before the arrow. */}
+                    <span>
+                      Browse every bill <Arrow />
+                    </span>
                   </Button>
                 ) : (
-                  <div className="flex flex-wrap gap-x-5 gap-y-2">
+                  // 24px between the lines on touch: two 44px targets, no overlap.
+                  <div className="flex flex-wrap gap-x-5 gap-y-2 touchable:gap-y-6">
                     <Link
                       href={policyAreaHref(pinnedItem.name)}
                       onClick={() => analytics.dashboardDrilldownClicked('policyArea', pinnedItem.name, congress)}
-                      className="link focus-ring rounded-sm"
+                      className="link touch-hit focus-ring rounded-sm"
                     >
-                      See the {fmt(pinnedItem.count)} {pinnedItem.name.toLowerCase()} bills →
+                      See the {fmt(pinnedItem.count)} {pinnedItem.name.toLowerCase()} bills <Arrow />
                     </Link>
                     <AskAbout
                       question={`What are the ${pinnedItem.name.toLowerCase()} bills in the ${formatCongressOrdinal(congress)} Congress about?`}
                       className="focus-ring rounded-sm text-sm"
                     >
-                      Ask what they&rsquo;re about →
+                      Ask what they&rsquo;re about <Arrow />
                     </AskAbout>
                   </div>
                 )

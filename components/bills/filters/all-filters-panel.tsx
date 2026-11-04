@@ -67,7 +67,7 @@ export function AllFiltersPanel({
           variant="ghost"
           aria-haspopup="dialog"
           aria-label="All filters"
-          className="h-9 shrink-0 px-3"
+          className="h-9 shrink-0 px-3 touchable:min-w-11"
         >
           <SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">All filters</span>

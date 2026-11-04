@@ -86,7 +86,7 @@ export function BillCosponsors({
                 {c.accounts ? (
                   <Link
                     href={`/members/${c.bioguideId}`}
-                    className="focus-ring inline-flex max-w-full rounded-sm hover:underline"
+                    className="touch-hit focus-ring inline-flex max-w-full rounded-sm hover:underline"
                     onClick={() =>
                       analytics.memberPageLinkClicked({ bioguide_id: c.bioguideId, from: 'bill_cosponsors', bill_id: billId })
                     }
@@ -100,7 +100,7 @@ export function BillCosponsors({
                   {c.isOriginal ? 'Original cosponsor' : `Joined ${joined(c.sponsorshipDate)}`}
                 </p>
                 {c.accounts && c.accounts.accounts.length > 0 && (
-                  <ul className="mt-1 flex flex-wrap gap-x-4 text-sm" aria-label={`${c.name}'s official accounts`}>
+                  <ul className="mt-1 flex flex-wrap gap-x-4 text-sm touchable:gap-x-5" aria-label={`${c.name}'s official accounts`}>
                     {c.accounts.accounts.map((a) => (
                       <li key={a.platform}>
                         <a
@@ -108,7 +108,9 @@ export function BillCosponsors({
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={`${PLATFORM_NAMES[a.platform]} ${a.label} (opens in a new tab)`}
-                          className="inline-flex min-h-11 items-center text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink sm:min-h-8"
+                          // 44px tall on touch; touch-hit widens "X" to 44px, and
+                          // the 20px gap keeps it off "Facebook" beside it.
+                          className="touch-hit focus-ring inline-flex min-h-8 items-center rounded-xs text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink touchable:min-h-11"
                           onClick={() =>
                             analytics.memberAccountClicked({
                               platform: a.platform,

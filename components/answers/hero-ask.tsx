@@ -19,6 +19,7 @@ import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit
 import { cn } from '@/lib/utils';
 import { MAX_QUESTION_LENGTH } from '@/lib/text-limit';
 import { FINE_POINTER_QUERY } from '@/lib/type-to-ask';
+import { Arrow } from '@/components/brand/arrow';
 
 // Starter questions: rounded-full outline pills (brand.md, "Ask composer"),
 // on the page rather than raised. Inline-block and wrapping, so a long starter
@@ -320,7 +321,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                   }}
                   className="link ml-auto font-sans"
                 >
-                  See all matching bills →
+                  See all matching bills <Arrow />
                 </Link>
               )}
             </div>

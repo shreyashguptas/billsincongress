@@ -463,7 +463,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   // A page exists for every member in office (app/members/[id]).
                   <Link
                     href={`/members/${extras.sponsorAccounts.bioguideId}`}
-                    className="focus-ring rounded-sm hover:underline"
+                    className="touch-hit focus-ring rounded-sm hover:underline"
                     onClick={() =>
                       analytics.memberPageLinkClicked({
                         bioguide_id: extras.sponsorAccounts!.bioguideId,

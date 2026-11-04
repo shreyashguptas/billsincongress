@@ -204,7 +204,13 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   questions and the send button.
 - **Elevation**: borders carry structure. `shadow-float` is only for things
   that float over the page: the ask panel, menus, popovers.
-- **Touch**: controls are 44px tall on touch screens (the `touchable:` variant).
+- **Touch**: every tap target is 44px on a touch screen, and nothing a mouse clicks is under
+  24px (WCAG 2.2, 2.5.8). A real control (button, pill, toggle, page number, select) is 44px
+  itself on touch, through the `touchable:` variant. A text control that cannot grow (a link
+  with an arrow, a breadcrumb, a name, a footer or source link) keeps its look and line height
+  and takes `.touch-hit` instead: it answers a click 24px each way under a mouse and a tap 44px
+  each way under a finger. Neighbouring targets sit 44px apart, centre to centre, so their
+  targets do not overlap. See "Input, not width" for which primitives carry it.
 
 ## Components
 
@@ -250,13 +256,14 @@ existing brand edits:
 
 | Component | Brand edit |
 |---|---|
-| `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch; `link` takes no box (no height or padding) |
+| `Button` | Radius `rounded-md`; `outline` sits on `card` (raised) rather than the page; 44px on touch; `link` takes no box (no height or padding), and gets an invisible target instead (`.touch-hit`: 24px under a mouse, 44px on touch) |
 | `Badge` | A `<span>` (badges sit inside text and links); 24px tall, sentence case, `rounded-sm`; `secondary` text is `ink-2` for contrast |
 | `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 85% with no blur, not black (a dark scrim lightens nothing in Night, and a blur is repainted every frame on older machines); `shadow-float`; the corner close is a 40px ghost icon button, 44px on touch |
 | `Dialog` | Two layers: a fixed frame (`className`: size, colour) that is never taller than the screen less 1rem all round and never scrolls, and a body inside it (`bodyClassName`: padding, gap) that does. The close button sits on the frame, so it stays in its corner while a long dialog scrolls. A card with a 1rem gutter and rounded corners at every width, phones included, centred on whole pixels (`inset-0 m-auto h-fit`, not a half-pixel translate) |
 | `Sheet` | Drag to close, with a finger or a mouse (see "Motion and gesture"). Side sheets take a finger anywhere and a mouse on the element marked `data-sheet-grab`; a bottom sheet drags from its grab bar, which `grabber` draws |
 | `Sheet`, `Popover`, `Dialog`, `DropdownMenu` | Their own enter/exit keyframes (`tailwind.config.ts`), timed in "Motion and gesture". A popover that opens above its trigger rises out of it instead of dropping |
 | `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
+| `Toggle`, `ToggleGroup` | 44px tall and at least 44px wide on touch, at every size |
 | `Select` | Item text and the placeholder are wrapped in a `<span>`, so a reader who translates the page (Chrome's "Translate this page") does not crash it when the value changes; `components/ui/select.test.ts` guards this against a re-run of `shadcn add` |
 | `Textarea` | On `card` like `Input`; 15px from `sm` up, 16px on phones, where anything smaller makes iOS zoom the page on focus |
 
@@ -270,8 +277,9 @@ These live in `components/brand/` and compose the primitives above.
 | `StatusPill` | `components/brand/status.tsx` | A stage as a dot and a word, from `measureStageLabel()` in `lib/utils/bill-stages.ts` ("Agreed to by the House" for an adopted House resolution). Never fill the whole pill with the stage colour |
 | `StageTrack` | `components/brand/status.tsx` | Equal segments, one per step on the measure's own road: seven for a bill, four for a concurrent resolution, three for a simple resolution (see "The road a measure travels", below). Reached segments take the current stage's colour. `labels` adds the step names (bill pages only) |
 | `PartyTag`, `PartyDot` | `components/brand/party.tsx` | The dot is the only place party colour appears outside a chart |
-| `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right |
-| `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count |
+| `SectionHeader` | `components/brand/section.tsx` | Eyebrow, a headline that states the finding (`finding` for the 44px size), one action on the right. The usual action, `AskAbout`, carries `.touch-hit` (a caption that taps like a 44px button) |
+| `SourceLine` | `components/brand/section.tsx` | "Source: Congress.gov · Updated …" under every chart and every count. Each link in it gets the `.touch-hit` target, 24px under a mouse and 44px on touch (`.touch-hit-links`) |
+| `Arrow` | `components/brand/arrow.tsx` | The → that ends a text link, hidden from screen readers so the link's name is its words |
 | `AvatarMark`, `ProPill`, `SpectrumStrip` | `components/brand/pro-mark.tsx` | The reader's photo, or their initials, in a circle, and the Pro mark. See Pro, below. A photo that fails to load falls back to the initials (`AvatarPhoto`, `components/brand/avatar-photo.tsx`) |
 | `Scene`, `Person`, `Paper`, `Envelope`, `TrackPicture` | `components/brand/pictures.tsx` | The picture primitives. See Pictures, below |
 | `useLengthLimit`, `LengthLimitNote` | `components/brand/length-limit.tsx` | Every text box with a length limit. See "Length limits", below |
@@ -403,7 +411,7 @@ Patterns that appear on more than one page:
   this bill"). A hairline-ruled list, two columns from `md`: each row is the member's `PartyTag`
   (a link to their member page when they are in office), "Original cosponsor" or "Joined Oct 5,
   2026" in `ink-3` at 14px, and the confirmed accounts as underlined platform names in `ink-2`, 44px tall
-  on touch. Ten rows, then an outline "Show all N cosponsors" button. A `SourceLine` closes it.
+  on touch, with a 44px-wide target even for "X". Ten rows, then an outline "Show all N cosponsors" button. A `SourceLine` closes it.
 - **Member page** (`/members/<id>`, `components/members/member-page.tsx`): eyebrow with the seat
   ("Representative · New Jersey's 9th district"), the name at `display-lg`, the party as a dot and
   a word. Below, the two bill lists in the "Keep reading" row style, and the "Official accounts"
@@ -586,7 +594,41 @@ the same with a finger, a pen or a mouse:
 (Tailwind's `hoverOnlyWhenSupported`), so a tapped control never stays painted
 in its hover state. Every control is 44px on a touch screen (`touchable:`),
 including touchscreen laptops; where growing the control would break a line,
-`.touch-hit` adds an invisible 44px target around it instead.
+`.touch-hit` adds an invisible target around it instead: 44px on a touch
+screen, and at least 24px under a mouse (WCAG 2.2's minimum), so the text looks
+the same and only where it answers grows. It sets `position: relative` through
+`:where()`, at zero specificity, so a control that is itself `absolute` keeps
+its place. The primitives
+carry it, so a new control gets it by default: `Button`, `Toggle` and
+`SelectTrigger` grow to 44px; `Button variant="link"`, `AskAbout`, `BrowseLink`,
+the footer's links and every link in a `SourceLine` get `.touch-hit`. A row of
+text links that wraps (the hub links under a bill) grows each link to 44px tall
+with no gap between rows, rather than stacking 44px targets on 20px lines.
+Two rules come with it:
+
+- **Neighbours stay apart.** One target's box never reaches into the next one's.
+  A row of them that can wrap keeps 24px between lines on touch
+  (`touchable:gap-y-6`), or grows each link to a 44px row; short words in a row
+  keep 20px or more between them.
+- **Nothing clips it.** An `overflow-hidden` or scrolling parent cuts the box off
+  at its edge; there, grow the control itself (`touchable:h-11`) instead.
+
+The theme switch is three 32px icons under a mouse; on touch each segment is
+44px and names its theme beside the icon ("Light", "Dark", "System"), so the
+reader does not have to decode a sun and a moon. The arrow that ends a text link
+("Browse bills →") is drawn with `Arrow` (`components/brand/arrow.tsx`), which
+hides it from screen readers: the link is named "Browse bills", not "Browse
+bills right arrow".
+
+`components/brand/touch-targets.test.ts` (in `pnpm test`) fails if a shared
+piece loses its target, the 24/44 rule or its spacing.
+
+`pnpm check:touch` (`scripts/check-touch-targets.ts`) opens the site at 390px with touch on and lists
+every target a finger can hit over less than 44px, measured with real hit
+testing (so overlapping targets fail). It is not in CI; run it before merging
+anything a reader taps. A chart whose geometry is the data (the state map's
+tiles, the month chart's scrub columns) is marked `data-touch-exempt="<why>"`;
+use it for nothing else. Links inside a running sentence are exempt, as in WCAG.
 
 **Reduced motion.** Under `prefers-reduced-motion` every surface still opens
 and closes, but in 1ms: the slide, rise, zoom and stagger go, the result stays.
@@ -871,7 +913,8 @@ This is the site's one moment of play. Nothing else gets confetti.
 ## Accessibility
 
 - Focus is visible on every control (`.focus-ring`).
-- Touch targets are 44px.
+- Touch targets are 44px, and nothing a mouse clicks is under 24px (`.touch-hit`).
+- The arrow at the end of a link is hidden from screen readers (`Arrow`).
 - Party and stage are always a word as well as a dot.
 - Every chart has a text alternative that states its totals.
 - Both themes are designed. Neither is an inversion of the other.

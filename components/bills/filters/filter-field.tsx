@@ -11,6 +11,7 @@ import { AdaptiveSurface } from './adaptive-surface';
 import { FilterPill } from './filter-pill';
 import { OptionList } from './option-list';
 import { loadSponsors } from './sponsor-source';
+import { Arrow } from '@/components/brand/arrow';
 
 export interface FilterFieldProps {
   definition: FilterDefinition;
@@ -156,7 +157,7 @@ export function FilterField({
                   }
                   className="link mt-2 inline-block rounded-xs text-sm font-medium focus-ring"
                 >
-                  Read the {hubDefinition.heading.toLowerCase()} guide →
+                  Read the {hubDefinition.heading.toLowerCase()} guide <Arrow />
                 </Link>
               </div>
             ) : null

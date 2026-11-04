@@ -34,8 +34,9 @@ const buttonVariants = cva(
     },
     // A link is text, not a box: without this the default size's height and
     // padding (applied after the variant) turned every `variant="link"` into a
-    // 40px-tall button with side padding.
-    compoundVariants: [{ variant: 'link', class: 'h-auto px-0 py-0 touchable:h-auto' }],
+    // 40px-tall button with side padding. On a touch screen it keeps its text
+    // height but gets an invisible 44px target (`.touch-hit`, app/globals.css).
+    compoundVariants: [{ variant: 'link', class: 'touch-hit h-auto px-0 py-0 touchable:h-auto' }],
     defaultVariants: {
       variant: 'default',
       size: 'default',

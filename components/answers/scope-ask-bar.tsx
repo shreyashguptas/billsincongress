@@ -4,6 +4,7 @@ import { useAnswers } from './answer-provider';
 import { analytics } from '@/lib/analytics';
 import type { AnswerScope } from '@/lib/answer-scope';
 import { Button } from '@/components/ui/button';
+import { Arrow } from '@/components/brand/arrow';
 
 /**
  * The ask bar on a filtered list (spec §6.3).
@@ -30,7 +31,10 @@ export function ScopeAskBar({ scope, count }: { scope: AnswerScope | null; count
       }}
       className="rounded-sm text-caption decoration-1"
     >
-      Ask about these →
+      {/* One span: Button is a flex box, which would drop the space before the arrow. */}
+      <span>
+        Ask about these <Arrow />
+      </span>
     </Button>
   );
 }

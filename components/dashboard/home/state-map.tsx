@@ -28,6 +28,7 @@ import { formatCongressOrdinal } from '@/lib/congress';
 import { SectionHeader } from '@/components/brand/section';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SectionAsk, fmt, type HomeProps } from './shared';
+import { Arrow } from '@/components/brand/arrow';
 
 // [column, row] on an 11 × 8 grid.
 const TILES: Record<string, [number, number]> = {
@@ -213,7 +214,7 @@ export function StateMap({
                   <ToggleGroupItem
                     key={id}
                     value={id}
-                    className="h-8 rounded-sm px-3 text-caption font-medium text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink touchable:h-10"
+                    className="h-8 rounded-sm px-3 text-caption font-medium text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink touchable:h-11"
                   >
                     {label}
                   </ToggleGroupItem>
@@ -221,7 +222,14 @@ export function StateMap({
               </ToggleGroup>
             )}
 
-            <div className="grid grid-cols-11 gap-1 sm:gap-1.5">
+            {/* A map, not a row of buttons: eleven tiles must fit a phone, so a
+                tile is ~29px there (above WCAG's 24px, under the 44px the rest
+                of the site keeps). The Top five list and the state filter on
+                /bills reach the same pages with full-size rows. */}
+            <div
+              className="grid grid-cols-11 gap-1 sm:gap-1.5"
+              data-touch-exempt="state map: geographic tiles, 29px at 390px"
+            >
               {Array.from({ length: 8 * 11 }, (_, i) => {
                 const col = i % 11;
                 const row = Math.floor(i / 11);
@@ -231,11 +239,14 @@ export function StateMap({
             </div>
 
             {TERRITORIES.some((t) => byState.has(t)) && (
-              <div className="mt-3 flex items-center gap-3">
-                <span className="label-eyebrow">Territories</span>
-                <div className="grid grid-cols-11 gap-1 sm:gap-1.5 flex-1">
-                  {TERRITORIES.filter((t) => byState.has(t)).map((t) => tile(t))}
-                </div>
+              // On the map's own eleven-column grid, so a territory is the same
+              // size as a state rather than squeezed beside its label.
+              <div
+                className="mt-3 grid grid-cols-11 items-center gap-1 sm:gap-1.5"
+                data-touch-exempt="state map: geographic tiles, 29px at 390px"
+              >
+                <span className="label-eyebrow col-span-4">Territories</span>
+                {TERRITORIES.filter((t) => byState.has(t)).map((t) => tile(t))}
               </div>
             )}
 
@@ -296,7 +307,7 @@ export function StateMap({
                     onClick={() => analytics.dashboardDrilldownClicked('state', focus.st, congress)}
                     className="link touch-hit focus-ring mt-3 inline-block rounded-sm text-sm"
                   >
-                    See its bills →
+                    See its bills <Arrow />
                   </Link>
                 </div>
               ) : (

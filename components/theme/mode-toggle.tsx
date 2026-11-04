@@ -22,7 +22,9 @@ export function ModeToggle() {
   ];
 
   // A sunken track with the active choice raised. Nothing is marked until
-  // mount, since the server cannot know the stored theme.
+  // mount, since the server cannot know the stored theme. Under a mouse the
+  // segments are 32px icons; under a finger each is a 44px segment that names
+  // its theme, so the reader does not have to decode a sun and a moon.
   return (
     <ToggleGroup
       type="single"
@@ -38,9 +40,10 @@ export function ModeToggle() {
           key={opt.value}
           value={opt.value}
           aria-label={opt.label}
-          className="h-8 w-8 min-w-8 rounded-[6px] p-0 touchable:h-10 touchable:w-10 text-ink-3 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm [&_svg]:size-3.5"
+          className="h-8 w-8 min-w-8 rounded-[6px] p-0 touchable:h-11 touchable:w-auto touchable:min-w-11 touchable:gap-1.5 touchable:px-3 text-ink-3 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm [&_svg]:size-3.5 touchable:[&_svg]:size-4"
         >
           {opt.icon}
+          <span className="hidden text-caption touchable:inline">{opt.label}</span>
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

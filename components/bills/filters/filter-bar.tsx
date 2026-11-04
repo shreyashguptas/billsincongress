@@ -76,7 +76,9 @@ export function FilterBar({
 
           {/* Row 2 — chip rail + all filters */}
           <div className="mt-3 flex items-center gap-2">
-            <div className="-mx-4 min-w-0 flex-1 overflow-x-auto overscroll-x-contain px-4 py-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] [scrollbar-width:none] lg:overflow-visible lg:[mask-image:none] [&::-webkit-scrollbar]:hidden">
+            {/* Bleeds to the screen's left edge only: on the right it would run under
+                All filters and take the first 8px of its target. */}
+            <div className="-ml-4 min-w-0 flex-1 overflow-x-auto overscroll-x-contain px-4 py-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] [scrollbar-width:none] lg:overflow-visible lg:[mask-image:none] [&::-webkit-scrollbar]:hidden">
               <div className="flex gap-2">
                 {railFilters.map((definition) => {
                   const set = isSet(values[definition.field]);

@@ -9,9 +9,10 @@ import { FooterFeedback } from '@/components/feedback/feedback-box';
 
 // `flex w-fit`, not `inline-flex`: a row that starts with an icon, loose in a
 // list item, lines up by the icon's bottom edge and rides above its neighbours
-// (documentation/brand.md, "Icons beside text").
+// (documentation/brand.md, "Icons beside text"). 44px tall on touch, and
+// `touch-hit` widens a short word ("Pro") to 44px without moving the row.
 const linkClass =
-  'focus-ring flex w-fit items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline touchable:min-h-11';
+  'touch-hit focus-ring flex w-fit items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline touchable:min-h-11';
 
 /**
  * The footer carries only what has no other home: who publishes the site and
@@ -107,7 +108,7 @@ export function Footer() {
               href="https://www.congress.gov"
               target="_blank"
               rel="noopener noreferrer"
-              className="focus-ring rounded-sm underline decoration-line-strong underline-offset-2 hover:text-ink"
+              className="touch-hit focus-ring rounded-sm underline decoration-line-strong underline-offset-2 hover:text-ink"
             >
               Congress.gov
             </a>

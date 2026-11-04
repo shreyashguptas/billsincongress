@@ -7,6 +7,7 @@ import { PartyDot } from '@/components/brand/party';
 import { SourceLine } from '@/components/brand/section';
 import { stageFill } from '@/components/brand/status';
 import { MemberAccounts } from '@/components/bills/member-accounts';
+import { Arrow } from '@/components/brand/arrow';
 
 const PARTY_NAMES: Record<string, string> = { D: 'Democrat', R: 'Republican', I: 'Independent', L: 'Libertarian' };
 
@@ -99,7 +100,9 @@ export function MemberPage({ page }: { page: MemberPageData }) {
               href={`/bills?sponsor=${encodeURIComponent(sponsorFilterName).replace(/%20/g, '+')}`}
               className="focus-ring -mt-8 inline-flex min-h-11 items-center text-ink underline underline-offset-4"
             >
-              All of {member.name}&rsquo;s bills →
+              <span>
+                All of {member.name}&rsquo;s bills <Arrow />
+              </span>
             </Link>
           )}
           <BillList

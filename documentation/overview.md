@@ -198,8 +198,9 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   billStage.ts billJourney.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts indexNowStatus.ts  Pure, unit-tested
 
-scripts/                   run-tests.ts, four guards, three AI probes, icon/share-image/font
-                           generators, posthog-self-driving-setup.ts, posthog-logs-smoke.ts,
+scripts/                   run-tests.ts, four guards, three AI probes, the touch-target
+                           check, icon/share-image/font generators,
+                           posthog-self-driving-setup.ts, posthog-logs-smoke.ts,
                            and truth/ (the answer-accuracy harness)
 public/                    Icons, images, _headers, the IndexNow key file, sw.js + offline.html
 ```
@@ -1782,6 +1783,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `scripts/check-type-floor.ts` | `pnpm test` | No text size under 13px (`text-[0.7rem]`, `fontSize: 10`) and no font size or line height in px (`text-[13px]`, `leading-[28px]`) in `app/`, `components/` or `lib/`, so every size follows the reader's browser font setting. The share images in `lib/og/` may use px but not go under the floor. The one sanctioned exception is `.label-eyebrow`'s 0.75rem (12px) capitals, defined once in `app/globals.css` (brand.md, "Type floor") |
+| `pnpm check:touch [url] [/paths] [--width=820] [--shots=dir]` | Manual, needs a running site and Playwright | Every tap target at 390px with touch on is at least 44px either way, measured by hit-testing outwards from its centre (`.touch-hit` counts; a neighbour's target covering it does not). Exempt: links in running text, and charts marked `data-touch-exempt`. `--shots` saves each page with every target outlined. `components/brand/touch-targets.test.ts`, in `pnpm test`, keeps the pieces it relies on in place (`.touch-hit`'s 24px under a mouse and 44px on touch, and the shared links and toggles that carry it). See "Input, not width" in `documentation/brand.md` |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for gpt-oss-120b **and every fallback** in `OPENROUTER_FALLBACK_MODELS`. Not the Claude route, which is called directly under Anthropic's standard retention (see Retention above) |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web lookup still returns the citations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, reaches for the web when our own data answers, names a row of an unsorted result as the newest, or names one newest measure without saying others share its date. Its fixture serves a sort the way production does (`sortBlockedBy`), so a whole-Congress "most recent" comes back in order. Its "today" is pinned to the day the fixture was read from production (`TODAY` in the script), because a snapshot read against the real date ages: a week on, "has anything moved this week?" had a true answer of no in the gate alone. It grades Claude (the production answer model, on `ANTHROPIC_API_KEY`, through the same request code in `convex/claude.ts`) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf |
@@ -2638,7 +2640,7 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 25` is a floor, not a count (73 files match today): if discovery ever finds
+`MIN_TEST_FILES = 25` is a floor, not a count (98 files match today): if discovery ever finds
 fewer, the run fails, and deleting tests below it means lowering the constant in the same
 commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified
