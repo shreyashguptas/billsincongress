@@ -194,7 +194,7 @@ export function AskShortcutHint({ className }: { className?: string }) {
     <p
       aria-live="polite"
       className={cn(
-        'items-center gap-1.5 px-1 text-caption leading-5 text-ink-3',
+        'items-center gap-1.5 px-1 text-caption leading-5 text-ink-2',
         used ? 'flex' : 'hidden fine:flex',
         className,
       )}
@@ -243,7 +243,7 @@ export function AskShortcutSwitch() {
 
   return (
     <div className="flex items-center gap-2">
-      <span id={labelId} className="flex items-center gap-1.5 text-caption text-ink-3">
+      <span id={labelId} className="flex items-center gap-1.5 text-caption text-ink-2">
         <Kbd>/</Kbd>
         <span>
           <span className="sr-only">The slash key </span>to ask
@@ -266,7 +266,7 @@ export function AskShortcutSwitch() {
           <ToggleGroupItem
             key={value}
             value={value}
-            className="h-8 min-w-10 rounded-[6px] px-2.5 text-caption font-medium text-ink-3 touchable:h-11 touchable:min-w-11 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm"
+            className="h-8 min-w-10 rounded-[6px] px-2.5 text-caption font-medium text-ink-2 touchable:h-11 touchable:min-w-11 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm"
           >
             {value === 'on' ? 'On' : 'Off'}
           </ToggleGroupItem>

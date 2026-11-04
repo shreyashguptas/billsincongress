@@ -41,7 +41,7 @@ export function ModeToggle() {
           key={opt.value}
           value={opt.value}
           aria-label={opt.label}
-          className="h-8 w-8 min-w-8 rounded-[6px] p-0 touchable:h-11 touchable:w-auto touchable:min-w-11 touchable:gap-1.5 touchable:px-3 text-ink-3 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm [&_svg]:size-3.5 touchable:[&_svg]:size-4"
+          className="h-8 w-8 min-w-8 rounded-[6px] p-0 touchable:h-11 touchable:w-auto touchable:min-w-11 touchable:gap-1.5 touchable:px-3 text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm [&_svg]:size-3.5 touchable:[&_svg]:size-4"
         >
           {opt.icon}
           {/* The names need 18em of screen (288px at the default font); a 390px

@@ -336,14 +336,14 @@ Patterns that appear on more than one page:
   opening the panel if none is (`lib/ask-shortcut.ts`). It is never taken from a form
   control or a widget with keys of its own, nor with Cmd, Ctrl, Alt or AltGr held. On a
   computer the key is shown where the box is: a `/` keycap in the launcher pill, "Press /"
-  in `ink-3` at the right of the home page's box while it is not focused, and a 13px
-  `ink-3` line under the panel's composer, "/ opens Ask from any page · Turn off" (the
-  button `ink-2`, underlined). Not on a touch screen, except that line once `/` has been
+  in 13px `ink-2` at the right of the home page's box while it is not focused, and a 13px
+  `ink-2` line under the panel's composer, "/ opens Ask from any page · Turn off" (the
+  button underlined). 13px, so `ink-2`, never `ink-3`. Not on a touch screen, except that line once `/` has been
   pressed there (a keyboard is attached, so its off switch must show).
 - **The `/` switch** (`AskShortcutSwitch`, `components/answers/ask-shortcut.tsx`): the
   reader's off switch for that one key (WCAG 2.1.4), in the footer beside the theme
-  control and built the same way — a `/` keycap and "to ask" in 13px `ink-3`, then On and
-  Off in the theme control's track (`sunken`, the chosen side `raised` with `shadow-sm`;
+  control and built the same way — a `/` keycap and "to ask" in 13px `ink-2`, then On and
+  Off (13px, `ink-2`) in the theme control's track (`sunken`, the chosen side `raised` with `shadow-sm`;
   32px tall, 44px on touch). On every screen, touch ones included: a tablet or a phone
   with a keyboard can press `/`, and a pointer query cannot tell, so the way to turn the
   key off is never hidden.
@@ -796,7 +796,8 @@ Two rules come with it:
   at its edge; there, grow the control itself (`touchable:h-11`) instead.
 
 The theme switch is three 32px icons under a mouse; on touch each segment is
-44px and names its theme beside the icon ("Light", "Dark", "System"), so the
+44px and names its theme beside the icon ("Light", "Dark", "System", 13px, so
+the segments are `ink-2` rather than `ink-3`), so the
 reader does not have to decode a sun and a moon. A screen under 18em (a 390px
 phone at a 24px font) has no room for the names, and keeps the 44px icons. The arrow that ends a text link
 ("Browse bills →") is drawn with `Arrow` (`components/brand/arrow.tsx`), which

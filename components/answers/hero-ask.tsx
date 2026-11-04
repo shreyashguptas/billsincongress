@@ -233,7 +233,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
           {shortcut.enabled && !input && (
             <span
               aria-hidden="true"
-              className="hidden shrink-0 items-center gap-1.5 text-caption text-ink-3 fine:flex fine:group-focus-within/hero:hidden"
+              className="hidden shrink-0 items-center gap-1.5 text-caption text-ink-2 fine:flex fine:group-focus-within/hero:hidden"
             >
               Press <Kbd>/</Kbd>
             </span>

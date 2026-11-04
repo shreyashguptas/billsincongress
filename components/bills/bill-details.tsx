@@ -503,7 +503,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 aria-hidden="true"
               >
                 <span className="text-ink">Introduced</span>
-                <span className={step === total ? 'text-ink' : 'text-ink-3'}>{roadEnd}</span>
+                <span className={step === total ? 'text-ink' : 'text-ink-2'}>{roadEnd}</span>
               </div>
             </div>
             <StageSteps stage={stage} billType={billType} amendment={amendment} className="mt-5 hidden lg:grid" />

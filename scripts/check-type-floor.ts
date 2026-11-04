@@ -24,6 +24,9 @@
  *   is px by another name, under the floor; and any numeric or px `fontSize`
  *   in a style object outside the share cards.
  *
+ * - 13px text in `ink-3` (`text-xs` or `text-caption` with `text-ink-3` in one
+ *   class list): the faintest grey is 14px and up.
+ *
  * The share cards in `lib/og/` are images drawn at a fixed size, so px is
  * right there; they are still held to the floor. Do not add an exception
  * here to make a size fit; make the room instead.
@@ -77,10 +80,32 @@ const RULES: Rule[] = [
   },
 ];
 
+/**
+ * `ink-3` is 14px and up (brand.md, "ink-3 is 14px and up"): one class list
+ * that sets 13px (`text-xs`, `text-caption`) and `text-ink-3` unprefixed is
+ * faint text under that size. Found in review: the composer's "/ opens Ask"
+ * line, the footer's "to ask" and its On/Off, "Press /" in the home box. A
+ * variant (`hover:`, `data-[state=on]:`) is a different state and not read.
+ */
+const SMALL = /(?:^|\s)(?:text-xs|text-caption)(?=\s|$)/;
+const FAINT = /(?:^|\s)text-ink-3(?=\s|$)/;
+function faintSmall(line: string): string[] {
+  const hits: string[] = [];
+  for (const m of line.matchAll(/(["'`])([^"'`]*)\1/g)) {
+    if (SMALL.test(m[2]) && FAINT.test(m[2])) hits.push(m[2].trim().slice(0, 80));
+  }
+  return hits;
+}
+
 const offenders: string[] = [];
 for (const file of files) {
   const lines = readFileSync(file, "utf8").split("\n");
   lines.forEach((line, i) => {
+    if (!file.startsWith("components/ui/")) {
+      for (const hit of faintSmall(line)) {
+        offenders.push(`${file}:${i + 1}: "${hit}" is 13px in ink-3; under 14px use ink-2`);
+      }
+    }
     if (ALLOWED.some((a) => a.file === file && line.includes(a.text))) return;
     for (const { re, pxOnly, why } of RULES) {
       if (pxOnly && FIXED_PX.test(file)) continue;
