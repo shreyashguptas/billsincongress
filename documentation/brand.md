@@ -96,7 +96,7 @@ are ink with an underline (the `.link` class).
 | Topics | `--topic-1` … `--topic-6` (`bg-topic-1`) | The six largest policy areas in rank order. Everything past six folds into one `ink-3` "Other" slice that says what it holds. Fills only, never text, and always with a legend: four slots are under 3:1 on paper |
 | Parties | `--party-d`, `--party-r`, `--party-i`, `--party-u` | Muted, and only where the data is about party: seats, sponsor dots, party splits. Never for emphasis, alerts or errors. Independents are ochre so they never read as a blend of the other two |
 | Stages | `--status-introduced` … `--status-law`, `--status-vetoed` | A cool-to-warm ramp from introduced to signed, ending in the site's only green, "became law". Out of committee (`--status-out-of-committee`, a clearer blue) sits one step warmer than the committee slate: done with committee, not yet past a chamber. Vetoed is a desaturated slate, because it is a dead end rather than a step forward |
-| State map | `--heat` | One amber, stepped by opacity in five bins, so it is never mistaken for a party or for "became law" |
+| State map | `--heat` | One amber, stepped by opacity in five bins, so it is never mistaken for a party or for "became law". The state codes on it are `ink` on every shade in Day (4.85:1 on the darkest, so Day's amber is 42% light, not darker), and `on-ink` on the two darkest in Night; `lib/state-map-tiles.test.ts` checks each against 4.5:1 |
 
 ### The stage
 

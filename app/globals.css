@@ -66,8 +66,9 @@
     --topic-4: #eda100; --topic-5: #2a78d6; --topic-6: #e87ba4;
 
     /* State map — one amber, stepped by opacity, so it can't be mistaken for
-       a party or for "became law". */
-    --heat: 28 80% 40%;
+       a party or for "became law". 42%, not 40%: ink codes on the darkest
+       shade then read at 4.85:1, not 4.48:1 (lib/state-map-tiles.test.ts). */
+    --heat: 28 80% 42%;
 
     --radius: 0.5rem;
   }

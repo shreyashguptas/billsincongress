@@ -29,6 +29,7 @@ import { SectionHeader } from '@/components/brand/section';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SectionAsk, fmt, type HomeProps } from './shared';
 import { Arrow } from '@/components/brand/arrow';
+import { HEAT_ALPHA, NIGHT_ON_INK_FROM_BIN } from '@/lib/state-map-tiles';
 
 // [column, row] on an 11 × 8 grid.
 const TILES: Record<string, [number, number]> = {
@@ -113,7 +114,7 @@ export function StateMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, metric]);
   const binOf = (v: number) => breaks.filter((b) => v >= b).length; // 0..4
-  const ALPHA = [0.12, 0.3, 0.5, 0.72, 0.95];
+  const ALPHA = HEAT_ALPHA;
 
   const fmtVal = (v: number) => (metric === 'total' ? fmt(Math.round(v)) : v.toFixed(1));
   const unit = metric === 'total' ? 'bills' : 'bills per member';
@@ -153,7 +154,9 @@ export function StateMap({
         aria-label={`${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
         className={cn(
           'focus-ring relative flex aspect-square flex-col items-center justify-center rounded-xs transition-[opacity,box-shadow]',
-          bin >= 3 ? 'text-on-ink' : 'text-ink',
+          // Ink in Day on every shade; on-ink on Night's two darkest
+          // (lib/state-map-tiles.ts, contrast-checked in its test).
+          bin >= NIGHT_ON_INK_FROM_BIN ? 'text-ink dark:text-on-ink' : 'text-ink',
           bin < 0 && 'bg-sunken',
           active === st && 'ring-2 ring-ink',
           active && active !== st && 'opacity-60',
