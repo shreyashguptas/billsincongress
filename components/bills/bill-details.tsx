@@ -434,7 +434,9 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               Where it stands
             </h2>
             <div className="mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 lg:block">
-              <div className="min-w-0">
+              {/* A basis, so from sm the stage text leaves room for the count
+                  beside it instead of pushing it onto a line of its own. */}
+              <div className="min-w-0 flex-1 basis-64">
                 {/* The badge sits in a box one line tall, so it stays beside
                     the first line when the stage wraps (brand.md, "Icons
                     beside text"). */}
@@ -475,8 +477,11 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
 
               {view && view.totalDays > 0 && (
                 // How long the road has been, beside where it stands.
-                <div className="sm:text-right lg:mt-5 lg:border-t lg:border-line lg:pt-4 lg:text-left">
-                  <p className="flex items-baseline gap-2 sm:justify-end lg:justify-start">
+                // The figure and its caption share a left edge at every width:
+                // right-aligned, a count that wrapped under the stage sat 65px
+                // right of its own caption (/bills/131hr119 at 768px).
+                <div className="lg:mt-5 lg:border-t lg:border-line lg:pt-4">
+                  <p className="flex items-baseline gap-2">
                     <span className="font-serif text-[2.75rem] font-normal leading-none text-ink tabular">
                       {formatCount(view.totalDays)}
                     </span>
