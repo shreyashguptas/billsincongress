@@ -778,6 +778,12 @@ html {
 @media (max-width: 1023.98px), (max-height: 499.98px) {
   .found-it-prompt { bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
 }
+/* A bill page draws no closed pill at any width (Ask is in its header), so the
+   card would float a pill's height over an empty corner. Minimized, the pill is
+   back, and the card stacks above it again. */
+html:not([data-ask='minimized']):has(.ask-header-button[data-everywhere='true']) .found-it-prompt {
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
 
 /* Only drawn in the bottom-bar shape of the launcher. */
 .ask-launcher-arrow { display: none; }
@@ -819,6 +825,10 @@ html {
 .animate-nudge { animation: nudge 0.32s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
 @media (prefers-reduced-motion: reduce) {
   .animate-odds-in, .odds-law, .animate-seat-in, .animate-bar-grow { animation-delay: 0s !important; }
+  /* The zoom, rise and grow go; the result stays. 1ms rather than none keeps
+     animationend firing for anything waiting on it. The "became law" glow
+     (.odds-law) still plays once: it is colour, not movement. */
+  .animate-odds-in, .animate-seat-in, .animate-bar-grow { animation-duration: 1ms !important; }
   .animate-word-in { animation: none; }
   .animate-nudge { animation: none; }
 }

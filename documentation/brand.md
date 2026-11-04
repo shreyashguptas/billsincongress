@@ -241,8 +241,8 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   - **On a bill page, at every width**, Ask is in the header and there is no
     closed pill: the status card fills the pill's corner on a laptop before any
     scroll, so the pill either sat on it or, stepped aside, left the first
-    screen with no way to ask. From 1024px to 1279px the header's search is its
-    icon there, so the row still fits. The pill comes back only as the way back
+    screen with no way to ask. From 1024px up the header's search is its icon
+    there, so the row fits the same width as on every other page. The pill comes back only as the way back
     to a conversation set aside (`askInHeaderOnly`, `lib/ask-panel-state.ts`;
     decided from the path, so nothing in the header moves after load).
   - **Under 500px tall** (a phone on its side, 200% zoom and up) the header is
@@ -472,7 +472,7 @@ Patterns that appear on more than one page:
   under a headline that states how it ended and when ("Became law on Sep 25, 2026",
   "Expired when the 118th Congress ended"), never its length, which is the status
   card's one number;
-  the sponsor; then cosponsors, peers, "Keep reading" and the ask band.
+  the sponsor; then cosponsors, peers, "Keep reading", Words to know and the ask band.
 - **Status panel** (bill page, "Where it stands"): `rounded-lg`, raised, the
   stage in `display-sm` with its glyph (its name plain, not a `Term`: the line under it
   explains it), then one always-visible
@@ -585,7 +585,12 @@ Patterns that appear on more than one page:
   whichever label is hovered or focused, and returns when the pointer leaves
   the nav. It first appears by growing out from the label's centre, and
   shrinks into its centre on a page with no section. Still under
-  `prefers-reduced-motion`.
+  `prefers-reduced-motion`. The four labels sit in the same place on every
+  page: the right-hand cluster reserves the room of the widest one (a signed-out
+  /bills: Feedback, the search field, "Sign in", "Sign up") at each header width,
+  `header-md:min-w-[15.25rem]`, `header-lg:min-w-[29rem]`,
+  `header-xl:min-w-[34rem]`. Without it they jumped up to 170px between the home
+  page, /bills and a bill page.
 - **Header**: solid `paper` with a `line` rule under it — never translucent. A
   see-through header turned muddy grey over the home page's dark stage. On
   phones it reads menu, logo beside it, then Ask, search and the account slot
@@ -607,8 +612,8 @@ Patterns that appear on more than one page:
   `MessageSquare` and the word "Ask" in `ink`, just before the search. The
   glyph alone from 768 to 839px, where the four sections leave no room for the
   word, and in a header under 312px (a 320px phone at a 20px font). On a bill
-  page from `header-lg` to `header-xl` the search is its icon rather than the
-  field, so the row still fits. While the panel is open under it, the button is pressed (`sunken`
+  page from `header-lg` up the search is its icon rather than the field, so the
+  row fits the room every page reserves for it (see Header sections). While the panel is open under it, the button is pressed (`sunken`
   fill, `aria-expanded`), and a second press closes it.
 - **Menu sheet** (phones and tablets): slides in from the left over an 85% paper
   scrim. Its top row is the header row it covers — same height and padding, the

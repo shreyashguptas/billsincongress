@@ -150,9 +150,8 @@ const RESOLUTION_STEPS: Record<Exclude<StagePath, 'law'>, Partial<Record<BillSta
  * states, not the President (Article V), and it never becomes a law. Its
  * official title says so in these words; anything else is treated as an
  * ordinary joint resolution.
- */
-/**
- * Matches every way a proposed amendment's title opens in the record:
+ *
+ * The pattern matches every way a proposed amendment's title opens in the record:
  * "Proposing an amendment to the Constitution…", "A joint resolution proposing
  * an amendment…", "Proposing a balanced budget amendment to the Constitution…",
  * "…proposing amendments to the Constitution…", and a stray leading "." (H.J.Res.

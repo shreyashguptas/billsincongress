@@ -2700,7 +2700,7 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 25` is a floor, not a count (98 files match today): if discovery ever finds
+`MIN_TEST_FILES = 25` is a floor, not a count (over a hundred match today): if discovery ever finds
 fewer, the run fails, and deleting tests below it means lowering the constant in the same
 commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified

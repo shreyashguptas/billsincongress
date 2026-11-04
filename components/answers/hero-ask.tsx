@@ -216,7 +216,8 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={showList}
-            aria-controls={listId}
+            // Only while the list exists: an id that is not in the page names nothing.
+            aria-controls={showList ? listId : undefined}
             aria-activedescendant={
               showList && active >= 0 ? `${listId}-${active}` : undefined
             }
@@ -233,7 +234,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
           {shortcut.enabled && !input && (
             <span
               aria-hidden="true"
-              className="hidden shrink-0 items-center gap-1.5 text-caption text-ink-2 fine:flex fine:group-focus-within/hero:hidden"
+              className="hidden shrink-0 items-center gap-1.5 text-caption text-ink-2 fine:sm:flex fine:group-focus-within/hero:hidden"
             >
               Press <Kbd>/</Kbd>
             </span>

@@ -93,7 +93,12 @@ export function AnswerPanel() {
     );
     const header = () => document.querySelector<HTMLElement>('.ask-shell > header');
     const page = () =>
-      [document.getElementById('main'), document.querySelector<HTMLElement>('.ask-shell > footer')].filter(
+      // The skip link goes with them: it points at #main, which does nothing while inert.
+      [
+        document.getElementById('main'),
+        document.querySelector<HTMLElement>('.ask-shell > footer'),
+        document.querySelector<HTMLElement>('a[href="#main"]'),
+      ].filter(
         (el): el is HTMLElement => el !== null,
       );
     const apply = () => {

@@ -321,3 +321,23 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exit(1);
 }
+
+// The four sections jumped up to 170px between the home page, /bills and a bill
+// page, because the right-hand cluster differs per page and pushed them in a
+// 1fr | auto | 1fr row. Each header width now reserves the widest cluster.
+it('holds the header sections in one place on every page', () => {
+  for (const cls of ['header-md:min-w-[15.25rem]', 'header-lg:min-w-[29rem]', 'header-xl:min-w-[34rem]']) {
+    assert.ok(nav.includes(cls), `navigation.tsx no longer reserves the right cluster's width (${cls}).`);
+  }
+  assert.ok(nav.includes("!compact && 'header-lg:block'"), 'a bill page draws the search field again, which no longer fits the reserved width.');
+});
+
+// The feedback card stacks above the closed pill; a bill page draws no closed pill.
+it('drops the feedback card to the corner where no pill is drawn', () => {
+  assert.ok(
+    css.includes(".found-it-prompt { bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }") &&
+      css.includes("html:not([data-ask='minimized']):has(.ask-header-button[data-everywhere='true']) .found-it-prompt"),
+    'globals.css no longer moves the feedback card down on a page with no closed pill.',
+  );
+});
+

@@ -55,6 +55,7 @@ export function Term({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const titleId = useId();
+  const descId = useId();
   const triggerRef = useRef<HTMLSpanElement>(null);
   // Where Tab was headed when it closed the popover; read as it closes.
   const leaveTo = useRef<HTMLElement | null>(null);
@@ -106,6 +107,7 @@ export function Term({
       </PopoverTrigger>
       <PopoverContent
         aria-labelledby={titleId}
+        aria-describedby={descId}
         onKeyDown={onContentKeyDown}
         // Radix returns focus to the word as it closes; a Tab out goes on instead.
         onCloseAutoFocus={(e) => {
@@ -127,7 +129,7 @@ export function Term({
             )}
             {entry.word}
           </p>
-          <p className="mt-1.5 text-ui leading-6 text-ink-2">{entry.definition}</p>
+          <p id={descId} className="mt-1.5 text-ui leading-6 text-ink-2">{entry.definition}</p>
         </div>
         <div className="border-t border-line px-4 py-2.5">
           <Link

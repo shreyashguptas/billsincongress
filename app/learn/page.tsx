@@ -36,7 +36,7 @@ export const viewport: Viewport = sharedViewport;
 export const metadata: Metadata = {
   title: 'How Congress works',
   description:
-    'How Congress works, in pictures: people vote, Congress meets in two rooms, and an idea becomes a law in six steps. A plain-language guide.',
+    'How Congress works, in pictures: people vote, Congress meets in two rooms, and an idea becomes a law in six steps. Plus the words you’ll see, explained.',
   alternates: { canonical: '/learn' },
 };
 
@@ -156,7 +156,8 @@ function BigIdea() {
 /**
  * Every word in lib/glossary.ts, grouped, each with its own anchor: the
  * "More words in Learn" link in every `<Term>` popover lands on its row, which
- * the `:target` fill picks out.
+ * the data-target fill picks out (WordTarget sets it; `:target` does not
+ * update on a client-side jump to the same page).
  */
 function Words() {
   return (

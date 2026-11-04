@@ -151,7 +151,7 @@ export function StateMap({
         onFocus={(e) => e.currentTarget.matches(':focus-visible') && setHover(st)}
         onBlur={() => setHover(null)}
         onClick={() => onTileClick(st)}
-        aria-label={`${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
+        aria-label={`${st}, ${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
         className={cn(
           'focus-ring relative flex aspect-square flex-col items-center justify-center rounded-xs transition-[opacity,box-shadow]',
           // Ink in Day on every shade; on-ink on Night's two darkest

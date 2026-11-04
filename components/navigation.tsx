@@ -125,8 +125,16 @@ export function Navigation() {
         <Logo fit className="hidden min-w-0 justify-self-start header-mark:inline-flex header-md:hidden" />
         <SectionTabs isActive={isActive} />
 
-        {/* col-start-3: with the logo hidden it would otherwise slide into the logo's column. */}
-        <div className="col-start-3 flex items-center justify-end gap-1 header-sm:gap-2 header-lg:gap-3">
+        {/* col-start-3: with the logo hidden it would otherwise slide into the logo's column.
+            The min widths hold the four sections in one place on every page. The
+            cluster changes from page to page (no search field on the home page,
+            Ask in it on a bill page), and in a 1fr | auto | 1fr row a wider right
+            side pushed the sections left, so they jumped up to 170px on a click
+            from home to a bill. Each min is the widest cluster at that size (a
+            signed-out /bills: Feedback, the search field, "Sign in" and "Sign up"),
+            in rem so a larger browser font scales it with the labels.
+            lib/ask-css-contract.test.ts holds the values. */}
+        <div className="col-start-3 flex items-center justify-end gap-1 header-sm:gap-2 header-md:min-w-[15.25rem] header-lg:min-w-[29rem] header-lg:gap-3 header-xl:min-w-[34rem]">
           <HeaderFeedback className="hidden header-lg:inline-flex" />
           {/* Phones, tablets and short windows, and a bill page at every width;
               the corner pill everywhere else. */}
@@ -313,7 +321,9 @@ function HeaderSearch({ compact = false }: { compact?: boolean }) {
         onAnimationEnd={onNudgeEnd}
         className={cn(
           'relative hidden',
-          compact ? 'header-xl:block' : 'header-lg:block',
+          // On a bill page Ask takes the field's room: the search is its icon
+          // at every width, so the row fits and the sections stay put.
+          !compact && 'header-lg:block',
           nudging && 'animate-nudge',
         )}
       >
@@ -344,7 +354,7 @@ function HeaderSearch({ compact = false }: { compact?: boolean }) {
         asChild
         variant="ghost"
         size="icon"
-        className={cn('hidden header-search:inline-flex', compact ? 'header-xl:hidden' : 'header-lg:hidden')}
+        className={cn('hidden header-search:inline-flex', !compact && 'header-lg:hidden')}
       >
         <Link href="/bills" aria-label="Search bills">
           <Search className="h-5 w-5" />
