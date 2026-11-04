@@ -111,10 +111,14 @@ export function AskSummaryChip({ noun, className }: { noun: string; className?: 
           void ask(q, { source: 'starter' });
         }}
         // A starter pill (brand.md, "Ask composer"), as in the closing band.
-        className="mt-4 h-auto min-h-11 max-w-full justify-start gap-2.5 whitespace-normal rounded-full px-5 py-2.5 text-left text-ui font-normal leading-snug text-ink-2 hover:bg-paper hover:text-ink touchable:h-auto"
+        // items-start and a one-line box round the glyph: on two lines it stays
+        // beside the first (brand.md, "Icons beside text").
+        className="mt-4 h-auto min-h-11 max-w-full items-start justify-start gap-2.5 whitespace-normal rounded-full px-5 py-2.5 text-left text-ui font-normal leading-snug text-ink-2 hover:bg-paper hover:text-ink touchable:h-auto"
       >
-        <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-        {q}
+        <span className="flex h-[1lh] shrink-0 items-center" aria-hidden="true">
+          <MessageSquare className="h-4 w-4" strokeWidth={1.75} />
+        </span>
+        <span className="text-balance">{q}</span>
       </Button>
     </div>
   );
