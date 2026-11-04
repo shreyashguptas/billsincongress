@@ -6,7 +6,7 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from 'node:assert/strict';
-import { billNextStep, daysLeftPhrase } from './bill-next-step';
+import { billNextStep, daysLeftPhrase, proposesAmendment } from './bill-next-step';
 import { billLead } from './seo';
 import { BillStages } from './utils/bill-stages';
 import type { Bill } from './types/bill';
@@ -37,7 +37,11 @@ it('a law has nothing next and no clock', () => {
 
 it('a bill in committee gets the next step on the road and the days left', () => {
   const next = billNextStep({ ...base, stage: BillStages.IN_COMMITTEE, billType: 's' });
-  assert.equal(next?.text, 'Next on the road: the committee sends it on to the full Senate.');
+  // A condition, not a forecast: most bills never leave committee.
+  assert.equal(
+    next?.text,
+    'Next on the road: the committee would have to approve it and send it to the full Senate. Most bills never get this far.',
+  );
   assert.equal(next?.daysLeft, 60);
   assert.equal(daysLeftPhrase(60, 119), '60 days left in the 119th Congress');
 });
@@ -73,6 +77,40 @@ it('a veto in a live Congress names the override, with the clock', () => {
   const next = billNextStep({ ...base, stage: BillStages.VETOED, billType: 'hr' });
   assert.match(next!.text, /two-thirds to override the veto/);
   assert.equal(next?.daysLeft, 60);
+});
+
+it('out of committee, the vote is a condition, not a forecast', () => {
+  const next = billNextStep({ ...base, stage: BillStages.OUT_OF_COMMITTEE, billType: 'hr' });
+  assert.equal(next?.text, 'Next on the road: the full House would have to vote on it.');
+});
+
+// S.1318 (119th): the House passed a substitute and the Senate voted 47-52 not
+// to take up the House message, yet the page said "both voted yes on the same
+// words. Next it goes to the President." Stage 80 means each chamber passed a
+// version (convex/billStage.ts), not the same one.
+it('passed both chambers never claims the same words or goes straight to the President', () => {
+  const next = billNextStep({ ...base, stage: BillStages.PASSED_BOTH_CHAMBERS, billType: 's' });
+  assert.equal(next?.text, 'Next on the road: both chambers agree on one text, then it goes to the President.');
+  assert.doesNotMatch(next!.text, /same words/);
+});
+
+it('a proposed constitutional amendment goes to the states, never the President', () => {
+  const title = 'Proposing an amendment to the Constitution of the United States relative to the length of terms.';
+  assert.ok(proposesAmendment('hjres', title));
+  assert.ok(!proposesAmendment('hr', title));
+  assert.ok(!proposesAmendment('sjres', 'Providing for congressional disapproval of a rule.'));
+  const next = billNextStep({ ...base, stage: BillStages.PASSED_BOTH_CHAMBERS, billType: 'hjres', title });
+  assert.match(next!.text, /goes to the states/);
+  assert.doesNotMatch(next!.text, /President/);
+  const ordinary = billNextStep({ ...base, stage: BillStages.PASSED_BOTH_CHAMBERS, billType: 'sjres', title: 'Providing for congressional disapproval of a rule.' });
+  assert.match(ordinary!.text, /President/);
+});
+
+it('on the desk: the 10 days run from arrival, and doing nothing is not a veto', () => {
+  const next = billNextStep({ ...base, stage: BillStages.TO_PRESIDENT, billType: 'hr' });
+  assert.match(next!.text, /from when it arrives/);
+  assert.match(next!.text, /becomes law anyway/);
+  assert.match(next!.text, /pocket veto/);
 });
 
 it('an unknown stage says nothing', () => {

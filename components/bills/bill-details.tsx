@@ -32,7 +32,7 @@ import { BillRelatedSection } from './bill-related';
 import { MemberAccounts } from './member-accounts';
 import { BillCosponsors } from './bill-cosponsors';
 import { BillWords } from './bill-words';
-import { journeyView } from '@/lib/bill-journey';
+import { congressClock, journeyView } from '@/lib/bill-journey';
 import { billNextStep, daysLeftPhrase } from '@/lib/bill-next-step';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -56,8 +56,7 @@ import { Button } from '@/components/ui/button';
 import { PartyDot, PartyTag } from '@/components/brand/party';
 import { SourceLine } from '@/components/brand/section';
 import { StageSteps, StageTrack, stageFill } from '@/components/brand/status';
-import { Term } from '@/components/brand/term';
-import { billPageWords, measureTermId, stageLine, stageTermId, termHref } from '@/lib/glossary';
+import { billPageWords, measureTermId, stageTermId, statusCardLine, termHref } from '@/lib/glossary';
 import { STATE_NAMES } from '@/lib/constants/filters';
 
 const PARTY_NAMES: Record<string, string> = {
@@ -172,9 +171,13 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   // The civics words this page explains, each the first time it appears.
   const stageTerm = isStageOnPath(stage, billType) ? stageTermId(stage, billType) : null;
   const measureTerm = measureTermId(billType);
+  // The Congress is over: an unfinished measure expired with it, and the
+  // card's present-tense lines would be false (lib/glossary.ts, stageLine).
+  const congressEnded = congressClock(bill.congress, today, bill.introduced_date || today).ended;
   // The current stage in one plain sentence, always on screen: the most
-  // important word on the page should not wait for a tap.
-  const stagePlain = stageTerm ? stageLine(stageTerm) : null;
+  // important word on the page should not wait for a tap. The measure's type
+  // picks the line: a concurrent resolution is agreed to by both rooms.
+  const stagePlain = statusCardLine(stage, billType, congressEnded);
   // The status card's way to the whole road: Learn's picture story for a
   // bill, the measure's own word for a resolution (its road is not that one).
   const roadLink =
@@ -237,10 +240,11 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
     bill.base_rate_sample !== undefined &&
     bill.days_in_committee !== undefined;
 
-  // The journey's headline states how the road went, with its length, not
-  // that there is one (brand.md, "Headlines state the finding").
+  // The journey's headline states how the road ended, and when, not that
+  // there is one (brand.md, "Headlines state the finding"). Its length is the
+  // status card's one number, so the headline does not repeat it.
   const n = view?.totalDays ?? 0;
-  const nDays = `${formatCount(n)} ${n === 1 ? 'day' : 'days'}`;
+  const ended = view ? formatDate(view.endDate) : '';
   const journeyTitle = !view
     ? hasBaseRate
       ? `In committee for ${formatCount(bill.days_in_committee!)} ${bill.days_in_committee === 1 ? 'day' : 'days'}`
@@ -248,18 +252,18 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
     : n === 0 && !view.finish
       ? 'Introduced today'
       : view.finish === 'law'
-        ? `From introduction to law in ${nDays}`
+        ? `Became law on ${ended}`
         : view.finish === 'signed'
-          ? `From introduction to the President’s signature in ${nDays}`
+          ? `Signed by the President on ${ended}`
           : view.finish === 'vetoed'
-            ? `Vetoed ${nDays} after it was introduced`
+            ? `Vetoed on ${ended}`
             : view.finish === 'adopted'
-              ? `Agreed to ${nDays} after it was introduced`
+              ? `Agreed to on ${ended}`
               : view.expired && stage === BillStages.TO_PRESIDENT
-                ? `On the President’s desk when the Congress ended, after ${nDays}`
+                ? 'On the President’s desk when the Congress ended'
                 : view.expired
-                  ? `Expired after ${nDays}`
-                  : `${nDays} since it was introduced`;
+                  ? `Expired when the ${formatCongressOrdinal(bill.congress)} Congress ended`
+                  : 'Its journey so far';
 
   // What happens next: a rule of the process, never a forecast, and the days
   // left in the Congress for a measure that can still move.
@@ -269,6 +273,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
     congress: bill.congress,
     introducedDate: bill.introduced_date,
     today,
+    title: bill.title,
   });
   const hasJourneySection = Boolean(journey) || hasBaseRate;
 
@@ -313,23 +318,19 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
         </div>
 
         {/* One column on phones (title, lead, status, actions); from `lg` the
-            status card takes the right-hand column beside the title and lead. */}
-        <div className="mt-6 grid gap-8 sm:mt-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-x-16 lg:gap-y-8 xl:gap-x-20">
+            status card takes the right-hand column beside the title and lead.
+            The first row is only as tall as the title and lead, so the actions
+            follow the lead, not the card's height. */}
+        <div className="mt-6 grid gap-8 sm:mt-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-[auto_1fr] lg:gap-x-16 lg:gap-y-8 xl:gap-x-20">
           <div className="min-w-0 lg:col-start-1 lg:row-start-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 touchable:gap-y-6">
               {/* The number names the kind of measure: "H.Res." is a resolution
                   that can never become law, and nothing else on the page says
                   so this early. */}
-              <span className="font-mono text-sm font-medium text-ink tabular">
-                <Term id={measureTerm} standalone>
-                  {billLabel}
-                </Term>
-              </span>
-              <span className="text-sm text-ink-2 tabular">
-                <Term id="congress-number" standalone>
-                  {formatCongressProse(bill.congress)}
-                </Term>
-              </span>
+              {/* Plain, not Terms: a dotted word belongs in a sentence, never
+                  on a label (brand.md, "Term"). "Words to know" explains both. */}
+              <span className="font-mono text-sm font-medium text-ink tabular">{billLabel}</span>
+              <span className="text-sm text-ink-2 tabular">{formatCongressProse(bill.congress)}</span>
               {bill.bill_subjects?.policy_area_name && (
                 <Badge variant="secondary">{bill.bill_subjects.policy_area_name}</Badge>
               )}
@@ -358,53 +359,63 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   <span aria-hidden="true" className="hidden text-ink-3 sm:inline">
                     ·
                   </span>
-                  <span className="inline-flex min-w-0 items-center gap-2">
-                    <span>
-                      {/* The only target on its line: the name beside it is not a link. */}
-                      <Term id="sponsor" standalone>
-                        Sponsored
-                      </Term>{' '}
-                      by
-                    </span>
-                    <PartyTag name={sponsorName} party={bill.sponsor_party} state={bill.sponsor_state} />
+                  {/* "Sponsored by" never breaks; a long name drops to its own
+                      line before it is cut short. */}
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="whitespace-nowrap">Sponsored by</span>
+                    <PartyTag
+                      name={sponsorName}
+                      party={bill.sponsor_party}
+                      state={bill.sponsor_state}
+                      className="max-w-full"
+                    />
                   </span>
                 </>
               )}
             </div>
 
             {/* In short — the answer to "what does it do?", before anything
-                else. Plain first, the record one tap away (brand.md, 5). */}
-            <div className="mt-8 border-t border-line pt-6 sm:mt-10 sm:pt-8">
-              <h2 className="label-eyebrow">In short</h2>
-              <p className="mt-3 max-w-measure font-serif text-[1.375rem] leading-[2rem] text-ink sm:text-[1.625rem] sm:leading-[2.375rem]">
-                {lead.text}
+                else. Plain first, the record one tap away (brand.md, 5). Only
+                from a summary: built from the title, it only said the title
+                again, so without one a single line says so and the status
+                card follows. */}
+            {lead.from !== 'summary' ? (
+              <p className="meta mt-6 border-t border-line pt-4">
+                No plain-language summary of this {noun} yet.{' '}
+                <a href="#bill-summary" className="link touch-hit focus-ring whitespace-nowrap rounded-xs">
+                  What the record says
+                </a>
               </p>
-              <p className="meta mt-3">
-                {lead.from === 'summary' ? (
-                  <>
-                    From the summary by the <Term id="crs">Congressional Research Service</Term>
-                    {lead.rest && (
-                      <>
-                        {' · '}
-                        <a href="#bill-summary" className="link touch-hit focus-ring whitespace-nowrap rounded-xs">
-                          {lead.split ? 'Read the rest' : 'Read all of it'}
-                        </a>
-                      </>
-                    )}
-                  </>
-                ) : lead.from === 'title' ? (
-                  'Built from the official title and status on Congress.gov. Congress has not published a summary yet.'
-                ) : (
-                  'From the official status on Congress.gov'
-                )}
-              </p>
-            </div>
+            ) : (
+              <div className="mt-8 border-t border-line pt-6 sm:mt-10 sm:pt-8">
+                <h2 className="label-eyebrow">In short</h2>
+                <p className="mt-3 max-w-measure font-serif text-[1.375rem] leading-[2rem] text-ink sm:text-[1.625rem] sm:leading-[2.375rem]">
+                  {lead.text}
+                </p>
+                {/* A source line, so its words stay plain: a dotted word beside
+                    the underlined link read as a second link. */}
+                <p className="meta mt-3">
+                  From the summary by the Congressional Research Service
+                  {lead.rest && (
+                    <>
+                      {' · '}
+                      <a href="#bill-summary" className="link touch-hit focus-ring whitespace-nowrap rounded-xs">
+                        {lead.split ? 'Read the rest' : 'Read all of it'}
+                      </a>
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Where it stands — the page's one bold element (brand.md,
               "Principles" 6), now compact enough to sit beside the lead. */}
           <section
             aria-labelledby="bill-status-label"
+            // Tall enough to reach the corner on a laptop: the Ask pill steps
+            // aside while it would sit on this card (ask-launcher.tsx).
+            data-ask-clear=""
             className="min-w-0 self-start rounded-lg border border-line bg-raised p-5 sm:p-6 lg:col-start-2 lg:row-span-2 lg:row-start-1"
           >
             <h2 id="bill-status-label" className="label-eyebrow">
@@ -426,14 +437,9 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                       <StageGlyph className="h-[18px] w-[18px]" strokeWidth={1.75} />
                     </span>
                   </span>
+                  {/* Plain: the line under it says what it means. */}
                   <p className="font-serif text-display-sm font-medium text-ink">
-                    {stageTerm ? (
-                      <Term id={stageTerm} standalone>
-                        {measureStageLabel(stage, billType)}
-                      </Term>
-                    ) : (
-                      measureStageLabel(stage, billType)
-                    )}
+                    {measureStageLabel(stage, billType)}
                   </p>
                 </div>
                 {/* What the stage means, in one plain sentence, without a tap. */}
@@ -505,7 +511,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 href="#bill-journey"
                 className="touch-hit focus-ring mt-5 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
               >
-                {journey ? 'Every step, with dates' : 'How long bills like it wait'}
+                {journey ? 'How it got here' : 'How long bills like it wait'}
                 <ArrowDown className="h-4 w-4 text-ink-3" strokeWidth={1.75} aria-hidden="true" />
               </a>
             )}
@@ -514,7 +520,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
           {/* PDF on its own line on a phone, then Save and alerts side by
               side; one row from `sm` up. Wraps so the alert button's error
               can sit under it. */}
-          <div className="flex flex-wrap gap-2 lg:col-start-1 lg:row-start-2">
+          <div className="flex flex-wrap content-start gap-2 lg:col-start-1 lg:row-start-2">
             {bill.pdf_url && (
               <Button asChild variant="outline" className="basis-full sm:basis-auto">
                 <a

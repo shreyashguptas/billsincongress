@@ -7,7 +7,7 @@ import { X, History, Plus, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RateLimitDialog } from '@/components/bills/rate-limit-dialog';
 import { Button } from '@/components/ui/button';
-import { layoutModeFor, viewportWidth } from '@/lib/ask-panel';
+import { layoutModeFor, RAIL_MIN_VIEWPORT_PX, viewportWidth } from '@/lib/ask-panel';
 import { launcherVisible, panelInert } from '@/lib/ask-panel-state';
 import { surfaceFor } from '@/lib/page-context';
 import { useAnswers, useNoteNavReason } from './answer-provider';
@@ -73,6 +73,27 @@ export function AnswerPanel() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, setOpen]);
+
+  // Below the rail breakpoint the open panel is a sheet over the whole page
+  // under the header, so it is modal in effect: the page and the footer behind
+  // it go `inert`, and Tab stays in the panel and the header (still visible)
+  // instead of landing on links the reader cannot see (WCAG 2.4.11). The rail
+  // and the dock leave the page in view, so they leave it live.
+  useEffect(() => {
+    if (!open) return;
+    const sheet = window.matchMedia(`(max-width: ${RAIL_MIN_VIEWPORT_PX - 0.02}px)`);
+    const behind = () =>
+      [document.getElementById('main'), document.querySelector<HTMLElement>('.ask-shell > footer')].filter(
+        (el): el is HTMLElement => el !== null,
+      );
+    const apply = () => behind().forEach((el) => (el.inert = sheet.matches));
+    apply();
+    sheet.addEventListener('change', apply);
+    return () => {
+      sheet.removeEventListener('change', apply);
+      behind().forEach((el) => (el.inert = false));
+    };
+  }, [open]);
 
   // Where focus lands on each transition. Without this, stepping aside for a
   // bill leaves a keyboard or screen-reader user on <body> — at the top of

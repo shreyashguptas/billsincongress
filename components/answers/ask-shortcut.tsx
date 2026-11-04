@@ -42,6 +42,24 @@ function subscribe(onChange: () => void) {
 
 const readEnabled = () => shortcutEnabled(safeLocalStorage.getItem(ASK_SHORTCUT_STORAGE_KEY));
 
+// Set the first time `/` opens Ask in this tab. A touch screen with a keyboard
+// attached (a tablet, a phone with a Bluetooth keyboard) fails the
+// `fine:` pointer query, yet the key works there, so from then on the line
+// under the composer, with its off switch, is drawn there too (WCAG 2.1.4).
+let keyUsed = false;
+const keyListeners = new Set<() => void>();
+function subscribeKeyUsed(onChange: () => void) {
+  keyListeners.add(onChange);
+  return () => {
+    keyListeners.delete(onChange);
+  };
+}
+function noteKeyUsed() {
+  if (keyUsed) return;
+  keyUsed = true;
+  keyListeners.forEach((l) => l());
+}
+
 /**
  * Whether `/` opens Ask for this reader, and the switch. The server renders it
  * on: a reader who turned it off sees the hint for one frame, never a missing
@@ -109,6 +127,7 @@ export function AskShortcut() {
       );
       // Claimed from here on: Firefox would otherwise open its quick find bar.
       e.preventDefault();
+      noteKeyUsed();
       analytics.askTypedAnywhere({ surface, target, panel_phase: phase, key: 'slash' });
 
       if (target === 'open_panel') {
@@ -156,13 +175,15 @@ export function AskShortcut() {
 }
 
 /**
- * The line under the panel's composer, on a computer only: what `/` does, and
- * the switch that turns it off (WCAG 2.1.4 asks for one). Phones have no key to
- * press, so it is not drawn there. The footer has the same switch
- * (`AskShortcutSwitch`), for a reader who never opens Ask.
+ * The line under the panel's composer: what `/` does, and the switch that
+ * turns it off (WCAG 2.1.4 asks for one). Drawn with a mouse or trackpad, and
+ * on a touch screen once `/` has been pressed there (a keyboard is attached);
+ * a touch-only phone has no key to press. The footer has the same switch
+ * (`AskShortcutSwitch`) on every screen, for a reader who never opens Ask.
  */
 export function AskShortcutHint({ className }: { className?: string }) {
   const { enabled, setEnabled } = useAskShortcut();
+  const used = useSyncExternalStore(subscribeKeyUsed, () => keyUsed, () => false);
   const surface = surfaceFor(usePathname());
   const toggle = () => {
     setEnabled(!enabled);
@@ -173,7 +194,8 @@ export function AskShortcutHint({ className }: { className?: string }) {
     <p
       aria-live="polite"
       className={cn(
-        'hidden items-center gap-1.5 px-1 text-caption leading-5 text-ink-3 fine:flex',
+        'items-center gap-1.5 px-1 text-caption leading-5 text-ink-3',
+        used ? 'flex' : 'hidden fine:flex',
         className,
       )}
     >
@@ -202,10 +224,12 @@ export function AskShortcutHint({ className }: { className?: string }) {
 /**
  * The footer's switch, beside the theme control and in the same sunken track:
  * "/ to ask", then On and Off. It reaches a reader who never opens Ask, on
- * every page. Same stored value as the line under the composer. A computer
- * only (`fine:`), like every other sign of the shortcut: a touch-only phone has
- * no key to press. Nothing is marked until mount, as with the theme control,
- * since the server cannot read the stored choice.
+ * every page. Same stored value as the line under the composer. Drawn on every
+ * screen, touch ones included: the key works wherever a keyboard is attached
+ * (a tablet, a phone with a Bluetooth keyboard), and a pointer query cannot
+ * tell whether one is, so the way to turn it off is never hidden (WCAG 2.1.4).
+ * Nothing is marked until mount, as with the theme control, since the server
+ * cannot read the stored choice.
  */
 export function AskShortcutSwitch() {
   const { enabled, setEnabled } = useAskShortcut();
@@ -218,7 +242,7 @@ export function AskShortcutSwitch() {
   );
 
   return (
-    <div className="hidden items-center gap-2 fine:flex">
+    <div className="flex items-center gap-2">
       <span id={labelId} className="flex items-center gap-1.5 text-caption text-ink-3">
         <Kbd>/</Kbd>
         <span>

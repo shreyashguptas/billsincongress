@@ -275,6 +275,20 @@ it('tucks the corner pill on scroll only where it is drawn, never under reduced 
   );
 });
 
+it('steps the pill aside over a data-ask-clear block by fading in place, never by moving', () => {
+  const launcher = readFileSync(join(root, 'components/answers/ask-launcher.tsx'), 'utf8');
+  const details = readFileSync(join(root, 'components/bills/bill-details.tsx'), 'utf8');
+  const where = `@media (min-width: ${RAIL_MIN_VIEWPORT_PX}px) and (min-height: 500px) {\n  .ask-launcher[data-covering='true']:not(:focus-visible) {`;
+  const at = css.indexOf(where);
+  assert.ok(at >= 0, 'globals.css no longer hides the pill while it covers a data-ask-clear block.');
+  const block = css.slice(at, css.indexOf('\n}', at));
+  assert.ok(!block.includes('transform'), 'the covering rule moves the pill, which reduced motion forbids.');
+  assert.ok(block.includes('pointer-events: none'), 'a hidden pill can still be clicked where it is invisible.');
+  assert.ok(launcher.includes('data-covering='), 'ask-launcher.tsx no longer sets data-covering.');
+  assert.ok(launcher.includes("'[data-ask-clear]'"), 'ask-launcher.tsx no longer looks for data-ask-clear blocks.');
+  assert.ok(details.includes('data-ask-clear'), 'the bill status card is no longer kept clear of the pill.');
+});
+
 console.log(`\nask-css-contract: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));

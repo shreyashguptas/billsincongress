@@ -1136,7 +1136,10 @@ header uses its own breakpoints rather than the window's. That drift is guarante
 
 **The panel is never unmounted** — only translated off-screen and marked `inert`. The phase
 machine is `lib/ask-panel-state.ts`: `closed`, `open`, `minimized`. Keeping it mounted is what
-makes the next part cheap.
+makes the next part cheap. Below the rail breakpoint (1024px) the open panel is a sheet over
+everything under the header, so while it is open `<main>` and the footer are `inert`: Tab stays
+in the panel and the header, never on a page link hidden behind it (WCAG 2.4.11). The rail and
+the dock leave the page in view and leave it live.
 
 **Stepping aside.** A bill card inside an answer was always a working link, but on a phone the
 sheet covered the page it opened, so the tap read as doing nothing. `answer-panel.tsx` captures
@@ -1160,7 +1163,10 @@ is not sticky and the sheet takes the full height, over it. Closing the panel re
 whichever of the two is drawn. In the closed phase the corner pill tucks below the screen's edge
 while the reader scrolls down and returns on a scroll up, near the top or the end of the page, or
 on keyboard focus (`lib/ask-launcher-tuck.ts`, unit-tested; `data-tucked` read by CSS); it
-never tucks under `prefers-reduced-motion`, nor in the minimized phase, where it is the way back.
+never tucks on scroll under `prefers-reduced-motion`, nor in the minimized phase, where it is the
+way back. It also steps aside, at any motion setting, while its corner would sit on a block
+marked `data-ask-clear` (the bill page's status card, which reaches the corner of a laptop
+screen before any scroll); under reduced motion it fades out in place rather than moving.
 
 **Press / to ask.** `components/answers/ask-shortcut.tsx`, mounted once in the root layout
 after the panel, listens for one key on the window: `/`, the key GitHub, YouTube and Gmail use
@@ -1183,7 +1189,10 @@ single-key shortcut still needs an off switch under 2.1.4, and there are two, sh
 setting (`bic_ask_shortcut` in localStorage, absent means on, read through `useAskShortcut`
 and kept in step across tabs by the `storage` event): the line under the panel's composer, and
 an On/Off control in the footer beside the theme control (`AskShortcutSwitch`), for a reader
-who never opens Ask. Both are drawn on computers only (`fine:`), like the key's hints. While it
+who never opens Ask. The footer's is drawn on every screen: a touch screen fails the `fine:`
+pointer query yet can have a keyboard (a tablet, a phone with a Bluetooth keyboard), and the key
+works there, so its off switch must too. The composer's line is drawn with a mouse or trackpad,
+and on a touch screen from the first `/` pressed there. While it
 is on, the launcher pill and the home page's box (when not focused) show a `/` keycap
 (`components/brand/kbd.tsx`), and the launcher, Ask in the header and the ask fields carry
 `aria-keyshortcuts="/"`. The analytics event keeps its first name, `ask_typed_anywhere`, now

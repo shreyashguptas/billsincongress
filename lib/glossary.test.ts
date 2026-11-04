@@ -10,6 +10,7 @@ import {
   measureTermId,
   stageLine,
   stageTermId,
+  statusCardLine,
   termify,
   TERM_GROUPS,
   TERM_IDS,
@@ -92,6 +93,38 @@ it('every stage the status card can name has its plain line', () => {
   assert.match(stageLine(stageTermId(60, 'hres')!, 'hres')!, /^The room said yes/);
   assert.match(stageLine(stageTermId(80, 'hconres')!, 'hconres')!, /^Both rooms said yes/);
   assert.equal(stageLine('committee', 'hr'), null);
+});
+
+it('the status card line follows the measure type: a concurrent resolution has two rooms', () => {
+  // /bills/37sconres119 printed "The room said yes" (one room): the call site
+  // dropped the type.
+  assert.match(statusCardLine(80, 'sconres')!, /^Both rooms said yes/);
+  assert.match(statusCardLine(80, 'hconres')!, /^Both rooms said yes/);
+  assert.match(statusCardLine(60, 'hres')!, /^The room said yes/);
+  assert.equal(statusCardLine(100, 'hres'), null);
+});
+
+it('passed both chambers never says the two rooms passed the same words', () => {
+  assert.doesNotMatch(statusCardLine(80, 's')!, /same words/);
+  assert.doesNotMatch(TERMS['passed-both-chambers'].definition, /same words/);
+});
+
+it('a measure from an ended Congress is not described as still moving', () => {
+  // /bills/82sjres118: "A small group of members is studying it first", above
+  // "it expired when the 118th Congress ended".
+  assert.equal(statusCardLine(40, 'sjres', true), null);
+  assert.equal(statusCardLine(60, 'hr', true), null);
+  assert.equal(statusCardLine(60, 'hconres', true), null);
+  // Finished measures keep their line: the end of the Congress changed nothing.
+  assert.match(statusCardLine(100, 'hr', true)!, /law/);
+  assert.match(statusCardLine(60, 'hres', true)!, /finish line/);
+  assert.match(statusCardLine(80, 'sconres', true)!, /finish line/);
+});
+
+it('the definitions do not say a signature is the only way to law, or that every joint resolution goes to the President', () => {
+  assert.match(TERMS.bill.definition, /overrides a veto/);
+  assert.match(TERMS['joint-resolution'].definition, /Constitution/);
+  assert.match(TERMS['to-president'].definition, /becomes law anyway/);
 });
 
 it("a bill page's word list leads with its own kind, keeps reading order, and stops at the cap", () => {

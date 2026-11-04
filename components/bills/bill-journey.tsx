@@ -325,15 +325,9 @@ function ChapterColumn({
           <span className="text-sm text-ink-2">{chapter.ongoing ? `${unit} so far` : unit}</span>
         )}
       </p>
-      <p className="mt-0.5 text-ui font-medium leading-snug text-ink">
-        {terms.stage ? (
-          <Term id={terms.stage} standalone>
-            {chapter.name}
-          </Term>
-        ) : (
-          chapter.name
-        )}
-      </p>
+      {/* A grid label, so plain: "Words to know" holds the stage's meaning
+          (brand.md, "Term"). */}
+      <p className="mt-0.5 text-ui font-medium leading-snug text-ink">{chapter.name}</p>
       {chapter.events.length > 0 && (
         <ul className={cn('mt-4 space-y-3.5 sm:block', collapsed && 'hidden')}>
           {chapter.events.map((e, i) => (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { analytics, type FilterSurface } from '@/lib/analytics';
 import { formatCount } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,8 @@ export function FilterBar({
   const count = activeFilterCount(values);
 
   const railFilters = FILTERS.filter((f) => f.tier === 'base' || f.tier === 'sm' || f.tier === 'lg');
+  const rail = useRef<HTMLDivElement>(null);
+  const overflows = useOverflows(rail);
 
   return (
     <section>
@@ -76,10 +78,17 @@ export function FilterBar({
 
           {/* Row 2 — chip rail + all filters */}
           <div className="mt-3 flex items-center gap-2">
-            {/* Bleeds to the screen's left edge only: on the right it would run under
-                All filters and take the first 8px of its target. */}
-            <div className="-ml-4 min-w-0 flex-1 overflow-x-auto overscroll-x-contain px-4 py-1 [mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] [scrollbar-width:none] lg:overflow-visible lg:[mask-image:none] [&::-webkit-scrollbar]:hidden">
-              <div className="flex gap-2">
+            {/* Bleeds to the screen's left edge, and on the right only 4px into
+                the gap: further, it would run under All filters and take the
+                start of its target. No right padding and a 6px gap, so Topic,
+                Outcome and Chamber fit whole at 390px; the fade at the end is
+                drawn only when the chips really run past it. */}
+            <div
+              ref={rail}
+              data-overflow={overflows ? 'true' : undefined}
+              className="-ml-4 -mr-1 min-w-0 flex-1 overflow-x-auto overscroll-x-contain py-1 pl-4 pr-0 [scrollbar-width:none] data-[overflow=true]:[mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] lg:overflow-visible lg:data-[overflow=true]:[mask-image:none] [&::-webkit-scrollbar]:hidden"
+            >
+              <div className="flex w-max gap-1.5">
                 {railFilters.map((definition) => {
                   const set = isSet(values[definition.field]);
                   // Tier decides visibility, but a set filter is never hidden.
@@ -141,4 +150,20 @@ export function FilterBar({
 
     </section>
   );
+}
+
+/** Whether a scrolling row's content runs past its edge, kept up to date. */
+function useOverflows(ref: RefObject<HTMLDivElement | null>): boolean {
+  const [overflows, setOverflows] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflows(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [ref]);
+  return overflows;
 }

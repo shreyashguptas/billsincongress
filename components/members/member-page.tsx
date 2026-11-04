@@ -9,7 +9,6 @@ import { SourceLine } from '@/components/brand/section';
 import { stageFill } from '@/components/brand/status';
 import { MemberAccounts } from '@/components/bills/member-accounts';
 import { Arrow } from '@/components/brand/arrow';
-import { Term } from '@/components/brand/term';
 
 const PARTY_NAMES: Record<string, string> = { D: 'Democrat', R: 'Republican', I: 'Independent', L: 'Libertarian' };
 
@@ -20,34 +19,18 @@ function ordinal(n: number): string {
 }
 
 /**
- * "Representative · California's 12th district", "Senator · New York". The
- * seat's words are the page's first civics words, so each explains itself.
- * A seat word alone on the line is `standalone` (a 44px target on touch); with
- * "district" beside it the two are words in a line, so neither's box can reach
- * the other when the eyebrow wraps (brand.md, "Term").
+ * "Representative · California's 12th district", "Senator · New York". An
+ * eyebrow label, so its words stay plain (brand.md, "Term": a dotted word
+ * belongs in a sentence); Learn's "Words you'll see" defines each.
  */
 function SeatLine({ member }: { member: MemberPageData['member'] }) {
   const state = STATE_NAMES[member.state] ?? member.state;
-  if (member.chamber === 'senate') {
-    return (
-      <>
-        <Term id="senator" standalone>
-          Senator
-        </Term>{' '}
-        · {state}
-      </>
-    );
-  }
-  const rep = (standalone: boolean) => (
-    <Term id="representative" standalone={standalone}>
-      Representative
-    </Term>
-  );
-  if (member.district === null) return <>{rep(true)} · {state}</>;
-  if (member.district === 0) return <>{rep(true)} · {state}, at large</>;
+  if (member.chamber === 'senate') return <>Senator · {state}</>;
+  if (member.district === null) return <>Representative · {state}</>;
+  if (member.district === 0) return <>Representative · {state}, at large</>;
   return (
     <>
-      {rep(false)} · {state}&rsquo;s {ordinal(member.district)} <Term id="district">district</Term>
+      Representative · {state}&rsquo;s {ordinal(member.district)} district
     </>
   );
 }
@@ -121,7 +104,7 @@ export function MemberPage({ page }: { page: MemberPageData }) {
             id="member-sponsored"
             title={
               <>
-                Newest bills {member.name} <Term id="sponsor">sponsored</Term>
+                Newest bills {member.name} sponsored
               </>
             }
             bills={sponsored}
@@ -141,7 +124,7 @@ export function MemberPage({ page }: { page: MemberPageData }) {
             id="member-cosponsored"
             title={
               <>
-                Newest bills they <Term id="cosponsor">cosponsored</Term>
+                Newest bills they cosponsored
               </>
             }
             bills={cosponsored}

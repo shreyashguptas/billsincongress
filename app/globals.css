@@ -722,6 +722,17 @@ html {
       opacity 160ms ease-in 40ms;
   }
 }
+/* It also steps aside, at any motion setting, while it would sit on a block
+   marked data-ask-clear (the bill page's status card, which reaches the corner
+   on a laptop before any scroll): data-covering, set by ask-launcher.tsx. It
+   fades in place rather than moving, so reduced motion is respected too, and
+   keyboard focus still brings it back. */
+@media (min-width: 1024px) and (min-height: 500px) {
+  .ask-launcher[data-covering='true']:not(:focus-visible) {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
 
 /* "Did you find what you were looking for?" (components/feedback/found-it-prompt.tsx).
    Stacked above the launcher pill (3rem tall) rather than beside it, so the two

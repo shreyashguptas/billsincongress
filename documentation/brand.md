@@ -234,7 +234,11 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
     screen's edge while the reader scrolls down, and comes back on a scroll up,
     near the top or the end of the page, or when it takes keyboard focus
     (`lib/ask-launcher-tuck.ts`). Under `prefers-reduced-motion` it never
-    moves; it simply stays, and the reserved room keeps the end clear.
+    moves; it simply stays, and the reserved room keeps the end clear. A block
+    tall enough to reach the corner before any scroll (the bill page's status
+    card on a laptop) carries `data-ask-clear`, and while the pill's corner
+    would sit on it the pill steps aside at any motion setting (under reduced
+    motion it fades out in place).
   - **Under 500px tall** (a phone on its side, 200% zoom and up) the header is
     not sticky (`short:`): it scrolls away with the page, and Ask goes with it.
   - The page scrolls by the header and by the reserve (`scroll-padding-top`,
@@ -331,12 +335,15 @@ Patterns that appear on more than one page:
   computer the key is shown where the box is: a `/` keycap in the launcher pill, "Press /"
   in `ink-3` at the right of the home page's box while it is not focused, and a 13px
   `ink-3` line under the panel's composer, "/ opens Ask from any page · Turn off" (the
-  button `ink-2`, underlined). Never on a phone.
+  button `ink-2`, underlined). Not on a touch screen, except that line once `/` has been
+  pressed there (a keyboard is attached, so its off switch must show).
 - **The `/` switch** (`AskShortcutSwitch`, `components/answers/ask-shortcut.tsx`): the
   reader's off switch for that one key (WCAG 2.1.4), in the footer beside the theme
   control and built the same way — a `/` keycap and "to ask" in 13px `ink-3`, then On and
   Off in the theme control's track (`sunken`, the chosen side `raised` with `shadow-sm`;
-  32px tall, 44px on touch). Computers only (`fine:`), like every other sign of the key.
+  32px tall, 44px on touch). On every screen, touch ones included: a tablet or a phone
+  with a keyboard can press `/`, and a pointer query cannot tell, so the way to turn the
+  key off is never hidden.
   It and "Turn off" under the composer are one setting. Ink only: it is a setting, not
   data.
 - **Answer reveal**: a new answer is written onto the page word by word, each
@@ -379,15 +386,20 @@ Patterns that appear on more than one page:
   a stage; the definition in `text-ui` `ink-2`; a hairline; then "More words in Learn →", which
   lands on the word's row in Learn's "Words you'll see" (`/learn#word-<id>`, picked out by a
   `sunken` fill that `WordTarget` sets, since a client-side navigation never updates `:target`). Never on hover alone: a phone cannot hover, and a definition that appears
-  as a pointer crosses a headline is noise. Only the FIRST time a word appears on a page
+  as a pointer crosses a headline is noise. **Only in a running sentence**: never on a
+  heading, an eyebrow or other small-caps label, a data label (the bill number, its
+  Congress, "Sponsored by"), a source line, or a grid or track label (a stage's name in the
+  status card or the journey). A dotted rule there reads as a broken link, and two side by
+  side read as one rule. About three to a screen at most; the words a page uses but does not
+  mark still go in its **Words to know**. Only the FIRST time a word appears on a page
   (`TermText` marks the first match of each word in a string, for text held as data, like a
   hub's explainer). The trigger is an inline `span role="button"`, not a `<button>`, so it
   wraps and takes punctuation like the words around it; for the same reason it never sits
   inside a link or a button, so bill rows and stage pills carry none. It answers a tap over
   its own line and no further: a word in a sentence is an inline target (WCAG 2.2, 2.5.8),
   and a 44px box on a 26px line reached into the next one, so a tap on "119th Congress"
-  opened "Sponsor". A `standalone` Term, the whole of its label and the only target on its
-  line (a stage's name, the bill number, "Senator"), grows to 44px tall on touch and 24px
+  opened "Sponsor". A `standalone` Term, the whole of its line and the only target on it
+  (rare now that labels are never marked), grows to 44px tall on touch and 24px
   under a mouse, line by line, so a name that wraps answers on both lines. The keyboard
   moves through its popover as if it sat right after the word: Tab from "More words in
   Learn" closes it and goes on to whatever follows the word; Shift+Tab closes it and lands
@@ -432,26 +444,34 @@ Patterns that appear on more than one page:
   show the plain introduction date. A row never shows a date other than the one
   its label names; an undated bill shows none.
 - **Bill page order**: the page tells the story in the order a reader asks it.
-  The title, its byline (introduced, sponsor), then **In short** (its eyebrow
-  is a real h2, so heading navigation lands on it): one sentence in Newsreader
-  at 26/38 (22/32 on phones), `max-w-measure`, under a `line` rule. It is the
-  first sentence of the CRS summary, word for word, or, with no summary, a
-  sentence built from the title and the stage ("This bill sets out to…. It
-  became law.", `billLead` in `lib/seo.ts`). A `.meta` line under it says where
-  it came from. Then the status card, then the actions (PDF, Save, alerts).
+  The title, its byline (introduced, "Sponsored by" and the sponsor; "Sponsored by"
+  never breaks, and a long name drops to its own line rather than being cut), then
+  **In short** (its eyebrow is a real h2, so heading navigation lands on it): one
+  sentence in Newsreader at 26/38 (22/32 on phones), `max-w-measure`, under a `line`
+  rule. It is the first sentence of the CRS summary, word for word (`billLead` in
+  `lib/seo.ts`), and a `.meta` line under it says so. With no summary there is no
+  In short: a sentence built from the title only said the title again, so a single
+  `.meta` line under a `line` rule says there is no plain-language summary yet and
+  links down to "What the record says". Then the status card, then the actions (PDF,
+  Save, alerts).
   Below the hero, one hairline-ruled section each, each with an h2: the summary
   ("What this law does" / "What this bill would do"), which starts after the
   lead sentence under the eyebrow "More from the summary", so no sentence is
   printed twice, with the "What does this bill actually do?" starter pill
   beside it (in the 360px column from `lg`, under it on a phone); the journey,
-  under a headline that states it ("From introduction to law in 575 days");
+  under a headline that states how it ended and when ("Became law on Sep 25, 2026",
+  "Expired when the 118th Congress ended"), never its length, which is the status
+  card's one number;
   the sponsor; then cosponsors, peers, "Keep reading" and the ask band.
 - **Status panel** (bill page, "Where it stands"): `rounded-lg`, raised, the
-  stage in `display-sm` with its glyph (its name a `Term`), then one always-visible
+  stage in `display-sm` with its glyph (its name plain, not a `Term`: the line under it
+  explains it), then one always-visible
   `text-ui` `ink-2` sentence that says what that stage means ("A small group of members
   is studying it first. Most bills stop here."; `stageLine` in `lib/glossary.ts`), so the
   page's most important word never waits for a tap. It defines the stage; it never
-  forecasts this bill. Then "Stage n of N" in `text-sm` `ink-2`. Under it the
+  forecasts this bill, and it never claims what the record cannot show ("passed both
+  chambers" means each passed a version, not the same words). A measure whose Congress
+  has ended without finishing it gets no line: it expired, and "What happens next" says so. Then "Stage n of N" in `text-sm` `ink-2`. Under it the
   journey's length (Newsreader at 44px, "days" beside it) with what it measures:
   "from introduction to law", "since it was introduced". Then the road with its
   step names: a `StageTrack` across the card on phones and tablets, `StageSteps`
@@ -459,17 +479,18 @@ Patterns that appear on more than one page:
   lead. For a resolution, one `text-sm` `ink-2` sentence says why the road is
   short. Then **What happens next** under a hairline: one `text-ui` `ink`
   sentence that is a rule of the process, never a forecast ("Next on the road:
-  the full House votes on it.", "Nothing more: it is law."; `billNextStep` in
+  the full House would have to vote on it.", "Nothing more: it is law."; a proposed
+  constitutional amendment goes to the states, not the President; `billNextStep` in
   `lib/bill-next-step.ts`), and, for a measure that can still move, a `.meta`
   line with the days left in the Congress. It ends with an underlined link down
-  to the journey. The detailed **journey** sits in its own section below the
+  to the journey, "How it got here". The detailed **journey** sits in its own section below the
   summary, in a `rounded-lg` raised panel. Under the stage's "Stage n of N",
   one underlined `ink-2` text link with `ArrowRight`: "How a bill becomes law"
   (`/learn#path`), or for a resolution "What a resolution is" (its word in Learn).
 - **Words to know** (`components/bills/bill-words.tsx`, rows from
   `components/brand/word-list.tsx`): the last section of a bill page before the ask band.
   Eyebrow "Words to know", an h2 "The words on this page, in plain English", then the
-  words that page marked as `Term`s as a hairline-ruled definition list: the word in
+  civics words that page uses (marked or not) as a hairline-ruled definition list: the word in
   Newsreader `title` (with its stage dot when it names a stage), its definition under it in
   `text-base` `ink-2`. The measure's own kind comes first (so a simple resolution's list
   opens "A resolution for one room only … It is not a law"), the rest in the order the page

@@ -304,7 +304,7 @@ fires roughly once per settled search.
 | `bill_viewed` | Bill detail page rendered (top of the chat funnel) | `bill_id`, `bill_type`, `bill_number`, `congress`, `policy_area`, `progress_stage`, `has_summary`, `has_pdf` | `components/bills/bill-details.tsx` |
 | `bill_base_rate_viewed` | Committee base-rate context line shown on a bill detail page (passive, once per bill view) | `bill_id`, `chamber`, `days_in_committee`, `base_rate_percent`, `base_rate_sample` | `components/bills/bill-details.tsx` |
 | `bill_journey_viewed` | The journey (the to-scale stage bar, its chapters and the Congress clock) drawn on a bill page, in its own "How it got here" section under the summary (in the status panel above it until 2026-11-04) (passive, once per bill view). `bar_drawn` is false when the bill has spent time in only one stage and the plain track shows instead; `outcome` is `law`, `signed`, `vetoed`, `adopted`, `expired` or `open` | `bill_id`, `progress_stage`, `chapters`, `total_days`, `outcome`, `bar_drawn` | `components/bills/bill-journey.tsx` |
-| `bill_journey_expanded` | Reader tapped "Show every step" under a bill's journey on a phone, where the stages start folded to their phases (since 2026-11-04; from `sm` up every step is always shown, so it never fires there). Once per opening; arriving by the status card's "Every step, with dates" link opens the steps without it | `bill_id`, `chapters`, `events` (dated moments revealed) | `components/bills/bill-journey.tsx` |
+| `bill_journey_expanded` | Reader tapped "Show every step" under a bill's journey on a phone, where the stages start folded to their phases (since 2026-11-04; from `sm` up every step is always shown, so it never fires there). Once per opening; arriving by the status card's "How it got here" link ("Every step, with dates" until the design review fixes) opens the steps without it | `bill_id`, `chapters`, `events` (dated moments revealed) | `components/bills/bill-journey.tsx` |
 | `bill_peers_viewed` | The reader scrolled to the "Among its peers" dot field on a bill page (30% of it on screen; once per bill view) | `bill_id`, `policy_area`, `peer_total`, `law_count`, `ring_shown` | `components/bills/bill-peers.tsx` |
 | `related_bill_clicked` | Reader clicks one of the up to five same-topic bills in "Keep reading" at the foot of a bill page (same Congress, most recently acted on; since 2026-10-14) | `from_bill_id`, `to_bill_id`, `policy_area`, `position` (1–5, top first) | `components/bills/bill-related.tsx` |
 | `bill_pdf_opened` | User clicks "Read full text (PDF)" | `bill_id` | `components/bills/bill-details.tsx` |
@@ -329,8 +329,9 @@ fires roughly once per settled search.
 > this bill" — nothing more. Since 18 Aug 2026 every bill page also renders an
 > "At a glance" paragraph built from the bill's own fields, so `has_summary:
 > false` no longer implies the page had no prose on it. Since 4 Nov 2026 that
-> paragraph shows only on bills without a summary, and every bill page opens
-> with an "In short" sentence (the summary's first sentence when there is one). The property is
+> paragraph shows only on bills without a summary, and a bill page with a summary opens
+> with an "In short" sentence (its first sentence); without one, a single line says there is
+> no plain-language summary yet and points to that paragraph. The property is
 > deliberately unrenamed: existing insights and funnels are built on it.
 
 ### Pro plan (billing + bill alerts)
@@ -407,7 +408,7 @@ emits `list`.
 | `answer_panel_closed` | The panel was dismissed, or stepped aside for a page the reader opened from it. `swipe` covers every drag-to-close: down on the phone sheet and, since 2026-11-01, right on the floating rail, by finger or mouse | `surface`, `reason: "manual" \| "escape" \| "swipe" \| "entity_navigation" \| "navigation"`, `turn_count`, `dwell_ms` | `components/answers/answer-provider.tsx` |
 | `answer_panel_restored` | A set-aside conversation was reopened from the launcher, or (from 2026-10-23) by the keyboard way in (`typing`: any printable key typed with nothing focused, and from 2026-11-04 only `/`), or (from 2026-11-04) from "Ask" in the header | `surface`, `trigger: "launcher" \| "header" \| "typing"`, `turn_count`, `away_ms` | `components/answers/answer-provider.tsx` |
 | `ask_typed_anywhere` | The reader used the keyboard way into Ask and focus moved to an ask box. **From 2026-11-04 that is the `/` key only** ("Press / to ask"), once per press, and the event carries `key: "slash"`; it is never sent for a letter, with Cmd/Ctrl/Alt/AltGr held, on a held key's repeats, while a form control or widget (input, checkbox, select, combobox, slider, listbox, menu, editable region, dialog) has focus, or once the reader has turned the shortcut off (see `ask_shortcut_toggled`). From 2026-10-23 to 2026-11-04 (no `key` property) it was any printable key typed with no text box focused, once per run of typing — a letter pressed on a focused link included, which is why it was narrowed (WCAG 2.1.4). The name was kept so saved insights keep counting; expect far fewer events after 2026-11-04. Added 2026-10-23 | `surface`, `target: "hero"` (the home page's box, on screen) `\| "panel"` (the open panel's composer) `\| "open_panel"` (the panel opened, or came back, for it — also sends `answer_panel_opened`/`answer_panel_restored` with trigger `typing`), `panel_phase: "closed" \| "open" \| "minimized"`, `key: "slash"` (from 2026-11-04) | `components/answers/ask-shortcut.tsx` |
-| `ask_shortcut_toggled` | The reader turned the `/` shortcut off or back on. Sent only when the value changes. One setting, kept in this browser only (`bic_ask_shortcut` in localStorage), with two switches, both on computers only. Added 2026-11-04 | `surface`, `enabled: boolean` (the new value), `placement: "composer"` (the "Turn off"/"Turn on" line under the panel's composer) `\| "footer"` (the "/ to ask" On/Off control beside the theme switch) | `components/answers/ask-shortcut.tsx` |
+| `ask_shortcut_toggled` | The reader turned the `/` shortcut off or back on. Sent only when the value changes. One setting, kept in this browser only (`bic_ask_shortcut` in localStorage), with two switches: the footer's is on every screen, touch ones included (a tablet or phone with a keyboard can press `/`); the composer's is drawn with a mouse or trackpad, and on a touch screen once `/` has been pressed there. Added 2026-11-04 | `surface`, `enabled: boolean` (the new value), `placement: "composer"` (the "Turn off"/"Turn on" line under the panel's composer) `\| "footer"` (the "/ to ask" On/Off control beside the theme switch) | `components/answers/ask-shortcut.tsx` |
 | `answer_panel_resized` | The docked panel's width was changed by drag, keyboard or a double-click reset | `surface`, `width_px`, `width_pct`, `viewport_width`, `method: "drag" \| "keyboard" \| "reset"` | `components/answers/resize-handle.tsx` |
 | `answer_survived_navigation` | Reader asked a follow-up after navigating to another page mid-conversation | `from_surface`, `to_surface`, `turn_number` | `components/answers/answer-provider.tsx` |
 | `answer_history_opened` | Signed-in reader opened their saved conversations | `chat_count` | `components/answers/history-list.tsx` |
@@ -445,7 +446,11 @@ meaning from `lib/glossary.ts`. The popover's "More words in Learn" link carries
 `term_opened` → that click → a `/learn` pageview is the whole funnel. The status card's
 "How a bill becomes law" link is autocaptured too (`cta="bill-status-learn-road"`). The
 plain stage sentence in the status card and the committee line on the home page are text,
-so they send nothing.
+so they send nothing. Only words in running sentences are marked: since the design review
+fixes (2026-11-04) a label, heading or grid cell never is, so the bill page's number, Congress,
+"Sponsored by", stage name and journey stage names, and a member page's seat line and list
+headings, send no `term_opened` (expect fewer for `sponsor`, `congress-number` and the stage
+ids). Those words still appear in the page's "Words to know" list.
 
 | Event | Fired when | Properties | Where (file) |
 |---|---|---|---|

@@ -1,5 +1,5 @@
 // Relative, not '@/…', so the glossary test can load it under plain `tsx`.
-import { BillStages, stagePath, type BillStage } from './utils/bill-stages';
+import { BillStages, isStageOnPath, stagePath, type BillStage } from './utils/bill-stages';
 
 /**
  * The site's one dictionary of civics words (documentation/brand.md, "Term").
@@ -106,7 +106,7 @@ export const TERMS = {
     word: 'Bill',
     group: 'measures',
     definition:
-      'A written idea for a new law. It becomes a law only if both rooms pass it and the President signs it.',
+      'A written idea for a new law. Both rooms must pass the same words; then it becomes law when the President signs it, or if Congress overrides a veto.',
   },
   resolution: {
     word: 'Resolution',
@@ -133,7 +133,7 @@ export const TERMS = {
     word: 'Joint resolution',
     group: 'measures',
     definition:
-      'Works just like a bill: if both rooms pass it and the President signs it, it becomes a law.',
+      'Usually works like a bill: both rooms pass it and the President signs it. One that proposes a change to the Constitution skips the President and goes to the states instead.',
     match: ['joint resolutions', 'joint resolution'],
   },
   sponsor: {
@@ -180,14 +180,15 @@ export const TERMS = {
     word: 'Passed both chambers',
     group: 'steps',
     stage: BillStages.PASSED_BOTH_CHAMBERS,
-    definition: 'Both rooms voted yes on the same words. Next it goes to the President.',
+    definition:
+      'The House and the Senate have each passed it. If their versions differ, they must agree on one text before it can go further.',
   },
   'to-president': {
     word: 'To the President',
     group: 'steps',
     stage: BillStages.TO_PRESIDENT,
     definition:
-      'Congress sent the bill to the President, who has 10 days (not counting Sundays) to sign it or say no.',
+      'The President has 10 days (not counting Sundays) from its arrival to sign or veto it. If neither happens it becomes law anyway, unless Congress has adjourned; then it dies.',
   },
   veto: {
     word: 'Veto',
@@ -350,8 +351,14 @@ export function termify(text: string, ids: TermId[]): TermPiece[] {
  * bill's status card, so the most important word on the page never waits for
  * a tap. It says what the stage means, never what will happen to this bill.
  * Null for a word that is not a stage.
+ *
+ * `congressEnded`: the measure's Congress is over. A measure that had not
+ * finished then expired with it, so a present-tense line ("a small group of
+ * members is studying it") would be false; it gets no line, and the card's
+ * "What happens next" says it expired.
  */
-export function stageLine(id: TermId, billType?: string | null): string | null {
+export function stageLine(id: TermId, billType?: string | null, congressEnded = false): string | null {
+  if (congressEnded && id !== 'agreed-to' && id !== 'signed' && id !== 'became-law') return null;
   if (id === 'agreed-to') {
     return stagePath(billType) === 'concurrent_resolution'
       ? 'Both rooms said yes. For this kind of resolution, that is the finish line.'
@@ -363,13 +370,26 @@ export function stageLine(id: TermId, billType?: string | null): string | null {
   return STAGE_LINES[id] ?? null;
 }
 
+/**
+ * The status card's line for a measure, from its stage and type: what the bill
+ * page prints under the stage's name. The type is passed all the way down, so a
+ * concurrent resolution agreed to by both rooms says so ("Both rooms said
+ * yes"), not "The room said yes". Null for a stage off the measure's road.
+ */
+export function statusCardLine(stage: number, billType: string | null | undefined, congressEnded = false): string | null {
+  if (!isStageOnPath(stage, billType)) return null;
+  const id = stageTermId(stage, billType);
+  return id ? stageLine(id, billType, congressEnded) : null;
+}
+
 const STAGE_LINES: Partial<Record<TermId, string>> = {
   introduced: 'A member handed it in. It is the first step for every bill.',
   'in-committee': 'A small group of members is studying it first. Most bills stop here.',
   'out-of-committee': 'The committee sent it on. It is waiting for a vote by the whole room.',
   'passed-one-chamber': 'One room voted yes. The other room has to pass the same words too.',
-  'passed-both-chambers': 'The House and the Senate both voted yes on the same words. Next it goes to the President.',
-  'to-president': 'Both rooms said yes and sent it to the President, to sign or to turn down.',
+  'passed-both-chambers':
+    'The House and the Senate have each passed it. If their versions differ, they must agree on one text before it can go further.',
+  'to-president': 'Both rooms said yes and sent it to the President, who can sign it or veto it.',
   veto: 'The President said no. Two in three members of each room can still overrule that.',
   signed: 'The President signed it, so it is a law. Its law number comes a few days later.',
   'became-law': 'It is a law now. Everyone in the country has to follow it.',

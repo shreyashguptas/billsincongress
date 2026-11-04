@@ -22,18 +22,31 @@ export type NextStep = {
   daysLeft: number | null;
 };
 
+/**
+ * A joint resolution proposing a constitutional amendment: its road ends at the
+ * states, not the President (Article V). Its official title says so in these
+ * words; anything else is treated as an ordinary joint resolution.
+ */
+export function proposesAmendment(billType: string | null | undefined, title: string | null | undefined): boolean {
+  const type = (billType ?? '').toLowerCase().replace(/[^a-z]/g, '');
+  return (type === 'hjres' || type === 'sjres') && /^\s*proposing an amendment to the constitution/i.test(title ?? '');
+}
+
 export function billNextStep({
   stage,
   billType,
   congress,
   introducedDate,
   today,
+  title,
 }: {
   stage: number;
   billType: string | null | undefined;
   congress: number;
   introducedDate: string;
   today: string;
+  /** The official title, to recognise a proposed constitutional amendment. */
+  title?: string | null;
 }): NextStep | null {
   const type = (billType ?? '').trim().toLowerCase();
   const path = stagePath(billType);
@@ -74,6 +87,7 @@ export function billNextStep({
   }
 
   const pass = path === 'law' ? 'pass' : 'agree to';
+  const amendment = proposesAmendment(billType, title);
   switch (stage) {
     case BillStages.VETOED:
       return open(
@@ -82,15 +96,26 @@ export function billNextStep({
     case BillStages.INTRODUCED:
       return open('Next on the road: it is usually sent to a committee.');
     case BillStages.IN_COMMITTEE:
-      return open(`Next on the road: the committee sends it on to the full ${home}.`);
+      return open(
+        `Next on the road: the committee would have to approve it and send it to the full ${home}. Most bills never get this far.`,
+      );
     case BillStages.OUT_OF_COMMITTEE:
-      return open(`Next on the road: the full ${home} votes on it.`);
+      return open(`Next on the road: the full ${home} would have to vote on it.`);
     case BillStages.PASSED_ONE_CHAMBER:
       return open(`Next on the road: the other chamber would have to ${pass} the same text.`);
     case BillStages.PASSED_BOTH_CHAMBERS:
-      return open('Next on the road: it goes to the President to sign or veto.');
+      // Each chamber has passed a version, not necessarily the same one
+      // (convex/billStage.ts): a bill in conference is stage 80 too.
+      if (amendment) {
+        return open(
+          'Next on the road: once both chambers agree on one text, it goes to the states. It joins the Constitution only if three in four states ratify it.',
+        );
+      }
+      return open('Next on the road: both chambers agree on one text, then it goes to the President.');
     case BillStages.TO_PRESIDENT:
-      return open('The President has 10 days, not counting Sundays, to sign or veto it.');
+      return open(
+        'The President has 10 days (not counting Sundays) from when it arrives to sign or veto it. If the President does neither, it becomes law anyway, unless Congress has adjourned; then it dies (a pocket veto).',
+      );
     default:
       // A stage the record does not name: say nothing rather than guess.
       return null;
