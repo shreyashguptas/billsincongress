@@ -218,6 +218,10 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   above and below it. A row of facts must also fit the screen at a 24px font: a value that
   cannot shrink (`min-w-0`) or wrap pushes the page sideways. See "Input, not width" for
   which primitives carry it.
+  Never stack an arbitrary media query under it (`touchable:[@media(min-width:18em)]:`):
+  Tailwind 3 compiles that to CSS the dev server cannot read, and the whole stylesheet drops.
+  Write a named class in `app/globals.css` instead (`.theme-seg-label`);
+  `scripts/check-compiled-css.ts` fails `pnpm test` on it.
 - **Nothing floats over the words.** A control pinned over the page never moves
   out of the way, so it sits on whatever is under it: a party's count, the end
   of a title, a date. Where there is no room to float one beside the reading,

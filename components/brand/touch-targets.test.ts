@@ -85,7 +85,8 @@ it('a wrapped row of touch-hit links keeps its lines apart on touch', () => {
 });
 
 it('the theme switch names each theme on touch', () => {
-  assert.match(read('components/theme/mode-toggle.tsx'), /<span className="hidden text-caption touchable:\[@media\(min-width:18em\)\]:inline">\{opt\.label\}<\/span>/);
+  assert.match(read('components/theme/mode-toggle.tsx'), /<span className="theme-seg-label text-caption">\{opt\.label\}<\/span>/);
+  assert.match(read('app/globals.css'), /@media \(any-pointer: coarse\) and \(min-width: 18em\) \{\s*\.theme-seg-label \{\s*display: inline;/);
 });
 
 it('a dotted Term answers over its own line, never the next one', () => {

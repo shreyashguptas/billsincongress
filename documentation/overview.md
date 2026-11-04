@@ -201,7 +201,7 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   billStage.ts billJourney.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts indexNowStatus.ts  Pure, unit-tested
 
-scripts/                   run-tests.ts, four guards, three AI probes, the touch-target
+scripts/                   run-tests.ts, five guards, three AI probes, the touch-target
                            check, icon/share-image/font generators,
                            posthog-self-driving-setup.ts, posthog-logs-smoke.ts,
                            and truth/ (the answer-accuracy harness)
@@ -1014,7 +1014,7 @@ code:
 burn cited above. Both are `internalQuery` now; the CLI commands in the runbook are
 unaffected because `pnpm exec convex run` calls internal functions as admin.
 
-Four automated guards run on every `pnpm test`, two of them enforcing related rules — see
+Five automated guards run on every `pnpm test`, two of them enforcing related rules — see
 [Build, test and deploy](#build-test-and-deploy).
 
 ---
@@ -1823,6 +1823,7 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
 | `scripts/check-type-floor.ts` | `pnpm test` | No text size under 13px (`text-[0.7rem]`, `fontSize: 10`) and no font size or line height in px (`text-[13px]`, `leading-[28px]`) in `app/`, `components/` or `lib/`, so every size follows the reader's browser font setting. The share images in `lib/og/` may use px but not go under the floor. The one sanctioned exception is `.label-eyebrow`'s 0.75rem (12px) capitals, defined once in `app/globals.css` (brand.md, "Type floor") |
+| `scripts/check-compiled-css.ts` | `pnpm test` | The compiled stylesheet is valid: no arbitrary media variant (`[@media(...)]:`) stacked under another variant such as `touchable:` (Tailwind 3 writes it in a shape the dev compiler cannot parse, which drops every style on the site), no unknown at-rule, no `undefined` |
 | `pnpm check:touch [url] [/paths] [--width=820] [--shots=dir]` | Manual, needs a running site and Playwright | Every tap target at 390px with touch on is at least 44px either way, measured by hit-testing outwards from its centre (`.touch-hit` counts; a neighbour's target covering it does not), and no target's centre lands on a different target (that fails even when exempt, and names the one on top). Exempt from the size: links and dotted Terms in running text, and charts marked `data-touch-exempt`. `--shots` saves each page with every target outlined. `components/brand/touch-targets.test.ts`, in `pnpm test`, keeps the pieces it relies on in place (`.touch-hit`'s 24px under a mouse and 44px on touch, and the shared links and toggles that carry it). See "Input, not width" in `documentation/brand.md` |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for gpt-oss-120b **and every fallback** in `OPENROUTER_FALLBACK_MODELS`. Not the Claude route, which is called directly under Anthropic's standard retention (see Retention above) |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web lookup still returns the citations the code parses |
@@ -2665,7 +2666,7 @@ dependency and no config file. The static gates are TypeScript (`next build` typ
 fails on an error; `next.config.mjs` has no `typescript` block to turn that off), the explicit
 `tsc --noEmit` in the review workflow, `tsc --noEmit -p convex` in `ci.yml` (the check `convex
 deploy` runs, with `convex/`'s own ES2021 tsconfig, and the only gate on it before a merge), and
-the four repository-invariant guards described below. Any claim that "the build includes lint" is
+the five repository-invariant guards described below. Any claim that "the build includes lint" is
 false.
 
 ### The test system
@@ -2687,7 +2688,7 @@ iterating an empty list *succeeds*, so a broken discovery would report green hav
 nothing, and "a green result that proved nothing is worse than a red one, because it is
 trusted." The run ends by printing how many files and guards actually ran.
 
-Then the four guards run (not counted toward the floor, but counted toward failure).
+Then the five guards run (not counted toward the floor, but counted toward failure).
 `check-metered-model-calls.ts` exists because of a real incident: `answer.ts`'s `ask` once
 shipped as a public action with no auth and no limiter, beside a properly metered `stream`.
 `check-no-userid-args.ts` enforces the identity rule statically — no public Convex function
@@ -2695,6 +2696,11 @@ may accept a `userId` argument. `check-no-committed-screenshots.ts` keeps review
 screenshots out of the tree: #138 committed eight of them and #145 took them back out.
 `check-type-floor.ts` holds the 13px type floor and keeps sizes in rem: an audit found nearly
 half the text on the phone home page set at 9–12px, in px that ignored the browser's font setting.
+`check-compiled-css.ts` runs `app/globals.css` through Tailwind and fails on CSS the dev
+compiler cannot parse: a `touchable:[@media(min-width:18em)]:` class once compiled to
+`@media\(…\)\undefined`, the dev server dropped the stylesheet, and every page fell back to
+Times New Roman with every test green. A media query a variant cannot express goes in
+`app/globals.css` as a named class.
 `scripts/check-grounding.test.ts` is an ordinary discovered test, not a guard, but it does the
 same job for the manual AI probes: it fails if their default model, providers, fallbacks or
 price ceiling drift from `convex/answer.ts` (see [Guardrails](#guardrails)).

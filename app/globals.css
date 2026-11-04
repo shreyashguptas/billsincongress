@@ -222,6 +222,19 @@
 }
 
 @layer components {
+  /* The theme switch's word labels ("Light", "Dark", "System"): touch screens
+     only, and only with 18em of screen (288px at the default font), so a phone
+     at a large font keeps the three icons. Written here, not as a stacked
+     `touchable:[@media(...)]` class, which Tailwind 3 compiles to invalid CSS. */
+  .theme-seg-label {
+    display: none;
+  }
+  @media (any-pointer: coarse) and (min-width: 18em) {
+    .theme-seg-label {
+      display: inline;
+    }
+  }
+
   /* Content width — 1200px of content inside the gutters. */
   .container-editorial {
     @apply mx-auto w-full max-w-[1264px] px-4 sm:px-6 lg:px-8;

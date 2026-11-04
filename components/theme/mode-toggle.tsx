@@ -45,8 +45,12 @@ export function ModeToggle() {
         >
           {opt.icon}
           {/* The names need 18em of screen (288px at the default font); a 390px
-              phone at a 24px font is 16.25em, and there the three icons stay. */}
-          <span className="hidden text-caption touchable:[@media(min-width:18em)]:inline">{opt.label}</span>
+              phone at a 24px font is 16.25em, and there the three icons stay.
+              The rule is .theme-seg-label in app/globals.css: Tailwind 3 cannot
+              stack an arbitrary media variant under `touchable:` (it writes
+              "@media(...)undefined", and the dev compiler then drops every
+              style in the sheet, fonts included). */}
+          <span className="theme-seg-label text-caption">{opt.label}</span>
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
