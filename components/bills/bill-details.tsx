@@ -33,7 +33,7 @@ import { BillRelatedSection } from './bill-related';
 import { MemberAccounts } from './member-accounts';
 import { BillCosponsors } from './bill-cosponsors';
 import { BillWords } from './bill-words';
-import { committeeBaseRate, congressClock, finishOf, journeyView } from '@/lib/bill-journey';
+import { committeeBaseRate, congressClock, finishOf, isPocketVeto, journeyView } from '@/lib/bill-journey';
 import { billNextStep, daysLeftPhrase } from '@/lib/bill-next-step';
 import type { BillPageExtras } from '@/lib/services/bills-service';
 import {
@@ -179,10 +179,6 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
   const congressEnded = congressClock(bill.congress, today, bill.introduced_date || today).ended;
   const lifeOpts = { congressEnded, finished: finishOf(stage, bill.bill_type ?? '') !== null };
   const answer = billAnswerParagraph(bill, lifeOpts);
-  // The current stage in one plain sentence, always on screen: the most
-  // important word on the page should not wait for a tap. The measure's type
-  // picks the line: a concurrent resolution is agreed to by both rooms.
-  const stagePlain = statusCardLine(stage, billType, congressEnded);
   // The status card's way to the whole road: Learn's picture story for a
   // bill, the measure's own word for a resolution (its road is not that one).
   const roadLink = amendment
@@ -278,6 +274,13 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
     today,
     title: bill.title,
     events: journey?.events,
+  });
+  // The current stage in one plain sentence, always on screen: the most
+  // important word on the page should not wait for a tap. The measure's type
+  // picks the line: a concurrent resolution is agreed to by both rooms, and a
+  // pocket veto has no override to describe.
+  const stagePlain = statusCardLine(stage, billType, congressEnded, {
+    pocketVeto: isPocketVeto(journey?.events),
   });
   const hasJourneySection = Boolean(journey) || hasBaseRate;
 

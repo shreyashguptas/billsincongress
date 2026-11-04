@@ -4,6 +4,7 @@
  * Run with: `pnpm test`. Uses node:assert rather than a test framework.
  */
 import assert from 'node:assert/strict';
+import { isPocketVeto } from './bill-journey';
 import {
   BILL_WORDS_MAX,
   billPageWords,
@@ -246,6 +247,23 @@ it('the stage words on a resolution page do not call it a bill or say "pass"', (
   }
   assert.equal(statusCardLine(60, 'hconres'), 'One room said yes. The other room has to say yes too.');
   assert.doesNotMatch(TERMS.district.definition, /small states have one/);
+});
+
+// A pocket-vetoed bill's card said "Congress can overrule a veto only if two in
+// three…" directly above "What happens next: Nothing more: this was a pocket
+// veto… No vote can override it."
+it('a pocket veto line does not offer an override', () => {
+  const pocket = { kind: 'vetoed' as const, date: '2020-12-23', label: 'Pocket vetoed by the President' };
+  const plain = { kind: 'vetoed' as const, date: '2025-12-29', label: 'Vetoed by the President' };
+  const line = statusCardLine(85, 'hr', false, { pocketVeto: isPocketVeto([pocket]) })!;
+  assert.doesNotMatch(line, /two in three|overrule a veto only if/);
+  assert.match(line, /pocket veto/);
+  assert.match(line, /No vote can overrule it\./);
+  // An ordinary veto keeps the rule.
+  assert.match(statusCardLine(85, 'hr', false, { pocketVeto: isPocketVeto([plain]) })!, /two in three/);
+  assert.equal(isPocketVeto(undefined), false);
+  // An ended Congress still prints no present-tense line.
+  assert.equal(statusCardLine(85, 'hr', true, { pocketVeto: true }), null);
 });
 
 if (failures.length > 0) {

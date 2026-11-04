@@ -20,6 +20,15 @@ function dayNumber(iso: string): number {
   return Math.floor(Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) / MS_PER_DAY);
 }
 
+/**
+ * Whether the record's veto was a pocket veto: made while Congress was away,
+ * so no vote can override it (convex/billJourney.ts labels the event). Stage 85
+ * holds both kinds, so the stage alone cannot tell.
+ */
+export function isPocketVeto(events: JourneyEvent[] | null | undefined): boolean {
+  return (events ?? []).some((e) => e.kind === 'vetoed' && /pocket/i.test(e.label));
+}
+
 /** Whole days from `from` to `to` (ISO dates), never negative. */
 export function daysBetween(from: string, to: string): number {
   return Math.max(0, dayNumber(to) - dayNumber(from));

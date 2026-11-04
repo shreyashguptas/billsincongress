@@ -383,9 +383,19 @@ export function stageLine(id: TermId, billType?: string | null, congressEnded = 
  * page prints under the stage's name. The type is passed all the way down, so a
  * concurrent resolution agreed to by both rooms says so ("Both rooms said
  * yes"), not "The room said yes". Null for a stage off the measure's road.
+ *
+ * `pocketVeto` (lib/bill-journey.ts isPocketVeto): the veto line's rule for an
+ * override is false for a pocket veto, which no vote can overrule; the card
+ * said it right above "What happens next: … No vote can override it."
  */
-export function statusCardLine(stage: number, billType: string | null | undefined, congressEnded = false): string | null {
+export function statusCardLine(
+  stage: number,
+  billType: string | null | undefined,
+  congressEnded = false,
+  { pocketVeto = false }: { pocketVeto?: boolean } = {},
+): string | null {
   if (!isStageOnPath(stage, billType)) return null;
+  if (pocketVeto && stage === BillStages.VETOED && !congressEnded) return POCKET_VETO_LINE;
   // Agreed to by one chamber: its word is "Agreed to", its line half-way.
   if (stagePath(billType) === 'concurrent_resolution' && stage === BillStages.PASSED_ONE_CHAMBER) {
     return stageLine('passed-one-chamber', billType, congressEnded);
@@ -393,6 +403,9 @@ export function statusCardLine(stage: number, billType: string | null | undefine
   const id = stageTermId(stage, billType);
   return id ? stageLine(id, billType, congressEnded) : null;
 }
+
+const POCKET_VETO_LINE =
+  'The President let it die while Congress was away, which is called a pocket veto. No vote can overrule it.';
 
 const STAGE_LINES: Partial<Record<TermId, string>> = {
   introduced: 'A member handed it in. It is the first step for every bill.',

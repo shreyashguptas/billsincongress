@@ -12,7 +12,7 @@
  * browser agree and the tests can pin a day.
  */
 import { BillStages, proposesAmendment, stagePath } from './utils/bill-stages';
-import { congressClock, formatDay, type JourneyEvent } from './bill-journey';
+import { congressClock, formatDay, isPocketVeto, type JourneyEvent } from './bill-journey';
 import { formatCongressOrdinal } from './congress';
 import { formatCount } from './utils/format';
 
@@ -108,7 +108,7 @@ export function billNextStep({
       // failed (convex/billStage.ts), so the days left would read as time to act.
       // A pocket veto (the journey labels it, convex/billJourney.ts) has no
       // override at all; saying "it becomes law only if… two-thirds" there is false.
-      if ((events ?? []).some((e) => e.kind === 'vetoed' && /pocket/i.test(e.label))) {
+      if (isPocketVeto(events)) {
         return done('Nothing more: this was a pocket veto, made while Congress was away. No vote can override it.');
       }
       return done(
