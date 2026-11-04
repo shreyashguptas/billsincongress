@@ -26,6 +26,8 @@ import {
   billStatusPhrase,
   billSummaryText,
   billLead,
+  billShareImagePath,
+  SHARE_CARD_VERSION,
   firstSentence,
 } from "./seo";
 import type { Bill } from "./types/bill";
@@ -528,6 +530,14 @@ it("an unfinished measure from an ended Congress is described as expired, not al
   assert.match(billAnswerParagraph(bill, { congressEnded: true, finished: true }), /Its current status is/);
   // A live Congress is unchanged.
   assert.match(billAnswerParagraph(bareBill()), /Its current status is/);
+});
+
+// /bills/1hjres118/share-image?v=3.40 served the amendment's new card ("To the
+// states") at the URL that had held the old one ("Signed", "Law"), so every link
+// already shared kept the card that says an amendment ends in a signature.
+it("the share card URL changed when amendments got their own road", () => {
+  assert.ok(SHARE_CARD_VERSION >= 4, `version ${SHARE_CARD_VERSION}`);
+  assert.notEqual(billShareImagePath({ id: "1hjres118", progress_stage: 40 }), "/bills/1hjres118/share-image?v=3.40");
 });
 
 if (failures.length > 0) {

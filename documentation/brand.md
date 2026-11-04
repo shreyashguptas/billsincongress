@@ -966,7 +966,9 @@ The cards:
   resolution, or "Stopped at the President", or "Stage unknown") in mono, and
   the track. An agreed resolution's card reads "Agreed to by the Senate,
   Stage 3 of 3" over a full three-step track: finished, not a third of the way
-  to law.
+  to law. A proposed constitutional amendment reads "Stage n of 5" over its own
+  track, which ends at "To the states": Congress passes it, the states ratify
+  it, and no President signs it.
 - **A status page** (`hub-share-card.tsx`): the finding as the headline, "113
   became law" with the figure at 176px, then "Out of 19,067 bills and
   resolutions introduced" (a percentage once it is at least 1%), then the track

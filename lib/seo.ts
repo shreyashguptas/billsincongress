@@ -28,8 +28,10 @@ export function billShareUrl(billId: string): string {
  * LinkedIn, WhatsApp — fetches the new drawing rather than keeping the old one.
  * 2: the stage-only redesign, and cards for the status, chamber and topic pages.
  * 3: resolutions drawn on their own road, ending at "Agreed to".
+ * 4: proposed constitutional amendments drawn on their own road, ending at
+ *    "To the states".
  */
-export const SHARE_CARD_VERSION = 3;
+export const SHARE_CARD_VERSION = 4;
 
 /** The share card's canvas: Open Graph's 1.91:1 at the width every platform expects. */
 export const SHARE_CARD_SIZE = { width: 1200, height: 630 } as const;

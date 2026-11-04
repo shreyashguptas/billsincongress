@@ -2421,7 +2421,7 @@ including why a card never repeats the title or number the app already prints un
 
 | Page | Card | Route | Drawn from |
 |---|---|---|---|
-| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track) | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
+| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track; for a proposed constitutional amendment, "Stage n of 5" on a track ending at "To the states") | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
 | A status hub | "113 became law", out of all introduced, the track filled to that stage | `app/share-image/[...path]/route.tsx` | `lib/og/hub-share-card.tsx` |
 | A chamber hub | The chamber's count, how many became law, its share against the other chamber | same | same |
 | A topic hub | The topic's count and rank, beside the six largest topics as bars | same | same |
@@ -2453,7 +2453,8 @@ including why a card never repeats the title or number the app already prints un
   both in `lib/seo.ts`. When the figure moves, the page names a new image URL, so no platform
   keeps an old one it cached by URL. The query only busts caches: the routes ignore it. Bump
   `SHARE_CARD_VERSION` whenever a card's design changes (2 was the stage-only redesign and the
-  hub cards; 3, today's, draws resolutions on their own road, ending at "Agreed to", from #156).
+  hub cards; 3 drew resolutions on their own road, ending at "Agreed to", from #156; 4, today's,
+  draws a proposed constitutional amendment on its own road, ending at "To the states").
 - **Caching.** All three routes (bill, hub and home) send `public, max-age=86400,
   s-maxage=86400, stale-while-revalidate=604800`, replacing `next/og`'s default of a year and
   `immutable`. The middleware leaves the bill route alone (`setsOwnCacheControl`); the hub and
