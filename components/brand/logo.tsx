@@ -89,9 +89,10 @@ export function Logo({
   size?: 'md' | 'lg';
   /**
    * Size the wordmark to the site header's own width (container queries, so
-   * only inside the header): the mark alone below 360px, 16px type to 400px,
-   * the usual 18px above. A 320px phone with "Sign up" showing has no room for
-   * the full lockup, and squeezing it made the whole page scroll sideways.
+   * only inside the header): the mark alone below 440px, 16px type to 480px,
+   * the usual 18px above. A phone header carries Ask, the search and "Sign up"
+   * on its right; below 440px that leaves no room for the full lockup, and
+   * squeezing it made the whole page scroll sideways (or ran it under Ask).
    */
   fit?: boolean;
 }) {

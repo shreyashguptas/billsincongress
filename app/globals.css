@@ -561,6 +561,63 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   }
 }
 
+/* A window under 500px tall (a phone on its side, 200% zoom and up): the
+   header scrolls away there (navigation.tsx, `short:`), so the panel no longer
+   starts under it. It takes the whole height, over the header, with its own
+   title row and close at the top and the composer pinned to the bottom. Under
+   the header it was 143px tall at 320×200 and the text box was cut off. */
+@media (max-height: 499.98px) {
+  .ask-panel { top: 0; }
+}
+@media (max-width: 1023.98px) and (max-height: 499.98px) {
+  .ask-panel { height: calc(100dvh - var(--ask-kb)); }
+  @supports not (height: 1dvh) {
+    .ask-panel { height: calc(100vh - var(--ask-kb)); }
+  }
+}
+
+/* ── Where Ask lives ───────────────────────────────────────────────────────
+   Nothing floats over the words a reader is reading.
+
+     header  (< 1024px wide, or < 500px tall)  "Ask" is a button in the header
+             row, beside the search (components/answers/header-ask.tsx). The
+             header is sticky, so it is always one tap away and covers nothing.
+             The corner pill is not drawn. The one floating shape left is the
+             phone's "Back to your questions" bar after a bill was tapped in an
+             answer, and the page reserves its height while it shows.
+     corner  (>= 1024px wide and >= 500px tall)  The pill, as before. The page
+             reserves its height plus a gap under the last row, so the end of
+             every page clears it.
+
+   --ask-reserve is that reserved height. The footer pads by it and the page
+   scrolls by it (scroll-padding-bottom), so an item reached with Tab or a
+   #link never comes to rest under the pill or the bar; scroll-padding-top does
+   the same for the sticky header. */
+:root { --ask-reserve: 0px; }
+.ask-header-button { display: none !important; }
+@media (max-width: 1023.98px), (max-height: 499.98px) {
+  .ask-header-button { display: inline-flex !important; }
+  /* The pill only. The phone's minimized bar is handled below. */
+  html:not([data-ask='minimized']) .ask-launcher { display: none; }
+}
+@media (max-height: 499.98px) {
+  /* Too short for a bar as well: the header carries the way back. */
+  .ask-launcher { display: none; }
+}
+@media (min-width: 1024px) and (min-height: 500px) {
+  :root { --ask-reserve: calc(1rem + 3rem + 1rem + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 1023.98px) and (min-height: 500px) {
+  html[data-ask='minimized'] { --ask-reserve: calc(3.25rem + env(safe-area-inset-bottom, 0px)); }
+}
+html {
+  scroll-padding-top: calc(var(--header-h) + 0.75rem);
+  scroll-padding-bottom: calc(var(--ask-reserve) + 0.75rem);
+}
+@media (max-height: 499.98px) {
+  html { scroll-padding-top: 0.75rem; }
+}
+
 /* The launcher. A pill in the corner; a full-width bar when a conversation was
    set aside on a phone, because that is the moment it has to be found again. */
 .ask-launcher {
@@ -601,6 +658,32 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   from { transform: scale(0.9); opacity: 0; }
   to   { transform: none; opacity: 1; }
 }
+/* On a computer the pill tucks below the screen's edge while the reader scrolls
+   down, so it is not sitting on the right-hand end of whatever row scrolls
+   under it, and comes back on a scroll up, near the top or the end of the page
+   (data-tucked, set by components/answers/ask-launcher.tsx from
+   lib/ask-launcher-tuck.ts). Tucked, it is still in the tab order, and taking
+   keyboard focus brings it back. Under reduced motion it never moves: it stays
+   put, and the page's reserved room (--ask-reserve) keeps the end clear. */
+@media (min-width: 1024px) and (min-height: 500px) and (prefers-reduced-motion: no-preference) {
+  .ask-launcher {
+    /* Coming back eases out: it is arriving. The colour fades are Button's own. */
+    transition:
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms ease-out,
+      background-color 150ms,
+      border-color 150ms,
+      color 150ms;
+  }
+  .ask-launcher[data-tucked='true']:not(:focus-visible) {
+    transform: translateY(calc(100% + 1rem + env(safe-area-inset-bottom, 0px)));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 200ms cubic-bezier(0.4, 0, 1, 1),
+      opacity 160ms ease-in 40ms;
+  }
+}
 
 /* "Did you find what you were looking for?" (components/feedback/found-it-prompt.tsx).
    Stacked above the launcher pill (3rem tall) rather than beside it, so the two
@@ -615,6 +698,11 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 }
 @media (max-width: 639.98px) {
   .found-it-prompt { left: 1rem; width: auto; }
+}
+/* Where Ask is in the header there is no pill to stack above. (The prompt only
+   shows while the panel is closed, never over the minimized bar.) */
+@media (max-width: 1023.98px), (max-height: 499.98px) {
+  .found-it-prompt { bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* Only drawn in the bottom-bar shape of the launcher. */

@@ -1136,8 +1136,19 @@ unmounts, the thread's scroll position and the composer's draft survive. Focus m
 
 `components/answers/ask-launcher.tsx` is the way back, and the way in: present on every page in
 every phase but `open`, and **not** gated on a conversation already existing — topic hubs and
-`/learn` previously had no ask affordance at all. A corner pill normally; a full-width bottom
-bar on a phone when a conversation has been set aside.
+`/learn` previously had no ask affordance at all. A corner pill from 1024px wide and 500px
+tall, where the page reserves its height (`--ask-reserve`, which pads the footer and sets
+`scroll-padding-bottom`); a full-width bottom bar on a phone when a conversation has been set
+aside. Below 1024px, and in any window under 500px tall, the way in is
+`components/answers/header-ask.tsx` instead, "Ask" in the header beside the search, and the
+pill is not drawn: pinned over the page, it sat on the numbers and titles a phone reader was
+reading. Which of the two shows is media queries in `app/globals.css` ("Where Ask lives"),
+never JavaScript, so the server render is the same at every width. Under 500px tall the header
+is not sticky and the sheet takes the full height, over it. Closing the panel returns focus to
+whichever of the two is drawn. In the closed phase the corner pill tucks below the screen's edge
+while the reader scrolls down and returns on a scroll up, near the top or the end of the page, or
+on keyboard focus (`lib/ask-launcher-tuck.ts`, unit-tested; `data-tucked` read by CSS); it
+never tucks under `prefers-reduced-motion`, nor in the minimized phase, where it is the way back.
 
 **Type anywhere to ask.** `components/answers/type-to-ask.tsx`, mounted once in the root layout
 after the panel, listens for keys on the window. A printable key typed with no text box focused
@@ -2313,7 +2324,7 @@ still be sent without one.
 
 **"Did you find what you were looking for?"** (`components/feedback/found-it-prompt.tsx`,
 mounted once in `app/layout.tsx`). A card in the bottom-right corner, stacked above the Ask
-launcher (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
+pill where there is one (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
 Yes sends and thanks; No asks "What was missing?" (optional) and sends. It stays away on
 sign-in, sign-up, forgot-password, account, Pro and alert pages, while the ask panel is open, and for anyone who
 opened the Feedback box this visit (`lib/feedback/visit.ts`). It shows once per browser

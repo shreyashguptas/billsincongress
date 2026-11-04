@@ -15,6 +15,7 @@ import { UserMenu } from '@/components/auth/user-menu';
 import { Logo } from '@/components/brand/logo';
 import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/feedback/feedback-box';
+import { HeaderAsk } from '@/components/answers/header-ask';
 
 /**
  * The site header: logo, the four sections, a bill search and the account
@@ -28,6 +29,10 @@ import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/fee
  * 1440px screen the header can be 1024px wide while `xl:` still sees 1440 —
  * which laid out the 288px search field and pushed "Sign up" under the panel.
  * Heights stay on `sm:` because `--header-h` in globals.css is a media query.
+ *
+ * It is sticky except in a window under 500px tall (`short:`), where a pinned
+ * header would take a quarter of the screen or more: there it scrolls away
+ * with the page, and Ask, which lives in it at that size, goes with it.
  */
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
@@ -39,7 +44,7 @@ export function Navigation() {
     // Solid paper, not translucent: a see-through header turned muddy grey over
     // the home page's dark stage, and its backdrop blur was repainted on every
     // scroll frame.
-    <header className="sticky top-0 z-40 w-full border-b border-line bg-paper [container-name:site-header] [container-type:inline-size]">
+    <header className="sticky top-0 z-40 w-full short:relative border-b border-line bg-paper [container-name:site-header] [container-type:inline-size]">
       {/*
         Phones: menu, logo beside it, then search and account at the far edge —
         auto | minmax(0,1fr) | auto, so nothing can push the row past the screen.
@@ -116,6 +121,8 @@ export function Navigation() {
 
         <div className="flex items-center justify-end gap-1 sm:gap-2 header-lg:gap-3">
           <HeaderFeedback className="hidden header-lg:inline-flex" />
+          {/* Phones, tablets and short windows; the corner pill everywhere else. */}
+          <HeaderAsk />
           <HeaderSearch />
           <UserMenu />
         </div>

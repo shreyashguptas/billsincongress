@@ -175,6 +175,91 @@ it('lets the page-enter animation leave no transform behind', () => {
   );
 });
 
+it('puts Ask in the header exactly where the corner pill is not drawn', () => {
+  // The pill is pinned over the page, so on a phone it sat on the Republicans'
+  // counts in the home hero, a bill's "Sep 2026" and the end of every title.
+  // Below the rail breakpoint and under 500px tall, Ask is in the header
+  // instead. The two must be complementary: a gap leaves a width with no way
+  // in at all, an overlap brings the covering pill back.
+  const where = `@media (max-width: ${RAIL_MIN_VIEWPORT_PX - 1}.98px), (max-height: 499.98px) {`;
+  const at = css.indexOf(where);
+  assert.ok(at >= 0, `globals.css has no "${where}" block deciding where Ask lives.`);
+  const block = css.slice(at, css.indexOf('\n}', at));
+  assert.ok(
+    block.includes('.ask-header-button { display: inline-flex !important; }'),
+    'the header Ask button is not shown below the rail breakpoint and under 500px tall.',
+  );
+  assert.ok(
+    block.includes(".ask-launcher { display: none; }"),
+    'the corner pill is still drawn where Ask is in the header.',
+  );
+  assert.ok(
+    css.includes('.ask-header-button { display: none !important; }'),
+    'the header Ask button is not hidden by default, so a computer would show it beside the pill.',
+  );
+  assert.ok(nav.includes('<HeaderAsk />'), 'navigation.tsx no longer mounts <HeaderAsk />.');
+  // Under 500px tall the header scrolls away, so the sheet must not start under it.
+  assert.ok(nav.includes('short:relative'), 'the header no longer scrolls away under 500px tall.');
+  assert.ok(
+    css.includes('@media (max-height: 499.98px) {\n  .ask-panel { top: 0; }'),
+    'the panel still starts under a header that has scrolled away in a short window.',
+  );
+});
+
+it('scrolls focused items clear of the sticky header and the reserved Ask room', () => {
+  assert.ok(
+    css.includes('scroll-padding-top: calc(var(--header-h) + 0.75rem);'),
+    'html has no scroll-padding-top for the sticky header: Shift+Tab leaves cards under it.',
+  );
+  assert.ok(
+    css.includes('scroll-padding-bottom: calc(var(--ask-reserve) + 0.75rem);'),
+    'html has no scroll-padding-bottom for the Ask pill or bar.',
+  );
+  const footer = readFileSync(join(root, 'components/footer.tsx'), 'utf8');
+  assert.ok(footer.includes('var(--ask-reserve)'), 'the footer no longer pads by --ask-reserve.');
+});
+
+it('reserves room for Ask only where something floats at the foot of the page', () => {
+  // One number, --ask-reserve, pays for the pill twice: the footer's bottom
+  // padding and the scroll padding that keeps a control reached with Tab clear
+  // of it. Zero where Ask is in the header; the pill's height plus a gap on a
+  // computer; the bar's height while a phone conversation is set aside.
+  assert.ok(css.includes(':root { --ask-reserve: 0px; }'), '--ask-reserve no longer defaults to 0.');
+  const pill = `@media (min-width: ${RAIL_MIN_VIEWPORT_PX}px) and (min-height: 500px) {\n  :root { --ask-reserve: calc(`;
+  assert.ok(css.includes(pill), 'the page no longer reserves room for the corner pill where it is drawn.');
+  assert.ok(
+    css.includes("html[data-ask='minimized'] { --ask-reserve: calc(3.25rem"),
+    'the page no longer reserves the height of the phone\'s "Back to your questions" bar.',
+  );
+});
+
+it('tucks the corner pill on scroll only where it is drawn, never under reduced motion', () => {
+  const launcher = readFileSync(join(root, 'components/answers/ask-launcher.tsx'), 'utf8');
+  const where = `@media (min-width: ${RAIL_MIN_VIEWPORT_PX}px) and (min-height: 500px) and (prefers-reduced-motion: no-preference) {`;
+  const at = css.indexOf(where);
+  assert.ok(at >= 0, `globals.css has no "${where}" block: the pill would move for readers who asked for no motion.`);
+  const block = css.slice(at, css.indexOf('\n}', at));
+  assert.ok(
+    block.includes(".ask-launcher[data-tucked='true']:not(:focus-visible)"),
+    'the tucked pill must come back when it takes keyboard focus.',
+  );
+  assert.ok(block.includes('pointer-events: none'), 'a tucked pill can still be clicked where it is invisible.');
+  assert.equal(
+    (css.match(/data-tucked='true'/g) ?? []).length,
+    1,
+    'the pill is tucked somewhere outside the computer, motion-allowed block.',
+  );
+  assert.ok(launcher.includes('data-tucked='), 'ask-launcher.tsx no longer sets data-tucked.');
+  assert.ok(
+    launcher.includes(`'(min-width: ${RAIL_MIN_VIEWPORT_PX}px) and (min-height: 500px)'`),
+    'ask-launcher.tsx tucks at a different size than the CSS draws the pill.',
+  );
+  assert.ok(
+    launcher.includes("matchMedia('(prefers-reduced-motion: reduce)')"),
+    'ask-launcher.tsx no longer checks reduced motion before tucking.',
+  );
+});
+
 console.log(`\nask-css-contract: ${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   console.error(failures.join('\n'));

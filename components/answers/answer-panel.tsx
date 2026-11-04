@@ -101,7 +101,11 @@ export function AnswerPanel() {
       document.getElementById('main')?.focus({ preventScroll: true });
       return;
     }
-    launcherRef.current?.focus({ preventScroll: true });
+    // Back to whichever way in is drawn at this size: the corner pill, or Ask
+    // in the header where the pill is not shown (app/globals.css).
+    const drawn = (el: HTMLElement | null) => (el && el.getClientRects().length > 0 ? el : null);
+    const target = drawn(launcherRef.current) ?? drawn(document.getElementById('ask-header-button'));
+    target?.focus({ preventScroll: true });
   }, [phase]);
 
   /**
@@ -212,10 +216,12 @@ export function AnswerPanel() {
           {...drag}
           className="shrink-0 touch-none select-none min-[1344px]:touch-auto min-[1344px]:select-auto"
         >
-          {/* Grab bar. Only on the sheet, where a swipe is the natural dismissal. */}
+          {/* Grab bar. Only on the sheet, where a swipe is the natural dismissal,
+              and not in a window under 500px tall, where its 20px is better
+              spent on the answer (the title row still drags). */}
           <div
             aria-hidden="true"
-            className="group/grab flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing lg:hidden"
+            className="group/grab flex cursor-grab justify-center pb-1.5 pt-2.5 active:cursor-grabbing lg:hidden short:hidden"
           >
             <span className="h-1 w-9 rounded-full bg-line-strong transition-[transform,background-color] duration-150 ease-out group-active/grab:scale-x-110 group-active/grab:bg-ink-3" />
           </div>

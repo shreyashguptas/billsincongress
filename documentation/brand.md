@@ -211,6 +211,24 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   and takes `.touch-hit` instead: it answers a click 24px each way under a mouse and a tap 44px
   each way under a finger. Neighbouring targets sit 44px apart, centre to centre, so their
   targets do not overlap. See "Input, not width" for which primitives carry it.
+- **Nothing floats over the words.** A control pinned over the page never moves
+  out of the way, so it sits on whatever is under it: a party's count, the end
+  of a title, a date. Where there is no room to float one beside the reading,
+  it goes in the header instead (`app/globals.css`, "Where Ask lives"):
+  - **Below 1024px wide, or under 500px tall**, Ask is a button in the header,
+    beside the search. There is no corner pill.
+  - **From 1024px wide and 500px tall**, the corner pill stays, and the page
+    reserves its height plus a gap (`--ask-reserve`) under the footer, so the
+    end of every page clears it. Mid-page it steps aside: it tucks below the
+    screen's edge while the reader scrolls down, and comes back on a scroll up,
+    near the top or the end of the page, or when it takes keyboard focus
+    (`lib/ask-launcher-tuck.ts`). Under `prefers-reduced-motion` it never
+    moves; it simply stays, and the reserved room keeps the end clear.
+  - **Under 500px tall** (a phone on its side, 200% zoom and up) the header is
+    not sticky (`short:`): it scrolls away with the page, and Ask goes with it.
+  - The page scrolls by the header and by the reserve (`scroll-padding-top`,
+    `scroll-padding-bottom` on `html`), so an item reached with Tab or a `#`
+    link never comes to rest under either.
 
 ## Components
 
@@ -434,12 +452,19 @@ Patterns that appear on more than one page:
   `prefers-reduced-motion`.
 - **Header**: solid `paper` with a `line` rule under it — never translucent. A
   see-through header turned muddy grey over the home page's dark stage. On
-  phones it reads menu, logo beside it, then search and the account slot at the
-  far edge; a centred logo would need the two sides to be equal, and the account
-  side is three times the menu button. The logo sizes itself to the header's
-  own width: the mark alone below 360px, a 16px wordmark to 400px, then the
-  usual 18px (`Logo fit`, `header-xs:` and `header-sm:`). Nothing in the header
-  may push the page wider than the screen, down to 320px.
+  phones it reads menu, logo beside it, then Ask, search and the account slot
+  at the far edge; a centred logo would need the two sides to be equal, and the
+  account side is three times the menu button. The logo sizes itself to the
+  header's own width: the mark alone below 440px, a 16px wordmark to 480px, then
+  the usual 18px (`Logo fit`, `header-xs:` and `header-sm:`). Nothing in the
+  header may push the page wider than the screen, down to 320px. Sticky, except
+  under 500px tall.
+- **Ask in the header** (below `lg`, and in any window under 500px tall,
+  `components/answers/header-ask.tsx`): a `ghost` `sm` button, Lucide
+  `MessageSquare` and the word "Ask" in `ink`, just before the search. The
+  glyph alone from 768 to 839px, where the four sections leave no room for the
+  word. While the panel is open under it, the button is pressed (`sunken`
+  fill, `aria-expanded`), and a second press closes it.
 - **Menu sheet** (phones and tablets): slides in from the left over an 85% paper
   scrim. Its top row is the header row it covers — same height and padding, the
   close X exactly where the menu button was, the logo where the logo was — so
@@ -456,7 +481,10 @@ Patterns that appear on more than one page:
   bottom rule is its top edge — no rounded corners and no border of its own.
   Rounded corners there showed the page through two wedges (black over the dark
   stage), and a second rule doubled the line. The grab bar and the title row
-  together are its handle: drag down to close it, or flick. As a rail
+  together are its handle: drag down to close it, or flick. Under 500px tall
+  the header has scrolled away, so the sheet (and the rail) takes the whole
+  height, over the header, with the composer pinned to its bottom; the grab bar
+  goes there and the title row alone is the handle. As a rail
   (1024–1343px) the same handle drags it off to the right. Docked, it does not
   drag; its left edge resizes it, and on a touch screen that edge carries a
   small `line-strong` grip, since a finger cannot hover to find it.
@@ -487,7 +515,8 @@ Patterns that appear on more than one page:
   anywhere: an issue is not an error state until something failed.
 - **Quick question** ("Did you find what you were looking for?"): a `raised` card with a
   `line-strong` edge, `rounded-md` and `shadow-float`, since it floats over the page. Bottom
-  right, stacked above the Ask launcher (full width minus the gutters below `sm`). Yes and No
+  right, stacked above the Ask pill from `lg` up; in the corner itself below `lg`, where Ask is
+  in the header (full width minus the gutters below `sm`). Yes and No
   are outline buttons with `ThumbsUp` / `ThumbsDown` beside the word; the close is the
   icon-only X. Once per browser, never on the first two pages of a visit.
 - **Footer**: only what has no other home. The lockup, a one-line serif

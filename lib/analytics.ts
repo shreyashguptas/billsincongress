@@ -858,7 +858,7 @@ export const analytics = {
    */
   answerPanelOpened: (props: {
     surface: string;
-    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
+    trigger: 'launcher' | 'header' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
     has_conversation: boolean;
   }) => capture('answer_panel_opened', props),
 
@@ -877,7 +877,7 @@ export const analytics = {
    */
   answerPanelRestored: (props: {
     surface: string;
-    trigger: 'launcher' | 'typing';
+    trigger: 'launcher' | 'header' | 'typing';
     turn_count: number;
     away_ms: number;
   }) => capture('answer_panel_restored', props),

@@ -25,7 +25,10 @@ export type AskPhase = 'closed' | 'open' | 'minimized';
 
 /** Where an open came from. Reported on `answer_panel_opened`. */
 export type OpenTrigger =
+  /** The corner pill (or a phone's "Back to your questions" bar). */
   | 'launcher'
+  /** Ask in the header: phones, tablets and short windows (components/answers/header-ask.tsx). */
+  | 'header'
   | 'bill_page'
   | 'hero'
   | 'starter'

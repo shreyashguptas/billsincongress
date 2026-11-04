@@ -206,6 +206,10 @@ module.exports = {
     plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
       addVariant('touchable', '@media (any-pointer: coarse)');
       addVariant('fine', '@media (hover: hover) and (pointer: fine)');
+      // A window too short for a pinned header: a phone on its side, a laptop
+      // at 200% zoom and up. Below 500px tall the header scrolls away with the
+      // page and Ask moves into it (app/globals.css, "Where Ask lives").
+      addVariant('short', '@media (max-height: 499.98px)');
     }),
     // The site header's own md / lg / xl, measured on the header rather than on
     // the window (components/navigation.tsx). With the ask panel docked the
@@ -216,11 +220,13 @@ module.exports = {
     plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
       // xs / sm size the phone logo to the room it actually has (Logo `fit`).
       // In em, which a container query reads as the browser's default font
-      // size: 360px, 400px… at the default, and proportionally wider when the
+      // size: 440px, 480px… at the default, and proportionally wider when the
       // reader has asked for larger text, so the header drops to its compact
-      // form before a larger wordmark and nav run into each other.
-      addVariant('header-xs', '@container site-header (min-width: 22.5em)');
-      addVariant('header-sm', '@container site-header (min-width: 25em)');
+      // form before a larger wordmark and nav run into each other. Ask sits in
+      // the phone header beside the search, so the wordmark needs a 440px
+      // header before it fits beside "Sign up" (brand.md, "Header").
+      addVariant('header-xs', '@container site-header (min-width: 27.5em)');
+      addVariant('header-sm', '@container site-header (min-width: 30em)');
       addVariant('header-md', '@container site-header (min-width: 48em)');
       addVariant('header-lg', '@container site-header (min-width: 64em)');
       addVariant('header-xl', '@container site-header (min-width: 80em)');

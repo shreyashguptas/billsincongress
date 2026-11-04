@@ -36,9 +36,11 @@ export function Footer() {
 
   return (
     <footer className="border-t border-line bg-paper">
-      {/* pb clears the ask launcher, which is fixed to the bottom-right on
-          every page and would otherwise sit on top of the last row. */}
-      <div className="container-editorial pb-24 pt-12 sm:pt-14">
+      {/* pb is the room the page reserves for Ask (--ask-reserve, globals.css,
+          "Where Ask lives") plus a gap: the corner pill on a computer, the
+          "Back to your questions" bar on a phone, nothing where Ask is in the
+          header — so the last row never ends up under either. */}
+      <div className="container-editorial pb-[max(3rem,calc(1rem+var(--ask-reserve)))] pt-12 sm:pt-14">
         <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
           <div className="max-w-xl">
             <Logo size="lg" />

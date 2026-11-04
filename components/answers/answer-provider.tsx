@@ -123,7 +123,7 @@ interface AnswerContextValue {
   /** Open or dismiss. `trigger` names where it came from, for the funnel. */
   setOpen: (open: boolean, trigger?: OpenTrigger | CloseReason) => void;
   /** Bring a set-aside conversation back, thread and draft intact. */
-  restore: (trigger?: 'launcher' | 'typing') => void;
+  restore: (trigger?: 'launcher' | 'header' | 'typing') => void;
   /** Step the panel aside so the page it just opened becomes visible. */
   minimize: (reason: CloseReason) => void;
   /** What the current route has open, beyond what the path already says. */
@@ -277,7 +277,7 @@ export function AnswerProvider({ children }: { children: React.ReactNode }) {
     [apply, surfaceNow],
   );
 
-  const restore = useCallback((trigger: 'launcher' | 'typing' = 'launcher') => {
+  const restore = useCallback((trigger: 'launcher' | 'header' | 'typing' = 'launcher') => {
     const wasMinimized = phaseRef.current === 'minimized';
     if (!apply({ type: 'restore' })) return;
     openedAtRef.current = Date.now();
