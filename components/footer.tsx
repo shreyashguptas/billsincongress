@@ -19,8 +19,8 @@ const linkClass =
  * The footer carries only what has no other home: who publishes the site and
  * that it is independent, the paid plan (a signed-out reader has no other
  * route to /pro), the legal pages, the source, and the reader's controls —
- * install, the `/` shortcut's On/Off (computers only; the panel has the same
- * switch) and theme. Bills, Learn and About are in the header on every page. Feedback
+ * install, the `/` shortcut's On/Off (on every screen, touch ones included: a
+ * keyboard can be attached to any of them; the panel has the same switch) and theme. Bills, Learn and About are in the header on every page. Feedback
  * is here only below lg, where the header has no room for its button.
  *
  * Three hubs stay: the two chambers and "became law", the ones readers

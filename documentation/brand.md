@@ -663,7 +663,7 @@ Patterns that appear on more than one page:
   icon-only X. Once per browser, never on the first two pages of a visit.
 - **Footer**: only what has no other home. The lockup, a one-line serif
   statement of what the site is, and "Not affiliated with the U.S.
-  government"; the install control, the `/` switch (computers only) and the theme
+  government"; the install control, the `/` switch (on every screen) and the theme
   control opposite. Under that sit three
   hub links (House bills, Senate bills, Bills that became law), then a
   hairline and one row: Pro, Privacy, Terms, Feedback (below `lg` only, where the

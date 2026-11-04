@@ -101,7 +101,10 @@ export function shortcutEnabled(stored: string | null): boolean {
 /**
  * Whether the reader is on a device with a mouse or trackpad. The home page
  * focuses its ask box on load only there: on a phone, focusing a field throws
- * the on-screen keyboard over the page the reader came to see. The `/` hint is
- * drawn only there too (Tailwind's `fine:` variant is the same query).
+ * the on-screen keyboard over the page the reader came to see. The `/` hints
+ * (the pill's keycap, "Press /" in the home box, the composer line) are drawn
+ * there (Tailwind's `fine:` variant is the same query), and the composer line
+ * also on a touch screen once `/` has been pressed on it. The footer's off
+ * switch is on every screen.
  */
 export const FINE_POINTER_QUERY = '(hover: hover) and (pointer: fine)';

@@ -909,7 +909,9 @@ export const analytics = {
   /**
    * The reader turned the `/` shortcut off or back on. `placement` is the
    * switch they used: the line under the panel's composer or the footer's
-   * On/Off control (both computers only, one stored value). The choice is kept
+   * On/Off control (one stored value). The footer's is on every screen; the
+   * composer line shows with a mouse or trackpad, and on touch once `/` has
+   * been pressed there. The choice is kept
    * in this browser only. A high `off` rate says the key is getting in
    * readers' way.
    */
