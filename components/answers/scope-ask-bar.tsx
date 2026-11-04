@@ -28,7 +28,7 @@ export function ScopeAskBar({ scope, count }: { scope: AnswerScope | null; count
         analytics.answerStarterClicked({ surface: 'filtered', starter_text: question });
         void ask(question, { source: 'starter', scope });
       }}
-      className="rounded-sm text-[13px] decoration-1"
+      className="rounded-sm text-caption decoration-1"
     >
       Ask about these →
     </Button>

@@ -42,8 +42,10 @@ export function SectionHeader({
 
 /**
  * Where a view's numbers came from and when they were last read. Every chart
- * and page title that shows a count carries one.
+ * and page title that shows a count carries one. Set as `.meta` (14px Geist,
+ * tabular, ink-2): it tells the reader how far to trust the figure above it,
+ * so it is read, not skimmed past.
  */
 export function SourceLine({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('font-mono text-xs leading-4 text-ink-3 [&_a]:text-ink-2', className)}>{children}</p>;
+  return <p className={cn('meta', className)}>{children}</p>;
 }

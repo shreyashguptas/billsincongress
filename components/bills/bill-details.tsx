@@ -241,7 +241,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
 
         <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mt-8">
           <span className="font-mono text-sm font-medium text-ink tabular">{billLabel}</span>
-          <span className="font-mono text-sm text-ink-3 tabular">
+          <span className="text-sm text-ink-2 tabular">
             {formatCongressProse(bill.congress)}
           </span>
           {bill.bill_subjects?.policy_area_name && (
@@ -253,8 +253,8 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
           className={cn(
             'mt-4 text-ink',
             longTitle
-              ? 'max-w-[28ch] text-[28px] leading-[1.15] sm:text-display-md lg:text-display-lg'
-              : 'max-w-[24ch] text-[34px] leading-[1.1] sm:text-display-xl',
+              ? 'max-w-[28ch] text-[1.75rem] leading-[1.15] sm:text-display-md lg:text-display-lg'
+              : 'max-w-[24ch] text-[2.125rem] leading-[1.1] sm:text-display-xl',
           )}
         >
           {bill.title}
@@ -266,7 +266,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
           <div className="flex min-w-0 flex-col gap-y-2 text-sm text-ink-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
             <span>
               Introduced{' '}
-              <span className="font-mono text-ink tabular">{formatDate(bill.introduced_date)}</span>
+              <span className="font-medium text-ink tabular">{formatDate(bill.introduced_date)}</span>
             </span>
             {sponsorName && (
               <>
@@ -349,7 +349,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                   {measureStageLabel(stage, billType)}
                 </p>
               </div>
-              <p className="mt-2 font-mono text-sm text-ink-3 tabular">
+              <p className="mt-2 text-sm text-ink-2 tabular">
                 {/* A vetoed bill is not "stage 5 of 7": it reached the President
                     and stopped there, off the path to law. */}
                 {stageNote(stage, billType)}
@@ -361,7 +361,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
               view.totalDays > 0 && (
                 <div className="sm:text-right">
                   <p className="flex items-baseline gap-2.5 sm:justify-end">
-                    <span className="font-serif text-[56px] font-normal leading-none text-ink tabular sm:text-[72px]">
+                    <span className="font-serif text-[3.5rem] font-normal leading-none text-ink tabular sm:text-[4.5rem]">
                       {formatCount(view.totalDays)}
                     </span>
                     <span className="text-title text-ink-2">{view.totalDays === 1 ? 'day' : 'days'}</span>
@@ -415,7 +415,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 <span className="font-medium text-ink tabular">{bill.base_rate_percent}%</span>{' '}
                 ever advanced further.
               </p>
-              <p className="text-xs leading-4 text-ink-3">
+              <p className="meta">
                 Based on <span className="tabular">{formatCount(bill.base_rate_sample!)}</span> past
                 bills and resolutions — a description of that group, not a prediction for this{' '}
                 {noun}.
@@ -433,7 +433,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 For bills Congress has not summarised yet this is the page's only
                 substantive prose, so it always renders. */}
             <p className="label-eyebrow">At a glance</p>
-            <p className="mt-3 font-serif text-[19px] leading-[30px] text-ink sm:text-[22px] sm:leading-[34px]">
+            <p className="mt-3 font-serif text-[1.1875rem] leading-[1.875rem] text-ink sm:text-[1.375rem] sm:leading-[2.125rem]">
               {answer}
             </p>
 
@@ -496,7 +496,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 </div>
                 <div className="flex justify-between gap-3 border-t border-line pt-3">
                   <dt className="text-ink-3">Congress</dt>
-                  <dd className="font-mono text-ink tabular">
+                  <dd className="font-medium text-ink tabular">
                     {formatCongressOrdinal(bill.congress)} ({formatCongressYears(bill.congress)})
                   </dd>
                 </div>

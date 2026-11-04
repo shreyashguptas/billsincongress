@@ -80,7 +80,7 @@ All colours are HSL triplets in `app/globals.css`, so Tailwind can add an alpha
 | `--sunken` | `bg-sunken` | `#edece6` | `#1b1f24` | Quiet bands, hover fills, unfilled progress |
 | `--ink` | `text-ink` | `#101418` | `#edeeea` | Headlines, body, every primary action |
 | `--ink-2` | `text-ink-2` | `#4a515a` | `#b4b9c0` | Secondary text: standfirsts, labels, legend names (≥7:1) |
-| `--ink-3` | `text-ink-3` | `#666d77` | `#8d949d` | Captions, keys, timestamps, placeholders (≥4.5:1) |
+| `--ink-3` | `text-ink-3` | `#666d77` | `#8d949d` | Placeholders, row numbers, labels of 14px and up (≥4.5:1). Never under 14px |
 | `--on-ink` | `text-on-ink` | `#f6f5f1` | `#0b0d10` | Text and icons on an ink fill |
 | `--line` | `border-line` | `#e2e1db` | `#23272d` | Hairlines between rows and sections |
 | `--line-strong` | `border-line-strong` | `#858a92` | `#5f6670` | The edge of a control (≥3:1). A control never relies on `line` alone |
@@ -117,8 +117,8 @@ themes. It is the one dark band on a light page. Use it once per site.
 | Face | Variable | Class | Use |
 |---|---|---|---|
 | **Newsreader** | `--font-serif` | `font-serif` | Headlines, bill titles, summaries, the big figures. It picks its optical size from the font size |
-| **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans |
-| **Geist Mono** | `--font-mono` | `font-mono` | Bill numbers, counts, dates: anything that lines up |
+| **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans, every date and every count (with `.tabular`) |
+| **Geist Mono** | `--font-mono` | `font-mono` | Identifiers only: bill numbers ("H.R. 1276"), party-state codes ("D-MI"), state codes on the map, status codes ("404") |
 
 All three are declared once, in `app/fonts/index.ts`, for the root layout and
 `app/global-error.tsx`. Geist and Geist Mono come through `next/font/google`.
@@ -126,6 +126,11 @@ Newsreader comes through `next/font/local` from `app/fonts/`: Google's files
 with the line box moved to centre on the capitals (see "Icons beside text").
 Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
 `next/font/google`.
+
+Every size is in **rem**, so the site follows the reader's browser font
+setting: a reader who sets 20px instead of the default 16 gets every word,
+label, chart key and state code a quarter larger, not just the paragraphs. The
+pixel figures below are at the default size.
 
 | Class | Size / line | Use |
 |---|---|---|
@@ -135,21 +140,59 @@ Rebuild them with `scripts/generate-serif-font.ts`, never by swapping back to
 | `text-display-md` | 34 / 39 | A section headline that names a topic |
 | `text-display-sm` | 26 / 31 | Panel titles, the sponsor's name, phone section headlines |
 | `text-title` | 20 / 27 | Bill titles in lists. Clamp to three lines |
-| `text-reading` | 19 / 31 | Bill summaries, Learn articles, at `max-w-measure` (680px) |
+| `text-reading` | 19 / 31 | Bill summaries, Learn articles, at `max-w-measure` (42.5rem, 680px) |
 | `text-reading-sm` | 17 / 27 | Answers in the ask panel, reading on phones |
-| `.label-eyebrow` | 11 / 16, caps, 0.14em | Section eyebrows. The only all-caps text on the site |
-| `font-mono text-sm` / `text-xs` | 14 / 12 | Data and chart keys |
+| `text-ui` | 15 | Controls, list names and secondary copy: nav links, large buttons, chart legend names. Size only: the line height comes from the element |
+| `text-meta` / `.meta` | 14 / 20 | Facts about the thing beside them: dates, counts, chart keys ("each dot ≈ 18 bills"), source lines. `.meta` is the whole style: Geist, tabular, `ink-2` |
+| `text-caption` | 13 | Helper text and small controls: badges, small buttons, breadcrumbs. Size only |
+| `text-xs` | 13 / 18 | The floor: axis ticks, party-state codes, fine print. Tailwind's 12px is raised to 13 |
+| `.label-eyebrow` | 12 / 16, caps, 0.1em, `ink-2` | Section eyebrows. The only all-caps text on the site |
 
 - Headings are Newsreader 500 (`font-medium`), set in `app/globals.css`, with
   `text-wrap: balance`. Use 600 only for the sponsor's name and the wordmark.
 - Every number that sits in a row, a legend or a figure takes the `.tabular`
-  class (lining, tabular figures).
+  class (lining, tabular figures). That is what lines figures up, not mono:
+  Geist's tabular figures are as even as Geist Mono's and read as words.
 - No italics for emphasis in the interface.
+
+### Type floor
+
+Nothing a reader needs is smaller than 13px, at any width, in either theme.
+The words that teach a newcomer to read a chart are body copy, not footnotes.
+
+- **13px is the floor.** `text-xs` (0.8125rem) is 13px; there is no smaller
+  size. `scripts/check-type-floor.ts` fails `pnpm test` on any size under it
+  (`text-[0.7rem]`, `fontSize: 10`) and on any font size or line height in px
+  (`text-[13px]`, `leading-[28px]`): a size the scale does not have is a rem
+  value (`text-[1.0625rem]`), never px. Only the share images in `lib/og/`,
+  drawn at a fixed size, are in px. When a label does not fit, make the room or
+  drop the label on that screen and let a readout carry it, never shrink it.
+- **Eyebrows are the one exception**, at 0.75rem (12px): capitals that size
+  stand as tall as 15px lowercase. Semibold, 0.1em tracking, `ink-2`.
+- **A fact is 14px.** Dates, counts, chart keys and source lines are `.meta`:
+  14px Geist with tabular figures in `ink-2`; the figure itself may step up to
+  `ink` and `font-medium`. A date in a timeline is never smaller or fainter
+  than the action beside it.
+- **`ink-3` is 14px and up.** The faintest grey is for placeholders, row
+  numbers and labels in a key-value list; below 14px use `ink-2`.
+- **Mono is for identifiers.** A bill number or a party-state code is a name
+  to match, so it keeps Geist Mono. A date or a count is a value to read, so it
+  does not: mono's wide spaces turn "Nov 2, 2026" into "Nov  2,  2026".
+- **SVG text shrinks with the drawing.** A label inside a scaled chart (the
+  topic wheel's hole) is HTML laid over the SVG, so it keeps its size.
+- **Layout follows the font.** The header's container variants (`header-xs`
+  to `header-xl`) are in em, so with a larger font the header drops to its
+  compact form sooner. A row of fixed-size pictures (the Learn page's
+  You → Congress → Laws) is capped by the screen width as well as in rem, and
+  a legend that cannot fit three across at a large font gets one row per item
+  on a phone (the hero's parties). Check a change at a 20px browser font as
+  well as the default.
 
 ## Layout and shape
 
 - **Width**: `.container-editorial` gives 1200px of content with 16/24/32px
-  gutters. `.container-prose` gives 680px for reading.
+  gutters. `.container-prose` gives `max-w-measure` (42.5rem, 680px at the
+  default size) for reading.
 - **Rhythm**: `py-16 sm:py-24` between sections on content pages. Sections are
   divided by a `border-line` hairline, not boxed.
 - **Numbers** sit in a row of four with hairline dividers, not in cards.
@@ -270,7 +313,7 @@ Patterns that appear on more than one page:
   print a bill's own number ("H.R. 7022"), not its id ("7022hr119").
   (`components/answers/bill-mentions.tsx`, `lib/answer-bill-links.ts`.)
 - **Answer check**: under every finished answer, after its sources, one line
-  of 13px `ink-3` asks "Was this answer right?" beside two small outline
+  of 13px `ink-2` asks "Was this answer right?" beside two small outline
   buttons, "Yes" and "No" (44px on touch). No icons and no colour: a hue would
   be chrome pretending to be data, and a thumbs-up is an emoji in all but name.
   It waits for the last word, like the sources. After a tap the buttons go and
@@ -278,8 +321,8 @@ Patterns that appear on more than one page:
   question from the assistant is not an answer and gets no check.
 - **Length limits**: every text box with a limit says so the same way
   (`useLengthLimit` and `LengthLimitNote`, `components/brand/length-limit.tsx`).
-  Nothing shows until the text is 90% of the way. From there a 13px `ink-3`
-  count sits under the box in mono ("1,850 / 2,000"). Once the text reaches
+  Nothing shows until the text is 90% of the way. From there a 13px `ink-2`
+  count sits under the box in tabular figures ("1,850 / 2,000"). Once the text reaches
   the limit, the line turns to the limit in words in `error`: "Keep it to 2,000
   characters. 2,000 / 2,000". An edit that would pass the limit, typed or
   pasted, keeps only as much of what it added as fits (the reader's existing
@@ -297,15 +340,16 @@ Patterns that appear on more than one page:
   three around the current one, the last page, Next. On a phone: arrows only,
   the first, current and last page, with the current page's neighbours from
   400px; the hidden links stay in the HTML for crawlers.
-- **Chart legend**: rows 48px tall with a dot, the full name, the share and
-  the count in mono. Names never go on a chart's rim.
+- **Chart legend**: rows 48px tall with a dot, the full name, the share
+  (`text-meta`) and the count (`font-medium`, `ink`), both tabular. Names never
+  go on a chart's rim. The key under a chart ("each dot ≈ 18 bills") is `.meta`.
 - **Hub order** (`HubOrderSwitch`, the hub pages): "Newest first" and "Oldest
   first" at the right of the results bar, above its ink rule, dropping under
   the count on a phone. It looks like the Congress switch on /bills — a
   `sunken` track, the chosen order a `raised` segment with `shadow-sm` — but
   is two links, not a `ToggleGroup`, because each order is its own URL. Every
-  row on a hub then shows the date the list is ordered by, labelled in `ink-3`
-  above it in `ink-2` mono ("Became law" / "Sep 25, 2026"), where other lists
+  row on a hub then shows the date the list is ordered by, labelled in `ink-2`
+  above it in `ink` at `text-meta`, tabular ("Became law" / "Sep 25, 2026"), where other lists
   show the plain introduction date. A row never shows a date other than the one
   its label names; an undated bill shows none.
 - **Status panel** (bill page): `rounded-lg`, raised, the stage in
@@ -318,13 +362,13 @@ Patterns that appear on more than one page:
 - **Journey** (`components/bills/bill-journey.tsx`): one 16px bar drawn to
   scale, a segment per stage in its stage colour, as wide as the days the bill
   stayed there (never under 6px), ending in a dot of the final stage's colour
-  when the road is over (law, signature, veto, adoption). Under it, `ink-3` mono month
+  when the road is over (law, signature, veto, adoption). Under it, 13px `ink-2` month
   ticks, only the two ends on a phone. Then one column per stage (stacked on a
   phone, two up on a tablet): a 3px rule in the stage colour, the days in
   `display-md`, the stage named the reader's way ("Passed the House"), and its
-  moments, each a mono date over a sentence in `ink-2`. A recorded vote adds a
+  moments, each a 14px `ink` date (`font-medium`, tabular) over a 14px sentence in `ink-2`. A recorded vote adds a
   140px bar: the yes share in ink, the rest `sunken` with a `line-strong` edge,
-  and the tally in mono. A vote is neither a stage, a party nor a topic, so it
+  and the tally in tabular figures. A vote is neither a stage, a party nor a topic, so it
   takes no hue. A bill still on its way ends the panel with the **Congress
   clock**: the days left in the Congress in `display-md`, why that matters in
   one sentence, and the two-year Congress as a bar, the time gone in `sunken`,
@@ -358,7 +402,7 @@ Patterns that appear on more than one page:
   reading", eyebrow "Cosponsors" and a headline that states the count ("110 members cosponsor
   this bill"). A hairline-ruled list, two columns from `md`: each row is the member's `PartyTag`
   (a link to their member page when they are in office), "Original cosponsor" or "Joined Oct 5,
-  2026" in `ink-3`, and the confirmed accounts as underlined platform names in `ink-2`, 44px tall
+  2026" in `ink-3` at 14px, and the confirmed accounts as underlined platform names in `ink-2`, 44px tall
   on touch. Ten rows, then an outline "Show all N cosponsors" button. A `SourceLine` closes it.
 - **Member page** (`/members/<id>`, `components/members/member-page.tsx`): eyebrow with the seat
   ("Representative · New Jersey's 9th district"), the name at `display-lg`, the party as a dot and
@@ -443,7 +487,7 @@ Patterns that appear on more than one page:
   government"; the install and theme controls opposite. Under that sit three
   hub links (House bills, Senate bills, Bills that became law), then a
   hairline and one row: Pro, Privacy, Terms, Feedback (below `lg` only, where the
-  header has no Feedback button), Source (GitHub glyph) on the left, the mono copyright and Congress.gov credit on the right. Links are
+  header has no Feedback button), Source (GitHub glyph) on the left, the copyright and Congress.gov credit (`.meta`) on the right. Links are
   `ink-2` text, underlined on hover, never pills. Anything in the header is
   not repeated here.
 
@@ -553,6 +597,9 @@ The blanket rule is the last block in `app/globals.css`.
 - Draw the whole set, one mark per bill or per a fixed number of bills, and
   put the unit on the chart: "each dot ≈ 17 bills", "outer seat ≈ 44 bills".
 - Label directly or in an adjacent legend. Colour is never the only key.
+- A stepped scale (the state map's five shades) is keyed as one strip, each
+  range printed under its own shade, "Fewer … More" above it, so the key reads
+  left to right as a scale.
 - Hovering a legend row links it to its marks. Everything else drops to 35%.
 - Motion explains, it does not decorate: seats fade in once, bars grow once,
   a text box nudges once when it refuses a keystroke (see "Length limits").

@@ -141,7 +141,7 @@ export function FilterField({
           footer={
             hubDefinition ? (
               <div className="shrink-0 border-t border-line px-4 py-3">
-                <p className="line-clamp-3 text-[13px] leading-snug text-ink-2">
+                <p className="line-clamp-3 text-caption leading-snug text-ink-2">
                   {hubDefinition.explainer}
                 </p>
                 <Link

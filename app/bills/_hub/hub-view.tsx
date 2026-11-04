@@ -223,7 +223,7 @@ export async function HubView({
 
       {/* Page head — the breadcrumb sits where /bills has its eyebrow. */}
       <header className="container-editorial pb-8 pt-10 sm:pb-10 sm:pt-16">
-        <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
+        <nav aria-label="Breadcrumb" className="text-caption text-ink-2">
           <Link href="/" className="touch-hit rounded-xs hover:text-ink hover:underline focus-ring">Home</Link>
           <span className="mx-2" aria-hidden="true">/</span>
           <Link href="/bills" className="touch-hit rounded-xs hover:text-ink hover:underline focus-ring">Bills</Link>
@@ -233,7 +233,7 @@ export async function HubView({
 
         <h1 className="mt-3 text-display-md text-ink sm:text-display-xl">{hub.heading}</h1>
 
-        <p className="mt-4 max-w-measure text-[17px] leading-[1.6] text-ink-2">
+        <p className="mt-4 max-w-measure text-[1.0625rem] leading-[1.6] text-ink-2">
           {hub.explainer}
         </p>
 
@@ -251,7 +251,7 @@ export async function HubView({
               <>Showing bills from the current Congress.</>
             ) : (
               <>
-                <span className="font-mono font-medium text-ink tabular">
+                <span className="font-medium text-ink tabular">
                   {total !== null ? formatCount(total) : `${formatCount(floor ?? 0)}+`}
                 </span>{' '}
                 {total === 1 ? 'bill' : 'bills'}
@@ -275,7 +275,7 @@ export async function HubView({
         </div>
 
         {bills.data.length === 0 ? (
-          <p className="border-b border-line py-14 text-center text-[15px] text-ink-2">
+          <p className="border-b border-line py-14 text-center text-ui text-ink-2">
             No bills match this in the current Congress.{' '}
             <Link href="/bills" className="link rounded-xs focus-ring">Browse all bills</Link> to look at
             earlier ones.

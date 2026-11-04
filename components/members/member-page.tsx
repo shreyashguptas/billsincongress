@@ -40,7 +40,7 @@ function BillList({ title, id, bills, empty }: { title: string; id: string; bill
           {bills.map((b) => (
             <li key={b.billId} className="border-b border-line">
               <Link href={`/bills/${b.billId}`} className="focus-ring group flex gap-4 rounded-sm py-4 sm:items-baseline">
-                <span className="w-24 shrink-0 font-mono text-[13px] text-ink-2 tabular">
+                <span className="w-24 shrink-0 font-mono text-xs text-ink-2 tabular">
                   {b.billTypeLabel} {b.billNumber}
                 </span>
                 <span className="min-w-0 flex-1">

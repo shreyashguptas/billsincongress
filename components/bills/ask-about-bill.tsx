@@ -75,7 +75,7 @@ export function AskAboutBill({
               }}
               // A starter pill (brand.md, "Ask composer"): it wraps, so the
               // button's fixed height and single line are lifted.
-              className="h-auto min-h-11 max-w-full justify-start whitespace-normal rounded-full px-5 py-2.5 text-left text-[15px] font-normal leading-snug text-ink-2 hover:bg-paper hover:text-ink touchable:h-auto"
+              className="h-auto min-h-11 max-w-full justify-start whitespace-normal rounded-full px-5 py-2.5 text-left text-ui font-normal leading-snug text-ink-2 hover:bg-paper hover:text-ink touchable:h-auto"
             >
               {q}
             </Button>

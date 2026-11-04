@@ -104,7 +104,7 @@ export default function PodcastPromo({
         <h2 className="text-display-sm text-ink sm:text-display-md">
           {PODCAST.title}
         </h2>
-        <p className="mt-3 text-[15px] leading-relaxed text-ink-2 sm:text-base">
+        <p className="mt-3 text-ui leading-relaxed text-ink-2 sm:text-base">
           The essays that argued America into existence — and that explain why
           Congress works the way it does. Each Federalist Paper, retold in
           plain English, one short episode at a time.

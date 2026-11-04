@@ -68,7 +68,7 @@ function Step({
           {Glyph ? (
             <Glyph className="h-5 w-5" strokeWidth={1.75} />
           ) : (
-            <span className="font-mono text-base tabular">{node as number}</span>
+            <span className="text-base font-medium tabular">{node as number}</span>
           )}
         </span>
       </span>
@@ -115,14 +115,18 @@ function BigIdea() {
           <div className="flex flex-col items-center gap-3">
             <span
               aria-hidden="true"
-              className={cn('flex h-20 w-20 items-center justify-center rounded-full sm:h-28 sm:w-28', n.tone)}
+              // 5rem, but never more than a fifth of a phone: with a larger
+              // browser font the three circles and two arrows still fit.
+              className={cn('flex size-[min(5rem,21vw)] items-center justify-center rounded-full sm:size-28', n.tone)}
             >
               {n.icon}
             </span>
-            <span className="text-title text-ink">{n.label}</span>
+            {/* Capped by the screen too, so "Congress" is never wider than
+                its share of a phone at a large browser font. */}
+            <span className="text-[min(1.25rem,5.2vw)] leading-[1.35] tracking-[-0.01em] text-ink sm:text-title">{n.label}</span>
           </div>
           {i < nodes.length - 1 && (
-            <ArrowRight aria-hidden="true" className="mt-7 h-6 w-6 text-ink-3 sm:mt-11" strokeWidth={1.75} />
+            <ArrowRight aria-hidden="true" className="mt-[calc(min(5rem,21vw)/2-0.75rem)] h-6 w-6 shrink-0 text-ink-3 sm:mt-11" strokeWidth={1.75} />
           )}
         </li>
       ))}

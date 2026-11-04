@@ -80,9 +80,9 @@ export function InstallAppButton() {
               It opens full screen like an app, and a bill is one tap from your Home Screen.
             </DialogDescription>
           </DialogHeader>
-          <ol className="mt-2 space-y-4 text-[15px] leading-6 text-ink">
+          <ol className="mt-2 space-y-4 text-ui leading-6 text-ink">
             <li className="flex gap-3">
-              <span className="font-mono text-sm text-ink-3 tabular">1</span>
+              <span className="text-sm font-medium text-ink-3 tabular">1</span>
               <span>
                 Tap{' '}
                 <span className="whitespace-nowrap font-medium">
@@ -94,7 +94,7 @@ export function InstallAppButton() {
               </span>
             </li>
             <li className="flex gap-3">
-              <span className="font-mono text-sm text-ink-3 tabular">2</span>
+              <span className="text-sm font-medium text-ink-3 tabular">2</span>
               <span>
                 Scroll down and choose{' '}
                 <span className="whitespace-nowrap font-medium">
@@ -104,7 +104,7 @@ export function InstallAppButton() {
               </span>
             </li>
             <li className="flex gap-3">
-              <span className="font-mono text-sm text-ink-3 tabular">3</span>
+              <span className="text-sm font-medium text-ink-3 tabular">3</span>
               <span>
                 Tap <span className="font-medium">Add</span>.
               </span>

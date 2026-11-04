@@ -526,7 +526,7 @@ export default function BillsClient({
                 {bills.length > 0 ? (
                   <span key="results">
                     Showing{' '}
-                    <span className="font-mono font-medium text-ink tabular">
+                    <span className="font-medium text-ink tabular">
                       {formatCount(bills.length)}
                     </span>
                     {/*
@@ -546,7 +546,7 @@ export default function BillsClient({
                     {totalBills?.count != null ? (
                       <span key="total">
                         {' '}of{' '}
-                        <span className="font-mono font-medium text-ink tabular">
+                        <span className="font-medium text-ink tabular">
                           {formatCount(totalBills.count)}
                           {totalBills.exact ? '' : '+'}
                         </span>
@@ -554,7 +554,7 @@ export default function BillsClient({
                     ) : totalBills === null ? (
                       <span key="pending">
                         {' '}of{' '}
-                        <span className="font-mono font-medium text-ink-3 tabular">…</span>
+                        <span className="font-medium text-ink-3 tabular">…</span>
                       </span>
                     ) : null}
                     {/* "Showing 1 bills" — the plural only ever showed up once
@@ -598,14 +598,14 @@ export default function BillsClient({
                 <Select value={sort} onValueChange={handleSortChange}>
                   <SelectTrigger
                     aria-label="Sort bills"
-                    className="h-9 w-auto gap-1.5 border-line-strong bg-transparent py-0 pl-3 pr-2.5 text-[13px] text-ink hover:border-ink data-[state=open]:border-ink touchable:h-11"
+                    className="h-9 w-auto gap-1.5 border-line-strong bg-transparent py-0 pl-3 pr-2.5 text-caption text-ink hover:border-ink data-[state=open]:border-ink touchable:h-11"
                   >
                     <span className="text-ink-3">Sort:</span>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent align="end">
                     {sortOptions(filters).map((option) => (
-                      <SelectItem key={option.value} value={option.value} className="text-[13px]">
+                      <SelectItem key={option.value} value={option.value} className="text-caption">
                         {option.label}
                       </SelectItem>
                     ))}
@@ -649,7 +649,7 @@ export default function BillsClient({
                   <p className="font-serif text-display-sm text-ink">No bills found</p>
                   {offerAsk && (
                     <div className="mx-auto mt-3 max-w-measure">
-                      <p className="text-[15px] text-ink-2">
+                      <p className="text-ui text-ink-2">
                         This search matches words in bill titles, so a question finds
                         nothing here. The assistant can answer it from the same data.
                       </p>
@@ -674,7 +674,7 @@ export default function BillsClient({
                   )}
                   {suggestedSponsor && (
                     <div className="mx-auto mt-3 max-w-measure">
-                      <p className="text-[15px] text-ink-2">
+                      <p className="text-ui text-ink-2">
                         Bill titles don&apos;t name their sponsors. To see what a member
                         introduced, filter by sponsor.
                       </p>
@@ -707,7 +707,7 @@ export default function BillsClient({
                   )}
                   {filtersActive ? (
                     <>
-                      <p className="mx-auto mt-3 max-w-measure text-[15px] text-ink-2">
+                      <p className="mx-auto mt-3 max-w-measure text-ui text-ink-2">
                         No bill matches{' '}
                         {chips.length === 1
                           ? 'this filter'
@@ -769,7 +769,7 @@ export default function BillsClient({
                       </div>
                     </>
                   ) : (
-                    <p className="mt-3 text-[15px] text-ink-2">
+                    <p className="mt-3 text-ui text-ink-2">
                       No bills are available right now. Please try again shortly.
                     </p>
                   )}

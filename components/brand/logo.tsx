@@ -116,8 +116,8 @@ export function Logo({
           size === 'lg'
             ? 'text-2xl'
             : fit
-              ? 'hidden text-base header-xs:inline header-sm:text-lg sm:text-[21px]'
-              : 'text-lg sm:text-[21px]',
+              ? 'hidden text-base header-xs:inline header-sm:text-lg sm:text-[1.3125rem]'
+              : 'text-lg sm:text-[1.3125rem]',
         )}
       >
         Bills in Congress

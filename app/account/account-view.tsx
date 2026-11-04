@@ -185,12 +185,12 @@ export function AccountView({
             <h1 className={cn(PRIVATE_TEXT_CLASS, "mt-2 text-display-md text-ink [overflow-wrap:anywhere] sm:text-display-lg")}>
               {displayName}
             </h1>
-            <p className="mt-2 flex flex-wrap items-center gap-2 text-[15px] text-ink-2">
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-ui text-ink-2">
               <span className="[overflow-wrap:anywhere]">{user.email ?? "—"}</span>
               {verified ? <Badge variant="secondary">Verified</Badge> : <Badge variant="outline">Unverified</Badge>}
             </p>
             {!verified && (
-              <p className="mt-2 max-w-[60ch] text-[13px] leading-relaxed text-ink-2">
+              <p className="mt-2 max-w-[60ch] text-caption leading-relaxed text-ink-2">
                 Check your inbox for a 6-digit code to verify this address, or sign out and sign in again to receive a
                 new one.
               </p>
@@ -233,7 +233,7 @@ export function AccountView({
                     <li key={row.billId} className="py-4">
                       <p className="text-sm text-ink-2">
                         This bill is no longer available{" "}
-                        <span className="font-mono text-xs text-ink-3">({row.billId})</span>
+                        <span className="font-mono text-xs text-ink-2">({row.billId})</span>
                       </p>
                     </li>
                   );
@@ -247,7 +247,7 @@ export function AccountView({
                       <BillHeading bill={row.bill} />
                       <div className="flex shrink-0 flex-col gap-2 sm:w-48 sm:items-end">
                         <BillStage description={row.bill.progressDescription} billType={row.bill.billTypeLabel} />
-                        <span className="font-mono text-xs text-ink-3 tabular">Saved {formatShortDate(row.savedAt)}</span>
+                        <span className="text-meta text-ink-2 tabular">Saved {formatShortDate(row.savedAt)}</span>
                       </div>
                     </Link>
                   </li>
@@ -287,7 +287,7 @@ function EmptyState({ icon: Icon, line }: { icon: LucideIcon; line: string }) {
           <Icon className="h-5 w-5 text-ink" strokeWidth={1.75} />
         </span>
       </span>
-      <p className="text-[15px] text-ink-2">{line}</p>
+      <p className="text-ui text-ink-2">{line}</p>
       <Button asChild variant="outline" size="sm" className="touchable:h-11">
         <Link href="/bills">Browse bills</Link>
       </Button>
@@ -303,7 +303,7 @@ function BillHeading({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <p className="font-mono text-xs text-ink-3 tabular">
+      <p className="font-mono text-xs text-ink-2 tabular">
         {bill.billTypeLabel} {bill.billNumber} · {formatCongressProse(bill.congress)}
       </p>
       <p className="mt-1.5 line-clamp-3 font-serif text-title text-ink decoration-line-strong underline-offset-[3px] group-hover:underline">
@@ -338,7 +338,7 @@ function BillStage({
     );
   }
   const text = description ?? fallback;
-  return text ? <span className="text-[13px] text-ink-2">{text}</span> : null;
+  return text ? <span className="text-caption text-ink-2">{text}</span> : null;
 }
 
 /**
@@ -364,7 +364,7 @@ function IncludedChips({ alertBills, questions, muted }: { alertBills: number; q
         <li
           key={label}
           className={cn(
-            "flex items-center gap-2 rounded-md border py-1.5 pl-1.5 pr-3 text-[13px] tabular",
+            "flex items-center gap-2 rounded-md border py-1.5 pl-1.5 pr-3 text-caption tabular",
             muted ? "border-dashed border-line-strong/70 text-ink-2" : "border-line bg-sunken/60 text-ink",
           )}
         >
@@ -451,7 +451,7 @@ function PlanCard({
               />
               {view.label}
             </span>
-            {view.cadence && <span className="font-sans text-[15px] text-ink-2">{view.cadence}</span>}
+            {view.cadence && <span className="font-sans text-ui text-ink-2">{view.cadence}</span>}
           </p>
         ) : (
           <Skeleton aria-hidden="true" className="h-10 w-28 rounded-xs" />
@@ -459,7 +459,7 @@ function PlanCard({
         {view && (
           <p
             role={warning ? "alert" : "status"}
-            className={cn("max-w-[56ch] text-[15px] leading-relaxed", warning ? "text-error" : "text-ink-2")}
+            className={cn("max-w-[56ch] text-ui leading-relaxed", warning ? "text-error" : "text-ink-2")}
           >
             {view.message}
           </p>
@@ -489,7 +489,7 @@ function PlanCard({
           </div>
         )}
         {error && (
-          <Alert variant="destructive" className="rounded-md border-error/30 px-4 py-3 text-[13px] dark:border-error/30">
+          <Alert variant="destructive" className="rounded-md border-error/30 px-4 py-3 text-caption dark:border-error/30">
             {error}
           </Alert>
         )}
@@ -537,7 +537,7 @@ function UsageCard({ usage, isPro }: { usage: ChatUsageResult | null; isPro: boo
           />
         ))}
       </div>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 font-mono text-xs text-ink-3 tabular">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-meta text-ink-2 tabular">
         <span>{remaining} remaining</span>
         <span>{per === 1 ? "1 dot = 1 question" : `1 dot = ${Number.isInteger(per) ? per : per.toFixed(1)} questions`}</span>
         <span className="w-full">Resets at {resetLabel}</span>
@@ -589,7 +589,7 @@ function AlertsSection({
         right={
           alerts !== undefined && limit ? (
             <div className="flex w-40 flex-col gap-1.5" role="img" aria-label={`Following ${count} of ${limit} bills`}>
-              <span className="font-mono text-xs text-ink-3 tabular" aria-hidden="true">
+              <span className="text-meta text-ink-2 tabular" aria-hidden="true">
                 <span className="text-ink">{count}</span> / {limit} bills
               </span>
               <span aria-hidden="true" className="h-1.5 w-full overflow-hidden rounded-xs bg-sunken">
@@ -599,7 +599,7 @@ function AlertsSection({
           ) : null
         }
       />
-      <p className="mt-4 max-w-[60ch] text-[15px] leading-relaxed text-ink-2">
+      <p className="mt-4 max-w-[60ch] text-ui leading-relaxed text-ink-2">
         {isPro
           ? "One email early in the morning, US Eastern time, on any day these bills move."
           : "Your Pro plan has ended, so these alerts are paused. Subscribe again to resume them."}
@@ -622,7 +622,7 @@ function AlertsSection({
                   ) : (
                     <p className="text-sm text-ink-2">
                       This bill is no longer available{" "}
-                      <span className="font-mono text-xs text-ink-3">({row.billId})</span>
+                      <span className="font-mono text-xs text-ink-2">({row.billId})</span>
                     </p>
                   )}
                 </Link>
@@ -636,7 +636,7 @@ function AlertsSection({
                   )}
                   <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:gap-2">
                     {row.lastEmailedAt ? (
-                      <span className="font-mono text-xs text-ink-3 tabular">
+                      <span className="text-meta text-ink-2 tabular">
                         Last emailed {formatShortDate(row.lastEmailedAt)}
                       </span>
                     ) : (

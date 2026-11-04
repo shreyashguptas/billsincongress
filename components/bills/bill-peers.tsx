@@ -138,8 +138,8 @@ export function BillPeersSection({
                 >
                   <span aria-hidden="true" className={cn('h-2.5 w-2.5 shrink-0 rounded-full', stageFill(g.stage))} />
                   <span className="flex-1 text-ink-2">{stageLabel(g.stage)}</span>
-                  <span className="font-mono text-xs text-ink-3 tabular">{formatShare(g.count, peers.total)}</span>
-                  <span className="w-14 text-right font-mono text-[13px] text-ink tabular">{formatCount(g.count)}</span>
+                  <span className="text-meta text-ink-2 tabular">{formatShare(g.count, peers.total)}</span>
+                  <span className="w-14 text-right text-meta font-medium text-ink tabular">{formatCount(g.count)}</span>
                 </li>
               ))}
             </ul>

@@ -123,10 +123,12 @@ it("lays the header out by its own width, so the docked panel never covers it", 
       'header-xl:, or the docked panel covers whatever they lay out.',
   );
   const tw = readFileSync(join(root, 'tailwind.config.ts'), 'utf8');
+  // In em (px ÷ 16), so the header goes compact sooner when the reader has a
+  // larger browser font; at the default size these are Tailwind's widths.
   for (const [name, px] of [['md', 768], ['lg', 1024], ['xl', 1280]] as const) {
     assert.ok(
-      tw.includes(`addVariant('header-${name}', '@container site-header (min-width: ${px}px)')`),
-      `tailwind.config.ts does not define header-${name} at ${px}px, the width of Tailwind's ${name}.`,
+      tw.includes(`addVariant('header-${name}', '@container site-header (min-width: ${px / 16}em)')`),
+      `tailwind.config.ts does not define header-${name} at ${px / 16}em (${px}px at the default font size), the width of Tailwind's ${name}.`,
     );
   }
 });

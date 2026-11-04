@@ -279,7 +279,7 @@ export function AnswerPanel() {
         */}
         {pendingHandoff && !showHistory && (
           <div className="shrink-0 space-y-3 border-b border-line bg-sunken px-4 py-4 lg:px-5">
-            <p className="text-[15px] leading-relaxed text-ink">
+            <p className="text-ui leading-relaxed text-ink">
               Keep the conversation you started before signing in?
             </p>
             <div className="flex items-center gap-2">

@@ -49,7 +49,7 @@ export const AskLauncher = forwardRef<
           ? `Continue your conversation about Congress, ${questions} question${questions === 1 ? '' : 's'} so far`
           : 'Ask a question about Congress'
       }
-      className="ask-launcher h-12 justify-start rounded-full px-5 text-[15px] shadow-float touchable:h-12"
+      className="ask-launcher h-12 justify-start rounded-full px-5 text-ui shadow-float touchable:h-12"
     >
       {/* The same glyph either way: a hue here would be colour without data
           (brand.md, "Color belongs to the data"); the words say "continue". */}

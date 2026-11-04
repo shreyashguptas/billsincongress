@@ -181,9 +181,23 @@
     text-wrap: balance;
   }
 
-  /* Section eyebrow — the only all-caps style on the site. */
+  /* Section eyebrow — the only all-caps style on the site. 12px capitals
+     stand as tall as 15px lowercase, so this is the one size under the 13px
+     floor (brand.md, "Type floor"); ink-2, because grey this small is not
+     read at all by many readers. */
   .label-eyebrow {
-    @apply text-[11px] font-sans font-semibold uppercase leading-4 tracking-[0.14em] text-ink-3;
+    @apply text-[0.75rem] font-sans font-semibold uppercase leading-4 tracking-[0.1em] text-ink-2;
+  }
+
+  /* A fact about the thing next to it: a date, a count, a chart key, a
+     source line. Geist with tabular figures at 14px in ink-2 — read as body
+     copy, not as a footnote. Links inside take ink. */
+  .meta {
+    @apply font-sans text-meta text-ink-2;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .meta a {
+    @apply text-ink;
   }
 
   /* Every number that sits in a row, a legend or a figure. */
@@ -215,7 +229,7 @@
 
   /* Reading width for summaries and articles (~68 characters). */
   .container-prose {
-    @apply mx-auto w-full max-w-[680px] px-4 sm:px-6;
+    @apply mx-auto w-full max-w-measure px-4 sm:px-6;
   }
 
   /* The Night stage: a dark band on a light page. Always pair it with

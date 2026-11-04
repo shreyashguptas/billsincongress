@@ -116,9 +116,13 @@ export function TopicWheel({
 
         <div className="mt-10 grid grid-cols-1 items-center gap-10 sm:mt-12 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-7">
+            {/* The figure in the hole is HTML over the SVG, not SVG text: SVG text
+                shrinks with the drawing (to 6px on a phone), and its label has to
+                hold the 12px eyebrow floor at every width. */}
+            <div className="relative mx-auto max-w-[560px] [container-type:inline-size]">
             <svg
               viewBox={`0 0 ${S} ${S}`}
-              className="w-full max-w-[560px] mx-auto h-auto"
+              className="block h-auto w-full"
               onMouseLeave={() => setHover(null)}
               role="img"
               aria-label={wheel.items.map((w) => `${w.name}: ${fmt(w.count)} bills`).join(', ')}
@@ -150,27 +154,28 @@ export function TopicWheel({
                 );
               })}
               <circle cx={C} cy={C} r={R_IN - 8} fill="hsl(var(--paper))" stroke="hsl(var(--line))" />
-              <text
-                x={C}
-                y={C + 2}
-                textAnchor="middle"
-                className="fill-ink font-serif tabular"
-                style={{ fontSize: 48, fontWeight: 400, letterSpacing: '-0.02em' }}
+            </svg>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center"
+            >
+              {/* 48 drawing units, scaled with the drawing like the dots around it. */}
+              <span
+                className="font-serif font-normal leading-none tracking-[-0.02em] text-ink tabular"
+                style={{ fontSize: `${(48 / S) * 100}cqw` }}
               >
                 {fmt(f ? f.count : dashboard.totalBills)}
-              </text>
-              {/* Set like .label-eyebrow; SVG text cannot take the class's layout rules. */}
-              <text
-                x={C}
-                y={C + 28}
-                textAnchor="middle"
-                className="fill-ink-3 font-sans"
-                style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase' }}
-              >
-                {f ? `${(f.share * 100).toFixed(1)}% of bills` : 'Bills · all topics'}
-              </text>
-            </svg>
-            <p className="mt-3 text-center font-mono text-xs text-ink-3">
+              </span>
+              {/* Two short lines, tracked tighter than an eyebrow elsewhere: the
+                  hole is 115px across on a phone, and at a 20px browser font
+                  "ALL TOPICS" would otherwise touch its rim. */}
+              <span className="label-eyebrow mt-1.5 flex flex-col tracking-[0.04em]">
+                <span className="tabular">{f ? `${(f.share * 100).toFixed(1)}%` : 'Bills'}</span>
+                <span>{f ? 'of bills' : 'all topics'}</span>
+              </span>
+            </div>
+            </div>
+            <p className="meta mt-3 text-center">
               each dot ≈ {fmt(wheel.perDot)} bills
             </p>
           </div>
@@ -197,9 +202,9 @@ export function TopicWheel({
                     className="focus-ring grid min-h-[52px] flex-1 grid-cols-[12px_1fr_auto_4rem] items-center gap-x-3 rounded-sm py-2 pl-1 text-left"
                   >
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: w.color }} />
-                    <span className="text-[15px] leading-5 text-ink">{w.name}</span>
-                    <span className="text-right font-mono text-[13px] text-ink-3 tabular">{(w.share * 100).toFixed(1)}%</span>
-                    <span className="text-right font-mono text-[15px] font-medium text-ink tabular">{fmt(w.count)}</span>
+                    <span className="text-ui leading-5 text-ink">{w.name}</span>
+                    <span className="text-right text-meta text-ink-3 tabular">{(w.share * 100).toFixed(1)}%</span>
+                    <span className="text-right text-ui font-medium text-ink tabular">{fmt(w.count)}</span>
                   </button>
                   {/* A real link, not a scripted jump: this is the one page search
                       engines index, and these rows are how link equity reaches the

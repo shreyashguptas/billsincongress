@@ -149,7 +149,7 @@ function JourneyBar({ view, finalStage }: { view: ReturnType<typeof journeyView>
           <span aria-hidden="true" className={cn('h-4 w-4 shrink-0 rounded-full', stageFill(finalStage))} />
         )}
       </div>
-      <div className="relative mt-2 h-4 font-mono text-xs leading-4 text-ink-3 tabular" aria-hidden="true">
+      <div className="relative mt-2 h-[18px] text-xs text-ink-2 tabular" aria-hidden="true">
         {ticks.map((t, i) => (
           <span
             key={`${t.label}-${i}`}
@@ -179,10 +179,10 @@ function ChapterColumn({ chapter }: { chapter: Chapter }) {
           {chapter.days === 0 ? 'Today' : formatCount(chapter.days)}
         </span>
         {chapter.days > 0 && (
-          <span className="text-sm text-ink-3">{chapter.ongoing ? `${unit} so far` : unit}</span>
+          <span className="text-sm text-ink-2">{chapter.ongoing ? `${unit} so far` : unit}</span>
         )}
       </p>
-      <p className="mt-0.5 text-[15px] font-medium leading-snug text-ink">{chapter.name}</p>
+      <p className="mt-0.5 text-ui font-medium leading-snug text-ink">{chapter.name}</p>
       {chapter.events.length > 0 && (
         <ul className="mt-4 space-y-3.5">
           {chapter.events.map((e, i) => (
@@ -199,8 +199,8 @@ function EventLine({ event }: { event: JourneyEvent }) {
   const total = hasTally ? event.yeas! + event.nays! : 0;
   return (
     <li>
-      <p className="font-mono text-xs leading-4 text-ink-3 tabular">{formatDay(event.date)}</p>
-      <p className="mt-0.5 text-sm leading-5 text-ink-2">
+      <p className="text-meta font-medium text-ink tabular">{formatDay(event.date)}</p>
+      <p className="text-meta text-ink-2">
         {event.label}
         {event.how ? `, by ${event.how}` : ''}.
       </p>
@@ -218,7 +218,7 @@ function EventLine({ event }: { event: JourneyEvent }) {
             />
             <span aria-hidden="true" className="block flex-1 rounded-xs border border-line-strong bg-sunken" />
           </div>
-          <span className="font-mono text-xs text-ink tabular" aria-hidden="true">
+          <span className="text-meta text-ink tabular" aria-hidden="true">
             {event.yeas}–{event.nays}
           </span>
         </div>
@@ -258,7 +258,7 @@ function CongressClock({
     return (
       <p className="mt-8 border-t border-line pt-6 text-sm leading-relaxed text-ink-2">
         The {ordinal} Congress ended on{' '}
-        <span className="font-mono text-ink tabular">{formatDay(clock.end)}</span> with this {noun} on
+        <span className="font-medium text-ink tabular">{formatDay(clock.end)}</span> with this {noun} on
         the President’s desk. The record shows no signature or veto.
       </p>
     );
@@ -268,7 +268,7 @@ function CongressClock({
     return (
       <p className="mt-8 border-t border-line pt-6 text-sm leading-relaxed text-ink-2">
         This {noun} expired when the {ordinal} Congress ended on{' '}
-        <span className="font-mono text-ink tabular">{formatDay(clock.end)}</span>. To move again it
+        <span className="font-medium text-ink tabular">{formatDay(clock.end)}</span>. To move again it
         would have to be introduced in a new Congress.
       </p>
     );
@@ -303,11 +303,11 @@ function CongressClock({
           style={{ left: `${clock.introducedPct}%` }}
         />
       </div>
-      <div className="relative mt-1 h-4 font-mono text-xs leading-4 text-ink-3 tabular" aria-hidden="true">
+      <div className="relative mt-1 h-[18px] text-xs text-ink-2 tabular" aria-hidden="true">
         <span className="absolute left-0">{formatDay(clock.start)}</span>
         <span className="absolute right-0">{formatDay(clock.end)}</span>
       </div>
-      <p className="mt-2 font-mono text-xs leading-4 text-ink tabular">
+      <p className="mt-2 text-meta font-medium text-ink tabular">
         Introduced {formatDay(introducedDate)}
       </p>
     </div>

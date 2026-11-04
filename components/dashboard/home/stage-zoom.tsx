@@ -117,7 +117,7 @@ export function StageZoom({
           {/* Stuck — small squares, many bills each */}
           <div className="lg:col-span-4 lg:border-r lg:border-line lg:pr-10">
             <p className="label-eyebrow">Stuck · {billsLabel(stuckTotal)}</p>
-            <p className="mt-1 font-mono text-xs text-ink-3">each square = {billsLabel(stuckUnit)}</p>
+            <p className="meta mt-1">each square = {billsLabel(stuckUnit)}</p>
             <div className="mt-4 flex flex-wrap gap-[2px]">
               {stuck.flatMap((s) =>
                 Array.from({ length: squares(s.value, stuckUnit) }, (_, i) => (
@@ -139,13 +139,13 @@ export function StageZoom({
                     type="button"
                     {...row(s)}
                     className={cn(
-                      'focus-ring flex min-h-11 w-full items-center gap-3 rounded-sm text-left text-[15px] text-ink transition-opacity',
+                      'focus-ring flex min-h-11 w-full items-center gap-3 rounded-sm text-left text-ui text-ink transition-opacity',
                       faded(s.key) && 'opacity-35',
                     )}
                   >
                     <span className={cn('h-3 w-3 shrink-0 rounded-xs', stageFill(s.stage))} aria-hidden="true" />
                     <span className="flex-1">{s.label}</span>
-                    <span className="font-mono text-sm text-ink-2 tabular">{fmt(s.value)}</span>
+                    <span className="text-meta text-ink-2 tabular">{fmt(s.value)}</span>
                   </button>
                 </li>
               ))}
@@ -157,7 +157,7 @@ export function StageZoom({
             <p className="label-eyebrow">
               Zoomed in · the {fmt(movedTotal)} that moved ({((movedTotal / all) * 100).toFixed(1)}%)
             </p>
-            <p className="mt-1 font-mono text-xs text-ink-3">
+            <p className="meta mt-1">
               each square = {billsLabel(movedUnit)}
             </p>
             <div className="mt-4 border-b border-line">
@@ -173,13 +173,13 @@ export function StageZoom({
                 >
                   <span className="block">
                     <span className="flex items-baseline justify-between gap-3 sm:block">
-                      <span className="block text-[15px] font-medium leading-5 text-ink">{s.label}</span>
-                      <span className="mt-1 block font-mono text-[13px] text-ink-2 tabular group-hover:text-ink">
+                      <span className="block text-ui font-medium leading-5 text-ink">{s.label}</span>
+                      <span className="mt-1 block text-meta text-ink-2 tabular group-hover:text-ink">
                         {fmt(s.value)} →
                       </span>
                     </span>
                     {finishedNote(s.key, dashboard.finishedResolutions) && (
-                      <span className="mt-1 block text-xs leading-4 text-ink-3">
+                      <span className="mt-1 block text-meta text-ink-2">
                         {finishedNote(s.key, dashboard.finishedResolutions)}
                       </span>
                     )}

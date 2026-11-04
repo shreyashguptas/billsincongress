@@ -89,7 +89,7 @@ export function SignInForm() {
             <Label htmlFor="password" className="text-ink">Password</Label>
             <Link
               href={withRedirect("/forgot-password", redirect)}
-              className="link touch-hit focus-ring rounded-xs text-[13px]"
+              className="link touch-hit focus-ring rounded-xs text-caption"
             >
               Forgot password?
             </Link>

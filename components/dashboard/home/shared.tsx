@@ -75,7 +75,7 @@ export function CongressSelect({
       <SelectTrigger
         aria-label="Congress"
         className={cn(
-          'h-9 w-auto gap-1 border-line-strong bg-transparent py-0 pl-3 pr-3 font-mono text-[13px] text-ink hover:border-ink data-[state=open]:border-ink touchable:h-11',
+          'h-9 w-auto gap-1 border-line-strong bg-transparent py-0 pl-3 pr-3 text-sm text-ink tabular hover:border-ink data-[state=open]:border-ink touchable:h-11',
           className,
         )}
       >
@@ -85,7 +85,7 @@ export function CongressSelect({
         {[...congressNumbers]
           .sort((a, b) => b - a)
           .map((c) => (
-            <SelectItem key={c} value={String(c)} className="font-mono text-[13px]">
+            <SelectItem key={c} value={String(c)} className="text-sm tabular">
               {formatCongressOrdinal(c)} · {formatCongressYears(c)}
             </SelectItem>
           ))}

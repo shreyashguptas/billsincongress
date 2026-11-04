@@ -26,6 +26,7 @@ const GUARDS = [
   "scripts/check-no-userid-args.ts",
   "scripts/check-metered-model-calls.ts",
   "scripts/check-no-committed-screenshots.ts",
+  "scripts/check-type-floor.ts",
 ];
 
 function discoverTestFiles(): string[] {

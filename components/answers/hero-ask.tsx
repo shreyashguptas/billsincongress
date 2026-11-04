@@ -219,7 +219,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             aria-describedby={noteId}
             disabled={busy}
             // Bare: the form draws the edge and the focus treatment.
-            className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-5 text-[17px] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 touchable:h-full"
+            className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-5 text-[1.0625rem] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 touchable:h-full"
           />
           <Button
             // `type="button"`, not submit. Enter in the field submits the form by
@@ -282,7 +282,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                         i === active ? 'bg-sunken' : 'hover:bg-sunken'
                       }`}
                     >
-                      <span className="shrink-0 font-mono text-xs text-ink-3 tabular">
+                      <span className="shrink-0 font-mono text-xs text-ink-2 tabular">
                         {bill.bill_type_label || bill.bill_type?.toUpperCase()} {bill.bill_number}
                       </span>
                       <span className="flex-1 min-w-0 text-sm text-ink line-clamp-2 sm:truncate">
@@ -301,7 +301,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                 Enter to ask instead.
               </p>
             )}
-            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 font-mono text-xs text-ink-3">
+            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-xs text-ink-2">
               <span className="hidden sm:inline">
                 {active >= 0 ? 'Enter opens this bill' : 'Enter asks the question'} · ↑↓ to pick a bill
               </span>

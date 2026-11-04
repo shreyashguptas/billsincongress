@@ -79,14 +79,14 @@ export function SponsorsChart({
                       hover && hover !== s.name && 'opacity-35',
                     )}
                   >
-                    <span className="font-mono text-xs text-ink-3 tabular">{i + 1}</span>
-                    <PartyTag name={s.name} party={p.code} state={s.state} className="text-[15px]" />
+                    <span className="text-meta text-ink-3 tabular">{i + 1}</span>
+                    <PartyTag name={s.name} party={p.code} state={s.state} className="text-ui" />
                     <span className="flex items-center gap-3">
                       <span
                         className={cn('h-3 origin-left rounded-r-sm animate-bar-grow', p.fill)}
                         style={{ width: `${(s.count / max) * 88}%`, animationDelay: `${i * 40}ms` }}
                       />
-                      <span className="font-mono text-sm text-ink tabular">{fmt(s.count)}</span>
+                      <span className="text-ui font-medium text-ink tabular">{fmt(s.count)}</span>
                     </span>
                   </button>
                 </li>
@@ -94,7 +94,7 @@ export function SponsorsChart({
             })}
           </ol>
         )}
-        <p className="mt-4 font-mono text-xs text-ink-3">
+        <p className="meta mt-4">
           Bills introduced as sponsor, this Congress. Click a member to see their bills.
         </p>
       </div>

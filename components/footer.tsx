@@ -42,7 +42,7 @@ export function Footer() {
           <div className="max-w-xl">
             <Logo size="lg" />
             <div className="mt-5 space-y-1.5">
-              <p className="text-balance font-serif text-[19px] leading-[28px] text-ink">
+              <p className="text-balance font-serif text-[1.1875rem] leading-[1.75rem] text-ink">
                 An independent record of every bill in the U.S. Congress.
               </p>
               <p className="text-sm text-ink-3">Not affiliated with the U.S. government.</p>
@@ -101,7 +101,7 @@ export function Footer() {
               </li>
             </ul>
           </nav>
-          <p className="font-mono text-xs text-ink-3">
+          <p className="meta">
             © {year} Bills in Congress · Data from{' '}
             <a
               href="https://www.congress.gov"

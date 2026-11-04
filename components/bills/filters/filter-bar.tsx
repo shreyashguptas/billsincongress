@@ -114,8 +114,8 @@ export function FilterBar({
           {/* Row 2b — how much is applied, always visible even when the rail
               has scrolled the evidence out of sight. */}
           {count > 0 && (
-            <p className="mt-2 text-[13px] text-ink-2">
-              <span className="font-mono tabular text-ink">{formatCount(count)}</span>{' '}
+            <p className="mt-2 text-caption text-ink-2">
+              <span className="font-medium tabular text-ink">{formatCount(count)}</span>{' '}
               {count === 1 ? 'filter' : 'filters'} applied{' '}
               <span aria-hidden="true">·</span>{' '}
               <Button
@@ -128,7 +128,7 @@ export function FilterBar({
                   });
                   onClearAll();
                 }}
-                className="touch-hit rounded-xs text-[13px] decoration-1"
+                className="touch-hit rounded-xs text-caption decoration-1"
               >
                 Clear all
               </Button>

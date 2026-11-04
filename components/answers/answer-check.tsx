@@ -26,7 +26,7 @@ export function AnswerCheck({
     <div className={cn('flex min-h-8 flex-wrap items-center gap-x-3 gap-y-2', className)}>
       {/* One live region for both states, so a screen reader hears the thanks
           in place of the question it just answered. */}
-      <p aria-live="polite" className="text-[13px] leading-5 text-ink-3">
+      <p aria-live="polite" className="text-caption leading-5 text-ink-2">
         {rating === 'wrong'
           ? 'Thanks. We will check this answer against the records.'
           : rating === 'right'

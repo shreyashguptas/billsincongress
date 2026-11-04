@@ -69,13 +69,13 @@ export function StatStrip({ congress, dashboard, onDrillDown }: Pick<HomeProps, 
               </span>
               <span
                 className={cn(
-                  'mt-3 block font-serif text-[40px] font-normal leading-none tracking-[-0.02em] tabular sm:text-[56px]',
+                  'mt-3 block font-serif text-[2.5rem] font-normal leading-none tracking-[-0.02em] tabular sm:text-[3.5rem]',
                   c.law ? 'text-status-law' : 'text-ink',
                 )}
               >
                 {fmt(c.value)}
               </span>
-              <span className="mt-3 block font-mono text-xs text-ink-3">{c.note}</span>
+              <span className="meta mt-3 block">{c.note}</span>
             </button>
           ))}
         </div>

@@ -29,7 +29,7 @@ export function UnsubscribeForm() {
 
   if (!token) {
     return (
-      <p className="text-[15px] leading-relaxed text-ink-2">
+      <p className="text-ui leading-relaxed text-ink-2">
         This link is incomplete. Open it again from the email, or manage alerts on{' '}
         <Link href="/account#alerts" className="link focus-ring rounded-xs">
           your account page
@@ -62,7 +62,7 @@ export function UnsubscribeForm() {
 
   if (state.kind === 'done') {
     return (
-      <p role="status" className="rounded-md bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">
+      <p role="status" className="rounded-md bg-sunken px-4 py-3 text-ui leading-relaxed text-ink">
         Done. You won&apos;t get any more bill alert emails
         {state.removed > 0 ? ` (${state.removed} bill${state.removed === 1 ? '' : 's'} unfollowed)` : ''}.
       </p>

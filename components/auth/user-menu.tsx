@@ -114,9 +114,9 @@ function UserMenuInner() {
             {/* The reader's name: kept out of session replay. */}
             <p className={cn(PRIVATE_TEXT_CLASS, "truncate text-sm font-medium text-ink")}>{displayName}</p>
             {user?.email && user.email !== displayName && (
-              <p className="truncate font-mono text-xs text-ink-3">{user.email}</p>
+              <p className="truncate text-meta text-ink-2">{user.email}</p>
             )}
-            <p className="flex items-center gap-2 pt-1 text-xs text-ink-3">
+            <p className="flex items-center gap-2 pt-1 text-xs text-ink-2">
               {isPro ? <ProPill /> : <span>Free plan</span>}
               {!verified && <span>email unverified</span>}
             </p>

@@ -31,12 +31,12 @@ export default function ProDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl" bodyClassName="gap-0 p-5 sm:p-7">
         <DialogTitle className="pr-8">Get an email when this bill moves</DialogTitle>
-        <DialogDescription className="mt-1.5 text-[15px] text-ink-2">
+        <DialogDescription className="mt-1.5 text-ui text-ink-2">
           Bill alerts are part of Pro. Everything else on the site stays free.
         </DialogDescription>
-        {notice && <p className="mt-4 rounded-md bg-sunken px-4 py-3 text-[15px] text-ink">{notice}</p>}
+        {notice && <p className="mt-4 rounded-md bg-sunken px-4 py-3 text-ui text-ink">{notice}</p>}
         <PlanCompare {...checkout} onChoose={checkout.choose} className="mt-5" />
-        <p className="mt-4 text-[13px] text-ink-3">
+        <p className="mt-4 text-caption text-ink-2">
           <Link href="/pro" className="link touch-hit focus-ring rounded-xs">
             How Pro works
           </Link>{' '}

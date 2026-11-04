@@ -233,7 +233,7 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
               setPending(route.href);
             }}
             className={cn(
-              'focus-ring rounded-sm px-3 py-2.5 text-[15px] font-medium transition-colors duration-200 touchable:py-3',
+              'focus-ring rounded-sm px-3 py-2.5 text-ui font-medium transition-colors duration-200 touchable:py-3',
               current || route.href === target ? 'text-ink' : 'text-ink-2',
             )}
           >
