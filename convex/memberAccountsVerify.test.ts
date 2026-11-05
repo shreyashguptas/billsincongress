@@ -21,6 +21,21 @@ function it(name: string, fn: () => void) {
   }
 }
 
+it("reads a link with a space before its closing quote, as Rep. Gottheimer's site writes them", () => {
+  // From gottheimer.house.gov on 2 Nov 2026: all four of his accounts were
+  // hidden because every link ended in a space.
+  const html =
+    '<a class="h-[48px]" href="https://twitter.com/RepJoshG " aria-label="twitter">X</a>' +
+    '<a href="https://www.facebook.com/RepJoshG ">F</a><a href=" https://www.instagram.com/RepJoshG/ ">I</a>' +
+    "<a href='https://www.youtube.com/user/RepDaveJoyce '>Y</a>";
+  assert.deepEqual([...linkedAccounts(html)].sort(), [
+    "facebook:repjoshg",
+    "instagram:repjoshg",
+    "x:repjoshg",
+    "youtube:user:repdavejoyce",
+  ]);
+});
+
 it("reads X and Twitter links the same way, ignoring case and @", () => {
   assert.equal(linkKey("https://x.com/RepAbeHamadeh"), "x:repabehamadeh");
   assert.equal(linkKey("https://twitter.com/RepDerekTranCA"), "x:repderektranca");
