@@ -43,14 +43,16 @@ export function StatStrip({ congress, dashboard, onDrillDown }: Pick<HomeProps, 
   return (
     <section className="border-b border-line">
       <div className="container-editorial py-12 sm:py-16">
-        <div className="grid grid-cols-2 lg:grid-cols-4">
+        {/* stat-strip and stat-figure (app/globals.css) hold each figure to
+            its cell at any browser font size. */}
+        <div className="stat-strip grid grid-cols-2 lg:grid-cols-4">
           {cells.map((c, i) => (
             <button
               key={c.label}
               type="button"
               onClick={c.go}
               className={cn(
-                'focus-ring group rounded-sm py-5 pr-4 text-left sm:pr-8 lg:py-1',
+                'focus-ring group min-w-0 rounded-sm py-5 pr-4 text-left sm:pr-8 lg:py-1',
                 // Hairlines between cells: a column rule before the right-hand
                 // cell of each phone row and before all but the first on
                 // desktop, and a row rule above the second phone row.
@@ -69,13 +71,13 @@ export function StatStrip({ congress, dashboard, onDrillDown }: Pick<HomeProps, 
               </span>
               <span
                 className={cn(
-                  'mt-3 block font-serif text-[40px] font-normal leading-none tracking-[-0.02em] tabular sm:text-[56px]',
+                  'stat-figure mt-3 block font-serif font-normal leading-none tracking-[-0.02em] tabular',
                   c.law ? 'text-status-law' : 'text-ink',
                 )}
               >
                 {fmt(c.value)}
               </span>
-              <span className="mt-3 block font-mono text-xs text-ink-3">{c.note}</span>
+              <span className="meta mt-3 block">{c.note}</span>
             </button>
           ))}
         </div>

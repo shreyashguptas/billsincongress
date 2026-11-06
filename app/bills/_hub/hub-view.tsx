@@ -5,6 +5,8 @@ import { billsService } from '@/lib/services/bills-service';
 import BillCard from '@/components/bills/bill-card';
 import SyncStatus from '@/components/bills/sync-status';
 import { SourceLine } from '@/components/brand/section';
+import { Term, TermText } from '@/components/brand/term';
+import type { TermId } from '@/lib/glossary';
 import { JsonLd } from '@/components/seo/json-ld';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { formatCount } from '@/lib/utils';
@@ -25,6 +27,24 @@ import { SHARE_CARD_SIZE, SITE_URL, hubShareImagePath, pageTitle } from '@/lib/s
 import { HubViewTracker, HubLink, HubOrderSwitch } from './hub-view-tracker';
 import { AskPageContext } from '@/components/answers/ask-page-context';
 import { scopeFromHub } from '@/lib/answer-scope';
+
+/**
+ * The words a hub's explainer may lean on. Each is marked the first time it
+ * appears, so "Bills in committee" explains "committee" and "Vetoed bills"
+ * explains "veto", without a fixed list per hub.
+ */
+const HUB_TERMS: TermId[] = [
+  'resolution',
+  'simple-resolution',
+  'joint-resolution',
+  'concurrent-resolution',
+  'house',
+  'committee',
+  'chamber',
+  'floor',
+  'veto',
+  'crs',
+];
 
 
 /** Bills per hub page. Larger than /bills' ten, because a hub's job is partly
@@ -223,18 +243,19 @@ export async function HubView({
 
       {/* Page head — the breadcrumb sits where /bills has its eyebrow. */}
       <header className="container-editorial pb-8 pt-10 sm:pb-10 sm:pt-16">
-        <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
-          <Link href="/" className="rounded-xs hover:text-ink hover:underline focus-ring">Home</Link>
+        <nav aria-label="Breadcrumb" className="text-caption text-ink-2">
+          <Link href="/" className="touch-hit rounded-xs hover:text-ink hover:underline focus-ring">Home</Link>
           <span className="mx-2" aria-hidden="true">/</span>
-          <Link href="/bills" className="rounded-xs hover:text-ink hover:underline focus-ring">Bills</Link>
+          <Link href="/bills" className="touch-hit rounded-xs hover:text-ink hover:underline focus-ring">Bills</Link>
           <span className="mx-2" aria-hidden="true">/</span>
           <span className="text-ink-2" aria-current="page">{hub.heading}</span>
         </nav>
 
         <h1 className="mt-3 text-display-md text-ink sm:text-display-xl">{hub.heading}</h1>
 
-        <p className="mt-4 max-w-measure text-[17px] leading-[1.6] text-ink-2">
-          {hub.explainer}
+        <p className="mt-4 max-w-measure text-[1.0625rem] leading-[1.6] text-ink-2">
+          {/* The first civics word of each kind becomes a <Term>. */}
+          <TermText text={hub.explainer} terms={HUB_TERMS} />
         </p>
 
         <SourceLine className="mt-4">
@@ -251,12 +272,15 @@ export async function HubView({
               <>Showing bills from the current Congress.</>
             ) : (
               <>
-                <span className="font-mono font-medium text-ink tabular">
+                <span className="font-medium text-ink tabular">
                   {total !== null ? formatCount(total) : `${formatCount(floor ?? 0)}+`}
                 </span>{' '}
                 {total === 1 ? 'bill' : 'bills'}
                 {congress !== null && (
-                  <> in the {formatCongressOrdinal(congress)} Congress ({formatCongressYears(congress)})</>
+                  <>
+                    {' '}in the <Term id="congress-number">{formatCongressOrdinal(congress)} Congress</Term> (
+                    {formatCongressYears(congress)})
+                  </>
                 )}
                 .
               </>
@@ -275,13 +299,16 @@ export async function HubView({
         </div>
 
         {bills.data.length === 0 ? (
-          <p className="border-b border-line py-14 text-center text-[15px] text-ink-2">
+          <p className="border-b border-line py-14 text-center text-ui text-ink-2">
             No bills match this in the current Congress.{' '}
             <Link href="/bills" className="link rounded-xs focus-ring">Browse all bills</Link> to look at
             earlier ones.
           </p>
         ) : (
           <div>
+            {/* The cards' titles are h3s: without this the outline jumped from
+                the h1 straight to them, and heading navigation had no "list". */}
+            <h2 className="sr-only">The bills</h2>
             {bills.data.map((bill) => (
               <BillCard
                 key={bill.id}
@@ -317,7 +344,7 @@ export async function HubView({
                     href={sibling.path}
                     hubKind={sibling.kind}
                     placement="hub_siblings"
-                    className="flex min-h-10 items-center py-2 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring"
+                    className="flex min-h-10 items-center py-2 touchable:min-h-11 text-sm text-ink-2 transition-colors hover:text-ink hover:underline hover:decoration-line-strong hover:underline-offset-[3px] focus-ring"
                   >
                     {sibling.heading}
                   </HubLink>

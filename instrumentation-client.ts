@@ -1,13 +1,20 @@
 import posthog from 'posthog-js';
 
+import { installChunkErrorRecovery } from '@/lib/chunk-error';
 import { shouldDropException } from '@/lib/error-filter';
 import { redactEvent } from '@/lib/redact-secrets';
+import { maskReplayText, PRIVATE_BLOCK_CLASS } from '@/lib/replay-privacy';
 import { shimBlockedStorage } from '@/lib/safe-storage';
 
 // Before anything else, and before React hydrates: Convex Auth reads
 // `window.localStorage` while rendering, and a browser that blocks storage
 // throws on that read, which took every page down. See lib/safe-storage.ts.
 shimBlockedStorage();
+
+// A stale-asset chunk that fails outside render (a lazy feature loaded from an
+// effect or a click) is an unhandled rejection the error boundaries never see.
+// Give it the same one guarded reload they do. See lib/chunk-error.ts.
+installChunkErrorRecovery(window);
 
 // IMPORTANT: this is the only place posthog.init() may be called. Never add a
 // PostHogProvider or a second init elsewhere.
@@ -27,6 +34,18 @@ if (POSTHOG_KEY) {
     defaults: '2026-01-30',
     capture_exceptions: true,
     debug: process.env.NODE_ENV === 'development',
+
+    // Session replay never records the reader's email address, name or
+    // avatar: every text node passes through `maskReplayText`, which stars
+    // out anything shaped like an email and the text of elements marked
+    // PRIVATE_TEXT_CLASS (the name), and elements marked PRIVATE_BLOCK_CLASS
+    // (the avatar's photo and initials) are recorded as empty boxes. Typed
+    // input stays masked by PostHog's defaults. See lib/replay-privacy.ts.
+    session_recording: {
+      maskTextSelector: '*',
+      maskTextFn: maskReplayText,
+      blockSelector: `.${PRIVATE_BLOCK_CLASS}`,
+    },
 
     // Drop exceptions raised by software that is not this site — Outlook's link
     // scanner, browser extensions, opaque cross-origin reports. Only exceptions

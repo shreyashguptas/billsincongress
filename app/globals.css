@@ -66,8 +66,9 @@
     --topic-4: #eda100; --topic-5: #2a78d6; --topic-6: #e87ba4;
 
     /* State map — one amber, stepped by opacity, so it can't be mistaken for
-       a party or for "became law". */
-    --heat: 28 80% 40%;
+       a party or for "became law". 42%, not 40%: ink codes on the darkest
+       shade then read at 4.85:1, not 4.48:1 (lib/state-map-tiles.test.ts). */
+    --heat: 28 80% 42%;
 
     --radius: 0.5rem;
   }
@@ -181,9 +182,23 @@
     text-wrap: balance;
   }
 
-  /* Section eyebrow — the only all-caps style on the site. */
+  /* Section eyebrow — the only all-caps style on the site. 12px capitals
+     stand as tall as 15px lowercase, so this is the one size under the 13px
+     floor (brand.md, "Type floor"); ink-2, because grey this small is not
+     read at all by many readers. */
   .label-eyebrow {
-    @apply text-[11px] font-sans font-semibold uppercase leading-4 tracking-[0.14em] text-ink-3;
+    @apply text-[0.75rem] font-sans font-semibold uppercase leading-4 tracking-[0.1em] text-ink-2;
+  }
+
+  /* A fact about the thing next to it: a date, a count, a chart key, a
+     source line. Geist with tabular figures at 14px in ink-2 — read as body
+     copy, not as a footnote. Links inside take ink. */
+  .meta {
+    @apply font-sans text-meta text-ink-2;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .meta a {
+    @apply text-ink;
   }
 
   /* Every number that sits in a row, a legend or a figure. */
@@ -208,6 +223,46 @@
 }
 
 @layer components {
+  /* The theme switch's word labels ("Light", "Dark", "System"): touch screens
+     only, and only with 18em of screen (288px at the default font), so a phone
+     at a large font keeps the three icons. Written here, not as a stacked
+     `touchable:[@media(...)]` class, which Tailwind 3 compiles to invalid CSS. */
+  .theme-seg-label {
+    display: none;
+  }
+  @media (any-pointer: coarse) and (min-width: 18em) {
+    .theme-seg-label {
+      display: inline;
+    }
+  }
+
+  /* The home stat strip's figures (components/dashboard/home/stat-strip.tsx):
+     40px on a phone and 56px from sm, or smaller when the narrowest cell needs
+     it. At a 24px browser font a 390px phone's cell is 122px, and "12,946" at
+     60px ran over the column rule and pushed the page sideways. Five digits
+     and a comma are 2.97em, so a third of the cell always holds them.
+     --cell is the narrowest cell's content: its share of the strip less its
+     padding (pl-4 pr-4, then pl-8 pr-8 from sm). Every cell uses the same
+     size, so the four figures match. */
+  .stat-strip {
+    container-type: inline-size;
+  }
+  .stat-figure {
+    --cell: calc(50cqi - 2rem);
+    font-size: min(2.5rem, calc(var(--cell) * 0.33));
+  }
+  @media (min-width: 640px) {
+    .stat-figure {
+      --cell: calc(50cqi - 4rem);
+      font-size: min(3.5rem, calc(var(--cell) * 0.33));
+    }
+  }
+  @media (min-width: 1024px) {
+    .stat-figure {
+      --cell: calc(25cqi - 4rem);
+    }
+  }
+
   /* Content width — 1200px of content inside the gutters. */
   .container-editorial {
     @apply mx-auto w-full max-w-[1264px] px-4 sm:px-6 lg:px-8;
@@ -215,7 +270,7 @@
 
   /* Reading width for summaries and articles (~68 characters). */
   .container-prose {
-    @apply mx-auto w-full max-w-[680px] px-4 sm:px-6;
+    @apply mx-auto w-full max-w-measure px-4 sm:px-6;
   }
 
   /* The Night stage: a dark band on a light page. Always pair it with
@@ -275,11 +330,11 @@
    viewport. `backwards` still holds the start state before the first frame,
    then lets go entirely, so the wrapper ends with no transform at all. */
 @keyframes page-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: none; }
 }
 .animate-page-in {
-  animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: page-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* List item entrance — used for bill cards as a filtered result set comes in.
@@ -368,13 +423,92 @@
 }
 
 @keyframes popover-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  from { opacity: 0; transform: translateY(var(--pop-y, -4px)) scale(0.98); }
   to   { opacity: 1; transform: none; }
 }
 @keyframes popover-out {
   from { opacity: 1; transform: none; }
-  to   { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 0; transform: translateY(var(--pop-y, -4px)) scale(0.98); }
 }
+/* A popover that flipped above its trigger rises out of it, not down into it. */
+[data-side='top'] { --pop-y: 4px; }
+
+/* The hit area of a small stand-alone control, without moving anything: an
+   invisible box centred on the control, at least 24px each way under a mouse
+   (WCAG 2.2, 2.5.8) and 44px under a finger (brand.md: every control is 44px
+   on touch). The control looks exactly as it did; only where it answers a
+   click grows. Use it where growing the control itself would break a line of
+   text or a row. Text links get it by default through the primitives:
+   Button's `link` variant, AskAbout, BrowseLink, the footer's links, and every
+   link inside a SourceLine (`.touch-hit-links`).
+
+   Two rules keep it honest:
+   - Neighbours stay apart. Two targets need 44px between their centres on
+     touch, or their boxes overlap and the later one wins;
+     `scripts/check-touch-targets.ts` measures what a finger can actually hit.
+   - It is never clipped. An `overflow-hidden` or scrolling parent cuts the box
+     off at its edge; give that parent room (padding) or grow the control.
+
+   `:where()` keeps the `relative` at zero specificity, so a control that is
+   itself `absolute` or `sticky` keeps its own positioning (and still contains
+   the box). `components/brand/touch-targets.test.ts` guards all of this. */
+:where(.touch-hit, .touch-hit-links a) { position: relative; }
+.touch-hit,
+.touch-hit-links a { --hit-min: 24px; }
+.touch-hit::after,
+.touch-hit-links a::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit-min));
+  height: max(100%, var(--hit-min));
+  transform: translate(-50%, -50%);
+}
+@media (any-pointer: coarse) {
+  .touch-hit,
+  .touch-hit-links a { --hit-min: 44px; }
+}
+
+/* A Term's hit area (components/brand/term.tsx). Not `.touch-hit`: a word in a
+   sentence is an inline target (WCAG 2.2, 2.5.8), and a 44px box on a 26px
+   line reached into the lines above and below, so a tap on one dotted word
+   opened the next one's definition. Instead the word answers over its own
+   line and no further: block padding out to the line's edges. An inline box's
+   padding is hit-tested but takes no room, so nothing moves, and it is drawn
+   on every line of a word that wraps (an ::after box collapsed to one square
+   between the two halves). 1.3em is a little more than the content box of
+   the site's fonts, so the padded box stops just short of the line's edge
+   instead of just past it. Where `lh` is unknown the rule drops and the word
+   answers over its glyphs. */
+.term-hit { padding-block: max(0px, calc((1lh - 1.3em) / 2)); }
+/* A Term that is the whole of its label, alone on its line (a stage's name, a
+   bill number): 24px tall under a mouse, 44px on touch, line by line.
+   Positioned so its padding paints, and answers, above the block that follows
+   it: otherwise that block's box takes the lower half of the target. */
+.term-hit-solo {
+  position: relative;
+  --hit-min: 24px;
+  padding-block: max(0px, calc((var(--hit-min) - 1em) / 2));
+}
+@media (any-pointer: coarse) {
+  .term-hit-solo { --hit-min: 44px; }
+}
+
+/* The menu's rows follow the sheet in, a few milliseconds apart (delays are set
+   inline per row). `backwards` holds each row hidden until its turn and leaves
+   no transform behind once it has arrived. */
+@keyframes menu-item-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+.menu-item-in { animation: menu-item-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+/* A sheet closed by a swipe has already slid out under the reader's finger
+   (hooks/use-drag-dismiss.ts). Its exit keyframe would start again from
+   `transform: none`, so it would jump back into view and leave a second time.
+   With no animation, Radix unmounts it where it is: already off screen. */
+[data-swiped][data-state='closed'] { animation: none !important; }
 
 /* ── The ask panel ─────────────────────────────────────────────────────────
    Geometry for the persistent "Ask" companion. Three shapes, and the mode is
@@ -406,8 +540,15 @@
 @media (min-width: 640px) { :root { --header-h: 65px; } }   /* sm:h-16 + border */
 
 /* The push. Only the docked band moves the page. */
+/* The same durations and curves as the panel's own slide, in each direction,
+   so the page's edge and the panel's edge move as one: when they differed, a
+   strip of page showed between them while it docked, and closing slid the page
+   under the panel. */
 .ask-shell {
-  transition: padding-right 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: padding-right 220ms cubic-bezier(0.4, 0, 1, 1);
+}
+html[data-ask='open'] .ask-shell {
+  transition: padding-right 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 @media (min-width: 1344px) {
   html[data-ask='open'] .ask-shell { padding-right: var(--ask-w); }
@@ -422,20 +563,41 @@ html[data-ask-drag='1'] { cursor: col-resize; user-select: none; }
   z-index: 45;          /* over page content, under every portaled dialog (50) */
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Lifted by the keyboard rather than only shortened by it: shrinking the
+     height alone dropped the TOP edge and left the composer under the keys. */
+  bottom: var(--ask-kb);
   height: calc(100dvh - var(--header-h) - var(--ask-kb));
   overscroll-behavior: contain;
   transform: translateY(100%);
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* Hidden once it is off screen. Without this, a window or iPad crossing
+     1024px with the panel closed animated it from translateX(100%) to
+     translateY(100%) — straight across the page. Visibility flips at the END
+     of a close and at the START of an open, so neither slide is cut short. */
+  visibility: hidden;
+  transition:
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s linear 320ms;
 }
 /* dvh tracks the iOS URL bar; vh is the honest fallback where it is unsupported. */
 @supports not (height: 1dvh) {
   .ask-panel { height: calc(100vh - var(--header-h) - var(--ask-kb)); }
 }
-html[data-ask='open'] .ask-panel { transform: none; }
+html[data-ask='open'] .ask-panel {
+  transform: none;
+  visibility: visible;
+  transition:
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    visibility 0s;
+}
+/* Closing is quicker than opening and accelerates away: it is leaving. */
+html:not([data-ask='open']) .ask-panel {
+  transition:
+    transform 220ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 220ms;
+}
 html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 /* A swipe writes its own transform inline; a transition would fight the finger. */
-.ask-panel[data-dragging='1'] { transition: none; }
+.ask-panel[data-dragging='1'] { transition: none; visibility: visible; }
 
 /* Scroll lock, sheet only, and pure CSS: there is no listener to leak, no
    cleanup path that can strand the page unscrollable, and rotation self-corrects. */
@@ -465,12 +627,80 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   }
 }
 
+/* A window under 500px tall (a phone on its side, 200% zoom and up): the
+   header scrolls away there (navigation.tsx, `short:`), so the panel no longer
+   starts under it. It takes the whole height, over the header, with its own
+   title row and close at the top and the composer pinned to the bottom. Under
+   the header it was 143px tall at 320×200 and the text box was cut off. */
+@media (max-height: 499.98px) {
+  .ask-panel { top: 0; }
+}
+@media (max-width: 1023.98px) and (max-height: 499.98px) {
+  .ask-panel { height: calc(100dvh - var(--ask-kb)); }
+  @supports not (height: 1dvh) {
+    .ask-panel { height: calc(100vh - var(--ask-kb)); }
+  }
+}
+
+/* ── Where Ask lives ───────────────────────────────────────────────────────
+   Nothing floats over the words a reader is reading.
+
+     header  (< 1024px wide, or < 500px tall)  "Ask" is a button in the header
+             row, beside the search (components/answers/header-ask.tsx). The
+             header is sticky, so it is always one tap away and covers nothing.
+             The corner pill is not drawn. The one floating shape left is the
+             phone's "Back to your questions" bar after a bill was tapped in an
+             answer, and the page reserves its height while it shows.
+     corner  (>= 1024px wide and >= 500px tall)  The pill, as before. The page
+             reserves its height plus a gap under the last row, so the end of
+             every page clears it.
+     bill    A bill page keeps Ask in the header at every width
+             (data-everywhere, set from the path by navigation.tsx): its status
+             card fills the pill's corner on a laptop before any scroll. The
+             closed pill is not rendered there at all (answer-panel.tsx).
+
+   --ask-reserve is that reserved height. The footer pads by it and the page
+   scrolls by it (scroll-padding-bottom), so an item reached with Tab or a
+   #link never comes to rest under the pill or the bar; scroll-padding-top does
+   the same for the sticky header. */
+:root { --ask-reserve: 0px; }
+.ask-header-button { display: none !important; }
+.ask-header-button[data-everywhere='true'] { display: inline-flex !important; }
+@media (max-width: 1023.98px), (max-height: 499.98px) {
+  .ask-header-button { display: inline-flex !important; }
+  /* The pill only. The phone's minimized bar is handled below. */
+  html:not([data-ask='minimized']) .ask-launcher { display: none; }
+}
+@media (max-height: 499.98px) {
+  /* Too short for a bar as well: the header carries the way back. */
+  .ask-launcher { display: none; }
+}
+@media (min-width: 1024px) and (min-height: 500px) {
+  :root { --ask-reserve: calc(1rem + 3rem + 1rem + env(safe-area-inset-bottom, 0px)); }
+  /* A bill page draws no closed pill (Ask is in its header), so nothing floats
+     at its foot until a conversation is set aside there. */
+  html:not([data-ask='minimized']):has(.ask-header-button[data-everywhere='true']) { --ask-reserve: 0px; }
+}
+@media (max-width: 1023.98px) and (min-height: 500px) {
+  html[data-ask='minimized'] { --ask-reserve: calc(3.25rem + env(safe-area-inset-bottom, 0px)); }
+}
+html {
+  scroll-padding-top: calc(var(--header-h) + 0.75rem);
+  scroll-padding-bottom: calc(var(--ask-reserve) + 0.75rem);
+}
+@media (max-height: 499.98px) {
+  html { scroll-padding-top: 0.75rem; }
+}
+
 /* The launcher. A pill in the corner; a full-width bar when a conversation was
    set aside on a phone, because that is the moment it has to be found again. */
 .ask-launcher {
   position: fixed;
   z-index: 40;
-  right: 1rem;
+  /* While a dialog has hidden a classic scrollbar, Radix pads the body by its
+     width and publishes it here; without it the pill jumped 15px sideways on
+     Windows and Linux every time a menu or dialog opened. */
+  right: calc(1rem + var(--removed-body-scroll-bar-size, 0px));
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 @media (max-width: 1023.98px) {
@@ -502,6 +732,32 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
   from { transform: scale(0.9); opacity: 0; }
   to   { transform: none; opacity: 1; }
 }
+/* On a computer the pill tucks below the screen's edge while the reader scrolls
+   down, so it is not sitting on the right-hand end of whatever row scrolls
+   under it, and comes back on a scroll up, near the top or the end of the page
+   (data-tucked, set by components/answers/ask-launcher.tsx from
+   lib/ask-launcher-tuck.ts). Tucked, it is still in the tab order, and taking
+   keyboard focus brings it back. Under reduced motion it never moves: it stays
+   put, and the page's reserved room (--ask-reserve) keeps the end clear. */
+@media (min-width: 1024px) and (min-height: 500px) and (prefers-reduced-motion: no-preference) {
+  .ask-launcher {
+    /* Coming back eases out: it is arriving. The colour fades are Button's own. */
+    transition:
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms ease-out,
+      background-color 150ms,
+      border-color 150ms,
+      color 150ms;
+  }
+  .ask-launcher[data-tucked='true']:not(:focus-visible) {
+    transform: translateY(calc(100% + 1rem + env(safe-area-inset-bottom, 0px)));
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 200ms cubic-bezier(0.4, 0, 1, 1),
+      opacity 160ms ease-in 40ms;
+  }
+}
 
 /* "Did you find what you were looking for?" (components/feedback/found-it-prompt.tsx).
    Stacked above the launcher pill (3rem tall) rather than beside it, so the two
@@ -510,12 +766,23 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 .found-it-prompt {
   position: fixed;
   z-index: 40;
-  right: 1rem;
+  right: calc(1rem + var(--removed-body-scroll-bar-size, 0px));
   bottom: calc(1rem + 3rem + 0.75rem + env(safe-area-inset-bottom, 0px));
   width: 22rem;
 }
 @media (max-width: 639.98px) {
   .found-it-prompt { left: 1rem; width: auto; }
+}
+/* Where Ask is in the header there is no pill to stack above. (The prompt only
+   shows while the panel is closed, never over the minimized bar.) */
+@media (max-width: 1023.98px), (max-height: 499.98px) {
+  .found-it-prompt { bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+}
+/* A bill page draws no closed pill at any width (Ask is in its header), so the
+   card would float a pill's height over an empty corner. Minimized, the pill is
+   back, and the card stacks above it again. */
+html:not([data-ask='minimized']):has(.ask-header-button[data-everywhere='true']) .found-it-prompt {
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* Only drawn in the bottom-bar shape of the launcher. */
@@ -558,6 +825,39 @@ html[data-ask='minimized'] .ask-panel { transform: translateY(100%); }
 .animate-nudge { animation: nudge 0.32s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
 @media (prefers-reduced-motion: reduce) {
   .animate-odds-in, .odds-law, .animate-seat-in, .animate-bar-grow { animation-delay: 0s !important; }
+  /* The zoom, rise and grow go; the result stays. 1ms rather than none keeps
+     animationend firing for anything waiting on it. The "became law" glow
+     (.odds-law) still plays once: it is colour, not movement. */
+  .animate-odds-in, .animate-seat-in, .animate-bar-grow { animation-duration: 1ms !important; }
   .animate-word-in { animation: none; }
   .animate-nudge { animation: none; }
+}
+
+/* ── Reduced motion: the blanket rule ──────────────────────────────────────
+   Older comments in this file and in app/template.tsx promised this rule
+   before it existed. Movement goes; meaning stays.
+
+   Radix surfaces (sheets, dialogs, popovers, menus) wait for `animationend`
+   before they unmount, so their animations are shortened to 1ms rather than
+   removed — `animation: none` would also work, but 1ms keeps every surface on
+   the same code path. Transitions are cut the same way, except colour fades,
+   which do not move anything. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in,
+  .menu-item-in,
+  .animate-rise-in,
+  .animate-fade-in,
+  [data-state],
+  .ask-launcher {
+    animation-duration: 1ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+  .ask-panel,
+  .ask-shell {
+    transition-duration: 1ms !important;
+  }
+  /* The "became law" glow is the site's one loop; it plays once and stops. */
+  .odds-law { animation-iteration-count: 1 !important; }
+  html:focus-within { scroll-behavior: auto; }
 }

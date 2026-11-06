@@ -6,7 +6,7 @@ import { PartyDot, PartyTag } from '@/components/brand/party';
 import { StageTrack, StatusPill } from '@/components/brand/status';
 import { Bill } from '@/lib/types/bill';
 import { analytics } from '@/lib/analytics';
-import { compactStageLabel, getStageStep } from '@/lib/utils/bill-stages';
+import { compactStageLabel, getStageStep, proposesAmendment } from '@/lib/utils/bill-stages';
 import { formatCongressProse } from '@/lib/congress';
 import Link from 'next/link';
 
@@ -66,11 +66,11 @@ export function CompactBillCard({
       className="group block rounded-md border border-line bg-raised px-3 py-2.5 transition-colors hover:border-line-strong focus-ring"
     >
       <p className="font-mono text-xs font-medium text-ink-2 tabular">{label}</p>
-      <p className="mt-1 line-clamp-2 font-serif text-[15px] font-medium leading-snug text-ink group-hover:underline group-hover:decoration-line-strong group-hover:underline-offset-[3px]">
+      <p className="mt-1 line-clamp-2 font-serif text-ui font-medium leading-snug text-ink group-hover:underline group-hover:decoration-line-strong group-hover:underline-offset-[3px]">
         {title || `Open this ${noun} →`}
       </p>
       {(sponsorLastName || stage !== undefined) && (
-        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-3">
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-2">
           {sponsorLastName && <PartyDot party={sponsorParty} className="h-1.5 w-1.5" />}
           <span className="truncate">
             {sponsorLastName ? `${sponsorLastName} · ` : ''}
@@ -105,7 +105,9 @@ export default function BillCard({ bill, hideTopic = false, date }: BillCardProp
       progress_stage: stage,
     });
 
-  const { step, total, isVetoed } = getStageStep(stage, bill.bill_type);
+  // A proposed constitutional amendment's road ends at the states, not law.
+  const amendment = proposesAmendment(bill.bill_type, bill.title);
+  const { step, total, isVetoed } = getStageStep(stage, bill.bill_type, amendment);
   const sponsorName = [bill.sponsor_first_name, bill.sponsor_last_name].filter(Boolean).join(' ');
   const policyArea = hideTopic ? undefined : bill.bill_subjects?.policy_area_name;
 
@@ -125,16 +127,16 @@ export default function BillCard({ bill, hideTopic = false, date }: BillCardProp
         </span>
         {date ? (
           date.value && (
-            <span className="flex items-baseline gap-1.5 text-xs md:flex-col md:gap-0.5">
-              <span className="text-ink-3">{date.label}</span>
-              <time dateTime={date.value} className="font-mono text-ink-2 tabular">
+            <span className="flex items-baseline gap-1.5 text-meta md:flex-col md:gap-0">
+              <span className="text-ink-2">{date.label}</span>
+              <time dateTime={date.value} className="font-medium text-ink tabular">
                 {formatDate(date.value)}
               </time>
             </span>
           )
         ) : (
           bill.introduced_date && (
-            <span className="font-mono text-xs text-ink-3 tabular">
+            <span className="text-meta text-ink-2 tabular">
               <span className="sr-only">Introduced </span>
               <time dateTime={bill.introduced_date}>{formatDate(bill.introduced_date)}</time>
             </span>
@@ -167,12 +169,12 @@ export default function BillCard({ bill, hideTopic = false, date }: BillCardProp
             // The track below carries the same fact as its accessible name.
             // An unrecognised stage (step 0) shows no counter: "Unknown · 1 of 7"
             // would contradict itself. A resolution counts on its own road: "3 of 3".
-            <span className="ml-auto whitespace-nowrap font-mono text-xs text-ink-3 tabular" aria-hidden="true">
+            <span className="ml-auto whitespace-nowrap text-meta text-ink-2 tabular" aria-hidden="true">
               {step} of {total}
             </span>
           )}
         </div>
-        <StageTrack stage={stage} billType={bill.bill_type} />
+        <StageTrack stage={stage} billType={bill.bill_type} amendment={amendment} />
       </div>
     </Link>
   );

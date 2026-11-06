@@ -102,17 +102,18 @@ app/                       Next.js App Router — 21 page.tsx files
     [id]/page.tsx          One bill
     [id]/share-image/      Its share card, drawn on request (next/og)
     [id]/get-bill.ts       The bill lookup the page and the card share
-    _hub/                  Hub view, directory and view-tracker (route-private)
+    _hub/                  Hub view and view-tracker (route-private)
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|to-president|passed-both-chambers|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
-    components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
+    components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker,
+                           and word-target.tsx (marks the "Words you'll see" row a <Term> popover linked to)
   about/ privacy/ terms/   Content and legal
   pro/                     The Pro plan page: plan cards first, then pictures (server-rendered; the subscribe panel is the only client code)
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
   sign-in/ sign-up/ forgot-password/
   alerts/unsubscribe/      The page an alert email's unsubscribe link opens (a button, never an action on load)
-  api/                     answer/, bill-chat/usage, alerts/unsubscribe, bills/query
+  api/                     answer/, auth/[...path] (Google sign-in), bill-chat/usage, alerts/unsubscribe, bills/query
   share-image/             Share cards: home/route.tsx (the home page) and [...path]/route.tsx (the hubs)
   robots.ts sitemap-files/[id]/ sitemap_index.xml/ llms.txt/ manifest.ts
   layout.tsx template.tsx not-found.tsx shared-metadata.ts globals.css
@@ -129,7 +130,9 @@ components/                Shared React components
   brand/                   The design language in code (documentation/brand.md): logo and
                            chamber mark, stage pill and track, party tag, section header,
                            the picture primitives (pictures.tsx), the Pro mark (pro-mark.tsx) and
-                           the length-limit count and message every limited text box uses (length-limit.tsx);
+                           the length-limit count and message every limited text box uses (length-limit.tsx),
+                           <Term>, a civics word's plain meaning in a popover (term.tsx, words in lib/glossary.ts),
+                           and the plain-text word rows Learn and a bill's "Words to know" share (word-list.tsx);
                            icon-alignment-check.tsx warns in dev about icons off their label
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
@@ -150,6 +153,7 @@ components/                Shared React components
   convex-client-provider.tsx theme-provider.tsx
 
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
+                           use-drag-dismiss.ts — drag a sheet or panel closed, finger or mouse
 
 lib/                       Pure client/shared modules — 43 modules + 41 test files at the top level, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
@@ -162,7 +166,7 @@ lib/                       Pure client/shared modules — 43 modules + 41 test f
   sponsor-match.ts         A member's name typed into the /bills title search, for the empty state
   text-limit.ts            Text boxes with a length limit: the cut, the count, the message, the 2,000 question cap
   bill-suggest.ts          Home ask-box bill suggestions: match kind, highlight rules
-  chunk-error.ts use-chunk-error-recovery.ts   Error-boundary recovery from stale-asset chunk failures
+  chunk-error.ts use-chunk-error-recovery.ts   Recovery from stale-asset chunk failures (boundaries + window listener)
   pwa.ts                   Installed-app state: display mode, iOS detection, the held install prompt
   icon-alignment.ts        Measures the page for icons that do not line up with their label (dev only)
   avatar-image.ts          Profile photos in the browser: decode, crop geometry, WebP encode
@@ -177,7 +181,7 @@ lib/                       Pure client/shared modules — 43 modules + 41 test f
   services/bills-service.ts  constants/  types/  utils/
 
 convex/                    Backend — 43 top-level modules + catalog/ + 24 test and spec files (12 more in catalog/)
-  schema.ts                26 application tables (+ 6 from the auth library)
+  schema.ts                28 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
   congressApi.ts           Congress.gov sync, reconcile, repair, backfill
@@ -190,12 +194,16 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   posthogEmail.ts billingEmail.ts emailStyle.ts   The hand-off to PostHog Workflows, the plan-change
                            emails, and the shared letterhead
   feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
+  memberAccounts.ts memberAccountsParse.ts memberAccountsVerify.ts memberAccountOverrides.ts
+                           Members' official accounts: suggest, correct, confirm on their own site
+  members.ts cosponsors.ts The member page's query; a bill's cosponsors (parse, order, fingerprint)
   crons.ts rateLimits.ts indexNow.ts aggregates.ts functions.ts http.ts hubOrder.ts
   billStage.ts billJourney.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts indexNowStatus.ts  Pure, unit-tested
 
-scripts/                   run-tests.ts, three guards, three AI probes, icon/share-image/font
-                           generators, posthog-self-driving-setup.ts, posthog-logs-smoke.ts,
+scripts/                   run-tests.ts, five guards, three AI probes, the touch-target
+                           check, icon/share-image/font generators,
+                           posthog-self-driving-setup.ts, posthog-logs-smoke.ts,
                            and truth/ (the answer-accuracy harness)
 public/                    Icons, images, _headers, the IndexNow key file, sw.js + offline.html
 ```
@@ -207,8 +215,9 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | URL | What it is |
 | --- | --- |
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
-| `/bills` | Filterable browser — 10 per page, max page 51. Every URL filter is cut to what `bills.list` accepts first (see below) |
+| `/bills` | Filterable browser — 10 per page, max page 51, in the date order the Sort menu picks (see "/bills sort" below). Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
+| `/members/<bioguideId>` | One member: seat, party, confirmed official accounts, ten newest sponsored bills and ten newest cosponsorships in the current Congress (`members.getPage`). Only members in `memberAccounts` have a page; one out of office is `noindex` and shows no accounts. Every in-office member's page is in `/sitemap-0.xml` (`members.listInOfficeForSitemap`; on the deploy that first fills `memberAccounts` the file is built before the sync runs and is cached for a day, so the members join it the next day); readers reach it from the sponsor's and cosponsors' names on bill pages. Cached at the edge for signed-out readers, like `/bills` (`lib/cacheable-routes.ts`) |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs: one per stage a bill can stop at except 20 and 95 (signed, not yet numbered as a law: a day or two), plus `/bills/introduced` (below). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`). **`/bills/introduced` and the picker's "Just introduced" (`status=20`) are not stage 20** since 2026-10-16: they are the bills introduced in the last 30 days, at any stage (`lib/bills/just-introduced.ts`); for a Congress that was not sitting in those 30 days, "Just introduced" keeps the stage-20 meaning, since a date window there is always empty. Bills are referred to committee the day they are introduced, so stage 20 held only 11 numbers in the whole 119th, all reserved for party leaders on 2025-01-03, and "Just introduced" plus any topic said "No bills found" |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
@@ -217,8 +226,9 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also offers "Change password" (password accounts only), and shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
 | `/api/alerts/unsubscribe` | POST — stops all alert emails for the token's reader. Called by that page and by mail clients' one-click unsubscribe (RFC 8058). No GET, deliberately |
+| `/api/auth/signin/<provider>`, `/api/auth/callback/<provider>` | GET (and POST, for form-post providers) — Google sign-in's start and return pages, passed through to Convex so Google shows billsincongress.com (see "Accounts and auth"). `/api/auth` itself is the auth library's sign-in and sign-out proxy, inside the middleware |
 | `/api/answer` | POST — proxies to Convex `/answer/stream`, attaching auth and anonymous cookies, injecting a keep-alive while the stream is silent, and capping a stream that never finishes |
-| `/api/bills/query` | POST — runs one of four public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`) on the server, for browsers that cannot reach Convex. See below |
+| `/api/bills/query` | POST — runs one of five public bills queries (`list`, `listCount`, `listAllSponsors`, `getSyncStatus`, `getCosponsors`) on the server, for browsers that cannot reach Convex. See below |
 | `/api/bill-chat/usage` | GET — daily quota, read by the account page |
 | `/bills/<billId>/share-image?v=` | GET — the bill's share card, a 1200×630 PNG. Named as every bill page's `og:image` and `twitter:image`; see [Sharing](#sharing-and-the-installed-app) |
 | `/share-image/home?v=` | GET — the home page's share card. A static segment, so it wins over the hub catch-all beside it |
@@ -249,7 +259,8 @@ hand-edited URL can no longer make the page show "Server Error". `billsService` 
 cut for every other caller.
 
 **Sitemaps** are `/sitemap_index.xml` (a route handler) listing `/sitemap-0.xml` (the home
-page, `/bills`, the hubs, `/learn`, `/about`, `/pro`, `/privacy` and `/terms`) plus eight files
+page, `/bills`, the hubs, `/learn`, `/about`, `/pro`, `/privacy`, `/terms` and every in-office
+member's page, about 540) plus eight files
 per Congress from `app/sitemap-files/[id]/route.ts`, one for each quarter of its two years (`/sitemap-1191.xml` is
 the 119th's first quarter), about 56,000 URLs in all. They were one file per Congress (17,828 to
 19,649 URLs, 1.7 to 1.9 MB) until 15 Oct 2026: Google read the small files within seconds but
@@ -319,19 +330,44 @@ ahead of Convex — the hub falls back to `list` and shows no order switch and n
 rather than an empty page. `scripts/truth/hub-order.test.ts` runs the real ordering against the
 production copy.
 
+**/bills sort.** `/bills` is in a real date order too, newest first, chosen from a Sort menu
+(`lib/bills/sort.ts`; `?sort=` in the URL only when it is not the filter set's default). The
+default is latest action; with an Outcome filter it is the day bills reached that stage, so
+"Became law" opens with the newest laws; "Just introduced" goes by introduction; a title search
+by best match. `bills.list` takes `sort` (absent: the stored order, as before) and promises an
+order two ways (`sortedMatches` in `convex/bills.ts`): an index range already in that order
+(`by_congress_stage_and_stage_date`, `by_congress_stage_and_action`,
+`by_congress_policy_area_and_latest_action`, `by_congress_type_and_latest_action`, merged per
+chamber, `by_congress_and_latest_action`, `by_congress_and_introduced`), filtered as it streams,
+so the first matches are the newest even if the scan cap stops it; or, when no ordered index
+enforces the narrowest filter (a sponsor's state; "date introduced" under an Outcome), that
+filter's set read whole and sorted in memory, if it fits under the scan cap. The precomputed
+counts (`congressStats`, `congressPolicyAreas`, `congressChamberBreakdowns`) skip that read for a
+set they already put over the cap, such as California or Health, so one request does not read
+1,201 rows only to fall back to the ordered index. A search, a bill
+number or a sponsor reads its set whole already and is sorted in memory; a title search that hit
+its 1,024 ceiling reports `truncated`, since newer matches may be past it. Rows show the sort's
+date, labelled. Until 2 Nov 2026 `/bills` had no order but insertion order: page 1 of "Became
+law" opened with a law signed in June while five were signed on 20 Oct.
+`scripts/truth/list-sort.test.ts` runs it against the production copy.
+
 **Middleware** (`middleware.ts`, not `proxy.ts` — see [Hosting](#hosting-and-cloudflare-constraints)):
 301-redirects `www` to the apex, sends signed-out visitors from `/account` to `/sign-in`,
 sends signed-in visitors away from `/sign-in` and `/sign-up`, and sets `Cache-Control` from
-the allowlist in `lib/cacheable-routes.ts`.
+the allowlist in `lib/cacheable-routes.ts`. Through `@convex-dev/auth`'s wrapper it also swaps
+the `?code=` a finished sign-in returns with for session cookies, on every page except the
+`/api/auth/` ones (see "Accounts and auth").
 
 Caching is an **allowlist, not a denylist**, on purpose: a missing public route is merely
 uncached, whereas a personalised route slipping through a denylist gap would put one
 visitor's page in a shared cache. Signed-out responses on `/`, `/about`, `/learn`,
 `/privacy`, `/pro`, `/terms` and anything under `/bills` get
-`public, max-age=0, s-maxage=300, stale-while-revalidate=86400` (`s-maxage=3600` on a bill
-page), which the Worker uses to keep them in the edge cache (see
-[Hosting](#hosting-and-cloudflare-constraints)); any request carrying an auth cookie gets
-`private, no-store`. The auth cookie names are `AUTH_COOKIE_NAMES` in `lib/edge-cache.ts`,
+`CDN-Cache-Control: public, max-age=300` (`max-age=3600` on a bill page), which the Worker
+uses to keep them in the edge cache (see [Hosting](#hosting-and-cloudflare-constraints)), and
+`Cache-Control: no-cache` for the browser, which must ask again on every load. A copy kept in
+the browser names the script files of the deploy that built it, so after a deploy it loads
+files that are gone; `stale-while-revalidate=86400` let browsers keep one for a day until
+October 2026. Any request carrying an auth cookie gets `private, no-store`. The auth cookie names are `AUTH_COOKIE_NAMES` in `lib/edge-cache.ts`,
 shared by the middleware and the Worker. **New public routes must be added to that file.**
 A route that writes its own `Cache-Control` is listed in `setsOwnCacheControl` in the same
 file, and the middleware leaves it alone — its header would otherwise replace the route's.
@@ -349,6 +385,20 @@ the new deploy no longer serves — through `lib/chunk-error.ts`, and do one gua
 a second reload inside a short window, so a genuinely broken deploy shows a retry control
 instead of looping. Both report the error through `analytics.captureException`, because a
 boundary catches the error before PostHog's window-level capture would see it.
+A chunk fetched outside render — a `next/dynamic` feature preloaded in an effect or a click
+handler, a prefetch — never reaches a boundary: it rejects as an unhandled promise rejection
+and the feature silently does nothing (8 such failures in 30 days to Oct 2026, all Safari, on
+bill pages and `/`). So `instrumentation-client.ts` also registers window `unhandledrejection`
+and `error` listeners (`installChunkErrorRecovery`) that run the same guarded reload for a
+chunk failure. They share the boundaries' sessionStorage guard, so a listener and a boundary
+firing for one failure still reload once, and they do not `preventDefault()`, so PostHog still
+records the `$exception`. They do nothing while the browser reports itself offline: Safari and
+Firefox word a dynamic import that failed for lack of network like a stale chunk, and reloading
+a page that still reads fine would replace it with the service worker's offline page. Old HTML
+naming old chunks came mostly from the browser keeping a copy for a day under
+`stale-while-revalidate=86400`, which Safari honours on page loads; since November 2026 the
+browser gets `no-cache` (the anonymous-page cache above). A copy shown by the Back button or a
+restored tab can still be from an older deploy, and this listener recovers that case.
 `next.config.mjs` sets a per-deploy `deploymentId` (the git commit) so Next.js skew protection
 can force a full reload on navigation when a tab is out of date, avoiding the failure up front.
 
@@ -358,8 +408,9 @@ can force a full reload on navigation when a tab is out of date, avoiding the fa
 
 ### Source
 
-Everything comes from the **official Congress.gov API v3** (`https://api.congress.gov/v3`).
-No scraping, no second provider. The key is sent in an `X-Api-Key` header, never as a query
+Every bill record comes from the **official Congress.gov API v3** (`https://api.congress.gov/v3`).
+No scraping, no second provider. (Members' social media accounts are the one other input, with
+their own pipeline: see "Members' official accounts" below.) The key is sent in an `X-Api-Key` header, never as a query
 string, so it cannot leak into logs or upstream caches.
 
 Eight bill types are pulled: `hr`, `s`, `hjres`, `sjres`, `hconres`, `sconres`, `hres`,
@@ -387,8 +438,8 @@ re-fetches an already-complete bill in a previous Congress, so an upstream corre
 ### The cron jobs
 
 Nine keep the data in step with Congress; a tenth sends bill alerts, an eleventh cleans up
-profile-photo uploads, a twelfth deletes old feedback pictures, and a thirteenth copies the
-answer prompt from PostHog (the last four rows).
+profile-photo uploads, a twelfth deletes old feedback pictures, a thirteenth copies the
+answer prompt from PostHog, and two keep members' official accounts current (the last six rows).
 
 | Job | Schedule (UTC) | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -405,6 +456,9 @@ answer prompt from PostHog (the last four rows).
 | `daily-bill-alert-digests` | 11:00 daily | Followed bills | Email each Pro reader whose followed bills moved (`alerts.runDigests`). Ten hours after the sync |
 | `daily-avatar-orphan-sweep` | 08:00 daily | File storage | Delete profile-photo uploads no account points at and over an hour old (`avatars.sweepOrphans`) |
 | `daily-feedback-picture-purge` | 09:15 daily | `feedbackPictures` | Delete each feedback picture, file and row, 180 days after it arrived (`feedback.purgeOldPictures`), 100 per run, rescheduling itself while more remain. The privacy policy promises the 180 days |
+| `daily-member-accounts-sync` | 07:40 daily | `memberAccounts` | Copy the suggested social media accounts from congress-legislators, apply `memberAccountOverrides.ts`, write the rows that changed (`memberAccounts.sync`). See "Members' official accounts" |
+| `daily-member-sites-check` | 08:10 daily | `memberAccounts` | Fetch each member's own .gov home page and confirm only the accounts it links (`memberAccounts.checkSites`), about ten minutes; the sites that blocked it are retried at +20 minutes, twice at most |
+| `resume-background-jobs` | Hourly at :23 | `backgroundJobs` | Runs `afterDeploy:run`, which restarts a one-off job whose chain died (heartbeat two hours old) and starts the first members' accounts sync if that table is empty. Two indexed reads when there is nothing to do. See "After-deploy jobs" |
 | `refresh-answer-prompt` | Every 5 minutes | `answerPrompts` | Copy the `answer-system` prompt version labelled `production` in PostHog prompt management (`answerPrompts.refresh`). A no-op until `POSTHOG_PERSONAL_API_KEY` is set. See "Answer prompt" |
 
 ### Throttling
@@ -540,6 +594,59 @@ The key file published at the domain root is **not a credential** — the protoc
 to be publicly retrievable. `lib/indexnow.test.ts` reads the constant in `convex/indexNow.ts` and the served file and
 fails if they disagree.
 
+### Members' official accounts
+
+The bill page's sponsor box lists the member's official X, Facebook, Instagram and YouTube
+accounts and website. No government source lists members' social media (Congress.gov's member
+endpoint, the House Clerk's `MemberData.xml` and the Senate's `senators_cfm.xml` carry none), so
+the rule is: **an account is shown only while the member's own .house.gov or .senate.gov home
+page links that exact account.** Two daily jobs and one reviewed file implement it.
+
+| Piece | File | What it does |
+| --- | --- | --- |
+| Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.json` and `legislators-social-media.json` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) GitHub Pages mirror (CC0, volunteer-kept; its policy is official accounts only), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
+| Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page and the date a person checked it: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Send each upstream as a pull request and delete it here once merged |
+| Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | First lapses every confirmation not renewed by a successful check in 30 days, or of a member with no website (`lapseStale`). Then fetches each in-office member's home page, House before Senate, 40 per run with the next run scheduled after the writes (2 at a time, each fetcher waiting a second between sites, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads the links to accounts (never to posts, tweets or photos, and nothing inside an embedded tweet or post, which can quote anyone), and stamps `confirmedAt` plus `shown` (the account's address, for YouTube the exact form the page linked, and its label) on each account it links. A page that redirects off house.gov/senate.gov counts as failed. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing. A page that links no account at all, for a member we hold accounts for, counts as failed rather than as the member's word (earlier confirmations stand until they lapse): on the first live run Rep. Stansbury's page came back without its links and hid both her accounts. Spaces just inside a link's quotes are ignored, as browsers ignore them (`href="https://twitter.com/RepJoshG "` hid every account of Reps. Gottheimer, Joyce and Lucas until 2 Nov 2026). The sites that blocked the check, and those empty pages, are asked again 20 minutes after the pass ends, at most twice: on the first live run (2 Nov 2026), at 8 at a time, house.gov turned the check away after about 400 sites, every House member from Takano to Zinke, though each answered normally one at a time |
+| Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only accounts confirmed by the member's latest successful site check (`confirmedAt === siteCheck.lastOkAt`), with the `shown` address, plus the website. Nothing for a member out of office or a bill without a sponsor id |
+
+YouTube has four kinds of address (@handle, `/user/`, `/c/`, a bare custom name) in separate
+namespaces, and the file can carry a channel id and a name. `confirmOnPage` confirms the account
+by whichever the member's site links and sends the reader to that exact form; it prints the name
+only when the site linked that name, so a stale channel id never rides on a confirmed name.
+
+Safety: a download with fewer than 480 or more than 560 members, or one that would drop more
+than 40 accounts from members who stay in office, is not written (`safetyProblem`), and the run
+logs `member accounts sync refused`. A new Congress replacing many members at once passes,
+because leaving members are not counted. When a person has looked and the change is real:
+
+```bash
+pnpm exec convex run --prod memberAccounts:sync '{"force":true}'
+```
+
+What the site check did not confirm, with what each site links instead, for a person to review
+into the overrides file:
+
+```bash
+pnpm exec convex run --prod memberAccounts:reviewList '{}'
+```
+
+At launch (1 Nov 2026), measured against every House member's home page: 1,347 of 1,423
+suggested House accounts confirmed, 433 of 439 House members with at least one. **senate.gov
+refused automated visits** from the networks tried ("Senate.gov - Unauthorized"), so senators
+show only their website until `checkSites` succeeds for them from Convex. If it is refused there
+too, they keep showing only their website: an account no official page could be read for is
+never shown. The check reads home pages only, so an
+account linked only from a deeper page stays hidden.
+
+The first deploy runs both by itself, rather than waiting for the morning: `afterDeploy:run`
+(see "After-deploy jobs" under "Deploying Convex") finds the table empty and starts the sync,
+which starts the site check when it has written. By hand, the same is:
+
+```bash
+pnpm exec convex run --prod memberAccounts:sync '{}'
+pnpm exec convex run --prod memberAccounts:checkSites '{}'
+```
+
 ### Committee base rates
 
 *"Among bills from finished Congresses that were also still in committee this long, what
@@ -548,7 +655,8 @@ prediction about a single bill**, and the bill page says so in those words. "Adv
 left committee: out of committee (50) or any stage beyond, timed from the first floor calendar,
 Senate report or chamber passage. Until 2026-10-06 only a chamber passage counted, which
 understated the share. Only a bill at 40 shows the figure; one out of committee no longer
-does.
+does, and neither does one whose Congress has ended (it expired; the server counts its
+days to today, so the figure described a bill that was no longer waiting).
 
 Computed only from Congresses strictly earlier than the current one, bucketed by days already
 spent in committee (`[0,90)`, `[90,180)`, `[180,365)`, `[365+)`), and a bucket is hidden
@@ -556,8 +664,11 @@ entirely unless backed by at least 100 past bills.
 
 ### The bill journey and its peers
 
-The bill page's status panel draws the bill's journey, and below the body sits the
-"Among its peers" dot field. The page makes **one** Convex call, `bills.getPage`, which
+The bill page draws the bill's journey in its own section under the summary (the
+status card beside the title shows only the stage, the days, the road and a "What happens
+next" line, a rule of the process from `lib/bill-next-step.ts` with the days left in the
+Congress), and further down
+sits the "Among its peers" dot field. The page makes **one** Convex call, `bills.getPage`, which
 returns the bill (exactly what `bills.getById` returns, for the share card) together with
 its journey and peers, reading the bill row once. They used to be two calls, `getById` and
 `getJourney`, each reading the bill, and the second read every topic row of the Congress to
@@ -580,7 +691,11 @@ no dot field.
   time "in committee" before the bill existed (S. 2431: 71 days from May 14, introduced
   July 24). It also picks out the moments a reader cares about (the referral, a
   committee's recorded vote, each chamber's passage with its tally or "by unanimous
-  consent", presentation, signature, the public law number) from the action text. A bill
+  consent", presentation, the veto and any vote on overriding it ("Failed of passage in
+  House over veto", with its tally), signature, the public law number) from the action
+  text. A vetoed bill's override votes come after the veto that ends its road, and are
+  kept under its last chapter; a failed one is also what the status card's "What happens
+  next" states, in place of the override rule. A bill
   with more than 1,000 stored actions gets no journey rather than one read from part of the
   record. The page draws the journey only when its last stage equals the bill's stored
   stage; a difference means the two disagree and the page does not pick a side.
@@ -702,6 +817,28 @@ every Congress, so a name one Congress never uses (Jacky Rosen's 117th-Congress 
 ```bash
 pnpm exec convex run --prod congressApi:backfillSponsorIdentity '{}'
 ```
+**Cosponsors.** The deploy that added them starts this by itself (`afterDeploy:run`, see
+"After-deploy jobs" under "Deploying Convex"); by hand, the same is:
+
+```bash
+pnpm exec convex run --prod afterDeploy:run '{}'
+```
+
+(`afterDeploy:run` refuses while a chain is alive; calling `congressApi:backfillCosponsors`
+directly would start a second chain walking the same bills.)
+
+One call per stored bill (about 56,500) to `/bill/{congress}/{type}/{number}/cosponsors`, at
+the same pace and with the same budget pause as the sponsor backfill (it stops at 3,000 calls
+left in the hour, so the daily sync always has room), which makes it about a day and a half. It
+goes newest Congress first, so the bills readers open are reached first, then repeats
+whole-table passes until one stores nothing. A pass that stores nothing while calls failed (an
+outage, a spent budget) is retried an hour later, up to six times, before the job is called done,
+so an outage cannot end it with bills missing. Each run writes the job's heartbeat to
+`backgroundJobs`; a chain silent for two hours is taken for dead and restarted by the hourly
+`resume-background-jobs` cron or the next deploy, whichever comes first. A bill whose page of cosponsors fails is left unmarked
+rather than stored short. Until a bill is reached, its page says nothing about cosponsors, and a
+member page's "Newest bills they cosponsored" covers only the bills reached so far.
+
 
 It makes one Congress.gov detail call per bill that has neither an id nor bit 4 of
 `extraSyncedBits` (`EXTRA_SPONSOR_IDENTITY`), about 57,000, at the enrichment backfill's pace. It
@@ -718,7 +855,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 
 ## The database
 
-26 application tables plus 6 installed by `@convex-dev/auth` (32 in production).
+28 application tables plus 6 installed by `@convex-dev/auth` (34 in production).
 
 ### Bill data
 
@@ -732,6 +869,8 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 | `billLegislativeSubjects` | The long per-bill subject list (HR1/119 has ~239). Stored but not surfaced |
 | `billTitles` | **Unused, and empty** — never written; the only reference is a delete loop in `mutations.ts`. Removing it is left to the owner |
 | `syncSnapshots` | Audit trail of every sync run |
+| `billCosponsors` | One row per (bill, cosponsor): member id, re-cased name, party, state, district, `sponsorshipDate`, `isOriginal`, `withdrawnDate`, and `sortKey` (page order: current before withdrawn, original first, then by date and name). Indexes `by_billId_and_sortKey` (a bill page reads exactly the ten it shows; "Show all" reads the rest in the same order) and `by_bioguideId_and_congress_and_sponsorshipDate` (a member's newest cosponsorships). `bills.cosponsorsFingerprint` is a short hash, not a copy of the list: every read of a bill row pays for it |
+| `memberAccounts` | One row per member (index `by_bioguideId`): name, chamber, state, `inOffice`, official website, and up to four suggested accounts, each with `confirmedAt` once the member's own site links it; plus the last site check. See "Members' official accounts" |
 
 Two design decisions worth knowing:
 
@@ -748,11 +887,18 @@ Two design decisions worth knowing:
   not `latestActionDate`: committees act on bills after they are signed, and 5 of 758 laws in
   the production copy had a later latest action (H.R. 1043, 119th: signed 29 Dec 2025, report
   filed 11 Feb 2026). It orders the stage hubs.
-- **Only the primary sponsor is stored.** There are no co-sponsors anywhere in the database,
-  and the answer engine is explicitly instructed never to imply otherwise.
+- **Cosponsors are stored for pages, not for the answer engine.** `billCosponsors` holds each
+  bill's cosponsors as Congress.gov lists them (withdrawn ones with `withdrawnDate`), replaced
+  as a set by `replaceBillCosponsors` only when the set changes, with `bills.cosponsorCount`
+  (current ones) and bit 8 of `extraSyncedBits` (`EXTRA_COSPONSORS`, "fetched"). The sync
+  fetches them after a bill's other endpoints, skipping the call when the detail says there are
+  none; bills stored before that are filled by `backfillCosponsors` (below). No dataset exposes
+  them to the answer engine, which is told it cannot look them up and to point readers to the
+  bill page.
 
 Not held at all: vote tallies and roll calls, committee hearing schedules, member
-biographies or contact details, floor speeches, and the full text of bills (only a link).
+biographies or contact details (beyond `memberAccounts`: the official website and the social
+accounts it links), floor speeches, and the full text of bills (only a link).
 
 ### Precomputed analytics
 
@@ -773,6 +919,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics. Orphaned the same way since `convex/chatAnalytics.ts` was deleted |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
 | `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days, and (index `by_storageId`) so `avatars.sweepOrphans` does not take them for orphaned photos |
+| `backgroundJobs` | One row per long one-off job that `afterDeploy:run` starts (`name`, `state` running or done, `startedAt`, `heartbeatAt`, `finishedAt`; index `by_name`). Today only `cosponsors-backfill`. A running job whose heartbeat is two hours old is restarted by the next deploy. See "After-deploy jobs" |
 | `answerPrompts` | Copies of the `answer-system` prompt from PostHog prompt management: `name`, `version`, `template`, `isProduction`, `fetchedAt` (index `by_name_version`). Written only by `answerPrompts.store`, read once per answer. At most one row is production, and ten other versions are kept. Empty = the in-code default |
 | `usageEvents` | **Unused, and empty** — zero references outside `schema.ts`. Removing it is left to the owner |
 
@@ -884,7 +1031,7 @@ code:
 burn cited above. Both are `internalQuery` now; the CLI commands in the runbook are
 unaffected because `pnpm exec convex run` calls internal functions as admin.
 
-Three automated guards run on every `pnpm test`, two of them enforcing related rules — see
+Five automated guards run on every `pnpm test`, two of them enforcing related rules — see
 [Build, test and deploy](#build-test-and-deploy).
 
 ---
@@ -965,9 +1112,9 @@ Three shapes, chosen by media query in `app/globals.css` and described by `lib/a
 
 | Viewport | Shape | Behaviour |
 | --- | --- | --- |
-| `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. |
-| `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. |
-| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
+| `< 1024px` | bottom sheet | Starts below the live header, so the navigation stays usable, square and flush with the header's bottom rule. Drag the grab bar or title row down, or flick, to close it. Body scroll is locked while open — in CSS, so there is no listener to leak and rotation self-corrects. The on-screen keyboard lifts it (`bottom: var(--ask-kb)`); `--ask-kb` counts only while a text field has focus and the page is not pinch-zoomed, because a zoomed page also has a smaller visual viewport. |
+| `1024–1343px` | floating rail | Sits beside the page without pushing it. Squeezing here would starve the layout; see below. Its title row drags it off to the right. |
+| `>= 1344px` | docked rail | Pushes `.ask-shell` (the wrapper around header, main and footer) with `padding-right`, and is drag-resizable between 320 and 640px (mouse, finger or keyboard; on a touch screen the edge carries a grip and a wider target). A window that shrinks and grows again returns to the reader's saved width, not the narrowest one it passed through. Its title bar is `--header-h` tall from `lg` up, so its bottom rule continues the site header's across the window. |
 
 **1344 is derived, not chosen.** `container-editorial` at a 1024px viewport gives its `lg:`
 layouts 960px of inner width, so the pushed shell must never fall below 1024px — and the
@@ -977,12 +1124,18 @@ is the reason `lib/ask-panel.test.ts` sweeps every docked viewport against every
 width rather than spot-checking a few.
 
 **The header is the one place that does measure itself.** It is a CSS container
-(`site-header`), and its md / lg / xl are `header-md:` / `header-lg:` / `header-xl:`
+(`site-header`), and its sm / md / lg / xl are `header-sm:` / `header-md:` / `header-lg:` / `header-xl:`
 (`tailwind.config.ts`), container queries at the same widths as the screens. A floor of 1024px
 protects `lg:` but not `xl:`: on a 1440px window with the panel docked the header was 1024px
 wide while `xl:` still drew the 288px search field, and "Sign up" ended up under the panel.
 Measured on the header, a docked 1440px window gets the same header as a 1024px one. With the
 panel closed the header is the window's width, so nothing changes.
+They are in em, so a larger browser font reaches the compact layouts sooner, and the header row
+uses no window breakpoint for a width (`lib/ask-css-contract.test.ts` checks): at a 20px font a
+640px window's `sm:` showed "Sign in" and the 21px wordmark in what is a 512px header at the
+default size, and ran the logo under Ask. Below `header-sm` the phone row steps down through
+`header-wordmark-lg`, `header-wordmark`, `header-ask-glyph`, `header-mark` and `header-search`
+(brand.md, "Header").
 
 **The mode is never computed during render.** The panel lives in the root layout, so reading
 the viewport while rendering would be a hydration mismatch on every page of the site. CSS owns
@@ -1000,7 +1153,10 @@ header uses its own breakpoints rather than the window's. That drift is guarante
 
 **The panel is never unmounted** — only translated off-screen and marked `inert`. The phase
 machine is `lib/ask-panel-state.ts`: `closed`, `open`, `minimized`. Keeping it mounted is what
-makes the next part cheap.
+makes the next part cheap. Below the rail breakpoint (1024px) the open panel is a sheet over
+everything under the header, so while it is open `<main>` and the footer are `inert`: Tab stays
+in the panel and the header, never on a page link hidden behind it (WCAG 2.4.11). The rail and
+the dock leave the page in view and leave it live.
 
 **Stepping aside.** A bill card inside an answer was always a working link, but on a phone the
 sheet covered the page it opened, so the tap read as doing nothing. `answer-panel.tsx` captures
@@ -1012,26 +1168,64 @@ unmounts, the thread's scroll position and the composer's draft survive. Focus m
 
 `components/answers/ask-launcher.tsx` is the way back, and the way in: present on every page in
 every phase but `open`, and **not** gated on a conversation already existing — topic hubs and
-`/learn` previously had no ask affordance at all. A corner pill normally; a full-width bottom
-bar on a phone when a conversation has been set aside.
+`/learn` previously had no ask affordance at all. A corner pill from 1024px wide and 500px
+tall, where the page reserves its height (`--ask-reserve`, which pads the footer and sets
+`scroll-padding-bottom`); a full-width bottom bar on a phone when a conversation has been set
+aside. Below 1024px, and in any window under 500px tall, the way in is
+`components/answers/header-ask.tsx` instead, "Ask" in the header beside the search, and the
+pill is not drawn: pinned over the page, it sat on the numbers and titles a phone reader was
+reading. Which of the two shows is media queries in `app/globals.css` ("Where Ask lives"),
+never JavaScript, so the server render is the same at every width. Under 500px tall the header
+is not sticky and the sheet takes the full height, over it. Closing the panel returns focus to
+whichever of the two is drawn. In the closed phase the corner pill tucks below the screen's edge
+while the reader scrolls down and returns on a scroll up, near the top or the end of the page, or
+on keyboard focus (`lib/ask-launcher-tuck.ts`, unit-tested; `data-tucked` read by CSS); it
+never tucks on scroll under `prefers-reduced-motion`, nor in the minimized phase, where it is the
+way back. A bill page keeps Ask in the header at every width and renders no closed pill
+(`askInHeaderOnly` in `lib/ask-panel-state.ts`, read by `navigation.tsx` and `answer-panel.tsx`
+from the path, so the server render already has it): its status card fills the pill's corner on
+a laptop before any scroll, and a pill that stepped aside there left the first screen with no way
+to ask. From 1024px to 1279px that header shows the search as its icon (`HeaderSearch compact`),
+because the field, Feedback, Ask and the account buttons do not fit beside the four sections.
+The minimized pill still shows there: it is the way back to a conversation set aside.
 
-**Type anywhere to ask.** `components/answers/type-to-ask.tsx`, mounted once in the root layout
-after the panel, listens for keys on the window. A printable key typed with no text box focused
-goes to the open panel's composer, else the home page's ask box if it is on screen, else it
-opens (or restores) the panel and types there. The rules for which keys are left alone — any
-Cmd/Ctrl/Alt shortcut (AltGr excepted), Space (it scrolls), anything inside a menu, listbox, dialog or text
-field, anything while a modal is open — are in `lib/type-to-ask.ts` with their tests. Where the
-box is already on screen only focus moves, in the keydown, so the browser types the character
-itself; when the panel must open first it is still `inert`, so the key is held and typed into
-the composer by an effect once the open phase commits. The composer is never `disabled` while
+**Press / to ask.** `components/answers/ask-shortcut.tsx`, mounted once in the root layout
+after the panel, listens for one key on the window: `/`, the key GitHub, YouTube and Gmail use
+for search. It moves focus to the open panel's composer, else the home page's ask box if it is
+on screen (scrolling it to the middle of the screen when it is below the fold), else it opens
+(or restores) the panel, empty, and focuses its composer once the open phase commits — even at
+phone width, where the panel otherwise focuses itself (it retries for a few frames, because
+under reduced motion the panel's visibility still runs a 1ms transition and the first frame's
+focus() would land on a hidden field). The `/` is never typed, and claiming it stops Firefox's
+quick find. It is left alone with any modifier but Shift — Cmd, Ctrl, Alt and AltGr, which
+Windows reports as Ctrl+Alt — on a held key's repeats, and whenever focus is on a form control
+or a widget with keys of its own: any `<input>` (a ticked filter checkbox included), textarea,
+select, editable region, combobox (the shadcn Select), listbox, menu, tree, grid, slider (the
+panel's resize handle), spin button, or anything in a dialog; also while a modal is open. A
+focused link, button or `<summary>` does not use the key, so `/` works from there, as on GitHub.
+The rules and their tests are in `lib/ask-shortcut.ts`. No other key is ever taken. It replaced
+"type anywhere to ask" (2026-10-23 to 2026-11-04), which sent every printable key there — a
+letter pressed on a focused link included — and could not be turned off (WCAG 2.1.4). A
+single-key shortcut still needs an off switch under 2.1.4, and there are two, sharing one
+setting (`bic_ask_shortcut` in localStorage, absent means on, read through `useAskShortcut`
+and kept in step across tabs by the `storage` event): the line under the panel's composer, and
+an On/Off control in the footer beside the theme control (`AskShortcutSwitch`), for a reader
+who never opens Ask. The footer's is drawn on every screen: a touch screen fails the `fine:`
+pointer query yet can have a keyboard (a tablet, a phone with a Bluetooth keyboard), and the key
+works there, so its off switch must too. The composer's line is drawn with a mouse or trackpad,
+and on a touch screen from the first `/` pressed there. While it
+is on, the launcher pill and the home page's box (when not focused) show a `/` keycap
+(`components/brand/kbd.tsx`), and the launcher, Ask in the header and the ask fields carry
+`aria-keyshortcuts="/"`. The analytics event keeps its first name, `ask_typed_anywhere`, now
+with `key: "slash"`, and the panel's open trigger stays `typing` (analytics.md).
+The composer is never `disabled` while
 an answer is written (a disabled field drops focus), and nor is its send button (a form with a
 disabled submit button ignores Enter): Enter then queues the follow-up, which is sent the moment
 the answer is done. The home page's `HeroAsk` focuses itself on arrival on a mouse-or-trackpad
 device only, and only if the reader has not already put focus somewhere; until the reader
 chooses the box (clicks or types in it), Space, Page Up/Down and the arrow keys hand focus back
 to `<main>` so they still scroll the page. Its first key
-scrolls it to the middle of the screen, since it sits below the fold on most laptops. Firefox's
-quick-find keys (`/` and `'`) are left alone; AltGr characters are taken.
+scrolls it to the middle of the screen, since it sits below the fold on most laptops.
 
 ### Page context
 
@@ -1215,7 +1409,9 @@ httpAction with a scripted model and asserts the exact request PostHog would rec
   reader actually got, each scoring the whole trace a minute after it goes quiet. Three are
   free Hog code checks on the model's final raw reply, before `answerSanitize.ts`, so they
   measure the prompt and model rather than the cleanup: **Answer uses internal jargon**
-  ("dataset", `bill_actions`, `billId`, "the result is complete"), **Answer shows raw tags**
+  ("dataset", `bill_actions`, `billId`, "the result is complete"; since 2026-11-02 it skips
+  citation handles such as `[[cite:bill_actions:…]]`, which the page turns into numbered links:
+  all 21 of its fails from 2026-10-23 to 11-01 were one), **Answer shows raw tags**
   (`[[sponsors:…]]`, `【`, `<thinking>`) and **Answer shows its thinking** ("Let me check…",
   "Actually, let…"). A fourth, **Answer states only what the lookups support**, is an LLM
   judge that fails an answer stating a number, bill, date, status, person or what a bill does
@@ -1249,7 +1445,7 @@ against that risk:
 - **The template is wording only.** What must stay correct is computed in code and filled
   into named slots: `{{datasets}}` (the dataset index, from `convex/catalog/datasets.ts`),
   `{{calendar}}` (today, which Congresses have ended, and whether a Congress has convened that
-  we hold no bills for yet) and `{{context}}` (what the reader has on screen). A version that does not use all three slots, or uses any other, is never
+  we hold no bills for yet) and `{{context}}` (what the reader has on screen; since 2026-11-01 the live answer leaves it empty and sends the reader's page after the question instead, so every reader shares one cached prompt — see "Prompt caching" under Model configuration). A version that does not use all three slots, or uses any other, is never
   copied (`validTemplate`, `convex/catalog/promptTemplate.ts`), and the answer uses the
   in-code `DEFAULT_TEMPLATE` instead. A bad edit costs wording, never an outage, and never
   the date or the reader's page.
@@ -1263,6 +1459,18 @@ against that risk:
   served) and `answer_prompt_source` (`posthog` or `code`), so any answer can be traced to
   the exact wording that produced it, and PostHog compares versions on cost, latency,
   evaluation pass rate and readers' ratings.
+- **Code that makes the published wording wrong also sets a minimum version.** The template in
+  PostHog is a copy, so a rule changed in `DEFAULT_TEMPLATE` reaches no reader while the
+  `production` label points at an older version. `MIN_PROMPT_VERSION`
+  (`convex/catalog/promptTemplate.ts`) is the oldest version whose rules match the code: a
+  version below it is never served, and while the label points below it, `refresh` copies the
+  minimum version as production instead. So publish the matching version in PostHog first
+  (unlabelled), then raise the minimum in the same pull request as the code: the merge releases
+  the wording, and nobody has to remember to move the label. The cost is that moving the label
+  back past the minimum is no longer a rollback; that takes a code change. First used on
+  2026-11-02: version 8 said "We do not hold co-sponsors" when bill pages began listing them, so
+  version 9 (identical to `DEFAULT_TEMPLATE`) was published unlabelled and the minimum set to 9.
+  Move the `production` label to 9 whenever convenient; nothing depends on it.
 - **Test before release.** Export the candidate version's text and run the gates against it:
   `ANSWER_PROMPT_FILE=candidate.txt pnpm check:grounding`. A file that fails `validTemplate`
   stops the gate rather than quietly testing the default.
@@ -1293,8 +1501,23 @@ on Claude Haiku: a claim about a whole set ("all", "none of them", "the exceptio
 phrase goes in double quotes; a bill's place is said with its `stage` words; and what a bill
 does comes only from its official summary or a web excerpt, never from its title. On the
 production data copy it got 43 of 46 scorable answers (Claude Haiku 5.5, low effort), including
-the new "student visa" question version 5 could not answer. Version 7 is the one labelled
-`production`.
+the new "student visa" question version 5 could not answer. Version 7 was labelled `production` until
+2026-11-01.
+
+On 2026-11-01 `DEFAULT_TEMPLATE` moved ahead of version 7, to be published as **8**. It fixes
+three contradictions (the prompt counted bills with two `billType` counts where the docs said
+measure `'bill'`; the bills notes said both "use groupBy" and "one limit-0 fetch per category";
+the web tool and the prompt allowed a lookup on different conditions) and answers the fact-check
+judge's 50 failures out of 273 answers on Claude Sonnet 5.5 (2026-10-23 to 11-01): "no official
+summary yet" or "its only action" said without the lookup that shows it, the model's own
+commentary ("supporters would likely say"), rankings counted off an unsorted list, and quotes put
+in a speaker's mouth that the excerpt never named. Measured on the production data copy against
+version 7: the grounding gate 20/20 in all three runs (version 7: 20/20 in two); the truth
+questions 25 and 26 of 27, the one difference a "can't say" whose wording the scorer reads
+either way on both versions (1 and 2 of 3 on a rerun); 31 lookups against 36. Version 8 was
+labelled `production` on 2026-11-01 at 22:35 UTC. **9** (2026-11-02) changes only the two
+co-sponsor lines, for bill pages that list cosponsors, and is served from the merge of #233 by
+`MIN_PROMPT_VERSION` (above).
 
 Setup: a PostHog **personal** API key with `llm_prompt:read`, set as
 `POSTHOG_PERSONAL_API_KEY` in the Convex production environment. Optional
@@ -1325,7 +1548,8 @@ without it. Every result from `fetch_dataset` now declares three things, built b
 | `order` | `arbitrary` unless an index or a complete in-memory set guarantees a sort |
 | `exact_subsets` | A partition of the whole set that the server counted. **Present only when `complete` is true.** A set made up entirely of reserved bill numbers ("Reserved for the Speaker.") is split by whom they were held for, with each part's members. Any other set that mixes kinds of measure is split by kind — bills, joint resolutions, simple resolutions, concurrent resolutions, and reserved numbers as placeholders — with counts only. Added 2026-10-05 after "How many Senate bills have passed the Senate?" was answered 706: the chamber filter counted every Senate measure, and 470 were Senate resolutions. The bills were 213 |
 | `count_only` | On a complete result with a total but no rows (a `limit: 0` lookup): it leads with the number ("There are exactly 13.") and says the empty row list is not "none", then how to fetch the rows to **name** one. The number was added after "Have any Texas bills become law?" was answered "No" from a count of 13. Added 2026-10-05 after the model counted California's 54 members with the right sort and then said the one with the fewest bills "cannot be determined" |
-| `tied_with_row_1` | On a complete, sorted `sponsors` result where more than one member shares row 1's count: how many share it, at what count, and their names (up to 20; a count alone past that), counted over the whole set rather than the page. **Present only when `complete` is true**, and left off a count-only (`limit: 0`) lookup, which has no row 1 and is already told to fetch again to name anyone. It says "tied for the fewest" or "tied for the most" to match the sort, and tells the model to name every one of them, never row 1 alone. Added 2026-10-19: Adam Gray and James Gallagher had 8 bills each, the fewest in California, and which of them came first on the page was chance. That day seven states and the country as a whole had a tie for the fewest |
+| `tied_with_row_1` | On a complete, sorted `sponsors` result where more than one member shares row 1's count: how many share it, at what count, and their names (up to 20; a count alone past that), counted over the whole set rather than the page. **Present only when `complete` is true**, and left off a count-only (`limit: 0`) lookup, which has no row 1 and is already told to fetch again to name anyone. It says "tied for the fewest" or "tied for the most" to match the sort, and tells the model to name every one of them, never row 1 alone. Added 2026-10-19: Adam Gray and James Gallagher had 8 bills each, the fewest in California, and which of them came first on the page was chance. That day seven states and the country as a whole had a tie for the fewest. Since 2026-10-27 also on a date-sorted `bills` result ("newest action first" and the other three sorts): how many measures share row 1's date, on a complete read or one an ordering index put in order, and only when the read reached past that date, so the count is exact. Production had named H.R. 10894 "the measure with the most recent action" when 62 measures were last acted on that day |
+| `sort_not_applied` | On a `bills` listing that asked for a sort and came back `arbitrary`: why that sort cannot be had for those filters (a title search returns matches by relevance; "reached a stage" spans several stages), what to use instead, and that fetching again with the same filters will not help. Which sorts an ordering index can serve is decided once, by `sortBlockedBy` in `convex/catalog/billsIndex.ts`, which the grounding gate's fixture also asks. Added 2026-10-27: told only "the sort did not apply, so fetch again", the model retried the same title search and then named a row of the unsorted page "the latest" |
 | `congress_is_over` | On a `bills` result from an adjourned Congress: that nothing in it is still in committee or pending. On the result, not only on rows, because a count has no rows; a bare count of the 118th's stage-40 bills was answered "yes, still in committee" |
 
 The model is told, in the system prompt, that a **set-level claim** — a count, a total, "most",
@@ -1424,6 +1648,20 @@ the result carries the split as `exact_subsets` (counted by the server, only fro
 and the gotcha says each has a title and an introduction. `scripts/truth/handlers.test.ts` checks
 all three against the data.
 
+**States.** Every `stats` row also carries `sponsorStateCounts`: measures introduced by members
+from each state (D.C. and the territories included), largest first and each with its `rank` (tied
+counts share one), read from the same chamber
+breakdowns the home page's state map uses (both chambers summed on the whole-Congress row, one on a
+chamber row). It counts every measure, resolutions included. A whole-Congress `groupBy:
+"sponsorState"` cannot finish (18,000 measures against a 5,000-row window), and its note now points
+here. Before this, asked which states' members sponsor the most bills (2026-10-28), the model
+counted eight states one fetch at a time, said it could not rank the rest, and listed Illinois
+below Pennsylvania "in order". The rank is the server's because, handed the list alone and asked
+for the tenth state, the model named the ninth in 2 of 3 runs. A truth case checks every state's
+count and rank against the raw bills. Since 2026-11-01 every `topics` row carries its `rank` the
+same way: asked live for the fourth policy area, the model counted the 31 sorted rows by eye and
+named Taxation (fifth) in 5 of 7 runs, on prompt versions 7 and 8 alike.
+
 **Asking instead of guessing.** A fourth tool, `ask_reader`, ends the turn with one question when
 the reader's question has two readings that give materially different numbers. "How many bills has
 the Senate passed" is the canonical case, and it silently changes the answer by a factor of two.
@@ -1458,7 +1696,12 @@ cut written as `[cut off]` (`markCutOff`), and the model is told, with the resul
 finish a sentence a cut stops (`CUT_OFF_NOTE`). Exa excerpts are cut on a word and marked the
 same way. This came from the fact-check judge: from 2026-10-23 to 26, 6 of 17 answers that used
 the web failed it against 1 of 15 that did not, 5 of them because the answer finished a quote the
-search engine had cut off ("an entity owned by, contr…"). A page Claude found but never quoted is
+search engine had cut off ("an entity owned by, contr…"). The marker was not enough: from
+2026-10-23 to 11-01 at least 9 of the 50 answers the judge failed still finished a cut sentence
+("allocated to immigration [cut off]" became "immigration enforcement"). So since 2026-11-01 a cut
+tail is dropped outright wherever a whole sentence comes before it, for both engines' excerpts
+(`dropCutTails`, applied in `convex/answer.ts`); only a quote with no whole sentence keeps its
+marked fragment. A page Claude found but never quoted is
 left out: its title alone would let the answer cite it for a claim it never showed. An API error,
 a refusal, a search that errored, no search, or no quoted source moves the lookup to Claude Haiku
 5.5 (`ANTHROPIC_WEB_BACKUP_MODEL`, the same tool), then to gpt-oss-120b with OpenRouter's web
@@ -1525,9 +1768,9 @@ who uses the product. Nothing expires them — no cron touches the chat tables.
 | Answer model | `claude-sonnet-5-5` since 2026-10-23, at effort `medium` (see Reasoning below) (the owner's call: the most accurate answer for the price), on the Claude API itself (`https://api.anthropic.com`), called with Anthropic's TypeScript SDK on the site's **own Anthropic API key** (`ANTHROPIC_API_KEY`). Measured live on 2026-10-23: a four-round answer took about 13 s and cost about 12 cents, most of it the cache writes of large lookup results. Before that the answer model was `claude-haiku-5-5`, chosen on 2026-10-13 (measured through OpenRouter then) on the 20 scored questions in `scripts/truth/questions.ts`, twice each, every flagged answer read by hand: 38 of 40 right against gpt-oss-120b's 37, a median of 3.7 s, about 0.3 cents an answer | `ANTHROPIC_ANSWER_MODEL`; set it **blank** to skip it |
 | Backup model | `claude-haiku-5-5`, tried when the answer model fails. It cannot read Claude Sonnet 5.5's thinking blocks; they are sent back unchanged anyway and the API drops them (unbilled), so the transcript stays append-only and Haiku carries on from the visible tool calls and results | `ANTHROPIC_BACKUP_MODEL`; set it **blank** to skip it. Both blank answers on gpt-oss alone: the instant rollback, a Convex env change rather than a deploy |
 | Claude requests | Every request sends `inference_geo: "us"`: US-only inference, at 1.1x the price, and not configurable. The geography Anthropic reports back is recorded on the trace (`anthropic_inference_geo`) and logged as `US-ONLY RULE BROKEN` if it is ever not `us`. Adaptive thinking; on the answer rounds with `display: "summarized"`, so the trace records why Claude did what it did (same tokens and, measured on 2026-10-27, no slower), with `output_config.effort` from `OPENROUTER_REASONING` (below); no temperature. Our own instructions in the loop (the last round's "no lookups left" and the two nudges) go as `role: "system"` messages, so Claude never reads them as the reader's words; the API takes one only after a user message or tool results, so after Claude's own words a nudge stays user text (`toClaudeRequest`). Strict tool use (`strict: true`) was tried on 2026-10-27 and does not fit: Anthropic refuses `fetch_dataset` as "Schema is too complex" above about 8 of its 19 optional filters. `tool_choice: auto`; on the last round the tools stay in the request with `tool_choice: none` instead of being withheld. That is because Claude 5.5 binds each thinking block to the exact conversation before it: within a turn the system prompt and tool list never change, and Claude's own reply goes back verbatim (`convex/claude.ts`, rule 2). No SDK retries, 40 s per try: the chain is the retry, and it writes a work-log step before each backup so the reader's 45 s stall watchdog restarts. A 400 is logged as `CLAUDE REQUEST REJECTED (400)` and Sonnet is still tried | — |
-| Prompt caching | Cache breakpoints on the tool list and the system prompt, plus automatic caching of the growing transcript, so each round of a turn reads what the round before it sent | — |
+| Prompt caching | **The opening every first question shares** (the tool list, the system prompt, and the primed `describe_dataset` exchange: about 9,800 tokens, the same for every reader on a given day) is cached for **one hour** (`SHARED_PREFIX_CACHE` in `convex/claude.ts`); on a follow-up only the tools and the system prompt carry the hour-long marker, because its history sits before the primed exchange and nobody else shares that prefix, and automatic caching covers the growing transcript, so each round of a turn reads what the round before it sent. What differs per reader goes **after** the question as a system message: the page they have open (`renderContextBlock`) and, on a follow-up, the note quoting their last answer. Until 2026-11-01 both sat inside the system prompt, so each page variant cached a prompt of its own and a reader on another page read only the tools from cache; measured that day, a second reader on a different page now reads 9,813 tokens from cache, and that first round cost $0.002 instead of $0.044. One hour because questions come in clusters: of 272 from 2026-10-23 to 11-01, 157 arrived within five minutes of the one before and 73 more within the hour. A one-hour write costs 2x input (5-minute: 1.25x), priced from `usage.cache_creation` (`cacheWrite1h`). **The web lookup** caches its own server-side rounds (each search or fetch re-reads everything before it): one lookup of 32,578 input tokens became about 16,000 written and 16,500 read, about a third cheaper. Without it the web lookup was the one Claude call with no cache reads at all, and on 2026-10-28 it was 2.2 million of the day's 5.2 million input tokens, which is what pulled the account's cache-read ratio down in the Claude Console | — |
 | Failover | Per round: Claude Sonnet 5.5, then Claude Haiku 5.5, then gpt-oss-120b on OpenRouter as the last resort (`answerRound` in `convex/answer.ts`). When the Claude API itself looks down (no connection, or a 502, 503 or 504; `claudeServiceDown` in `convex/claude.ts`), the turn skips Haiku and goes straight to gpt-oss, logged as `CLAUDE API UNREACHABLE`; a timeout, a one-off 500, a 529 overload, a 429 or a refusal is treated as one model's or one request's trouble and goes to Haiku. Once a model fails (an error, a timeout, a refusal with `stop_reason: "refusal"`, or a model with no price on file), **the rest of the turn** stays on the next one, and the reader's work log shows "trying a backup model" so the panel's 45-second stall watchdog restarts. A 400 from the Claude API is logged as `CLAUDE REQUEST REJECTED (400)` and still goes to Haiku, since a 400 can be about one model only; so a broken route costs a reader one or two extra requests, not one a round, and never the answer. A Claude reply cut off at `max_tokens` is treated like OpenRouter's `length`: its text is kept and its tool calls are dropped. gpt-oss gets the transcript as plain content and tool calls, without Claude's blocks | — |
-| Claude price table | `CLAUDE_PRICES` in `convex/claude.ts`, USD per million input / output tokens: Claude Haiku 5.5 $0.10 / $0.50 for prompts up to 100K tokens, $0.50 / $2.50 above; Claude Sonnet 5.5 $2 / $10, cache reads $0.10; every token price ×1.1 for US inference; web search $10 per 1,000 searches. `CLAUDE_PRICES_JSON` adds or overrides prices from the Convex environment (`claudePrices`), read strictly: bad JSON drops the whole setting, and an entry that is not a `claude-…` id, lacks `input` or `output`, or has a price below 0 or over $100 per million tokens (a typo guard) is dropped; each is logged, and none fails an answer. `cacheWrite` defaults to 1.25x input and `cacheRead` to 0.1x. A Claude model priced nowhere is refused before any request is sent (`No price on file for …`) and the turn moves to the next model, so a careless `ANTHROPIC_*_MODEL` change to a pricier model fails loudly instead of multiplying the bill. The same prices compute each Claude generation's `$ai_total_cost_usd` | `CLAUDE_PRICES_JSON`, no deploy, after re-reading Anthropic's pricing page; or `CLAUDE_PRICES` in code (a deploy) to make it the default |
+| Claude price table | `CLAUDE_PRICES` in `convex/claude.ts`, USD per million input / output tokens: Claude Haiku 5.5 $0.10 / $0.50 for prompts up to 100K tokens, $0.50 / $2.50 above; Claude Sonnet 5.5 $2 / $10, cache reads $0.10; every token price ×1.1 for US inference; web search $10 per 1,000 searches. `CLAUDE_PRICES_JSON` adds or overrides prices from the Convex environment (`claudePrices`), read strictly: bad JSON drops the whole setting, and an entry that is not a `claude-…` id, lacks `input` or `output`, or has a price below 0 or over $100 per million tokens (a typo guard) is dropped; each is logged, and none fails an answer. `cacheWrite` defaults to 1.25x input, `cacheWrite1h` (one-hour writes) to 2x and `cacheRead` to 0.1x. A Claude model priced nowhere is refused before any request is sent (`No price on file for …`) and the turn moves to the next model, so a careless `ANTHROPIC_*_MODEL` change to a pricier model fails loudly instead of multiplying the bill. The same prices compute each Claude generation's `$ai_total_cost_usd` | `CLAUDE_PRICES_JSON`, no deploy, after re-reading Anthropic's pricing page; or `CLAUDE_PRICES` in code (a deploy) to make it the default |
 | Last-resort model | `openai/gpt-oss-120b` on OpenRouter credits (`OPENROUTER_API_KEY`), the answer model until 2026-10-13. Readers get it only when both Claude models have failed this turn, or when `ANTHROPIC_API_KEY` is unset. It is also the model behind the Exa web lookup, the web search's fallback. Chosen on 2026-10-05 by running the real answer loop over the production data copy (`.truth-cache`) against the 21 scored questions in `scripts/truth/questions.ts` plus 6 open ones, twice per setup: 18–19 of 21 right on Cerebras, median about 1 s, nothing over 4 s. The previous default (DeepSeek V4 Flash on DeepInfra) scored 5–6 of 21 in the same run, because DeepInfra rate-limited it and its failover, Nova Lite, served 24 of 27 answers; readers waited a median of 8–10 s for it. Also tried: Gemini 2.5 Flash (14–15, ~1.5 s), Gemini 3.1 Flash Lite (18–19, tail to 40 s), Gemini 2.5 Flash Lite (11), gpt-oss-20b (6–7), Nemotron 3.5 Lightning (5–6) | `OPENROUTER_MODEL` |
 | gpt-oss providers | `cerebras,groq,amazon-bedrock`, sent as `provider.only` **and** `provider.order`, so they are tried fastest first. Without `order` OpenRouter routes by price, and the cheapest host for this model is among the slowest. The failover is the same model on the next host, not a weaker model. DeepInfra is left out: up to 42 s in the same test | `OPENROUTER_PROVIDERS` (blank falls back to the default; the order you write is the order tried) |
 | Fallbacks | none: the failover is the next host above. Applies to gpt-oss calls only, never to Claude | `OPENROUTER_FALLBACK_MODELS` — a comma list of other models to try after every gpt-oss host has failed; each must pass `pnpm check:retention` first |
@@ -1609,9 +1852,12 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
+| `scripts/check-type-floor.ts` | `pnpm test` | No text size under 13px (`text-[0.7rem]`, `fontSize: 10`) and no font size or line height in px (`text-[13px]`, `leading-[28px]`) in `app/`, `components/` or `lib/`, so every size follows the reader's browser font setting. The share images in `lib/og/` may use px but not go under the floor. The one sanctioned exception is `.label-eyebrow`'s 0.75rem (12px) capitals, defined once in `app/globals.css` (brand.md, "Type floor") |
+| `scripts/check-compiled-css.ts` | `pnpm test` | The compiled stylesheet is valid: no arbitrary media variant (`[@media(...)]:`) stacked under another variant such as `touchable:` (Tailwind 3 writes it in a shape the dev compiler cannot parse, which drops every style on the site), no unknown at-rule, no `undefined` |
+| `pnpm check:touch [url] [/paths] [--width=820] [--shots=dir]` | Manual, needs a running site and Playwright | Every tap target at 390px with touch on is at least 44px either way, measured by hit-testing outwards from its centre (`.touch-hit` counts; a neighbour's target covering it does not), and no target's centre lands on a different target (that fails even when exempt, and names the one on top). Exempt from the size: links and dotted Terms in running text, and charts marked `data-touch-exempt`. `--shots` saves each page with every target outlined. `components/brand/touch-targets.test.ts`, in `pnpm test`, keeps the pieces it relies on in place (`.touch-hit`'s 24px under a mouse and 44px on touch, and the shared links and toggles that carry it). See "Input, not width" in `documentation/brand.md` |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for gpt-oss-120b **and every fallback** in `OPENROUTER_FALLBACK_MODELS`. Not the Claude route, which is called directly under Anthropic's standard retention (see Retention above) |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web lookup still returns the citations the code parses |
-| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, or reaches for the web when our own data answers. It grades Claude (the production answer model, on `ANTHROPIC_API_KEY`, through the same request code in `convex/claude.ts`) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf |
+| `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, reaches for the web when our own data answers, names a row of an unsorted result as the newest, or names one newest measure without saying others share its date. Its fixture serves a sort the way production does (`sortBlockedBy`), so a whole-Congress "most recent" comes back in order. Its "today" is pinned to the day the fixture was read from production (`TODAY` in the script), because a snapshot read against the real date ages: a week on, "has anything moved this week?" had a true answer of no in the gate alone. It grades Claude (the production answer model, on `ANTHROPIC_API_KEY`, through the same request code in `convex/claude.ts`) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf |
 
 Re-run the three manual probes whenever the model or provider pin changes. Their defaults
 cannot drift from production: the Claude models and request come from `convex/claude.ts`
@@ -1629,6 +1875,30 @@ itself, `scripts/check-grounding.ts` exports `DEFAULT_MODEL`, `DEFAULT_PROVIDERS
 6-digit code emailed through PostHog Workflows (see "Email" below) that expires in 15 minutes. Passwords must be ≥10 characters
 with upper case, lower case and a digit, enforced server-side; they are stored only as a
 scrypt hash by the library.
+
+**An emailed code signs in only the account it was sent to.** The library looks a code up by
+its value alone, across every account, and signs in as its owner; it never compares that owner
+with the email typed beside the code unless the provider has an `authorize` check. Both of our
+code providers (`codeProvider` in `convex/emailCodes.ts`) have one, comparing the typed email
+with the account's, trimmed and lower-cased. Without it, a reader could redeem someone else's
+pending sign-up code under their own email and land in that account (found 27 Oct 2026; the
+password-reset flow had its own check in the library, sign-up verification did not).
+`convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
+
+**Google sign-in runs through billsincongress.com.** Google's account picker names the site
+it will send the reader back to, and the library serves that return page, and the page that
+starts the sign-in, on the Convex HTTP address. Readers saw "to continue to
+industrious-llama-331.convex.site". With `CUSTOM_AUTH_SITE_URL=https://billsincongress.com`
+in the Convex environment, the library puts our domain in both links instead, and
+`app/api/auth/[...path]/route.ts` passes `/api/auth/signin/<provider>` and
+`/api/auth/callback/<provider>` through to Convex unchanged: the redirect, its `Set-Cookie`s,
+and on the way in only that provider's own sign-in cookies (`lib/auth-proxy.ts`). The
+middleware must not touch the `code` on those two pages (`shouldHandleCode` in
+`middleware.ts`): it swaps any `?code=` for a session, and Google's reply carries Google's
+code, so taking it ends every Google sign-in with no session. Google Cloud's OAuth client must
+list `https://billsincongress.com/api/auth/callback/google` as an authorized redirect URI;
+the old `https://industrious-llama-331.convex.site/api/auth/callback/google` stays listed so
+removing the variable is an instant rollback. Tested in `lib/auth-proxy.test.ts`.
 
 Sessions last **60 days** (both total and inactive), and the cookie `maxAge` in
 `middleware.ts` must stay ≥ that value.
@@ -2114,7 +2384,7 @@ still be sent without one.
 
 **"Did you find what you were looking for?"** (`components/feedback/found-it-prompt.tsx`,
 mounted once in `app/layout.tsx`). A card in the bottom-right corner, stacked above the Ask
-launcher (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
+pill where there is one (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
 Yes sends and thanks; No asks "What was missing?" (optional) and sends. It stays away on
 sign-in, sign-up, forgot-password, account, Pro and alert pages, while the ask panel is open, and for anyone who
 opened the Feedback box this visit (`lib/feedback/visit.ts`). It shows once per browser
@@ -2167,7 +2437,7 @@ including why a card never repeats the title or number the app already prints un
 
 | Page | Card | Route | Drawn from |
 |---|---|---|---|
-| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track) | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
+| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track; for a proposed constitutional amendment, "Stage n of 5" on a track ending at "To the states") | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
 | A status hub | "113 became law", out of all introduced, the track filled to that stage | `app/share-image/[...path]/route.tsx` | `lib/og/hub-share-card.tsx` |
 | A chamber hub | The chamber's count, how many became law, its share against the other chamber | same | same |
 | A topic hub | The topic's count and rank, beside the six largest topics as bars | same | same |
@@ -2199,7 +2469,8 @@ including why a card never repeats the title or number the app already prints un
   both in `lib/seo.ts`. When the figure moves, the page names a new image URL, so no platform
   keeps an old one it cached by URL. The query only busts caches: the routes ignore it. Bump
   `SHARE_CARD_VERSION` whenever a card's design changes (2 was the stage-only redesign and the
-  hub cards; 3, today's, draws resolutions on their own road, ending at "Agreed to", from #156).
+  hub cards; 3 drew resolutions on their own road, ending at "Agreed to", from #156; 4, today's,
+  draws a proposed constitutional amendment on its own road, ending at "To the states").
 - **Caching.** All three routes (bill, hub and home) send `public, max-age=86400,
   s-maxage=86400, stale-while-revalidate=604800`, replacing `next/og`'s default of a year and
   `immutable`. The middleware leaves the bill route alone (`setsOwnCacheControl`); the hub and
@@ -2300,7 +2571,8 @@ admits `main` only. Two jobs name that environment: `deploy` in `deploy.yml` (to
 backend) and `truth` in `accuracy.yml` (to copy the public tables). A job on any other branch,
 including a pull request that edits a workflow to ask for the secret, gets nothing, because the
 rule lives in repository settings, not in a file a branch can change. Within those jobs the key
-is set on the one step that needs it, never on an install step. A repo-level secret would not
+is set only on the steps that need it (in `deploy.yml`, the backend deploy and the after-deploy
+jobs), never on an install step. A repo-level secret would not
 hold this line: a same-repo pull request runs its own edited workflow and can read any repo
 secret.
 
@@ -2320,6 +2592,7 @@ runs on gpt-oss. `OPENROUTER_CLAUDE_MODEL` is no longer read; delete it if it is
 have overridden the new default and kept answers on the slow host. An `ANTHROPIC_*` or
 `OPENROUTER_*` variable set in production silently wins over the code, so check this list after any model change. `CONVEX_SITE_URL` is provided by
 Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
+`CUSTOM_AUTH_SITE_URL` (November 2026) moves Google sign-in onto billsincongress.com.
 
 | Variable | Purpose | Default if unset |
 | --- | --- | --- |
@@ -2338,6 +2611,7 @@ Convex itself (`convex/auth.config.ts` reads it) and is never set by hand.
 | `POSTHOG_EMAIL_CODES_WEBHOOK_URL` | Webhook URL of the "Bills.Congress: sign-in codes" workflow | none — sign-up shows "Could not send verification email." |
 | `POSTHOG_EMAIL_WEBHOOK_SECRET` | The `Bearer` value that workflow's trigger requires | none — same |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth | none |
+| `CUSTOM_AUTH_SITE_URL` | Where Google sign-in's start and return pages live: `https://billsincongress.com`, passed through to Convex by `app/api/auth/[...path]` (see "Accounts and auth"). Google's OAuth client must list `<this>/api/auth/callback/google` | The Convex HTTP address, which Google then shows readers |
 | `JWT_PRIVATE_KEY` / `JWKS` | Convex Auth token signing | none |
 | `SITE_URL` | Auth redirect base; also the base of Stripe return URLs and alert-email links | library default; billing and alerts fall back to `https://billsincongress.com` |
 | `STRIPE_SECRET_KEY` | Stripe API key (Checkout, portal, webhook re-reads) | Checkout returns `BILLING_NOT_CONFIGURED` |
@@ -2379,8 +2653,11 @@ Things pnpm 12 does that bite if you do not know them:
 - **Install scripts are opt-in.** `allowBuilds` in `pnpm-workspace.yaml` lists every dependency
   allowed to run one (`true`) or deliberately skipped (`false`). A new dependency with an install
   script that is not listed **fails the install** (`strictDepBuilds`, the default since pnpm 11).
-- **Packages younger than 24 hours do not resolve** (`minimumReleaseAge`), so a release published
-  this morning installs tomorrow.
+- **Packages younger than 3 days do not resolve** (`minimumReleaseAge: 4320` in
+  `pnpm-workspace.yaml`). `pnpm add`/`pnpm update` with no version take the newest release that is
+  old enough. Naming a too-new version fails (`minimumReleaseAgeStrict`) instead of pnpm quietly
+  adding an exception. For an urgent security fix, add that exact version under
+  `minimumReleaseAgeExclude` with a reason, and delete it after 3 days.
 - **Security floors for deep dependencies live in `overrides`** in `pnpm-workspace.yaml` (pnpm 12
   ignores the old `pnpm.overrides` in `package.json`). Each entry selects only the vulnerable
   versions, such as `'glob@>=10.0.0 <10.5.0'`, so it stops doing anything once the parent package
@@ -2420,7 +2697,7 @@ dependency and no config file. The static gates are TypeScript (`next build` typ
 fails on an error; `next.config.mjs` has no `typescript` block to turn that off), the explicit
 `tsc --noEmit` in the review workflow, `tsc --noEmit -p convex` in `ci.yml` (the check `convex
 deploy` runs, with `convex/`'s own ES2021 tsconfig, and the only gate on it before a merge), and
-the three repository-invariant guards described below. Any claim that "the build includes lint" is
+the five repository-invariant guards described below. Any claim that "the build includes lint" is
 false.
 
 ### The test system
@@ -2435,19 +2712,26 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 25` is a floor, not a count (73 files match today): if discovery ever finds
+`MIN_TEST_FILES = 25` is a floor, not a count (over a hundred match today): if discovery ever finds
 fewer, the run fails, and deleting tests below it means lowering the constant in the same
 commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified
 nothing, and "a green result that proved nothing is worse than a red one, because it is
 trusted." The run ends by printing how many files and guards actually ran.
 
-Then the three guards run (not counted toward the floor, but counted toward failure).
+Then the five guards run (not counted toward the floor, but counted toward failure).
 `check-metered-model-calls.ts` exists because of a real incident: `answer.ts`'s `ask` once
 shipped as a public action with no auth and no limiter, beside a properly metered `stream`.
 `check-no-userid-args.ts` enforces the identity rule statically — no public Convex function
 may accept a `userId` argument. `check-no-committed-screenshots.ts` keeps review
 screenshots out of the tree: #138 committed eight of them and #145 took them back out.
+`check-type-floor.ts` holds the 13px type floor and keeps sizes in rem: an audit found nearly
+half the text on the phone home page set at 9–12px, in px that ignored the browser's font setting.
+`check-compiled-css.ts` runs `app/globals.css` through Tailwind and fails on CSS the dev
+compiler cannot parse: a `touchable:[@media(min-width:18em)]:` class once compiled to
+`@media\(…\)\undefined`, the dev server dropped the stylesheet, and every page fell back to
+Times New Roman with every test green. A media query a variant cannot express goes in
+`app/globals.css` as a named class.
 `scripts/check-grounding.test.ts` is an ordinary discovered test, not a guard, but it does the
 same job for the manual AI probes: it fails if their default model, providers, fallbacks or
 price ceiling drift from `convex/answer.ts` (see [Guardrails](#guardrails)).
@@ -2549,8 +2833,10 @@ retriggers itself in a loop.
 ### Deploy
 
 Any push to `main` (or a manual dispatch from `main`) triggers `deploy.yml`, which deploys the
-Convex backend and then runs `pnpm run deploy` for the site. If the backend step fails, the
-site step does not run.
+Convex backend, then runs `pnpm run deploy` for the site, then starts the after-deploy jobs
+(`afterDeploy:run`, see "After-deploy jobs" under "Deploying Convex"). If the backend step fails,
+the site step does not run; if the after-deploy step fails, the site is already out and the run
+goes red.
 
 - **The deploy workflow runs no tests.** Tests gate pull requests only.
 - **It runs from `main` only.** The job has `if: github.ref == 'refs/heads/main'`, because the
@@ -2603,6 +2889,19 @@ Never store it as a repo-level secret (see the environment-variable notes above)
 This replaced a manual step. Production once ran three days behind `main` on the answer engine,
 and for the whole of that time readers on a bill page were told about a different bill,
 confidently and with working citations, because the fix had been merged and never shipped.
+
+**After-deploy jobs.** The workflow's last step, "Start after-deploy jobs", runs
+`convex run afterDeploy:run` with the same key (`convex/afterDeploy.ts`). It starts what a new
+feature needs once, so a merge ships whole instead of waiting on a command someone has to
+remember: the first members' accounts sync and site check when `memberAccounts` is empty, and
+the cosponsors backfill until it has finished. Every step does nothing when its work is done or
+already running, so it runs on every deploy, and two quick merges never start a job twice. The
+hourly `resume-background-jobs` cron runs the same function, so a job whose chain died between
+merges is restarted within the hour. It
+comes after the site so a failure here never holds the site back; the run goes red and the next
+merge retries. Its result (`started`, `running` or `done` for each job) is printed in the step's
+log. A feature that needs a one-time job adds it there, in the same pull request, rather than to
+a list of commands to run after the merge.
 
 **To redeploy without a merge**, re-run the latest Deploy run, or use "Run workflow" on
 `main`, from the Actions tab.
@@ -2684,6 +2983,16 @@ wraps OpenNext's generated `.open-next/worker.js` (see *Edge cache* below); stat
 bound as `ASSETS`. Smart placement is on so the Worker sits near the single-region
 Convex backend; `cpu_ms` is capped at 10,000 as a cost guardrail.
 
+The Worker answers only on `billsincongress.com` and `www` (Custom Domains, set in the
+dashboard). `workers_dev: false` and `preview_urls: false` in `wrangler.jsonc` keep it off
+`*.workers.dev`: until November 2026 the whole site was also public there, outside every zone
+rule below (`/.env` was 403 on the real domain, 404 from the app on workers.dev). Observability
+is written out in full in `wrangler.jsonc` (logs, Issues, traces sampled at 10%) because each
+deploy applies exactly what the file says and turns off any switch flipped only in the dashboard.
+Deploys come only from `deploy.yml`; Cloudflare's own GitHub integration (Workers Builds) is
+deliberately not connected, because it would ship the site without the Convex deploy that must
+go first, or ship it twice.
+
 Page caching uses two KV namespaces — `NEXT_INC_CACHE_KV` (rendered output) and
 `NEXT_TAG_CACHE_KV` (cache-tag mappings) — and OpenNext's memory queue, which revalidates
 through the Worker's own `WORKER_SELF_REFERENCE` service binding. Until October 2026 the queue
@@ -2695,7 +3004,7 @@ revalidate once a day the memory queue is enough.
 
 **Edge cache for signed-out pages.** A Worker on a Custom Domain runs in front of
 Cloudflare's cache, so nothing it returns is cached unless it stores it, and until October 2026
-nothing did: the middleware's `public, s-maxage=…` headers were ignored, every page view was
+nothing did: the middleware's shared-cache headers were ignored, every page view was
 rendered from scratch with a Convex read, and Cloudflare reported 13% of requests cached (nearly
 all static files) while crawlers made ~100,000 page requests a week. `cloudflare-worker.ts` now
 stores signed-out pages with the Cache API (`caches.default`, per data centre) and answers
@@ -2704,13 +3013,13 @@ repeats from it; `x-edge-cache: HIT | MISS` says which happened. The rules live 
 public route (`lib/cacheable-routes.ts`), carries no auth cookie, and is a document request
 rather than an in-app navigation or prefetch (no `rsc`/`next-router-*` headers, no `_rsc`
 parameter); a response is stored only if it is a 200 HTML page the app marked
-`public, s-maxage=…` that sets no cookie. Because "200" is the only test of a good page, a page
+`CDN-Cache-Control: public, max-age=…` that sets no cookie. Because "200" is the only test of a good page, a page
 whose data read failed must not render as a normal page: bill pages, hub pages, `/bills` and the
 home page throw instead, so the reader gets the error page with a 500 that is never stored
 (`getBillPage`, `lib/hub-bills.ts`, `app/bills/page.tsx`, `app/page.tsx`). Only reads whose
 absence the page states honestly may fail quietly, such as a count, which then shows no total. The cache key is the URL plus the deploy's version id
 (`CF_VERSION_METADATA`), so each deploy starts empty and never serves a page that names the
-previous deploy's script files. Lifetimes come from the middleware's `s-maxage`: an hour for a
+previous deploy's script files. Lifetimes come from the middleware's `CDN-Cache-Control`: an hour for a
 bill page (its data changes with the nightly sync, and it is what crawlers fetch), five minutes
 for everything else. A bill page can therefore be up to an hour behind a change, and its "days
 so far" count up to an hour behind midnight. Measured on a local OpenNext preview against
@@ -2759,6 +3068,37 @@ rolled in unattended. It is a separate exercise.
 `public/_headers` sets caching only (fingerprinted chunks for a year, `sw.js` and
 `offline.html` `no-cache`), and reaches **only** Cloudflare's static-asset layer —
 anything site-wide must be set in both that file and `next.config.mjs`.
+
+### Zone settings (dashboard only)
+
+These live in the Cloudflare dashboard, not in the repository. Audited and set on 3 Nov 2026
+(Free zone plan, Workers Paid account):
+
+- **Bots.** Bot Fight Mode is on: automated traffic Cloudflare cannot verify, including
+  scrapers posing as Chrome, gets a challenge. It cannot be skipped per path, so anything that
+  needs to reach the site from a script (curl, a monitor) is challenged too; verified search
+  engines and link-preview bots pass. It went on because of a scraper on Alibaba and Tencent
+  Cloud (`47.82.x`, `43.119.x`) making 10,000–17,000 requests an hour, a few hundred per IP.
+  AI Crawler access policies: Search and Agents (assistants fetching a page for a person) are
+  allowed; Training is blocked, enforcing what `app/robots.ts` asks.
+- **Rate limit** (the Free plan's single rule): more than 100 requests in 10 s from one IP, outside
+  `/_next/` and `/cdn-cgi/` and from anything but a verified bot, is blocked for 10 s. The slot
+  previously held a leaked-password rule that could never match (the site has no passwords and
+  the check was off).
+- **Custom rule:** scanner paths (`.php`, `.env`, `.git`, `/wp-` …) are blocked.
+- **SSL/TLS:** Full (strict), always HTTPS, TLS 1.2 minimum, TLS 1.3 with 0-RTT, HTTP/3, ECH,
+  DNSSEC on. HSTS is sent by the app (above), not the zone.
+- **Email:** Email Routing forwards `hi@` (the address on the privacy and terms pages). DMARC
+  is `p=quarantine`, and its aggregate reports go to Cloudflare DMARC Management (Email →
+  DMARC Management); the old `dmarc-reports@` address had no route, so reports bounced. PostHog
+  sends from `mail.billsincongress.com`, which has its own SPF, DKIM and DMARC.
+- **Off on purpose:** Cloudflare Web Analytics (PostHog is the only analytics; the beacon never
+  injected into Worker responses anyway), the Worker "Cache" setting (the Worker caches pages
+  itself; turning it on would cache them twice), Workers Builds.
+- **Alerts:** billing over $1 and over $10, and HTTP DDoS attacks, by email to the account owner.
+- **Early Hints** is on. Cloudflare's own Early Hints fetcher (user agent `nginx-ssl early
+  hints`) logs about 5,000 504s an hour against the Worker; readers get 200s. Expect them in the
+  zone's error counts.
 
 ---
 

@@ -9,7 +9,9 @@ Live at **[billsincongress.com](https://billsincongress.com)**
 ## What it does
 
 - **Browse every bill** from the 117th Congress onward (2021 to today), filtered by status, sponsor, state, topic and date.
-- **Read one bill on one page**: where it stands, how it got there, the official summary, and how it compares with every other bill on the same topic.
+- **Read one bill on one page**: what it does in one sentence, where it stands, the official summary, how it got there, who sponsors and cosponsors it, and how it compares with every other bill on the same topic.
+- **Look up a member**: their newest bills and their official social media accounts.
+- **Learn the words**: "committee", "cosponsor", "simple resolution" and the rest are underlined where they appear; tap one for its plain meaning. Each bill page also lists its words in plain English at the end.
 - **Ask questions** about bills in plain English. Answers come from the site's own records, with checked sources.
 - **Follow bills** on the optional Pro plan ($5 a month) and get an email when one moves.
 
@@ -18,6 +20,7 @@ It is free to read, has no ads, and needs no account.
 ## Good to know
 
 - **Data:** every bill record comes from the official [Congress.gov API](https://api.congress.gov/) (Library of Congress), refreshed nightly. Bill summaries are written by the Congressional Research Service, not by AI.
+- **Members' social media:** a bill's sponsor, its cosponsors and each member's page show their official X, Facebook, Instagram and YouTube accounts only when the member's own .house.gov or .senate.gov website links that exact account, checked daily. No government source lists these accounts; the suggestions come from the volunteer [congress-legislators](https://github.com/unitedstates/congress-legislators) project (public domain) and are never shown on their word alone.
 - **AI:** the question panel uses Anthropic's Claude Sonnet 5.5, called directly on US servers, with Claude Haiku 5.5 and then OpenAI's open-weight gpt-oss-120b (through OpenRouter) as backups; Anthropic keeps questions for up to 30 days. Its citations are checked against real records, but its wording can still be wrong. Check anything important on Congress.gov.
 - **Tracking:** the site uses PostHog for analytics and session replay, and the text of questions you ask is recorded there. There is no cookie banner and no opt-out. Nothing is sold. Details in the [privacy policy](https://billsincongress.com/privacy).
 - **Accounts:** optional (Google, or email and password). Signing in saves bills and conversations and raises the daily question limit.

@@ -222,6 +222,11 @@ it("tells the model where to look up ONE member's bill count", () => {
 it("tells the model to group instead of looping a fetch per category", () => {
   const g = gotchaSaying("bills", "groupby");
   assert.ok(/each|breakdown/i.test(g), "must name the question shape groupBy answers");
+  // The limit-0 note used to end "one limit-0 fetch per category", the loop
+  // the groupBy note forbids; with 4 lookup rounds it cannot finish.
+  for (const gotcha of gotchasOf("bills")) {
+    assert.ok(!/one limit-0 fetch per category/i.test(gotcha), "a gotcha still tells the model to loop per category");
+  }
 });
 
 it("the always-present index says stats can separate bills from resolutions", () => {

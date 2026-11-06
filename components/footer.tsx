@@ -6,18 +6,21 @@ import { InstallAppButton } from '@/components/pwa/install-app-button';
 import { HubLinkTracker } from '@/app/bills/_hub/hub-view-tracker';
 import { hubByPath, type HubDefinition } from '@/lib/hubs';
 import { FooterFeedback } from '@/components/feedback/feedback-box';
+import { AskShortcutSwitch } from '@/components/answers/ask-shortcut';
 
 // `flex w-fit`, not `inline-flex`: a row that starts with an icon, loose in a
 // list item, lines up by the icon's bottom edge and rides above its neighbours
-// (documentation/brand.md, "Icons beside text").
+// (documentation/brand.md, "Icons beside text"). 44px tall on touch, and
+// `touch-hit` widens a short word ("Pro") to 44px without moving the row.
 const linkClass =
-  'focus-ring flex w-fit items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline';
+  'touch-hit focus-ring flex w-fit items-center gap-1.5 rounded-sm text-sm text-ink-2 underline-offset-4 transition-colors hover:text-ink hover:underline touchable:min-h-11';
 
 /**
  * The footer carries only what has no other home: who publishes the site and
  * that it is independent, the paid plan (a signed-out reader has no other
- * route to /pro), the legal pages, the source, and the two controls — install
- * and theme. Bills, Learn and About are in the header on every page. Feedback
+ * route to /pro), the legal pages, the source, and the reader's controls —
+ * install, the `/` shortcut's On/Off (on every screen, touch ones included: a
+ * keyboard can be attached to any of them; the panel has the same switch) and theme. Bills, Learn and About are in the header on every page. Feedback
  * is here only below lg, where the header has no room for its button.
  *
  * Three hubs stay: the two chambers and "became law", the ones readers
@@ -35,14 +38,16 @@ export function Footer() {
 
   return (
     <footer className="border-t border-line bg-paper">
-      {/* pb clears the ask launcher, which is fixed to the bottom-right on
-          every page and would otherwise sit on top of the last row. */}
-      <div className="container-editorial pb-24 pt-12 sm:pt-14">
+      {/* pb is the room the page reserves for Ask (--ask-reserve, globals.css,
+          "Where Ask lives") plus a gap: the corner pill on a computer, the
+          "Back to your questions" bar on a phone, nothing where Ask is in the
+          header — so the last row never ends up under either. */}
+      <div className="container-editorial pb-[max(3rem,calc(1rem+var(--ask-reserve)))] pt-12 sm:pt-14">
         <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
           <div className="max-w-xl">
             <Logo size="lg" />
             <div className="mt-5 space-y-1.5">
-              <p className="text-balance font-serif text-[19px] leading-[28px] text-ink">
+              <p className="text-balance font-serif text-[1.1875rem] leading-[1.75rem] text-ink">
                 An independent record of every bill in the U.S. Congress.
               </p>
               <p className="text-sm text-ink-3">Not affiliated with the U.S. government.</p>
@@ -62,6 +67,7 @@ export function Footer() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Renders only where installing is possible (see the component). */}
             <InstallAppButton />
+            <AskShortcutSwitch />
             <ModeToggle />
           </div>
         </div>
@@ -101,13 +107,13 @@ export function Footer() {
               </li>
             </ul>
           </nav>
-          <p className="font-mono text-xs text-ink-3">
+          <p className="meta">
             © {year} Bills in Congress · Data from{' '}
             <a
               href="https://www.congress.gov"
               target="_blank"
               rel="noopener noreferrer"
-              className="focus-ring rounded-sm underline decoration-line-strong underline-offset-2 hover:text-ink"
+              className="touch-hit focus-ring rounded-sm underline decoration-line-strong underline-offset-2 hover:text-ink"
             >
               Congress.gov
             </a>

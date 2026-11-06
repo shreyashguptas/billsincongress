@@ -4,6 +4,11 @@ Keep every reply short: 5 lines max, no walls of text. Say what you did, what
 he needs to know, and the one decision he must make. Details go in a linked
 page or the PR, never in the chat.
 
+A linked page (a plan, a report, a review) is pictures first: a chart, diagram
+or mock-up for each point, with at most one line of text under it. No sections
+of paragraphs, no tables of sentences. He does not read walls of text there
+either; a page that is mostly words is not done.
+
 <!-- convex-ai-start -->
 
 This project uses [Convex](https://convex.dev) as its backend.
@@ -203,7 +208,7 @@ Self-driving watches production signals and opens GitHub PRs. Nothing merges aut
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

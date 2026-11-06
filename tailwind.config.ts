@@ -9,6 +9,10 @@ module.exports = {
     './components/**/*.{js,ts,jsx,tsx}',
   ],
   darkMode: 'class',
+  // `hover:` only where a device can actually hover. Without it a tap on a
+  // phone or tablet leaves the tapped control painted in its hover state until
+  // the next tap elsewhere ("sticky hover").
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     container: {
       center: true,
@@ -28,9 +32,15 @@ module.exports = {
         serif: ['var(--font-serif)', 'Iowan Old Style', 'Georgia', 'serif'],
         // Geist: everything a reader operates or scans.
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
-        // Geist Mono: bill numbers, counts, dates — anything that lines up.
+        // Geist Mono: identifiers only — bill numbers (H.R. 1276), party-state
+        // codes (D-MI), state codes. Dates and counts are Geist with `.tabular`.
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      // Every size is in rem, so a reader who sets a larger default font in
+      // their browser gets a larger site, labels and chart keys included. 1rem
+      // is 16px only at the browser's default; the px in the comments are at
+      // that default. Nothing is smaller than `xs` (the floor, brand.md "Type
+      // floor"); scripts/check-type-floor.ts fails on a px size or a size under it.
       fontSize: {
         'display-2xl': ['4.5rem', { lineHeight: '1.03', letterSpacing: '-0.025em' }],   // 72 — the home hero only
         'display-xl':  ['3.5rem', { lineHeight: '1.05', letterSpacing: '-0.022em' }],   // 56 — page titles
@@ -40,6 +50,15 @@ module.exports = {
         title:         ['1.25rem', { lineHeight: '1.35', letterSpacing: '-0.01em' }],   // 20 — bill titles in lists
         reading:       ['1.1875rem', { lineHeight: '1.63' }],                           // 19 — summaries, articles
         'reading-sm':  ['1.0625rem', { lineHeight: '1.6' }],                            // 17 — answers, phone reading
+        // The metadata scale (brand.md, "Type floor"). Nothing a reader needs is
+        // smaller than `xs`; `xs` itself is raised from Tailwind's 12px to 13px,
+        // so every existing `text-xs` meets the floor without a rewrite.
+        meta:          ['0.875rem', { lineHeight: '1.25rem' }],                         // 14 — dates, counts, chart keys, source lines
+        xs:            ['0.8125rem', { lineHeight: '1.125rem' }],                       // 13 — the floor: axis ticks, codes, fine print
+        // Size only: these leave the line height to the element, as the px
+        // values they replaced did.
+        ui:            '0.9375rem',                                                     // 15 — controls, list names, secondary copy
+        caption:       '0.8125rem',                                                     // 13 — helper text, small controls
       },
       colors: {
         // shadcn/ui's semantic names — aliases of the brand tokens below
@@ -115,7 +134,9 @@ module.exports = {
         float: '0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px -8px rgb(0 0 0 / 0.2)',
       },
       maxWidth: {
-        measure: '680px',
+        // 42.5rem: 680px at the default size, and the same line length in
+        // characters when the reader's font is larger.
+        measure: '42.5rem',
       },
       // Keyframes are written out in app/globals.css; these entries exist so
       // Tailwind GENERATES the matching `animate-*` utilities. A variant such
@@ -127,13 +148,21 @@ module.exports = {
         'overlay-in': { from: { opacity: '0' }, to: { opacity: '1' } },
         'overlay-out': { from: { opacity: '1' }, to: { opacity: '0' } },
         'sheet-in-bottom': { from: { transform: 'translateY(100%)' }, to: { transform: 'none' } },
-        'sheet-out-bottom': { from: { transform: 'none' }, to: { transform: 'translateY(100%)' } },
+        'sheet-out-bottom': { from: { transform: 'none' }, to: { transform: 'translateY(calc(100% + 1rem))' } },
         'sheet-in-left': { from: { transform: 'translateX(-100%)' }, to: { transform: 'none' } },
         'sheet-out-left': { from: { transform: 'none' }, to: { transform: 'translateX(-100%)' } },
         'sheet-in-right': { from: { transform: 'translateX(100%)' }, to: { transform: 'none' } },
         'sheet-out-right': { from: { transform: 'none' }, to: { transform: 'translateX(100%)' } },
         'sheet-in-top': { from: { transform: 'translateY(-100%)' }, to: { transform: 'none' } },
         'sheet-out-top': { from: { transform: 'none' }, to: { transform: 'translateY(-100%)' } },
+        'dialog-in': {
+          from: { opacity: '0', transform: 'translateY(8px) scale(0.985)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        'dialog-out': {
+          from: { opacity: '1', transform: 'none' },
+          to: { opacity: '0', transform: 'translateY(4px) scale(0.99)' },
+        },
         'popover-in': {
           from: { opacity: '0', transform: 'translateY(-4px) scale(0.98)' },
           to: { opacity: '1', transform: 'none' },
@@ -155,13 +184,18 @@ module.exports = {
         'sheet-out-right': 'sheet-out-right 0.2s cubic-bezier(0.4, 0, 1, 1)',
         'sheet-in-top': 'sheet-in-top 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
         'sheet-out-top': 'sheet-out-top 0.2s cubic-bezier(0.4, 0, 1, 1)',
+        'dialog-in': 'dialog-in 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
+        'dialog-out': 'dialog-out 0.14s cubic-bezier(0.4, 0, 1, 1)',
         'popover-in': 'popover-in 0.16s cubic-bezier(0.22, 1, 0.36, 1)',
         'popover-out': 'popover-out 0.12s ease-in',
       },
     },
   },
   plugins: [
-    require('@tailwindcss/forms'),
+    // Class strategy: the base strategy restyled every input and textarea with
+    // a blue focus border (and a white ring in Night) — an accent colour the
+    // brand does not have. Nothing uses the `form-*` classes.
+    require('@tailwindcss/forms')({ strategy: 'class' }),
     // The enter/exit utilities (animate-in, fade-in-0, zoom-in-95…) that
     // shadcn/ui components ship with. Every blanket rule under
     // prefers-reduced-motion in globals.css still applies to them.
@@ -172,6 +206,10 @@ module.exports = {
     plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
       addVariant('touchable', '@media (any-pointer: coarse)');
       addVariant('fine', '@media (hover: hover) and (pointer: fine)');
+      // A window too short for a pinned header: a phone on its side, a laptop
+      // at 200% zoom and up. Below 500px tall the header scrolls away with the
+      // page and Ask moves into it (app/globals.css, "Where Ask lives").
+      addVariant('short', '@media (max-height: 499.98px)');
     }),
     // The site header's own md / lg / xl, measured on the header rather than on
     // the window (components/navigation.tsx). With the ask panel docked the
@@ -180,9 +218,34 @@ module.exports = {
     // does not fit. Same widths as the screens, so with the panel closed nothing
     // changes.
     plugin(({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
-      addVariant('header-md', '@container site-header (min-width: 768px)');
-      addVariant('header-lg', '@container site-header (min-width: 1024px)');
-      addVariant('header-xl', '@container site-header (min-width: 1280px)');
+      // In em, which a container query reads as the browser's default font
+      // size: the px in these comments are at the default, and the steps come
+      // proportionally sooner when the reader has asked for larger text. Below
+      // md the phone row gives way in this order as it narrows (brand.md,
+      // "Header"); each width is what the row needs at that step, measured,
+      // plus room for the logo's 44px tap box.
+      //   header-sm (640px)          "Sign in", the 21px wordmark, wider gaps —
+      //                              the header's own sm, like md / lg / xl. A
+      //                              window `sm:` showed them in a 512px header
+      //                              at a 20px font and ran the logo under Ask.
+      //   header-wordmark-lg (480px) the 18px wordmark
+      //   header-wordmark (440px)    the 16px wordmark; the mark alone below
+      //   header-ask-glyph (<312px)  Ask without its word (also 768–839px,
+      //                              where the four sections take the room)
+      //   header-mark (296px)        the mark; below it the menu carries it
+      //   header-search (256px)      the search icon; below it, the menu's Bills
+      addVariant('header-search', '@container site-header (min-width: 16em)');
+      addVariant('header-mark', '@container site-header (min-width: 18.5em)');
+      addVariant(
+        'header-ask-glyph',
+        '@container site-header ((max-width: 19.49em) or ((min-width: 48em) and (max-width: 52.49em)))',
+      );
+      addVariant('header-wordmark', '@container site-header (min-width: 27.5em)');
+      addVariant('header-wordmark-lg', '@container site-header (min-width: 30em)');
+      addVariant('header-sm', '@container site-header (min-width: 40em)');
+      addVariant('header-md', '@container site-header (min-width: 48em)');
+      addVariant('header-lg', '@container site-header (min-width: 64em)');
+      addVariant('header-xl', '@container site-header (min-width: 80em)');
     }),
   ],
 };

@@ -234,6 +234,20 @@ export interface TruthQuestion {
  * which is where every defect lives.
  */
 const ONE_NUMBER = " Answer with just the number, in one short sentence.";
+/** The states and the places counted as states, by their two-letter code. */
+const STATE_NAMES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado",
+  CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho",
+  IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+  ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota",
+  MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
+  NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
+  ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas",
+  UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia",
+  WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia", PR: "Puerto Rico", GU: "Guam",
+  VI: "the U.S. Virgin Islands", AS: "American Samoa", MP: "the Northern Mariana Islands",
+};
 const ONE_NAME = " Answer with just the name, in one short sentence.";
 /** For a superlative over members, where two can share first place. */
 const NAMES_IF_TIED =
@@ -270,7 +284,104 @@ export const QUESTIONS: TruthQuestion[] = [
     },
   },
 
+  {
+    id: "most-recent-action",
+    question:
+      `Which measure in the ${CURRENT_CONGRESS}th Congress has had the most recent action?` +
+      ONE_BILL,
+    defect:
+      "The grounding gate, 4 runs in 6 on 2026-10-27: 'Among them, the latest was the " +
+      "Open-Source AI Leadership Act (H.R. 10152)', a row from an unsorted sample, acted on " +
+      "2026-08-27 while dozens of measures had later actions. A whole-Congress read is too " +
+      "big to count, so only an index-backed sort can answer this.",
+    expect: (db) => {
+      const measures = billsIn(db, CURRENT_CONGRESS);
+      let latestDate = "";
+      for (const b of measures) {
+        if ((b.latestActionDate ?? "") > latestDate) latestDate = b.latestActionDate ?? "";
+      }
+      const tied = measures.filter((b) => (b.latestActionDate ?? "") === latestDate);
+      return {
+        kind: "billId",
+        value: tied[0].billId,
+        billIds: tied.map((b) => b.billId),
+        note:
+          `Max latestActionDate over all ${measures.length} measures of the ` +
+          `${CURRENT_CONGRESS}th: ${latestDate}, shared by ${tied.length}; any of them is ` +
+          `right. A measure from an earlier date is the defect.`,
+      };
+    },
+  },
+
   // --- Set-level counts read off the wrong set ------------------------------
+  {
+    id: "tenth-state-by-measures",
+    question:
+      `Which state's members have sponsored the tenth-most measures in the ` +
+      `${CURRENT_CONGRESS}th Congress? Count D.C. and the territories as states.` +
+      " Answer with just the state, or every state if several are tied, in one short sentence.",
+    defect:
+      "Asked which states' members sponsor the most bills (2026-10-28), counted only eight " +
+      "large states one fetch at a time, said it could not rank the rest, and printed its " +
+      "list 'in order' with Illinois (565) below Pennsylvania (531).",
+    expect: (db) => {
+      const perState = new Map<string, number>();
+      for (const b of billsIn(db, CURRENT_CONGRESS)) {
+        if (!b.sponsorState) continue;
+        perState.set(b.sponsorState, (perState.get(b.sponsorState) ?? 0) + 1);
+      }
+      // Code order breaks ties, as fetch.ts does, so the note reads the same every run.
+      const ranked = [...perState].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      const n = ranked[9][1];
+      const name = (c: string) => STATE_NAMES[c] ?? c;
+      // Every state with the tenth state's count is a right answer, and a reply
+      // must name them all; the rivals are the neighbours with other counts,
+      // the off-by-one a partial ranking produces.
+      const tied = ranked.filter(([, c]) => c === n).map(([s]) => name(s));
+      const neighbours = ranked.slice(8, 11).filter(([, c]) => c !== n).map(([s]) => name(s));
+      return {
+        kind: "name",
+        value: tied[0],
+        ...(tied.length > 1 ? { names: tied } : {}),
+        rivals: neighbours,
+        note:
+          `Measures per sponsorState over every ${CURRENT_CONGRESS}th row, counted here: tenth is ` +
+          `${tied.join(" and ")} with ${n}` +
+          (tied.length > 1 ? ", tied; every one must be named" : "") +
+          `; ninth ${ranked[8][0]} ${ranked[8][1]}, eleventh ${ranked[10][0]} ${ranked[10][1]}. ` +
+          `Needs every state, not a sample.`,
+      };
+    },
+  },
+  {
+    id: "fourth-policy-area",
+    question:
+      `Which policy area has the fourth-most bills in the ${CURRENT_CONGRESS}th Congress?` +
+      " Answer with just the policy area, or every one if several are tied, in one short sentence.",
+    defect:
+      "Asked live on 2026-11-01, named Taxation (1,334) fourth and listed Health, Armed " +
+      "Forces and Government Operations as the three ahead, skipping International Affairs " +
+      "(1,376): 5 of 7 runs, on prompt versions 7 and 8 alike. The topics list was sorted " +
+      "but carried no place, so the model counted 31 rows by eye.",
+    expect: (db) => {
+      const ranked = db.congressPolicyAreas
+        .filter((t) => t.congress === CURRENT_CONGRESS)
+        .sort((a, b) => b.count - a.count || a.policyAreaName.localeCompare(b.policyAreaName));
+      const n = ranked[3].count;
+      const tied = ranked.filter((t) => t.count === n).map((t) => t.policyAreaName);
+      const neighbours = ranked.slice(2, 5).filter((t) => t.count !== n).map((t) => t.policyAreaName);
+      return {
+        kind: "name",
+        value: tied[0],
+        ...(tied.length > 1 ? { names: tied } : {}),
+        rivals: neighbours,
+        note:
+          `congressPolicyAreas for the ${CURRENT_CONGRESS}th, largest first: fourth is ` +
+          `${tied.join(" and ")} with ${n}; third ${ranked[2].policyAreaName} ${ranked[2].count}, ` +
+          `fifth ${ranked[4].policyAreaName} ${ranked[4].count}.`,
+      };
+    },
+  },
   {
     id: "house-laws",
     question:

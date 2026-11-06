@@ -74,14 +74,15 @@ export function InstallAppButton() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Bills in Congress to your Home Screen</DialogTitle>
+            {/* Clear of the corner close: even padding keeps the phone's centred title centred. */}
+            <DialogTitle className="text-balance px-7 sm:pl-0">Add Bills in Congress to your Home Screen</DialogTitle>
             <DialogDescription>
               It opens full screen like an app, and a bill is one tap from your Home Screen.
             </DialogDescription>
           </DialogHeader>
-          <ol className="mt-2 space-y-4 text-[15px] leading-6 text-ink">
+          <ol className="mt-2 space-y-4 text-ui leading-6 text-ink">
             <li className="flex gap-3">
-              <span className="font-mono text-sm text-ink-3 tabular">1</span>
+              <span className="text-sm font-medium text-ink-3 tabular">1</span>
               <span>
                 Tap{' '}
                 <span className="whitespace-nowrap font-medium">
@@ -93,7 +94,7 @@ export function InstallAppButton() {
               </span>
             </li>
             <li className="flex gap-3">
-              <span className="font-mono text-sm text-ink-3 tabular">2</span>
+              <span className="text-sm font-medium text-ink-3 tabular">2</span>
               <span>
                 Scroll down and choose{' '}
                 <span className="whitespace-nowrap font-medium">
@@ -103,7 +104,7 @@ export function InstallAppButton() {
               </span>
             </li>
             <li className="flex gap-3">
-              <span className="font-mono text-sm text-ink-3 tabular">3</span>
+              <span className="text-sm font-medium text-ink-3 tabular">3</span>
               <span>
                 Tap <span className="font-medium">Add</span>.
               </span>

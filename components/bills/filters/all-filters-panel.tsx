@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { analytics, type FilterSurface } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -54,6 +54,10 @@ export function AllFiltersPanel({
 
   return (
     <AdaptiveSurface
+      // The button sits at the right end of the bar: opening leftward keeps the
+      // popover over the results, not over the docked Ask panel beside them or
+      // past the edge of the column on a wide screen.
+      align="end"
       popoverClassName="w-[min(32rem,calc(100vw_-_2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
       trigger={
         <Button
@@ -63,13 +67,13 @@ export function AllFiltersPanel({
           variant="ghost"
           aria-haspopup="dialog"
           aria-label="All filters"
-          className="h-9 shrink-0 px-3"
+          className="h-9 shrink-0 px-3 touchable:min-w-11"
         >
           <SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">All filters</span>
           {/* A span, not Badge: Badge renders a <div>, which a button cannot hold. */}
           {count > 0 && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-ink px-1 font-mono text-xs tabular text-on-ink">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-ink px-1 text-xs font-medium tabular text-on-ink">
               {count}
             </span>
           )}
@@ -113,6 +117,44 @@ function PanelBody({
   );
   const [attempt, setAttempt] = useState(0);
 
+  /*
+   * Moving between the list and a drill-down: a short slide in from the side
+   * the reader is heading (right going in, left coming back) and focus to where
+   * they would expect it, the sub-list going in and the row they came from
+   * coming back. Without the focus move, the button that was pressed is
+   * unmounted under the focus and a keyboard reader lands on the sheet itself.
+   */
+  const [direction, setDirection] = useState<'in' | 'back' | null>(null);
+  const cameFrom = useRef<string | null>(null);
+  const screenRef = useRef<HTMLDivElement>(null);
+  const openDrilldown = (definition: FilterDefinition) => {
+    cameFrom.current = definition.field;
+    setDirection('in');
+    setDrilldown(definition);
+  };
+  const backToList = () => {
+    setDirection('back');
+    setDrilldown(null);
+  };
+  useEffect(() => {
+    if (direction === null) return;
+    const root = screenRef.current;
+    if (!root) return;
+    const target =
+      direction === 'in'
+        ? root.querySelector<HTMLElement>('[data-autofocus]')
+        : root.querySelector<HTMLElement>(`[data-filter-row="${cameFrom.current}"]`);
+    target?.focus({ preventScroll: direction === 'in' });
+  }, [drilldown, direction]);
+
+  const screenClass = cn(
+    'flex min-h-0 flex-1 flex-col',
+    direction &&
+      'duration-150 animate-in fade-in-0 motion-reduce:animate-none',
+    direction === 'in' && 'slide-in-from-right-2',
+    direction === 'back' && 'slide-in-from-left-2'
+  );
+
   const needsSponsors = drilldown?.field === 'sponsor';
   useEffect(() => {
     if (!needsSponsors) return;
@@ -146,13 +188,18 @@ function PanelBody({
 
   if (drilldown) {
     return (
-      <>
-        <div className="flex shrink-0 items-center gap-1 border-b border-line px-2 py-2">
+      <div key="drilldown" ref={screenRef} className={screenClass}>
+        <div
+          className={cn(
+            'flex shrink-0 items-center gap-1 border-b border-line px-2 pb-2',
+            layout === 'touch' ? 'pt-0' : 'pt-2'
+          )}
+        >
           <Button
             type="button"
             variant="ghost"
-            onClick={() => setDrilldown(null)}
-            className="h-9 gap-1 px-2 text-ink-2 hover:text-ink"
+            onClick={backToList}
+            className="h-9 gap-1 px-2 text-ink-2 hover:text-ink touchable:h-11"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             All filters
@@ -168,7 +215,7 @@ function PanelBody({
           layout={layout}
           // Selecting inside a drill-down returns to the panel rather than
           // dismissing the whole overlay — the reader came here to set several.
-          close={() => setDrilldown(null)}
+          close={backToList}
           loading={needsSponsors && sponsorState === 'loading'}
           error={
             needsSponsors && sponsorState === 'error'
@@ -180,7 +227,7 @@ function PanelBody({
             onChange({ [drilldown.field]: next } as Partial<BillsFilterValues>, 'panel')
           }
         />
-      </>
+      </div>
     );
   }
 
@@ -193,13 +240,15 @@ function PanelBody({
   const Heading = layout === 'touch' ? SheetTitle : 'p';
 
   return (
-    <>
-      {layout === 'touch' && (
-        <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line-strong" aria-hidden="true" />
-      )}
-
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 pb-3 pt-3">
-        <Heading className="font-serif text-[19px] font-medium leading-snug text-ink">
+    <div key="list" ref={screenRef} className={screenClass}>
+      {/* The bottom sheet draws its grab bar above this (SheetContent `grabber`). */}
+      <div
+        className={cn(
+          'flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 pb-3',
+          layout === 'touch' ? 'pt-1' : 'pt-3'
+        )}
+      >
+        <Heading className="font-serif text-[1.1875rem] font-medium leading-snug text-ink">
           All filters
         </Heading>
         {layout === 'touch' && (
@@ -219,7 +268,7 @@ function PanelBody({
               });
               onClearAll();
             }}
-            className="rounded-xs text-[13px] decoration-1"
+            className="touch-hit rounded-xs text-caption decoration-1"
           >
             Clear all
           </Button>
@@ -277,7 +326,8 @@ function PanelBody({
               key={definition.field}
               type="button"
               variant="ghost"
-              onClick={() => setDrilldown(definition)}
+              onClick={() => openDrilldown(definition)}
+              data-filter-row={definition.field}
               // A full-width row: square, with the focus ring drawn inside it.
               className="flex h-12 w-full justify-between gap-3 rounded-none border-b border-line px-4 text-left font-normal last:border-b-0 focus-visible:ring-inset focus-visible:ring-offset-0 touchable:h-14"
             >
@@ -307,6 +357,6 @@ function PanelBody({
           Show bills
         </Button>
       </div>
-    </>
+    </div>
   );
 }

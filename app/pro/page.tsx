@@ -80,7 +80,7 @@ function AddTile({
           <span className="text-title text-ink">{unit}</span>
         </p>
         {legend}
-        <p className="text-[15px] leading-snug text-ink-2">{line}</p>
+        <p className="text-ui leading-snug text-ink-2">{line}</p>
       </div>
     </li>
   );
@@ -142,7 +142,7 @@ const FAQ: { q: string; a: string; picture: ReactNode }[] = [
         <DiagramNode
           icon={MessageCircle}
           label={
-            <span className="font-mono tabular">
+            <span className="tabular">
               <s className="text-ink-3">{PRO_CHAT_DAILY_LIMIT}</s> {AUTHED_CHAT_DAILY_LIMIT}/day
             </span>
           }
@@ -160,7 +160,7 @@ export default function ProPage() {
       <header className="container-editorial pt-10 text-center sm:pt-14">
         <p className="label-eyebrow">Pro</p>
         <h1 className="mt-3 text-display-md text-ink sm:text-display-lg">Know the morning a bill moves.</h1>
-        <p className="mx-auto mt-3 max-w-xl text-[17px] text-ink-2 sm:text-lg">
+        <p className="mx-auto mt-3 max-w-xl text-[1.0625rem] text-ink-2 sm:text-lg">
           Reading stays free. Pro emails you when the bills you follow move.
         </p>
       </header>
@@ -186,7 +186,7 @@ export default function ProPage() {
             figure={String(PRO_CHAT_DAILY_LIMIT)}
             unit="questions a day"
             legend={
-              <ul className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-ink-2 tabular">
+              <ul className="meta flex flex-wrap gap-x-4 gap-y-1">
                 <li className="flex items-center gap-1.5">
                   <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-ink" />
                   Free {AUTHED_CHAT_DAILY_LIMIT}
@@ -217,12 +217,12 @@ export default function ProPage() {
               </div>
               <div className="border-t border-line p-6">
                 <h3 className="text-title text-ink">{item.q}</h3>
-                <p className="mt-1.5 text-[15px] leading-snug text-ink-2">{item.a}</p>
+                <p className="mt-1.5 text-ui leading-snug text-ink-2">{item.a}</p>
               </div>
             </li>
           ))}
         </ul>
-        <p className="mt-10 text-xs leading-relaxed text-ink-3">
+        <p className="mt-10 text-meta text-ink-2">
           See the{' '}
           <Link href="/terms" className="link focus-ring rounded-xs">
             terms

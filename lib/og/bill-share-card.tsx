@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { Bill } from '@/lib/types/bill';
+import { proposesAmendment } from '@/lib/utils/bill-stages';
 import { CardFrame, StageHeadline, StageTrack } from './card-parts';
 
 export { shareCardFonts, stageNote as shareCardStageNote } from './card-parts';
@@ -23,14 +24,16 @@ export function BillShareCard({ bill }: { bill: Bill }): ReactElement {
     typeof bill.progress_stage === 'string'
       ? parseInt(bill.progress_stage, 10)
       : bill.progress_stage;
+  // A proposed constitutional amendment's road ends at the states, not law.
+  const amendment = proposesAmendment(bill.bill_type, bill.title);
 
   return (
     <CardFrame>
       {/* The headline centred in the room the track leaves. */}
       <div style={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
-        <StageHeadline stage={stage} billType={bill.bill_type} />
+        <StageHeadline stage={stage} billType={bill.bill_type} amendment={amendment} />
       </div>
-      <StageTrack stage={stage} billType={bill.bill_type} />
+      <StageTrack stage={stage} billType={bill.bill_type} amendment={amendment} />
     </CardFrame>
   );
 }

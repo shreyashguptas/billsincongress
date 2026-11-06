@@ -28,8 +28,10 @@ export function billShareUrl(billId: string): string {
  * LinkedIn, WhatsApp — fetches the new drawing rather than keeping the old one.
  * 2: the stage-only redesign, and cards for the status, chamber and topic pages.
  * 3: resolutions drawn on their own road, ending at "Agreed to".
+ * 4: proposed constitutional amendments drawn on their own road, ending at
+ *    "To the states".
  */
-export const SHARE_CARD_VERSION = 3;
+export const SHARE_CARD_VERSION = 4;
 
 /** The share card's canvas: Open Graph's 1.91:1 at the width every platform expects. */
 export const SHARE_CARD_SIZE = { width: 1200, height: 630 } as const;
@@ -213,6 +215,131 @@ export function billSummaryText(bill: Bill): string {
 }
 
 /**
+ * A period that does not end a sentence: a single capital ("U.S.", "H.R.",
+ * "John Q."), or a short form CRS summaries use ("Sec.", "No.", "Dept.").
+ */
+const NOT_A_SENTENCE_END =
+  /(?:\b[A-Za-z]|\b(?:Sec|Secs|No|Nos|Mr|Mrs|Ms|Dr|St|Jr|Sr|Inc|Co|Corp|Ltd|Dept|Gov|Gen|Rep|Sen|Res|Con|Stat|Pub|vs|etc|Jan|Feb|Mar|Apr|Aug|Sept|Sep|Oct|Nov|Dec|approx))$/;
+
+/** The text's first sentence, never cut inside an abbreviation. */
+export function firstSentence(text: string): string {
+  const end = /[.?!]["”’)]?(?=\s+["“(]?[A-Z0-9])/g;
+  let m: RegExpExecArray | null;
+  while ((m = end.exec(text))) {
+    const before = text.slice(0, m.index);
+    if (m[0][0] === '.' && NOT_A_SENTENCE_END.test(before)) continue;
+    return text.slice(0, m.index + m[0].length).trim();
+  }
+  return text.trim();
+}
+
+/** Longer than this, the lead is cut at a word; the full summary follows it. */
+const LEAD_MAX = 320;
+
+/**
+ * The bill page's "In short" lead: the answer to "what does it do?" in one
+ * plain sentence, above the status.
+ *
+ * With a CRS summary it is that summary's first sentence, word for word (the
+ * page says so under it): the government wrote it, so it is the one sentence on
+ * the page that describes the bill's content with authority. Without one there
+ * is no lead (`from: 'none'`): a sentence built from the title only said the
+ * title again, so the page prints billNoSummaryLine instead and the status
+ * card follows (documentation/brand.md, "Bill page").
+ */
+export type BillLead = {
+  /**
+   * '' with a summary that does not open with a sentence (a part's heading, a
+   * fragment): the page prints no In short, only a link down to the summary.
+   */
+  text: string;
+  from: 'summary' | 'none';
+  /**
+   * With a summary: what the page prints under it, so no sentence is read
+   * twice. The summary after the lead sentence when the lead is that sentence
+   * whole (`split`); the whole summary when the lead had to be cut short.
+   * Empty when the lead is all the summary says. '' without a summary.
+   */
+  rest: string;
+  split: boolean;
+};
+
+/**
+ * A bold opening paragraph this short with no closing stop is a heading. Long
+ * enough for a bill with two short titles: "Judicial Understaffing Delays
+ * Getting Emergencies Solved Act of 2024 or the JUDGES Act of 2024" (S. 4199,
+ * 118th) is 95 characters, and at the old 80 it led "In short" with no stop.
+ */
+const SUMMARY_HEADING_MAX = 240;
+
+/**
+ * A short title run into the first sentence with no stop between them:
+ * "Lower Costs Act This bill creates…". A capital "This bill" after a space,
+ * with no stop before it, starts the real sentence.
+ */
+const RUN_ON_TITLE = /^([^.?!]{1,240}?)\s+(?=This (?:bill|joint resolution|concurrent resolution|resolution)\b)/;
+
+/**
+ * A summary that opens with a part's heading, not a sentence: "DIVISION
+ * A--INCREASING AMERICAN ENERGY PRODUCTION…" (H.R. 1, 118th), "TITLE I--…".
+ */
+const PART_HEADING = /^(?:DIVISION|TITLE|SUBTITLE|Subtitle)\s+[A-Z0-9]+\s*(?:--|—|–)/;
+
+/** Ends as a sentence does: a stop, perhaps inside a closing quote or bracket. */
+const SENTENCE_END = /[.?!]["”’)]?$/;
+
+export function billLead(bill: Bill): BillLead {
+  const summary = billSummaryText(bill);
+  if (summary) {
+    // CRS summaries can open with a short title in bold, in a paragraph of
+    // its own ("<p><strong>Clergy Act</strong></p>"). billSummaryText drops it
+    // when it is the bill's own title; any other one names the bill without
+    // saying what it does, so the lead starts after it.
+    let body = summary;
+    const heading = /^\s*<p>\s*<(strong|b)>([^<]+)<\/\1>\s*<\/p>/i.exec(bill.latest_summary ?? '');
+    const head = heading ? stripHtml(heading[2]) : '';
+    if (
+      head &&
+      head.length <= SUMMARY_HEADING_MAX &&
+      !/[.?!:;]["”’)]?$/.test(head) &&
+      body.startsWith(head)
+    ) {
+      body = body.slice(head.length).trim() || summary;
+    }
+    const runOn = RUN_ON_TITLE.exec(body);
+    if (runOn) body = body.slice(runOn[0].length);
+    // No lead rather than a heading or a fragment printed as a sentence: the
+    // page points to the whole summary instead.
+    if (PART_HEADING.test(body) || !SENTENCE_END.test(firstSentence(body))) {
+      return { text: '', from: 'summary', rest: summary, split: false };
+    }
+    const sentence = firstSentence(body).replace(/\s+/g, ' ');
+    const text = truncateAtWord(sentence, LEAD_MAX);
+    if (text !== sentence) return { text, from: 'summary', rest: summary, split: false };
+    const end = firstSentence(body).length;
+    return { text, from: 'summary', rest: body.slice(end).trim(), split: true };
+  }
+  return { text: '', from: 'none', rest: '', split: false };
+}
+
+/**
+ * The bill page's line in place of "In short" when there is no summary to lead
+ * with. An unfinished measure from a Congress that has ended expired with it,
+ * so "yet" would promise a summary that is not coming (/bills/82sjres118,
+ * under "Expired when the 118th Congress ended"); billAnswerParagraph says the
+ * same further down.
+ */
+export function billNoSummaryLine(
+  bill: Bill,
+  opts: { congressEnded?: boolean; finished?: boolean } = {},
+): string {
+  const noun = billNoun(bill.bill_type);
+  return opts.congressEnded && !opts.finished
+    ? `Congress did not publish a plain-language summary of this ${noun}.`
+    : `No plain-language summary of this ${noun} yet.`;
+}
+
+/**
  * The longest <title> we publish. Bing Webmaster Tools flagged 357 of our pages
  * "Title too long" (Oct 2026): bill titles ran 90–140 characters, topic pages
  * up to 106. Bing's guidance is 65, and Google cuts a result's title at about
@@ -353,7 +480,13 @@ function composeBillDescription(bill: Bill): string {
  * something true and specific — never filler, and never invented detail: every
  * clause below is a field we hold.
  */
-export function billAnswerParagraph(bill: Bill): string {
+export function billAnswerParagraph(
+  bill: Bill,
+  /** The Congress is over (lib/bill-journey.ts congressClock). An unfinished
+   *  measure then expired: "Its current status is: in committee" and "not
+   *  published … yet" read as if it were still alive (/bills/82sjres118). */
+  opts: { congressEnded?: boolean; finished?: boolean } = {},
+): string {
   const id = billIdentifier(bill);
   const area = bill.bill_subjects?.policy_area_name;
   const sponsor = sponsorPhrase(bill);
@@ -366,7 +499,10 @@ export function billAnswerParagraph(bill: Bill): string {
   if (when) text += `, introduced in the ${chamberName(bill)} on ${when}`;
   else text += ` in the ${chamberName(bill)}`;
   if (sponsor) text += ` by ${sponsor}`;
-  text += `. Its current status is: ${status}.`;
+  const expired = !!opts.congressEnded && !opts.finished;
+  text += expired
+    ? `. It was ${status} when the ${congressOrdinal(bill.congress)} Congress ended, and it expired then.`
+    : `. Its current status is: ${status}.`;
 
   // Gated on the raw field, not on billSummaryText(). Those answer two
   // different questions and this sentence is a claim about the first one.
@@ -374,7 +510,9 @@ export function billAnswerParagraph(bill: Bill): string {
   // when it has published a summary consisting only of the bill's own title —
   // a real pattern for freshly numbered bills — so gating on it stated
   // "Congress has not published…" about bills where Congress had.
-  if (!bill.latest_summary) {
+  if (!bill.latest_summary && expired) {
+    text += ` Congress did not publish a plain-language summary of this ${kind}.`;
+  } else if (!bill.latest_summary) {
     text +=
       ` Congress has not published a plain-language summary of this ${kind} yet;` +
       ' summaries are usually written some time after introduction.';

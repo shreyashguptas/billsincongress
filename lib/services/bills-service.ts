@@ -38,6 +38,8 @@ export interface BillQueryParams {
   chamber?: 'house' | 'senate' | null;
   billNumber?: string;
   congress?: string | null;
+  /** A date order, newest first (lib/bills/sort.ts). Absent: stored order, or relevance for a search. */
+  sort?: 'stage' | 'latestAction' | 'introduced';
 }
 
 export interface SponsorOption {
@@ -243,6 +245,11 @@ export const billsService = {
     }
   },
 
+  /** Every current cosponsor of a bill with their accounts: the bill page's "Show all". */
+  async fetchCosponsors(billId: string) {
+    return await queryBills('getCosponsors', { billId });
+  },
+
   async fetchBills(params: BillQueryParams): Promise<BillsResponse> {
     const {
       page = 1,
@@ -258,6 +265,7 @@ export const billsService = {
       chamber = null,
       billNumber = '',
       congress = 'all',
+      sort,
     } = params;
 
     const client = getConvexHttpClient();
@@ -284,6 +292,7 @@ export const billsService = {
           lastActionDateFilter && lastActionDateFilter !== 'all' ? lastActionDateFilter : undefined,
         offset,
         limit: itemsPerPage,
+        ...(sort ? { sort } : {}),
       });
 
       return {

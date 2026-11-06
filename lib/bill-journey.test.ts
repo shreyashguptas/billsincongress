@@ -7,8 +7,10 @@
 import assert from 'node:assert/strict';
 import {
   axisTicks,
+  committeeBaseRate,
   congressBounds,
   congressClock,
+  congressClockRule,
   finishOf,
   formatShare,
   journeyView,
@@ -73,6 +75,73 @@ it('a law: one chapter per stage it spent time in, as long as it stayed', () => 
   assert.deepEqual(v.chapters[0].events.map((e) => e.kind), ['introduced', 'referred', 'committee_vote']);
   assert.deepEqual(v.chapters[3].events.map((e) => e.kind), ['to_president', 'signed', 'became_law']);
   assert.ok(v.chapters.every((c) => !c.ongoing));
+});
+
+// H.R. 131 (119th): its journey ended at "Vetoed by the President" and left
+// out the House's failed override vote ten days later, the last word on it.
+it('a vetoed bill keeps the override vote that came after the veto', () => {
+  const v = journeyView({
+    journey: {
+      steps: [
+        { stage: BillStages.INTRODUCED, date: '2025-01-03' },
+        { stage: BillStages.IN_COMMITTEE, date: '2025-01-03' },
+        { stage: BillStages.PASSED_ONE_CHAMBER, date: '2025-07-21' },
+        { stage: BillStages.PASSED_BOTH_CHAMBERS, date: '2025-12-16' },
+        { stage: BillStages.TO_PRESIDENT, date: '2025-12-18' },
+        { stage: BillStages.VETOED, date: '2025-12-29' },
+      ],
+      events: [
+        { date: '2025-12-29', kind: 'vetoed', label: 'Vetoed by the President' },
+        {
+          date: '2026-01-08',
+          kind: 'override_failed',
+          chamber: 'house',
+          label: 'The House voted on overriding the veto; it fell short of two-thirds',
+          yeas: 248,
+          nays: 177,
+        },
+        { date: '2026-02-01', kind: 'referred', label: 'Sent to committee' },
+      ],
+      finalStage: BillStages.VETOED,
+      actionCount: 40,
+    },
+    billType: 'hr',
+    congress: 119,
+    today: '2026-11-04',
+  });
+  assert.equal(v.finish, 'vetoed');
+  assert.deepEqual(v.chapters.at(-1)!.events.map((e) => e.kind), ['vetoed', 'override_failed']);
+});
+
+// /bills/221hjres119, a proposed constitutional amendment: "A joint
+// resolution that has not become law when it ends on Jan 3, 2027 dies". An
+// amendment never becomes law: it needs two-thirds of each chamber, then the
+// states.
+it('the clock under a proposed amendment states its own rule, not law', () => {
+  const rule = congressClockRule({ congress: 119, noun: 'joint resolution', billType: 'hjres', amendment: true });
+  assert.equal(
+    rule,
+    'A proposed amendment that both chambers have not passed by two-thirds when it ends on Jan 3, 2027 dies, and would have to be introduced again.',
+  );
+  assert.doesNotMatch(rule, /become law/);
+});
+
+// "A bill that has not become law when it ends … dies": one presented in the
+// last days can still be signed in its 10 days after the Congress ends.
+it('the clock says a bill still in Congress dies, not one that is not yet law', () => {
+  const rule = congressClockRule({ congress: 119, noun: 'bill', billType: 'hr' });
+  assert.equal(rule, 'A bill still in Congress when it ends on Jan 3, 2027 dies, and would have to be introduced again.');
+  assert.match(congressClockRule({ congress: 119, noun: 'resolution', billType: 'hres' }), /^A resolution that has not been adopted/);
+});
+
+// /bills/82sjres118: "In committee for 903 days. Among Senate bills … still in
+// committee this long, about 2% ever advanced further", on a page that also
+// said it expired after 233 days when the 118th Congress ended.
+it('no committee base rate for a bill whose Congress has ended', () => {
+  const rate = { base_rate_percent: 2, base_rate_sample: 4100, days_in_committee: 903 };
+  assert.equal(committeeBaseRate({ congress: 118, ...rate }, '2026-11-04'), null);
+  assert.deepEqual(committeeBaseRate({ congress: 119, ...rate }, '2026-11-04'), { percent: 2, sample: 4100, days: 903 });
+  assert.equal(committeeBaseRate({ congress: 119 }, '2026-11-04'), null);
 });
 
 it('a concurrent resolution agreed to by one chamber says "agreed to", not "passed"', () => {

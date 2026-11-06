@@ -53,7 +53,7 @@ export function WelcomeNewUser() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {/* hideClose: Dialog's own close is a bare 16px icon; this one keeps the 40px target below. */}
-      <DialogContent hideClose className="w-[92%] max-w-md rounded-lg border-line bg-raised p-6 sm:p-8">
+      <DialogContent hideClose className="max-w-md border-line bg-raised" bodyClassName="p-6 sm:p-8">
         <DialogClose asChild>
           <Button
             variant="ghost"
@@ -71,7 +71,7 @@ export function WelcomeNewUser() {
           <DialogTitle className="mt-5">
             Thank you for joining
           </DialogTitle>
-          <DialogDescription className="mt-3 max-w-sm text-[15px] leading-relaxed text-ink-2">
+          <DialogDescription className="mt-3 max-w-sm text-ui leading-relaxed text-ink-2">
             Your free account is ready. You can ask up to 100 bill chat questions each day and keep your conversations tied to your profile.
           </DialogDescription>
           <Button size="lg" className="mt-6 w-full" onClick={() => setOpen(false)}>

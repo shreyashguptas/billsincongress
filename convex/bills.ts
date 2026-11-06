@@ -28,6 +28,8 @@ import {
   resolveSponsorRequest,
 } from "./catalog/sponsorName";
 import type { SponsorRequest } from "./catalog/sponsorName";
+import { officialAccounts, type OfficialAccounts } from "./memberAccounts";
+import { EXTRA_COSPONSORS } from "./syncStatus";
 
 // Generous safety caps; real bills have only a handful of each.
 const MAX_SUMMARIES_PER_BILL = 50;
@@ -274,12 +276,91 @@ async function billJourneyAndPeers(ctx: QueryCtx, bill: Doc<"bills">) {
   return { journey, peers, related, billUpdatedAt: bill.updatedAt };
 }
 
+/** Cosponsors a bill page draws with the page; the rest load when a reader asks. */
+const COSPONSORS_ON_PAGE = 10;
+
+/** Far above any bill's cosponsors (a whole House plus a Senate is 535). */
+const MAX_COSPONSORS = 1000;
+
+export interface BillCosponsor {
+  bioguideId: string;
+  name: string;
+  party: string | null;
+  state: string | null;
+  district: number | null;
+  sponsorshipDate: string;
+  isOriginal: boolean;
+  /** The member's confirmed official accounts, or null for a former member. */
+  accounts: OfficialAccounts | null;
+}
+
+/**
+ * A bill's current cosponsors in page order (original first, then by the day
+ * they joined), the first `limit` with their confirmed accounts, and how many
+ * there are. Withdrawn cosponsors are not listed or counted, as on
+ * Congress.gov. `fetched` is false until the bill's cosponsors have been read
+ * from Congress.gov at all, so a page never says "no cosponsors" for a bill it
+ * has simply not checked yet.
+ */
+async function billCosponsors(
+  ctx: QueryCtx,
+  bill: Doc<"bills">,
+  limit: number,
+): Promise<{ fetched: boolean; total: number; shown: BillCosponsor[] }> {
+  const fetched = ((bill.extraSyncedBits ?? 0) & EXTRA_COSPONSORS) !== 0;
+  if (!fetched || !bill.cosponsorCount) return { fetched, total: 0, shown: [] };
+  // The index is in page order with withdrawn members last, so a bill page
+  // reads exactly the rows it shows (crawlers read every bill page), and
+  // "Show all" reads the whole set in the same order.
+  const read = Math.min(limit, MAX_COSPONSORS);
+  const rows = (
+    await ctx.db
+      .query("billCosponsors")
+      .withIndex("by_billId_and_sortKey", (q) => q.eq("billId", bill.billId))
+      .take(read)
+  ).filter((r) => !r.withdrawnDate);
+  const shown = await Promise.all(
+    rows.slice(0, limit).map(async (r) => ({
+      bioguideId: r.bioguideId,
+      name: `${r.firstName} ${r.lastName}`.trim(),
+      party: r.party ?? null,
+      state: r.state ?? null,
+      district: r.district ?? null,
+      sponsorshipDate: r.sponsorshipDate,
+      isOriginal: r.isOriginal,
+      accounts: await officialAccounts(ctx, r.bioguideId),
+    })),
+  );
+  // The total is the stored count of current cosponsors, written with the
+  // rows in one mutation (replaceBillCosponsors), so it is the whole set even
+  // when the page read only the first rows.
+  return { fetched, total: bill.cosponsorCount, shown };
+}
+
+/**
+ * Every current cosponsor of a bill, with their accounts: what "Show all"
+ * loads on a bill page. Bounded by the size of Congress.
+ */
+export const getCosponsors = query({
+  args: { billId: v.string() },
+  handler: async (ctx, args) => {
+    const bill = await ctx.db
+      .query("bills")
+      .withIndex("by_billId", (q) => q.eq("billId", args.billId))
+      .first();
+    if (!bill) return null;
+    return await billCosponsors(ctx, bill, MAX_COSPONSORS);
+  },
+});
+
 /** How many same-topic bills a bill page links to. */
 const RELATED_BILLS = 5;
 
 /**
  * Everything the bill page draws, in one call: the bill (as `getById` returns
- * it) and its journey and peers. One call and one read of the bill row, where
+ * it), its journey and peers, the sponsor's official accounts (one indexed
+ * read of `memberAccounts`), and the first cosponsors with theirs (one read
+ * of the bill's cosponsors, and one of `memberAccounts` for each shown). One call and one read of the bill row, where
  * the page used to make two calls that each read it. Nearly every bill-page
  * render is a crawler, so this is most of the site's database bill.
  */
@@ -291,11 +372,13 @@ export const getPage = query({
       .withIndex("by_billId", (q) => q.eq("billId", args.billId))
       .first();
     if (!bill) return null;
-    const [details, extras] = await Promise.all([
+    const [details, extras, sponsorAccounts, cosponsors] = await Promise.all([
       billWithDetails(ctx, bill),
       billJourneyAndPeers(ctx, bill),
+      officialAccounts(ctx, bill.sponsorBioguideId),
+      billCosponsors(ctx, bill, COSPONSORS_ON_PAGE),
     ]);
-    return { bill: details, extras };
+    return { bill: details, extras: { ...extras, sponsorAccounts, cosponsors } };
   },
 });
 
@@ -646,6 +729,32 @@ async function policyAreaSize(
 }
 
 /**
+ * Bills sponsored from one state in one congress, from the precomputed
+ * `congressChamberBreakdowns` rows. Null when neither chamber's row was built;
+ * a state absent from built rows sponsored none.
+ */
+async function sponsorStateSize(
+  ctx: QueryCtx,
+  congress: number,
+  state: string,
+): Promise<number | null> {
+  const [house, senate] = await Promise.all(
+    (["house", "senate"] as const).map((chamber) =>
+      ctx.db
+        .query("congressChamberBreakdowns")
+        .withIndex("by_congress_and_chamber", (q) =>
+          q.eq("congress", congress).eq("chamber", chamber),
+        )
+        .first(),
+    ),
+  );
+  if (!house && !senate) return null;
+  const countForState = (rows: Array<{ state: string; count: number }>) =>
+    rows.find((r) => r.state === state)?.count ?? 0;
+  return countForState(house?.stateCounts ?? []) + countForState(senate?.stateCounts ?? []);
+}
+
+/**
  * Which index `list` should iterate for these filters.
  *
  * Only matters when both a policy area and a progress stage are filtered, since
@@ -789,9 +898,278 @@ async function billsBySponsorSurname(
 }
 
 /**
+ * The orders a reader can pick on /bills, each newest first:
+ *
+ *  - stage:        the day the bill reached the stage filtered on (`stageDate`) —
+ *                  "when it became law" under Outcome: Became law.
+ *  - latestAction: the bill's most recent action.
+ *  - introduced:   the day it was introduced.
+ */
+const LIST_SORT = v.union(
+  v.literal("stage"),
+  v.literal("latestAction"),
+  v.literal("introduced"),
+);
+type ListSort = "stage" | "latestAction" | "introduced";
+
+function sortDateOf(sort: ListSort): (bill: Doc<"bills">) => string | undefined {
+  if (sort === "stage") return (bill) => bill.stageDate;
+  if (sort === "introduced") return (bill) => bill.introducedDate;
+  return (bill) => bill.latestActionDate;
+}
+
+/**
+ * Rows newest first by `sort`'s date, undated last, ties as an index breaks
+ * them. Only for a set that was read whole: sorting part of a set would claim
+ * an order the rest of it might break.
+ */
+function sortRows(rows: Doc<"bills">[], sort: ListSort): Doc<"bills">[] {
+  return [...rows].sort(compareForOrder<Doc<"bills">>("newest", sortDateOf(sort)));
+}
+
+type NarrowIndex = Awaited<ReturnType<typeof narrowestIndexFor>>;
+
+/** The bills of the set `narrowestIndexFor` chose, in stored (insertion) order, newest first. */
+function narrowBills(
+  ctx: QueryCtx,
+  congress: number,
+  args: BillsFilterArgs,
+  iterateBy: NarrowIndex,
+): AsyncIterable<Doc<"bills">> {
+  if (iterateBy === "policyArea") {
+    return ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_policy_area", (q) =>
+        q.eq("congress", congress).eq("policyAreaName", args.policyArea),
+      )
+      .order("desc");
+  }
+  if (iterateBy === "progressStage") {
+    return ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_progress_stage", (q) =>
+        q.eq("congress", congress).eq("progressStage", args.progressStage),
+      )
+      .order("desc");
+  }
+  if (iterateBy === "sponsorState") {
+    return ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_sponsor_state", (q) =>
+        q.eq("congress", congress).eq("sponsorState", args.sponsorState),
+      )
+      .order("desc");
+  }
+  return ctx.db
+    .query("bills")
+    .withIndex("by_congress", (q) => q.eq("congress", congress))
+    .order("desc");
+}
+
+/**
+ * A stream already in `sort` order, newest first, and which filter its index
+ * enforces (null: only the Congress). The index is the order's guarantee:
+ * filtering the stream afterwards drops rows but never reorders them, so the
+ * first matches are the newest matches even when the scan stops early.
+ *
+ * A date window on the sorted date becomes the range's lower bound, so a
+ * window that holds fewer bills than a page ends the read instead of scanning
+ * older bills up to the cap.
+ */
+function orderedBills(
+  ctx: QueryCtx,
+  congress: number,
+  args: BillsFilterArgs,
+  sort: ListSort,
+  prefer: NarrowIndex,
+): { rows: AsyncIterable<Doc<"bills">>; enforces: NarrowIndex | null } {
+  if (sort === "stage" && args.progressStage !== undefined) {
+    const stage = args.progressStage;
+    return {
+      rows: ctx.db
+        .query("bills")
+        .withIndex("by_congress_stage_and_stage_date", (q) =>
+          q.eq("congress", congress).eq("progressStage", stage),
+        )
+        .order("desc"),
+      enforces: "progressStage",
+    };
+  }
+
+  if (sort === "introduced") {
+    const since = cutoffDateForFilter(args.introducedDateFilter);
+    return {
+      rows: ctx.db
+        .query("bills")
+        .withIndex("by_congress_and_introduced", (q) =>
+          since === null
+            ? q.eq("congress", congress)
+            : q.eq("congress", congress).gte("introducedDate", since),
+        )
+        .order("desc"),
+      enforces: null,
+    };
+  }
+
+  // Latest action. Each index here ends in latestActionDate, after the filter
+  // it enforces; take the one for the filter the caller found narrowest.
+  const since = cutoffDateForFilter(args.lastActionDateFilter);
+  const stage = args.progressStage;
+  const area = args.policyArea;
+  if (area !== undefined && (prefer === "policyArea" || stage === undefined)) {
+    return {
+      rows: ctx.db
+        .query("bills")
+        .withIndex("by_congress_policy_area_and_latest_action", (q) => {
+          const range = q.eq("congress", congress).eq("policyAreaName", area);
+          return since === null ? range : range.gte("latestActionDate", since);
+        })
+        .order("desc"),
+      enforces: "policyArea",
+    };
+  }
+  if (stage !== undefined) {
+    return {
+      rows: ctx.db
+        .query("bills")
+        .withIndex("by_congress_stage_and_action", (q) => {
+          const range = q.eq("congress", congress).eq("progressStage", stage);
+          return since === null ? range : range.gte("latestActionDate", since);
+        })
+        .order("desc"),
+      enforces: "progressStage",
+    };
+  }
+  const byType = (billType: string) =>
+    ctx.db
+      .query("bills")
+      .withIndex("by_congress_type_and_latest_action", (q) => {
+        const range = q.eq("congress", congress).eq("billType", billType);
+        return since === null ? range : range.gte("latestActionDate", since);
+      })
+      .order("desc");
+  if (args.billType !== undefined) return { rows: byType(args.billType), enforces: null };
+  if (args.chamber !== undefined) {
+    // A chamber is four bill types, each its own ordered range (as listSorted).
+    const types = args.chamber === "house" ? HOUSE_BILL_TYPES : SENATE_BILL_TYPES;
+    return {
+      rows: mergeOrdered(
+        types.map(byType),
+        compareForOrder<Doc<"bills">>("newest", (bill) => bill.latestActionDate),
+      ),
+      enforces: null,
+    };
+  }
+  return {
+    rows: ctx.db
+      .query("bills")
+      .withIndex("by_congress_and_latest_action", (q) =>
+        since === null
+          ? q.eq("congress", congress)
+          : q.eq("congress", congress).gte("latestActionDate", since),
+      )
+      .order("desc"),
+    enforces: null,
+  };
+}
+
+/**
+ * The size of the set `narrowBills` would read, from the precomputed tables
+ * (congressStats, congressPolicyAreas, congressChamberBreakdowns), or null when
+ * none is built. Only a hint for skipping a read: these rows are rebuilt daily.
+ */
+async function precomputedSize(
+  ctx: QueryCtx,
+  congress: number,
+  args: BillsFilterArgs,
+  iterateBy: NarrowIndex,
+): Promise<number | null> {
+  if (iterateBy === "policyArea" && args.policyArea !== undefined) {
+    return policyAreaSize(ctx, congress, args.policyArea);
+  }
+  if (iterateBy === "sponsorState" && args.sponsorState !== undefined) {
+    return sponsorStateSize(ctx, congress, args.sponsorState);
+  }
+  if (iterateBy === "progressStage" && args.progressStage !== undefined) {
+    const stats = await ctx.db
+      .query("congressStats")
+      .withIndex("by_congress", (q) => q.eq("congress", congress))
+      .first();
+    if (!stats) return null;
+    return stats.stageCounts.find((s) => s.stage === args.progressStage)?.count ?? 0;
+  }
+  return null;
+}
+
+/** The first `needed` rows of `rows` that `match`, read at most MAX_LIST_SCAN deep. */
+async function scanMatches(
+  rows: AsyncIterable<Doc<"bills">>,
+  match: (bill: Doc<"bills">) => boolean,
+  needed: number,
+): Promise<{ matches: Doc<"bills">[]; scanned: number }> {
+  const matches: Doc<"bills">[] = [];
+  let scanned = 0;
+  for await (const bill of rows) {
+    scanned++;
+    if (match(bill)) {
+      matches.push(bill);
+      if (matches.length >= needed) break;
+    }
+    if (scanned >= MAX_LIST_SCAN) break;
+  }
+  return { matches, scanned };
+}
+
+/**
+ * The first `needed` matches in `sort` order, and whether a scan cap stopped
+ * the read (so a short page may not be the whole set).
+ *
+ * Two ways to an honest order, tried in turn:
+ *
+ *  1. The narrowest filtered set, read whole and sorted in memory. Taken when
+ *     an ordered index does not enforce that filter itself (a sponsor's state,
+ *     or "date introduced" under Outcome: Became law) and the set fits under
+ *     the scan cap — Wyoming's 161 bills, a Congress's few hundred laws. A set
+ *     the precomputed counts put over the cap (California, Health) skips
+ *     straight to 2 instead of reading 1,201 rows to find that out.
+ *  2. An index range already in that order, filtered as it streams. Its first
+ *     matches are the newest matches; the cap can only shorten the list,
+ *     never reorder it.
+ */
+async function sortedMatches(
+  ctx: QueryCtx,
+  congress: number,
+  args: BillsFilterArgs,
+  sort: ListSort,
+  match: (bill: Doc<"bills">) => boolean,
+  needed: number,
+): Promise<{ matches: Doc<"bills">[]; capped: boolean }> {
+  const iterateBy = await narrowestIndexFor(ctx, congress, args);
+  const ordered = orderedBills(ctx, congress, args, sort, iterateBy);
+
+  if (
+    iterateBy !== "congress" &&
+    ordered.enforces !== iterateBy &&
+    // A set the precomputed counts already put over the cap is not read whole
+    // only to be thrown away. Those counts are a day old at most, so this is a
+    // hint, never the guarantee: `takeFirst` below still decides.
+    ((await precomputedSize(ctx, congress, args, iterateBy)) ?? 0) <= MAX_LIST_SCAN
+  ) {
+    const set = await takeFirst(narrowBills(ctx, congress, args, iterateBy), MAX_LIST_SCAN + 1);
+    if (set.length <= MAX_LIST_SCAN) {
+      return { matches: sortRows(set.filter(match), sort), capped: false };
+    }
+  }
+
+  const { matches, scanned } = await scanMatches(ordered.rows, match, needed);
+  return { matches, capped: scanned >= MAX_LIST_SCAN };
+}
+
+/**
  * List bills with filtering and offset-based pagination.
  *
- * Streams an index newest-first and stops as soon as `offset + limit + 1` bills
+ * With `sort`, rows come in that date order, newest first (`sortedMatches`).
+ * Without it, it streams an index newest-first and stops as soon as `offset + limit + 1` bills
  * match (the +1 is what `hasMore` reads). Do not `.collect()` a whole congress
  * here — that is ~19K docs.
  *
@@ -803,6 +1181,8 @@ export const list = query({
     ...BILLS_FILTER_ARGS,
     offset: v.optional(v.number()),
     limit: v.optional(v.number()),
+    // Absent: the stored order (and, for a title search, relevance).
+    sort: v.optional(LIST_SORT),
   },
   handler: async (ctx, args) => {
     validatePublicFilters(args);
@@ -818,23 +1198,28 @@ export const list = query({
     const searchQuery = args.titleFilter?.trim() || null;
     const sponsors = await sponsorRequestFor(ctx, congressFilter, args.sponsorFilter);
     const match = buildBillPredicate(args, sponsors);
+    // "When it reached this stage" needs a stage to be about.
+    const sort: ListSort | undefined =
+      args.sort === "stage" && args.progressStage === undefined ? "latestAction" : args.sort;
 
     // Fast path: a text query goes through the search index, which reaches the
     // whole Congress instead of stopping at the scan cap below.
     if (searchQuery !== null) {
-      const { matches } = await searchBillsByTitle(
+      const found = await searchBillsByTitle(
         ctx,
         args,
         congressFilter,
         searchQuery,
         match,
       );
+      const matches = sort === undefined ? found.matches : sortRows(found.matches, sort);
       return {
         data: await enrichWithSubjects(ctx, matches.slice(offset, offset + limit)),
         hasMore: matches.length > offset + limit,
         // Full-text search has its own ceiling, reported via listCount's
-        // `exact` flag; this path never runs the capped scan.
-        truncated: false,
+        // `exact` flag. In relevance order the first page is still the best
+        // matches; sorted by date, a capped set may be missing newer ones.
+        truncated: sort !== undefined && found.capped,
       };
     }
 
@@ -848,7 +1233,7 @@ export const list = query({
           q.eq("congress", congressFilter).eq("billNumber", args.billNumber!)
         )
         .collect();
-      const filtered = hits.filter(match);
+      const filtered = sort === undefined ? hits.filter(match) : sortRows(hits.filter(match), sort);
       return {
         data: await enrichWithSubjects(ctx, filtered.slice(offset, offset + limit)),
         hasMore: filtered.length > offset + limit,
@@ -863,7 +1248,7 @@ export const list = query({
         args.sponsorFilter,
         sponsors,
       );
-      const filtered = bills.filter(match);
+      const filtered = sort === undefined ? bills.filter(match) : sortRows(bills.filter(match), sort);
       if (!complete) {
         console.warn("bills.list hit scan cap reading sponsor surnames", {
           congress: congressFilter,
@@ -881,8 +1266,29 @@ export const list = query({
     }
 
     const needed = offset + limit + 1;
-    const matches: Doc<"bills">[] = [];
-    let scanned = 0;
+
+    // A chosen order ("Sort" on /bills). Without one, the list keeps the order
+    // the index happens to store — insertion order, which is not a date.
+    if (sort !== undefined) {
+      const sorted = await sortedMatches(ctx, congressFilter, args, sort, match, needed);
+      // Same rule as the unsorted scan below: the cap only matters when it
+      // stopped the page from filling.
+      const truncated = sorted.capped && sorted.matches.length <= offset + limit;
+      if (truncated) {
+        console.warn("bills.list hit scan cap before filling a sorted page", {
+          congress: congressFilter,
+          sort,
+          offset,
+          limit,
+          matches: sorted.matches.length,
+        });
+      }
+      return {
+        data: await enrichWithSubjects(ctx, sorted.matches.slice(offset, offset + limit)),
+        hasMore: sorted.matches.length > offset + limit,
+        truncated,
+      };
+    }
 
     // Iterate the narrowest index the filters allow. This is a correctness
     // matter, not an optimisation: the loop below stops at MAX_LIST_SCAN, so
@@ -892,50 +1298,11 @@ export const list = query({
     // cap 870 bills short and reported *no* enacted health bills. So size both
     // and take the smaller; `match` still applies every other filter.
     const iterateBy = await narrowestIndexFor(ctx, congressFilter, args);
-
-    const iter =
-      iterateBy === "policyArea"
-        ? ctx.db
-            .query("bills")
-            .withIndex("by_congress_and_policy_area", (q) =>
-              q
-                .eq("congress", congressFilter)
-                .eq("policyAreaName", args.policyArea),
-            )
-            .order("desc")
-        : iterateBy === "progressStage"
-          ? ctx.db
-              .query("bills")
-              .withIndex("by_congress_and_progress_stage", (q) =>
-                q
-                  .eq("congress", congressFilter)
-                  .eq("progressStage", args.progressStage),
-              )
-              .order("desc")
-          : iterateBy === "sponsorState"
-            ? ctx.db
-                .query("bills")
-                .withIndex("by_congress_and_sponsor_state", (q) =>
-                  q
-                    .eq("congress", congressFilter)
-                    .eq("sponsorState", args.sponsorState),
-                )
-                .order("desc")
-            : ctx.db
-                .query("bills")
-                .withIndex("by_congress", (q) => q.eq("congress", congressFilter))
-                .order("desc");
-
-    for await (const bill of iter) {
-      scanned++;
-      if (!match(bill)) {
-        if (scanned >= MAX_LIST_SCAN) break;
-        continue;
-      }
-      matches.push(bill);
-      if (matches.length >= needed) break;
-      if (scanned >= MAX_LIST_SCAN) break;
-    }
+    const { matches, scanned } = await scanMatches(
+      narrowBills(ctx, congressFilter, args, iterateBy),
+      match,
+      needed,
+    );
 
     // The scan gave up before filling the page: there may well be more matches
     // past the cap that we never looked at. Returning only `hasMore: false` here
@@ -1294,29 +1661,8 @@ export const listCount = query({
     }
 
     if (activeFilters === 1 && args.sponsorState !== undefined) {
-      const [house, senate] = await Promise.all([
-        ctx.db
-          .query("congressChamberBreakdowns")
-          .withIndex("by_congress_and_chamber", (q) =>
-            q.eq("congress", congressFilter).eq("chamber", "house"),
-          )
-          .first(),
-        ctx.db
-          .query("congressChamberBreakdowns")
-          .withIndex("by_congress_and_chamber", (q) =>
-            q.eq("congress", congressFilter).eq("chamber", "senate"),
-          )
-          .first(),
-      ]);
-      if (!house && !senate) return unknownCount();
-      const countForState = (rows: Array<{ state: string; count: number }>) =>
-        rows.find((r) => r.state === args.sponsorState)?.count ?? 0;
-      return {
-        count:
-          countForState(house?.stateCounts ?? []) +
-          countForState(senate?.stateCounts ?? []),
-        exact: true,
-      };
+      const size = await sponsorStateSize(ctx, congressFilter, args.sponsorState);
+      return size === null ? unknownCount() : { count: size, exact: true };
     }
 
     return unknownCount();

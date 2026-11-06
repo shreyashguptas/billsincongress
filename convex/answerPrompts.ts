@@ -19,7 +19,7 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { ANSWER_PROMPT_NAME, validTemplate } from "./catalog/promptTemplate";
+import { ANSWER_PROMPT_NAME, MIN_PROMPT_VERSION, validTemplate } from "./catalog/promptTemplate";
 
 /** PostHog's app API (not the capture host). Override for EU: https://eu.posthog.com */
 const DEFAULT_APP_HOST = "https://us.posthog.com";
@@ -64,8 +64,9 @@ export const forAnswer = internalQuery({
       .query("answerPrompts")
       .withIndex("by_name_version", (q) => q.eq("name", ANSWER_PROMPT_NAME))
       .collect();
-    // A row with an empty template is a fetch attempt, not a copy.
-    const usable = rows.filter((r) => r.template !== "");
+    // A row with an empty template is a fetch attempt, not a copy; one below
+    // MIN_PROMPT_VERSION describes a site that no longer exists.
+    const usable = rows.filter((r) => r.template !== "" && r.version >= MIN_PROMPT_VERSION);
     const assigned =
       args.version === undefined ? undefined : usable.find((r) => r.version === args.version);
     const row = assigned ?? usable.find((r) => r.isProduction);
@@ -146,10 +147,11 @@ export const claimFetch = internalMutation({
       .withIndex("by_name_version", (q) => q.eq("name", ANSWER_PROMPT_NAME))
       .collect();
     const now = Date.now();
+    if (args.version < MIN_PROMPT_VERSION) return false;
     const existing = rows.find((r) => r.version === args.version);
     if (existing && existing.template !== "") return false;
     // No production copy means no key or no PostHog yet: nothing to fetch with.
-    const production = rows.find((r) => r.isProduction && r.template !== "");
+    const production = rows.find((r) => r.isProduction && r.template !== "" && r.version >= MIN_PROMPT_VERSION);
     if (!production || args.version > production.version + MAX_VERSIONS_AHEAD) return false;
     if (existing?.attemptedAt !== undefined && now - existing.attemptedAt < RETRY_AFTER_MS) {
       return false;
@@ -212,12 +214,26 @@ async function fetchFromPostHog(
   }
 }
 
-/** The cron: copy whatever `production` points at now. */
+/**
+ * The cron: copy whatever `production` points at now, unless it is older than
+ * MIN_PROMPT_VERSION, the oldest version that matches the deployed code. Then
+ * that version is copied as production instead, so a merge that raises the
+ * minimum releases the wording with the code. Moving the label to an older
+ * version is therefore no rollback past the minimum: that takes a code change.
+ */
 export const refresh = internalAction({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    const got = await fetchFromPostHog({ label: "production" });
+    let got = await fetchFromPostHog({ label: "production" });
+    if (got && got.version < MIN_PROMPT_VERSION) {
+      console.warn(
+        `answer prompt: production is version ${got.version}, older than this code's minimum ` +
+          `${MIN_PROMPT_VERSION}; serving version ${MIN_PROMPT_VERSION}`,
+      );
+      // null when that version is missing or invalid: the in-code default then serves.
+      got = await fetchFromPostHog({ version: MIN_PROMPT_VERSION });
+    }
     if (got) await ctx.runMutation(internal.answerPrompts.store, { ...got, isProduction: true });
     return null;
   },

@@ -120,19 +120,19 @@ export function FoundItPrompt() {
       className="found-it-prompt rounded-md border border-line-strong bg-raised p-4 shadow-float animate-popover-in"
     >
       {step === 'thanks' ? (
-        <p role="status" className="text-[15px] text-ink">
+        <p role="status" className="text-ui text-ink">
           Thanks. That helps.
         </p>
       ) : (
         <>
           <div className="flex items-start justify-between gap-3">
-            <p className="pt-1 text-[15px] font-medium leading-snug text-ink">
+            <p className="pt-1 text-ui font-medium leading-snug text-ink">
               {step === 'ask' ? Q.found.question : Q.missing.question}
             </p>
             <Button
               variant="ghost"
               size="icon"
-              className="-mr-2 -mt-1 h-8 w-8 shrink-0 touchable:h-10 touchable:w-10"
+              className="-mr-2 -mt-1 h-8 w-8 shrink-0 touchable:-mr-3.5 touchable:-mt-2.5 touchable:h-11 touchable:w-11"
               onClick={close}
               aria-label="Close"
             >

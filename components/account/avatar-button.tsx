@@ -176,18 +176,18 @@ export function AvatarButton({
   const face = (
     <>
       <AvatarMark initials={initials} src={src} onPhotoError={setBrokenSrc} pro={pro} size="lg" />
-      {/* Hover and keyboard focus say what a click does. */}
+      {/* Hover (a real mouse only, so it never sticks after a tap) and keyboard focus say what a click does. */}
       <span
         aria-hidden="true"
         className={cn(
-          'absolute flex flex-col items-center justify-center gap-1 rounded-full text-on-ink opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100',
+          'absolute flex flex-col items-center justify-center gap-1 rounded-full text-on-ink opacity-0 transition-opacity fine:group-hover:opacity-100 group-focus-visible:opacity-100',
           // See-through over a photo; solid over initials, which would show through as clutter.
           hasPhoto ? 'bg-ink/70' : 'bg-ink',
           pro ? 'inset-[7px]' : 'inset-0',
         )}
       >
         <Camera className="h-5 w-5" strokeWidth={1.75} />
-        <span className="text-[11px] font-medium">{hasPhoto ? 'Change' : 'Upload'}</span>
+        <span className="text-xs font-medium">{hasPhoto ? 'Change' : 'Upload'}</span>
       </span>
       {/* Always visible, for touch screens that have no hover. */}
       <span
@@ -250,7 +250,7 @@ export function AvatarButton({
         </button>
       )}
       {pageError && (
-        <Alert variant="destructive" role="alert" className="max-w-[16rem] text-[13px]">
+        <Alert variant="destructive" role="alert" className="max-w-[16rem] text-caption">
           {pageError}
         </Alert>
       )}

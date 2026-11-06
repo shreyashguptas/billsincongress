@@ -65,3 +65,40 @@ export function reloadForChunkError(now: number = Date.now()): void {
   if (Number(safeSessionStorage.getItem(RELOAD_AT_KEY)) !== now) return;
   if (typeof window !== 'undefined') window.location.reload();
 }
+
+/**
+ * The error a window-level `error` or `unhandledrejection` event carries:
+ * `reason` on a rejection, `error` on an uncaught error. Typed structurally so
+ * the tests can pass a plain object instead of a DOM event.
+ */
+type WindowFailureEvent = { reason?: unknown; error?: unknown };
+
+/**
+ * Recover from a chunk failure that never reaches an error boundary. A chunk
+ * fetched by a dynamic `import()` outside render — `next/dynamic` preloaded in
+ * an effect, a click handler, a prefetch — rejects as an unhandled promise
+ * rejection, so `app/error.tsx` never sees it and the feature just silently
+ * does nothing. This runs the same guarded reload the boundaries use.
+ *
+ * It does not call `preventDefault()`: PostHog's own window handlers still
+ * record the `$exception`, exactly as before.
+ */
+export function handleWindowChunkFailure(event: WindowFailureEvent): void {
+  // Safari and Firefox report ANY failed dynamic import with the message that
+  // marks a stale chunk, including one that failed because the network dropped.
+  // The boundaries only fire once a render has already failed; this fires on
+  // pages that still read fine, and reloading one offline would swap the bill
+  // on screen for the service worker's offline page.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const error = 'reason' in event ? event.reason : event.error;
+  if (isChunkLoadError(error)) reloadForChunkError();
+}
+
+/**
+ * Register {@link handleWindowChunkFailure} on the window. Called once from
+ * `instrumentation-client.ts`, before hydration.
+ */
+export function installChunkErrorRecovery(target: Pick<Window, 'addEventListener'>): void {
+  target.addEventListener('unhandledrejection', handleWindowChunkFailure);
+  target.addEventListener('error', handleWindowChunkFailure);
+}

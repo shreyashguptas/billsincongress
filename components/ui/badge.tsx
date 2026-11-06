@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 // StatusPill (components/brand/status.tsx) so it always carries its colour dot
 // and word together.
 const badgeVariants = cva(
-  'inline-flex h-6 items-center rounded-sm px-2 font-sans text-[13px] font-medium leading-none transition-colors',
+  'inline-flex h-6 items-center rounded-sm px-2 font-sans text-[0.8125rem] font-medium leading-none transition-colors',
   {
     variants: {
       variant: {

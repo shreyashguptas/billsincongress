@@ -6,7 +6,7 @@ import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
 import { AnswerProvider } from '@/components/answers/answer-provider';
 import { AnswerPanel } from '@/components/answers/answer-panel';
-import { TypeToAsk } from '@/components/answers/type-to-ask';
+import { AskShortcut } from '@/components/answers/ask-shortcut';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { PwaSetup } from '@/components/pwa/pwa-setup';
@@ -58,7 +58,7 @@ const SITE_GRAPH = {
       '@id': `${SITE_URL}/#dataset`,
       name: 'United States Congressional Bills',
       description:
-        'A structured, continually updated record of every bill introduced in the United States Congress — including sponsor, current status and legislative stage, full text, subjects, and complete action history — covering recent Congresses. Sourced from the official Congress.gov API.',
+        'A structured, continually updated record of every bill introduced in the United States Congress — including sponsor and cosponsors, current status and legislative stage, a link to the full text, subjects, and complete action history — covering recent Congresses. Sourced from the official Congress.gov API.',
       url: `${SITE_URL}/bills`,
       keywords: [
         'United States Congress',
@@ -88,11 +88,12 @@ const SITE_GRAPH = {
       variableMeasured: [
         'bill title',
         'sponsor',
+        'cosponsors',
         'legislative status',
         'progress stage',
         'policy area',
         'actions',
-        'full text',
+        'full text link',
       ],
     },
   ],
@@ -201,8 +202,8 @@ export default function RootLayout({
                 </div>
                 <AnswerPanel />
                 {/* After AnswerPanel, always: its effects must run after the
-                    panel's own focus effect (type-to-ask.tsx has why). */}
-                <TypeToAsk />
+                    panel's own focus effect (ask-shortcut.tsx has why). */}
+                <AskShortcut />
                 <FoundItPrompt />
                 <WelcomeNewUser />
                 <PostHogAuthSync />

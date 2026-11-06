@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'October 22, 2026';
+const LAST_UPDATED = 'November 4, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -57,7 +57,15 @@ export default function PrivacyPage() {
           <ExternalLink href="https://api.congress.gov">
             Congress.gov API
           </ExternalLink>{' '}
-          and is in the public domain. In this policy, &ldquo;we&rdquo;
+          and is in the public domain. Members&rsquo; official social media
+          accounts are suggested by the volunteer{' '}
+          <ExternalLink href="https://unitedstates.github.io/congress-legislators/">
+            congress-legislators
+          </ExternalLink>{' '}
+          project, also in the public domain, plus a few corrections we
+          checked against members&rsquo; own sites, and shown only when the
+          member&rsquo;s own .house.gov or .senate.gov website links them.
+          In this policy, &ldquo;we&rdquo;
           and &ldquo;us&rdquo; refer to the project and OffGrid LLC.
         </p>
       </Section>
@@ -73,7 +81,9 @@ export default function PrivacyPage() {
           performance measurements, and any errors the site throws. Our
           analytics also include session replay — a reconstruction of how
           a page was used (clicks, scrolling, navigation) that helps us
-          find confusing design and bugs.
+          find confusing design and bugs. Replay hides what you type into
+          form fields, and if you have an account it hides your name, email
+          address and profile photo wherever the site shows them.
         </p>
         <p>
           Some of what you type is included in that analytics data. When
@@ -98,6 +108,22 @@ export default function PrivacyPage() {
           question box record only how many characters you typed, unless
           you go on to ask it as a question or open &ldquo;See all
           matching bills&rdquo;.
+        </p>
+        <p>
+          On bill pages and member pages we record a few clicks by name:
+          opening a member&rsquo;s page from a bill, opening one of a
+          member&rsquo;s official accounts or their website, and showing
+          all of a bill&rsquo;s cosponsors. Each records the bill or member
+          involved, where on the page you clicked and, for an account,
+          which one (X, Facebook, Instagram, YouTube or the member&rsquo;s
+          website). They carry nothing else about you.
+        </p>
+        <p>
+          A member&rsquo;s accounts open X, Facebook, Instagram, YouTube or
+          the member&rsquo;s own website in a new tab. Those sites are not
+          ours, and what they collect when you arrive is governed by their
+          own privacy policies. The link adds nothing that identifies you,
+          and it does not tell them which page of ours you came from.
         </p>
         <p>
           Feedback you send is recorded there too. The Feedback button
@@ -234,7 +260,7 @@ export default function PrivacyPage() {
           While you use your account, we also store the things you do
           with it: the bills you save and your bill-chat history. Once
           you are signed in, our analytics link your activity to your
-          account (including your email address) so we can understand the
+          account (including your email address and name) so we can understand the
           journey from first visit to sign-up. We send email for three
           reasons only: account emails (sign-up verification and
           password-reset codes),
@@ -253,7 +279,9 @@ export default function PrivacyPage() {
           Reading the site is free. If you subscribe to Pro, the one paid
           plan, payment is handled by{' '}
           <ExternalLink href="https://stripe.com/privacy">Stripe</ExternalLink>:
-          your card details go to Stripe and never reach our servers. We
+          your card details go to Stripe and never reach our servers. When
+          you start checkout we give Stripe your email address and name, so
+          its receipts and billing page are in your name. We
           store your Stripe customer and subscription IDs, which price you
           chose, the subscription&apos;s status, and when it renews or ends
           — enough to know whether you are on Pro, nothing more. Stripe keeps
@@ -316,6 +344,13 @@ export default function PrivacyPage() {
         </ul>
         <p className="mt-4">
           All of these providers process data in the United States.
+        </p>
+        <p>
+          Our server also reads public sources that receive nothing about
+          you: the Congress.gov API, the congress-legislators project&rsquo;s
+          files, and each member&rsquo;s official home page, which it visits
+          once a day to check which accounts it links. No reader&rsquo;s
+          data is part of those visits.
         </p>
       </Section>
 
@@ -406,6 +441,7 @@ export default function PrivacyPage() {
 const summary = [
   'We never sell your data. No ads, no ad trackers, no data brokers.',
   'You can read every bill without an account.',
+  'Members’ social media links take you to X, Facebook, Instagram or YouTube, which have their own privacy policies.',
   'An account is just an email and password (or Google sign-in) — nothing more.',
   'AI questions are answered by Claude, called directly on our own Anthropic account and run on US servers. Anthropic does not train on them and deletes them within 30 days.',
   'The text of every question you ask is also recorded in our analytics (PostHog), so we can see what people want to know. Each answer is recorded there too, with the conversation it came from, so we can find and fix wrong ones; that text is deleted after 30 days.',
@@ -426,6 +462,12 @@ const cookies = [
     purpose:
       'A random ID that enforces the daily AI-chat limit for signed-out visitors. Contains no personal information.',
     lifespan: '60 days',
+  },
+  {
+    name: 'Cloudflare bot check (__cf_bm, cf_clearance)',
+    purpose:
+      'Set by Cloudflare, our host, to tell people apart from automated scrapers. Contains no personal information and is not used for analytics.',
+    lifespan: '30 minutes',
   },
   {
     name: 'PostHog analytics (ph_*)',
@@ -451,6 +493,12 @@ const cookies = [
     lifespan: 'until cleared',
   },
   {
+    name: 'bic_ask_shortcut (local storage)',
+    purpose:
+      'Remembers that you turned off the / key that opens Ask. Written only while it is off, holds the value off and nothing else, and never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
     name: 'bic_visit_* (session storage)',
     purpose:
       'Counts the pages of this visit, so that question waits for your third page, and notes whether you opened the Feedback box. Never leaves your browser.',
@@ -467,7 +515,7 @@ const cookies = [
 const providers = [
   {
     name: 'Convex',
-    role: 'Our database and authentication backend. Stores accounts (with your profile photo, if you add one), saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), and the public bill data.',
+    role: 'Our database and authentication backend. Stores accounts (with your profile photo, if you add one), saved bills, followed bills, chat history, your plan status, pictures attached to feedback (for 180 days), the public bill data, and members’ official accounts.',
   },
   {
     name: 'Cloudflare',
@@ -475,7 +523,7 @@ const providers = [
   },
   {
     name: 'PostHog',
-    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
+    role: 'Product analytics (US cloud): page views, clicks, session replay, performance, and error reports. Once you sign in, receives your email address and name, to link your activity to your account; replay hides both, and your profile photo, on screen. Receives the full text of every question you ask the assistant, a record of each answer (the conversation so far, the public records looked up, and the answer; that text is deleted after 30 days), and the feedback and survey answers you send. Also delivers account emails (sign-up verification and password-reset codes, and notices when your Pro plan starts, changes or ends) and the bill alerts you turn on, for which it receives your email address and the message.',
   },
   {
     name: 'OpenRouter',

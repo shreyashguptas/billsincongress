@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { PRIVATE_BLOCK_CLASS } from '@/lib/replay-privacy';
 import { Badge } from '@/components/ui/badge';
 import { AvatarPhoto } from './avatar-photo';
 
@@ -62,8 +63,13 @@ export function AvatarMark({
       <AvatarPhoto src={src} fallback={initials} onError={onPhotoError} />
     </span>
   );
+  // PRIVATE_BLOCK_CLASS: session replay records an empty box here, never the
+  // reader's photo or initials (lib/replay-privacy.ts).
   return (
-    <span aria-hidden="true" className={cn('inline-flex shrink-0 rounded-full', s.box, pro && ['spectrum-ring', s.ring], className)}>
+    <span
+      aria-hidden="true"
+      className={cn(PRIVATE_BLOCK_CLASS, 'inline-flex shrink-0 rounded-full', s.box, pro && ['spectrum-ring', s.ring], className)}
+    >
       {pro ? <span className={cn('flex h-full w-full rounded-full bg-paper', s.gap)}>{face}</span> : face}
     </span>
   );

@@ -3,6 +3,7 @@ import posthog from 'posthog-js';
 import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 import type { SponsorMatchKind } from '@/lib/sponsor-match';
+import type { BillsSort } from '@/lib/bills/sort';
 
 /** Every text box with a length limit, for `text_limit_reached`. */
 export type TextLimitSurface =
@@ -32,6 +33,9 @@ function capture(event: string, properties?: Record<string, unknown>) {
   if (!ready()) return;
   posthog.capture(event, properties);
 }
+
+/** Where a member's official accounts were shown when one was opened. */
+export type MemberAccountSurface = 'bill_sponsor_card' | 'bill_cosponsors' | 'member_page';
 
 /** sessionStorage key used to attribute Google OAuth completions after the redirect. */
 const PENDING_GOOGLE_AUTH_KEY = 'ph_pending_google_auth';
@@ -281,6 +285,18 @@ export const analytics = {
     surface?: 'bar' | 'panel' | 'empty_state';
   }) => capture('bills_filters_cleared', props ?? {}),
 
+  /**
+   * The reader picked an order from the Sort menu on /bills. `from_sort` is
+   * the order applied before, which is the filter set's default when they had
+   * not picked one; `is_default` says whether they picked that default back.
+   */
+  billsSortChanged: (props: {
+    from_sort: BillsSort;
+    to_sort: BillsSort;
+    is_default: boolean;
+    active_filter_count: number;
+  }) => capture('bills_sort_changed', props),
+
   /** The header's search field (lg and up). Length, not the text — the same
    *  rule as `bills_no_results`. An empty submit just opens /bills. */
   headerSearchSubmitted: (queryLength: number) =>
@@ -473,20 +489,19 @@ export const analytics = {
   }) => capture('hub_order_changed', props),
 
   /**
-   * A link from one hub to a sibling hub, from /bills into a hub, from the
-   * site footer's three hub links, or from the foot of a bill page
-   * (`bill_page`: its topic, stage and chamber).
+   * A link from one hub to a sibling hub, from a /bills filter picker into a
+   * hub, from the site footer's three hub links, or from the foot of a bill
+   * page (`bill_page`: its topic, stage and chamber).
    *
-   * `placement` distinguishes the browse disclosure on /bills from the
-   * sibling row on a hub page, a picker footer, and the site footer (`footer`). Worth having: this
-   * event had no call site on /bills at all, so "no one uses the category
-   * list" was unfalsifiable from our own data.
+   * `placement` distinguishes the sibling row on a hub page, a picker footer,
+   * the site footer (`footer`) and a bill page. `directory`, the "Guides to
+   * every topic and stage" box on /bills, was removed on 2026-11-02.
    */
   hubLinkClicked: (props: {
     from_path: string;
     to_path: string;
     hub_kind: 'chamber' | 'status' | 'topic';
-    placement?: 'directory' | 'filter_panel' | 'hub_siblings' | 'footer' | 'bill_page';
+    placement?: 'filter_panel' | 'hub_siblings' | 'footer' | 'bill_page';
   }) => capture('hub_link_clicked', props),
 
   /**
@@ -572,6 +587,14 @@ export const analytics = {
   }) => capture('bill_journey_viewed', props),
 
   /**
+   * The reader tapped "Show every step" under a bill's journey on a phone,
+   * where the stages start collapsed to their phases (from `sm` up every step
+   * is always shown, so this never fires there). Once per opening.
+   */
+  billJourneyExpanded: (props: { bill_id: string; chapters: number; events: number }) =>
+    capture('bill_journey_expanded', props),
+
+  /**
    * The reader scrolled to the "Among its peers" dot field on a bill page
    * (30% of it on screen). Once per bill view.
    */
@@ -584,6 +607,22 @@ export const analytics = {
   }) => capture('bill_peers_viewed', props),
 
   billPdfOpened: (billId: string) => capture('bill_pdf_opened', { bill_id: billId }),
+
+  /** A reader opened a member's page from a bill page. */
+  memberPageLinkClicked: (props: { bioguide_id: string; from: 'bill_sponsor_card' | 'bill_cosponsors'; bill_id: string }) =>
+    capture('member_page_link_clicked', props),
+
+  /** A reader asked for every cosponsor of a bill beyond the first ten. */
+  billCosponsorsExpanded: (props: { bill_id: string; total: number }) =>
+    capture('bill_cosponsors_expanded', props),
+
+  /** A reader opened one of a member's official accounts, or their website. */
+  memberAccountClicked: (props: {
+    platform: 'x' | 'facebook' | 'instagram' | 'youtube' | 'website';
+    bioguide_id: string;
+    surface: MemberAccountSurface;
+    bill_id?: string;
+  }) => capture('member_account_clicked', props),
 
   billSaveToggled: (props: {
     bill_id: string;
@@ -827,7 +866,7 @@ export const analytics = {
    */
   answerPanelOpened: (props: {
     surface: string;
-    trigger: 'launcher' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
+    trigger: 'launcher' | 'header' | 'bill_page' | 'hero' | 'starter' | 'ask' | 'manual' | 'typing';
     has_conversation: boolean;
   }) => capture('answer_panel_opened', props),
 
@@ -846,24 +885,41 @@ export const analytics = {
    */
   answerPanelRestored: (props: {
     surface: string;
-    trigger: 'launcher' | 'typing';
+    trigger: 'launcher' | 'header' | 'typing';
     turn_count: number;
     away_ms: number;
   }) => capture('answer_panel_restored', props),
 
   /**
-   * The reader started typing with no field focused, and the key was sent to
-   * the ask box (`components/answers/type-to-ask.tsx`). Once per run of typing,
-   * not per key: the next key lands in the focused box and is not seen here.
-   * `target` says where it went — `open_panel` opened (or restored) the panel
-   * for it, which also sends `answer_panel_opened`/`restored` with trigger
-   * `typing`.
+   * The reader used the keyboard way into Ask and focus moved to an ask box
+   * (`components/answers/ask-shortcut.tsx`). Since 2026-11-04 that is the `/`
+   * key only, once per press, and `key` says so; before, any printable key
+   * typed with nothing focused, once per run of typing, with no `key`. The
+   * event keeps its name so saved insights keep counting. `target` says where
+   * it went — `open_panel` opened (or restored) the panel for it, which also
+   * sends `answer_panel_opened`/`restored` with trigger `typing`.
    */
   askTypedAnywhere: (props: {
     surface: string;
     target: 'panel' | 'hero' | 'open_panel';
     panel_phase: 'closed' | 'open' | 'minimized';
+    key: 'slash';
   }) => capture('ask_typed_anywhere', props),
+
+  /**
+   * The reader turned the `/` shortcut off or back on. `placement` is the
+   * switch they used: the line under the panel's composer or the footer's
+   * On/Off control (one stored value). The footer's is on every screen; the
+   * composer line shows with a mouse or trackpad, and on touch once `/` has
+   * been pressed there. The choice is kept
+   * in this browser only. A high `off` rate says the key is getting in
+   * readers' way.
+   */
+  askShortcutToggled: (props: {
+    surface: string;
+    enabled: boolean;
+    placement: 'composer' | 'footer';
+  }) => capture('ask_shortcut_toggled', props),
 
   /**
    * Drag end only, debounced — a capture per pointermove would swamp every
@@ -954,6 +1010,23 @@ export const analytics = {
   /** User picked their state in the "two rooms" seat pictures. */
   learnStateSelected: (state: string, representatives: number) =>
     capture('learn_state_selected', { state, representatives }),
+
+  // Civics words (components/brand/term.tsx, lib/glossary.ts)
+
+  /**
+   * A reader opened a civics word's plain meaning (`<Term>`): a tap, a click
+   * or Enter on the dotted word. `term` is the glossary id ("committee"),
+   * `path` the page it was opened on. "More words in Learn" inside the popover
+   * is autocaptured (`data-ph-capture-attribute-cta="term-more-in-learn"`).
+   */
+  termOpened: (props: { term: string; path: string }) => capture('term_opened', props),
+
+  /**
+   * A reader opened the "Words to know" list at the foot of a bill page on a
+   * phone, where it starts folded (from `sm` up it is always open, so this
+   * never fires there). `words` is how many the list holds. Once per opening.
+   */
+  billWordsExpanded: (props: { bill_id: string; words: number }) => capture('bill_words_expanded', props),
 
   // Feedback and surveys (components/feedback/). PostHog's own survey events,
   // not custom ones: their names and `$survey_*` properties are what fill the

@@ -62,13 +62,14 @@ export default function PodcastPromo({
             The ideas behind everything Congress does — each Federalist Paper
             explained in plain English, one short episode at a time.
           </p>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+          {/* 24px between the lines on touch, so the two 44px targets do not overlap. */}
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm touchable:gap-y-6">
             <a
               href={PODCAST.spotifyUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackClick('spotify')}
-              className="link focus-ring inline-flex items-center gap-1.5 rounded-sm"
+              className="link touch-hit focus-ring inline-flex items-center gap-1.5 rounded-sm"
             >
               <Headphones className="h-4 w-4" strokeWidth={1.75} />
               Listen on Spotify
@@ -78,7 +79,7 @@ export default function PodcastPromo({
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => trackClick('apple')}
-              className="link focus-ring inline-flex items-center gap-1.5 rounded-sm"
+              className="link touch-hit focus-ring inline-flex items-center gap-1.5 rounded-sm"
             >
               <Podcast className="h-4 w-4" strokeWidth={1.75} />
               Listen on Apple Podcasts
@@ -104,7 +105,7 @@ export default function PodcastPromo({
         <h2 className="text-display-sm text-ink sm:text-display-md">
           {PODCAST.title}
         </h2>
-        <p className="mt-3 text-[15px] leading-relaxed text-ink-2 sm:text-base">
+        <p className="mt-3 text-ui leading-relaxed text-ink-2 sm:text-base">
           The essays that argued America into existence — and that explain why
           Congress works the way it does. Each Federalist Paper, retold in
           plain English, one short episode at a time.

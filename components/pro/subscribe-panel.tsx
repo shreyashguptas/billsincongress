@@ -55,5 +55,5 @@ function SubscribePanelInner() {
 
 /** A quiet band above the plans: why the reader is here, not an error. */
 function Notice({ children }: { children: ReactNode }) {
-  return <p className="rounded-md bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">{children}</p>;
+  return <p className="rounded-md bg-sunken px-4 py-3 text-ui leading-relaxed text-ink">{children}</p>;
 }

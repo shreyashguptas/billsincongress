@@ -7,7 +7,8 @@
  * value in both themes (documentation/brand.md, "The stage") — the one dark
  * band on the page. Centred. The chart (hemicycle.tsx) is the hero; its hollow
  * holds one big number — laws passed — that swaps to a party's own number on
- * hover. One legend row under the arc carries every party, and the ask box
+ * hover. A legend entry also pins its party when clicked or tapped (a touch
+ * screen has no hover), as the topic wheel pins a topic. One legend row under the arc carries every party, and the ask box
  * (HeroAsk, with its bill suggestions) sits below it with its starters as
  * pills. Browse sits beside the Congress picker.
  */
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { formatCongressOrdinal, formatCongressYears } from '@/lib/congress';
 import { PartyDot } from '@/components/brand/party';
 import { SourceLine } from '@/components/brand/section';
+import { Term } from '@/components/brand/term';
 import { HeroAsk } from '@/components/answers/hero-ask';
 import { Hemicycle, HemicycleKey, PARTIES, WellReadout, type PartyKey } from './hemicycle';
 import { BrowseLink, CongressSelect, combinedParty, fmt, type HomeProps } from './shared';
@@ -42,15 +44,25 @@ export function HomeHero(props: HomeProps) {
   const { bills, laws } = breakdownComplete
     ? combinedParty(house, senate)
     : combinedParty(null, null);
-  const [hover, setHoverState] = useState<PartyKey | null>(null);
+  const [hoverState, setHoverState] = useState<PartyKey | null>(null);
+  const [pinned, setPinned] = useState<PartyKey | null>(null);
   const reported = useRef(new Set<PartyKey>());
+  const report = (p: PartyKey) => {
+    if (reported.current.has(p)) return;
+    reported.current.add(p);
+    analytics.homeChamberPartyFocused(p, congress);
+  };
   const setHover = (p: PartyKey | null) => {
     setHoverState(p);
-    if (p && !reported.current.has(p)) {
-      reported.current.add(p);
-      analytics.homeChamberPartyFocused(p, congress);
-    }
+    if (p) report(p);
   };
+  const togglePin = (p: PartyKey) => {
+    const next = pinned === p ? null : p;
+    setPinned(next);
+    if (next) report(next);
+  };
+  // What the seats and the well show: the party pointed at, else the pinned one.
+  const hover = hoverState ?? pinned;
   const totalBills = PARTIES.reduce((s, p) => s + bills[p.key], 0);
   const totalLaws = PARTIES.reduce((s, p) => s + laws[p.key], 0);
   // When this Congress's counts were last rebuilt from the synced bills.
@@ -64,17 +76,19 @@ export function HomeHero(props: HomeProps) {
             The {formatCongressOrdinal(congress)} Congress · {formatCongressYears(congress)}
           </p>
           <div className="flex items-center gap-5">
-            <BrowseLink label="Browse bills →" />
+            <BrowseLink label="Browse bills" />
             <CongressSelect {...props} />
           </div>
         </div>
 
-        <h1 className="mt-10 text-center text-[38px] font-medium leading-[1.08] tracking-[-0.02em] text-ink sm:mt-14 sm:text-display-2xl">
+        <h1 className="mt-10 text-center text-[2.375rem] font-medium leading-[1.08] tracking-[-0.02em] text-ink sm:mt-14 sm:text-display-2xl">
           Who&rsquo;s writing America&rsquo;s laws?
         </h1>
-        <p className="mx-auto mt-4 max-w-measure text-center text-[17px] leading-relaxed text-ink-2">
-          A congressional bill tracker: every bill and resolution in the {formatCongressOrdinal(congress)} Congress,
-          seated by the party of its sponsor.
+        <p className="mx-auto mt-4 max-w-measure text-center text-[1.0625rem] leading-relaxed text-ink-2">
+          {/* The first civics words on the site, each a tap from its meaning. */}
+          A congressional bill tracker: every bill and <Term id="resolution">resolution</Term> in the{' '}
+          <Term id="congress-number">{formatCongressOrdinal(congress)} Congress</Term>, seated by the party of
+          its <Term id="sponsor">sponsor</Term>.
         </p>
 
         <div className="mx-auto mt-8 max-w-[900px] sm:mt-10">
@@ -89,33 +103,40 @@ export function HomeHero(props: HomeProps) {
 
         {/* One legend row: every party, same place, hover-linked to the seats. */}
         <div
-          className="mx-auto mt-8 grid max-w-md grid-cols-3 gap-x-3 gap-y-5 sm:flex sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-x-14"
-          onMouseLeave={() => setHover(null)}
+          className="mx-auto mt-8 grid max-w-md grid-cols-1 border-b border-line sm:flex sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-x-14 sm:border-0"
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
         >
           {PARTIES.filter((p) => bills[p.key] > 0).map((p) => (
             <button
               key={p.key}
               type="button"
-              onMouseEnter={() => setHover(p.key)}
-              onFocus={() => setHover(p.key)}
+              // Mouse only: a tap's compatibility mouseenter would leave a
+              // hover behind that outlives un-pinning.
+              onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(p.key)}
+              // Keyboard focus only: a tap focuses the button too, and that
+              // hover would outlive un-pinning it with a second tap.
+              onFocus={(e) => e.currentTarget.matches(':focus-visible') && setHover(p.key)}
               onBlur={() => setHover(null)}
+              onClick={() => togglePin(p.key)}
+              aria-pressed={pinned === p.key}
               className={cn(
-                'focus-ring rounded-sm text-left transition-opacity sm:text-center',
+                // A phone gives each party a full-width row, name then counts,
+                // rather than a third of the width, so they fit at any font size.
+                'focus-ring flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-sm border-t border-line py-3 text-left transition-opacity sm:block sm:border-0 sm:py-0 sm:text-center touchable:min-h-11',
                 hover && hover !== p.key && 'opacity-35',
               )}
             >
-              {/* Eyebrow tracking eases on a phone so "Independents" fits a third of the width. */}
-              <span className="label-eyebrow flex items-center gap-1.5 tracking-[0.06em] text-ink-2 sm:justify-center sm:gap-2 sm:tracking-[0.14em]">
+              <span className="label-eyebrow flex items-center gap-2 sm:justify-center">
                 <PartyDot party={p.key} />
                 {p.label}
               </span>
-              <span className="mt-1.5 flex flex-col font-mono text-[13px] leading-5 text-ink-2 tabular sm:block">
+              <span className="meta sm:mt-1.5 sm:block">
                 <span>
-                  <span className="text-ink">{fmt(bills[p.key])}</span> filed
+                  <span className="font-medium text-ink">{fmt(bills[p.key])}</span> filed
                 </span>
-                <span className="hidden sm:inline"> · </span>
+                <span> · </span>
                 <span>
-                  <span className="text-status-law">{fmt(laws[p.key])}</span> {laws[p.key] === 1 ? 'law' : 'laws'}
+                  <span className="font-medium text-status-law">{fmt(laws[p.key])}</span> {laws[p.key] === 1 ? 'law' : 'laws'}
                 </span>
               </span>
             </button>

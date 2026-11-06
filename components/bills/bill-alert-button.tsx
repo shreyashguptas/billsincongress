@@ -72,6 +72,26 @@ function BillAlertButtonInner({ billId, analyticsProps, className }: BillAlertBu
 
   const [upsellNotice, setUpsellNotice] = useState<string | null>(null);
 
+  /*
+   * Focus back on this button when the Pro dialog closes. The dialog is opened
+   * from code, not through a Radix trigger, so Radix has nothing to return
+   * focus to and Escape left a keyboard reader on <body>, at the top of the
+   * page. This runs as the dialog starts its exit: its focus trap is already
+   * released, and once focus is out of the content, its removal cannot take
+   * focus with it.
+   */
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const upsellWasOpen = useRef(false);
+  useEffect(() => {
+    if (upsellOpen) {
+      upsellWasOpen.current = true;
+      return;
+    }
+    if (!upsellWasOpen.current) return;
+    upsellWasOpen.current = false;
+    buttonRef.current?.focus();
+  }, [upsellOpen]);
+
   const status = useQuery(api.alerts.statusForBill, { billId });
 
   // Back from Stripe or from signing in. Read once, then dropped from the
@@ -193,6 +213,7 @@ function BillAlertButtonInner({ billId, analyticsProps, className }: BillAlertBu
   return (
     <>
       <Button
+        ref={buttonRef}
         type="button"
         variant="outline"
         onClick={handleClick}

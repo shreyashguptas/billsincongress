@@ -143,6 +143,47 @@ it("tells the model to write the answer once, not a draft it then reconsiders", 
   }
 });
 
+it("claims no missing summary or action without having looked", () => {
+  // The fact-check judge, 2026-10-23 to 11-01: "There is no official summary
+  // yet" with no bill_summaries lookup in the trace, and "its only recorded
+  // action was its introduction" read off a row's two dates. The old rule
+  // itself said to "say there is no official summary yet" whenever one was
+  // not in hand.
+  assert.match(prompt, /no official summary only after `bill_summaries` came back empty/);
+  assert.match(prompt, /only from `bill_actions`: a row's dates do not show them/);
+});
+
+it("adds nothing the lookups did not give", () => {
+  // Same judge: "supporters would likely say…", "Name changes are usually a
+  // separate court process", "Most are post office namings" from 10 of 29.
+  assert.match(prompt, /Add nothing of your own/);
+  assert.match(prompt, /supporters would say/);
+});
+
+it("takes a ranking from a sorted result, never from counting positions", () => {
+  // Same judge: "the fourth-largest policy area" for the sixth, and a list of
+  // eight states "in order" that was not in order.
+  assert.match(prompt, /Never count positions yourself/);
+});
+
+it("names a speaker only when the web excerpt does", () => {
+  // Same judge: unattributed quotes in news excerpts put in the sponsor's mouth.
+  assert.match(prompt, /Name who said something only if the excerpt names them/);
+});
+
+it("gives one way to count bills, not the old two-count workaround", () => {
+  // The prompt said to add billType 'hr' and 's' as two counts, written a day
+  // before measure 'bill' existed; the bills and stats docs said otherwise.
+  assert.doesNotMatch(prompt, /two counts/);
+  assert.match(prompt, /add measure 'bill'/);
+});
+
+it("allows the web lookup on the same condition in the tool and the prompt", () => {
+  const web = ANSWER_TOOLS.find((t) => t.function.name === "search_web");
+  assert.match(web!.function.description, /complete fetch_dataset came back empty/);
+  assert.match(prompt, /complete lookup comes back empty/);
+});
+
 it("names the newest Congress we hold, from the data, not a constant", () => {
   const p120 = buildSystemPrompt({ today: "2027-03-01", newestCongress: 120 });
   assert.match(p120, /Congresses before the 120th have all adjourned/);

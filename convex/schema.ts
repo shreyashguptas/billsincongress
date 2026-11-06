@@ -130,6 +130,11 @@ export default defineSchema({
     // Rosen), and twice when two members share a name (the Menendezes in the
     // 118th). See convex/sponsorIdentity.ts. Absent on rows not yet backfilled.
     sponsorBioguideId: v.optional(v.string()),
+    // Current cosponsors (withdrawn ones not counted), and a fingerprint of the
+    // stored `billCosponsors` rows so a sync rewrites them only when they
+    // change. Absent until the bill's cosponsors are first fetched.
+    cosponsorCount: v.optional(v.number()),
+    cosponsorsFingerprint: v.optional(v.string()),
     progressStage: v.optional(v.number()), // 20, 40, 50 (out of committee), 60, 80, 85 (vetoed), 90, 95, 100
     progressDescription: v.optional(v.string()),
     latestActionDate: v.optional(v.string()),
@@ -231,6 +236,12 @@ export default defineSchema({
     // memory — the same class of silent miss as the policyArea note above.
     .index("by_congress_and_sponsor_state", ["congress", "sponsorState"])
     .index("by_congress_and_sponsor_last", ["congress", "sponsorLastName"])
+    // A member's own bills in a Congress, newest first: the member page.
+    .index("by_sponsorBioguideId_and_congress_and_introducedDate", [
+      "sponsorBioguideId",
+      "congress",
+      "introducedDate",
+    ])
     .searchIndex("search_title", {
       searchField: "title",
       filterFields: ["congress", "billType", "progressStage", "sponsorState"],
@@ -278,6 +289,30 @@ export default defineSchema({
     formatsUrlPdf: v.optional(v.string()),
     type: v.optional(v.string()),
   }).index("by_billId", ["billId"]),
+
+  // A bill's cosponsors as Congress.gov lists them (convex/cosponsors.ts),
+  // replaced as a set by the sync (`replaceBillCosponsors`). Withdrawn
+  // cosponsors stay, with `withdrawnDate`. The first index is a bill's
+  // cosponsors in page order; the second is a member's cosponsorships in a
+  // Congress, newest first, for the member page.
+  billCosponsors: defineTable({
+    billId: v.string(),
+    congress: v.number(),
+    bioguideId: v.string(),
+    firstName: v.string(),
+    lastName: v.string(),
+    party: v.optional(v.string()),
+    state: v.optional(v.string()),
+    district: v.optional(v.number()),
+    sponsorshipDate: v.string(),
+    isOriginal: v.boolean(),
+    withdrawnDate: v.optional(v.string()),
+    // `cosponsorSortKey`: page order, so a bill page reads exactly its first
+    // ten rows from the index, and they are the same ten "Show all" begins with.
+    sortKey: v.string(),
+  })
+    .index("by_billId_and_sortKey", ["billId", "sortKey"])
+    .index("by_bioguideId_and_congress_and_sponsorshipDate", ["bioguideId", "congress", "sponsorshipDate"]),
 
   // Detailed legislative subjects (one-to-many: bill -> subjects). Distinct
   // from the single policy area kept in billSubjects — the Library of Congress
@@ -661,4 +696,70 @@ export default defineSchema({
     // version being re-fetched on every question (review on #171).
     attemptedAt: v.optional(v.number()),
   }).index("by_name_version", ["name", "version"]),
+
+  // Long one-off jobs that convex/afterDeploy.ts starts by itself after a
+  // merge, so a deploy never waits on someone remembering a command. One row
+  // per job: `heartbeatAt` is written by every run of the job's chain, so a
+  // chain that died (a crash between runs) is restarted by the next deploy
+  // instead of being taken for one still running.
+  backgroundJobs: defineTable({
+    name: v.string(),
+    state: v.union(v.literal("running"), v.literal("done")),
+    startedAt: v.number(),
+    heartbeatAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }).index("by_name", ["name"]),
+
+  // Each member's official social media accounts and website, one row per
+  // member: suggested daily by the congress-legislators project plus our
+  // reviewed fixes, and confirmed against the member's own .gov website
+  // (convex/memberAccounts.ts). A member who leaves office keeps
+  // their row with `inOffice: false`, and no page shows their accounts: official
+  // accounts are archived or handed on when a member leaves.
+  memberAccounts: defineTable({
+    bioguideId: v.string(),
+    name: v.string(),
+    chamber: v.union(v.literal("house"), v.literal("senate")),
+    state: v.string(),
+    party: v.optional(v.string()),
+    district: v.optional(v.number()),
+    inOffice: v.boolean(),
+    officialWebsiteUrl: v.optional(v.string()),
+    // At most one per platform (four), so the list is bounded.
+    accounts: v.array(
+      v.object({
+        platform: v.union(
+          v.literal("x"),
+          v.literal("facebook"),
+          v.literal("instagram"),
+          v.literal("youtube"),
+        ),
+        label: v.string(),
+        url: v.string(),
+        source: v.union(v.literal("congress-legislators"), v.literal("override")),
+        proofUrl: v.optional(v.string()),
+        // When the member's own official website was last seen linking this
+        // exact account, and what to show for it: the account's address (for
+        // YouTube, the exact form the site linked: channel id, @handle, /user/
+        // or /c/) and its label. Absent = not confirmed, and no page shows
+        // it: the file suggests accounts, the member's own .gov site confirms.
+        confirmedAt: v.optional(v.string()),
+        shown: v.optional(v.object({ url: v.string(), label: v.string() })),
+      }),
+    ),
+    // The last check of the member's official website (checkSites). `links`
+    // is every social account that page links, kept for the review list.
+    siteCheck: v.optional(
+      v.object({
+        status: v.union(v.literal("ok"), v.literal("blocked"), v.literal("failed")),
+        checkedAt: v.string(),
+        lastOkAt: v.optional(v.string()),
+        links: v.array(v.string()),
+      }),
+    ),
+    // `recordFingerprint` of the suggested accounts, so a sync rewrites only
+    // rows that changed, and `changedAt` says when this member's row last did.
+    fingerprint: v.string(),
+    changedAt: v.string(),
+  }).index("by_bioguideId", ["bioguideId"]),
 });

@@ -19,7 +19,8 @@ type Step = "credentials" | "verify";
 
 // The verify step's two quiet actions: link Buttons at text height, in ink-2
 // so the submit stays the one strong control.
-const SECONDARY_ACTION = "rounded-xs font-normal text-ink-2 hover:text-ink";
+// touch-hit: text height, but a 44px hit box on a touch screen.
+const SECONDARY_ACTION = "touch-hit rounded-xs font-normal text-ink-2 hover:text-ink";
 
 type ErrorState =
   | null
@@ -121,7 +122,7 @@ export function SignUpForm() {
   if (step === "verify") {
     return (
       <div className="space-y-6">
-        <p className="text-[15px] leading-relaxed text-ink-2">
+        <p className="text-ui leading-relaxed text-ink-2">
           If this email can be used, we sent a 6-digit code to <span className="font-medium text-ink">{email}</span>.
           It expires in 15 minutes.
         </p>
@@ -214,7 +215,7 @@ export function SignUpForm() {
             disabled={busy}
             aria-describedby="password-rules"
           />
-          <p id="password-rules" className="text-[13px] leading-snug text-ink-3">
+          <p id="password-rules" className="text-caption leading-snug text-ink-2">
             {PASSWORD_RULES}
           </p>
         </div>
@@ -226,7 +227,7 @@ export function SignUpForm() {
 
       <p className="text-center text-sm text-ink-3">
         Already have an account?{" "}
-        <Link href="/sign-in" className="link focus-ring rounded-xs font-medium">
+        <Link href="/sign-in" className="link touch-hit focus-ring rounded-xs font-medium">
           Sign in
         </Link>
       </p>

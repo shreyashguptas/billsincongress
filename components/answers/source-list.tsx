@@ -26,7 +26,7 @@ function labelOf(s: { dataset: string; id: string; label: string }, bills?: Map<
 
 /** Citations are mono 12 in ink-2 (brand.md, "Show the receipts"). */
 const SOURCE_LINK =
-  'focus-ring rounded-xs text-ink-2 underline decoration-line-strong underline-offset-[3px] ' +
+  'touch-hit focus-ring rounded-xs text-ink-2 underline decoration-line-strong underline-offset-[3px] ' +
   'transition-colors hover:text-ink hover:decoration-ink';
 
 /**
@@ -68,10 +68,10 @@ export function SourceList({
           <p className="label-eyebrow !mb-2">
             <span aria-hidden="true">■</span> From our database
           </p>
-          <ol className="space-y-1">
+          <ol className="space-y-1 touchable:space-y-3">
             {db.map(({ number, source: s }) => (
-              <li key={s.handle} className="flex gap-2.5 font-mono text-xs leading-5">
-                <span className="w-4 shrink-0 text-right text-ink-3 tabular">
+              <li key={s.handle} className="flex gap-2.5 text-meta">
+                <span className="w-4 shrink-0 text-right text-ink-2 tabular">
                   {number}
                 </span>
                 {s.href ? (
@@ -109,10 +109,10 @@ export function SourceList({
               {webReason} So this came from the web:
             </p>
           )}
-          <ol className="space-y-1">
+          <ol className="space-y-1 touchable:space-y-3">
             {web.map(({ number, handle, web: s }, i) => (
-              <li key={`${handle}:${i}`} className="flex gap-2.5 font-mono text-xs leading-5">
-                <span className="w-4 shrink-0 text-right text-ink-3 tabular">
+              <li key={`${handle}:${i}`} className="flex gap-2.5 text-meta">
+                <span className="w-4 shrink-0 text-right text-ink-2 tabular">
                   {/* No number for a result the answer never cited: nothing in
                       the prose points here, and a number would imply it does. */}
                   {number ?? <span aria-hidden="true">·</span>}

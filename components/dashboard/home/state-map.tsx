@@ -12,15 +12,24 @@
  *
  * Shading is the one `heat` amber in five equal-count steps (quintiles), with
  * a legend, so it is never mistaken for a party or for "became law".
+ *
+ * Pointing at a state (mouse hover or keyboard focus) fills the readout beside
+ * the map; a click goes to its bills. A tap only selects the state, since a
+ * 22px tile on a phone is easy to miss: the readout names what was hit, and a
+ * second tap on the tile, or the readout's link, goes to its bills. The top
+ * five stays put under the readout either way, so it is always clickable.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { formatCongressOrdinal } from '@/lib/congress';
 import { SectionHeader } from '@/components/brand/section';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SectionAsk, fmt, type HomeProps } from './shared';
+import { Arrow } from '@/components/brand/arrow';
+import { HEAT_ALPHA, NIGHT_ON_INK_FROM_BIN } from '@/lib/state-map-tiles';
 
 // [column, row] on an 11 × 8 grid.
 const TILES: Record<string, [number, number]> = {
@@ -74,7 +83,11 @@ export function StateMap({
   const perMemberAvailable = congress >= FIRST_CONGRESS_ON_2020_APPORTIONMENT;
   const [metricPick, setMetric] = useState<Metric>('total');
   const metric: Metric = perMemberAvailable ? metricPick : 'total';
+  // `hover`: under the mouse or keyboard focus. `picked`: selected by a tap.
   const [hover, setHover] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  // The pointer that started the current click; keyboard clicks have none.
+  const lastPointer = useRef<string | null>(null);
 
   const rows = useMemo(() => {
     const counts = new Map<string, number>();
@@ -101,11 +114,24 @@ export function StateMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, metric]);
   const binOf = (v: number) => breaks.filter((b) => v >= b).length; // 0..4
-  const ALPHA = [0.12, 0.3, 0.5, 0.72, 0.95];
+  const ALPHA = HEAT_ALPHA;
 
   const fmtVal = (v: number) => (metric === 'total' ? fmt(Math.round(v)) : v.toFixed(1));
   const unit = metric === 'total' ? 'bills' : 'bills per member';
-  const focus = hover ? byState.get(hover) : null;
+  const active = hover ?? picked;
+  const focus = active ? byState.get(active) : null;
+  const stateHref = (st: string) => `/bills?${new URLSearchParams({ congress: String(congress), state: st })}`;
+
+  const onTileClick = (st: string) => {
+    const pointer = lastPointer.current;
+    lastPointer.current = null;
+    // Mouse and keyboard go straight to the bills; a tap selects first.
+    if ((pointer === 'touch' || pointer === 'pen') && picked !== st) {
+      setPicked(st);
+      return;
+    }
+    onDrillDown('state', st);
+  };
 
   const tile = (st: string, extra?: string) => {
     const r = byState.get(st);
@@ -115,21 +141,32 @@ export function StateMap({
       <button
         key={st}
         type="button"
-        onMouseEnter={() => setHover(st)}
-        onFocus={() => setHover(st)}
-        onClick={() => onDrillDown('state', st)}
-        aria-label={`${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
+        // Pointer events, not mouse events: a tap fires compatibility
+        // mouseenter too, which would read as a hover.
+        onPointerEnter={(e) => e.pointerType === 'mouse' && setHover(st)}
+        onPointerDown={(e) => {
+          lastPointer.current = e.pointerType;
+        }}
+        // Keyboard focus only; a tap or click focuses the tile too.
+        onFocus={(e) => e.currentTarget.matches(':focus-visible') && setHover(st)}
+        onBlur={() => setHover(null)}
+        onClick={() => onTileClick(st)}
+        aria-label={`${st}, ${NAMES[st]}: ${r ? fmtVal(v) : 0} ${unit}`}
         className={cn(
           'focus-ring relative flex aspect-square flex-col items-center justify-center rounded-xs transition-[opacity,box-shadow]',
-          bin >= 3 ? 'text-on-ink' : 'text-ink',
+          // Ink in Day on every shade; on-ink on Night's two darkest
+          // (lib/state-map-tiles.ts, contrast-checked in its test).
+          bin >= NIGHT_ON_INK_FROM_BIN ? 'text-ink dark:text-on-ink' : 'text-ink',
           bin < 0 && 'bg-sunken',
-          hover === st && 'ring-2 ring-ink',
-          hover && hover !== st && 'opacity-60',
+          active === st && 'ring-2 ring-ink',
+          active && active !== st && 'opacity-60',
           extra,
         )}
         style={bin >= 0 ? { backgroundColor: `hsl(var(--heat) / ${ALPHA[bin]})` } : undefined}
       >
-        <span className="font-mono text-[9px] font-medium leading-none sm:text-xs">{st}</span>
+        {/* A state code is an identifier, so it stays mono, at the 13px floor
+            on every screen: a phone's tile is 29px, room for two 8px figures. */}
+        <span className="font-mono text-xs font-medium leading-none">{st}</span>
       </button>
     );
   };
@@ -146,13 +183,18 @@ export function StateMap({
             />
           }
         />
-        <p className="mt-4 max-w-measure text-[15px] leading-relaxed text-ink-2">
+        <p className="mt-4 max-w-measure text-ui leading-relaxed text-ink-2">
           Bills sponsored by each state&rsquo;s members this Congress.
           {perMemberAvailable && ' Big delegations file more bills, so switch to per member for a fairer comparison.'}
         </p>
 
-        <div className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12">
-          <div className="max-w-[36rem] lg:col-span-8" onMouseLeave={() => setHover(null)}>
+        {/* Leaving the map and its readout together clears the hover, so the
+            mouse can travel from a tile to the readout's link. */}
+        <div
+          className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12"
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
+        >
+          <div className="max-w-[36rem] lg:col-span-8">
             {perMemberAvailable && (
               <ToggleGroup
                 type="single"
@@ -175,7 +217,7 @@ export function StateMap({
                   <ToggleGroupItem
                     key={id}
                     value={id}
-                    className="h-8 rounded-sm px-3 text-[13px] font-medium text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink touchable:h-10"
+                    className="h-8 rounded-sm px-3 text-caption font-medium text-ink-2 hover:bg-transparent hover:text-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink touchable:h-11"
                   >
                     {label}
                   </ToggleGroupItem>
@@ -183,7 +225,14 @@ export function StateMap({
               </ToggleGroup>
             )}
 
-            <div className="grid grid-cols-11 gap-1 sm:gap-1.5">
+            {/* A map, not a row of buttons: eleven tiles must fit a phone, so a
+                tile is ~29px there (above WCAG's 24px, under the 44px the rest
+                of the site keeps). The Top five list and the state filter on
+                /bills reach the same pages with full-size rows. */}
+            <div
+              className="grid grid-cols-11 gap-1 sm:gap-1.5"
+              data-touch-exempt="state map: geographic tiles, 29px at 390px"
+            >
               {Array.from({ length: 8 * 11 }, (_, i) => {
                 const col = i % 11;
                 const row = Math.floor(i / 11);
@@ -193,69 +242,102 @@ export function StateMap({
             </div>
 
             {TERRITORIES.some((t) => byState.has(t)) && (
-              <div className="mt-3 flex items-center gap-3">
-                <span className="label-eyebrow">Territories</span>
-                <div className="grid grid-cols-11 gap-1 sm:gap-1.5 flex-1">
-                  {TERRITORIES.filter((t) => byState.has(t)).map((t) => tile(t))}
-                </div>
+              // On the map's own eleven-column grid, so a territory is the same
+              // size as a state rather than squeezed beside its label.
+              <div
+                className="mt-3 grid grid-cols-11 items-center gap-1 sm:gap-1.5"
+                data-touch-exempt="state map: geographic tiles, 29px at 390px"
+              >
+                <span className="label-eyebrow col-span-4">Territories</span>
+                {TERRITORIES.filter((t) => byState.has(t)).map((t) => tile(t))}
               </div>
             )}
 
-            {/* Legend */}
-            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 font-mono text-xs text-ink-3">
-              <span>fewer</span>
-              {ALPHA.map((a, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5 tabular">
-                  <span className="h-3 w-5 rounded-xs" style={{ backgroundColor: `hsl(var(--heat) / ${a})` }} />
-                  {i === 0 ? `< ${fmtVal(breaks[0])}` : i === 4 ? `≥ ${fmtVal(breaks[3])}` : `${fmtVal(breaks[i - 1])}–${fmtVal(breaks[i])}`}
-                </span>
-              ))}
-              <span>more {unit}</span>
+            {/* Legend: the five shades as one strip, each range under its own
+                shade, so the key is a scale read left to right. */}
+            <div className="meta mt-6">
+              <p className="mb-2 flex justify-between">
+                <span>Fewer {unit}</span>
+                <span>More</span>
+              </p>
+              <ol className="grid grid-cols-5 gap-1 sm:gap-1.5">
+                {ALPHA.map((a, i) => (
+                  <li key={i} className="min-w-0">
+                    <span
+                      aria-hidden="true"
+                      className="block h-3 rounded-xs"
+                      style={{ backgroundColor: `hsl(var(--heat) / ${a})` }}
+                    />
+                    <span className="mt-1.5 block break-words">
+                      {i === 0 ? `< ${fmtVal(breaks[0])}` : i === 4 ? `≥ ${fmtVal(breaks[3])}` : `${fmtVal(breaks[i - 1])}–${fmtVal(breaks[i])}`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
 
-          {/* Readout: the hovered state, or the top five */}
-          <div className="lg:col-span-4" onMouseLeave={() => setHover(null)}>
-            {focus ? (
-              <div key={focus.st} className="animate-fade-in border-y border-line py-5">
-                <p className="label-eyebrow">{focus.st}</p>
-                <p className="mt-1 font-serif text-display-sm font-medium text-ink">{focus.name}</p>
-                <p className="mt-4 font-serif text-[44px] font-normal leading-none text-ink tabular">{fmt(focus.bills)}</p>
-                <p className="mt-1 text-sm text-ink-2">bills sponsored</p>
-                {perMemberAvailable && focus.seats > 0 && (
-                  <p className="mt-3 text-sm">
-                    <span className="font-mono text-ink tabular">{focus.perMember.toFixed(1)}</span>{' '}
-                    <span className="text-ink-2">
-                      per member · {focus.seats} {focus.seats === 1 ? 'seat' : 'seats'}
-                    </span>
+          {/* Readout (the state pointed at or tapped), then the top five, which never moves. */}
+          <div className="lg:col-span-4">
+            {/* min-h holds the readout's height, so the list under it stays put. */}
+            <div className="min-h-[11.5rem] border-y border-line py-4">
+              {focus ? (
+                <div key={focus.st} className="animate-in fade-in-0 duration-200">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <p className="min-w-0">
+                      <span className="label-eyebrow block">{focus.st}</span>
+                      <span className="mt-1 block font-serif text-display-sm font-medium text-ink">{focus.name}</span>
+                    </p>
+                    <p className="shrink-0 text-right">
+                      <span className="block font-serif text-display-md font-normal leading-none text-ink tabular">
+                        {fmt(focus.bills)}
+                      </span>
+                      <span className="mt-1 block text-meta text-ink-2">bills sponsored</span>
+                    </p>
+                  </div>
+                  <p className="meta mt-3">
+                    {perMemberAvailable && focus.seats > 0 && (
+                      <>
+                        <span className="font-medium text-ink">{focus.perMember.toFixed(1)}</span> per member · {focus.seats}{' '}
+                        {focus.seats === 1 ? 'seat' : 'seats'} ·{' '}
+                      </>
+                    )}
+                    #{ranked.findIndex((r) => r.st === focus.st) + 1} of {ranked.length} by{' '}
+                    {metric === 'total' ? 'total' : 'per member'}
                   </p>
-                )}
-                <p className="mt-2 font-mono text-xs text-ink-3">
-                  #{ranked.findIndex((r) => r.st === focus.st) + 1} of {ranked.length} by {metric === 'total' ? 'total' : 'per member'}
+                  <Link
+                    href={stateHref(focus.st)}
+                    onClick={() => analytics.dashboardDrilldownClicked('state', focus.st, congress)}
+                    className="link touch-hit focus-ring mt-3 inline-block rounded-sm text-sm"
+                  >
+                    See its bills <Arrow />
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-sm text-ink-2">
+                  <span className="fine:hidden">Tap a state to see its count, and tap it again to see its bills.</span>
+                  <span className="hidden fine:inline">Hover over a state to see its count. Click it to see its bills.</span>
                 </p>
-                <p className="mt-4 text-sm text-ink-3">Click to see its bills →</p>
-              </div>
-            ) : (
-              <div>
-                <p className="label-eyebrow mb-3">Top five · {metric === 'total' ? 'total bills' : 'per member'}</p>
-                <ol className="border-b border-line">
-                  {ranked.slice(0, 5).map((r, i) => (
-                    <li key={r.st} className="border-t border-line">
-                      <button
-                        type="button"
-                        onMouseEnter={() => setHover(r.st)}
-                        onClick={() => onDrillDown('state', r.st)}
-                        className="focus-ring grid min-h-12 w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm text-left hover:bg-sunken"
-                      >
-                        <span className="font-mono text-xs text-ink-3 tabular">{i + 1}</span>
-                        <span className="text-[15px] text-ink">{r.name}</span>
-                        <span className="font-mono text-sm text-ink tabular">{fmtVal(value(r))}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
+              )}
+            </div>
+            <div className="mt-6">
+              <p className="label-eyebrow mb-3">Top five · {metric === 'total' ? 'total bills' : 'per member'}</p>
+              <ol className="border-b border-line">
+                {ranked.slice(0, 5).map((r, i) => (
+                  <li key={r.st} className="border-t border-line">
+                    <button
+                      type="button"
+                      onClick={() => onDrillDown('state', r.st)}
+                      className="focus-ring grid min-h-12 w-full grid-cols-[1.25rem_1fr_auto] items-center gap-3 rounded-sm text-left hover:bg-sunken"
+                    >
+                      <span className="text-meta text-ink-3 tabular">{i + 1}</span>
+                      <span className="text-ui text-ink">{r.name}</span>
+                      <span className="text-ui font-medium text-ink tabular">{fmtVal(value(r))}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </div>
       </div>

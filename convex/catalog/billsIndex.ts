@@ -250,3 +250,40 @@ export function countInMemoryFilters(
     (key) => filters[key] !== undefined && filters[key] !== null && !enforced.has(key),
   ).length;
 }
+
+/**
+ * Why no ordering index can serve a `bills` sort with these filters, written for
+ * the model, or null when one can.
+ *
+ * fetch.ts reads a sort through an ordering index whenever this is null, and the
+ * grounding gate's fixture asks the same question, so the two cannot disagree
+ * about which sorts are real. They did: the fixture refused every whole-Congress
+ * sort for two months after fetch.ts learned to serve one, and the gate failed a
+ * question production answered correctly (2026-10-27).
+ *
+ * When this is not null the sort is still applied in memory if the whole set was
+ * read; the reason matters only when it was not, and the order is arbitrary.
+ */
+export function sortBlockedBy(filters: Record<string, unknown>): string | null {
+  // An exact id needs no ordering, and its own branch is far more selective.
+  if (isString(filters.billId)) return "a lookup of one bill has nothing to sort";
+  // The search index cannot be combined with an ordering index.
+  if (isString(filters.titleFilter) && filters.titleFilter !== "") {
+    return (
+      "a title search returns matches by relevance and cannot be read in date order. For a " +
+      "subject, filter by its policy area instead, which does sort; otherwise narrow the search " +
+      "until it comes back complete"
+    );
+  }
+  // reachedStage spans several stage buckets, so no single ordered range covers it.
+  if (typeof filters.reachedStage === "number") {
+    return (
+      "'reached a stage' covers several stages at once and cannot be read in date order. Ask " +
+      "for each stage with progressStage instead: each of those is sorted"
+    );
+  }
+  // A handful of rows, all old: the newest-first window would miss every one.
+  // The party index reads them completely and the sort is then done in memory.
+  if (filters.sponsorParty === NO_PARTY) return "measures with no party are read whole instead";
+  return null;
+}
