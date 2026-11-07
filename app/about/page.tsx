@@ -126,7 +126,7 @@ const steps = [
   },
   {
     title: 'Members’ accounts, checked against their own sites',
-    body: 'No government source lists members’ social media. The volunteer congress-legislators project suggests each account (we correct the few it gets wrong, from members’ own sites), and once a day our checker (BillsInCongress/1.0) reads each member’s .house.gov or .senate.gov home page. An account is shown only when the latest successful check of that page found it there, and for at most 30 days after it. When a site has never let the checker in, that member shows only their website.',
+    body: 'No government source lists members’ social media. The volunteer congress-legislators project suggests each account (we correct the few it gets wrong, from members’ own sites, and send the fixes back to the project), and once a day our checker (BillsInCongress/1.0) reads each member’s .house.gov or .senate.gov home page. An account is shown only when the latest successful check of that page found it there, and for at most 30 days after it. When a site has never let the checker in, that member shows only their website.',
   },
   {
     title: 'Continuous synchronisation',
