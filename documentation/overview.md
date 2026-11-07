@@ -647,8 +647,10 @@ nothing else and which nothing reads:
    YouTube, set `youtube_id` to the channel the member's site links (read from that channel's
    own page), and drop a `youtube` name that belongs to a different channel.
 3. **When the project merges, delete our copy.** Once the next sync carries a fix, its override
-   says the same as the file: remove it from `memberAccountOverrides.ts`. Until then it stays,
-   harmlessly, and keeps the site right.
+   says the same as the file: remove it from `memberAccountOverrides.ts`. Until then it keeps the
+   site right, but it also replaces whatever the project lists for that member and platform
+   (`applyOverrides`). If the member's account changes again, a leftover override hides it, so do
+   not leave one in place after the project's file is right.
 
 First batch: 82 House members, prepared 7 Nov 2026 (15 members the file did not have, renamed
 and mistyped accounts, and YouTube channel ids), every fix confirmed by that day's site check.
