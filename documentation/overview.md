@@ -650,7 +650,7 @@ nothing else and which nothing reads:
    says the same as the file: remove it from `memberAccountOverrides.ts`. Until then it stays,
    harmlessly, and keeps the site right.
 
-First batch: 81 House members, prepared 7 Nov 2026 (15 members the file did not have, renamed
+First batch: 82 House members, prepared 7 Nov 2026 (15 members the file did not have, renamed
 and mistyped accounts, and YouTube channel ids), every fix confirmed by that day's site check.
 
 At launch (1 Nov 2026), measured against every House member's home page: 1,347 of 1,423
