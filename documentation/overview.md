@@ -659,9 +659,10 @@ nothing else and which nothing reads:
    third account, neither ours nor the one ours replaced (**stale**: the account changed again,
    and our override is hiding it; check the member's site before deleting or updating it). Both
    are on the `member accounts synced` PostHog log line as counts and bioguide ids
-   (`overrides_redundant`, `overrides_redundant_ids`, `overrides_stale`, `overrides_stale_ids`),
-   and in `memberAccounts:reviewList` under each member's `overrides`, with the file's account and
-   what the member's site links. The report changes nothing a reader sees: every override still
+   (`overrides_redundant`, `overrides_redundant_ids`, `overrides_stale`, `overrides_stale_ids`;
+   a log attribute holds about 62 ids, so a longer list stops at the last whole id and its
+   `_truncated` attribute is true), and in full in `memberAccounts:reviewList` under each member's
+   `overrides`, with the file's account and what the member's site links. The report changes nothing a reader sees: every override still
    applies until it is deleted. A YouTube override matches the file by channel id or by name
    (`overrideStatus` in `convex/memberAccountsParse.ts`), as the site check does. Checked
    against the real files on 7 Nov 2026: today's file gives 0 redundant and 0 stale, and the file

@@ -10,6 +10,7 @@ import {
   accountFrom,
   applyOverrides,
   buildMemberRecords,
+  idListAttribute,
   officialWebsite,
   overrideReport,
   recordFingerprint,
@@ -19,6 +20,7 @@ import {
 } from "./memberAccountsParse";
 import { ACCOUNT_OVERRIDES } from "./memberAccountOverrides";
 import { confirmOnPage, linkKey } from "./memberAccountsVerify";
+import { MAX_STRING_LENGTH, otlpLogBody } from "./posthogLogs";
 
 let passed = 0;
 const failures: string[] = [];
@@ -305,6 +307,21 @@ it("finds nothing to report in our own overrides against the source they were ch
   const files = [...social].map(([bioguide, s]) => ({ id: { bioguide }, social: s }));
   const { records } = buildMemberRecords(current, files, ACCOUNT_OVERRIDES);
   assert.deepEqual(overrideReport(records), { redundant: 0, stale: 0, redundantIds: [], staleIds: [] });
+});
+
+it("puts only whole bioguide ids on the log line, and says when some did not fit", () => {
+  // Was: 81 members' ids joined into 647 characters, which the log line cut
+  // at 500, mid-id ("…,S000510,S0005"), when our first upstream batch merged.
+  const ids = Array.from({ length: 81 }, (_, i) => `A${String(i).padStart(6, "0")}`);
+  const list = idListAttribute(ids, MAX_STRING_LENGTH);
+  assert.equal(list.truncated, true);
+  assert.ok(list.text.length <= MAX_STRING_LENGTH);
+  const sent = otlpLogBody({ level: "info", message: "member accounts synced", timestampMs: 0, attributes: { ids: list.text } });
+  const value = sent.resourceLogs[0].scopeLogs[0].logRecords[0].attributes.find((a: { key: string }) => a.key === "ids")?.value.stringValue ?? "";
+  assert.equal(value, list.text);
+  assert.ok(value.split(",").every((id: string) => /^A\d{6}$/.test(id)));
+  assert.deepEqual(idListAttribute(ids.slice(0, 3), MAX_STRING_LENGTH), { text: "A000000,A000001,A000002", truncated: false });
+  assert.deepEqual(idListAttribute([], MAX_STRING_LENGTH), { text: "", truncated: false });
 });
 
 it("refuses a download that would quietly empty the site", () => {

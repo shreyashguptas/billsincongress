@@ -43,10 +43,11 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
-import { scheduleLog } from "./posthogLogs";
+import { MAX_STRING_LENGTH, scheduleLog } from "./posthogLogs";
 import { ACCOUNT_OVERRIDES } from "./memberAccountOverrides";
 import {
   buildMemberRecords,
+  idListAttribute,
   overrideReport,
   recordFingerprint,
   safetyProblem,
@@ -170,6 +171,8 @@ export const sync = internalAction({
     }
 
     if (!result.written) console.warn(`[member accounts] not written: ${result.problem}`);
+    const redundantIds = idListAttribute(report.redundantIds, MAX_STRING_LENGTH);
+    const staleIds = idListAttribute(report.staleIds, MAX_STRING_LENGTH);
     if (result.written && args.checkSitesAfter) {
       await ctx.scheduler.runAfter(0, internal.memberAccounts.checkSites, {});
     }
@@ -186,11 +189,15 @@ export const sync = internalAction({
         rejected,
         overrides: ACCOUNT_OVERRIDES.length,
         // Overrides to delete (the source now says the same) or to look at
-        // (the source changed again), with their members' bioguide ids.
+        // (the source changed again), with their members' bioguide ids: as
+        // many whole ids as a log attribute holds (`_truncated` when some
+        // were left out; reviewList has them all).
         overrides_redundant: report.redundant,
-        overrides_redundant_ids: report.redundantIds.join(","),
+        overrides_redundant_ids: redundantIds.text,
+        overrides_redundant_ids_truncated: redundantIds.truncated,
         overrides_stale: report.stale,
-        overrides_stale_ids: report.staleIds.join(","),
+        overrides_stale_ids: staleIds.text,
+        overrides_stale_ids_truncated: staleIds.truncated,
         forced: args.force ?? false,
         ...(result.problem ? { problem: result.problem } : {}),
       },

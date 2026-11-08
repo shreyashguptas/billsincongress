@@ -26,7 +26,7 @@ import { v } from "convex/values";
 const DEFAULT_HOST = "https://us.i.posthog.com";
 const SERVICE_NAME = "billsincongress-convex";
 /** Error text on a line is capped: it is for recognising a failure, not storing it. */
-const MAX_STRING_LENGTH = 500;
+export const MAX_STRING_LENGTH = 500;
 
 export type LogLevel = "info" | "warn" | "error";
 export type LogAttributes = Record<string, string | number | boolean>;

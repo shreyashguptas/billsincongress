@@ -352,6 +352,21 @@ export interface OverrideReport {
   staleIds: string[];
 }
 
+/**
+ * Comma-separated ids for a log attribute, as many whole ids as fit in
+ * `maxLength` (a log line cuts longer text mid-id). `truncated` says some were
+ * left out; `memberAccounts:reviewList` always has them all.
+ */
+export function idListAttribute(ids: readonly string[], maxLength: number): { text: string; truncated: boolean } {
+  let text = "";
+  for (const id of ids) {
+    const next = text ? `${text},${id}` : id;
+    if (next.length > maxLength) return { text, truncated: true };
+    text = next;
+  }
+  return { text, truncated: false };
+}
+
 /** Totals of `overrideFindings` across a sync, for its log line. */
 export function overrideReport(records: readonly MemberRecord[]): OverrideReport {
   const report: OverrideReport = { redundant: 0, stale: 0, redundantIds: [], staleIds: [] };
