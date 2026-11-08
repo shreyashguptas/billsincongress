@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'November 4, 2026';
+const LAST_UPDATED = 'November 7, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -63,7 +63,8 @@ export default function PrivacyPage() {
             congress-legislators
           </ExternalLink>{' '}
           project, also in the public domain, plus a few corrections we
-          checked against members&rsquo; own sites, and shown only when the
+          checked against members&rsquo; own sites and send back to that
+          project, and shown only when the
           member&rsquo;s own .house.gov or .senate.gov website links them.
           In this policy, &ldquo;we&rdquo;
           and &ldquo;us&rdquo; refer to the project and OffGrid LLC.
