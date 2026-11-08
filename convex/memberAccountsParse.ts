@@ -39,6 +39,27 @@ export interface MemberRecord {
   district?: number;
   officialWebsiteUrl?: string;
   accounts: MemberAccount[];
+  /**
+   * Overrides for this member that the source has moved past (see
+   * `overrideStatus`). A report for a person only: the overrides still apply.
+   */
+  overrideFindings?: OverrideFinding[];
+}
+
+/**
+ * What today's source file says about a reviewed fix:
+ * - "redundant": the source now carries the same account, so the override can go;
+ * - "stale": the source now carries a different account from both ours and the
+ *   one ours replaced, so the member's account changed again (or the project
+ *   fixed it differently) and our override is hiding that.
+ */
+export type OverrideStatus = "redundant" | "stale";
+
+export interface OverrideFinding {
+  platform: Platform;
+  status: OverrideStatus;
+  /** The account the source carries on that platform today, or "" for none. */
+  sourceUrl: string;
 }
 
 const PARTY_CODES: Record<string, string> = { Democrat: "D", Republican: "R", Independent: "I", Libertarian: "L" };
@@ -64,6 +85,13 @@ export type AccountOverride =
       proofUrl: string;
       /** When a person checked it, YYYY-MM-DD. */
       checked: string;
+      /**
+       * The source's value this replaces, as the source file had it when
+       * checked (for YouTube, its `youtube_id` when it has one), or null when
+       * the source had nothing. It tells "the project has not taken our fix
+       * yet" (the source still says this) from "the account changed again".
+       */
+      replaces: string | null;
     }
   | {
       bioguideId: string;
@@ -71,6 +99,8 @@ export type AccountOverride =
       action: "hide";
       proofUrl: string;
       checked: string;
+      /** The source's value that is hidden, as for a "set" override. */
+      replaces: string;
       /** Why it is hidden, for the next reader of the file. */
       reason: string;
     };
@@ -233,15 +263,26 @@ export function buildMemberRecords(
   return { records: applyOverrides(records, overrides), rejected };
 }
 
-/** Apply reviewed fixes. An override for someone not in office does nothing. */
+/**
+ * Apply reviewed fixes. An override for someone not in office does nothing.
+ * Each record also gets `overrideFindings`: the overrides the source has moved
+ * past, judged against the source's own accounts before any override applied.
+ */
 export function applyOverrides(
   records: MemberRecord[],
   overrides: readonly AccountOverride[],
 ): MemberRecord[] {
   const byId = new Map(records.map((r) => [r.bioguideId, r]));
+  const fromSource = new Map(records.map((r) => [r.bioguideId, [...r.accounts]]));
   for (const o of overrides) {
     const record = byId.get(o.bioguideId);
     if (!record) continue;
+    const source = fromSource.get(o.bioguideId)?.find((a) => a.platform === o.platform);
+    const status = overrideStatus(o, source);
+    if (status) {
+      const finding = { platform: o.platform, status, sourceUrl: source?.url ?? "" };
+      record.overrideFindings = [...(record.overrideFindings ?? []), finding];
+    }
     const others = record.accounts.filter((a) => a.platform !== o.platform);
     if (o.action === "hide") {
       record.accounts = others;
@@ -251,12 +292,84 @@ export function applyOverrides(
     if (!account) throw new Error(`override for ${o.bioguideId} ${o.platform} is not a valid handle`);
     record.accounts = [...others, account];
   }
-  for (const record of records) record.accounts = sortAccounts(record.accounts);
+  for (const record of records) {
+    record.accounts = sortAccounts(record.accounts);
+    if (record.overrideFindings) record.overrideFindings = sortAccounts(record.overrideFindings);
+  }
   return records;
 }
 
+/**
+ * Whether the source has caught up with a reviewed fix ("redundant"), moved
+ * past it ("stale"), or still says what the fix replaced (null: the override
+ * is still needed). `source` is the source's own account on that platform,
+ * before overrides.
+ *
+ * Accounts are compared ignoring case (handles on all four platforms are).
+ * A YouTube account is its channel id and its name, either of which the
+ * member's site may link (`confirmOnPage` confirms by either, the name in any
+ * of YouTube's address forms), so a YouTube override is the same as the
+ * source when they share the channel id or the name: "c/RepJimHimes" and a
+ * source carrying the name RepJimHimes beside its channel id. A source that
+ * keeps the channel id our fix replaced is not "stale", whatever name sits
+ * beside it, and is "redundant" once that name is ours, even when that id is
+ * another channel (Rep. Clarke's): deleting the override then changes nothing
+ * a reader sees, since `confirmOnPage` sends the reader to the form the
+ * member's site links, never to a channel id it does not. So an upstream YouTube
+ * fix must write the name the member's site links in `youtube` as well as
+ * the channel id (step 2 of "Sending corrections upstream"): one with only a
+ * channel id reads "stale" here, since a name and an id cannot be compared
+ * without visiting YouTube.
+ */
+export function overrideStatus(o: AccountOverride, source: MemberAccount | undefined): OverrideStatus | null {
+  const now = accountKeys(source);
+  const ours = o.action === "hide" ? [] : accountKeys(accountFrom(o.platform, o.value, "override"));
+  const replaced = o.replaces === null ? [] : accountKeys(accountFrom(o.platform, o.replaces, "congress-legislators"));
+  // A hide is done once the source has nothing there.
+  if (ours.length === 0 ? now.length === 0 : ours.some((k) => now.includes(k))) return "redundant";
+  // What the fix replaced (or nothing, if it replaced nothing) is still there.
+  if (replaced.length === 0 ? now.length === 0 : replaced.some((k) => now.includes(k))) return null;
+  return "stale";
+}
+
+/** The ways an account can match another; none for no account. */
+function accountKeys(account: MemberAccount | null | undefined): string[] {
+  if (!account) return [];
+  if (account.platform !== "youtube") return [account.url.toLowerCase()];
+  const keys: string[] = [];
+  const channel = /\/channel\/([^/]+)$/.exec(account.url);
+  if (channel) keys.push(`channel:${channel[1].toLowerCase()}`);
+  if (account.label !== "Channel") keys.push(`name:${account.label.replace(/^@/, "").toLowerCase()}`);
+  return keys;
+}
+
+export interface OverrideReport {
+  /** Override entries (one per member and platform) with this status. */
+  redundant: number;
+  stale: number;
+  /** The members they belong to, each once, sorted. */
+  redundantIds: string[];
+  staleIds: string[];
+}
+
+/** Totals of `overrideFindings` across a sync, for its log line. */
+export function overrideReport(records: readonly MemberRecord[]): OverrideReport {
+  const report: OverrideReport = { redundant: 0, stale: 0, redundantIds: [], staleIds: [] };
+  for (const record of records) {
+    for (const status of ["redundant", "stale"] as const) {
+      const n = (record.overrideFindings ?? []).filter((f) => f.status === status).length;
+      if (n === 0) continue;
+      report[status] += n;
+      report[status === "redundant" ? "redundantIds" : "staleIds"].push(record.bioguideId);
+    }
+  }
+  report.redundantIds.sort();
+  report.staleIds.sort();
+  return report;
+}
+
 /** Always the same order on the page: X, Facebook, Instagram, YouTube. */
-export function sortAccounts(accounts: MemberAccount[]): MemberAccount[] {
+export function sortAccounts<T extends { platform: Platform }>(accounts: T[]): T[] {
   return [...accounts].sort((a, b) => PLATFORMS.indexOf(a.platform) - PLATFORMS.indexOf(b.platform));
 }
 
@@ -291,5 +404,9 @@ export function recordFingerprint(record: Omit<MemberRecord, "bioguideId">): str
     record.district ?? "",
     record.officialWebsiteUrl ?? "",
     record.accounts.map((a) => [a.platform, a.label, a.url, a.source, a.proofUrl ?? ""]),
+    // Only when present, so rows with nothing to report keep their fingerprint.
+    ...(record.overrideFindings?.length
+      ? [record.overrideFindings.map((f) => [f.platform, f.status, f.sourceUrl])]
+      : []),
   ]);
 }
