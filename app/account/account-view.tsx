@@ -182,11 +182,11 @@ export function AccountView({
               )}
             </div>
             {/* The reader's name: kept out of session replay. */}
-            <h1 className={cn(PRIVATE_TEXT_CLASS, "mt-2 text-display-md text-ink [overflow-wrap:anywhere] sm:text-display-lg")}>
+            <h1 className={cn(PRIVATE_TEXT_CLASS, "mt-2 text-display-md text-ink wrap-anywhere sm:text-display-lg")}>
               {displayName}
             </h1>
             <p className="mt-2 flex flex-wrap items-center gap-2 text-ui text-ink-2">
-              <span className="[overflow-wrap:anywhere]">{user.email ?? "—"}</span>
+              <span className="wrap-anywhere">{user.email ?? "—"}</span>
               {verified ? <Badge variant="secondary">Verified</Badge> : <Badge variant="outline">Unverified</Badge>}
             </p>
             {!verified && (
@@ -341,7 +341,7 @@ function BillStage({
     return (
       <div className="flex w-full flex-col items-start gap-2 sm:items-end">
         <StatusPill stage={stage} billType={billType} />
-        <StageTrack stage={stage} billType={billType} amendment={amendment} className="w-full max-w-[12rem]" />
+        <StageTrack stage={stage} billType={billType} amendment={amendment} className="w-full max-w-48" />
       </div>
     );
   }

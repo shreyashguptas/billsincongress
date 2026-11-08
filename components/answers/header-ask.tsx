@@ -69,7 +69,7 @@ export function HeaderAsk({ className, everywhere = false }: { className?: strin
       {/* The glyph alone, named by aria-label, where the word would push the row
           past the screen or under the logo: from 768px, where the four sections
           take the header's centre, until 840px; and in a header under 312px (a
-          320px phone at a 20px browser font). tailwind.config.ts, header-ask-glyph. */}
+          320px phone at a 20px browser font). app/globals.css, header-ask-glyph. */}
       <span className="header-ask-glyph:sr-only">Ask</span>
     </Button>
   );

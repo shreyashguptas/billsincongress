@@ -285,7 +285,7 @@ export function OptionList({
         tabIndex={focusSearch ? -1 : 0}
         data-autofocus={focusSearch ? undefined : ''}
         onKeyDown={handleKeyDown}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-hidden"
       >
         {loading && (
           <p className="px-4 py-3 text-sm text-ink-3">Loading…</p>
@@ -320,7 +320,7 @@ export function OptionList({
           return (
             <div key={option.value}>
               {heading && (
-                <p className="label-eyebrow !mb-0 px-4 pb-1 pt-3">
+                <p className="label-eyebrow mb-0! px-4 pb-1 pt-3">
                   {heading}
                 </p>
               )}

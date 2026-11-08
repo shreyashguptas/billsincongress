@@ -25,7 +25,7 @@ import { askInHeaderOnly } from '@/lib/ask-panel-state';
  * and lib/ask-css-contract.test.ts reads the classes back off this file.
  *
  * Its md / lg / xl are the header's own width, not the window's: `header-md:`,
- * `header-lg:` and `header-xl:` (tailwind.config.ts) are container queries on
+ * `header-lg:` and `header-xl:` (app/globals.css) are container queries on
  * this element. The docked ask panel takes up to 640px off the right, so on a
  * 1440px screen the header can be 1024px wide while `xl:` still sees 1440 —
  * which laid out the 288px search field and pushed "Sign up" under the panel.
@@ -47,7 +47,7 @@ export function Navigation() {
     // Solid paper, not translucent: a see-through header turned muddy grey over
     // the home page's dark stage, and its backdrop blur was repainted on every
     // scroll frame.
-    <header className="sticky top-0 z-40 w-full short:relative border-b border-line bg-paper [container-name:site-header] [container-type:inline-size]">
+    <header className="sticky top-0 z-40 w-full short:relative border-b border-line bg-paper @container/site-header">
       {/*
         Phones: menu, logo beside it, then search and account at the far edge —
         auto | minmax(0,1fr) | auto, so nothing can push the row past the screen.
@@ -134,7 +134,7 @@ export function Navigation() {
             signed-out /bills: Feedback, the search field, "Sign in" and "Sign up"),
             in rem so a larger browser font scales it with the labels.
             lib/ask-css-contract.test.ts holds the values. */}
-        <div className="col-start-3 flex items-center justify-end gap-1 header-sm:gap-2 header-md:min-w-[15.25rem] header-lg:min-w-[29rem] header-lg:gap-3 header-xl:min-w-[34rem]">
+        <div className="col-start-3 flex items-center justify-end gap-1 header-sm:gap-2 header-md:min-w-61 header-lg:min-w-116 header-lg:gap-3 header-xl:min-w-136">
           <HeaderFeedback className="hidden header-lg:inline-flex" />
           {/* Phones, tablets and short windows, and a bill page at every width;
               the corner pill everywhere else. */}

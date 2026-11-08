@@ -36,7 +36,7 @@ export function WordList({
               // The fill reaches 12px past the text on each side while the
               // hairlines stay put.
               anchors &&
-                'scroll-mt-24 transition-colors data-[target]:bg-sunken data-[target]:shadow-[-12px_0_0_hsl(var(--sunken)),12px_0_0_hsl(var(--sunken))]',
+                'scroll-mt-24 transition-colors data-target:bg-sunken data-target:shadow-[-12px_0_0_hsl(var(--sunken)),12px_0_0_hsl(var(--sunken))]',
             )}
           >
             <dt className="flex items-center gap-2.5 font-serif text-title font-medium text-ink">

@@ -1,6 +1,373 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+/* The enter/exit utilities shadcn/ui components ship with (animate-in,
+   fade-in-0, slide-in-from-left-2…). Every blanket rule under
+   prefers-reduced-motion at the end of this file still applies to them. */
+@import 'tw-animate-css';
+
+/*
+ * Tailwind's configuration lives here, in CSS (Tailwind 4). documentation/brand.md
+ * is the source of truth for every value in it.
+ */
+
+/* `dark:` matches anything INSIDE a `.dark` element: `.dark` on <html> for the
+   Night theme, or on a subtree such as the home page's `stage dark`. The
+   element carrying `.dark` itself is not matched, as it was not under
+   Tailwind 3's `darkMode: 'class'`. */
+@custom-variant dark (&:is(.dark *));
+
+/* Adapt to the INPUT DEVICE rather than to the screen width. A 1280px-wide
+   touchscreen laptop needs 44px hit targets; a 768px iPad with a trackpad does
+   not need a bottom sheet. Width breakpoints answer neither question. */
+@custom-variant touchable {
+  @media (any-pointer: coarse) {
+    @slot;
+  }
+}
+@custom-variant fine {
+  @media (hover: hover) and (pointer: fine) {
+    @slot;
+  }
+}
+
+/* A window too short for a pinned header: a phone on its side, a laptop at
+   200% zoom and up. Below 500px tall the header scrolls away with the page and
+   Ask moves into it ("Where Ask lives", below). */
+@custom-variant short {
+  @media (max-height: 499.98px) {
+    @slot;
+  }
+}
+
+/* The site header's own widths, measured on the header rather than on the
+   window (components/navigation.tsx). With the ask panel docked the header is
+   the window minus the panel — as little as 1024px on a 1440px screen — while
+   `lg:` and `xl:` still see 1440 and lay out a header that does not fit.
+   header-sm / md / lg / xl are the same widths as the screens, so with the
+   panel closed nothing changes.
+
+   In em, which a container query reads as the browser's default font size: the
+   px below are at the default, and the steps come proportionally sooner when
+   the reader has asked for larger text. Below md the phone row gives way in
+   this order as it narrows (brand.md, "Header"); each width is what the row
+   needs at that step, measured, plus room for the logo's 44px tap box.
+     header-sm (640px)          "Sign in", the 21px wordmark, wider gaps — the
+                                header's own sm, like md / lg / xl. A window
+                                `sm:` showed them in a 512px header at a 20px
+                                font and ran the logo under Ask.
+     header-wordmark-lg (480px) the 18px wordmark
+     header-wordmark (440px)    the 16px wordmark; the mark alone below
+     header-ask-glyph (<312px)  Ask without its word (also 768–839px, where the
+                                four sections take the room)
+     header-mark (296px)        the mark; below it the menu carries it
+     header-search (256px)      the search icon; below it, the menu's Bills */
+@custom-variant header-search {
+  @container site-header (min-width: 16em) {
+    @slot;
+  }
+}
+@custom-variant header-mark {
+  @container site-header (min-width: 18.5em) {
+    @slot;
+  }
+}
+@custom-variant header-ask-glyph {
+  @container site-header ((max-width: 19.49em) or ((min-width: 48em) and (max-width: 52.49em))) {
+    @slot;
+  }
+}
+@custom-variant header-wordmark {
+  @container site-header (min-width: 27.5em) {
+    @slot;
+  }
+}
+@custom-variant header-wordmark-lg {
+  @container site-header (min-width: 30em) {
+    @slot;
+  }
+}
+@custom-variant header-sm {
+  @container site-header (min-width: 40em) {
+    @slot;
+  }
+}
+@custom-variant header-md {
+  @container site-header (min-width: 48em) {
+    @slot;
+  }
+}
+@custom-variant header-lg {
+  @container site-header (min-width: 64em) {
+    @slot;
+  }
+}
+@custom-variant header-xl {
+  @container site-header (min-width: 80em) {
+    @slot;
+  }
+}
+
+/*
+ * `inline`, so each utility reads the token where it is used (`bg-ink` is
+ * `hsl(var(--ink))` on that element). A plain @theme would resolve
+ * `hsl(var(--ink))` once, on :root, and a Night subtree in the Day theme (the
+ * home page's `stage dark`) would get the Day colours.
+ */
+@theme inline {
+  /* Newsreader: headlines, bill titles, summaries, the big figures. The
+     next/font variables (app/fonts/index.ts) are named for the face, because
+     --font-serif / --font-sans / --font-mono are Tailwind's own names. */
+  --font-serif: var(--font-newsreader), 'Iowan Old Style', Georgia, serif;
+  /* Geist: everything a reader operates or scans. */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Geist Mono: identifiers only — bill numbers (H.R. 1276), party-state codes
+     (D-MI), state codes. Dates and counts are Geist with `.tabular`. */
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* The type scale. Every size is in rem, so a reader who sets a larger default
+     font in their browser gets a larger site, labels and chart keys included.
+     1rem is 16px only at the browser's default; the px in the comments are at
+     that default. Nothing is smaller than `xs` (the floor, brand.md "Type
+     floor"); scripts/check-type-floor.ts fails on a px size or a size under it. */
+  --text-display-2xl: 4.5rem; /* 72 — the home hero only */
+  --text-display-2xl--line-height: 1.03;
+  --text-display-2xl--letter-spacing: -0.025em;
+  --text-display-xl: 3.5rem; /* 56 — page titles */
+  --text-display-xl--line-height: 1.05;
+  --text-display-xl--letter-spacing: -0.022em;
+  --text-display-lg: 2.75rem; /* 44 — finding headlines */
+  --text-display-lg--line-height: 1.09;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-md: 2.125rem; /* 34 — section headlines */
+  --text-display-md--line-height: 1.15;
+  --text-display-md--letter-spacing: -0.018em;
+  --text-display-sm: 1.625rem; /* 26 — panel titles */
+  --text-display-sm--line-height: 1.2;
+  --text-display-sm--letter-spacing: -0.015em;
+  --text-title: 1.25rem; /* 20 — bill titles in lists */
+  --text-title--line-height: 1.35;
+  --text-title--letter-spacing: -0.01em;
+  --text-reading: 1.1875rem; /* 19 — summaries, articles */
+  --text-reading--line-height: 1.63;
+  --text-reading-sm: 1.0625rem; /* 17 — answers, phone reading */
+  --text-reading-sm--line-height: 1.6;
+  /* The metadata scale (brand.md, "Type floor"). Nothing a reader needs is
+     smaller than `xs`; `xs` itself is raised from Tailwind's 12px to 13px, so
+     every existing `text-xs` meets the floor without a rewrite. */
+  --text-meta: 0.875rem; /* 14 — dates, counts, chart keys, source lines */
+  --text-meta--line-height: 1.25rem;
+  --text-xs: 0.8125rem; /* 13 — the floor: axis ticks, codes, fine print */
+  --text-xs--line-height: 1.125rem;
+  /* Size only: these leave the line height to the element, as the px values
+     they replaced did. */
+  --text-ui: 0.9375rem; /* 15 — controls, list names, secondary copy */
+  --text-caption: 0.8125rem; /* 13 — helper text, small controls */
+
+  /* shadcn/ui's semantic names — aliases of the brand tokens (below, in the
+     first @layer base). components/ui uses these; app code uses the brand names. */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  /* The brand. */
+  --color-paper: hsl(var(--paper));
+  --color-raised: hsl(var(--raised));
+  --color-sunken: hsl(var(--sunken));
+  --color-ink: hsl(var(--ink));
+  --color-ink-2: hsl(var(--ink-2));
+  --color-ink-3: hsl(var(--ink-3));
+  --color-on-ink: hsl(var(--on-ink));
+  --color-line: hsl(var(--line));
+  --color-line-strong: hsl(var(--line-strong));
+  --color-error: hsl(var(--error));
+  /* Bill stages — StatusPill, StageTrack and every stage chart. */
+  --color-status-introduced: hsl(var(--status-introduced));
+  --color-status-committee: hsl(var(--status-committee));
+  --color-status-out-of-committee: hsl(var(--status-out-of-committee));
+  --color-status-passed-one: hsl(var(--status-passed-one));
+  --color-status-passed-both: hsl(var(--status-passed-both));
+  --color-status-president: hsl(var(--status-president));
+  --color-status-signed: hsl(var(--status-signed));
+  --color-status-law: hsl(var(--status-law));
+  --color-status-vetoed: hsl(var(--status-vetoed));
+  /* Parties — only where the data is about party. */
+  --color-party-d: hsl(var(--party-d));
+  --color-party-r: hsl(var(--party-r));
+  --color-party-i: hsl(var(--party-i));
+  --color-party-u: hsl(var(--party-u));
+  --color-topic-1: var(--topic-1);
+  --color-topic-2: var(--topic-2);
+  --color-topic-3: var(--topic-3);
+  --color-topic-4: var(--topic-4);
+  --color-topic-5: var(--topic-5);
+  --color-topic-6: var(--topic-6);
+  --color-heat: hsl(var(--heat));
+
+  /* A bare `ring-*` width is an ink ring, as it was before Tailwind 4. */
+  --default-ring-color: hsl(var(--ink));
+
+  --radius-xs: 2px; /* waffle squares, progress segments */
+  --radius-sm: 4px; /* status pills, filter chips */
+  --radius-md: 8px; /* buttons, cards, inputs */
+  --radius-lg: 14px; /* the ask composer, the status panel, sheets */
+
+  /* Borders carry structure; a shadow only means "this floats". */
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.06), 0 12px 32px -8px rgb(0 0 0 / 0.2);
+
+  /* `max-w-measure`, the reading width: 42.5rem is 680px at the default size,
+     and the same line length in characters when the reader's font is larger. */
+  --container-measure: 42.5rem;
+
+  /* `animate-*` utilities, so a variant such as
+     `data-[state=open]:animate-sheet-in-bottom` emits CSS: a variant only
+     works on a utility Tailwind generated, never on a hand-written class. The
+     keyframes are written out further down this file. */
+  --animate-fade-in: fade-in 0.4s ease-out forwards;
+  --animate-overlay-in: overlay-in 0.2s ease-out;
+  --animate-overlay-out: overlay-out 0.18s ease-in;
+  --animate-sheet-in-bottom: sheet-in-bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-sheet-out-bottom: sheet-out-bottom 0.2s cubic-bezier(0.4, 0, 1, 1);
+  --animate-sheet-in-left: sheet-in-left 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-sheet-out-left: sheet-out-left 0.2s cubic-bezier(0.4, 0, 1, 1);
+  --animate-sheet-in-right: sheet-in-right 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-sheet-out-right: sheet-out-right 0.2s cubic-bezier(0.4, 0, 1, 1);
+  --animate-sheet-in-top: sheet-in-top 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-sheet-out-top: sheet-out-top 0.2s cubic-bezier(0.4, 0, 1, 1);
+  --animate-dialog-in: dialog-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-dialog-out: dialog-out 0.14s cubic-bezier(0.4, 0, 1, 1);
+  --animate-popover-in: popover-in 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-popover-out: popover-out 0.12s ease-in;
+}
+
+/*
+ * Tailwind 3 behaviour, kept so the site looks and works as it did:
+ *
+ *  - Borders default to the old light grey, not `currentcolor`. Elements get
+ *    the brand's `border-line` in the base layer below; this covers ::before,
+ *    ::after and the rest.
+ *  - Buttons show a pointer, which Tailwind 4 dropped.
+ */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* A form field: a <Label>, then its control, then any hint, 8px apart. The
+   label is inline and sits in a full line, so the 8px is the top margin of
+   what follows it. `space-y-2` cannot do this under Tailwind 4: it puts the
+   space below the label, and an inline element's vertical margin does
+   nothing. */
+@utility field {
+  & > * + * {
+    margin-top: --spacing(2);
+  }
+}
+
+@utility theme-seg-label {
+  /* The theme switch's word labels ("Light", "Dark", "System"): touch screens
+     only, and only with 18em of screen (288px at the default font), so a phone
+     at a large font keeps the three icons. Written here, not as a stacked
+     `touchable:[@media(...)]` class, which Tailwind 3 compiles to invalid CSS. */
+  display: none;
+  @media (any-pointer: coarse) and (min-width: 18em) {
+    display: inline;
+  }
+}
+
+@utility stat-strip {
+  /* The home stat strip's figures (components/dashboard/home/stat-strip.tsx):
+     40px on a phone and 56px from sm, or smaller when the narrowest cell needs
+     it. At a 24px browser font a 390px phone's cell is 122px, and "12,946" at
+     60px ran over the column rule and pushed the page sideways. Five digits
+     and a comma are 2.97em, so a third of the cell always holds them.
+     --cell is the narrowest cell's content: its share of the strip less its
+     padding (pl-4 pr-4, then pl-8 pr-8 from sm). Every cell uses the same
+     size, so the four figures match. */
+  container-type: inline-size;
+}
+
+@utility stat-figure {
+  --cell: calc(50cqi - 2rem);
+  font-size: min(2.5rem, calc(var(--cell) * 0.33));
+  @media (min-width: 640px) {
+    --cell: calc(50cqi - 4rem);
+    font-size: min(3.5rem, calc(var(--cell) * 0.33));
+  }
+  @media (min-width: 1024px) {
+    --cell: calc(25cqi - 4rem);
+  }
+}
+
+@utility container-editorial {
+  /* Content width — 1200px of content inside the gutters. */
+  @apply mx-auto w-full max-w-[1264px] px-4 sm:px-6 lg:px-8;
+}
+
+@utility container-prose {
+  /* Reading width for summaries and articles (~68 characters). */
+  @apply mx-auto w-full max-w-measure px-4 sm:px-6;
+}
+
+@utility stage {
+  /* The Night stage: a dark band on a light page. Always pair it with
+     `dark` (`className="stage dark"`): that class switches every token
+     inside, party and topic colours included, so the chamber reads the same
+     in both themes. In the Night theme the whole page is already the stage. */
+  @apply bg-paper text-ink;
+}
+
+@utility spectrum-ring {
+  /* The Pro mark (brand.md, "Pro"): the six topic colours as a ring around a
+     Pro reader's avatar, and as a strip along the top of their plan card.
+     The only decorative uses of the spectrum besides the logo and the email
+     signature. Hard stops, so each colour reads as its own band. */
+  background: conic-gradient(
+    from -30deg,
+    var(--topic-1) 0deg 60deg,
+    var(--topic-2) 60deg 120deg,
+    var(--topic-3) 120deg 180deg,
+    var(--topic-4) 180deg 240deg,
+    var(--topic-5) 240deg 300deg,
+    var(--topic-6) 300deg 360deg
+  );
+}
+
+@utility spectrum-strip {
+  background: linear-gradient(
+    90deg,
+    var(--topic-1) 0 16.667%,
+    var(--topic-2) 16.667% 33.333%,
+    var(--topic-3) 33.333% 50%,
+    var(--topic-4) 50% 66.667%,
+    var(--topic-5) 66.667% 83.333%,
+    var(--topic-6) 83.333% 100%
+  );
+}
 
 /*
  * Bills in Congress — design tokens.
@@ -11,7 +378,7 @@
  * the brand doc in the same commit.
  *
  * Every colour is an HSL triplet so Tailwind can add an alpha
- * (`bg-ink/5`). tailwind.config.ts maps each one to a utility of the same
+ * (`bg-ink/5`). The @theme block above maps each one to a utility of the same
  * name: `bg-paper`, `text-ink-2`, `border-line-strong`, `bg-status-law`.
  *
  * The dark palette is "Night". `.dark` on <html> switches the whole page;
@@ -69,8 +436,6 @@
        a party or for "became law". 42%, not 40%: ink codes on the darkest
        shade then read at 4.85:1, not 4.48:1 (lib/state-map-tiles.test.ts). */
     --heat: 28 80% 42%;
-
-    --radius: 0.5rem;
   }
 
   .dark {
@@ -187,7 +552,7 @@
      floor (brand.md, "Type floor"); ink-2, because grey this small is not
      read at all by many readers. */
   .label-eyebrow {
-    @apply text-[0.75rem] font-sans font-semibold uppercase leading-4 tracking-[0.1em] text-ink-2;
+    @apply text-[0.75rem] font-sans font-semibold uppercase leading-4 tracking-widest text-ink-2;
   }
 
   /* A fact about the thing next to it: a date, a count, a chart key, a
@@ -218,94 +583,7 @@
 
   /* Keyboard focus on every control: a paper gap, then a solid ink ring. */
   .focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-paper;
-  }
-}
-
-@layer components {
-  /* The theme switch's word labels ("Light", "Dark", "System"): touch screens
-     only, and only with 18em of screen (288px at the default font), so a phone
-     at a large font keeps the three icons. Written here, not as a stacked
-     `touchable:[@media(...)]` class, which Tailwind 3 compiles to invalid CSS. */
-  .theme-seg-label {
-    display: none;
-  }
-  @media (any-pointer: coarse) and (min-width: 18em) {
-    .theme-seg-label {
-      display: inline;
-    }
-  }
-
-  /* The home stat strip's figures (components/dashboard/home/stat-strip.tsx):
-     40px on a phone and 56px from sm, or smaller when the narrowest cell needs
-     it. At a 24px browser font a 390px phone's cell is 122px, and "12,946" at
-     60px ran over the column rule and pushed the page sideways. Five digits
-     and a comma are 2.97em, so a third of the cell always holds them.
-     --cell is the narrowest cell's content: its share of the strip less its
-     padding (pl-4 pr-4, then pl-8 pr-8 from sm). Every cell uses the same
-     size, so the four figures match. */
-  .stat-strip {
-    container-type: inline-size;
-  }
-  .stat-figure {
-    --cell: calc(50cqi - 2rem);
-    font-size: min(2.5rem, calc(var(--cell) * 0.33));
-  }
-  @media (min-width: 640px) {
-    .stat-figure {
-      --cell: calc(50cqi - 4rem);
-      font-size: min(3.5rem, calc(var(--cell) * 0.33));
-    }
-  }
-  @media (min-width: 1024px) {
-    .stat-figure {
-      --cell: calc(25cqi - 4rem);
-    }
-  }
-
-  /* Content width — 1200px of content inside the gutters. */
-  .container-editorial {
-    @apply mx-auto w-full max-w-[1264px] px-4 sm:px-6 lg:px-8;
-  }
-
-  /* Reading width for summaries and articles (~68 characters). */
-  .container-prose {
-    @apply mx-auto w-full max-w-measure px-4 sm:px-6;
-  }
-
-  /* The Night stage: a dark band on a light page. Always pair it with
-     `dark` (`className="stage dark"`): that class switches every token
-     inside, party and topic colours included, so the chamber reads the same
-     in both themes. In the Night theme the whole page is already the stage. */
-  .stage {
-    @apply bg-paper text-ink;
-  }
-
-  /* The Pro mark (brand.md, "Pro"): the six topic colours as a ring around a
-     Pro reader's avatar, and as a strip along the top of their plan card.
-     The only decorative uses of the spectrum besides the logo and the email
-     signature. Hard stops, so each colour reads as its own band. */
-  .spectrum-ring {
-    background: conic-gradient(
-      from -30deg,
-      var(--topic-1) 0deg 60deg,
-      var(--topic-2) 60deg 120deg,
-      var(--topic-3) 120deg 180deg,
-      var(--topic-4) 180deg 240deg,
-      var(--topic-5) 240deg 300deg,
-      var(--topic-6) 300deg 360deg
-    );
-  }
-  .spectrum-strip {
-    background: linear-gradient(
-      90deg,
-      var(--topic-1) 0 16.667%,
-      var(--topic-2) 16.667% 33.333%,
-      var(--topic-3) 33.333% 50%,
-      var(--topic-4) 50% 66.667%,
-      var(--topic-5) 66.667% 83.333%,
-      var(--topic-6) 83.333% 100%
-    );
+    @apply focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-paper;
   }
 }
 
@@ -364,7 +642,8 @@
    exit animation runs, so every surface needs BOTH directions — with only an
    "in" animation, Presence unmounts immediately and the sheet snaps shut.
 
-   These are also declared in tailwind.config.ts. That is not duplication:
+   Each also has an `--animate-*` entry in the @theme block at the top of
+   this file. That is not duplication:
    a `data-[state=open]:animate-x` VARIANT only emits CSS for a utility
    Tailwind itself generated, so a hand-written `.animate-x` class alone is
    silently inert inside a variant. Every existing sheet on the site is
@@ -420,6 +699,15 @@
 @keyframes sheet-out-top {
   from { transform: none; }
   to   { transform: translateY(-100%); }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes dialog-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(4px) scale(0.99); }
 }
 
 @keyframes popover-in {

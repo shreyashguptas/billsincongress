@@ -166,7 +166,7 @@ function SignedOutActions() {
   return (
     // The header's own sm (a container query in em), not the window's: at a
     // 20px browser font a 640px window is a 512px-at-16px header, and "Sign in"
-    // there ran the logo under Ask (tailwind.config.ts, header-sm).
+    // there ran the logo under Ask (app/globals.css, header-sm).
     <div className="flex items-center gap-1 header-sm:gap-2">
       {ctas.map((cta) => {
         const primary = cta === "sign_up";

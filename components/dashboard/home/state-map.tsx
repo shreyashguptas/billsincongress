@@ -194,7 +194,7 @@ export function StateMap({
           className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12"
           onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
         >
-          <div className="max-w-[36rem] lg:col-span-8">
+          <div className="max-w-xl lg:col-span-8">
             {perMemberAvailable && (
               <ToggleGroup
                 type="single"
@@ -268,7 +268,7 @@ export function StateMap({
                       className="block h-3 rounded-xs"
                       style={{ backgroundColor: `hsl(var(--heat) / ${a})` }}
                     />
-                    <span className="mt-1.5 block break-words">
+                    <span className="mt-1.5 block wrap-break-word">
                       {i === 0 ? `< ${fmtVal(breaks[0])}` : i === 4 ? `≥ ${fmtVal(breaks[3])}` : `${fmtVal(breaks[i - 1])}–${fmtVal(breaks[i])}`}
                     </span>
                   </li>
@@ -280,7 +280,7 @@ export function StateMap({
           {/* Readout (the state pointed at or tapped), then the top five, which never moves. */}
           <div className="lg:col-span-4">
             {/* min-h holds the readout's height, so the list under it stays put. */}
-            <div className="min-h-[11.5rem] border-y border-line py-4">
+            <div className="min-h-46 border-y border-line py-4">
               {focus ? (
                 <div key={focus.st} className="animate-in fade-in-0 duration-200">
                   <div className="flex items-baseline justify-between gap-4">

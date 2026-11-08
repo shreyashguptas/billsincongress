@@ -134,7 +134,7 @@ function Rows({ rows }: { rows: Row[] }) {
         // icon sits in a box one line of the label tall (brand.md, "Icons
         // beside text"): centred on the first line, never nudged.
         <li key={row.label} className="flex min-h-11 items-start gap-2.5 border-b border-line py-2.5">
-          <span aria-hidden="true" className="flex h-[1lh] shrink-0 items-center">
+          <span aria-hidden="true" className="flex h-lh shrink-0 items-center">
             {row.included ? (
               <Check
                 strokeWidth={2.25}

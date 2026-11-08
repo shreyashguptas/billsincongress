@@ -86,7 +86,7 @@ export function FilterBar({
             <div
               ref={rail}
               data-overflow={overflows ? 'true' : undefined}
-              className="-ml-4 -mr-1 min-w-0 flex-1 overflow-x-auto overscroll-x-contain py-1 pl-4 pr-0 [scrollbar-width:none] data-[overflow=true]:[mask-image:linear-gradient(to_right,black_calc(100%_-_20px),transparent)] lg:overflow-visible lg:data-[overflow=true]:[mask-image:none] [&::-webkit-scrollbar]:hidden"
+              className="-ml-4 -mr-1 min-w-0 flex-1 overflow-x-auto overscroll-x-contain py-1 pl-4 pr-0 scrollbar-none data-[overflow=true]:mask-[linear-gradient(to_right,black_calc(100%-20px),transparent)] lg:overflow-visible lg:data-[overflow=true]:mask-none [&::-webkit-scrollbar]:hidden"
             >
               <div className="flex w-max gap-1.5">
                 {railFilters.map((definition) => {

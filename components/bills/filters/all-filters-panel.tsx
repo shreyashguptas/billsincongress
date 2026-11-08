@@ -58,7 +58,7 @@ export function AllFiltersPanel({
       // popover over the results, not over the docked Ask panel beside them or
       // past the edge of the column on a wide screen.
       align="end"
-      popoverClassName="w-[min(32rem,calc(100vw_-_2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
+      popoverClassName="w-[min(32rem,calc(100vw-2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
       trigger={
         <Button
           type="button"
@@ -286,7 +286,7 @@ function PanelBody({
           if (inline) {
             return (
               <div key={definition.field} className="border-b border-line last:border-b-0">
-                <p className="label-eyebrow !mb-0 px-4 pb-1.5 pt-3">{definition.label}</p>
+                <p className="label-eyebrow mb-0! px-4 pb-1.5 pt-3">{definition.label}</p>
                 <ToggleGroup
                   type="single"
                   // Every chip stays a tab stop, as before; Radix's roving focus

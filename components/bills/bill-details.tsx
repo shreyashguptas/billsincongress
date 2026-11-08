@@ -319,7 +319,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
           <ShareBillButton
             billId={String(bill.id)}
             shareTitle={`${billLabel}: ${bill.title}`}
-            className="min-w-[9rem]"
+            className="min-w-36"
             analyticsProps={actionAnalytics}
           />
         </div>
@@ -348,7 +348,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                 'mt-4 text-ink',
                 longTitle
                   ? 'max-w-[28ch] text-[1.75rem] leading-[1.15] sm:text-display-md lg:text-[2.5rem] lg:leading-[1.15]'
-                  : 'max-w-[22ch] text-[2.125rem] leading-[1.1] sm:text-display-xl',
+                  : 'max-w-[22ch] text-[2.125rem] leading-[1.1] sm:text-display-xl sm:leading-[1.05]',
               )}
             >
               {bill.title}
@@ -407,7 +407,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
             ) : (
               <div className="mt-8 border-t border-line pt-6 sm:mt-10 sm:pt-8">
                 <h2 className="label-eyebrow">In short</h2>
-                <p className="mt-3 max-w-measure font-serif text-[1.375rem] leading-[2rem] text-ink sm:text-[1.625rem] sm:leading-[2.375rem]">
+                <p className="mt-3 max-w-measure font-serif text-[1.375rem] leading-8 text-ink sm:text-[1.625rem] sm:leading-9.5">
                   {lead.text}
                 </p>
                 {/* A source line, so its words stay plain: a dotted word beside
@@ -444,7 +444,7 @@ export default function BillDetails({ bill, extras = null, today }: BillDetailsP
                     the first line when the stage wraps (brand.md, "Icons
                     beside text"). */}
                 <div className="flex items-start gap-3 py-[max(0px,calc((2.25rem-1lh)/2))] text-display-sm">
-                  <span className="flex h-[1lh] shrink-0 items-center" aria-hidden="true">
+                  <span className="flex h-lh shrink-0 items-center" aria-hidden="true">
                     <span
                       className={cn(
                         'flex h-9 w-9 items-center justify-center rounded-full text-on-ink',

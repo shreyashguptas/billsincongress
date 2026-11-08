@@ -237,7 +237,7 @@ export function AnswerPanel() {
         aria-labelledby="ask-title"
         onClickCapture={onClickCapture}
         className={cn(
-          'ask-panel flex flex-col border-line bg-paper focus:outline-none',
+          'ask-panel flex flex-col border-line bg-paper focus:outline-hidden',
           // Sheet: square and flush under the header, whose bottom rule is its
           // top edge. Rounded corners there exposed the page behind them as
           // wedges (black over the home page's dark stage), and a border of its
@@ -275,7 +275,7 @@ export function AnswerPanel() {
             included (--header-h), so docked beside it the two bottom rules are
             one continuous line across the window.
           */}
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pl-4 pr-2 lg:h-[var(--header-h)] lg:py-0 lg:pl-5 lg:pr-3">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line py-1.5 pl-4 pr-2 lg:h-(--header-h) lg:py-0 lg:pl-5 lg:pr-3">
             <h2 id="ask-title" className="label-eyebrow min-w-0 truncate">
               {showHistory ? 'Your conversations' : 'Ask'}
             </h2>

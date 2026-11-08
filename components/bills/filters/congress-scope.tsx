@@ -117,7 +117,7 @@ export function CongressScope({
             className={
               'h-auto min-w-min flex-1 whitespace-nowrap rounded-[6px] px-3 text-sm font-normal tabular text-ink-2 ' +
               'hover:bg-transparent hover:text-ink ' +
-              'data-[state=on]:bg-raised data-[state=on]:font-medium data-[state=on]:text-ink data-[state=on]:shadow-sm'
+              'data-[state=on]:bg-raised data-[state=on]:font-medium data-[state=on]:text-ink data-[state=on]:shadow-xs'
             }
           >
             {formatCongressYearsShort(congress)}

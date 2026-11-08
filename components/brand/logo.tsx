@@ -108,7 +108,7 @@ export function Logo({
         // above and below the 18px mark, and sideways too, because the mark alone is 25px
         // wide. 8px on the left is the gap to the menu button, so it meets that
         // button's box without covering it; header-mark leaves 12px+ on the right.
-        'relative touchable:before:absolute touchable:before:-inset-y-[13px] touchable:before:-left-2 touchable:before:-right-3 touchable:before:content-[""]',
+        'relative touchable:before:absolute touchable:before:inset-y-[-13px] touchable:before:-left-2 touchable:before:-right-3 touchable:before:content-[""]',
         className,
       )}
     >
