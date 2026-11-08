@@ -40,7 +40,7 @@ const FAILURE_COPY: Record<string, string> = {
 // The same chip as the bill filters' choices (all-filters-panel.tsx): a
 // line-strong outline that fills with ink when chosen.
 const CHIP =
-  'h-9 min-w-0 rounded-sm border border-line-strong bg-raised px-3 text-[13px] text-ink hover:bg-sunken hover:text-ink touchable:h-11 ' +
+  'h-9 min-w-0 rounded-sm border border-line-strong bg-raised px-3 text-xs text-ink hover:bg-sunken hover:text-ink touchable:h-11 ' +
   'data-[state=on]:border-ink data-[state=on]:bg-ink data-[state=on]:text-on-ink ' +
   // A chosen chip stays ink under the pointer; the hover fill above would
   // otherwise turn it pale with pale text on it.
@@ -53,7 +53,7 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
       <Label id={`${id}-label`} htmlFor={id} className="text-ink">
         {label}
       </Label>
-      {hint && <p className="-mt-1 text-xs text-ink-3">{hint}</p>}
+      {hint && <p className="-mt-1 text-xs text-ink-2">{hint}</p>}
       {children}
     </div>
   );
@@ -220,7 +220,7 @@ export function TeacherSignupForm() {
       </Field>
       {error && <FormError>{error}</FormError>}
       <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-relaxed text-ink-3 sm:max-w-[42ch]">
+        <p className="text-xs leading-relaxed text-ink-2 sm:max-w-[42ch]">
           For teachers, 18 and over. We use your email only to write to you about class tools, and delete it
           whenever you ask.
         </p>

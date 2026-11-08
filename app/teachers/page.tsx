@@ -38,7 +38,7 @@ export default function TeachersPage() {
       <header className="container-prose pb-10 pt-12 sm:pb-14 sm:pt-16">
         <p className="label-eyebrow">For teachers</p>
         <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">Bring real bills into your class.</h1>
-        <p className="mt-5 max-w-[60ch] text-[17px] leading-relaxed text-ink-2 sm:text-lg">
+        <p className="mt-5 max-w-[60ch] text-[1.0625rem] leading-relaxed text-ink-2 sm:text-lg">
           Students already use Bills in Congress for class, from Google Classroom, Canvas and Teams. Every bill,
           its plain-English summary and the{' '}
           <Link href="/learn" className="link">
@@ -54,7 +54,7 @@ export default function TeachersPage() {
           <ul className="mt-6 border-t border-line">
             {TOOLS.map((tool) => (
               <li key={tool.title} className="flex gap-4 border-b border-line py-4 sm:gap-6">
-                <span className="w-16 shrink-0 pt-0.5 font-mono text-xs uppercase tracking-wider text-ink-3">
+                <span className="w-16 shrink-0 pt-0.5 font-mono text-xs uppercase tracking-wider text-ink-2">
                   Coming
                 </span>
                 <div className="min-w-0">
