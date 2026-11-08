@@ -10,12 +10,17 @@ import {
   accountFrom,
   applyOverrides,
   buildMemberRecords,
+  idListAttribute,
   officialWebsite,
+  overrideReport,
   recordFingerprint,
   safetyProblem,
   MIN_MEMBERS,
   type AccountOverride,
 } from "./memberAccountsParse";
+import { ACCOUNT_OVERRIDES } from "./memberAccountOverrides";
+import { confirmOnPage, linkKey } from "./memberAccountsVerify";
+import { MAX_STRING_LENGTH, otlpLogBody } from "./posthogLogs";
 
 let passed = 0;
 const failures: string[] = [];
@@ -154,8 +159,8 @@ it("throws on a download that is not a list, rather than reading it as nobody", 
 
 it("applies a set override with its proof, and a hide override", () => {
   const overrides: AccountOverride[] = [
-    { bioguideId: "B001328", platform: "x", action: "set", value: "repevertonblair", proofUrl: "https://blair.house.gov", checked: "2026-11-01" },
-    { bioguideId: "S000148", platform: "facebook", action: "hide", proofUrl: "https://www.schumer.senate.gov", checked: "2026-11-01", reason: "test" },
+    { bioguideId: "B001328", platform: "x", action: "set", value: "repevertonblair", proofUrl: "https://blair.house.gov", checked: "2026-11-01", replaces: null },
+    { bioguideId: "S000148", platform: "facebook", action: "hide", proofUrl: "https://www.schumer.senate.gov", checked: "2026-11-01", replaces: "senschumer", reason: "test" },
   ];
   const { records } = buildMemberRecords([schumerCurrent, newMember], [schumerSocial], overrides);
   const blair = records.find((r) => r.bioguideId === "B001328");
@@ -168,16 +173,155 @@ it("applies a set override with its proof, and a hide override", () => {
 
 it("refuses an override whose value is not a handle", () => {
   const bad: AccountOverride[] = [
-    { bioguideId: "B001328", platform: "facebook", action: "set", value: "share/1DrQURWm8o", proofUrl: "https://blair.house.gov", checked: "2026-11-01" },
+    { bioguideId: "B001328", platform: "facebook", action: "set", value: "share/1DrQURWm8o", proofUrl: "https://blair.house.gov", checked: "2026-11-01", replaces: null },
   ];
   assert.throws(() => applyOverrides([{ bioguideId: "B001328", name: "x", chamber: "house", state: "GA", accounts: [] }], bad), /not a valid handle/);
 });
 
 it("ignores an override for someone not in office", () => {
   const overrides: AccountOverride[] = [
-    { bioguideId: "Z999999", platform: "x", action: "set", value: "nobody", proofUrl: "https://z.house.gov", checked: "2026-11-01" },
+    { bioguideId: "Z999999", platform: "x", action: "set", value: "nobody", proofUrl: "https://z.house.gov", checked: "2026-11-01", replaces: null },
   ];
   assert.equal(buildMemberRecords([newMember], [], overrides).records.length, 1);
+});
+
+// Rep. Cloud, as on 2026-11-01: the source listed @RepCloudTX, his site linked
+// @RepMichaelCloud, so our override says RepMichaelCloud and replaces RepCloudTX.
+const cloudCurrent = {
+  id: { bioguide: "C001115" },
+  name: { official_full: "Michael Cloud" },
+  terms: [{ type: "rep", state: "TX", district: 27, party: "Republican", url: "https://cloud.house.gov" }],
+};
+const cloudSocial = (twitter: string | undefined) => ({ id: { bioguide: "C001115" }, social: twitter ? { twitter } : {} });
+const cloudOverride: AccountOverride = {
+  bioguideId: "C001115",
+  platform: "x",
+  action: "set",
+  value: "RepMichaelCloud",
+  proofUrl: "https://cloud.house.gov",
+  checked: "2026-11-01",
+  replaces: "RepCloudTX",
+};
+const cloudWith = (twitter: string | undefined, overrides: AccountOverride[] = [cloudOverride]) =>
+  buildMemberRecords([cloudCurrent], [cloudSocial(twitter)], overrides).records[0];
+
+it("reports an override as stale when the member is renamed again upstream, and still applies it", () => {
+  // Was: the project renamed him to @RepCloud and the sync said nothing; our
+  // old override kept replacing the project's value for good.
+  const cloud = cloudWith("RepCloud");
+  assert.deepEqual(cloud.overrideFindings, [{ platform: "x", status: "stale", sourceUrl: "https://x.com/RepCloud" }]);
+  // What is shown does not change: the override still applies.
+  assert.deepEqual(cloud.accounts.map((a) => [a.url, a.source]), [["https://x.com/RepMichaelCloud", "override"]]);
+  assert.deepEqual(overrideReport([cloud]), { redundant: 0, stale: 1, redundantIds: [], staleIds: ["C001115"] });
+});
+
+it("reports an override as redundant once the source carries the same account, in any case", () => {
+  const cloud = cloudWith("repmichaelcloud");
+  assert.deepEqual(cloud.overrideFindings, [{ platform: "x", status: "redundant", sourceUrl: "https://x.com/repmichaelcloud" }]);
+  assert.equal(cloud.accounts[0].source, "override");
+  assert.deepEqual(overrideReport([cloud]), { redundant: 1, stale: 0, redundantIds: ["C001115"], staleIds: [] });
+});
+
+it("reports nothing while the source still carries the value the override replaced", () => {
+  const cloud = cloudWith("RepCloudTX");
+  assert.equal(cloud.overrideFindings, undefined);
+  // So a member with nothing to report keeps the fingerprint it had before this report existed.
+  const { bioguideId: _id, overrideFindings: _f, ...rest } = cloud;
+  assert.equal(recordFingerprint(cloud), recordFingerprint(rest));
+});
+
+it("reports a member the source had nothing for once the source lists an account", () => {
+  const blair: AccountOverride = { ...cloudOverride, bioguideId: "B001328", value: "repevertonblair", proofUrl: "https://blair.house.gov", replaces: null };
+  const social = (twitter: string) => [{ id: { bioguide: "B001328" }, social: { twitter } }];
+  assert.equal(buildMemberRecords([newMember], [], [blair]).records[0].overrideFindings, undefined);
+  assert.equal(buildMemberRecords([newMember], social("RepEvertonBlair"), [blair]).records[0].overrideFindings?.[0].status, "redundant");
+  assert.equal(buildMemberRecords([newMember], social("BlairForGeorgia"), [blair]).records[0].overrideFindings?.[0].status, "stale");
+});
+
+it("reports a hide override as redundant once the source drops the account, and stale when it changes", () => {
+  const hide: AccountOverride = { bioguideId: "C001115", platform: "x", action: "hide", proofUrl: "https://cloud.house.gov", checked: "2026-11-01", replaces: "RepCloudTX", reason: "test" };
+  assert.equal(cloudWith("RepCloudTX", [hide]).overrideFindings, undefined);
+  assert.equal(cloudWith(undefined, [hide]).overrideFindings?.[0].status, "redundant");
+  const changed = cloudWith("RepCloud", [hide]);
+  assert.equal(changed.overrideFindings?.[0].status, "stale");
+  assert.deepEqual(changed.accounts, []);
+});
+
+it("matches a YouTube override to the source by channel id or by name, in any address form", () => {
+  // Rep. Clarke, 2026-11-01: the source's channel id was another channel; her
+  // site links @RepYvetteDClarke. Our upstream fix sets her real channel id
+  // and that name. Was: read as "stale", since a handle is not a channel id.
+  const clarkeCurrent = { ...cloudCurrent, id: { bioguide: "C001067" } };
+  const clarke: AccountOverride = { ...cloudOverride, bioguideId: "C001067", platform: "youtube", value: "RepYvetteDClarke", replaces: "UC8SuQiuL2P9fUHAxuRoTdUQ" };
+  const withYoutube = (social: Record<string, string>, o = clarke) =>
+    buildMemberRecords([clarkeCurrent], [{ id: { bioguide: "C001067" }, social }], [o]).records[0].overrideFindings;
+  assert.equal(withYoutube({ youtube: "RepYvetteDClarke", youtube_id: "UCuz1ofl3ZqdkjRahPzTKGDQ" })?.[0].status, "redundant");
+  // Not fixed yet: the old channel id, alone or beside a name that is not ours.
+  assert.equal(withYoutube({ youtube_id: "UC8SuQiuL2P9fUHAxuRoTdUQ" }), undefined);
+  assert.equal(withYoutube({ youtube: "repyvetteclarke", youtube_id: "UC8SuQiuL2P9fUHAxuRoTdUQ" }), undefined);
+  // A different channel and a different name: the account moved on.
+  assert.equal(withYoutube({ youtube: "ClarkeForCongress", youtube_id: "UCaaaaaaaaaaaaaaaaaaaaaa" })?.[0].status, "stale");
+  // Our name beside the OTHER channel id it replaced still reads redundant:
+  // deleting the override changes nothing a reader sees, because the site
+  // check confirms by whichever the member's site links and sends the reader
+  // there, so the wrong channel id never reaches a page.
+  const half = { youtube: "RepYvetteDClarke", youtube_id: "UC8SuQiuL2P9fUHAxuRoTdUQ" };
+  assert.equal(withYoutube(half)?.[0].status, "redundant");
+  const withoutOverride = buildMemberRecords([clarkeCurrent], [{ id: { bioguide: "C001067" }, social: half }], []).records[0];
+  const page = new Set([linkKey("https://www.youtube.com/@RepYvetteDClarke")!]);
+  assert.deepEqual(confirmOnPage(page, withoutOverride.accounts[0]), { url: "https://www.youtube.com/@RepYvetteDClarke", label: "@RepYvetteDClarke" });
+  // An old /c/ address is the same name.
+  const cForm = { ...clarke, value: "c/RepYvetteDClarke" };
+  assert.equal(withYoutube({ youtube: "RepYvetteDClarke", youtube_id: "UCuz1ofl3ZqdkjRahPzTKGDQ" }, cForm)?.[0].status, "redundant");
+  // A channel-id override is the same as that channel id.
+  const byId = { ...clarke, value: "UCuz1ofl3ZqdkjRahPzTKGDQ" };
+  assert.equal(withYoutube({ youtube_id: "UCuz1ofl3ZqdkjRahPzTKGDQ" }, byId)?.[0].status, "redundant");
+});
+
+it("counts every override entry but lists each member once", () => {
+  const ig: AccountOverride = { ...cloudOverride, platform: "instagram", value: "repmichaelcloud", replaces: "repcloudtx" };
+  const social = { id: { bioguide: "C001115" }, social: { twitter: "RepCloud", instagram: "cloud_official" } };
+  const { records } = buildMemberRecords([cloudCurrent], [social], [ig, cloudOverride]);
+  // In platform order, whatever order the overrides came in.
+  assert.deepEqual(records[0].overrideFindings?.map((f) => f.platform), ["x", "instagram"]);
+  assert.deepEqual(overrideReport(records), { redundant: 0, stale: 2, redundantIds: [], staleIds: ["C001115"] });
+});
+
+it("finds nothing to report in our own overrides against the source they were checked against", () => {
+  // Every `replaces` in memberAccountOverrides.ts, laid out as a source file:
+  // on the day they were checked, every override was still needed.
+  const social = new Map<string, Record<string, string>>();
+  for (const o of ACCOUNT_OVERRIDES) {
+    const entry = social.get(o.bioguideId) ?? {};
+    if (o.replaces !== null) {
+      const field = o.platform === "x" ? "twitter" : o.platform === "youtube" && /^UC[A-Za-z0-9_-]{22}$/.test(o.replaces) ? "youtube_id" : o.platform;
+      entry[field] = o.replaces;
+    }
+    social.set(o.bioguideId, entry);
+  }
+  const current = [...social.keys()].map((bioguide) => ({
+    id: { bioguide },
+    name: { official_full: bioguide },
+    terms: [{ type: "rep", state: "XX", district: 1, party: "Democrat", url: "https://example.house.gov" }],
+  }));
+  const files = [...social].map(([bioguide, s]) => ({ id: { bioguide }, social: s }));
+  const { records } = buildMemberRecords(current, files, ACCOUNT_OVERRIDES);
+  assert.deepEqual(overrideReport(records), { redundant: 0, stale: 0, redundantIds: [], staleIds: [] });
+});
+
+it("puts only whole bioguide ids on the log line, and says when some did not fit", () => {
+  // Was: 81 members' ids joined into 647 characters, which the log line cut
+  // at 500, mid-id ("…,S000510,S0005"), when our first upstream batch merged.
+  const ids = Array.from({ length: 81 }, (_, i) => `A${String(i).padStart(6, "0")}`);
+  const list = idListAttribute(ids, MAX_STRING_LENGTH);
+  assert.equal(list.truncated, true);
+  assert.ok(list.text.length <= MAX_STRING_LENGTH);
+  const sent = otlpLogBody({ level: "info", message: "member accounts synced", timestampMs: 0, attributes: { ids: list.text } });
+  const value = sent.resourceLogs[0].scopeLogs[0].logRecords[0].attributes.find((a: { key: string }) => a.key === "ids")?.value.stringValue ?? "";
+  assert.equal(value, list.text);
+  assert.ok(value.split(",").every((id: string) => /^A\d{6}$/.test(id)));
+  assert.deepEqual(idListAttribute(ids.slice(0, 3), MAX_STRING_LENGTH), { text: "A000000,A000001,A000002", truncated: false });
+  assert.deepEqual(idListAttribute([], MAX_STRING_LENGTH), { text: "", truncated: false });
 });
 
 it("refuses a download that would quietly empty the site", () => {
