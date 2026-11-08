@@ -132,7 +132,7 @@ The page is drawn on the server and ships almost no JavaScript of its own; the s
 
 ### For teachers
 
-`/teachers` is for teachers who use the site in class. It describes class tools that are not built yet (assign bills with one class code, see the questions a class asked without names, see how many students opened each bill), each marked "Coming", and asks six questions: school email, school name, what you teach, about how many students, which tools would help, and whether you would pay $50 a year for them. Nothing is sold there: it is a test of whether teachers want these tools before they are built. Reading every bill stays free.
+`/teachers` is for teachers who use the site in class. It describes class tools that are not built yet (assign bills with one class code, see the questions a class asked without names, see how members voted on the assigned bills, see how many students opened each bill as a count, never names), each marked "Coming", and asks six questions: school email, school name, what you teach, about how many students, which tools would help, and whether you would pay $50 a year for them. Nothing is sold there: it is a test of whether teachers want these tools before they are built. Reading every bill stays free.
 
 Visitors who arrive from Google Classroom, Canvas, Teams or Schoology see one line under the header, "Teaching with this?", with a link to that page. It is not a pop-up, and closing it keeps it closed on that browser. The footer links to the page too.
 

@@ -477,7 +477,7 @@ defaults, and the thank-you does not repeat the address.
 | `teacher_banner_shown` | The "Teaching with this?" line was shown to a visit that came from a school site. Once per visit (session storage `bic_teacher_banner_shown`) | `route` (`home`, `bill`, `list`, `hub`, `learn`, `other`), `school_site` (`google_classroom`, `canvas`, `teams`, `schoology`) | `components/teachers/teacher-banner.tsx` |
 | `teacher_banner_clicked` | The visitor pressed "For teachers" on that line | `route`, `school_site` | same |
 | `teacher_banner_dismissed` | The visitor closed the line. It does not come back on that browser (local storage `bic_teacher_banner_dismissed`) | `route`, `school_site` | same |
-| `teacher_signup_submitted` | The `/teachers` form was saved in Convex | `level`, `students`, `wants` (array), `would_pay` (`yes_myself`, `yes_school`, `no`, `not_sure`), `source` (`banner`, `footer`, `email`, `direct`), `school_site` (or null), `is_new` (false when the same email sent it before) | `components/teachers/teacher-signup-form.tsx` |
+| `teacher_signup_submitted` | The `/teachers` form was saved in Convex | `level`, `students`, `wants` (array of `assign_bills`, `see_questions`, `member_votes`, `track_reading`), `would_pay` (`yes_myself`, `yes_school`, `no`, `not_sure`), `source` (`banner`, `footer`, `email`, `direct`), `school_site` (or null), `is_new` (false when the same email sent it before) | `components/teachers/teacher-signup-form.tsx` |
 | `teacher_signup_failed` | The form could not be saved | `reason` (our error code: `INVALID_EMAIL`, `SCHOOL_REQUIRED`, `RATE_LIMITED`, `UNKNOWN`) | same |
 
 ### Podcast cross-promotion

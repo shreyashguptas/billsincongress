@@ -46,7 +46,17 @@ export const submit = mutation({
     const wants = [...new Set(args.wants)];
     if (wants.length > TEACHER_WANTS.length) throw new ConvexError("WANTS_INVALID");
 
-    await rateLimiter.limit(ctx, "teacherSignupsPerDay", { key: "all", throws: true });
+    const existing = await ctx.db
+      .query("teacherSignups")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+    // A resend is limited per email, so a teacher who sends the form twice
+    // never uses up the day's shared allowance for new sign-ups.
+    if (existing) {
+      await rateLimiter.limit(ctx, "teacherSignupResendsPerDay", { key: email, throws: true });
+    } else {
+      await rateLimiter.limit(ctx, "teacherSignupsPerDay", { key: "all", throws: true });
+    }
 
     const fields = {
       email,
@@ -59,10 +69,6 @@ export const submit = mutation({
       schoolSite: args.schoolSite,
       updatedAt: Date.now(),
     };
-    const existing = await ctx.db
-      .query("teacherSignups")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .unique();
     if (existing) {
       await ctx.db.replace("teacherSignups", existing._id, fields);
       return { isNew: false };

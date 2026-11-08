@@ -73,7 +73,7 @@ export function TeacherBanner() {
       <div className="container-editorial flex items-center gap-3 py-2">
         <p className="min-w-0 flex-1 text-sm text-ink-2">
           <span className="font-medium text-ink">Teaching with this?</span>{' '}
-          Free class tools are coming. Tell us what your class needs.
+          Class tools are coming. Tell us what your class needs.
         </p>
         <Button asChild variant="outline" size="sm" className="shrink-0">
           <Link

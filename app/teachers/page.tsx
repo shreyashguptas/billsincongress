@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { sharedViewport } from '../shared-metadata';
 import { SectionHeader } from '@/components/brand/section';
 import { TeacherSignupForm } from '@/components/teachers/teacher-signup-form';
+import { TEACHER_WANTS } from '@/lib/teachers';
 
 export const viewport: Viewport = sharedViewport;
 
@@ -16,21 +17,8 @@ export const metadata: Metadata = {
 // The teacher sign-up test (documentation/overview.md, "Teacher sign-up test"):
 // what class tools would do, and a form that asks whether teachers want them
 // and would pay. Nothing on this page is built yet except the form, and the
-// page says so: every tool is marked "Coming".
-const TOOLS = [
-  {
-    title: 'Assign bills',
-    body: 'Pick the bills for a lesson. Students join with one class code. No student emails or accounts.',
-  },
-  {
-    title: 'See what the class asked',
-    body: 'The questions your students asked about each bill, without their names.',
-  },
-  {
-    title: 'See who opened each bill',
-    body: 'How many students opened each bill you assigned.',
-  },
-];
+// page says so: every tool is marked "Coming". The tools listed are the form's
+// own choices (TEACHER_WANTS), so the two cannot drift apart.
 
 export default function TeachersPage() {
   return (
@@ -52,13 +40,13 @@ export default function TeachersPage() {
         <div className="border-t border-line pb-12 pt-8 sm:pb-16">
           <SectionHeader eyebrow="Coming" title="Class tools we’re planning." />
           <ul className="mt-6 border-t border-line">
-            {TOOLS.map((tool) => (
-              <li key={tool.title} className="flex gap-4 border-b border-line py-4 sm:gap-6">
+            {TEACHER_WANTS.map((tool) => (
+              <li key={tool.value} className="flex gap-4 border-b border-line py-4 sm:gap-6">
                 <span className="w-16 shrink-0 pt-0.5 font-mono text-xs uppercase tracking-wider text-ink-2">
                   Coming
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-title text-ink">{tool.title}</h3>
+                  <h3 className="text-title text-ink">{tool.label}</h3>
                   <p className="mt-1 text-base leading-relaxed text-ink-2">{tool.body}</p>
                 </div>
               </li>

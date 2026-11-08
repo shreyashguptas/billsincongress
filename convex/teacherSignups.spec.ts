@@ -97,6 +97,30 @@ describe("teacher sign-ups", () => {
     ).rejects.toThrow(/RateLimited/);
   });
 
+  test("a teacher sending the form again does not use up the day's new sign-ups", async () => {
+    const t = setup();
+    for (let i = 0; i < 49; i++) {
+      await t.mutation(api.teacherSignups.submit, { ...answers, email: `t${i}@school.org` });
+    }
+    // Resends of an existing email: before the fix each one counted against
+    // the shared 50, so these five would have locked out the next teacher.
+    for (let i = 0; i < 5; i++) {
+      await t.mutation(api.teacherSignups.submit, { ...answers, email: "t0@school.org" });
+    }
+    expect(await t.mutation(api.teacherSignups.submit, { ...answers, email: "new@school.org" })).toEqual({
+      isNew: true,
+    });
+  });
+
+  test("one email resent over and over is stopped after 10 in a day", async () => {
+    const t = setup();
+    await t.mutation(api.teacherSignups.submit, answers);
+    for (let i = 0; i < 10; i++) {
+      await t.mutation(api.teacherSignups.submit, answers);
+    }
+    await expect(t.mutation(api.teacherSignups.submit, answers)).rejects.toThrow(/RateLimited/);
+  });
+
   test("the check returns only what was sent since the last check", async () => {
     const t = setup();
     await t.mutation(api.teacherSignups.submit, answers);

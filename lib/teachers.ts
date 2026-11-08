@@ -29,12 +29,34 @@ export const STUDENT_BANDS = [
 ] as const;
 export type StudentBand = (typeof STUDENT_BANDS)[number]['value'];
 
-/** The class tools a teacher can pick, any number of them. */
+/**
+ * The class tools a teacher can pick, any number of them. /teachers describes
+ * each one from this same list (`label` as the heading, `body` under it), so the
+ * page never lists a tool the form does not offer, or the other way round.
+ * `value` is what is stored: never rename one, or old rows stop matching.
+ */
 export const TEACHER_WANTS = [
-  { value: 'assign_bills', label: 'Assign bills to a class' },
-  { value: 'see_questions', label: 'See what the class asked' },
-  { value: 'member_votes', label: 'How members voted' },
-  { value: 'track_reading', label: 'See who opened each bill' },
+  {
+    value: 'assign_bills',
+    label: 'Assign bills to a class',
+    body: 'Pick the bills for a lesson. Students join with one class code. No student emails or accounts.',
+  },
+  {
+    value: 'see_questions',
+    label: 'See what the class asked',
+    body: 'The questions your students asked about each bill, without their names.',
+  },
+  {
+    value: 'member_votes',
+    label: 'How members voted',
+    body: 'How each member of Congress voted on the bills you assigned, side by side.',
+  },
+  {
+    // Counts only: with no student accounts there is no one to name.
+    value: 'track_reading',
+    label: 'How many opened each bill',
+    body: 'How many of your students opened each bill you assigned. A count, never names.',
+  },
 ] as const;
 export type TeacherWant = (typeof TEACHER_WANTS)[number]['value'];
 
