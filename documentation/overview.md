@@ -3101,9 +3101,9 @@ Paid account):
   the same: the switch list only holds crawlers Cloudflare can identify, so `robots.ts` alone
   covers anthropic-ai, Claude-Web, Google-Extended, Applebot-Extended, cohere-ai, Diffbot,
   Omgilibot, ImagesiftBot and Webzio-Extended, while Google-CloudVertexBot, TikTok Spider,
-  ProRataInc, Novellum, Anchor Browser and Cloudflare Crawler are blocked only at Cloudflare. These were exactly the crawlers the old Training setting blocked, minus the
-  four below. **Never set
-  Training to "Block":** Cloudflare files Googlebot, BingBot, Applebot and Claude-User as
+  ProRataInc, Novellum, Anchor Browser and Cloudflare Crawler are blocked only at Cloudflare.
+  These were exactly the crawlers the old Training setting blocked, minus the four below.
+  **Never set Training to "Block":** Cloudflare files Googlebot, BingBot, Applebot and Claude-User as
   training crawlers too, so that setting blocks search engines. It did from 3 to 7 Nov 2026,
   turning away about 36,000 Bing crawls in one week before it was found.
 - **Rate limit** (the Free plan's single rule): more than 100 requests in 10 s from one IP, outside
