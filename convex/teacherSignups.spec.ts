@@ -4,9 +4,9 @@
  * (convex/teacherSignups.ts), run as real Convex functions against an
  * in-memory database (convex-test).
  *
- * Each case is a way the test's numbers could go wrong: one teacher counted
- * twice, a junk row counted as a teacher, or the check reporting a partial
- * list as the whole.
+ * Each case is a way the test's numbers could go wrong: a teacher's answers
+ * erased by someone who typed their address, a junk row counted as a teacher,
+ * or the check reporting a partial list as the whole.
  */
 import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
@@ -35,7 +35,7 @@ const answers = {
 describe("teacher sign-ups", () => {
   test("a sign-up is stored with its email and school tidied", async () => {
     const t = setup();
-    expect(await t.mutation(api.teacherSignups.submit, answers)).toEqual({ isNew: true });
+    expect(await t.mutation(api.teacherSignups.submit, answers)).toBeNull();
     const { rows, complete } = await t.query(internal.teacherSignups.listSince, { since: 0 });
     expect(complete).toBe(true);
     expect(rows).toHaveLength(1);
@@ -46,10 +46,11 @@ describe("teacher sign-ups", () => {
       wouldPay: "yes_school",
       source: "email",
       schoolSite: null,
+      earlierSends: 0,
     });
   });
 
-  test("the same teacher twice is one row with their newest answers", async () => {
+  test("the same email twice keeps both sends, newest first, marked as a resend", async () => {
     const t = setup();
     await t.mutation(api.teacherSignups.submit, answers);
     const again = await t.mutation(api.teacherSignups.submit, {
@@ -58,10 +59,24 @@ describe("teacher sign-ups", () => {
       wouldPay: "yes_myself",
       wants: ["see_questions", "see_questions"],
     });
-    expect(again).toEqual({ isNew: false });
+    // The reply is the same as for a new email: it never says the address is known.
+    expect(again).toBeNull();
     const { rows } = await t.query(internal.teacherSignups.listSince, { since: 0 });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ wouldPay: "yes_myself", wants: ["see_questions"] });
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ wouldPay: "yes_myself", wants: ["see_questions"], earlierSends: 1 });
+    expect(rows[1]).toMatchObject({ wouldPay: "yes_school", earlierSends: 0 });
+  });
+
+  test("someone typing a teacher's email cannot erase that teacher's answers", async () => {
+    // Found in review: with replace-on-same-email, a student who knew their
+    // teacher's address could send "No" with a made-up school, and the
+    // teacher's "Yes, if my school pays" was gone from the owner's report.
+    const t = setup();
+    await t.mutation(api.teacherSignups.submit, answers);
+    await t.mutation(api.teacherSignups.submit, { ...answers, school: "Made Up", wouldPay: "no" });
+    const { rows } = await t.query(internal.teacherSignups.listSince, { since: 0 });
+    expect(rows.map((r) => r.wouldPay)).toEqual(["no", "yes_school"]);
+    expect(rows.map((r) => r.school)).toEqual(["Made Up", "Riverview High"]);
   });
 
   test("a bad email or an empty school is refused and stores nothing", async () => {
@@ -107,9 +122,9 @@ describe("teacher sign-ups", () => {
     for (let i = 0; i < 5; i++) {
       await t.mutation(api.teacherSignups.submit, { ...answers, email: "t0@school.org" });
     }
-    expect(await t.mutation(api.teacherSignups.submit, { ...answers, email: "new@school.org" })).toEqual({
-      isNew: true,
-    });
+    await t.mutation(api.teacherSignups.submit, { ...answers, email: "new@school.org" });
+    const { rows } = await t.query(internal.teacherSignups.listSince, { since: 0 });
+    expect(rows[0]).toMatchObject({ email: "new@school.org", earlierSends: 0 });
   });
 
   test("one email resent over and over is stopped after 10 in a day", async () => {

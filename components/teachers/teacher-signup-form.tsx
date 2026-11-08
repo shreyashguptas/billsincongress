@@ -126,7 +126,7 @@ export function TeacherSignupForm() {
     const stored = safeSessionStorage.getItem('bic_school_site');
     const schoolSite: SchoolSite | null = schoolSiteFor(document.referrer) ?? (stored as SchoolSite | null);
     try {
-      const { isNew } = await submit({
+      await submit({
         email: tidyEmail,
         school,
         level,
@@ -143,7 +143,6 @@ export function TeacherSignupForm() {
         would_pay: wouldPay,
         source,
         school_site: schoolSite,
-        is_new: isNew,
       });
       setSent(true);
     } catch (err) {

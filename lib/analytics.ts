@@ -766,7 +766,7 @@ export const analytics = {
   teacherBannerDismissed: (props: { route: string; school_site: SchoolSite }) =>
     capture('teacher_banner_dismissed', props),
 
-  /** The /teachers form was saved in Convex. `is_new` is false when the same email sent it before. */
+  /** The /teachers form was saved in Convex. Never says whether the email had sent it before. */
   teacherSignupSubmitted: (props: {
     level: TeacherLevel;
     students: StudentBand;
@@ -774,7 +774,6 @@ export const analytics = {
     would_pay: WouldPay;
     source: SignupSource;
     school_site: SchoolSite | null;
-    is_new: boolean;
   }) => capture('teacher_signup_submitted', props),
 
   /** The form could not be saved. `reason` is our error code, never what was typed. */
