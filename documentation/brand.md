@@ -7,7 +7,7 @@ code carries each rule out in three places, and all three follow this file:
 | Layer | File | What it holds |
 |---|---|---|
 | Tokens | `app/globals.css` | Every colour as a CSS variable, for both themes |
-| Utilities | `tailwind.config.ts` | Those variables as classes (`bg-paper`, `text-ink-2`), the type scale, radii |
+| Utilities | `app/globals.css`, its `@theme inline` block (Tailwind 4) | Those variables as classes (`bg-paper`, `text-ink-2`), the type scale, radii, shadows, animations and the `touchable:` / `fine:` / `short:` / `header-*:` variants |
 | Components | `components/brand/` | The logo and the pieces every page shares: status, party, section header |
 
 Change a rule here first, then the code, in the same commit.
@@ -116,9 +116,9 @@ themes. It is the one dark band on a light page. Use it once per site.
 
 | Face | Variable | Class | Use |
 |---|---|---|---|
-| **Newsreader** | `--font-serif` | `font-serif` | Headlines, bill titles, summaries, the big figures. It picks its optical size from the font size |
-| **Geist** | `--font-sans` | `font-sans` (default) | Everything a reader operates or scans, every date and every count (with `.tabular`) |
-| **Geist Mono** | `--font-mono` | `font-mono` | Identifiers only: bill numbers ("H.R. 1276"), party-state codes ("D-MI"), state codes on the map, status codes ("404") |
+| **Newsreader** | `--font-newsreader` | `font-serif` | Headlines, bill titles, summaries, the big figures. It picks its optical size from the font size |
+| **Geist** | `--font-geist` | `font-sans` (default) | Everything a reader operates or scans, every date and every count (with `.tabular`) |
+| **Geist Mono** | `--font-geist-mono` | `font-mono` | Identifiers only: bill numbers ("H.R. 1276"), party-state codes ("D-MI"), state codes on the map, status codes ("404") |
 
 All three are declared once, in `app/fonts/index.ts`, for the root layout and
 `app/global-error.tsx`. Geist and Geist Mono come through `next/font/google`.
@@ -222,7 +222,7 @@ The words that teach a newcomer to read a chart are body copy, not footnotes.
   stay one size and never cross the column rule. See "Input, not width" for
   which primitives carry it.
   Never stack an arbitrary media query under it (`touchable:[@media(min-width:18em)]:`):
-  Tailwind 3 compiles that to CSS the dev server cannot read, and the whole stylesheet drops.
+  Tailwind 3 compiled that to CSS the dev server could not read, and the whole stylesheet dropped.
   Write a named class in `app/globals.css` instead (`.theme-seg-label`);
   `scripts/check-compiled-css.ts` fails `pnpm test` on it.
 - **Nothing floats over the words.** A control pinned over the page never moves
@@ -284,13 +284,18 @@ this document does. Both resolve to the same values.
 ### Adding a component
 
 ```bash
-pnpm dlx shadcn@2.3.0 add <component>
+pnpm dlx shadcn@4.23.0 add <component>
 ```
 
-Version 2.3.0 is the last CLI for Tailwind 3, which this site uses. The CLI
-writes to `components/ui/` and installs its Radix package; the enter/exit
-utilities it relies on come from `tailwindcss-animate`, already installed. After
-adding one, change only what the brand needs and say so in a comment. The
+The site is on Tailwind CSS 4, and version 4.23.0 is a CLI for it (the newest
+out for at least 3 days when it was chosen; see "Build, test and deploy" in
+`documentation/overview.md`). The CLI writes to `components/ui/` and installs
+its Radix package; the enter/exit utilities it relies on (`animate-in`,
+`fade-in-0`…) come from `tw-animate-css`, imported at the top of
+`app/globals.css`. Today's CLI writes components in its current style, which is
+newer than the ones here: compare a new file with its neighbours, keep the brand
+names and edits below, and do not let it rewrite `app/globals.css`. After adding
+one, change only what the brand needs and say so in a comment. The
 existing brand edits:
 
 | Component | Brand edit |
@@ -300,7 +305,7 @@ existing brand edits:
 | `Dialog`, `Sheet` | Titles are Newsreader `display-sm`, not shadcn's bold sans; `hideClose` drops the corner close when the content has its own; the scrim is paper at 85% with no blur, not black (a dark scrim lightens nothing in Night, and a blur is repainted every frame on older machines); `shadow-float`; the corner close is a 40px ghost icon button, 44px on touch |
 | `Dialog` | Two layers: a fixed frame (`className`: size, colour) that is never taller than the screen less 1rem all round and never scrolls, and a body inside it (`bodyClassName`: padding, gap) that does. The close button sits on the frame, so it stays in its corner while a long dialog scrolls. A card with a 1rem gutter and rounded corners at every width, phones included, centred on whole pixels (`inset-0 m-auto h-fit`, not a half-pixel translate) |
 | `Sheet` | Drag to close, with a finger or a mouse (see "Motion and gesture"). Side sheets take a finger anywhere and a mouse on the element marked `data-sheet-grab`; a bottom sheet drags from its grab bar, which `grabber` draws |
-| `Sheet`, `Popover`, `Dialog`, `DropdownMenu` | Their own enter/exit keyframes (`tailwind.config.ts`), timed in "Motion and gesture". A popover that opens above its trigger rises out of it instead of dropping |
+| `Sheet`, `Popover`, `Dialog`, `DropdownMenu` | Their own enter/exit keyframes (`--animate-*` in `app/globals.css`), timed in "Motion and gesture". A popover that opens above its trigger rises out of it instead of dropping |
 | `Input`, `Select` | On `card`, 15px text; the field and each option are 44px on touch |
 | `Toggle`, `ToggleGroup` | 44px tall and at least 44px wide on touch, at every size |
 | `Select` | Item text and the placeholder are wrapped in a `<span>`, so a reader who translates the page (Chrome's "Translate this page") does not crash it when the value changes; `components/ui/select.test.ts` guards this against a re-run of `shadcn add` |
@@ -787,7 +792,7 @@ the same with a finger, a pen or a mouse:
   text still selects it.
 
 **Input, not width.** `hover:` styles apply only on a device that can hover
-(Tailwind's `hoverOnlyWhenSupported`), so a tapped control never stays painted
+(Tailwind 4's default; Tailwind 3 needed `hoverOnlyWhenSupported`), so a tapped control never stays painted
 in its hover state. Every control is 44px on a touch screen (`touchable:`),
 including touchscreen laptops; where growing the control would break a line,
 `.touch-hit` adds an invisible target around it instead: 44px on a touch

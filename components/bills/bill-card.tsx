@@ -146,7 +146,7 @@ export default function BillCard({ bill, hideTopic = false, date }: BillCardProp
 
       {/* Title and sponsor */}
       <div className="min-w-0">
-        <h3 className="line-clamp-3 max-w-[64ch] text-title text-ink [text-wrap:pretty] decoration-line-strong decoration-1 underline-offset-4 group-hover:underline">
+        <h3 className="line-clamp-3 max-w-[64ch] text-title text-ink text-pretty decoration-line-strong decoration-1 underline-offset-4 group-hover:underline">
           {bill.title}
         </h3>
         {(sponsorName || policyArea) && (

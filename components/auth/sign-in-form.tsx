@@ -70,7 +70,7 @@ export function SignInForm() {
       <AuthDivider>or with email</AuthDivider>
 
       <form method="post" onSubmit={onSubmit} className="space-y-5">
-        <div className="space-y-2">
+        <div className="field">
           <Label htmlFor="email" className="text-ink">Email</Label>
           <Input
             id="email"

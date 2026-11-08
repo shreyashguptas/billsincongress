@@ -23,10 +23,10 @@ const strip = readFileSync(join(root, 'components/dashboard/home/stat-strip.tsx'
 // tabular figures, measured at 2.965em ("19,832", and "88,888" the same).
 const FIGURE_EM = 2.97;
 
-const phone = /\.stat-figure \{\n\s+--cell: calc\(50cqi - (\d+(?:\.\d+)?)rem\);\n\s+font-size: min\((\d+(?:\.\d+)?)rem, calc\(var\(--cell\) \* (\d*\.\d+)\)\);/.exec(css);
+const phone = /@utility stat-figure \{\n\s+--cell: calc\(50cqi - (\d+(?:\.\d+)?)rem\);\n\s+font-size: min\((\d+(?:\.\d+)?)rem, calc\(var\(--cell\) \* (\d*\.\d+)\)\);/.exec(css);
 assert.ok(phone, 'app/globals.css no longer sizes .stat-figure from the narrowest phone cell.');
 const [, padRem, maxRem, share] = phone.map(Number) as unknown as [never, number, number, number];
-assert.ok(css.includes('.stat-strip {\n    container-type: inline-size;'), '.stat-strip is no longer a size container.');
+assert.ok(/@utility stat-strip \{[^}]*?container-type: inline-size;/.test(css), '.stat-strip is no longer a size container.');
 assert.ok(strip.includes('stat-strip grid'), 'stat-strip.tsx no longer marks its grid as the size container.');
 assert.ok(strip.includes("'stat-figure "), 'stat-strip.tsx no longer sets its figures with .stat-figure.');
 assert.ok(!/text-\[(?:length:)?\d/.test(strip), 'stat-strip.tsx sets a fixed size on its figures again.');

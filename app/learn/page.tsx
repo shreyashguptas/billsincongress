@@ -68,7 +68,7 @@ function Step({
     // padded by the half of the 44px badge that overhangs the box (brand.md,
     // "Icons beside text").
     <div className="flex items-start gap-4 py-[max(0px,calc((2.75rem-1lh)/2))] text-display-sm">
-      <span aria-hidden="true" className="flex h-[1lh] shrink-0 items-center">
+      <span aria-hidden="true" className="flex h-lh shrink-0 items-center">
         <span className={cn('flex h-11 w-11 items-center justify-center rounded-full text-on-ink', tone)}>
           {Glyph ? (
             <Glyph className="h-5 w-5" strokeWidth={1.75} />
@@ -110,7 +110,7 @@ function Part({
     <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-24 border-t border-line">
       <div className="container-editorial py-16 sm:py-24">
         <SectionHeader eyebrow={eyebrow} title={<span id={`${id}-title`}>{title}</span>} />
-        {lead && <p className="mt-4 max-w-measure text-lg text-ink-2 [text-wrap:pretty] sm:text-xl">{lead}</p>}
+        {lead && <p className="mt-4 max-w-measure text-lg text-ink-2 text-pretty sm:text-xl">{lead}</p>}
         <div className="mt-12 sm:mt-16">{children}</div>
       </div>
     </section>

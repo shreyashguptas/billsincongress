@@ -23,7 +23,10 @@ import { SCHOOL_MAX_LENGTH, TEACHER_WANTS, isPlausibleEmail, normalizeEmail } fr
  * is public, so anyone can type a teacher's address, and replacing would let
  * them erase that teacher's real answers. The owner's report groups rows by
  * email instead. Returns null whether or not the email was seen before, so the
- * reply never tells a caller that an address is on the list.
+ * reply never tells a caller that an address is on the list. (The two limits
+ * below still differ: after using up the shared 50, a caller could tell a known
+ * address from which one stops them. Accepted for a four-week test; see
+ * overview.md.)
  *
  * Errors are ConvexError codes the form turns into copy: INVALID_EMAIL,
  * SCHOOL_REQUIRED, WANTS_INVALID, and the rate limiter's RateLimited object.

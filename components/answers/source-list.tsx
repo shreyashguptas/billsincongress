@@ -65,7 +65,7 @@ export function SourceList({
     <div className={cn('mt-5 space-y-4 border-t border-line pt-4', className)}>
       {db.length > 0 && (
         <div>
-          <p className="label-eyebrow !mb-2">
+          <p className="label-eyebrow mb-2!">
             <span aria-hidden="true">■</span> From our database
           </p>
           <ol className="space-y-1 touchable:space-y-3">
@@ -101,7 +101,7 @@ export function SourceList({
 
       {web.length > 0 && (
         <div>
-          <p className="label-eyebrow !mb-2">
+          <p className="label-eyebrow mb-2!">
             <span aria-hidden="true">□</span> Not from our database
           </p>
           {webReason && (

@@ -161,7 +161,7 @@ export function AdaptiveSurface({
           avoidCollisions={false}
           align={align ?? autoAlign}
           className={cn(
-            'flex max-h-[min(24rem,var(--radix-popover-content-available-height))] w-[min(22rem,calc(100vw_-_2rem))] flex-col overflow-hidden p-0',
+            'flex max-h-[min(24rem,var(--radix-popover-content-available-height))] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden p-0',
             popoverClassName
           )}
           onOpenAutoFocus={focusMarked}
@@ -190,7 +190,7 @@ export function AdaptiveSurface({
           // just above the bottom edge.
           className={cn(
             'flex flex-col gap-0 rounded-t-lg border-line bg-raised p-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
-            'sm:inset-x-3 sm:bottom-3 sm:mx-auto sm:max-h-[calc(85dvh_-_0.75rem)] sm:max-w-[36rem] sm:rounded-lg sm:border sm:pb-[max(0.5rem,env(safe-area-inset-bottom))]'
+            'sm:inset-x-3 sm:bottom-3 sm:mx-auto sm:max-h-[calc(85dvh-0.75rem)] sm:max-w-xl sm:rounded-lg sm:border sm:pb-[max(0.5rem,env(safe-area-inset-bottom))]'
           )}
           onOpenAutoFocus={focusMarked}
           onCloseAutoFocus={(e) => e.preventDefault()}

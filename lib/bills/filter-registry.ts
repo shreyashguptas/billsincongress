@@ -17,9 +17,8 @@
  *
  * Two constraints on this file:
  *
- *  - It is pure. No React, no DOM, no Tailwind class strings — `lib/` is not in
- *    tailwind.config.ts's `content` globs, so any class named here would be
- *    purged from the stylesheet and silently do nothing.
+ *  - It is pure. No React, no DOM, no Tailwind class strings: how a filter
+ *    looks belongs to the components that draw it, not to this list.
  *  - `kind` is the analytics vocabulary and must not be renamed. Reader-facing
  *    labels are free to change; `filter_kind` values are joined against
  *    historical PostHog data and against `dashboard_drilldown_clicked`.

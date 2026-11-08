@@ -184,7 +184,7 @@ function Burst({ initials, avatarUrl }: { initials: string; avatarUrl?: string |
           pro
           size="xl"
           // `!`: must beat the size's own sm:h-28, which a sideways phone also matches.
-          className="sm:h-28 sm:w-28 [@media(max-height:600px)]:!h-16 [@media(max-height:600px)]:!w-16"
+          className="sm:h-28 sm:w-28 [@media(max-height:600px)]:h-16! [@media(max-height:600px)]:w-16!"
         />
       </div>
     </div>

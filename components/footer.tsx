@@ -49,7 +49,7 @@ export function Footer() {
           <div className="max-w-xl">
             <Logo size="lg" />
             <div className="mt-5 space-y-1.5">
-              <p className="text-balance font-serif text-[1.1875rem] leading-[1.75rem] text-ink">
+              <p className="text-balance font-serif text-[1.1875rem] leading-7 text-ink">
                 An independent record of every bill in the U.S. Congress.
               </p>
               <p className="text-sm text-ink-3">Not affiliated with the U.S. government.</p>

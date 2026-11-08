@@ -135,7 +135,7 @@ export function Hemicycle({
   // in the list — an all-Republican chamber that no data supports.
   if (totalBills === 0) {
     return (
-      <div className="flex aspect-[80/41] w-full items-center justify-center rounded-t-full border border-dashed border-line">
+      <div className="flex aspect-80/41 w-full items-center justify-center rounded-t-full border border-dashed border-line">
         <p className="max-w-xs text-center text-sm text-ink-3">
           The party breakdown for this Congress hasn&rsquo;t been built yet. It fills in after the next nightly update.
         </p>
@@ -255,7 +255,7 @@ export function WellReadout({
         {p && <PartyDot party={p.key} />}
         {p ? p.label : scope ?? 'Bills and resolutions'}
       </p>
-      <p className="mt-1 font-serif text-[4rem] font-normal leading-none tracking-[-0.03em] text-ink tabular sm:text-[length:min(8rem,calc(var(--hollow)*62cqw))]">
+      <p className="mt-1 font-serif text-[4rem] font-normal leading-none tracking-[-0.03em] text-ink tabular sm:text-[min(8rem,calc(var(--hollow)*62cqw))]">
         {fmt(l)}
       </p>
       <p className="mt-2 text-ui text-ink-2 sm:text-base">

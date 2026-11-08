@@ -24,7 +24,7 @@ export default function AboutPage() {
         <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">
           A clear, independent view of the U.S. Congress.
         </h1>
-        <p className="mt-5 max-w-[60ch] text-[1.0625rem] leading-relaxed text-ink-2 sm:text-lg">
+        <p className="mt-5 max-w-[60ch] text-[1.0625rem] leading-relaxed text-ink-2 sm:text-lg sm:leading-7">
           Bills in Congress is a public-interest project that reorganises the
           government&apos;s own data into a calmer, more readable record of the
           laws being made on your behalf.

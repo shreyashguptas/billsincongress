@@ -209,7 +209,7 @@ export function TopicWheel({
                     className="focus-ring grid min-h-[52px] min-w-0 flex-1 grid-cols-[12px_minmax(0,1fr)_4rem] items-center gap-x-3 rounded-sm py-2 pl-1 text-left [@media(min-width:18.5em)]:grid-cols-[12px_minmax(0,1fr)_auto_4rem]"
                   >
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: w.color }} />
-                    <span className="break-words text-ui leading-5 text-ink">{w.name}</span>
+                    <span className="wrap-break-word text-ui leading-5 text-ink">{w.name}</span>
                     <span className="hidden text-right text-meta text-ink-3 tabular [@media(min-width:18.5em)]:block">
                       {(w.share * 100).toFixed(1)}%
                     </span>
@@ -234,7 +234,7 @@ export function TopicWheel({
               ))}
             </ul>
 
-            <div className="mt-5 min-h-[3rem] text-sm">
+            <div className="mt-5 min-h-12 text-sm">
               {pinnedItem ? (
                 pinnedItem.isRest ? (
                   <Button

@@ -179,7 +179,7 @@ export default function RootLayout({
               <AnswerProvider>
                 <a
                   href="#main"
-                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-ink focus:text-on-ink focus:px-3 focus:py-2 focus:text-sm"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:rounded focus:bg-ink focus:text-on-ink focus:px-3 focus:py-2 focus:text-sm"
                 >
                   Skip to content
                 </a>
@@ -196,7 +196,7 @@ export default function RootLayout({
                   <Navigation />
                   {/* tabIndex so focus can be moved here when the panel
                       steps aside for a bill the reader tapped in an answer. */}
-                  <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
+                  <main id="main" tabIndex={-1} className="flex-1 focus:outline-hidden">
                     {/* Only for visits from a school site; nothing otherwise. */}
                     <TeacherBanner />
                     {children}

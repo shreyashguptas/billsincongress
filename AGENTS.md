@@ -93,15 +93,18 @@ needed updating.
 principles, voice, colour tokens, type scale, layout, components, charts, logo and icons.
 Everything visual is downstream of it:
 
-- colours and themes live in `app/globals.css` as tokens, exposed by `tailwind.config.ts` as
-  classes named the same way (`bg-paper`, `text-ink-2`, `border-line-strong`, `bg-status-law`);
+- colours and themes live in `app/globals.css` as tokens, exposed as classes named the same
+  way (`bg-paper`, `text-ink-2`, `border-line-strong`, `bg-status-law`) by the `@theme inline`
+  block at the top of the same file. The site is on **Tailwind CSS 4**: its whole configuration
+  is that CSS (`@theme`, `@custom-variant`, `@utility`); there is no `tailwind.config.ts`;
 - the logo and the shared pieces (stage pill and track, party tag, section header, source
   line) live in `components/brand/`;
 - **shadcn/ui is the component library**: `components/ui/` is shadcn/ui, themed through its
   CSS variables (mapped to the brand in `app/globals.css`). Use its components for every
   control — Button, Dialog, ToggleGroup, Select, Skeleton, Alert — and add a missing one
-  with `pnpm dlx shadcn@2.3.0 add <component>` (the Tailwind 3 CLI). Files in `components/ui/`
-  keep shadcn's class names; app code uses the brand names.
+  with `pnpm dlx shadcn@4.23.0 add <component>` (a Tailwind 4 CLI; see "Adding a component"
+  in `documentation/brand.md`). Files in `components/ui/` keep shadcn's class names; app code
+  uses the brand names.
 
 Rules:
 

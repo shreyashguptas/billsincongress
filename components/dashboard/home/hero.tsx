@@ -81,7 +81,7 @@ export function HomeHero(props: HomeProps) {
           </div>
         </div>
 
-        <h1 className="mt-10 text-center text-[2.375rem] font-medium leading-[1.08] tracking-[-0.02em] text-ink sm:mt-14 sm:text-display-2xl">
+        <h1 className="mt-10 text-center text-[2.375rem] font-medium leading-[1.08] tracking-[-0.02em] text-ink sm:mt-14 sm:text-display-2xl sm:leading-[1.03] sm:tracking-[-0.025em]">
           Who&rsquo;s writing America&rsquo;s laws?
         </h1>
         <p className="mx-auto mt-4 max-w-measure text-center text-[1.0625rem] leading-relaxed text-ink-2">

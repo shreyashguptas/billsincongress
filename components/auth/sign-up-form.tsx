@@ -131,7 +131,7 @@ export function SignUpForm() {
           onSubmit={onVerifySubmit}
           className="space-y-5"
         >
-          <div className="space-y-2">
+          <div className="field">
             <Label htmlFor="code" className="text-ink">Verification code</Label>
             <Input
               id="code"
@@ -188,7 +188,7 @@ export function SignUpForm() {
         onSubmit={onCredentialsSubmit}
         className="space-y-5"
       >
-        <div className="space-y-2">
+        <div className="field">
           <Label htmlFor="email" className="text-ink">Email</Label>
           <Input
             id="email"
@@ -201,7 +201,7 @@ export function SignUpForm() {
             disabled={busy}
           />
         </div>
-        <div className="space-y-2">
+        <div className="field">
           <Label htmlFor="password" className="text-ink">Password</Label>
           <Input
             id="password"

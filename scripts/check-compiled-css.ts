@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postcss from 'postcss';
-import tailwindcss from 'tailwindcss';
+import tailwindcss from '@tailwindcss/postcss';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, 'app/globals.css');
@@ -38,7 +38,9 @@ const KNOWN_AT_RULES = new Set([
 ]);
 
 async function main() {
-  const result = await postcss([tailwindcss({ config: join(root, 'tailwind.config.ts') })]).process(
+  // Tailwind 4: the whole configuration is app/globals.css, and `base` is
+  // where it scans for class names.
+  const result = await postcss([tailwindcss({ base: root, optimize: false })]).process(
     readFileSync(source, 'utf8'),
     { from: source },
   );

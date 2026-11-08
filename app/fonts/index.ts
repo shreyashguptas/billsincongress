@@ -19,7 +19,7 @@ const newsreader = localFont({
   src: './newsreader-latin.woff2',
   weight: '200 800',
   style: 'normal',
-  variable: '--font-serif',
+  variable: '--font-newsreader',
   display: 'swap',
   adjustFontFallback: 'Times New Roman',
   declarations: [
@@ -70,13 +70,13 @@ const newsreaderVietnamese = localFont({
 
 const geist = Geist({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-geist',
   display: 'swap',
 });
 
 const geistMono = Geist_Mono({
   subsets: ['latin'],
-  variable: '--font-mono',
+  variable: '--font-geist-mono',
   display: 'swap',
 });
 
