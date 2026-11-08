@@ -47,7 +47,13 @@ it('the helper gives 24px under a mouse and 44px under a finger', () => {
     'the touch minimum is 44px, on any coarse pointer (touchscreen laptops too)',
   );
   // Zero specificity: a control that is itself `absolute` keeps its position.
-  assert.match(css, /:where\(\.touch-hit, \.touch-hit-links a\) \{ position: relative; \}/);
+  // In the base layer, below Tailwind's utilities, so an `absolute` or `sticky`
+  // control keeps its own position. Outside a layer it would beat every utility.
+  assert.match(
+    css,
+    /@layer base \{\s*:where\(\.touch-hit, \.touch-hit-links a\) \{ position: relative; \}\s*\}/,
+    'the touch-hit `position: relative` is no longer in @layer base, so it overrides absolute and sticky',
+  );
 });
 
 /** [file, a fragment that must stay, what it covers] */

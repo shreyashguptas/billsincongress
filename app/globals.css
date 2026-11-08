@@ -261,6 +261,12 @@
  *    the brand's `border-line` in the base layer below; this covers ::before,
  *    ::after and the rest.
  *  - Buttons show a pointer, which Tailwind 4 dropped.
+ *
+ * And one rule for everything written by hand in this file: Tailwind 4 puts
+ * its utilities in a native `@layer utilities`, and CSS outside any layer beats
+ * every layered rule regardless of specificity. A hand-written rule that a
+ * utility class must be able to override (a default, a `:where()`) goes in
+ * `@layer base` or `@layer components`.
  */
 @layer base {
   *,
@@ -737,10 +743,15 @@
    - It is never clipped. An `overflow-hidden` or scrolling parent cuts the box
      off at its edge; give that parent room (padding) or grow the control.
 
-   `:where()` keeps the `relative` at zero specificity, so a control that is
-   itself `absolute` or `sticky` keeps its own positioning (and still contains
-   the box). `components/brand/touch-targets.test.ts` guards all of this. */
-:where(.touch-hit, .touch-hit-links a) { position: relative; }
+   The `relative` sits in the base layer, below Tailwind's utilities, so a
+   control that is itself `absolute` or `sticky` keeps its own positioning (and
+   still contains the box). Unlayered it would beat every utility: under
+   Tailwind 4 a rule outside a layer wins over all layered CSS, whatever its
+   specificity (`:where()` was enough under Tailwind 3).
+   `components/brand/touch-targets.test.ts` guards all of this. */
+@layer base {
+  :where(.touch-hit, .touch-hit-links a) { position: relative; }
+}
 .touch-hit,
 .touch-hit-links a { --hit-min: 24px; }
 .touch-hit::after,
