@@ -26,11 +26,12 @@
  *   pnpm exec convex run --prod memberAccounts:sync '{"force":true}'
  *
  * Accounts the member's site does not confirm, and the accounts it links
- * instead, are listed by `reviewList` for a person to check:
+ * instead, are listed by `reviewList` for a person to check, with the
+ * overrides the source has caught up with or moved past:
  *
  *   pnpm exec convex run --prod memberAccounts:reviewList '{}'
  *
- * One PostHog log line per run of each step, counts only
+ * One PostHog log line per run of each step, counts and bioguide ids only
  * (documentation/analytics.md, "PostHog Logs").
  */
 import { v, type Infer } from "convex/values";
@@ -46,9 +47,11 @@ import { scheduleLog } from "./posthogLogs";
 import { ACCOUNT_OVERRIDES } from "./memberAccountOverrides";
 import {
   buildMemberRecords,
+  overrideReport,
   recordFingerprint,
   safetyProblem,
   type MemberAccount,
+  type OverrideReport,
 } from "./memberAccountsParse";
 import { checkOfficialSite, confirmOnPage, type SiteCheck } from "./memberAccountsVerify";
 
@@ -93,6 +96,12 @@ const accountValidator = v.object({
   proofUrl: v.optional(v.string()),
 });
 
+const findingValidator = v.object({
+  platform: platformValidator,
+  status: v.union(v.literal("redundant"), v.literal("stale")),
+  sourceUrl: v.string(),
+});
+
 const recordValidator = v.object({
   bioguideId: v.string(),
   name: v.string(),
@@ -102,6 +111,7 @@ const recordValidator = v.object({
   district: v.optional(v.number()),
   officialWebsiteUrl: v.optional(v.string()),
   accounts: v.array(accountValidator),
+  overrideFindings: v.optional(v.array(findingValidator)),
 });
 
 const applyResult = v.object({
@@ -134,6 +144,7 @@ export const sync = internalAction({
   handler: async (ctx, args): Promise<null> => {
     let result: Infer<typeof applyResult>;
     let rejected = 0;
+    let report: OverrideReport = { redundant: 0, stale: 0, redundantIds: [], staleIds: [] };
     try {
       const [current, social] = await Promise.all([
         fetchJson("legislators-current.json"),
@@ -141,6 +152,7 @@ export const sync = internalAction({
       ]);
       const built = buildMemberRecords(current, social, ACCOUNT_OVERRIDES);
       rejected = built.rejected;
+      report = overrideReport(built.records);
       result = await ctx.runMutation(internal.memberAccounts.apply, {
         records: built.records,
         force: args.force ?? false,
@@ -173,6 +185,12 @@ export const sync = internalAction({
         left: result.left,
         rejected,
         overrides: ACCOUNT_OVERRIDES.length,
+        // Overrides to delete (the source now says the same) or to look at
+        // (the source changed again), with their members' bioguide ids.
+        overrides_redundant: report.redundant,
+        overrides_redundant_ids: report.redundantIds.join(","),
+        overrides_stale: report.stale,
+        overrides_stale_ids: report.staleIds.join(","),
         forced: args.force ?? false,
         ...(result.problem ? { problem: result.problem } : {}),
       },
@@ -508,8 +526,12 @@ export const recordSiteChecks = internalMutation({
 
 /**
  * For a person: every in-office member whose site check did not confirm an
- * account, with what their site links on that platform instead. A fix goes in
- * convex/memberAccountOverrides.ts, citing the member's site.
+ * account, with what their site links on that platform instead, and every
+ * member with an override the source file has caught up with ("redundant":
+ * delete it) or moved past ("stale": the source carries a different account
+ * from both ours and the one ours replaced), with the source's account and what
+ * the member's site links. A fix goes in convex/memberAccountOverrides.ts,
+ * citing the member's site.
  */
 export const reviewList = internalQuery({
   args: {},
@@ -521,12 +543,17 @@ export const reviewList = internalQuery({
       site: v.string(),
       siteStatus: v.string(),
       unconfirmed: v.array(v.object({ platform: v.string(), url: v.string(), siteLinks: v.array(v.string()) })),
+      overrides: v.array(
+        v.object({ platform: v.string(), status: v.string(), sourceUrl: v.string(), siteLinks: v.array(v.string()) }),
+      ),
     }),
   ),
   handler: async (ctx) => {
     const rows = await ctx.db.query("memberAccounts").take(MAX_ROWS);
+    const siteLinks = (r: (typeof rows)[number], platform: string) =>
+      (r.siteCheck?.links ?? []).filter((key) => key.startsWith(`${platform}:`));
     return rows
-      .filter((r) => r.inOffice && r.accounts.some((a) => !a.confirmedAt))
+      .filter((r) => r.inOffice && (r.accounts.some((a) => !a.confirmedAt) || (r.overrideFindings ?? []).length > 0))
       .map((r) => ({
         bioguideId: r.bioguideId,
         name: r.name,
@@ -535,11 +562,13 @@ export const reviewList = internalQuery({
         siteStatus: r.siteCheck?.status ?? "never checked",
         unconfirmed: r.accounts
           .filter((a) => !a.confirmedAt)
-          .map((a) => ({
-            platform: a.platform,
-            url: a.url,
-            siteLinks: (r.siteCheck?.links ?? []).filter((key) => key.startsWith(`${a.platform}:`)),
-          })),
+          .map((a) => ({ platform: a.platform, url: a.url, siteLinks: siteLinks(r, a.platform) })),
+        overrides: (r.overrideFindings ?? []).map((f) => ({
+          platform: f.platform,
+          status: f.status,
+          sourceUrl: f.sourceUrl,
+          siteLinks: siteLinks(r, f.platform),
+        })),
       }));
   },
 });
