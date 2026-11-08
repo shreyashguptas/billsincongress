@@ -115,7 +115,7 @@ export function AskSummaryChip({ noun, className }: { noun: string; className?: 
         // beside the first (brand.md, "Icons beside text").
         className="mt-4 h-auto min-h-11 max-w-full items-start justify-start gap-2.5 whitespace-normal rounded-full px-5 py-2.5 text-left text-ui font-normal leading-snug text-ink-2 hover:bg-paper hover:text-ink touchable:h-auto"
       >
-        <span className="flex h-[1lh] shrink-0 items-center" aria-hidden="true">
+        <span className="flex h-lh shrink-0 items-center" aria-hidden="true">
           <MessageSquare className="h-4 w-4" strokeWidth={1.75} />
         </span>
         <span className="text-balance">{q}</span>

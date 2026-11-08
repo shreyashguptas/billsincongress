@@ -29,7 +29,7 @@ export function LegalPage({
       <header className="container-prose pb-10 pt-12 sm:pb-12 sm:pt-16">
         <p className="label-eyebrow">Legal</p>
         <h1 className="mt-3 text-display-lg text-ink sm:text-display-xl">{title}</h1>
-        <p className="mt-5 max-w-[60ch] text-[1.0625rem] leading-relaxed text-ink-2 sm:text-lg">{standfirst}</p>
+        <p className="mt-5 max-w-[60ch] text-[1.0625rem] leading-relaxed text-ink-2 sm:text-lg sm:leading-7">{standfirst}</p>
         <p className="meta mt-5">Last updated: {lastUpdated}</p>
       </header>
 

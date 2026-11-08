@@ -47,7 +47,13 @@ it('the helper gives 24px under a mouse and 44px under a finger', () => {
     'the touch minimum is 44px, on any coarse pointer (touchscreen laptops too)',
   );
   // Zero specificity: a control that is itself `absolute` keeps its position.
-  assert.match(css, /:where\(\.touch-hit, \.touch-hit-links a\) \{ position: relative; \}/);
+  // In the base layer, below Tailwind's utilities, so an `absolute` or `sticky`
+  // control keeps its own position. Outside a layer it would beat every utility.
+  assert.match(
+    css,
+    /@layer base \{\s*:where\(\.touch-hit, \.touch-hit-links a\) \{ position: relative; \}\s*\}/,
+    'the touch-hit `position: relative` is no longer in @layer base, so it overrides absolute and sticky',
+  );
 });
 
 /** [file, a fragment that must stay, what it covers] */
@@ -86,7 +92,11 @@ it('a wrapped row of touch-hit links keeps its lines apart on touch', () => {
 
 it('the theme switch names each theme on touch', () => {
   assert.match(read('components/theme/mode-toggle.tsx'), /<span className="theme-seg-label text-caption">\{opt\.label\}<\/span>/);
-  assert.match(read('app/globals.css'), /@media \(any-pointer: coarse\) and \(min-width: 18em\) \{\s*\.theme-seg-label \{\s*display: inline;/);
+  // A Tailwind 4 utility in app/globals.css: hidden, and shown on touch with 18em of screen.
+  assert.match(
+    read('app/globals.css'),
+    /@utility theme-seg-label \{[^}]*?display: none;\s*@media \(any-pointer: coarse\) and \(min-width: 18em\) \{\s*display: inline;/,
+  );
 });
 
 it('a dotted Term answers over its own line, never the next one', () => {
@@ -103,7 +113,7 @@ it('a dotted Term answers over its own line, never the next one', () => {
 
 it('the logo answers a tap over 44px each way, even as the mark alone', () => {
   // The mark alone is 25px wide; a box that only grew up and down was 25x42.
-  assert.match(read('components/brand/logo.tsx'), /touchable:before:-inset-y-\[13px\] touchable:before:-left-2 touchable:before:-right-3/);
+  assert.match(read('components/brand/logo.tsx'), /touchable:before:inset-y-\[-13px\] touchable:before:-left-2 touchable:before:-right-3/);
 });
 
 it('a link\'s arrow is hidden from screen readers', () => {

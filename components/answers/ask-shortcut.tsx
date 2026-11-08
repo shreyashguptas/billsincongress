@@ -266,7 +266,7 @@ export function AskShortcutSwitch() {
           <ToggleGroupItem
             key={value}
             value={value}
-            className="h-8 min-w-10 rounded-[6px] px-2.5 text-caption font-medium text-ink-2 touchable:h-11 touchable:min-w-11 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-sm"
+            className="h-8 min-w-10 rounded-[6px] px-2.5 text-caption font-medium text-ink-2 touchable:h-11 touchable:min-w-11 hover:bg-transparent hover:text-ink data-[state=on]:bg-raised data-[state=on]:text-ink data-[state=on]:shadow-xs"
           >
             {value === 'on' ? 'On' : 'Off'}
           </ToggleGroupItem>

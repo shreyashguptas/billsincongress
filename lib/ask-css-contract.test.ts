@@ -112,7 +112,7 @@ it("lays the header out by its own width, so the docked panel never covers it", 
   // screen. `xl:` still saw 1440, drew the 288px search field, and pushed
   // "Sign up" under the panel. The header's md/lg/xl are container queries.
   assert.ok(
-    /\[container-name:site-header\]/.test(nav) && /\[container-type:inline-size\]/.test(nav),
+    nav.includes('@container/site-header'),
     'the <header> in navigation.tsx is no longer the site-header container.',
   );
   const viewport = nav.match(/(?<![\w-])(md|lg|xl|2xl):[\w[-]/g);
@@ -137,13 +137,12 @@ it("lays the header out by its own width, so the docked panel never covers it", 
     const widths = (source.match(/(?<![\w-])sm:[\w[\]().:-]+/g) ?? []).filter((c) => c !== 'sm:h-16' && c !== 'sm:px-6');
     assert.deepEqual(widths, [], `${file} lays out the header row with sm: (${widths.join(', ')}); use header-sm:.`);
   }
-  const tw = readFileSync(join(root, 'tailwind.config.ts'), 'utf8');
   // In em (px ÷ 16), so the header goes compact sooner when the reader has a
   // larger browser font; at the default size these are Tailwind's widths.
   for (const [name, px] of [['sm', 640], ['md', 768], ['lg', 1024], ['xl', 1280]] as const) {
     assert.ok(
-      tw.includes(`addVariant('header-${name}', '@container site-header (min-width: ${px / 16}em)')`),
-      `tailwind.config.ts does not define header-${name} at ${px / 16}em (${px}px at the default font size), the width of Tailwind's ${name}.`,
+      css.includes(`@custom-variant header-${name} {\n  @container site-header (min-width: ${px / 16}em) {`),
+      `app/globals.css does not define header-${name} at ${px / 16}em (${px}px at the default font size), the width of Tailwind's ${name}.`,
     );
   }
 });
@@ -153,7 +152,7 @@ it("makes the panel's title bar as tall as the site header from lg up", () => {
   // rules must meet in one line. A bar sized by its own padding sat ~10px
   // higher than the header's rule — the seam this assertion exists to stop.
   assert.ok(
-    panel.includes('lg:h-[var(--header-h)]'),
+    panel.includes('lg:h-(--header-h)'),
     'answer-panel.tsx no longer sizes its title bar to --header-h; docked, its bottom rule ' +
       "will not line up with the site header's.",
   );

@@ -158,7 +158,7 @@ export function ResetPasswordForm({
         <form method="post" onSubmit={onResetSubmit} className="space-y-5">
           {/* Tells a password manager which account the new password belongs to. */}
           <input type="email" name="username" autoComplete="username" value={email} readOnly hidden />
-          <div className="space-y-2">
+          <div className="field">
             <Label htmlFor="code" className="text-ink">Reset code</Label>
             <Input
               id="code"
@@ -175,7 +175,7 @@ export function ResetPasswordForm({
               className="text-center font-mono text-lg tracking-[0.3em] tabular"
             />
           </div>
-          <div className="space-y-2">
+          <div className="field">
             <Label htmlFor="new-password" className="text-ink">New password</Label>
             <Input
               id="new-password"
@@ -253,7 +253,7 @@ export function ResetPasswordForm({
   return (
     <div className="space-y-6">
       <form method="post" onSubmit={onRequestSubmit} className="space-y-5">
-        <div className="space-y-2">
+        <div className="field">
           <Label htmlFor="email" className="text-ink">Email</Label>
           <Input
             id="email"

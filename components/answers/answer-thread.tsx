@@ -346,7 +346,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
               // in the interface face, so the answer's serif stays the voice
               // of the record.
               <div key={turn.id} className="flex justify-end">
-                <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-lg bg-sunken px-4 py-3 text-ui leading-relaxed text-ink">
+                <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-lg bg-sunken px-4 py-3 text-ui leading-relaxed text-ink">
                   {turn.content}
                 </p>
               </div>
