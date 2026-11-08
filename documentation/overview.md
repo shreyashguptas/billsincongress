@@ -605,7 +605,7 @@ page links that exact account.** Two daily jobs and one reviewed file implement 
 | Piece | File | What it does |
 | --- | --- | --- |
 | Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.json` and `legislators-social-media.json` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) GitHub Pages mirror (CC0, volunteer-kept; its policy is official accounts only), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
-| Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page and the date a person checked it: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Each is offered back to the project ("Sending corrections upstream", below) and deleted here once the project's file carries it |
+| Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page, the date a person checked it and the file's value it replaced: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Each is offered back to the project ("Sending corrections upstream", below) and deleted here once the project's file carries it; the sync reports which those are |
 | Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | First lapses every confirmation not renewed by a successful check in 30 days, or of a member with no website (`lapseStale`). Then fetches each in-office member's home page, House before Senate, 40 per run with the next run scheduled after the writes (2 at a time, each fetcher waiting a second between sites, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads the links to accounts (never to posts, tweets or photos, and nothing inside an embedded tweet or post, which can quote anyone), and stamps `confirmedAt` plus `shown` (the account's address, for YouTube the exact form the page linked, and its label) on each account it links. A page that redirects off house.gov/senate.gov counts as failed. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing. A page that links no account at all, for a member we hold accounts for, counts as failed rather than as the member's word (earlier confirmations stand until they lapse): on the first live run Rep. Stansbury's page came back without its links and hid both her accounts. Spaces just inside a link's quotes are ignored, as browsers ignore them (`href="https://twitter.com/RepJoshG "` hid every account of Reps. Gottheimer, Joyce and Lucas until 2 Nov 2026). The sites that blocked the check, and those empty pages, are asked again 20 minutes after the pass ends, at most twice: on the first live run (2 Nov 2026), at 8 at a time, house.gov turned the check away after about 400 sites, every House member from Takano to Zinke, though each answered normally one at a time |
 | Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only accounts confirmed by the member's latest successful site check (`confirmedAt === siteCheck.lastOkAt`), with the `shown` address, plus the website. Nothing for a member out of office or a bill without a sponsor id |
 
@@ -623,8 +623,9 @@ because leaving members are not counted. When a person has looked and the change
 pnpm exec convex run --prod memberAccounts:sync '{"force":true}'
 ```
 
-What the site check did not confirm, with what each site links instead, for a person to review
-into the overrides file:
+What the site check did not confirm, with what each site links instead, and the overrides the
+file has caught up with or moved past ("Sending corrections upstream", step 3), for a person to
+review into the overrides file:
 
 ```bash
 pnpm exec convex run --prod memberAccounts:reviewList '{}'
@@ -645,12 +646,27 @@ nothing else and which nothing reads:
    the daily check confirms on the member's own site that day, cite each member's official page
    in the pull request, and open it against `unitedstates/congress-legislators:main`. For
    YouTube, set `youtube_id` to the channel the member's site links (read from that channel's
-   own page), and drop a `youtube` name that belongs to a different channel.
+   own page), drop a `youtube` name that belongs to a different channel, and set `youtube` to the
+   name the site links (as the first batch did). The daily report (step 3) knows our YouTube
+   overrides by that name, so a fix carrying only a channel id reads "stale" there once merged.
 3. **When the project merges, delete our copy.** Once the next sync carries a fix, its override
    says the same as the file: remove it from `memberAccountOverrides.ts`. Until then it keeps the
    site right, but it also replaces whatever the project lists for that member and platform
    (`applyOverrides`). If the member's account changes again, a leftover override hides it, so do
-   not leave one in place after the project's file is right.
+   not leave one in place after the project's file is right. **The daily sync says which to
+   delete.** Each override records the value it replaced (`replaces`), and every run reports the
+   overrides the file now matches (**redundant**: delete them) and those where the file carries a
+   third account, neither ours nor the one ours replaced (**stale**: the account changed again,
+   and our override is hiding it; check the member's site before deleting or updating it). Both
+   are on the `member accounts synced` PostHog log line as counts and bioguide ids
+   (`overrides_redundant`, `overrides_redundant_ids`, `overrides_stale`, `overrides_stale_ids`),
+   and in `memberAccounts:reviewList` under each member's `overrides`, with the file's account and
+   what the member's site links. The report changes nothing a reader sees: every override still
+   applies until it is deleted. A YouTube override matches the file by channel id or by name
+   (`overrideStatus` in `convex/memberAccountsParse.ts`), as the site check does. Checked
+   against the real files on 7 Nov 2026: today's file gives 0 redundant and 0 stale, and the file
+   as the first batch would leave it gives 136 of 137 redundant (all but Rep. Schweikert's hidden
+   YouTube, which that batch does not touch) and 0 stale.
 
 First batch: 82 House members, prepared 7 Nov 2026 (15 members the file did not have, renamed
 and mistyped accounts, and YouTube channel ids), every fix confirmed by that day's site check.
@@ -883,7 +899,7 @@ Congresses, no member in capitals) stay red; they pass on a simulated copy with 
 | `billTitles` | **Unused, and empty** — never written; the only reference is a delete loop in `mutations.ts`. Removing it is left to the owner |
 | `syncSnapshots` | Audit trail of every sync run |
 | `billCosponsors` | One row per (bill, cosponsor): member id, re-cased name, party, state, district, `sponsorshipDate`, `isOriginal`, `withdrawnDate`, and `sortKey` (page order: current before withdrawn, original first, then by date and name). Indexes `by_billId_and_sortKey` (a bill page reads exactly the ten it shows; "Show all" reads the rest in the same order) and `by_bioguideId_and_congress_and_sponsorshipDate` (a member's newest cosponsorships). `bills.cosponsorsFingerprint` is a short hash, not a copy of the list: every read of a bill row pays for it |
-| `memberAccounts` | One row per member (index `by_bioguideId`): name, chamber, state, `inOffice`, official website, and up to four suggested accounts, each with `confirmedAt` once the member's own site links it; plus the last site check. See "Members' official accounts" |
+| `memberAccounts` | One row per member (index `by_bioguideId`): name, chamber, state, `inOffice`, official website, and up to four suggested accounts, each with `confirmedAt` once the member's own site links it; plus the last site check, and `overrideFindings` (overrides the file has caught up with or moved past, for `reviewList`). See "Members' official accounts" |
 
 Two design decisions worth knowing:
 
