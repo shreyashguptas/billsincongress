@@ -33,6 +33,7 @@ date. The production copy in `.truth-cache/` (local, ignored) was last re-dumped
 - [Email](#email)
 - [Pro: billing and bill alerts](#pro-billing-and-bill-alerts)
 - [Reader feedback](#reader-feedback)
+- [Teacher sign-up test](#teacher-sign-up-test)
 - [Sharing and the installed app](#sharing-and-the-installed-app)
 - [Environment variables](#environment-variables)
 - [Build, test and deploy](#build-test-and-deploy)
@@ -96,7 +97,7 @@ case: *"The answer service is not deployed yet. Run `pnpm exec convex deploy`."*
 ## Repository layout
 
 ```
-app/                       Next.js App Router — 21 page.tsx files
+app/                       Next.js App Router — 25 page.tsx files
   page.tsx                 Home dashboard (server) → components/dashboard/dashboard-client.tsx
   bills/                   Browser, bill detail, and the 42 hub pages
     [id]/page.tsx          One bill
@@ -109,6 +110,7 @@ app/                       Next.js App Router — 21 page.tsx files
     components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker,
                            and word-target.tsx (marks the "Words you'll see" row a <Term> popover linked to)
   about/ privacy/ terms/   Content and legal
+  teachers/                The teacher sign-up test: what class tools would do, and the form (server-rendered; the form is the only client code)
   pro/                     The Pro plan page: plan cards first, then pictures (server-rendered; the subscribe panel is the only client code)
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
   sign-in/ sign-up/ forgot-password/
@@ -140,6 +142,7 @@ components/                Shared React components
                            menu and the file picker) and avatar-editor.tsx (the crop dialog);
                            change-password-button.tsx ("Change password")
   feedback/                The Feedback box and the "Did you find what you were looking for?" prompt
+  teachers/                The /teachers form and the "Teaching with this?" line for visits from school sites
   bills/                   Card, details, journey, peers, save, alert and share buttons
     filters/               The /bills filter band: bar, pills, pickers, all-filters panel
   dashboard/               dashboard-client.tsx (DashboardClient: data, Congress switching, drill-down)
@@ -155,7 +158,7 @@ components/                Shared React components
 hooks/                     use-surface-mode.ts — pointer device, not viewport width
                            use-drag-dismiss.ts — drag a sheet or panel closed, finger or mouse
 
-lib/                       Pure client/shared modules — 43 modules + 41 test files at the top level, then the folders below
+lib/                       Pure client/shared modules — 51 modules + 48 test files at the top level, then the folders below
   analytics.ts             Typed PostHog helpers — the only place the browser's
                            posthog.capture() is called. Server-side exceptions go through
                            lib/posthog-server.ts. Convention only; no guard enforces it.
@@ -180,7 +183,7 @@ lib/                       Pure client/shared modules — 43 modules + 41 test f
                            browser), visit.ts (when the found-it prompt may appear)
   services/bills-service.ts  constants/  types/  utils/
 
-convex/                    Backend — 43 top-level modules + catalog/ + 24 test and spec files (12 more in catalog/)
+convex/                    Backend — 56 top-level modules + catalog/ + 43 test and spec files (14 more in catalog/)
   schema.ts                28 application tables (+ 6 from the auth library)
   bills.ts                 Public read surface
   mutations.ts             All sync writes and rollup writers
@@ -194,6 +197,7 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   posthogEmail.ts billingEmail.ts emailStyle.ts   The hand-off to PostHog Workflows, the plan-change
                            emails, and the shared letterhead
   feedback.ts feedbackPicture.ts            Feedback pictures: the upload endpoint and the 180-day purge
+  teacherSignups.ts teacherSignupFields.ts  The teacher sign-up test: the form's write and the owner's read
   memberAccounts.ts memberAccountsParse.ts memberAccountsVerify.ts memberAccountOverrides.ts
                            Members' official accounts: suggest, correct, confirm on their own site
   members.ts cosponsors.ts The member page's query; a bill's cosponsors (parse, order, fingerprint)
@@ -222,6 +226,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | `/bills/introduced`, `/in-committee`, `/passed-one-chamber`, `/passed-both-chambers`, `/to-president`, `/enacted`, `/vetoed` | 7 stage hubs: one per stage a bill can stop at except 20 and 95 (signed, not yet numbered as a law: a day or two), plus `/bills/introduced` (below). 80 and 90 were left out until 2026-10-14 on a measurement that they were empty; the 119th then held 52 and 3. The /bills Outcome picker offers every stage, and a stage that is empty in the chosen Congress shows an empty list (`lib/constants/filters.ts`). **`/bills/introduced` and the picker's "Just introduced" (`status=20`) are not stage 20** since 2026-10-16: they are the bills introduced in the last 30 days, at any stage (`lib/bills/just-introduced.ts`); for a Congress that was not sitting in those 30 days, "Just introduced" keeps the stage-20 meaning, since a date window there is always empty. Bills are referred to committee the day they are introduced, so stage 20 held only 11 numbers in the whole 119th, all reserved for party leaders on 2025-01-03, and "Just introduced" plus any topic said "No bills found" |
 | `/bills/topic/<slug>` | 33 policy-area hubs, one per CRS policy area |
 | `/learn`, `/about`, `/privacy`, `/terms` | Content and legal |
+| `/teachers` | The teacher sign-up test: class tools that are coming, and a form that saves a teacher's answers in Convex. `?from=banner`, `footer` or `email` records how they came. See [Teacher sign-up test](#teacher-sign-up-test) |
 | `/pro` | The Pro plan: Free and Pro compared side by side with the subscribe buttons (Stripe Checkout), all on the first screen; then what Pro adds and the questions as picture cards |
 | `/sign-in`, `/sign-up`, `/forgot-password`, `/account` | Accounts (`/account` is the only protected route). `/account` also offers "Change password" (password accounts only), and shows the plan, today's questions, "Manage billing" (Stripe portal), followed and saved bills |
 | `/alerts/unsubscribe?token=` | The unsubscribe link in every alert email. A button, never an action on page load — mail scanners open every link |
@@ -931,6 +936,7 @@ strategy, the rules for adding one, and the two incidents that produced them.
 | `billChats` / `billChatMessages` | The old per-bill chat. **Orphaned:** nothing reads or writes them since its route and `convex/llm.ts` were deleted on 1 Oct 2026, but they still hold readers' old conversations. Whether to delete that data is the owner's decision |
 | `billChatAnalyticsSessions` / `billChatAnalyticsTurns` | Signed-in per-bill chat analytics. Orphaned the same way since `convex/chatAnalytics.ts` was deleted |
 | `indexNowQueue` | Bills whose pages changed and search engines have not been told |
+| `teacherSignups` | One row per send of the `/teachers` form, never changed afterwards, so nobody who types a teacher's address can erase that teacher's answers (index `by_email` on email and `sentAt`, to group a teacher's sends; `by_sentAt` for the owner's check): email, school, the four multiple-choice answers, how they came, which school site the visit started from, `sentAt`. The only place the email and school are kept. See [Teacher sign-up test](#teacher-sign-up-test) |
 | `feedbackPictures` | One row per picture attached to feedback: `storageId`, `contentType`, `size`. Nothing about who sent it or why; the message lives in PostHog. Exists so the daily purge can find pictures older than 180 days, and (index `by_storageId`) so `avatars.sweepOrphans` does not take them for orphaned photos |
 | `backgroundJobs` | One row per long one-off job that `afterDeploy:run` starts (`name`, `state` running or done, `startedAt`, `heartbeatAt`, `finishedAt`; index `by_name`). Today only `cosponsors-backfill`. A running job whose heartbeat is two hours old is restarted by the next deploy. See "After-deploy jobs" |
 | `answerPrompts` | Copies of the `answer-system` prompt from PostHog prompt management: `name`, `version`, `template`, `isProduction`, `fetchedAt` (index `by_name_version`). Written only by `answerPrompts.store`, read once per answer. At most one row is production, and ten other versions are kept. Empty = the in-code default |
@@ -1017,6 +1023,7 @@ more generated by `convexAuth()` in `auth.ts`: `signIn` and `signOut` (public ac
 | `alerts.ts`, `email.ts` | Bill alerts: follow/unfollow, the account list, token unsubscribe, the daily digest run; `email.deliver` hands each digest and plan-change email to PostHog |
 | `posthogEmail.ts`, `billingEmail.ts`, `emailStyle.ts` | The POST to a PostHog Workflows webhook, the plan-change emails, and the letterhead every email shares |
 | `indexNow.ts` | Search-engine notification (10, all internal) |
+| `teacherSignups.ts` | The teacher sign-up test: `submit` (public mutation: checks the email and school, 50 new emails a day site-wide via `teacherSignupsPerDay`; a resend of a known email adds a row too and is limited to 10 a day per email by `teacherSignupResendsPerDay`; returns null either way, so its reply never says whether an address is on the list. Someone who first uses up the day's 50 could still tell from which limit stops them; accepted for a four-week test, since it costs them 50 junk rows and shows as `RATE_LIMITED` failures) and `listSince` (internal query: what was sent since a time, newest first, at most 500 with a `complete` flag, each row with `earlierSends` for that email). `teacherSignupFields.ts` holds the shared validators |
 | `feedback.ts` | Feedback pictures: `uploadPicture` and `pictureOptions` (the two HTTP actions behind `/feedback/picture`), `pictureStoreFull` (internal query: the 500-picture bound), `recordPicture` and `purgeOldPictures` (internal mutations) |
 | `rateLimits.ts` | The limiter config, `getChatUsage` (the public query behind the account page's quota meter) and `limitChatQuestion`, the one helper that picks the anonymous, free or Pro bucket |
 | `sync.ts`, `aggregateBackfill.ts`, `policyAreaBackfill.ts` | Operational backfills and diagnostics, all internal |
@@ -2412,6 +2419,43 @@ open; the survey's response limit of **1,000** ends it, which is the cap on free
 Free-plan budget: PostHog's free tier is 1,500 survey responses a month across all surveys.
 The site had about 5,000 visitors a month in September 2026, so the prompt should draw a few
 hundred answers and the Feedback box a few dozen.
+
+## Teacher sign-up test
+
+Runs for four weeks from its merge in November 2026. Students reach the site from Google Classroom, Canvas,
+Teams and Schoology, sent by their teachers (about 250 in October 2026; they asked a fifth of
+all questions). The test asks those teachers whether they want class tools, and whether they
+would pay $50 a year for them, before any are built. Nothing on `/teachers` is for sale.
+
+- **Ways in.** A visit whose first referrer is one of those platforms (`schoolSiteFor` in
+  `lib/teachers.ts`, matched on the host only) sees a "Teaching with this?" line under the
+  header on every page except `/teachers`, sign-in, account, billing and alert pages
+  (`components/teachers/teacher-banner.tsx`, mounted in `app/layout.tsx`). It renders only in
+  the browser, so the cached page every signed-out reader shares never carries it. The footer
+  links to `/teachers?from=footer`, and the owner's emails to teachers link to
+  `/teachers?from=email`.
+- **Where answers go.** `teacherSignups.submit` adds one row to `teacherSignups` each time the
+  form is sent, and never replaces one: anyone can type a teacher's address, so the owner's
+  report groups rows by email and shows every version (`earlierSends`) rather than trusting the
+  newest.
+  The email and school are stored there and nowhere else: the analytics event carries only the
+  multiple-choice answers, replay masks typed input, nothing is emailed, nothing is logged.
+- **Limits.** 50 new emails a day for the whole site, since the form is public and anonymous; a
+  resend of the same email has its own 10 a day and does not count. One person with a script
+  can still use up a day's 50: watch `teacher_signup_failed` with reason `RATE_LIMITED`, which
+  a real day of the test should never show.
+- **No notification email.** The owner's scheduled check reads the table every two days and
+  reports what is new, so no email carrying a teacher's address passes through PostHog
+  Workflows (which keeps each send's payload). The read, from a checkout with the deploy key:
+
+  ```bash
+  pnpm exec convex run --prod teacherSignups:listSince '{"since": <ms since epoch>}'
+  ```
+
+- **The result.** At four weeks: 10 sign-ups, 3 who would pay, and 3 who take a 15-minute call
+  mean build the class tools; fewer means drop them. The funnel is in analytics.md, "Teacher
+  sign-up test". When the test ends, remove the line, the page and the events in one change
+  (move the events to "Retired events"), and delete or keep the rows as the owner decides.
 
 ## Sharing and the installed app
 

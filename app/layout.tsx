@@ -12,6 +12,7 @@ import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { PwaSetup } from '@/components/pwa/pwa-setup';
 import { IconAlignmentCheck } from '@/components/brand/icon-alignment-check';
 import { FoundItPrompt } from '@/components/feedback/found-it-prompt';
+import { TeacherBanner } from '@/components/teachers/teacher-banner';
 import { ConvexClientProvider } from '@/components/convex-client-provider';
 import { sharedViewport, sharedThemeColor } from './shared-metadata';
 import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo';
@@ -196,6 +197,8 @@ export default function RootLayout({
                   {/* tabIndex so focus can be moved here when the panel
                       steps aside for a bill the reader tapped in an answer. */}
                   <main id="main" tabIndex={-1} className="flex-1 focus:outline-hidden">
+                    {/* Only for visits from a school site; nothing otherwise. */}
+                    <TeacherBanner />
                     {children}
                   </main>
                   <Footer />

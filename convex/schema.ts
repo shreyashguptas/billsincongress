@@ -1,6 +1,14 @@
 import { defineSchema, defineTable } from "convex/server";
 import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
+import {
+  levelValidator,
+  schoolSiteValidator,
+  sourceValidator,
+  studentsValidator,
+  wantValidator,
+  wouldPayValidator,
+} from "./teacherSignupFields";
 
 export default defineSchema({
   // `authTables` provides authAccounts, authSessions, authRefreshTokens,
@@ -758,4 +766,29 @@ export default defineSchema({
     fingerprint: v.string(),
     changedAt: v.string(),
   }).index("by_bioguideId", ["bioguideId"]),
+
+  // The teacher sign-up test (/teachers, convex/teacherSignups.ts): one row per
+  // time the form was sent, never changed afterwards. The form is public and
+  // anyone can type any address, so a second send for an email is a new row,
+  // not a replacement: nobody can erase a teacher's answers. The
+  // email and school live here and nowhere else: never in PostHog events,
+  // replays or emails. Read by the owner's scheduled check through
+  // `teacherSignups:listSince`; kept until the owner deletes them or a teacher
+  // asks (hi@billsincongress.com).
+  teacherSignups: defineTable({
+    email: v.string(),
+    school: v.string(),
+    level: levelValidator,
+    students: studentsValidator,
+    // At most the four tools on the form, so the list is bounded.
+    wants: v.array(wantValidator),
+    wouldPay: wouldPayValidator,
+    source: sourceValidator,
+    // The school platform the visit came from, when it came from one.
+    schoolSite: v.optional(schoolSiteValidator),
+    // When this row was sent.
+    sentAt: v.number(),
+  })
+    .index("by_email", ["email", "sentAt"])
+    .index("by_sentAt", ["sentAt"]),
 });
