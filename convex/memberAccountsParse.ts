@@ -312,7 +312,10 @@ export function applyOverrides(
  * source when they share the channel id or the name: "c/RepJimHimes" and a
  * source carrying the name RepJimHimes beside its channel id. A source that
  * keeps the channel id our fix replaced is not "stale", whatever name sits
- * beside it, and is "redundant" once that name is ours. So an upstream YouTube
+ * beside it, and is "redundant" once that name is ours, even when that id is
+ * another channel (Rep. Clarke's): deleting the override then changes nothing
+ * a reader sees, since `confirmOnPage` sends the reader to the form the
+ * member's site links, never to a channel id it does not. So an upstream YouTube
  * fix must write the name the member's site links in `youtube` as well as
  * the channel id (step 2 of "Sending corrections upstream"): one with only a
  * channel id reads "stale" here, since a name and an id cannot be compared

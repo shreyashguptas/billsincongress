@@ -18,6 +18,7 @@ import {
   type AccountOverride,
 } from "./memberAccountsParse";
 import { ACCOUNT_OVERRIDES } from "./memberAccountOverrides";
+import { confirmOnPage, linkKey } from "./memberAccountsVerify";
 
 let passed = 0;
 const failures: string[] = [];
@@ -258,6 +259,15 @@ it("matches a YouTube override to the source by channel id or by name, in any ad
   assert.equal(withYoutube({ youtube: "repyvetteclarke", youtube_id: "UC8SuQiuL2P9fUHAxuRoTdUQ" }), undefined);
   // A different channel and a different name: the account moved on.
   assert.equal(withYoutube({ youtube: "ClarkeForCongress", youtube_id: "UCaaaaaaaaaaaaaaaaaaaaaa" })?.[0].status, "stale");
+  // Our name beside the OTHER channel id it replaced still reads redundant:
+  // deleting the override changes nothing a reader sees, because the site
+  // check confirms by whichever the member's site links and sends the reader
+  // there, so the wrong channel id never reaches a page.
+  const half = { youtube: "RepYvetteDClarke", youtube_id: "UC8SuQiuL2P9fUHAxuRoTdUQ" };
+  assert.equal(withYoutube(half)?.[0].status, "redundant");
+  const withoutOverride = buildMemberRecords([clarkeCurrent], [{ id: { bioguide: "C001067" }, social: half }], []).records[0];
+  const page = new Set([linkKey("https://www.youtube.com/@RepYvetteDClarke")!]);
+  assert.deepEqual(confirmOnPage(page, withoutOverride.accounts[0]), { url: "https://www.youtube.com/@RepYvetteDClarke", label: "@RepYvetteDClarke" });
   // An old /c/ address is the same name.
   const cForm = { ...clarke, value: "c/RepYvetteDClarke" };
   assert.equal(withYoutube({ youtube: "RepYvetteDClarke", youtube_id: "UCuz1ofl3ZqdkjRahPzTKGDQ" }, cForm)?.[0].status, "redundant");
