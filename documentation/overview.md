@@ -3097,7 +3097,12 @@ Paid account):
   Training are all "Allow"**; training crawlers are blocked one by one instead, in AI Crawl
   Control → Security (GPTBot, ClaudeBot, CCBot, Bytespider, Amazonbot, FacebookBot,
   Meta-ExternalAgent, Google-CloudVertexBot, PetalBot, Timpibot, TikTok Spider, ProRataInc,
-  Novellum, Anchor Browser, Cloudflare Crawler), matching `app/robots.ts`. **Never set
+  Novellum, Anchor Browser, Cloudflare Crawler). That list overlaps `app/robots.ts` but is not
+  the same: the switch list only holds crawlers Cloudflare can identify, so `robots.ts` alone
+  covers anthropic-ai, Claude-Web, Google-Extended, Applebot-Extended, cohere-ai, Diffbot,
+  Omgilibot, ImagesiftBot and Webzio-Extended, and the last six names above are blocked only
+  at Cloudflare. These were exactly the crawlers the old Training setting blocked, minus the
+  four below. **Never set
   Training to "Block":** Cloudflare files Googlebot, BingBot, Applebot and Claude-User as
   training crawlers too, so that setting blocks search engines. It did from 3 to 7 Nov 2026,
   turning away about 36,000 Bing crawls in one week before it was found.
