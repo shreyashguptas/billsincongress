@@ -74,7 +74,7 @@ export function IndependentTilePicture() {
       {rows.map((r) => (
         <g key={r.y}>
           <rect x={16} y={r.y} width={r.w + 28} height={26} rx={5} className="fill-raised stroke-ink/40" strokeWidth={1.5} />
-          <text x={30} y={r.y + 17.5} className="fill-ink-3 font-sans text-[12px]">
+          <text x={30} y={r.y + 17.5} className="fill-ink-2 font-sans text-caption">
             {r.label}
           </text>
           <path d={`M24 ${r.y + 13}H${r.w + 36}`} className="stroke-ink" strokeWidth={2} />
@@ -107,7 +107,7 @@ export function DiagramNode({
         <Icon className="h-5 w-5" strokeWidth={1.75} />
         {struck && <span className="absolute h-0.5 w-12 -rotate-45 rounded-full bg-ink" />}
       </span>
-      <span className="text-[12px] leading-tight text-ink-2">{label}</span>
+      <span className="text-xs leading-tight text-ink-2">{label}</span>
     </span>
   );
 }
@@ -119,13 +119,13 @@ export function MorningPicture() {
       <rect x={6} y={66} width={96} height={3} rx={1.5} className="fill-ink/20" />
       <path d="M28 66a26 26 0 0 1 52 0" className="fill-ink/10 stroke-ink" strokeWidth={2} />
       <path d="M54 30v-9M30 40l-6-6M78 40l6-6M16 58h-9M92 58h9" className="stroke-ink-3" strokeWidth={2.5} />
-      <text x={118} y={42} className="fill-ink font-mono text-[22px]">
+      <text x={118} y={42} className="fill-ink font-sans text-[1.375rem] font-medium tabular">
         7 AM ET
       </text>
-      <text x={118} y={60} className="fill-ink-3 font-mono text-[11px]">
+      <text x={118} y={60} className="fill-ink-2 font-sans text-caption tabular">
         6 AM in winter
       </text>
-      <text x={118} y={75} className="fill-ink-3 font-mono text-[11px]">
+      <text x={118} y={75} className="fill-ink-2 font-sans text-caption tabular">
         11:00 UTC
       </text>
     </Scene>

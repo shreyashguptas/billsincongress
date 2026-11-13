@@ -40,7 +40,7 @@ and link to the specific bill page so readers can reach the original record.
   and cosponsored bills. The bioguideId is the member's Congressional Bioguide ID
   (a letter and six digits). Members in office are listed in the sitemap.
 - [About](${SITE_URL}/about): what this project is and how the data is sourced.
-- [How Congress works](${SITE_URL}/learn): a plain-language guide to the legislative process.
+- [How Congress works](${SITE_URL}/learn): a plain-language guide to the legislative process, with a glossary of the civics words used on bill pages (${SITE_URL}/learn#words).
 
 ## Browse pages
 Each of these is a real page with a plain-language explanation of what the

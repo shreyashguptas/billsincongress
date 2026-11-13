@@ -280,7 +280,8 @@ export const sitesToCheck = internalQuery({
   // ids: only these members (a retry of the sites that turned the checker away).
   args: { offset: v.number(), limit: v.number(), ids: v.optional(v.array(v.string())) },
   returns: v.object({
-    sites: v.array(v.object({ bioguideId: v.string(), url: v.string() })),
+    // suggested: how many accounts we hold for the member, to tell an empty page from one that has nothing to confirm.
+    sites: v.array(v.object({ bioguideId: v.string(), url: v.string(), suggested: v.number() })),
     total: v.number(),
   }),
   handler: async (ctx, args) => {
@@ -291,7 +292,7 @@ export const sitesToCheck = internalQuery({
     const all = rows
       .filter((r) => r.inOffice && r.officialWebsiteUrl && (!only || only.has(r.bioguideId)))
       .sort((a, b) => (a.chamber === b.chamber ? 0 : a.chamber === "house" ? -1 : 1))
-      .map((r) => ({ bioguideId: r.bioguideId, url: r.officialWebsiteUrl as string }));
+      .map((r) => ({ bioguideId: r.bioguideId, url: r.officialWebsiteUrl as string, suggested: r.accounts.length }));
     return { sites: all.slice(args.offset, args.offset + args.limit), total: all.length };
   },
 });
@@ -364,7 +365,8 @@ const totalsValidator = v.object({
  * each run fetches its page, writes the results, and schedules the next, so
  * a slow day can never run past an action's time limit with nothing written.
  *
- * The sites that turned the checker away are carried along (`blockedIds`) and
+ * The sites that turned the checker away, or came back linking no account
+ * though we hold some for the member, are carried along (`blockedIds`) and
  * asked again SITE_RETRY_AFTER_MS after the pass ends, up to SITE_RETRIES
  * times (`retry` counts them; a retry pass reads only `ids`).
  */
@@ -394,7 +396,18 @@ export const checkSites = internalAction({
     const checks = await mapLimit(
       sites,
       SITE_CONCURRENCY,
-      async (site) => ({ bioguideId: site.bioguideId, ...(await checkOfficialSite(site.url)) }),
+      async (site) => {
+        const check = await checkOfficialSite(site.url);
+        // A page that links no account at all, for a member we hold accounts
+        // for, is not trusted as the member's word: on the first live run
+        // Rep. Stansbury's page came back without its links and hid both her
+        // accounts, though it links them. Counted as failed (earlier
+        // confirmations stand until they lapse) and asked again with the
+        // refused sites. A member whose site truly links nothing is retried
+        // for nothing, which costs two fetches a day.
+        const empty = check.status === "ok" && check.links.length === 0 && site.suggested > 0;
+        return { bioguideId: site.bioguideId, ...check, ...(empty ? { status: "failed" as const, empty: true } : {}) };
+      },
       SITE_SPACING_MS,
     );
     const results = checks.map(({ bioguideId, status, links }) => ({ bioguideId, status, links }));
@@ -405,7 +418,7 @@ export const checkSites = internalAction({
     }
     for (const c of checks) {
       totals[c.status]++;
-      if (c.status === "blocked") blockedIds.push(c.bioguideId);
+      if (c.status === "blocked" || ("empty" in c && c.empty)) blockedIds.push(c.bioguideId);
       if (c.rateLimited) totals.rateLimited = (totals.rateLimited ?? 0) + 1;
     }
 

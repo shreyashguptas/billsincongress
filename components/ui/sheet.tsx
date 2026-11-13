@@ -43,11 +43,12 @@ SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
  * its exit animation runs; with only an "open" animation, Presence unmounts
  * immediately and the sheet snaps out of existence.
  *
- * The animation utilities come from tailwind.config.ts (keyframes live in
- * app/globals.css). They were written when tailwindcss-animate was not
- * installed and every sheet opened with no transition; the plugin is installed
- * now (for the shadcn/ui components added later), but these are tuned to the
- * sheet's own easing and exit timing, so the sheet keeps them.
+ * The animation utilities are the `--animate-*` entries in app/globals.css,
+ * with their keyframes further down that file. They were written when no
+ * enter/exit library was installed and every sheet opened with no transition;
+ * tw-animate-css is installed now (for the shadcn/ui components added later),
+ * but these are tuned to the sheet's own easing and exit timing, so the sheet
+ * keeps them.
  */
 const sheetVariants = cva(
   'fixed z-50 gap-4 bg-background p-6 shadow-float',
@@ -162,7 +163,7 @@ const SheetContent = React.forwardRef<
         {/* The swipe closes through Radix, so focus return and onOpenChange run as for any close. */}
         <SheetPrimitive.Close ref={closeRef} tabIndex={-1} aria-hidden="true" className="hidden" />
         {!hideClose && (
-          <SheetPrimitive.Close className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none touchable:h-11 touchable:w-11">
+          <SheetPrimitive.Close className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none touchable:h-11 touchable:w-11">
             <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>

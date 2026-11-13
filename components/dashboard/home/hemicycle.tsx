@@ -135,7 +135,7 @@ export function Hemicycle({
   // in the list — an all-Republican chamber that no data supports.
   if (totalBills === 0) {
     return (
-      <div className="flex aspect-[80/41] w-full items-center justify-center rounded-t-full border border-dashed border-line">
+      <div className="flex aspect-80/41 w-full items-center justify-center rounded-t-full border border-dashed border-line">
         <p className="max-w-xs text-center text-sm text-ink-3">
           The party breakdown for this Congress hasn&rsquo;t been built yet. It fills in after the next nightly update.
         </p>
@@ -215,10 +215,14 @@ function perSeatLabel(total: number, seats: number, one: string, many: string) {
 export function HemicycleKey({ totalBills, totalLaws }: { totalBills: number; totalLaws: number }) {
   if (totalBills === 0) return null;
   return (
-    <p className="text-center font-mono text-xs leading-5 text-ink-3">
-      outer seat {perSeatLabel(totalBills, OUTER_SEATS, 'bill or resolution', 'bills and resolutions')}
-      <span className="mx-2" aria-hidden="true">·</span>
-      <span className="whitespace-nowrap">
+    // One line from `sm`; on a phone the two keys stack, so the separator
+    // never dangles at the end of a wrapped line.
+    <p className="meta text-center">
+      <span className="block sm:inline">
+        outer seat {perSeatLabel(totalBills, OUTER_SEATS, 'bill or resolution', 'bills and resolutions')}
+      </span>
+      <span className="mx-2 hidden sm:inline" aria-hidden="true">·</span>
+      <span className="block sm:inline sm:whitespace-nowrap">
         <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle ring-1 ring-status-law" />
         inner seat, ringed green {perSeatLabel(totalLaws, MAX_LAW_SEATS, 'law', 'laws')}
       </span>
@@ -251,11 +255,11 @@ export function WellReadout({
         {p && <PartyDot party={p.key} />}
         {p ? p.label : scope ?? 'Bills and resolutions'}
       </p>
-      <p className="mt-1 font-serif text-[64px] font-normal leading-none tracking-[-0.03em] text-ink tabular sm:text-[length:min(128px,calc(var(--hollow)*62cqw))]">
+      <p className="mt-1 font-serif text-[4rem] font-normal leading-none tracking-[-0.03em] text-ink tabular sm:text-[min(8rem,calc(var(--hollow)*62cqw))]">
         {fmt(l)}
       </p>
-      <p className="mt-2 text-[15px] text-ink-2 sm:text-base">
-        became law, of <span className="font-mono tabular">{fmt(b)}</span> bills and resolutions
+      <p className="mt-2 text-ui text-ink-2 sm:text-base">
+        became law, of <span className="tabular">{fmt(b)}</span> bills and resolutions
       </p>
     </div>
   );

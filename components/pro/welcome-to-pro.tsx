@@ -62,7 +62,7 @@ export default function WelcomeToPro({
             <Burst initials={initials} avatarUrl={avatarUrl} />
             <ProPill className="mt-5">Pro is on</ProPill>
             <DialogTitle className="mt-3">Welcome to Pro.</DialogTitle>
-            <DialogDescription className="mt-2 text-[15px] text-ink-2">
+            <DialogDescription className="mt-2 text-ui text-ink-2">
               Thank you for keeping the site independent.
             </DialogDescription>
           </div>
@@ -125,8 +125,8 @@ function Step({
         <Icon className="h-5 w-5" strokeWidth={1.75} />
       </span>
       <span className="min-w-0 flex-1 text-left">
-        <span className="block text-[15px] font-medium text-ink">{title}</span>
-        <span className="block font-mono text-xs text-ink-3 tabular">{sub}</span>
+        <span className="block text-ui font-medium text-ink">{title}</span>
+        <span className="block text-meta text-ink-2 tabular">{sub}</span>
       </span>
       <ArrowRight aria-hidden="true" className="h-4 w-4 text-ink-3" />
     </>
@@ -184,7 +184,7 @@ function Burst({ initials, avatarUrl }: { initials: string; avatarUrl?: string |
           pro
           size="xl"
           // `!`: must beat the size's own sm:h-28, which a sideways phone also matches.
-          className="sm:h-28 sm:w-28 [@media(max-height:600px)]:!h-16 [@media(max-height:600px)]:!w-16"
+          className="sm:h-28 sm:w-28 [@media(max-height:600px)]:h-16! [@media(max-height:600px)]:w-16!"
         />
       </div>
     </div>

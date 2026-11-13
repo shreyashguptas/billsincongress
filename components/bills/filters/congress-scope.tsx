@@ -56,7 +56,7 @@ export function CongressScope({
 
   if (ordered.length === 0) {
     return (
-      <span className="font-mono text-xs text-ink-3" aria-disabled="true">
+      <span className="text-meta text-ink-2" aria-disabled="true">
         Congress unavailable
       </span>
     );
@@ -115,9 +115,9 @@ export function CongressScope({
             tabIndex={isSelected ? 0 : -1}
             title={`${formatCongressOrdinal(congress)} Congress`}
             className={
-              'h-auto min-w-min flex-1 rounded-[6px] px-3 font-mono text-[13px] font-normal tabular text-ink-2 ' +
+              'h-auto min-w-min flex-1 whitespace-nowrap rounded-[6px] px-3 text-sm font-normal tabular text-ink-2 ' +
               'hover:bg-transparent hover:text-ink ' +
-              'data-[state=on]:bg-raised data-[state=on]:font-medium data-[state=on]:text-ink data-[state=on]:shadow-sm'
+              'data-[state=on]:bg-raised data-[state=on]:font-medium data-[state=on]:text-ink data-[state=on]:shadow-xs'
             }
           >
             {formatCongressYearsShort(congress)}

@@ -70,7 +70,7 @@ export function SignInForm() {
       <AuthDivider>or with email</AuthDivider>
 
       <form method="post" onSubmit={onSubmit} className="space-y-5">
-        <div className="space-y-2">
+        <div className="field">
           <Label htmlFor="email" className="text-ink">Email</Label>
           <Input
             id="email"
@@ -89,7 +89,7 @@ export function SignInForm() {
             <Label htmlFor="password" className="text-ink">Password</Label>
             <Link
               href={withRedirect("/forgot-password", redirect)}
-              className="link touch-hit focus-ring rounded-xs text-[13px]"
+              className="link touch-hit focus-ring rounded-xs text-caption"
             >
               Forgot password?
             </Link>

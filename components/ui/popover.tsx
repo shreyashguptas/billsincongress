@@ -33,7 +33,7 @@ const PopoverContent = React.forwardRef<
         // z-50 matches the other portalled Radix surfaces and clears the z-40
         // site header. The listbox this replaced was a non-portalled z-30 div,
         // so it rendered underneath the nav.
-        'z-50 rounded-md border border-border bg-popover text-foreground shadow-float outline-none',
+        'z-50 rounded-md border border-border bg-popover text-foreground shadow-float outline-hidden',
         'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
         className
       )}

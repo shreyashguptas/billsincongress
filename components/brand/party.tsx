@@ -36,7 +36,7 @@ export function PartyTag({
     <span className={cn('inline-flex min-w-0 items-center gap-2 text-sm font-medium text-ink', className)}>
       <PartyDot party={party} />
       <span className="truncate">{name}</span>
-      {code && <span className="shrink-0 font-mono text-[13px] font-normal text-ink-3">{code}</span>}
+      {code && <span className="shrink-0 font-mono text-xs font-normal text-ink-2">{code}</span>}
     </span>
   );
 }

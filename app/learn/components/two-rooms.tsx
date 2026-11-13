@@ -87,8 +87,8 @@ export function TwoRooms() {
           {state && (
             <>
               <span className="font-medium text-ink">{state}:</span>{' '}
-              <span className="font-mono tabular text-ink">{reps}</span> in the House,{' '}
-              <span className="font-mono tabular text-ink">2</span> in the Senate.
+              <span className="font-medium tabular text-ink">{reps}</span> in the House,{' '}
+              <span className="font-medium tabular text-ink">2</span> in the Senate.
             </>
           )}
         </p>

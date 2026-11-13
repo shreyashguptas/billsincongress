@@ -25,6 +25,11 @@ import {
   DESCRIPTION_MIN,
   billStatusPhrase,
   billSummaryText,
+  billLead,
+  billNoSummaryLine,
+  billShareImagePath,
+  SHARE_CARD_VERSION,
+  firstSentence,
 } from "./seo";
 import type { Bill } from "./types/bill";
 import { POLICY_AREAS } from "./constants/filters";
@@ -448,6 +453,76 @@ it("bill descriptions are never shorter than DESCRIPTION_MIN", () => {
     const d = billSeoDescription(bill);
     assert.ok(d.length >= DESCRIPTION_MIN && d.length <= 160, `${d.length} chars: ${d}`);
   }
+});
+
+// The "In short" lead (bill page): what the bill does, before its status.
+
+it("lead is the CRS summary's first sentence, without the title echo", () => {
+  const bill = bareBill({
+    title: "To remove restrictions from a parcel of land in Paducah, Kentucky.",
+    latest_summary:
+      "<p><strong>To remove restrictions from a parcel of land in Paducah, Kentucky.</strong></p><p>This bill directs the Department of the Interior to remove all deed restrictions from approximately 3.62 acres in Paducah, Kentucky. The restrictions include easements.</p>",
+  });
+  const lead = billLead(bill);
+  assert.equal(lead.from, "summary");
+  assert.equal(
+    lead.text,
+    "This bill directs the Department of the Interior to remove all deed restrictions from approximately 3.62 acres in Paducah, Kentucky.",
+  );
+});
+
+it("first sentence is never cut inside U.S., H.R. or Sec.", () => {
+  assert.equal(
+    firstSentence("This bill amends the U.S. Code and H.R. 1 under Sec. 3 of the Act. It also funds it."),
+    "This bill amends the U.S. Code and H.R. 1 under Sec. 3 of the Act.",
+  );
+});
+
+// Without a summary there is no In short: a sentence built from the title only
+// said the title again (brand.md, "Bill page").
+it("a measure without a summary has no lead", () => {
+  for (const bill of [
+    bareBill({ title: "To remove restrictions from a parcel of land in Paducah, Kentucky.", progress_stage: 100 }),
+    bareBill(),
+    bareBill({ bill_type: "hres", bill_type_label: "H.Res.", progress_stage: 60, title: "Supporting a day." }),
+  ]) {
+    assert.deepEqual(billLead(bill), { text: "", from: "none", rest: "", split: false });
+  }
+});
+
+// /bills/82sjres118: "No plain-language summary of this joint resolution yet."
+// as the first line under the h1, above "Expired when the 118th Congress ended".
+it("the no-summary line does not promise a summary to a measure that expired", () => {
+  const res = bareBill({ congress: 118, bill_type: "sjres", bill_type_label: "S.J.Res." });
+  const expired = billNoSummaryLine(res, { congressEnded: true, finished: false });
+  assert.equal(expired, "Congress did not publish a plain-language summary of this joint resolution.");
+  assert.ok(!/ yet/.test(expired), expired);
+  // Live, or finished in an ended Congress: still "yet".
+  assert.equal(billNoSummaryLine(res), "No plain-language summary of this joint resolution yet.");
+  assert.match(billNoSummaryLine(res, { congressEnded: true, finished: true }), / yet\.$/);
+});
+
+// /bills/82sjres118, beside "Expired when the 118th Congress ended": "Its current
+// status is: in committee." and "Congress has not published a plain-language
+// summary of this joint resolution yet".
+it("an unfinished measure from an ended Congress is described as expired, not alive", () => {
+  const bill = bareBill({ congress: 118, latest_summary: undefined });
+  const prose = billAnswerParagraph(bill, { congressEnded: true, finished: false });
+  assert.match(prose, /when the 118th Congress ended, and it expired then\./);
+  assert.ok(!/current status/.test(prose), prose);
+  assert.ok(!/ yet/.test(prose), prose);
+  // A law from an ended Congress is still a law: present tense stays.
+  assert.match(billAnswerParagraph(bill, { congressEnded: true, finished: true }), /Its current status is/);
+  // A live Congress is unchanged.
+  assert.match(billAnswerParagraph(bareBill()), /Its current status is/);
+});
+
+// /bills/1hjres118/share-image?v=3.40 served the amendment's new card ("To the
+// states") at the URL that had held the old one ("Signed", "Law"), so every link
+// already shared kept the card that says an amendment ends in a signature.
+it("the share card URL changed when amendments got their own road", () => {
+  assert.ok(SHARE_CARD_VERSION >= 4, `version ${SHARE_CARD_VERSION}`);
+  assert.notEqual(billShareImagePath({ id: "1hjres118", progress_stage: 40 }), "/bills/1hjres118/share-image?v=3.40");
 });
 
 if (failures.length > 0) {

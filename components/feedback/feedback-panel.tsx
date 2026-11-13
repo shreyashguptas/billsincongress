@@ -151,7 +151,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
     return (
       <div key="thanks" role="status" className={cn('flex flex-col items-center gap-2 px-4 py-8 text-center', enter)}>
         <CircleCheck className="h-6 w-6 text-ink" strokeWidth={1.75} aria-hidden="true" />
-        <p className="text-[15px] font-medium text-ink">Thanks — we read every one.</p>
+        <p className="text-ui font-medium text-ink">Thanks — we read every one.</p>
       </div>
     );
   }
@@ -159,7 +159,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
   if (step === 'pick') {
     return (
       <div key="pick" className={cn('p-4', enter)}>
-        <p className="text-[15px] font-medium text-ink">What would you like to share?</p>
+        <p className="text-ui font-medium text-ink">What would you like to share?</p>
         <div className="mt-3 grid grid-cols-2 gap-3">
           {KINDS.map(({ kind: k, Icon, hint }) => (
             <button
@@ -169,8 +169,8 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
               className="focus-ring flex flex-col items-center gap-1.5 rounded-md border border-line-strong bg-raised px-2 py-5 text-center transition-[background-color,transform] hover:bg-sunken touchable:active:scale-[.98]"
             >
               <Icon className="h-5 w-5 text-ink" strokeWidth={1.75} aria-hidden="true" />
-              <span className="text-[15px] font-medium text-ink">{k}</span>
-              <span className="text-[13px] leading-tight text-ink-3">{hint}</span>
+              <span className="text-ui font-medium text-ink">{k}</span>
+              <span className="text-caption leading-tight text-ink-2">{hint}</span>
             </button>
           ))}
         </div>
@@ -191,7 +191,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
       }}
     >
       <div className="p-4 pb-3">
-        <label htmlFor="feedback-message" className="flex items-center gap-1.5 text-[13px] font-medium text-ink-2">
+        <label htmlFor="feedback-message" className="flex items-center gap-1.5 text-caption font-medium text-ink-2">
           <current.Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
           {kind}
         </label>
@@ -227,7 +227,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
             ) : (
               <span className="h-9 w-9 shrink-0 animate-pulse rounded-sm bg-sunken" aria-hidden="true" />
             )}
-            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">
+            <span className="min-w-0 flex-1 truncate text-caption text-ink-2">
               {picture ? picture.name : 'Adding picture…'}
             </span>
             {picture && (
@@ -248,7 +248,7 @@ export function FeedbackPanel({ onSent, onDone }: { onSent: () => void; onDone: 
         )}
 
         {error && (
-          <p id="feedback-error" role="alert" className="mt-2 text-[13px] text-error">
+          <p id="feedback-error" role="alert" className="mt-2 text-caption text-error">
             {error}
           </p>
         )}

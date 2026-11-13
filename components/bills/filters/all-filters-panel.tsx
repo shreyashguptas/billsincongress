@@ -58,7 +58,7 @@ export function AllFiltersPanel({
       // popover over the results, not over the docked Ask panel beside them or
       // past the edge of the column on a wide screen.
       align="end"
-      popoverClassName="w-[min(32rem,calc(100vw_-_2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
+      popoverClassName="w-[min(32rem,calc(100vw-2rem))] max-h-[min(32rem,var(--radix-popover-content-available-height))]"
       trigger={
         <Button
           type="button"
@@ -67,13 +67,13 @@ export function AllFiltersPanel({
           variant="ghost"
           aria-haspopup="dialog"
           aria-label="All filters"
-          className="h-9 shrink-0 px-3"
+          className="h-9 shrink-0 px-3 touchable:min-w-11"
         >
           <SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">All filters</span>
           {/* A span, not Badge: Badge renders a <div>, which a button cannot hold. */}
           {count > 0 && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-ink px-1 font-mono text-xs tabular text-on-ink">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-sm bg-ink px-1 text-xs font-medium tabular text-on-ink">
               {count}
             </span>
           )}
@@ -248,7 +248,7 @@ function PanelBody({
           layout === 'touch' ? 'pt-1' : 'pt-3'
         )}
       >
-        <Heading className="font-serif text-[19px] font-medium leading-snug text-ink">
+        <Heading className="font-serif text-[1.1875rem] font-medium leading-snug text-ink">
           All filters
         </Heading>
         {layout === 'touch' && (
@@ -268,7 +268,7 @@ function PanelBody({
               });
               onClearAll();
             }}
-            className="touch-hit rounded-xs text-[13px] decoration-1"
+            className="touch-hit rounded-xs text-caption decoration-1"
           >
             Clear all
           </Button>
@@ -286,7 +286,7 @@ function PanelBody({
           if (inline) {
             return (
               <div key={definition.field} className="border-b border-line last:border-b-0">
-                <p className="label-eyebrow !mb-0 px-4 pb-1.5 pt-3">{definition.label}</p>
+                <p className="label-eyebrow mb-0! px-4 pb-1.5 pt-3">{definition.label}</p>
                 <ToggleGroup
                   type="single"
                   // Every chip stays a tab stop, as before; Radix's roving focus

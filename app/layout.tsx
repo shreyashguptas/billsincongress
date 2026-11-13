@@ -6,7 +6,7 @@ import { Navigation } from '@/components/navigation';
 import { Footer } from '@/components/footer';
 import { AnswerProvider } from '@/components/answers/answer-provider';
 import { AnswerPanel } from '@/components/answers/answer-panel';
-import { TypeToAsk } from '@/components/answers/type-to-ask';
+import { AskShortcut } from '@/components/answers/ask-shortcut';
 import { WelcomeNewUser } from '@/components/auth/welcome-new-user';
 import { PostHogAuthSync } from '@/components/analytics/posthog-auth-sync';
 import { PwaSetup } from '@/components/pwa/pwa-setup';
@@ -178,7 +178,7 @@ export default function RootLayout({
               <AnswerProvider>
                 <a
                   href="#main"
-                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded focus:bg-ink focus:text-on-ink focus:px-3 focus:py-2 focus:text-sm"
+                  className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-100 focus:rounded focus:bg-ink focus:text-on-ink focus:px-3 focus:py-2 focus:text-sm"
                 >
                   Skip to content
                 </a>
@@ -195,15 +195,15 @@ export default function RootLayout({
                   <Navigation />
                   {/* tabIndex so focus can be moved here when the panel
                       steps aside for a bill the reader tapped in an answer. */}
-                  <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
+                  <main id="main" tabIndex={-1} className="flex-1 focus:outline-hidden">
                     {children}
                   </main>
                   <Footer />
                 </div>
                 <AnswerPanel />
                 {/* After AnswerPanel, always: its effects must run after the
-                    panel's own focus effect (type-to-ask.tsx has why). */}
-                <TypeToAsk />
+                    panel's own focus effect (ask-shortcut.tsx has why). */}
+                <AskShortcut />
                 <FoundItPrompt />
                 <WelcomeNewUser />
                 <PostHogAuthSync />

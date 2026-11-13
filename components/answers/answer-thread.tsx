@@ -20,6 +20,7 @@ import { AnswerCheck } from './answer-check';
 import { canRate } from '@/lib/answer-rating';
 import { answerBills, billsNamedIn, cardLists, firstListStart, rehypeBillLinks } from '@/lib/answer-bill-links';
 import { billMarkdownComponents, type BillContext } from './bill-mentions';
+import { AskShortcutHint, useAskShortcut } from './ask-shortcut';
 
 /** How close to the bottom still counts as "following along". */
 const PINNED_PX = 72;
@@ -32,7 +33,7 @@ const MARKDOWN_COMPONENTS = {
     <ul className="mb-3 ml-5 list-disc space-y-1.5 marker:text-ink-3">{children}</ul>
   ),
   ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="mb-3 ml-5 list-decimal space-y-1.5 marker:font-mono marker:text-ink-3">{children}</ol>
+    <ol className="mb-3 ml-5 list-decimal space-y-1.5 marker:tabular marker:text-ink-3">{children}</ol>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className="font-semibold text-ink">{children}</strong>
@@ -99,7 +100,7 @@ function ReaderQuestionTurn({
           </ReactMarkdown>
         </div>
         {awaiting && complete && (
-          <p className="text-[13px] leading-5 text-ink-3">
+          <p className="text-caption leading-5 text-ink-2">
             Answer below and the thread carries on from there.
           </p>
         )}
@@ -238,6 +239,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
   const [input, setInput] = useState('');
   const noteId = useId();
   const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_panel');
+  const shortcut = useAskShortcut();
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   // Whether the reader was at the bottom before the content last grew. Tracked
@@ -332,7 +334,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
       >
         <div ref={contentRef} className="space-y-6">
           {turns.length === 0 && (
-            <p className="text-[15px] leading-relaxed text-ink-2">
+            <p className="text-ui leading-relaxed text-ink-2">
               Ask anything about bills in Congress — what one does, where it stands, who wrote
               it. Every answer cites the records it came from.
             </p>
@@ -344,7 +346,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
               // in the interface face, so the answer's serif stays the voice
               // of the record.
               <div key={turn.id} className="flex justify-end">
-                <p className="max-w-[85%] whitespace-pre-wrap break-words rounded-lg bg-sunken px-4 py-3 text-[15px] leading-relaxed text-ink">
+                <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-lg bg-sunken px-4 py-3 text-ui leading-relaxed text-ink">
                   {turn.content}
                 </p>
               </div>
@@ -422,6 +424,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
             aria-label={awaitingReply ? 'Answer the question' : 'Ask a question'}
             enterKeyHint="send"
             autoComplete="off"
+            aria-keyshortcuts={shortcut.enabled ? '/' : undefined}
             // 16px on small screens is not a style choice: iOS Safari zooms the
             // whole page in when a focused input is any smaller, and then never
             // zooms back out.
@@ -430,7 +433,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
               // bare (border-0, p-0 and ring-0 undo Input's own box and ring, and
               // the forms plugin's).
               'h-full min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 text-base touchable:h-full',
-              'focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 lg:text-[15px]',
+              'focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 lg:text-ui',
             )}
             // Never disabled, not even while an answer is being written: a
             // disabled field drops focus, and the reader would have to click
@@ -454,6 +457,7 @@ export default function AnswerThread({ surface = 'panel' }: { surface?: string }
           </Button>
         </form>
         <LengthLimitNote id={noteId} length={input.length} max={MAX_QUESTION_LENGTH} className="px-1" />
+        {surface === 'panel' && <AskShortcutHint className="mt-2" />}
       </div>
     </div>
   );

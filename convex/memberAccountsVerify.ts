@@ -23,7 +23,10 @@ import type { Platform } from "./memberAccountsParse";
  */
 export type LinkKey = string;
 
-const HREF = /href\s*=\s*["']([^"'\s>]+)["']/gi;
+// Spaces just inside the quotes are allowed and dropped: three House members'
+// sites write href="https://twitter.com/RepJoshG " (2 Nov 2026), which browsers
+// follow and which the checker used to skip, hiding all their accounts.
+const HREF = /href\s*=\s*["']\s*([^"'\s>]+)\s*["']/gi;
 
 /**
  * Every account a page's HTML links, as keys. Only links to an account itself

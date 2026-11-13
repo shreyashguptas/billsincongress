@@ -2,13 +2,13 @@ import { clsx, type ClassValue } from 'clsx';
 import { extendTailwindMerge } from 'tailwind-merge';
 
 // tailwind-merge only knows Tailwind's default scale. Without this it reads the
-// brand's type sizes (tailwind.config.ts) as text *colours*, so
+// brand's type sizes (@theme in app/globals.css) as text *colours*, so
 // `cn('text-display-sm', 'text-ink')` silently dropped one of the two.
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
       'font-size': [
-        { text: ['display-2xl', 'display-xl', 'display-lg', 'display-md', 'display-sm', 'title', 'reading', 'reading-sm'] },
+        { text: ['display-2xl', 'display-xl', 'display-lg', 'display-md', 'display-sm', 'title', 'reading', 'reading-sm', 'ui', 'meta', 'caption'] },
       ],
       shadow: [{ shadow: ['float'] }],
     },

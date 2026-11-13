@@ -106,7 +106,8 @@ app/                       Next.js App Router — 21 page.tsx files
     topic/[slug]/          33 policy-area hubs
     house|senate|enacted|to-president|passed-both-chambers|in-committee|passed-one-chamber|introduced|vetoed/
   learn/                   How Congress works, in pictures (server-rendered)
-    components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker
+    components/            Route-private: the SVG pictures (built on components/brand/pictures.tsx), the hemicycle maths, the state picker,
+                           and word-target.tsx (marks the "Words you'll see" row a <Term> popover linked to)
   about/ privacy/ terms/   Content and legal
   pro/                     The Pro plan page: plan cards first, then pictures (server-rendered; the subscribe panel is the only client code)
   account/                 The only signed-in page. page.tsx reads Convex; account-view.tsx draws it
@@ -129,7 +130,9 @@ components/                Shared React components
   brand/                   The design language in code (documentation/brand.md): logo and
                            chamber mark, stage pill and track, party tag, section header,
                            the picture primitives (pictures.tsx), the Pro mark (pro-mark.tsx) and
-                           the length-limit count and message every limited text box uses (length-limit.tsx);
+                           the length-limit count and message every limited text box uses (length-limit.tsx),
+                           <Term>, a civics word's plain meaning in a popover (term.tsx, words in lib/glossary.ts),
+                           and the plain-text word rows Learn and a bill's "Words to know" share (word-list.tsx);
                            icon-alignment-check.tsx warns in dev about icons off their label
   pro/                     Subscribe panel, the Pro pictures, and the Welcome to Pro celebration
                            (welcome-to-pro.tsx + confetti.tsx, lazy-loaded by the account page)
@@ -198,8 +201,9 @@ convex/                    Backend — 43 top-level modules + catalog/ + 24 test
   billStage.ts billJourney.ts chamber.ts baseRates.ts searchQuery.ts syncStatus.ts
   plan.ts alertDigest.ts indexNowStatus.ts  Pure, unit-tested
 
-scripts/                   run-tests.ts, three guards, three AI probes, icon/share-image/font
-                           generators, posthog-self-driving-setup.ts, posthog-logs-smoke.ts,
+scripts/                   run-tests.ts, five guards, three AI probes, the touch-target
+                           check, icon/share-image/font generators,
+                           posthog-self-driving-setup.ts, posthog-logs-smoke.ts,
                            and truth/ (the answer-accuracy harness)
 public/                    Icons, images, _headers, the IndexNow key file, sw.js + offline.html
 ```
@@ -624,8 +628,8 @@ page links that exact account.** Two daily jobs and one reviewed file implement 
 | Piece | File | What it does |
 | --- | --- | --- |
 | Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.json` and `legislators-social-media.json` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) GitHub Pages mirror (CC0, volunteer-kept; its policy is official accounts only), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
-| Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page and the date a person checked it: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Send each upstream as a pull request and delete it here once merged |
-| Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | First lapses every confirmation not renewed by a successful check in 30 days, or of a member with no website (`lapseStale`). Then fetches each in-office member's home page, House before Senate, 40 per run with the next run scheduled after the writes (2 at a time, each fetcher waiting a second between sites, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads the links to accounts (never to posts, tweets or photos, and nothing inside an embedded tweet or post, which can quote anyone), and stamps `confirmedAt` plus `shown` (the account's address, for YouTube the exact form the page linked, and its label) on each account it links. A page that redirects off house.gov/senate.gov counts as failed. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing. The sites that blocked the check are asked again 20 minutes after the pass ends, at most twice: on the first live run (2 Nov 2026), at 8 at a time, house.gov turned the check away after about 400 sites, every House member from Takano to Zinke, though each answered normally one at a time |
+| Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page and the date a person checked it: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Each is offered back to the project ("Sending corrections upstream", below) and deleted here once the project's file carries it |
+| Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | First lapses every confirmation not renewed by a successful check in 30 days, or of a member with no website (`lapseStale`). Then fetches each in-office member's home page, House before Senate, 40 per run with the next run scheduled after the writes (2 at a time, each fetcher waiting a second between sites, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads the links to accounts (never to posts, tweets or photos, and nothing inside an embedded tweet or post, which can quote anyone), and stamps `confirmedAt` plus `shown` (the account's address, for YouTube the exact form the page linked, and its label) on each account it links. A page that redirects off house.gov/senate.gov counts as failed. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing. A page that links no account at all, for a member we hold accounts for, counts as failed rather than as the member's word (earlier confirmations stand until they lapse): on the first live run Rep. Stansbury's page came back without its links and hid both her accounts. Spaces just inside a link's quotes are ignored, as browsers ignore them (`href="https://twitter.com/RepJoshG "` hid every account of Reps. Gottheimer, Joyce and Lucas until 2 Nov 2026). The sites that blocked the check, and those empty pages, are asked again 20 minutes after the pass ends, at most twice: on the first live run (2 Nov 2026), at 8 at a time, house.gov turned the check away after about 400 sites, every House member from Takano to Zinke, though each answered normally one at a time |
 | Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only accounts confirmed by the member's latest successful site check (`confirmedAt === siteCheck.lastOkAt`), with the `shown` address, plus the website. Nothing for a member out of office or a bill without a sponsor id |
 
 YouTube has four kinds of address (@handle, `/user/`, `/c/`, a bare custom name) in separate
@@ -648,6 +652,31 @@ into the overrides file:
 ```bash
 pnpm exec convex run --prod memberAccounts:reviewList '{}'
 ```
+
+**Sending corrections upstream.** The site reads only the congress-legislators project's own
+published files (`unitedstates.github.io/congress-legislators`), never a copy, so it gets every
+update the project publishes the next morning. Our corrections are offered back to the project
+as public pull requests from the fork `shreyashguptas/congress-legislators`, which exists for
+nothing else and which nothing reads:
+
+1. **Bring the fork up to date first.** On the fork's GitHub page, "Sync fork" → "Update
+   branch"; or in a clone of it, `git fetch upstream && git push origin upstream/main:main`
+   (with `upstream` = `https://github.com/unitedstates/congress-legislators`). Between batches
+   the fork may fall behind without harm; it is synced before each new branch so a pull request
+   carries only our change.
+2. **Branch from that `main` and change only `legislators-social-media.yaml`.** Send only fixes
+   the daily check confirms on the member's own site that day, cite each member's official page
+   in the pull request, and open it against `unitedstates/congress-legislators:main`. For
+   YouTube, set `youtube_id` to the channel the member's site links (read from that channel's
+   own page), and drop a `youtube` name that belongs to a different channel.
+3. **When the project merges, delete our copy.** Once the next sync carries a fix, its override
+   says the same as the file: remove it from `memberAccountOverrides.ts`. Until then it keeps the
+   site right, but it also replaces whatever the project lists for that member and platform
+   (`applyOverrides`). If the member's account changes again, a leftover override hides it, so do
+   not leave one in place after the project's file is right.
+
+First batch: 82 House members, prepared 7 Nov 2026 (15 members the file did not have, renamed
+and mistyped accounts, and YouTube channel ids), every fix confirmed by that day's site check.
 
 At launch (1 Nov 2026), measured against every House member's home page: 1,347 of 1,423
 suggested House accounts confirmed, 433 of 439 House members with at least one. **senate.gov
@@ -674,7 +703,8 @@ prediction about a single bill**, and the bill page says so in those words. "Adv
 left committee: out of committee (50) or any stage beyond, timed from the first floor calendar,
 Senate report or chamber passage. Until 2026-10-06 only a chamber passage counted, which
 understated the share. Only a bill at 40 shows the figure; one out of committee no longer
-does.
+does, and neither does one whose Congress has ended (it expired; the server counts its
+days to today, so the figure described a bill that was no longer waiting).
 
 Computed only from Congresses strictly earlier than the current one, bucketed by days already
 spent in committee (`[0,90)`, `[90,180)`, `[180,365)`, `[365+)`), and a bucket is hidden
@@ -682,8 +712,11 @@ entirely unless backed by at least 100 past bills.
 
 ### The bill journey and its peers
 
-The bill page's status panel draws the bill's journey, and below the body sits the
-"Among its peers" dot field. The page makes **one** Convex call, `bills.getPage`, which
+The bill page draws the bill's journey in its own section under the summary (the
+status card beside the title shows only the stage, the days, the road and a "What happens
+next" line, a rule of the process from `lib/bill-next-step.ts` with the days left in the
+Congress), and further down
+sits the "Among its peers" dot field. The page makes **one** Convex call, `bills.getPage`, which
 returns the bill (exactly what `bills.getById` returns, for the share card) together with
 its journey and peers, reading the bill row once. They used to be two calls, `getById` and
 `getJourney`, each reading the bill, and the second read every topic row of the Congress to
@@ -706,7 +739,11 @@ no dot field.
   time "in committee" before the bill existed (S. 2431: 71 days from May 14, introduced
   July 24). It also picks out the moments a reader cares about (the referral, a
   committee's recorded vote, each chamber's passage with its tally or "by unanimous
-  consent", presentation, signature, the public law number) from the action text. A bill
+  consent", presentation, the veto and any vote on overriding it ("Failed of passage in
+  House over veto", with its tally), signature, the public law number) from the action
+  text. A vetoed bill's override votes come after the veto that ends its road, and are
+  kept under its last chapter; a failed one is also what the status card's "What happens
+  next" states, in place of the override rule. A bill
   with more than 1,000 stored actions gets no journey rather than one read from part of the
   record. The page draws the journey only when its last stage equals the bill's stored
   stage; a difference means the two disagree and the page does not pick a side.
@@ -1030,7 +1067,7 @@ code:
 burn cited above. Both are `internalQuery` now; the CLI commands in the runbook are
 unaffected because `pnpm exec convex run` calls internal functions as admin.
 
-Three automated guards run on every `pnpm test`, two of them enforcing related rules — see
+Five automated guards run on every `pnpm test`, two of them enforcing related rules — see
 [Build, test and deploy](#build-test-and-deploy).
 
 ---
@@ -1123,12 +1160,18 @@ is the reason `lib/ask-panel.test.ts` sweeps every docked viewport against every
 width rather than spot-checking a few.
 
 **The header is the one place that does measure itself.** It is a CSS container
-(`site-header`), and its md / lg / xl are `header-md:` / `header-lg:` / `header-xl:`
-(`tailwind.config.ts`), container queries at the same widths as the screens. A floor of 1024px
+(`site-header`), and its sm / md / lg / xl are `header-sm:` / `header-md:` / `header-lg:` / `header-xl:`
+(`@custom-variant` in `app/globals.css`), container queries at the same widths as the screens. A floor of 1024px
 protects `lg:` but not `xl:`: on a 1440px window with the panel docked the header was 1024px
 wide while `xl:` still drew the 288px search field, and "Sign up" ended up under the panel.
 Measured on the header, a docked 1440px window gets the same header as a 1024px one. With the
 panel closed the header is the window's width, so nothing changes.
+They are in em, so a larger browser font reaches the compact layouts sooner, and the header row
+uses no window breakpoint for a width (`lib/ask-css-contract.test.ts` checks): at a 20px font a
+640px window's `sm:` showed "Sign in" and the 21px wordmark in what is a 512px header at the
+default size, and ran the logo under Ask. Below `header-sm` the phone row steps down through
+`header-wordmark-lg`, `header-wordmark`, `header-ask-glyph`, `header-mark` and `header-search`
+(brand.md, "Header").
 
 **The mode is never computed during render.** The panel lives in the root layout, so reading
 the viewport while rendering would be a hydration mismatch on every page of the site. CSS owns
@@ -1146,7 +1189,10 @@ header uses its own breakpoints rather than the window's. That drift is guarante
 
 **The panel is never unmounted** — only translated off-screen and marked `inert`. The phase
 machine is `lib/ask-panel-state.ts`: `closed`, `open`, `minimized`. Keeping it mounted is what
-makes the next part cheap.
+makes the next part cheap. Below the rail breakpoint (1024px) the open panel is a sheet over
+everything under the header, so while it is open `<main>` and the footer are `inert`: Tab stays
+in the panel and the header, never on a page link hidden behind it (WCAG 2.4.11). The rail and
+the dock leave the page in view and leave it live.
 
 **Stepping aside.** A bill card inside an answer was always a working link, but on a phone the
 sheet covered the page it opened, so the tap read as doing nothing. `answer-panel.tsx` captures
@@ -1158,26 +1204,64 @@ unmounts, the thread's scroll position and the composer's draft survive. Focus m
 
 `components/answers/ask-launcher.tsx` is the way back, and the way in: present on every page in
 every phase but `open`, and **not** gated on a conversation already existing — topic hubs and
-`/learn` previously had no ask affordance at all. A corner pill normally; a full-width bottom
-bar on a phone when a conversation has been set aside.
+`/learn` previously had no ask affordance at all. A corner pill from 1024px wide and 500px
+tall, where the page reserves its height (`--ask-reserve`, which pads the footer and sets
+`scroll-padding-bottom`); a full-width bottom bar on a phone when a conversation has been set
+aside. Below 1024px, and in any window under 500px tall, the way in is
+`components/answers/header-ask.tsx` instead, "Ask" in the header beside the search, and the
+pill is not drawn: pinned over the page, it sat on the numbers and titles a phone reader was
+reading. Which of the two shows is media queries in `app/globals.css` ("Where Ask lives"),
+never JavaScript, so the server render is the same at every width. Under 500px tall the header
+is not sticky and the sheet takes the full height, over it. Closing the panel returns focus to
+whichever of the two is drawn. In the closed phase the corner pill tucks below the screen's edge
+while the reader scrolls down and returns on a scroll up, near the top or the end of the page, or
+on keyboard focus (`lib/ask-launcher-tuck.ts`, unit-tested; `data-tucked` read by CSS); it
+never tucks on scroll under `prefers-reduced-motion`, nor in the minimized phase, where it is the
+way back. A bill page keeps Ask in the header at every width and renders no closed pill
+(`askInHeaderOnly` in `lib/ask-panel-state.ts`, read by `navigation.tsx` and `answer-panel.tsx`
+from the path, so the server render already has it): its status card fills the pill's corner on
+a laptop before any scroll, and a pill that stepped aside there left the first screen with no way
+to ask. From 1024px to 1279px that header shows the search as its icon (`HeaderSearch compact`),
+because the field, Feedback, Ask and the account buttons do not fit beside the four sections.
+The minimized pill still shows there: it is the way back to a conversation set aside.
 
-**Type anywhere to ask.** `components/answers/type-to-ask.tsx`, mounted once in the root layout
-after the panel, listens for keys on the window. A printable key typed with no text box focused
-goes to the open panel's composer, else the home page's ask box if it is on screen, else it
-opens (or restores) the panel and types there. The rules for which keys are left alone — any
-Cmd/Ctrl/Alt shortcut (AltGr excepted), Space (it scrolls), anything inside a menu, listbox, dialog or text
-field, anything while a modal is open — are in `lib/type-to-ask.ts` with their tests. Where the
-box is already on screen only focus moves, in the keydown, so the browser types the character
-itself; when the panel must open first it is still `inert`, so the key is held and typed into
-the composer by an effect once the open phase commits. The composer is never `disabled` while
+**Press / to ask.** `components/answers/ask-shortcut.tsx`, mounted once in the root layout
+after the panel, listens for one key on the window: `/`, the key GitHub, YouTube and Gmail use
+for search. It moves focus to the open panel's composer, else the home page's ask box if it is
+on screen (scrolling it to the middle of the screen when it is below the fold), else it opens
+(or restores) the panel, empty, and focuses its composer once the open phase commits — even at
+phone width, where the panel otherwise focuses itself (it retries for a few frames, because
+under reduced motion the panel's visibility still runs a 1ms transition and the first frame's
+focus() would land on a hidden field). The `/` is never typed, and claiming it stops Firefox's
+quick find. It is left alone with any modifier but Shift — Cmd, Ctrl, Alt and AltGr, which
+Windows reports as Ctrl+Alt — on a held key's repeats, and whenever focus is on a form control
+or a widget with keys of its own: any `<input>` (a ticked filter checkbox included), textarea,
+select, editable region, combobox (the shadcn Select), listbox, menu, tree, grid, slider (the
+panel's resize handle), spin button, or anything in a dialog; also while a modal is open. A
+focused link, button or `<summary>` does not use the key, so `/` works from there, as on GitHub.
+The rules and their tests are in `lib/ask-shortcut.ts`. No other key is ever taken. It replaced
+"type anywhere to ask" (2026-10-23 to 2026-11-04), which sent every printable key there — a
+letter pressed on a focused link included — and could not be turned off (WCAG 2.1.4). A
+single-key shortcut still needs an off switch under 2.1.4, and there are two, sharing one
+setting (`bic_ask_shortcut` in localStorage, absent means on, read through `useAskShortcut`
+and kept in step across tabs by the `storage` event): the line under the panel's composer, and
+an On/Off control in the footer beside the theme control (`AskShortcutSwitch`), for a reader
+who never opens Ask. The footer's is drawn on every screen: a touch screen fails the `fine:`
+pointer query yet can have a keyboard (a tablet, a phone with a Bluetooth keyboard), and the key
+works there, so its off switch must too. The composer's line is drawn with a mouse or trackpad,
+and on a touch screen from the first `/` pressed there. While it
+is on, the launcher pill and the home page's box (when not focused) show a `/` keycap
+(`components/brand/kbd.tsx`), and the launcher, Ask in the header and the ask fields carry
+`aria-keyshortcuts="/"`. The analytics event keeps its first name, `ask_typed_anywhere`, now
+with `key: "slash"`, and the panel's open trigger stays `typing` (analytics.md).
+The composer is never `disabled` while
 an answer is written (a disabled field drops focus), and nor is its send button (a form with a
 disabled submit button ignores Enter): Enter then queues the follow-up, which is sent the moment
 the answer is done. The home page's `HeroAsk` focuses itself on arrival on a mouse-or-trackpad
 device only, and only if the reader has not already put focus somewhere; until the reader
 chooses the box (clicks or types in it), Space, Page Up/Down and the arrow keys hand focus back
 to `<main>` so they still scroll the page. Its first key
-scrolls it to the middle of the screen, since it sits below the fold on most laptops. Firefox's
-quick-find keys (`/` and `'`) are left alone; AltGr characters are taken.
+scrolls it to the middle of the screen, since it sits below the fold on most laptops.
 
 ### Page context
 
@@ -1804,6 +1888,9 @@ user that question. The rate limiter is the only spend cap on this path.
 | `scripts/check-no-userid-args.ts` | `pnpm test` | No **public** Convex function accepts a `userId` argument — identity must come from `getAuthUserId(ctx)` |
 | `scripts/check-metered-model-calls.ts` | `pnpm test` | In any module reading `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY`, every public `action`/`httpAction` calls `rateLimiter.limit` or `limitChatQuestion` |
 | `scripts/check-no-committed-screenshots.ts` | `pnpm test` | No image or video outside `public/`, and nothing named like a screenshot anywhere. PR screenshots go in the pull request on github.com, never in a commit (AGENTS.md). Manifest screenshots, when built, go in `public/manifest-screenshots/` and pass only while `app/manifest.ts` references them |
+| `scripts/check-type-floor.ts` | `pnpm test` | No text size under 13px (`text-[0.7rem]`, `fontSize: 10`) and no font size or line height in px (`text-[13px]`, `leading-[28px]`) in `app/`, `components/` or `lib/`, so every size follows the reader's browser font setting. The share images in `lib/og/` may use px but not go under the floor. The one sanctioned exception is `.label-eyebrow`'s 0.75rem (12px) capitals, defined once in `app/globals.css` (brand.md, "Type floor") |
+| `scripts/check-compiled-css.ts` | `pnpm test` | The compiled stylesheet is valid: no arbitrary media variant (`[@media(...)]:`) stacked under another variant such as `touchable:` (Tailwind 3 wrote it in a shape the dev compiler could not parse, which dropped every style on the site; kept under Tailwind 4 as a guard), no unknown at-rule, no `undefined` |
+| `pnpm check:touch [url] [/paths] [--width=820] [--shots=dir]` | Manual, needs a running site and Playwright | Every tap target at 390px with touch on is at least 44px either way, measured by hit-testing outwards from its centre (`.touch-hit` counts; a neighbour's target covering it does not), and no target's centre lands on a different target (that fails even when exempt, and names the one on top). Exempt from the size: links and dotted Terms in running text, and charts marked `data-touch-exempt`. `--shots` saves each page with every target outlined. `components/brand/touch-targets.test.ts`, in `pnpm test`, keeps the pieces it relies on in place (`.touch-hit`'s 24px under a mouse and 44px on touch, and the shared links and toggles that carry it). See "Input, not width" in `documentation/brand.md` |
 | `pnpm check:retention` | Manual, needs a key | Whether the retention flags still leave any provider able to serve, for gpt-oss-120b **and every fallback** in `OPENROUTER_FALLBACK_MODELS`. Not the Claude route, which is called directly under Anthropic's standard retention (see Retention above) |
 | `pnpm check:web-citations` | Manual, needs a key | Whether the web lookup still returns the citations the code parses |
 | `pnpm check:grounding` | Manual, needs a key | End-to-end: drives the real prompt, tools, production's opening (bills and topics described, the topic list fetched) and resolver against the live model with fixtures, and fails if the model invents a co-sponsor count, cites nothing real, leaks a raw marker, reaches for the web when our own data answers, names a row of an unsorted result as the newest, or names one newest measure without saying others share its date. Its fixture serves a sort the way production does (`sortBlockedBy`), so a whole-Congress "most recent" comes back in order. Its "today" is pinned to the day the fixture was read from production (`TODAY` in the script), because a snapshot read against the real date ages: a week on, "has anything moved this week?" had a true answer of no in the gate alone. It grades Claude (the production answer model, on `ANTHROPIC_API_KEY`, through the same request code in `convex/claude.ts`) and does **not** fall back: a Claude failure is a finding, not a pass on gpt-oss's behalf |
@@ -2333,7 +2420,7 @@ still be sent without one.
 
 **"Did you find what you were looking for?"** (`components/feedback/found-it-prompt.tsx`,
 mounted once in `app/layout.tsx`). A card in the bottom-right corner, stacked above the Ask
-launcher (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
+pill where there is one (`.found-it-prompt` in `app/globals.css`), on the reader's **third page of a visit**.
 Yes sends and thanks; No asks "What was missing?" (optional) and sends. It stays away on
 sign-in, sign-up, forgot-password, account, Pro and alert pages, while the ask panel is open, and for anyone who
 opened the Feedback box this visit (`lib/feedback/visit.ts`). It shows once per browser
@@ -2386,7 +2473,7 @@ including why a card never repeats the title or number the app already prints un
 
 | Page | Card | Route | Drawn from |
 |---|---|---|---|
-| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track) | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
+| A bill | The stage: glyph, name, "Stage n of 7", the seven-step track (for a resolution, "Agreed to…", "Stage n of 3" or "of 4", and its shorter track; for a proposed constitutional amendment, "Stage n of 5" on a track ending at "To the states") | `app/bills/[id]/share-image/route.tsx` | `lib/og/bill-share-card.tsx` |
 | A status hub | "113 became law", out of all introduced, the track filled to that stage | `app/share-image/[...path]/route.tsx` | `lib/og/hub-share-card.tsx` |
 | A chamber hub | The chamber's count, how many became law, its share against the other chamber | same | same |
 | A topic hub | The topic's count and rank, beside the six largest topics as bars | same | same |
@@ -2418,7 +2505,8 @@ including why a card never repeats the title or number the app already prints un
   both in `lib/seo.ts`. When the figure moves, the page names a new image URL, so no platform
   keeps an old one it cached by URL. The query only busts caches: the routes ignore it. Bump
   `SHARE_CARD_VERSION` whenever a card's design changes (2 was the stage-only redesign and the
-  hub cards; 3, today's, draws resolutions on their own road, ending at "Agreed to", from #156).
+  hub cards; 3 drew resolutions on their own road, ending at "Agreed to", from #156; 4, today's,
+  draws a proposed constitutional amendment on its own road, ending at "To the states").
 - **Caching.** All three routes (bill, hub and home) send `public, max-age=86400,
   s-maxage=86400, stale-while-revalidate=604800`, replacing `next/og`'s default of a year and
   `immutable`. The middleware leaves the bill route alone (`setsOwnCacheControl`); the hub and
@@ -2645,7 +2733,7 @@ dependency and no config file. The static gates are TypeScript (`next build` typ
 fails on an error; `next.config.mjs` has no `typescript` block to turn that off), the explicit
 `tsc --noEmit` in the review workflow, `tsc --noEmit -p convex` in `ci.yml` (the check `convex
 deploy` runs, with `convex/`'s own ES2021 tsconfig, and the only gate on it before a merge), and
-the three repository-invariant guards described below. Any claim that "the build includes lint" is
+the five repository-invariant guards described below. Any claim that "the build includes lint" is
 false.
 
 ### The test system
@@ -2660,19 +2748,26 @@ git ls-files --cached --others --exclude-standard '*.test.ts'
 Tracked and untracked-but-not-ignored files both match, so a newly saved test runs
 immediately. If `git` fails, the script exits 1 rather than degrading to "found nothing".
 
-`MIN_TEST_FILES = 25` is a floor, not a count (73 files match today): if discovery ever finds
+`MIN_TEST_FILES = 25` is a floor, not a count (over a hundred match today): if discovery ever finds
 fewer, the run fails, and deleting tests below it means lowering the constant in the same
 commit, which is the point — a reviewer sees the intent. The rationale in the header is that
 iterating an empty list *succeeds*, so a broken discovery would report green having verified
 nothing, and "a green result that proved nothing is worse than a red one, because it is
 trusted." The run ends by printing how many files and guards actually ran.
 
-Then the three guards run (not counted toward the floor, but counted toward failure).
+Then the five guards run (not counted toward the floor, but counted toward failure).
 `check-metered-model-calls.ts` exists because of a real incident: `answer.ts`'s `ask` once
 shipped as a public action with no auth and no limiter, beside a properly metered `stream`.
 `check-no-userid-args.ts` enforces the identity rule statically — no public Convex function
 may accept a `userId` argument. `check-no-committed-screenshots.ts` keeps review
 screenshots out of the tree: #138 committed eight of them and #145 took them back out.
+`check-type-floor.ts` holds the 13px type floor and keeps sizes in rem: an audit found nearly
+half the text on the phone home page set at 9–12px, in px that ignored the browser's font setting.
+`check-compiled-css.ts` runs `app/globals.css` through Tailwind and fails on CSS the dev
+compiler cannot parse: a `touchable:[@media(min-width:18em)]:` class once compiled to
+`@media\(…\)\undefined`, the dev server dropped the stylesheet, and every page fell back to
+Times New Roman with every test green. A media query a variant cannot express goes in
+`app/globals.css` as a named class.
 `scripts/check-grounding.test.ts` is an ordinary discovered test, not a guard, but it does the
 same job for the manual AI probes: it fails if their default model, providers, fallbacks or
 price ceiling drift from `convex/answer.ts` (see [Guardrails](#guardrails)).

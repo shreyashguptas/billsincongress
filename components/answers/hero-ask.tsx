@@ -18,7 +18,10 @@ import { Input } from '@/components/ui/input';
 import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { cn } from '@/lib/utils';
 import { MAX_QUESTION_LENGTH } from '@/lib/text-limit';
-import { FINE_POINTER_QUERY } from '@/lib/type-to-ask';
+import { FINE_POINTER_QUERY } from '@/lib/ask-shortcut';
+import { Arrow } from '@/components/brand/arrow';
+import { Kbd } from '@/components/brand/kbd';
+import { useAskShortcut } from './ask-shortcut';
 
 // Starter questions: rounded-full outline pills (brand.md, "Ask composer"),
 // on the page rather than raised. Inline-block and wrapping, so a long starter
@@ -45,8 +48,9 @@ const PAGE_SCROLL_KEYS = new Set([' ', 'PageDown', 'PageUp', 'ArrowDown', 'Arrow
  *
  * The field is focused when the page loads, so a reader can type without
  * clicking it first — on a mouse or trackpad only (`FINE_POINTER_QUERY` has
- * why). Keys typed after clicking elsewhere still come back here while it is on
- * screen (`components/answers/type-to-ask.tsx`).
+ * why). After clicking elsewhere, `/` brings focus back here while it is on
+ * screen (`components/answers/ask-shortcut.tsx`), and a keycap in the box says
+ * so whenever the box is not focused.
  */
 export function HeroAsk({ starters }: { starters: StarterInput }) {
   const { ask, busy, phase } = useAnswers();
@@ -59,6 +63,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
   const listId = useId();
   const noteId = useId();
   const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_QUESTION_LENGTH, 'ask_home');
+  const shortcut = useAskShortcut();
 
   // On arrival only, and only while focus is nowhere in particular. An open
   // panel keeps focus in its own composer (the reader came back to the home
@@ -145,7 +150,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
           }}
           onAnimationEnd={onNudgeEnd}
           className={cn(
-            'flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pr-2.5 transition-colors focus-within:border-ink focus-within:ring-1 focus-within:ring-ink',
+            'group/hero flex h-[60px] items-center gap-2 rounded-lg border border-line-strong bg-raised pr-2.5 transition-colors focus-within:border-ink focus-within:ring-1 focus-within:ring-ink',
             nudging && 'animate-nudge',
           )}
         >
@@ -186,8 +191,8 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
               // Until the reader chooses it — clicks it, types in it, or leaves
               // and comes back — those keys still scroll: focus steps back to
               // <main> and the browser carries the key on there. A reader who
-              // tabbed or clicked in keeps ↓ for the suggestion list. Typing a
-              // letter brings focus back (type-to-ask.tsx).
+              // tabbed or clicked in keeps ↓ for the suggestion list. `/`
+              // brings focus back (ask-shortcut.tsx).
               if (
                 autoFocused.current &&
                 !input &&
@@ -211,16 +216,29 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
             role="combobox"
             aria-autocomplete="list"
             aria-expanded={showList}
-            aria-controls={listId}
+            // Only while the list exists: an id that is not in the page names nothing.
+            aria-controls={showList ? listId : undefined}
             aria-activedescendant={
               showList && active >= 0 ? `${listId}-${active}` : undefined
             }
             autoComplete="off"
             aria-describedby={noteId}
+            aria-keyshortcuts={shortcut.enabled ? '/' : undefined}
             disabled={busy}
             // Bare: the form draws the edge and the focus treatment.
-            className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-5 text-[17px] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 touchable:h-full"
+            className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-5 text-[1.0625rem] focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-100 touchable:h-full"
           />
+          {/* The way back to this box, on a computer, while focus is elsewhere
+              and nothing is typed: the same keycap the launcher and the panel
+              carry (brand.md, "Ask composer"). */}
+          {shortcut.enabled && !input && (
+            <span
+              aria-hidden="true"
+              className="hidden shrink-0 items-center gap-1.5 text-caption text-ink-2 fine:sm:flex fine:group-focus-within/hero:hidden"
+            >
+              Press <Kbd>/</Kbd>
+            </span>
+          )}
           <Button
             // `type="button"`, not submit. Enter in the field submits the form by
             // synthesising a click on its submit button, so a submit button with
@@ -282,7 +300,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                         i === active ? 'bg-sunken' : 'hover:bg-sunken'
                       }`}
                     >
-                      <span className="shrink-0 font-mono text-xs text-ink-3 tabular">
+                      <span className="shrink-0 font-mono text-xs text-ink-2 tabular">
                         {bill.bill_type_label || bill.bill_type?.toUpperCase()} {bill.bill_number}
                       </span>
                       <span className="flex-1 min-w-0 text-sm text-ink line-clamp-2 sm:truncate">
@@ -301,7 +319,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                 Enter to ask instead.
               </p>
             )}
-            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 font-mono text-xs text-ink-3">
+            <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-xs text-ink-2">
               <span className="hidden sm:inline">
                 {active >= 0 ? 'Enter opens this bill' : 'Enter asks the question'} · ↑↓ to pick a bill
               </span>
@@ -320,7 +338,7 @@ export function HeroAsk({ starters }: { starters: StarterInput }) {
                   }}
                   className="link ml-auto font-sans"
                 >
-                  See all matching bills →
+                  See all matching bills <Arrow />
                 </Link>
               )}
             </div>

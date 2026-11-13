@@ -209,10 +209,10 @@ export function OptionList({
           back bar, it keeps its full padding. */}
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 pb-3 pt-3 [[data-sheet-grab]+&]:pt-1">
         <div className="min-w-0">
-          <Heading className="font-serif text-[19px] font-medium leading-snug text-ink">
+          <Heading className="font-serif text-[1.1875rem] font-medium leading-snug text-ink">
             {title}
           </Heading>
-          <Helper className="mt-1 text-[13px] leading-snug text-ink-2">
+          <Helper className="mt-1 text-caption leading-snug text-ink-2">
             {helper}
           </Helper>
         </div>
@@ -226,7 +226,7 @@ export function OptionList({
               onChange('all');
               close();
             }}
-            className="touch-hit shrink-0 rounded-xs text-[13px] decoration-1"
+            className="touch-hit shrink-0 rounded-xs text-caption decoration-1"
           >
             Clear
           </Button>
@@ -285,7 +285,7 @@ export function OptionList({
         tabIndex={focusSearch ? -1 : 0}
         data-autofocus={focusSearch ? undefined : ''}
         onKeyDown={handleKeyDown}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-hidden"
       >
         {loading && (
           <p className="px-4 py-3 text-sm text-ink-3">Loading…</p>
@@ -320,7 +320,7 @@ export function OptionList({
           return (
             <div key={option.value}>
               {heading && (
-                <p className="label-eyebrow !mb-0 px-4 pb-1 pt-3">
+                <p className="label-eyebrow mb-0! px-4 pb-1 pt-3">
                   {heading}
                 </p>
               )}
@@ -353,7 +353,7 @@ export function OptionList({
                 />
                 <span className="min-w-0 flex-1 truncate">{option.label}</span>
                 {option.count !== undefined && (
-                  <span className="shrink-0 font-mono text-xs tabular text-ink-3">
+                  <span className="shrink-0 text-meta tabular text-ink-2">
                     {formatCount(option.count)}
                   </span>
                 )}
@@ -363,10 +363,10 @@ export function OptionList({
         })}
 
         {truncated && (
-          <p className="px-4 py-3 text-xs text-ink-3">
+          <p className="px-4 py-3 text-meta text-ink-2">
             Showing the first{' '}
-            <span className="font-mono tabular">{formatCount(items.length)}</span> of{' '}
-            <span className="font-mono tabular">{formatCount(total)}</span> — keep typing
+            <span className="font-medium tabular">{formatCount(items.length)}</span> of{' '}
+            <span className="font-medium tabular">{formatCount(total)}</span> — keep typing
             to narrow.
           </p>
         )}
@@ -379,8 +379,8 @@ export function OptionList({
 
       {multi && Array.isArray(value) && value.length > 0 && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-4 py-2.5">
-          <span className="text-[13px] text-ink-2">
-            <span className="font-mono tabular text-ink">{value.length}</span>{' '}
+          <span className="text-caption text-ink-2">
+            <span className="font-medium tabular text-ink">{value.length}</span>{' '}
             selected
           </span>
           <div className="flex items-center gap-3">

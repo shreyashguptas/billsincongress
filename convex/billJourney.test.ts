@@ -191,6 +191,106 @@ it("a resolution is agreed to, not passed", () => {
   assert.equal(j.events.find((e) => e.kind === "passed")?.label, "Agreed to in the Senate");
 });
 
+// H.R. 131 (119th), its record from the veto on, as Congress.gov holds it.
+// The page said "It becomes law only if the House and the Senate each vote by
+// two-thirds to override the veto", with "60 days left", after the House had
+// voted on Jan 8, 2026 and fallen short, 248-177.
+const hr131: JourneyAction[] = [
+  act("2025-01-03", "Introduced in House", { actionCode: "1000", type: "IntroReferral" }),
+  act("2025-01-03", "Referred to the House Committee on Natural Resources.", { actionCode: "H11100", type: "IntroReferral" }),
+  act("2025-07-21", "Passed/agreed to in House: On motion to suspend the rules and pass the bill, as amended Agreed to by voice vote. (text: CR H3497-3498)", { actionCode: "8000", type: "Floor" }),
+  act("2025-12-16", "Passed/agreed to in Senate: Passed Senate without amendment by Voice Vote.", { actionCode: "17000", type: "Floor" }),
+  act("2025-12-18", "Presented to President.", { actionCode: "28000", type: "President" }),
+  act("2025-12-29", "Vetoed by President.", { actionCode: "31000", type: "President" }),
+  act("2026-01-02", "The Chair laid before the House the veto message from the President.", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-08", "Failed of passage in House over veto On passage, the objections of the President to the contrary notwithstanding Failed by the Yeas and Nays: (2/3 required): 248 - 177, 1 Present (Roll no. 9).", { actionCode: "33000", type: "Veto" }),
+  act("2026-01-08", "On passage, the objections of the President to the contrary notwithstanding Failed by the Yeas and Nays: (2/3 required): 248 - 177, 1 Present (Roll no. 9).", { actionCode: "H43410", type: "Veto" }),
+  act("2026-01-08", "On motion to refer the bill and the accompanying veto message to the Committee on Natural Resources. Agreed to without objection.", { actionCode: "H43110", type: "Veto" }),
+];
+
+// The same bill's whole record as production stored it on 2026-11-04 (all 37
+// actions, from `bills:debugBillStage`), so the override rule is proved on
+// the stored wording and not only on the lines copied above. The House's own
+// floor entries ("POSTPONED PROCEEDINGS - … the objections of the President to
+// the contrary notwithstanding") must not count as a second vote.
+const hr131Stored: JourneyAction[] = [
+  act("2025-01-03", "Referred to the House Committee on Natural Resources.", { actionCode: "H11100", type: "IntroReferral" }),
+  act("2025-01-03", "Introduced in House", { actionCode: "Intro-H", type: "IntroReferral" }),
+  act("2025-01-03", "Introduced in House", { actionCode: "1000", type: "IntroReferral" }),
+  act("2025-06-25", "Ordered to be Reported in the Nature of a Substitute by Unanimous Consent.", { actionCode: "H19000", type: "Committee" }),
+  act("2025-06-25", "Committee Consideration and Mark-up Session Held", { actionCode: "H15001", type: "Committee" }),
+  act("2025-07-10", "Placed on the Union Calendar, Calendar No. 152.", { actionCode: "H12410", type: "Calendars" }),
+  act("2025-07-10", "Reported (Amended) by the Committee on Natural Resources. H. Rept. 119-187.", { actionCode: "H12200", type: "Committee" }),
+  act("2025-07-10", "Reported (Amended) by the Committee on Natural Resources. H. Rept. 119-187.", { actionCode: "5000", type: "Committee" }),
+  act("2025-07-21", "Motion to reconsider laid on the table Agreed to without objection.", { actionCode: "H38310", type: "Floor" }),
+  act("2025-07-21", "On motion to suspend the rules and pass the bill, as amended Agreed to by voice vote. (text: CR H3497-3498)", { actionCode: "H37300", type: "Floor" }),
+  act("2025-07-21", "Passed/agreed to in House: On motion to suspend the rules and pass the bill, as amended Agreed to by voice vote. (text: CR H3497-3498)", { actionCode: "8000", type: "Floor" }),
+  act("2025-07-21", "DEBATE - The House proceeded with forty minutes of debate on H.R. 131.", { actionCode: "H8D000", type: "Floor" }),
+  act("2025-07-21", "Considered under suspension of the rules. (consideration: CR H3497-3498)", { actionCode: "H30000", type: "Floor" }),
+  act("2025-07-21", "Mr. Gosar moved to suspend the rules and pass the bill, as amended.", { actionCode: "H30300", type: "Floor" }),
+  act("2025-07-22", "Received in the Senate and Read twice and referred to the Committee on Energy and Natural Resources.", { type: "IntroReferral" }),
+  act("2025-12-16", "Passed Senate without amendment by Voice Vote. (consideration: CR S8766-8768)", { type: "Floor" }),
+  act("2025-12-16", "Passed/agreed to in Senate: Passed Senate without amendment by Voice Vote.", { actionCode: "17000", type: "Floor" }),
+  act("2025-12-16", "Senate Committee on Energy and Natural Resources discharged by Unanimous Consent.", { type: "Discharge" }),
+  act("2025-12-16", "Senate Committee on Energy and Natural Resources discharged by Unanimous Consent.", { actionCode: "14500", type: "Committee" }),
+  act("2025-12-17", "Message on Senate action sent to the House.", { type: "Floor" }),
+  act("2025-12-18", "Presented to President.", { actionCode: "E20000", type: "Floor" }),
+  act("2025-12-18", "Presented to President.", { actionCode: "28000", type: "President" }),
+  act("2025-12-29", "Vetoed by President.", { actionCode: "E30000", type: "President" }),
+  act("2025-12-29", "Vetoed by President.", { actionCode: "31000", type: "President" }),
+  act("2026-01-02", "POSTPONED CONSIDERATION OF VETO MESSAGE - The Chair announced that further consideration of the veto message and the bill, H.R. 131, is postponed until the legislative day of January 8, 2026. Agreed to without objection.", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-02", "The Chair announced that the objections of the President to H.R. 131 would be spread at large upon the Journal and the veto message would be printed as a House Document (119-119).", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-02", "The Chair laid before the House the veto message from the President.", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-08", "The Chair directed the Clerk to notify the Senate of the action of the House.", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-08", "On motion to refer the bill and the accompanying veto message to the Committee on Natural Resources. Agreed to without objection.", { actionCode: "H43110", type: "Veto" }),
+  act("2026-01-08", "Motion to refer the bill and accompanying veto message to the Committee on Natural Resources.", { actionCode: "H43100", type: "Veto" }),
+  act("2026-01-08", "On passage, the objections of the President to the contrary notwithstanding Failed by the Yeas and Nays: (2/3 required): 248 - 177, 1 Present (Roll no. 9).", { actionCode: "H43410", type: "Veto" }),
+  act("2026-01-08", "Failed of passage in House over veto On passage, the objections of the President to the contrary notwithstanding Failed by the Yeas and Nays: (2/3 required): 248 - 177, 1 Present (Roll no. 9).", { actionCode: "33000", type: "Veto" }),
+  act("2026-01-08", "The Chair announced the unfinished business to be the consideration of the veto. (consideration: CR H212)", { actionCode: "H40310", type: "President" }),
+  act("2026-01-08", "POSTPONED PROCEEDINGS - At the conclusion of debate on the veto message of the President to H.R. 131, the Chair put the question on will the House, on reconsideration, pass the bill, the objections of the President to the contrary notwithstanding. Under the Constitution, the vote must be taken by the yeas and nays. Further proceedings were postponed until a time to be announced.", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-08", "The previous question was ordered without objection.", { actionCode: "H35000", type: "Floor" }),
+  act("2026-01-08", "DEBATE - Pursuant to a previous order of the House of January 2, 2026, the unfinished business is the further consideration of the veto message of the President on H.R. 131. The House proceeded with one hour of debate on the objections of the President to the contrary notwithstanding. (consideration: CR H205-208)", { actionCode: "H8D000", type: "Floor" }),
+  act("2026-01-08", "The Chair laid before the House the veto message from the President.", { actionCode: "H40300", type: "Veto" }),
+];
+
+it("a failed veto override is on the record, with its tally, once", () => {
+  for (const record of [hr131, hr131Stored]) {
+    const j = buildJourney(record, "2025-01-03", "hr");
+    assert.equal(j.finalStage, BillStages.VETOED);
+    const votes = j.events.filter((e) => e.kind === "override_failed");
+    assert.equal(votes.length, 1);
+    assert.equal(votes[0].chamber, "house");
+    assert.equal(votes[0].date, "2026-01-08");
+    assert.equal(votes[0].yeas, 248);
+    assert.equal(votes[0].nays, 177);
+    assert.ok(!j.events.some((e) => e.kind === "override_passed"));
+  }
+});
+
+it("the stored record of H.R. 131 draws its whole road, ending at the failed override", () => {
+  const j = buildJourney(hr131Stored, "2025-01-03", "hr");
+  assert.deepEqual(
+    j.events.map((e) => e.kind),
+    ["introduced", "referred", "committee_vote", "reported", "passed", "passed", "to_president", "vetoed", "override_failed"],
+  );
+});
+
+it("a successful override is an override, not a second passage", () => {
+  const j = buildJourney(
+    [
+      ...hr131.slice(0, 6),
+      act("2026-01-08", "Passed House over veto by the Yeas and Nays: (2/3 required): 300 - 120 (Roll no. 9)."),
+      act("2026-01-09", "Passed Senate over veto by Yea-Nay Vote. 81 - 13."),
+    ],
+    "2025-01-03",
+    "hr",
+  );
+  const overrides = j.events.filter((e) => e.kind === "override_passed");
+  assert.deepEqual(overrides.map((e) => e.chamber), ["house", "senate"]);
+  assert.equal(overrides[1].yeas, 81);
+  assert.equal(j.events.filter((e) => e.kind === "passed").length, 2);
+});
+
 if (failures.length) {
   console.error(`billJourney: ${failures.length} failed, ${passed} passed\n${failures.join("\n")}`);
   process.exit(1);

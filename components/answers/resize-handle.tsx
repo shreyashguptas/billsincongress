@@ -201,7 +201,7 @@ export function ResizeHandle({ surface }: { surface: string }) {
         // carries a small grip, centred, that says "this moves".
         enabled &&
           'touchable:after:absolute touchable:after:left-1/2 touchable:after:top-1/2 touchable:after:h-8 touchable:after:w-1 touchable:after:-translate-x-1/2 touchable:after:-translate-y-1/2 touchable:after:rounded-full touchable:after:bg-line-strong touchable:after:content-[""]',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink',
+        'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ink',
       )}
     />
   );

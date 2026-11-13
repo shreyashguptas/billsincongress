@@ -15,6 +15,8 @@ import { UserMenu } from '@/components/auth/user-menu';
 import { Logo } from '@/components/brand/logo';
 import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
 import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/feedback/feedback-box';
+import { HeaderAsk } from '@/components/answers/header-ask';
+import { askInHeaderOnly } from '@/lib/ask-panel-state';
 
 /**
  * The site header: logo, the four sections, a bill search and the account
@@ -23,23 +25,29 @@ import { FeedbackDialog, HeaderFeedback, useFeedbackBox } from '@/components/fee
  * and lib/ask-css-contract.test.ts reads the classes back off this file.
  *
  * Its md / lg / xl are the header's own width, not the window's: `header-md:`,
- * `header-lg:` and `header-xl:` (tailwind.config.ts) are container queries on
+ * `header-lg:` and `header-xl:` (app/globals.css) are container queries on
  * this element. The docked ask panel takes up to 640px off the right, so on a
  * 1440px screen the header can be 1024px wide while `xl:` still sees 1440 —
  * which laid out the 288px search field and pushed "Sign up" under the panel.
  * Heights stay on `sm:` because `--header-h` in globals.css is a media query.
+ *
+ * It is sticky except in a window under 500px tall (`short:`), where a pinned
+ * header would take a quarter of the screen or more: there it scrolls away
+ * with the page, and Ask, which lives in it at that size, goes with it.
  */
 export function Navigation() {
   const [open, setOpen] = React.useState(false);
   const feedback = useFeedbackBox('menu');
   const pathname = usePathname();
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+  // A bill page keeps Ask in the header at every width (lib/ask-panel-state.ts).
+  const askHere = askInHeaderOnly(pathname);
 
   return (
     // Solid paper, not translucent: a see-through header turned muddy grey over
     // the home page's dark stage, and its backdrop blur was repainted on every
     // scroll frame.
-    <header className="sticky top-0 z-40 w-full border-b border-line bg-paper [container-name:site-header] [container-type:inline-size]">
+    <header className="sticky top-0 z-40 w-full short:relative border-b border-line bg-paper @container/site-header">
       {/*
         Phones: menu, logo beside it, then search and account at the far edge —
         auto | minmax(0,1fr) | auto, so nothing can push the row past the screen.
@@ -111,12 +119,27 @@ export function Navigation() {
         </div>
 
         {/* Beside the menu on phones; the sections take the centre from md up. */}
-        <Logo fit className="min-w-0 justify-self-start header-md:hidden" />
+        {/* Below header-mark (296px, a 320px phone at a 20px font) the row has no
+            room for it beside Ask, the search and "Sign up"; the menu carries
+            the logo and Home. */}
+        <Logo fit className="hidden min-w-0 justify-self-start header-mark:inline-flex header-md:hidden" />
         <SectionTabs isActive={isActive} />
 
-        <div className="flex items-center justify-end gap-1 sm:gap-2 header-lg:gap-3">
+        {/* col-start-3: with the logo hidden it would otherwise slide into the logo's column.
+            The min widths hold the four sections in one place on every page. The
+            cluster changes from page to page (no search field on the home page,
+            Ask in it on a bill page), and in a 1fr | auto | 1fr row a wider right
+            side pushed the sections left, so they jumped up to 170px on a click
+            from home to a bill. Each min is the widest cluster at that size (a
+            signed-out /bills: Feedback, the search field, "Sign in" and "Sign up"),
+            in rem so a larger browser font scales it with the labels.
+            lib/ask-css-contract.test.ts holds the values. */}
+        <div className="col-start-3 flex items-center justify-end gap-1 header-sm:gap-2 header-md:min-w-61 header-lg:min-w-116 header-lg:gap-3 header-xl:min-w-136">
           <HeaderFeedback className="hidden header-lg:inline-flex" />
-          <HeaderSearch />
+          {/* Phones, tablets and short windows, and a bill page at every width;
+              the corner pill everywhere else. */}
+          <HeaderAsk everywhere={askHere} />
+          <HeaderSearch compact={askHere} />
           <UserMenu />
         </div>
       </div>
@@ -233,7 +256,7 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
               setPending(route.href);
             }}
             className={cn(
-              'focus-ring rounded-sm px-3 py-2.5 text-[15px] font-medium transition-colors duration-200 touchable:py-3',
+              'focus-ring rounded-sm px-3 py-2.5 text-ui font-medium transition-colors duration-200 touchable:py-3',
               current || route.href === target ? 'text-ink' : 'text-ink-2',
             )}
           >
@@ -270,8 +293,13 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
  * Search from anywhere. A full field from a header-lg width up; an icon that
  * opens /bills below that, where the search box is the first thing on the page. Submitting
  * lands on /bills?title=…, the same URL the bills page's own search writes.
+ *
+ * `compact`: the field only from header-xl. On a bill page Ask is in the header at
+ * every width, and from 1024px to 1279px the field, Feedback, Ask and the account
+ * buttons do not fit in one row beside the four sections (it ran 41px off the
+ * screen at 1024px), so the icon stands in for the field there.
  */
-function HeaderSearch() {
+function HeaderSearch({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = React.useState('');
   const noteId = React.useId();
@@ -291,7 +319,13 @@ function HeaderSearch() {
         role="search"
         onSubmit={onSubmit}
         onAnimationEnd={onNudgeEnd}
-        className={cn('relative hidden header-lg:block', nudging && 'animate-nudge')}
+        className={cn(
+          'relative hidden',
+          // On a bill page Ask takes the field's room: the search is its icon
+          // at every width, so the row fits and the sections stay put.
+          !compact && 'header-lg:block',
+          nudging && 'animate-nudge',
+        )}
       >
         <label htmlFor="header-search" className="sr-only">
           Search bills
@@ -315,7 +349,13 @@ function HeaderSearch() {
           shownClassName="rounded-sm border border-line bg-raised px-2 py-1 shadow-float"
         />
       </form>
-      <Button asChild variant="ghost" size="icon" className="header-lg:hidden">
+      {/* Gone below header-search (256px): the menu's Bills page has the search. */}
+      <Button
+        asChild
+        variant="ghost"
+        size="icon"
+        className={cn('hidden header-search:inline-flex', !compact && 'header-lg:hidden')}
+      >
         <Link href="/bills" aria-label="Search bills">
           <Search className="h-5 w-5" />
         </Link>

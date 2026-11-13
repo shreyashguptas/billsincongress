@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-const LAST_UPDATED = 'November 3, 2026';
+const LAST_UPDATED = 'November 7, 2026';
 
 export default function PrivacyPage() {
   return (
@@ -63,7 +63,8 @@ export default function PrivacyPage() {
             congress-legislators
           </ExternalLink>{' '}
           project, also in the public domain, plus a few corrections we
-          checked against members&rsquo; own sites, and shown only when the
+          checked against members&rsquo; own sites and send back to that
+          project, and shown only when the
           member&rsquo;s own .house.gov or .senate.gov website links them.
           In this policy, &ldquo;we&rdquo;
           and &ldquo;us&rdquo; refer to the project and OffGrid LLC.
@@ -490,6 +491,12 @@ const cookies = [
     name: 'bic_found_it_seen (local storage)',
     purpose:
       'Remembers that we already asked “Did you find what you were looking for?” on this browser, so we never ask again. Holds the value 1 and never leaves your browser.',
+    lifespan: 'until cleared',
+  },
+  {
+    name: 'bic_ask_shortcut (local storage)',
+    purpose:
+      'Remembers that you turned off the / key that opens Ask. Written only while it is off, holds the value off and nothing else, and never leaves your browser.',
     lifespan: 'until cleared',
   },
   {

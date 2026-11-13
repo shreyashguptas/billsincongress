@@ -50,7 +50,7 @@ export function HistoryList({
   if (chats.length === 0) {
     return (
       <div className="px-4 py-8 lg:px-5">
-        <p className="text-[15px] leading-relaxed text-ink-2">
+        <p className="text-ui leading-relaxed text-ink-2">
           No saved conversations yet. Sign in and your questions are kept here so you can
           pick them up later. Signed-out conversations are never stored.
         </p>
@@ -76,8 +76,8 @@ export function HistoryList({
               }}
               className="focus-ring min-w-0 flex-1 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-sunken"
             >
-              <p className="line-clamp-2 font-serif text-[16px] leading-snug text-ink">{chat.title}</p>
-              <p className="mt-1 font-mono text-xs text-ink-3 tabular">
+              <p className="line-clamp-2 font-serif text-[1rem] leading-snug text-ink">{chat.title}</p>
+              <p className="mt-1 text-meta text-ink-2 tabular">
                 {new Date(chat.lastActivityAt).toLocaleDateString(undefined, {
                   month: 'short',
                   day: 'numeric',
@@ -112,7 +112,7 @@ export function HistoryList({
         {confirmingAll ? (
           <div className="flex items-center gap-2">
             <p className="flex-1 text-sm text-ink">
-              Delete all <span className="font-mono tabular">{chats.length}</span> conversations?
+              Delete all <span className="tabular">{chats.length}</span> conversations?
             </p>
             <Button
               type="button"
@@ -137,7 +137,7 @@ export function HistoryList({
           <button
             type="button"
             onClick={() => setConfirmingAll(true)}
-            className="touch-hit focus-ring rounded-sm text-[13px] text-ink-2 transition-colors hover:text-error"
+            className="touch-hit focus-ring rounded-sm text-caption text-ink-2 transition-colors hover:text-error"
           >
             Delete all conversations
           </button>

@@ -144,7 +144,7 @@ export function ResetPasswordForm({
   if (step === "reset") {
     return (
       <div className="space-y-6">
-        <p className="text-[15px] leading-relaxed text-ink-2">
+        <p className="text-ui leading-relaxed text-ink-2">
           {accountEmail ? (
             <>We sent a 6-digit code to <span className="font-medium text-ink">{email}</span>.</>
           ) : (
@@ -158,7 +158,7 @@ export function ResetPasswordForm({
         <form method="post" onSubmit={onResetSubmit} className="space-y-5">
           {/* Tells a password manager which account the new password belongs to. */}
           <input type="email" name="username" autoComplete="username" value={email} readOnly hidden />
-          <div className="space-y-2">
+          <div className="field">
             <Label htmlFor="code" className="text-ink">Reset code</Label>
             <Input
               id="code"
@@ -175,7 +175,7 @@ export function ResetPasswordForm({
               className="text-center font-mono text-lg tracking-[0.3em] tabular"
             />
           </div>
-          <div className="space-y-2">
+          <div className="field">
             <Label htmlFor="new-password" className="text-ink">New password</Label>
             <Input
               id="new-password"
@@ -189,13 +189,13 @@ export function ResetPasswordForm({
               disabled={busy}
               aria-describedby="password-rules"
             />
-            <p id="password-rules" className="text-[13px] leading-snug text-ink-3">
+            <p id="password-rules" className="text-caption leading-snug text-ink-2">
               {PASSWORD_RULES}
             </p>
           </div>
           {error && <FormError>{error}</FormError>}
           {resent && !error && (
-            <p role="status" className="text-[13px] leading-snug text-ink-3">
+            <p role="status" className="text-caption leading-snug text-ink-2">
               {accountEmail ? "A new code is on its way." : "If the address has an account, a new code is on its way."}{" "}
               Up to five codes an hour.
             </p>
@@ -238,7 +238,7 @@ export function ResetPasswordForm({
   if (accountEmail) {
     return (
       <form method="post" onSubmit={onRequestSubmit} className="space-y-5">
-        <p className="text-[15px] leading-relaxed text-ink-2">
+        <p className="text-ui leading-relaxed text-ink-2">
           We&apos;ll email a 6-digit code to <span className="font-medium text-ink">{email}</span>. Enter
           it with your new password. Every other device signed in to this account will be signed out.
         </p>
@@ -253,7 +253,7 @@ export function ResetPasswordForm({
   return (
     <div className="space-y-6">
       <form method="post" onSubmit={onRequestSubmit} className="space-y-5">
-        <div className="space-y-2">
+        <div className="field">
           <Label htmlFor="email" className="text-ink">Email</Label>
           <Input
             id="email"
@@ -271,7 +271,7 @@ export function ResetPasswordForm({
         </Button>
       </form>
 
-      <p className="text-center text-[13px] leading-snug text-ink-3">
+      <p className="text-center text-caption leading-snug text-ink-2">
         Signed up with Google? There is no password to reset — use Sign in with Google.
       </p>
 

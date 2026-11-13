@@ -187,7 +187,7 @@ export function AvatarButton({
         )}
       >
         <Camera className="h-5 w-5" strokeWidth={1.75} />
-        <span className="text-[11px] font-medium">{hasPhoto ? 'Change' : 'Upload'}</span>
+        <span className="text-xs font-medium">{hasPhoto ? 'Change' : 'Upload'}</span>
       </span>
       {/* Always visible, for touch screens that have no hover. */}
       <span
@@ -250,7 +250,7 @@ export function AvatarButton({
         </button>
       )}
       {pageError && (
-        <Alert variant="destructive" role="alert" className="max-w-[16rem] text-[13px]">
+        <Alert variant="destructive" role="alert" className="max-w-[16rem] text-caption">
           {pageError}
         </Alert>
       )}
