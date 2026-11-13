@@ -162,6 +162,44 @@ describe("closing a sync snapshot", () => {
     expect((await t.query(api.bills.getSyncStatus, {}))?.completedAt).toBe(good.completedAt);
   });
 
+  test("a full sync whose one type with bills ends on a resumed, empty batch is completed", async () => {
+    // Production row of 2026-11-08 02:00 (full): every type finished,
+    // billsSynced 4, no totals, left "running". A type that ran out of time
+    // after 4 bills resumed at offset 4 and found the list empty, so it ended
+    // without ever reaching the old per-type "completed" write.
+    const t = setup();
+    stubCongressGov();
+    const snapshotId = await t.mutation(internal.mutations.createSyncSnapshot, {
+      syncType: "full",
+      congress: 119,
+    });
+    await t.mutation(internal.mutations.recordSyncBatch, {
+      snapshotId,
+      processed: 4,
+      success: 4,
+      failed: 0,
+    });
+    for (const billType of TYPES) {
+      await t.action(internal.congressApi.syncBillBatch, {
+        congress: 119,
+        billType,
+        offset: billType === "hr" ? 4 : 0,
+        snapshotId,
+      });
+    }
+
+    const row = await snapshotRow(t, snapshotId);
+    expect(row).toMatchObject({
+      status: "completed",
+      billsSynced: 4,
+      totalProcessed: 4,
+      totalSuccess: 4,
+      totalFailed: 0,
+    });
+    expect(row.completedAt).toBeTruthy();
+    expect((await t.query(api.bills.getSyncStatus, {}))?.syncType).toBe("full");
+  });
+
   test("with only failed runs there is no sync status, so the line is not shown", async () => {
     const t = setup();
     stubCongressGov(TYPES);

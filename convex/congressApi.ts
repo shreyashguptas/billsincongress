@@ -686,6 +686,16 @@ export const syncBillBatch = internalAction({
     if (timeBudgetHit) {
       const resumeOffset = args.offset + successCount + failCount;
       console.warn(`Time budget reached for ${args.billType} at offset ${args.offset}; resuming at ${resumeOffset}`);
+      if (args.snapshotId) {
+        // The resumed batch starts after these bills, so they are counted
+        // here or not at all.
+        await ctx.runMutation(internal.mutations.recordSyncBatch, {
+          snapshotId: args.snapshotId,
+          processed: successCount + failCount,
+          success: successCount,
+          failed: failCount,
+        });
+      }
       await ctx.scheduler.runAfter(5000, internal.congressApi.syncBillBatch, {
         congress: args.congress,
         billType: args.billType,
