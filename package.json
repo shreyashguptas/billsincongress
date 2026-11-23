@@ -51,7 +51,8 @@
     "remark-parse": "11.0.0",
     "stripe": "23.1.0",
     "tailwind-merge": "^3.7.0",
-    "unified": "11.0.5"
+    "unified": "11.0.5",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",

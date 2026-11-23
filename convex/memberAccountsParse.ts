@@ -198,7 +198,7 @@ export interface BuildResult {
 }
 
 /**
- * Join `legislators-current.json` and `legislators-social-media.json` on the
+ * Join `legislators-current.yaml` and `legislators-social-media.yaml` on the
  * bioguide id, then apply the overrides. Throws when either file is not the
  * shape we expect, so a broken download can never be read as "nobody has
  * accounts".

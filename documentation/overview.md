@@ -604,7 +604,7 @@ page links that exact account.** Two daily jobs and one reviewed file implement 
 
 | Piece | File | What it does |
 | --- | --- | --- |
-| Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.json` and `legislators-social-media.json` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) GitHub Pages mirror (CC0, volunteer-kept; its policy is official accounts only), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
+| Suggest | `convex/memberAccounts.ts` (`sync`), `convex/memberAccountsParse.ts` | Downloads `legislators-current.yaml` and `legislators-social-media.yaml` from the [congress-legislators](https://github.com/unitedstates/congress-legislators) project's `main` branch (CC0, volunteer-kept; its policy is official accounts only), not its GitHub Pages copy, whose rebuild stopped on 2026-09-24 (below), joins them on the bioguide id, drops any value that is not that platform's handle, and writes one `memberAccounts` row per member, only where something changed |
 | Correct | `convex/memberAccountOverrides.ts` | Reviewed fixes, each citing the member's own page, the date a person checked it and the file's value it replaced: members the file has nothing for, and accounts where the member's site links a different one (renamed, typo, or in Rep. Pou's case the House's own office accounts listed as hers). Each is offered back to the project ("Sending corrections upstream", below) and deleted here once the project's file carries it; the sync reports which those are |
 | Confirm | `convex/memberAccounts.ts` (`checkSites`), `convex/memberAccountsVerify.ts` | First lapses every confirmation not renewed by a successful check in 30 days, or of a member with no website (`lapseStale`). Then fetches each in-office member's home page, House before Senate, 40 per run with the next run scheduled after the writes (2 at a time, each fetcher waiting a second between sites, 20 s timeout, an honest `BillsInCongress/1.0` user agent), reads the links to accounts (never to posts, tweets or photos, and nothing inside an embedded tweet or post, which can quote anyone), and stamps `confirmedAt` plus `shown` (the account's address, for YouTube the exact form the page linked, and its label) on each account it links. A page that redirects off house.gov/senate.gov counts as failed. A blocked (401/403/429 or a firewall page) or failed fetch changes nothing. A page that links no account at all, for a member we hold accounts for, counts as failed rather than as the member's word (earlier confirmations stand until they lapse): on the first live run Rep. Stansbury's page came back without its links and hid both her accounts. Spaces just inside a link's quotes are ignored, as browsers ignore them (`href="https://twitter.com/RepJoshG "` hid every account of Reps. Gottheimer, Joyce and Lucas until 2 Nov 2026). The sites that blocked the check, and those empty pages, are asked again 20 minutes after the pass ends, at most twice: on the first live run (2 Nov 2026), at 8 at a time, house.gov turned the check away after about 400 sites, every House member from Takano to Zinke, though each answered normally one at a time |
 | Show | `officialAccounts` in `convex/memberAccounts.ts`, read by `bills.getPage` | One indexed read; returns only accounts confirmed by the member's latest successful site check (`confirmedAt === siteCheck.lastOkAt`), with the `shown` address, plus the website. Nothing for a member out of office or a bill without a sponsor id |
@@ -631,9 +631,14 @@ review into the overrides file:
 pnpm exec convex run --prod memberAccounts:reviewList '{}'
 ```
 
-**Sending corrections upstream.** The site reads only the congress-legislators project's own
-published files (`unitedstates.github.io/congress-legislators`), never a copy, so it gets every
-update the project publishes the next morning. Our corrections are offered back to the project
+**Sending corrections upstream.** The site reads the congress-legislators project's own data
+files as merged on its `main` branch (`raw.githubusercontent.com/unitedstates/congress-legislators/main`),
+never a copy, so it gets every merge the next morning. It used to read the project's published
+copy (`unitedstates.github.io/congress-legislators`, its `gh-pages` branch), which a CircleCI job
+rebuilds after each merge; that job stopped on 2026-09-24 and had still not run on 2026-11-23,
+13 merges later, our #1069 among them, so the site saw none of them. `main` is the same
+maintainers' reviewed data. If they announce that `main` is no longer safe to read directly,
+switch `SOURCE_BASE` in `convex/memberAccounts.ts` back. Our corrections are offered back to the project
 as public pull requests from the fork `shreyashguptas/congress-legislators`, which exists for
 nothing else and which nothing reads:
 
@@ -671,6 +676,12 @@ nothing else and which nothing reads:
 
 First batch: 82 House members, prepared 7 Nov 2026 (15 members the file did not have, renamed
 and mistyped accounts, and YouTube channel ids), every fix confirmed by that day's site check.
+The maintainers merged it as #1069 on 2026-11-12, after two changes they asked for: renamed X
+accounts keep their `twitter_id` (the id stays with the account), and leadership office
+accounts (Whip, Speaker) stay out of their file, which lists each member's own account. On
+2026-11-23 the 130 overrides `main` now carries were deleted here. Seven stay: the office
+accounts this site shows for Reps. Clark, Emmer and Johnson (their own .gov sites link them),
+and the hidden dead YouTube link for Rep. Schweikert.
 
 At launch (1 Nov 2026), measured against every House member's home page: 1,347 of 1,423
 suggested House accounts confirmed, 433 of 439 House members with at least one. **senate.gov

@@ -4,9 +4,9 @@
  *
  * No government source lists members' social media. So two steps, daily:
  *
- * 1. `sync` (07:40 UTC) copies the congress-legislators project's two JSON
- *    files (current members, and their social media) from its GitHub Pages
- *    mirror, joins them in convex/memberAccountsParse.ts, applies our
+ * 1. `sync` (07:40 UTC) copies the congress-legislators project's two YAML
+ *    files (current members, and their social media) from its main branch
+ *    (`SOURCE_BASE`), joins them in convex/memberAccountsParse.ts, applies our
  *    reviewed fixes (convex/memberAccountOverrides.ts), and writes the
  *    SUGGESTED accounts to `memberAccounts`, only the rows that changed.
  * 2. `checkSites` (08:10 UTC) fetches each member's official .house.gov or
@@ -35,6 +35,7 @@
  * (documentation/analytics.md, "PostHog Logs").
  */
 import { v, type Infer } from "convex/values";
+import { parse as parseYaml } from "yaml";
 import {
   internalAction,
   internalMutation,
@@ -56,7 +57,14 @@ import {
 } from "./memberAccountsParse";
 import { checkOfficialSite, confirmOnPage, type SiteCheck } from "./memberAccountsVerify";
 
-const SOURCE_BASE = "https://unitedstates.github.io/congress-legislators";
+/**
+ * The congress-legislators project's own data files, as merged on its main
+ * branch. Not its published copy (unitedstates.github.io): that is rebuilt by a
+ * CI job which stopped on 2026-09-24 and still had not run on 2026-11-23, two
+ * months and 13 merges later, ours (#1069) among them. Main is the same
+ * maintainers' reviewed data, without waiting on that job.
+ */
+const SOURCE_BASE = "https://raw.githubusercontent.com/unitedstates/congress-legislators/main";
 const FETCH_TIMEOUT_MS = 30_000;
 /** Far above every member who has ever served since this table began. */
 const MAX_ROWS = 5000;
@@ -125,13 +133,14 @@ const applyResult = v.object({
   left: v.number(),
 });
 
-async function fetchJson(file: string): Promise<unknown> {
+async function fetchYaml(file: string): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const response = await fetch(`${SOURCE_BASE}/${file}`, { signal: controller.signal });
     if (!response.ok) throw new Error(`${file}: HTTP ${response.status}`);
-    return await response.json();
+    // YAML 1.2's core schema: dates stay strings, as in the project's JSON.
+    return parseYaml(await response.text());
   } finally {
     clearTimeout(timer);
   }
@@ -148,8 +157,8 @@ export const sync = internalAction({
     let report: OverrideReport = { redundant: 0, stale: 0, redundantIds: [], staleIds: [] };
     try {
       const [current, social] = await Promise.all([
-        fetchJson("legislators-current.json"),
-        fetchJson("legislators-social-media.json"),
+        fetchYaml("legislators-current.yaml"),
+        fetchYaml("legislators-social-media.yaml"),
       ]);
       const built = buildMemberRecords(current, social, ACCOUNT_OVERRIDES);
       rejected = built.rejected;
@@ -210,8 +219,8 @@ export const sync = internalAction({
 function errorKind(error: unknown): string {
   if (error instanceof Error) {
     if (error.name === "AbortError") return "timeout";
-    if (/^legislators-[a-z-]+\.json: HTTP \d+$/.test(error.message)) return error.message;
-    if (error instanceof SyntaxError) return "bad_json";
+    if (/^legislators-[a-z-]+\.yaml: HTTP \d+$/.test(error.message)) return error.message;
+    if (error.name === "YAMLParseError" || error instanceof SyntaxError) return "bad_yaml";
     if (/is not a list$/.test(error.message)) return "bad_shape";
     if (/^override for /.test(error.message)) return "bad_override";
   }
