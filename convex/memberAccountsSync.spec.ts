@@ -48,16 +48,50 @@ test("reads the project's main branch as YAML, not its published copy", async ()
   expect(one.officialWebsiteUrl).toBe("https://m1.house.gov");
 });
 
-test("a download that is not YAML writes nothing", async () => {
-  vi.stubGlobal("fetch", async () => new Response("<html><title>Rate limited</title>\n: : :", { status: 200 }));
+/** Sync once with good files, so a later bad download has rows it could wipe. */
+async function seeded() {
+  vi.stubGlobal("fetch", async (input: string | URL) =>
+    new Response(String(input).endsWith("/legislators-current.yaml") ? stringify(current) : stringify(social), { status: 200 }),
+  );
   const t = convexTest(schema, modules);
   await t.action(internal.memberAccounts.sync, {});
-  expect(await t.run((ctx) => ctx.db.query("memberAccounts").collect())).toHaveLength(0);
+  expect(await t.run((ctx) => ctx.db.query("memberAccounts").collect())).toHaveLength(500);
+  return t;
+}
+
+/** The error_kind of the "member accounts sync failed" log line this test caused. */
+async function failureKind(t: ReturnType<typeof convexTest>) {
+  const jobs = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+  const line = jobs.map((j) => j.args[0]).find((a) => a?.message === "member accounts sync failed");
+  return line?.attributes?.error_kind;
+}
+
+test("a download that is not YAML keeps what we had, and says bad_yaml", async () => {
+  process.env.POSTHOG_KEY = "phc_test_not_a_real_key";
+  try {
+    const t = await seeded();
+    vi.stubGlobal("fetch", async () => new Response("key: [unclosed\n  - : :", { status: 200 }));
+    await t.action(internal.memberAccounts.sync, {});
+    expect(await t.run((ctx) => ctx.db.query("memberAccounts").collect())).toHaveLength(500);
+    expect(await failureKind(t)).toBe("bad_yaml");
+  } finally {
+    delete process.env.POSTHOG_KEY;
+  }
 });
 
-test("a failed download writes nothing", async () => {
-  vi.stubGlobal("fetch", async () => new Response("Not Found", { status: 404 }));
-  const t = convexTest(schema, modules);
-  await t.action(internal.memberAccounts.sync, {});
-  expect(await t.run((ctx) => ctx.db.query("memberAccounts").collect())).toHaveLength(0);
+test("a failed download keeps what we had, and names the file and status", async () => {
+  process.env.POSTHOG_KEY = "phc_test_not_a_real_key";
+  try {
+    const t = await seeded();
+    vi.stubGlobal("fetch", async (input: string | URL) =>
+      String(input).endsWith("/legislators-current.yaml")
+        ? new Response("Not Found", { status: 404 })
+        : new Response(stringify(social), { status: 200 }),
+    );
+    await t.action(internal.memberAccounts.sync, {});
+    expect(await t.run((ctx) => ctx.db.query("memberAccounts").collect())).toHaveLength(500);
+    expect(await failureKind(t)).toBe("legislators-current.yaml: HTTP 404");
+  } finally {
+    delete process.env.POSTHOG_KEY;
+  }
 });
