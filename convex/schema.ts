@@ -753,6 +753,25 @@ export default defineSchema({
         links: v.array(v.string()),
       }),
     ),
+    // Overrides for this member that the source file has caught up with
+    // ("redundant") or moved past ("stale"), from the latest sync, for
+    // `reviewList`. Shown nowhere: the overrides still apply. At most one per
+    // platform (four).
+    overrideFindings: v.optional(
+      v.array(
+        v.object({
+          platform: v.union(
+            v.literal("x"),
+            v.literal("facebook"),
+            v.literal("instagram"),
+            v.literal("youtube"),
+          ),
+          status: v.union(v.literal("redundant"), v.literal("stale")),
+          // The source's account on that platform that day, "" for none.
+          sourceUrl: v.string(),
+        }),
+      ),
+    ),
     // `recordFingerprint` of the suggested accounts, so a sync rewrites only
     // rows that changed, and `changedAt` says when this member's row last did.
     fingerprint: v.string(),
