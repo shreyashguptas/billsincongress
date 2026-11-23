@@ -3084,21 +3084,38 @@ anything site-wide must be set in both that file and `next.config.mjs`.
 
 ### Zone settings (dashboard only)
 
-These live in the Cloudflare dashboard, not in the repository. Audited and set on 3 Nov 2026
-(Free zone plan, Workers Paid account):
+These live in the Cloudflare dashboard, not in the repository. Audited and set on 3 Nov 2026,
+AI crawler settings and the second custom rule changed on 7 Nov 2026 (Free zone plan, Workers
+Paid account):
 
 - **Bots.** Bot Fight Mode is on: automated traffic Cloudflare cannot verify, including
   scrapers posing as Chrome, gets a challenge. It cannot be skipped per path, so anything that
   needs to reach the site from a script (curl, a monitor) is challenged too; verified search
   engines and link-preview bots pass. It went on because of a scraper on Alibaba and Tencent
   Cloud (`47.82.x`, `43.119.x`) making 10,000–17,000 requests an hour, a few hundred per IP.
-  AI Crawler access policies: Search and Agents (assistants fetching a page for a person) are
-  allowed; Training is blocked, enforcing what `app/robots.ts` asks.
+  AI Crawler access policies: Search, Agents (assistants fetching a page for a person) **and
+  Training are all "Allow"**; training crawlers are blocked one by one instead, in AI Crawl
+  Control → Security (GPTBot, ClaudeBot, CCBot, Bytespider, Amazonbot, FacebookBot,
+  Meta-ExternalAgent, Google-CloudVertexBot, PetalBot, Timpibot, TikTok Spider, ProRataInc,
+  Novellum, Anchor Browser, Cloudflare Crawler). That list overlaps `app/robots.ts` but is not
+  the same: the switch list only holds crawlers Cloudflare can identify, so `robots.ts` alone
+  covers anthropic-ai, Claude-Web, Google-Extended, Applebot-Extended, cohere-ai, Diffbot,
+  Omgilibot, ImagesiftBot and Webzio-Extended, while Google-CloudVertexBot, TikTok Spider,
+  ProRataInc, Novellum, Anchor Browser and Cloudflare Crawler are blocked only at Cloudflare.
+  These were exactly the crawlers the old Training setting blocked, minus the four below.
+  **Never set Training to "Block":** Cloudflare files Googlebot, BingBot, Applebot and Claude-User as
+  training crawlers too, so that setting blocks search engines. It did from 3 to 7 Nov 2026,
+  turning away about 36,000 Bing crawls in one week before it was found.
 - **Rate limit** (the Free plan's single rule): more than 100 requests in 10 s from one IP, outside
   `/_next/` and `/cdn-cgi/` and from anything but a verified bot, is blocked for 10 s. The slot
   previously held a leaked-password rule that could never match (the site has no passwords and
   the check was off).
-- **Custom rule:** scanner paths (`.php`, `.env`, `.git`, `/wp-` …) are blocked.
+- **Custom rules:** scanner paths (`.php`, `.env`, `.git`, `/wp-` …) are blocked. A second rule
+  gives a Managed Challenge to `/bills/*` requests with no referrer from outside the US, unless
+  Cloudflare verifies the bot (`not cf.client.bot`). It went on 7 Nov 2026 after a scraper posing
+  as desktop Chrome, from about 4,600 IPs mostly in China, Singapore and Hong Kong, read about
+  8,300 bill pages once each (30 Oct – 5 Nov). Because it runs JavaScript, it counted as about
+  9,000 "users" in PostHog.
 - **SSL/TLS:** Full (strict), always HTTPS, TLS 1.2 minimum, TLS 1.3 with 0-RTT, HTTP/3, ECH,
   DNSSEC on. HSTS is sent by the app (above), not the zone.
 - **Email:** Email Routing forwards `hi@` (the address on the privacy and terms pages). DMARC
