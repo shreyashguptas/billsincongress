@@ -4,9 +4,9 @@
  *
  * No government source lists members' social media. So two steps, daily:
  *
- * 1. `sync` (07:40 UTC) copies the congress-legislators project's two JSON
- *    files (current members, and their social media) from its GitHub Pages
- *    mirror, joins them in convex/memberAccountsParse.ts, applies our
+ * 1. `sync` (07:40 UTC) copies the congress-legislators project's two YAML
+ *    files (current members, and their social media) from its main branch
+ *    (`SOURCE_BASE`), joins them in convex/memberAccountsParse.ts, applies our
  *    reviewed fixes (convex/memberAccountOverrides.ts), and writes the
  *    SUGGESTED accounts to `memberAccounts`, only the rows that changed.
  * 2. `checkSites` (08:10 UTC) fetches each member's official .house.gov or
