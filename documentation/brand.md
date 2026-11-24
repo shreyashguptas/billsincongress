@@ -612,6 +612,13 @@ Patterns that appear on more than one page:
   wider than the screen, down to 320px at the default font and at a 20px one,
   and at 390px with a 24px one. The logo answers a tap over 44px each way even
   as the mark alone. Sticky, except under 500px tall.
+- **Header search, while it works** (`HeaderSearch`, `components/navigation.tsx`):
+  from Enter until the results page is on screen, the field's magnifier turns
+  into a spinning Lucide `Loader2` in `ink-2` (slowed, not stopped, under
+  `prefers-reduced-motion`), the emptied field reads "Searching…", and a
+  screen reader hears "Searching bills…". The old page stays up rather than
+  a skeleton: the field is where the reader is looking. On `/bills` there is
+  no wait to show: the list itself switches to its loading rows at once.
 - **Ask in the header** (below `lg`, in any window under 500px tall, and on a
   bill page at every width, `components/answers/header-ask.tsx`): a `ghost` `sm` button, Lucide
   `MessageSquare` and the word "Ask" in `ink`, just before the search. The

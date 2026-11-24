@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, Search, X } from 'lucide-react';
+import { Loader2, Menu, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { analytics } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { routes } from '@/lib/constants/routes';
 import { MAX_SEARCH_TEXT_LENGTH } from '@/lib/bill-query';
+import { headerSearchHref, headerSearchMove } from '@/lib/header-search';
 import { UserMenu } from '@/components/auth/user-menu';
 import { Logo } from '@/components/brand/logo';
 import { LengthLimitNote, useLengthLimit } from '@/components/brand/length-limit';
@@ -302,6 +303,9 @@ function SectionTabs({ isActive }: { isActive: (href: string) => boolean }) {
 function HeaderSearch({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [query, setQuery] = React.useState('');
+  // True from Enter until the results page is on screen. Without it nothing
+  // changed for the 1–4 s the server took, and readers searched again.
+  const [pending, startTransition] = React.useTransition();
   const noteId = React.useId();
   const { limit, nudging, onNudgeEnd } = useLengthLimit(MAX_SEARCH_TEXT_LENGTH, 'header_search');
 
@@ -309,7 +313,17 @@ function HeaderSearch({ compact = false }: { compact?: boolean }) {
     e.preventDefault();
     const q = query.trim();
     analytics.headerSearchSubmitted(q.length);
-    router.push(q ? `/bills?title=${encodeURIComponent(q)}` : '/bills');
+    const href = headerSearchHref(q);
+    // On /bills the list follows the address bar and loads the results itself,
+    // so writing the URL is enough (lib/header-search.ts says why a router
+    // navigation there left the old list up).
+    const move = headerSearchMove(window.location, href);
+    if (move === 'in-place') {
+      window.history.pushState(null, '', href);
+      // A navigation scrolled to the top; keep that, so a search typed from the
+      // sticky header far down the list shows its loading rows and results.
+      window.scrollTo(0, 0);
+    } else if (move === 'navigate') startTransition(() => router.push(href));
     setQuery('');
   }
 
@@ -330,14 +344,24 @@ function HeaderSearch({ compact = false }: { compact?: boolean }) {
         <label htmlFor="header-search" className="sr-only">
           Search bills
         </label>
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+        {pending ? (
+          <Loader2
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ink-2 motion-reduce:animate-[spin_1.5s_linear_infinite]"
+            aria-hidden="true"
+          />
+        ) : (
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden="true" />
+        )}
+        <span role="status" className="sr-only">
+          {pending ? 'Searching bills…' : ''}
+        </span>
         <Input
           id="header-search"
           type="search"
           value={query}
           onChange={(e) => setQuery(limit(e, query))}
           aria-describedby={noteId}
-          placeholder="Search bills, or S. 2878"
+          placeholder={pending ? 'Searching…' : 'Search bills, or S. 2878'}
           className="w-52 pl-9 text-sm header-xl:w-72"
         />
         {/* Floats under the box: the header has no room below it. */}
