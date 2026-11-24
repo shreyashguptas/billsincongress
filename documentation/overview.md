@@ -216,6 +216,7 @@ public/                    Icons, images, _headers, the IndexNow key file, sw.js
 | --- | --- |
 | `/` | Congress dashboard, one Congress at a time (`?congress=` switches) |
 | `/bills` | Filterable browser — 10 per page, max page 51, in the date order the Sort menu picks (see "/bills sort" below). Every URL filter is cut to what `bills.list` accepts first (see below). The numbered page links are server-rendered for the filters in the request URL, so a crawler can walk them; once the reader changes a filter in the browser, `BillsClient` replaces them with links built from its current filters and count (`billsPageHref` in `lib/bills/filter-url.ts`) |
+| `/search?q=` | GET — never a page: a 308 to `/bills?title=…`, carrying the words under `q`, `query` or `title` (`lib/search-redirect.ts`). Readers try it from browser search shortcuts; it matches the `SearchAction` in the site's JSON-LD |
 | `/bills/<billId>` | One bill. `billId` is `{number}{type}{congress}`, e.g. `261hr119` |
 | `/members/<bioguideId>` | One member: seat, party, confirmed official accounts, ten newest sponsored bills and ten newest cosponsorships in the current Congress (`members.getPage`). Only members in `memberAccounts` have a page; one out of office is `noindex` and shows no accounts. Every in-office member's page is in `/sitemap-0.xml` (`members.listInOfficeForSitemap`; on the deploy that first fills `memberAccounts` the file is built before the sync runs and is cached for a day, so the members join it the next day); readers reach it from the sponsor's and cosponsors' names on bill pages. Cached at the edge for signed-out readers, like `/bills` (`lib/cacheable-routes.ts`) |
 | `/bills/house`, `/bills/senate` | 2 chamber hubs |
@@ -1202,8 +1203,15 @@ the dock leave the page in view and leave it live.
 **Stepping aside.** A bill card inside an answer was always a working link, but on a phone the
 sheet covered the page it opened, so the tap read as doing nothing. `answer-panel.tsx` captures
 the click at the panel boundary and minimises *on the tap*, before the route commits — which
-also catches tapping the bill the reader is already on, where no route change ever fires. A
-`usePathname` effect backstops navigations that never pass through the panel. Because nothing
+also catches tapping the bill the reader is already on, where no route change ever fires. The
+router does nothing for a link to the current page, so the panel scrolls the page itself
+(`inPageTarget` in `lib/ask-panel-state.ts`): to the section after the link's `#`, or to the top.
+It also puts that `#` in the address bar and sends a `hashchange`, so the journey's steps unfold
+for `#bill-journey` as they do when the status card's "How it got here" link is followed.
+On a bill's page its own timeline and summary citations point at `#bill-journey` ("How it got
+here"; a bill with no journey drawn scrolls to the top, where "Where it stands" is) and
+`#bill-summary` (`sourceHref` in `lib/answer-format.ts`); citations of other bills keep the plain
+bill link. A `usePathname` effect backstops navigations that never pass through the panel. Because nothing
 unmounts, the thread's scroll position and the composer's draft survive. Focus moves to
 `<main>`, so a keyboard or screen-reader user lands on the page they just opened.
 
@@ -1923,8 +1931,10 @@ with the email typed beside the code unless the provider has an `authorize` chec
 code providers (`codeProvider` in `convex/emailCodes.ts`) have one, comparing the typed email
 with the account's, trimmed and lower-cased. Without it, a reader could redeem someone else's
 pending sign-up code under their own email and land in that account (found 27 Oct 2026; the
-password-reset flow had its own check in the library, sign-up verification did not).
-`convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
+password-reset flow had its own check in the library, sign-up verification did not). Since
+library 0.0.97 (GHSA-hmvv-g278-4x95) the library also refuses a code whose typed email is not
+exactly the account's, before `authorize` runs, so the forms' trimming and lower-casing is
+required, not optional. `convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
 
 **Google sign-in runs through billsincongress.com.** Google's account picker names the site
 it will send the reader back to, and the library serves that return page, and the page that
@@ -2702,7 +2712,8 @@ Things pnpm 12 does that bite if you do not know them:
 - **Security floors for deep dependencies live in `overrides`** in `pnpm-workspace.yaml` (pnpm 12
   ignores the old `pnpm.overrides` in `package.json`). Each entry selects only the vulnerable
   versions, such as `'glob@>=10.0.0 <10.5.0'`, so it stops doing anything once the parent package
-  moves past them; delete it then. A plain `pnpm update <name>` is enough when the parent's range
+  moves past them; delete it then. There are none today: that glob floor was deleted in November
+  2026, once `@opennextjs/aws` 4.2.0 stopped pulling in glob 10. A plain `pnpm update <name>` is enough when the parent's range
   already allows the fixed version, and needs no override.
 - **Next.js and `@opennextjs/cloudflare` move together.** Each adapter release names the Next
   versions it supports in its `next` peer range, and a Next the adapter does not know can build
