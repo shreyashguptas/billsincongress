@@ -90,11 +90,24 @@ describe("emailed codes are tied to the email they were sent to", () => {
     expect(await redeem(t, "attacker@example.com", "123456", RESET)).toBeNull();
   });
 
-  test("the email is compared the way the forms send it, ignoring case and spaces", async () => {
+  // Since @convex-dev/auth 0.0.97 (GHSA-hmvv-g278-4x95) the library itself
+  // refuses a code unless the email is exactly its account's, before our
+  // `authorize` runs. Every form sends the address trimmed and lower-cased
+  // (components/auth/*-form.tsx), which is how the account was stored, so
+  // readers are unaffected; an address that skipped that step is refused.
+  test("the email the forms send (trimmed, lower-cased) signs in its owner", async () => {
     const t = setup();
     const owner = await seedPendingCode(t, "owner@example.com", "123456", VERIFY);
-    const result = await redeem(t, " Owner@Example.com ", "123456", VERIFY);
+    const typed = " Owner@Example.com ";
+    const result = await redeem(t, typed.trim().toLowerCase(), "123456", VERIFY);
     expect(result?.userId).toBe(owner);
+  });
+
+  test("an address that was not normalised is refused, and the code kept", async () => {
+    const t = setup();
+    await seedPendingCode(t, "owner@example.com", "123456", VERIFY);
+    expect(await redeem(t, " Owner@Example.com ", "123456", VERIFY)).toBeNull();
+    expect(await codesLeft(t)).toBe(1);
   });
 
   test("a code with no email at all is refused", async () => {

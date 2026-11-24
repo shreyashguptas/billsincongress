@@ -1929,8 +1929,10 @@ with the email typed beside the code unless the provider has an `authorize` chec
 code providers (`codeProvider` in `convex/emailCodes.ts`) have one, comparing the typed email
 with the account's, trimmed and lower-cased. Without it, a reader could redeem someone else's
 pending sign-up code under their own email and land in that account (found 27 Oct 2026; the
-password-reset flow had its own check in the library, sign-up verification did not).
-`convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
+password-reset flow had its own check in the library, sign-up verification did not). Since
+library 0.0.97 (GHSA-hmvv-g278-4x95) the library also refuses a code whose typed email is not
+exactly the account's, before `authorize` runs, so the forms' trimming and lower-casing is
+required, not optional. `convex/emailCodes.spec.ts` runs the library's real redemption against two pending accounts.
 
 **Google sign-in runs through billsincongress.com.** Google's account picker names the site
 it will send the reader back to, and the library serves that return page, and the page that
