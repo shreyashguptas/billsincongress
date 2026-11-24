@@ -1206,6 +1206,8 @@ the click at the panel boundary and minimises *on the tap*, before the route com
 also catches tapping the bill the reader is already on, where no route change ever fires. The
 router does nothing for a link to the current page, so the panel scrolls the page itself
 (`inPageTarget` in `lib/ask-panel-state.ts`): to the section after the link's `#`, or to the top.
+It also puts that `#` in the address bar and sends a `hashchange`, so the journey's steps unfold
+for `#bill-journey` as they do when the status card's "How it got here" link is followed.
 On a bill's page its own timeline and summary citations point at `#bill-journey` ("How it got
 here"; a bill with no journey drawn scrolls to the top, where "Where it stands" is) and
 `#bill-summary` (`sourceHref` in `lib/answer-format.ts`); citations of other bills keep the plain

@@ -17,12 +17,24 @@ import { AskLauncher } from './ask-launcher';
 import { ResizeHandle } from './resize-handle';
 import { resetSwiped, useDragDismiss } from '@/hooks/use-drag-dismiss';
 
-/** Scroll the page to the element with this id, or to the top for ''. */
+/**
+ * Scroll the page to the element with this id, or to the top for ''.
+ *
+ * The id goes into the address bar as well, the way a plain `#id` link would
+ * put it there, and a `hashchange` is sent: sections that open on arrival
+ * listen for it (the journey's steps unfold for `#bill-journey`, see
+ * components/bills/bill-journey.tsx), so a cited timeline is not left folded.
+ * `history.state` is kept as is, because the Next router keeps its own state
+ * there.
+ */
 function scrollToSection(id: string) {
   const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
   const target = id ? document.getElementById(id) : null;
-  if (target) target.scrollIntoView({ behavior, block: 'start' });
-  else window.scrollTo({ top: 0, behavior });
+  if (target) {
+    window.history.replaceState(window.history.state, '', `#${id}`);
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    target.scrollIntoView({ behavior, block: 'start' });
+  } else window.scrollTo({ top: 0, behavior });
 }
 
 /**
