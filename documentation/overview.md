@@ -2702,7 +2702,8 @@ Things pnpm 12 does that bite if you do not know them:
 - **Security floors for deep dependencies live in `overrides`** in `pnpm-workspace.yaml` (pnpm 12
   ignores the old `pnpm.overrides` in `package.json`). Each entry selects only the vulnerable
   versions, such as `'glob@>=10.0.0 <10.5.0'`, so it stops doing anything once the parent package
-  moves past them; delete it then. A plain `pnpm update <name>` is enough when the parent's range
+  moves past them; delete it then. There are none today: that glob floor was deleted in November
+  2026, once `@opennextjs/aws` 4.2.0 stopped pulling in glob 10. A plain `pnpm update <name>` is enough when the parent's range
   already allows the fixed version, and needs no override.
 - **Next.js and `@opennextjs/cloudflare` move together.** Each adapter release names the Next
   versions it supports in its `next` peer range, and a Next the adapter does not know can build

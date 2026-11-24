@@ -38,7 +38,7 @@ export async function captureServerException(
   const client = createClient();
   if (!client) return;
   try {
-    client.captureException(error, distinctId, properties);
+    client.captureException(error, { distinctId, properties });
     await client.shutdown();
   } catch (err) {
     console.warn('[posthog] server exception capture failed:', err);
