@@ -271,11 +271,12 @@ export default function BillsClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A router navigation to /bills while already on /bills — the header search
-  // pushes /bills?title=… — keeps this component mounted, and useState ignores
-  // the new props, so the URL showed one search while the list showed the
-  // previous one. Our own history writes leave the URL matching the filters,
-  // so this only acts on a navigation from outside.
+  // A URL change on /bills from outside this component: the header search
+  // writes /bills?title=… with the History API (lib/header-search.ts), and any
+  // router navigation to /bills while already here keeps this component
+  // mounted with useState ignoring the new props. Either way the list adopts
+  // the address bar here. Our own history writes leave the URL matching the
+  // filters, so this only acts on a change from outside.
   const urlSearch = useSearchParams().toString();
   // `urlSearch` is only the trigger: it can lag our own history writes, so
   // the comparison reads the address bar itself.
