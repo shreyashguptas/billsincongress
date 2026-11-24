@@ -15,6 +15,7 @@ import type { PanelMode } from './ask-panel';
 import {
   INITIAL_ASK_STATE,
   askInHeaderOnly,
+  inPageTarget,
   launcherVisible,
   nextAskState,
   panelInert,
@@ -143,6 +144,18 @@ it('draws no closed pill where Ask is in the header, but keeps the way back', ()
   // phone's bar) is how the reader gets back to the conversation.
   assert.equal(launcherVisible('minimized', true), true);
   assert.equal(launcherVisible('open', true), false);
+});
+
+it('treats a link to the current page as a scroll to its section, or to the top', () => {
+  assert.equal(inPageTarget('/bills/6079hr119#timeline', '/bills/6079hr119'), 'timeline');
+  assert.equal(inPageTarget('/bills/6079hr119', '/bills/6079hr119'), '');
+  assert.equal(inPageTarget('#summary', '/bills/6079hr119'), 'summary');
+});
+
+it('leaves a link to another page, or to a query, to the router', () => {
+  assert.equal(inPageTarget('/bills/10908hr118', '/bills/6079hr119'), null);
+  assert.equal(inPageTarget('/bills/10908hr118#timeline', '/bills/6079hr119'), null);
+  assert.equal(inPageTarget('/bills?sponsor=Smith', '/bills'), null);
 });
 
 console.log(`\nask-panel-state: ${passed} passed, ${failures.length} failed`);
