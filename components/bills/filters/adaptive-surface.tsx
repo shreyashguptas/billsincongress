@@ -115,8 +115,16 @@ export function AdaptiveSurface({
    *
    * `wasOpen` keeps it from firing on mount, when nothing has closed and focus
    * belongs wherever the reader left it.
+   *
+   * It only takes focus back from `<body>` or from the closing shell (which
+   * stays mounted while it animates out). A click on another pill can close
+   * this picker after the other one has opened and focused its search field;
+   * pulling focus back here then counts as focus leaving the new picker, and
+   * Radix closes it again at once.
    */
   const wasOpen = useRef(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (open) {
       wasOpen.current = true;
@@ -124,6 +132,14 @@ export function AdaptiveSurface({
     }
     if (!wasOpen.current) return;
     wasOpen.current = false;
+    const focused = document.activeElement;
+    if (
+      focused &&
+      focused !== document.body &&
+      !popoverRef.current?.contains(focused) &&
+      !sheetRef.current?.contains(focused)
+    )
+      return;
     document.getElementById(triggerId)?.focus();
   }, [open, triggerId]);
 
@@ -152,6 +168,7 @@ export function AdaptiveSurface({
       <Popover open={open && layout === 'pointer'} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>{anchoredTrigger}</PopoverTrigger>
         <PopoverContent
+          ref={popoverRef}
           // Below the bar unless there is genuinely no room (see handleOpenChange).
           // Radix's own collision check measured the list at full height before
           // the max height applied, found no room, and flipped it up over the
@@ -178,6 +195,7 @@ export function AdaptiveSurface({
 
       <Sheet open={open && layout === 'touch'} onOpenChange={handleOpenChange}>
         <SheetContent
+          ref={sheetRef}
           side="bottom"
           hideClose
           // The sheet draws its own grab bar, first thing in it, and drags from
