@@ -5,9 +5,11 @@
  * navigation, which has the server render the whole page again before anything
  * on screen changes. The list stayed on the previous search for as long as
  * that took (1–4 s for a multi-word search on a warm server, 24 s once), with
- * no sign that anything was happening, and readers searched again: in October
- * 2026, 1 in 5 header searches from the list was followed by another within
- * 30 s, against 1 in 160 from other pages (PostHog Inbox report 01a18369).
+ * no sign that anything was happening, and readers searched again. In late
+ * October 1 in 5 header searches from the list was followed by another within
+ * 30 s (PostHog Inbox report 01a18369), but most of that was pages running a
+ * removed deploy's scripts, fixed on 1 Nov 2026; after that, 8 of 61 list
+ * sessions searched again, two of them after a silent 7 s and 24 s wait.
  *
  * The list does not need the server for this. `BillsClient` follows the address
  * bar (its `useSearchParams` effect), fetches the new results itself and shows
