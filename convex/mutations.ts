@@ -848,6 +848,7 @@ export const writeCongressSponsors = internalMutation({
         billCount: v.number(),
         sponsorBioguideId: v.optional(v.string()),
         spellings: v.optional(v.array(v.string())),
+        chamber: v.optional(v.union(v.literal("house"), v.literal("senate"))),
       }),
     ),
   },
@@ -866,6 +867,7 @@ export const writeCongressSponsors = internalMutation({
         billCount: s.billCount,
         sponsorBioguideId: s.sponsorBioguideId,
         spellings: s.spellings,
+        chamber: s.chamber,
       });
     }
   },
