@@ -267,7 +267,7 @@ below, not performance.
 
 | Trigger | What it refreshes |
 | --- | --- |
-| The **last** bill type of a sync ending, if the sync touched any bill | `recomputeCongressRollups`: stats, policy areas, sponsors, both chamber breakdowns. Each type's chain calls `mutations.finishSyncType` on every path that ends it (done, nothing to list, list fetch failed); exactly one gets `last: true`. Fires nightly off `daily-incremental-sync` (01:00 UTC) and weekly off `weekly-full-sync` (Sun 02:00 UTC), both **current** Congress only |
+| The **last** bill type of a sync ending, if the sync touched any bill | `recomputeCongressRollups`: stats, policy areas, sponsors, both chamber breakdowns. Each type's chain calls `mutations.finishSyncType` on every path that ends it (done, nothing to list, list fetch failed); exactly one gets `last: true`, and that call also closes the run's `syncSnapshots` row (`completed`, or `failed` if any type's fetch failed; overview.md, "Sync runs"). Fires nightly off `daily-incremental-sync` (01:00 UTC) and weekly off `weekly-full-sync` (Sun 02:00 UTC), both **current** Congress only |
 | Cron `daily-recompute-stats`, 04:00 UTC | `recomputeAllStats({ only: "current" })`: the current Congress's stats and both chamber breakdowns. A safety net for a sync that died part-way |
 | Cron `weekly-recompute-all-stats`, Thu 04:00 UTC | `recomputeAllStats({ only: "finished" })`: stats and both chamber breakdowns for every **finished** Congress, the day after Wednesday's repair pass |
 | `reconcileMissingBills` completing a Congress | `recomputeCongressRollups` |
