@@ -4,6 +4,14 @@ import type { AnswerRatedProps } from '@/lib/answer-rating';
 import { safeSessionStorage } from '@/lib/safe-storage';
 import type { SponsorMatchKind } from '@/lib/sponsor-match';
 import type { BillsSort } from '@/lib/bills/sort';
+import type {
+  SchoolSite,
+  SignupSource,
+  StudentBand,
+  TeacherLevel,
+  TeacherWant,
+  WouldPay,
+} from '@/lib/teachers';
 
 /** Every text box with a length limit, for `text_limit_reached`. */
 export type TextLimitSurface =
@@ -742,6 +750,34 @@ export const analytics = {
   /** Reader used the link in an alert email to stop all alert emails. */
   billAlertsUnsubscribed: (props: { removed: number }) =>
     capture('bill_alerts_unsubscribed', props),
+
+  // Teacher sign-up test (/teachers). Multiple-choice answers only: the
+  // teacher's email and school are stored in Convex and never sent here.
+
+  /** The "Teaching with this?" line was shown to a visit from a school site (once per visit). */
+  teacherBannerShown: (props: { route: string; school_site: SchoolSite }) =>
+    capture('teacher_banner_shown', props),
+
+  /** A visitor pressed "For teachers" on that line. */
+  teacherBannerClicked: (props: { route: string; school_site: SchoolSite }) =>
+    capture('teacher_banner_clicked', props),
+
+  /** A visitor closed the line; it does not come back on that browser. */
+  teacherBannerDismissed: (props: { route: string; school_site: SchoolSite }) =>
+    capture('teacher_banner_dismissed', props),
+
+  /** The /teachers form was saved in Convex. Never says whether the email had sent it before. */
+  teacherSignupSubmitted: (props: {
+    level: TeacherLevel;
+    students: StudentBand;
+    wants: TeacherWant[];
+    would_pay: WouldPay;
+    source: SignupSource;
+    school_site: SchoolSite | null;
+  }) => capture('teacher_signup_submitted', props),
+
+  /** The form could not be saved. `reason` is our error code, never what was typed. */
+  teacherSignupFailed: (props: { reason: string }) => capture('teacher_signup_failed', props),
 
   // Grounded answers
   //

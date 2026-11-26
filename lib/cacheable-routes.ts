@@ -17,7 +17,8 @@
 /** Routes whose anonymous response is identical for every visitor. */
 // `/pro` qualifies: its server HTML is the same for everyone, and the plan
 // state and subscribe buttons are rendered client-side from the reader's session.
-const PUBLIC_EXACT = new Set(['/', '/about', '/learn', '/privacy', '/pro', '/terms']);
+// `/teachers` too: the form is client-side, and the banner never renders on the server.
+const PUBLIC_EXACT = new Set(['/', '/about', '/learn', '/privacy', '/pro', '/teachers', '/terms']);
 
 /** Route trees whose anonymous responses are identical for every visitor. */
 // `/members/<id>` is the same for every visitor too: its accounts and bills come

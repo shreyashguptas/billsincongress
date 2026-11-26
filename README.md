@@ -14,6 +14,7 @@ Live at **[billsincongress.com](https://billsincongress.com)**
 - **Learn the words**: "committee", "cosponsor", "simple resolution" and the rest are underlined where they appear; tap one for its plain meaning. Each bill page also lists its words in plain English at the end.
 - **Ask questions** about bills in plain English. Answers come from the site's own records, with checked sources.
 - **Follow bills** on the optional Pro plan ($5 a month) and get an email when one moves.
+- **For teachers:** a page where teachers tell us which class tools they want, a test before any are built.
 
 It is free to read, has no ads, and needs no account.
 

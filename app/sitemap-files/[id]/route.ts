@@ -163,6 +163,7 @@ function staticPages(): SitemapUrl[] {
     { loc: `${SITE_URL}/learn` },
     { loc: `${SITE_URL}/about` },
     { loc: `${SITE_URL}/pro` },
+    { loc: `${SITE_URL}/teachers` },
     { loc: `${SITE_URL}/privacy` },
     { loc: `${SITE_URL}/terms` },
   ];

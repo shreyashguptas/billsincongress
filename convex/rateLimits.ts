@@ -82,6 +82,23 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: DAY,
   },
+  // New teacher sign-ups, for the whole site at once (key "all"): the form is
+  // public and anonymous. The test hopes for about ten in four weeks, so a day
+  // with more than 50 new emails is a script, and this keeps it from filling
+  // the table. A script can still use up the day for real teachers; a day it
+  // does shows as `teacher_signup_failed` with reason RATE_LIMITED (analytics.md).
+  teacherSignupsPerDay: {
+    kind: "fixed window",
+    rate: 50,
+    period: DAY,
+  },
+  // A teacher sending the form again (same email, key = the email) changes
+  // their row and does not use up the shared allowance above.
+  teacherSignupResendsPerDay: {
+    kind: "fixed window",
+    rate: 10,
+    period: DAY,
+  },
 });
 
 // Read-only chat quota status — never consumes a token. The UI calls it after

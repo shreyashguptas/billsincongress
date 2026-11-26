@@ -74,6 +74,8 @@ import type * as searchQuery from "../searchQuery.js";
 import type * as sponsorIdentity from "../sponsorIdentity.js";
 import type * as sync from "../sync.js";
 import type * as syncStatus from "../syncStatus.js";
+import type * as teacherSignupFields from "../teacherSignupFields.js";
+import type * as teacherSignups from "../teacherSignups.js";
 import type * as users from "../users.js";
 
 import type {
@@ -149,6 +151,8 @@ declare const fullApi: ApiFromModules<{
   sponsorIdentity: typeof sponsorIdentity;
   sync: typeof sync;
   syncStatus: typeof syncStatus;
+  teacherSignupFields: typeof teacherSignupFields;
+  teacherSignups: typeof teacherSignups;
   users: typeof users;
 }>;
 
