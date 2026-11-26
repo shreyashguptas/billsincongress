@@ -130,6 +130,18 @@ it("expands KOSA", () => {
   assert.equal(expandSearchAcronym("KOSA"), "kids online safety act");
 });
 
+it("expands BAAJA, a short name readers search that no title contains", () => {
+  // Measured against production on 2026-11-25: "baaja" found 0 bills and
+  // readers searching it got "No bills found"; the expansion finds 2.
+  for (const typed of ["BAAJA", "baaja", "B.A.A.J.A."]) {
+    assert.equal(
+      expandSearchAcronym(typed),
+      "bipartisan american affordability and jobs act",
+      `failed for ${JSON.stringify(typed)}`,
+    );
+  }
+});
+
 it("is case- and punctuation-insensitive", () => {
   for (const typed of ["ndaa", "Ndaa", "N.D.A.A.", " NDAA ", "n d a a"]) {
     assert.equal(

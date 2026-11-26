@@ -72,6 +72,7 @@ const ACRONYM_EXPANSIONS: Readonly<Record<string, string>> = {
   flsa: 'fair labor standards act', //           0 -> 4
   vawa: 'violence against women act', //         0 -> 2
   esea: 'elementary and secondary education act', // 0 -> 6
+  baaja: 'bipartisan american affordability and jobs act', // 0 -> 2 (2026-11-25)
 };
 
 /**
