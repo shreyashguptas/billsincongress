@@ -529,8 +529,9 @@ bill search.
 
 ### Server-side events
 
-`posthog-node` (`lib/posthog-server.ts`) is used for one thing only: reporting an exception
-from an API route, through `captureServerException`. No API route sends a product event.
+`posthog-node` (`lib/posthog-server.ts`) is used for one thing only: reporting a server-side
+exception, through `captureServerException`, from an API route or from `onRequestError` in
+`instrumentation.ts`. No API route sends a product event.
 The last one, `bill_chat_message_processed`, went with the old per-bill chat route on
 1 Oct 2026 (see "Retired events"). The header names the browser uses to tie a server event to
 its person (`x-posthog-distinct-id`, `x-posthog-session-id`) are still exported from that file;
@@ -540,6 +541,7 @@ traces below.
 | Event | Fired when | Properties | Where (file) | Status |
 |---|---|---|---|---|
 | `$exception` (server) | An API route threw | error details, `route` | `app/api/bill-chat/usage/route.ts` (called by the account page), `app/api/alerts/unsubscribe/route.ts`, `app/api/bills/query/route.ts` | Live |
+| `$exception` (server render) | A page, route or server action threw on the server and Next.js returned its error page (`notFound()` and redirects are left out). The browser reports the same failure only as React error #441; the shared `digest` joins the two. Added 2026-11-27 | error details, `route` (the route file path, e.g. `/bills/[id]`), `route_type`, `render_source`, `path` (no query string), `digest`. The distinct id comes from the reader's posthog-js cookie when there is one | `instrumentation.ts` (`onRequestError`) | Live |
 
 #### AI traces (every answer, from Convex)
 

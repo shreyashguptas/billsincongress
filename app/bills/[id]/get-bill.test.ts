@@ -63,6 +63,47 @@ async function main() {
       await assert.rejects(getBillPage("2hr119"), /fetch failed/);
     });
 
+    await it("a read that fails once is tried again, and the reader gets the bill", async () => {
+      const page = { bill: { id: "4hr119" }, extras: {} };
+      let calls = 0;
+      service.fetchBillPage = async () => {
+        calls++;
+        if (calls === 1) throw new Error("[Request ID: 2] Server Error");
+        return page;
+      };
+      assert.equal(await getBillPage("4hr119"), page);
+      assert.equal(calls, 2);
+    });
+
+    await it("a failure that lasts past the retry still reaches the error page", async () => {
+      let calls = 0;
+      service.fetchBillPage = async () => {
+        calls++;
+        throw new Error("[Request ID: 3] Server Error");
+      };
+      await assert.rejects(getBillPage("5hr119"), /Server Error/);
+      assert.equal(calls, 2);
+    });
+
+    await it("a bill that is gone when the retry asks is a 404", async () => {
+      let calls = 0;
+      service.fetchBillPage = async () => {
+        calls++;
+        throw new Error(calls === 1 ? "fetch failed" : "Bill not found");
+      };
+      assert.equal(await getBillPage("6hr119"), null);
+    });
+
+    await it("a bill Convex says does not exist is not asked for twice", async () => {
+      let calls = 0;
+      service.fetchBillPage = async () => {
+        calls++;
+        throw new Error("Bill not found");
+      };
+      assert.equal(await getBillPage("7hr119"), null);
+      assert.equal(calls, 1);
+    });
+
     await it("a bill that loads is returned as it came", async () => {
       const page = { bill: { id: "3hr119" }, extras: {} };
       service.fetchBillPage = async () => page;
