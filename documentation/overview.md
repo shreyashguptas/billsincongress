@@ -123,6 +123,7 @@ app/                       Next.js App Router — 21 page.tsx files
 
 middleware.ts              www redirect, the /account guard and Cache-Control (see Routes)
 instrumentation-client.ts  The one posthog.init() (documentation/analytics.md)
+instrumentation.ts         onRequestError: a server render failure goes to Error Tracking
 
 components/                Shared React components
   answers/                 The ask panel: provider, panel, thread, sources, work log, history;
@@ -750,11 +751,15 @@ returns the bill (exactly what `bills.getById` returns, for the share card) toge
 its journey and peers, reading the bill row once. They used to be two calls, `getById` and
 `getJourney`, each reading the bill, and the second read every topic row of the Congress to
 use one; see [Database cost](#database-cost). Only a bill Convex says does not exist is a
-404. Any other failure (Convex down, a server error, the network) is rethrown by
-`getBillPage` in `app/bills/[id]/get-bill.ts`, so the reader gets the error page with its
-"Try again" and the response is a 500, which tells a crawler to come back rather than to
-drop a real bill. Until October 2026 every failure was a 404: on 11 Oct a three-hour Convex
-outage told every reader and crawler that the bills they opened did not exist. Each part is
+404. Any other failure (Convex down, a server error, the network) makes `getBillPage` in
+`app/bills/[id]/get-bill.ts` ask once more after 500 ms, because most failures last a few
+seconds. If the second read also fails, `getBillPage` rethrows, so the reader gets the error
+page with its "Try again" and the response is a 500, which tells a crawler to come back
+rather than to drop a real bill. `onRequestError` in `instrumentation.ts` then records the
+server-side error in Error Tracking, with the digest the browser's React error #441 carries.
+Until October 2026 every failure was a 404: on 11 Oct a three-hour Convex outage told every
+reader and crawler that the bills they opened did not exist. The retry came in November 2026,
+after brief failures sent readers to the error page. Each part is
 null when it cannot be drawn honestly, and the page then draws the plain seven-step track and
 no dot field.
 

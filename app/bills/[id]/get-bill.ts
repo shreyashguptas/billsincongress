@@ -51,13 +51,26 @@ export interface BillPage {
 // and its "Try again" (a 5xx) rather than "Page not found" (a 404). On 11 Oct
 // 2026 a three-hour Convex outage told every reader, and every crawler, that
 // the real bills they opened did not exist.
+//
+// A failed read is tried once more before that, because most failures last a
+// few seconds: in November 2026 readers got the error page from blips that
+// had passed before they could press "Try again".
+const BILL_PAGE_RETRY_DELAY_MS = 500;
+
 export const getBillPage = cache(async (id: string): Promise<BillPage | null> => {
   if (!BILL_ID_PATTERN.test(id)) return null;
   try {
     return await billsService.fetchBillPage(id);
   } catch (error) {
     if (isBillNotFound(error)) return null;
-    console.error(`getBillPage(${id}) failed:`, error);
+    console.error(`getBillPage(${id}) failed, retrying once:`, error);
+  }
+  await new Promise((resolve) => setTimeout(resolve, BILL_PAGE_RETRY_DELAY_MS));
+  try {
+    return await billsService.fetchBillPage(id);
+  } catch (error) {
+    if (isBillNotFound(error)) return null;
+    console.error(`getBillPage(${id}) failed again:`, error);
     throw error;
   }
 });
