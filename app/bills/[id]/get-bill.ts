@@ -55,7 +55,7 @@ export interface BillPage {
 // A failed read is tried once more before that, because most failures last a
 // few seconds: in November 2026 readers got the error page from blips that
 // had passed before they could press "Try again".
-export const BILL_PAGE_RETRY_DELAY_MS = 500;
+const BILL_PAGE_RETRY_DELAY_MS = 500;
 
 export const getBillPage = cache(async (id: string): Promise<BillPage | null> => {
   if (!BILL_ID_PATTERN.test(id)) return null;
